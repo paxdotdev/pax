@@ -1,20 +1,33 @@
 
 
-use piet_web::WebRenderContext;
+pub use piet_web::WebRenderContext;
 pub use piet::Error;
 
-// Alias so that consumers need only import `carbon`
-use WebRenderContext as Context;
 
 
 
-pub struct Engine {
-    tick_and_render: fn(&mut Context) -> Result<(), Error>
+
+
+
+
+
+
+
+pub struct CarbonEngine {
+    // tick_and_render: fn(&mut Context) -> Result<(), Error>
 }
 
+pub fn get_engine() -> CarbonEngine {
+    return CarbonEngine::new();
+}
 
+impl CarbonEngine {
+    fn new() -> Self {
+        CarbonEngine {}
+    }
 
-pub fn get_engine() -> Engine {
-    return Engine::new();
+    pub fn tick_and_render (&self, mut _ctx: WebRenderContext) -> Result<(), Error> {
+        Ok(())
+    }
 }
 

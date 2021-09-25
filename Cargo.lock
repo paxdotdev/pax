@@ -23,6 +23,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "carbon-example"
+version = "0.0.1"
+dependencies = [
+ "carbon",
+ "console_error_panic_hook",
+ "piet",
+ "piet-web",
+ "wasm-bindgen",
+ "web-sys",
+]
+
+[[package]]
 name = "cfg-if"
 version = "0.1.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -105,18 +117,6 @@ dependencies = [
  "wasm-bindgen",
  "web-sys",
  "xi-unicode",
-]
-
-[[package]]
-name = "piet-web-example"
-version = "0.0.2"
-dependencies = [
- "carbon",
- "console_error_panic_hook",
- "piet",
- "piet-web",
- "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
