@@ -63,60 +63,39 @@ pub fn run() {
         .dyn_into::<web_sys::CanvasRenderingContext2d>()
         .unwrap();
 
-    // let sample = carbon SamplePicture::new(picture_0::SIZE, picture_0::draw);
-
-    // let sample = samples::get::<WebRenderContext>(SAMPLE_PICTURE_NO).unwrap();
     let dpr = window.device_pixel_ratio();
     canvas.set_width((canvas.offset_width() as f64 * dpr) as u32);
     canvas.set_height((canvas.offset_height() as f64 * dpr) as u32);
     let _ = context.scale(dpr, dpr);
 
     let mut piet_context  = WebRenderContext::new(context, window);
-    // sample.draw(&mut piet_context).unwrap();
-    // piet_context.finish().unwrap();
     let engine = carbon::get_engine();
-    console_log!("Hello!");
     drawing_loop(engine,piet_context);
 }
-//
-//
-// fn request_animation_frame(f: &Closure<dyn FnMut()>) {
-//     window()
-//         .request_animation_frame.as_ref().unchecked_ref()
-//         .expect("should register `requestAnimationFrame` OK");
-// }
 
-pub fn drawing_loop(engine: CarbonEngine, mut piet_context: WebRenderContext) -> Result<(), JsValue> {
-    engine.tick_and_render(piet_context).unwrap();
-    // browser_window().request_animation_frame(Closure::wrap(drawing_loop.as_ref);
-
-
-
+pub fn drawing_loop(mut engine: CarbonEngine, mut piet_context: WebRenderContext<'static>) -> Result<(), JsValue> {
+    engine.tick_and_render(&mut piet_context).unwrap();
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
 
-    let mut i = 0;
     *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
-        if i > 300 {
-            console_log!("All done!");
 
-            // Drop our handle to this closure so that it will get cleaned
-            // up once we return.
-            let _ = f.borrow_mut().take();
-            return;
-        }
+        // Keeping following sample re: elegant clean-up (from wasm-bindgen docs)
+        // if i == -1 {
+        //     console_log!("All done!");
+        //
+        //     // Drop our handle to this closure so that it will get cleaned
+        //     // up once we return.
+        //     let _ = f.borrow_mut().take();
+        //     return;
+        // }
 
-        // Set the body's text content to how many times this
-        // requestAnimationFrame callback has fired.
-        i += 1;
-        let msg = format!("requestAnimationFrame has been called {} times.", i);
-        console_log!("{}", msg);
-
-        // Schedule ourself for another requestAnimationFrame callback.
+        engine.tick_and_render(&mut piet_context).unwrap();
         request_animation_frame(f.borrow().as_ref().unwrap());
     }) as Box<dyn FnMut()>));
 
+    //kick off first rAF
     request_animation_frame(g.borrow().as_ref().unwrap());
 
     Ok(())
