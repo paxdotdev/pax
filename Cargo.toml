@@ -1,0 +1,11 @@
+[workspace]
+
+members = [
+    "carbon",
+    "examples/basic",
+]
+
+default-members = [
+    "carbon",
+    "examples/basic",
+]
