@@ -119,45 +119,41 @@ impl CarbonEngine {
 
     pub fn tick_and_render (&mut self, rc: &mut WebRenderContext) -> Result<(), Error> {
 
-        const speed : f64 = 4.0;
-
-        let hue = (((self.frames_elapsed + 1) as f64 * speed) as i64 % 360) as f64;
+        let hue = (((self.frames_elapsed + 1) as f64 * 2.0) as i64 % 360) as f64;
         let current_color = Color::hlc(hue, 75.0, 127.0);
         rc.clear(current_color);
 
-        // let bounce = ((self.frames_elapsed as f64) / 50.).sin() * 200.;
-        // let rect = Rect::new(250., 250., 250. + bounce, 250. + bounce);
+        for x in 0..20 {
+            for y in 0..12 {
 
-        // for x in 0..25 {
-        //     for y in 0..10 {
-        //
-        //     }
-        // }
+                let bp_width : f64 = 100.;
+                let bp_height : f64 = 100.;
+                let mut bez_path = BezPath::new();
+                bez_path.move_to(Point::new(-bp_width/2., -bp_height/2.));
+                bez_path.line_to(Point::new(bp_width/2., -bp_height/2.));
+                bez_path.line_to(Point::new(bp_width/2., bp_height/2.));
+                bez_path.line_to(Point::new(-bp_width/2., bp_height/2.));
+                bez_path.line_to(Point::new(-bp_width/2., -bp_height/2.));
+                bez_path.close_path();
 
-        let bp_width : f64 = 250.;
-        let bp_height : f64 = 250.;
-        let mut bez_path = BezPath::new();
-        bez_path.move_to(Point::new(-bp_width/2., -bp_height/2.));
-        bez_path.line_to(Point::new(bp_width/2., -bp_height/2.));
-        bez_path.line_to(Point::new(bp_width/2., bp_height/2.));
-        bez_path.line_to(Point::new(-bp_width/2., bp_height/2.));
-        bez_path.line_to(Point::new(-bp_width/2., -bp_height/2.));
-        bez_path.close_path();
-
-        let theta = self.frames_elapsed as f64 / 20.;
-        let transform = Affine::translate(Vec2::new(200., 200.))
-            * Affine::rotate(theta)
-            * Affine::scale(theta.sin());
+                let theta = self.frames_elapsed as f64 * (0.01 + (x as f64 + y as f64 + 10.) / 64.) / 10.;
+                let transform =
+                    Affine::translate(Vec2::new(x as f64 * bp_width, y as f64 * bp_height)) *
+                    Affine::rotate(theta) *
+                    Affine::scale(theta.sin() * 1.1)
+                ;
 
 
-        let transformed_bez_path = transform * bez_path;
+                let transformed_bez_path = transform * bez_path;
 
-        //TODO:  can we make a filled square with 4 cubic beziers?
-        //       this would allow the use of kurbo::Affine for transforms
+                let phased_hue = ((hue + 180.) as i64 % 360) as f64;
+                let phased_color = Color::hlc(phased_hue, 75., 127.);
+                rc.fill(transformed_bez_path, &phased_color);
+            }
+        }
 
-        let phased_hue = ((hue + 180.) as i64 % 360) as f64;
-        let phased_color = Color::hlc(phased_hue, 75., 127.);
-        rc.fill(transformed_bez_path, &phased_color);
+
+
 
         self.frames_elapsed = self.frames_elapsed + 1;
         Ok(())
