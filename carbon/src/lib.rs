@@ -2,7 +2,7 @@ pub use piet_web::WebRenderContext;
 pub use piet::{Error, Color};
 use piet::RenderContext;
 
-use kurbo::{Rect, Line, Point, Size, Affine};
+use kurbo::{Rect, BezPath, Point, Size, Affine, Vec2};
 
 pub struct CarbonEngine {
     // tick_and_render: fn(&mut Context) -> Result<(), Error>
@@ -125,17 +125,39 @@ impl CarbonEngine {
         let current_color = Color::hlc(hue, 75.0, 127.0);
         rc.clear(current_color);
 
-        let bounce = ((self.frames_elapsed as f64) / 50.).sin() * 200.;
-        let rect = Rect::new(250., 250., 250. + bounce, 250. + bounce);
+        // let bounce = ((self.frames_elapsed as f64) / 50.).sin() * 200.;
+        // let rect = Rect::new(250., 250., 250. + bounce, 250. + bounce);
 
-        // let transform = Affine::rotate(1.2)
+        // for x in 0..25 {
+        //     for y in 0..10 {
+        //
+        //     }
+        // }
+
+        let bp_width : f64 = 250.;
+        let bp_height : f64 = 250.;
+        let mut bez_path = BezPath::new();
+        bez_path.move_to(Point::new(-bp_width/2., -bp_height/2.));
+        bez_path.line_to(Point::new(bp_width/2., -bp_height/2.));
+        bez_path.line_to(Point::new(bp_width/2., bp_height/2.));
+        bez_path.line_to(Point::new(-bp_width/2., bp_height/2.));
+        bez_path.line_to(Point::new(-bp_width/2., -bp_height/2.));
+        bez_path.close_path();
+
+        let theta = self.frames_elapsed as f64 / 20.;
+        let transform = Affine::translate(Vec2::new(200., 200.))
+            * Affine::rotate(theta)
+            * Affine::scale(theta.sin());
+
+
+        let transformed_bez_path = transform * bez_path;
 
         //TODO:  can we make a filled square with 4 cubic beziers?
         //       this would allow the use of kurbo::Affine for transforms
 
         let phased_hue = ((hue + 180.) as i64 % 360) as f64;
         let phased_color = Color::hlc(phased_hue, 75., 127.);
-        rc.fill(rect, &phased_color);
+        rc.fill(transformed_bez_path, &phased_color);
 
         self.frames_elapsed = self.frames_elapsed + 1;
         Ok(())
