@@ -3,11 +3,6 @@ pub use piet::{Color, Error};
 use piet::RenderContext;
 pub use piet_web::WebRenderContext;
 
-pub struct CarbonEngine {
-    // tick_and_render: fn(&mut Context) -> Result<(), Error>
-    frames_elapsed: u32,
-    scene_graph: SceneGraph,
-}
 
 pub struct Stroke {
     width: f64,
@@ -19,23 +14,30 @@ pub struct Fill {
 }
 
 pub struct Group {
-    children: Vec<Box<dyn RenderNode>>
+    transform: Affine,
+    children: Vec<Box<dyn RenderNode>>,
 }
 
 trait RenderNode {
     fn get_children(self) -> Vec<Box<dyn RenderNode>>;
+    fn get_transform(self) -> &Affine;
 }
 
 impl RenderNode for Group {
     fn get_children(self) -> Vec<Box<dyn RenderNode>> {
         self.children
     }
+    fn get_transform(self) -> &Affine {
+        &self.transform
+    }
 }
-
 
 impl RenderNode for Rectangle {
     fn get_children(self) -> Vec<Box<dyn RenderNode>> {
         Vec::new()
+    }
+    fn get_transform(self) -> &Affine {
+        &self.transform
     }
 }
 
@@ -61,17 +63,21 @@ impl Rectangle {
             height,
             stroke,
             fill,
-            transform,
+            transform, //TODO:  this should probably be SugaryTransform
         }
     }
     fn render(ctx: WebRenderContext) {
-        // ctx.d
-        // let
     }
 }
 
+// Public method for consumption by engine chassis
 pub fn get_engine() -> CarbonEngine {
     return CarbonEngine::new();
+}
+
+pub struct CarbonEngine {
+    frames_elapsed: u32,
+    scene_graph: SceneGraph,
 }
 
 impl CarbonEngine {
@@ -103,15 +109,13 @@ impl CarbonEngine {
                             fill: Fill {
                                 solid: Color::rgb8(255, 255, 0),
                             },
-                            transform: Affine::default(),
+                            transform: Affine::translate(Point::new(300.0,300.0)),
                         })
                     ]
                 }
             },
         }
     }
-
-
 
     fn render_scene_graph(&self) -> Result<(), Error> {
         // hello world scene graph
@@ -122,19 +126,18 @@ impl CarbonEngine {
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
 
-
-
-        self.recurse_render_scene_graph(&self.scene_graph.root);
+        self.recurse_render_scene_graph(&self.scene_graph.root, &Affine::default());
         Ok(())
     }
 
-    fn recurse_render_scene_graph(&self, drawable: &impl RenderNode) -> Result<(), Error> {
+    fn recurse_render_scene_graph(&self, node: &impl RenderNode, accumulated_transform: &Affine) -> Result<(), Error> {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done
 
+        let new_accumulated_transform = accumulated_transform * node.get_transform()
 
         Ok(())
     }
@@ -144,13 +147,6 @@ impl CarbonEngine {
         rc.clear(Color::rgb8(255, 255, 0));
 
         self.render_scene_graph();
-
-        // traverse_scene_graph
-        //  - accumulate transforms
-        //  - draw drawables, * transforms
-        //  - support text
-        //  - support images
-        //  - support table, parameterized children (e.g. cell content)
 
         Ok(())
     }
