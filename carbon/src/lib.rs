@@ -15,29 +15,29 @@ pub struct Fill {
 
 pub struct Group {
     transform: Affine,
-    children: Vec<Box<dyn RenderNode>>,
+    children: Vec<Box<&dyn RenderNode>>,
 }
 
 trait RenderNode {
-    fn get_children(self) -> Vec<Box<dyn RenderNode>>;
-    fn get_transform(self) -> &Affine;
+    fn get_children(self) -> Vec<Box<&dyn RenderNode>>;
+    fn get_transform(self) -> Affine;
 }
 
 impl RenderNode for Group {
-    fn get_children(self) -> Vec<Box<dyn RenderNode>> {
+    fn get_children(self) -> Vec<Box<&dyn RenderNode>> {
         self.children
     }
-    fn get_transform(self) -> &Affine {
-        &self.transform
+    fn get_transform(self) -> Affine {
+        self.transform
     }
 }
 
 impl RenderNode for Rectangle {
-    fn get_children(self) -> Vec<Box<dyn RenderNode>> {
+    fn get_children(self) -> Vec<Box<&dyn RenderNode>> {
         Vec::new()
     }
-    fn get_transform(self) -> &Affine {
-        &self.transform
+    fn get_transform(self) -> Affine {
+        self.transform
     }
 }
 
@@ -86,8 +86,9 @@ impl CarbonEngine {
             frames_elapsed: 0,
             scene_graph: SceneGraph {
                 root: Group {
+                    transform: Affine::default(),
                     children: vec![
-                        Box::new(Rectangle {
+                        Box::new(&Rectangle {
                             width: 200.0,
                             height: 200.0,
                             stroke: Stroke {
@@ -99,7 +100,7 @@ impl CarbonEngine {
                             },
                             transform: Affine::default(),
                         }),
-                        Box::new(Rectangle {
+                        Box::new(&Rectangle {
                             width: 100.0,
                             height: 100.0,
                             stroke: Stroke {
@@ -109,7 +110,7 @@ impl CarbonEngine {
                             fill: Fill {
                                 solid: Color::rgb8(255, 255, 0),
                             },
-                            transform: Affine::translate(Point::new(300.0,300.0)),
+                            transform: Affine::translate(Vec2{x: 300.0, y:300.0}),
                         })
                     ]
                 }
@@ -125,19 +126,37 @@ impl CarbonEngine {
 
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
-
-        self.recurse_render_scene_graph(&self.scene_graph.root, &Affine::default());
+        let root = &self.scene_graph.root;
+        &self.recurse_render_scene_graph(&Box::new(&self.scene_graph.root), &Affine::default());
         Ok(())
     }
 
-    fn recurse_render_scene_graph(&self, node: &impl RenderNode, accumulated_transform: &Affine) -> Result<(), Error> {
+    fn recurse_render_scene_graph(&self, node: &Box<&dyn RenderNode>, accumulated_transform: &Affine) -> Result<(), Error> {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done
 
-        let new_accumulated_transform = accumulated_transform * node.get_transform()
+        let new_accumulated_transform = *accumulated_transform * node.get_transform();
+
+        let children = node.get_children();
+
+        if children.len() == 0 {
+            //this is a leaf node.  render it.
+
+        } else { //keep recursing
+            for i in (0..children.len() - 1).rev() {
+                //note that we're iterating starting from the last child
+                let child = children.get(i);
+                match child {
+                    None => { panic!() },
+                    Some(child) => {
+                       &self.recurse_render_scene_graph(child, &new_accumulated_transform);
+                    }
+                }
+            }
+        }
 
         Ok(())
     }
