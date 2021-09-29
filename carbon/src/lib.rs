@@ -23,23 +23,19 @@ pub struct Group {
 }
 
 trait RenderNode {
-    fn get_children(&self) -> &Vec<Box<dyn RenderNode>>;
+    fn get_children(self) -> Vec<Box<dyn RenderNode>>;
 }
 
 impl RenderNode for Group {
-    fn get_children(&self) -> &Vec<Box<dyn RenderNode>> {
-        &self.children
+    fn get_children(self) -> Vec<Box<dyn RenderNode>> {
+        self.children
     }
 }
 
-static NO_CHILDREN : Vec<Box<dyn RenderNode>> = Vec::new();
 
 impl RenderNode for Rectangle {
-    fn get_children(&self) -> &Vec<Box<dyn RenderNode>> {
-
-
-        return &NO_CHILDREN;
-
+    fn get_children(self) -> Vec<Box<dyn RenderNode>> {
+        Vec::new()
     }
 }
 
