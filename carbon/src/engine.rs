@@ -1,4 +1,4 @@
-use std::cell::{Ref, RefCell};
+use std::cell::{RefCell};
 
 use kurbo::{
     BezPath,
@@ -173,9 +173,9 @@ impl CarbonEngine {
         match &mut node.get_children_mut() {
             Some(children) => {
                 //keep recursing
-                for i in (0..children.len()) {
+                for i in 0..children.len() {
                     //note that we're iterating starting from the last child
-                    let mut child = children.get_mut(i); //TODO: ?-syntax
+                    let child = children.get_mut(i); //TODO: ?-syntax
                     match child {
                         None => { return },
                         Some(child) => {

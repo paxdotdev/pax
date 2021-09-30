@@ -3,8 +3,7 @@ use piet_web::{WebRenderContext};
 use piet::{Color, StrokeStyle, RenderContext};
 use kurbo::{Affine, BezPath, Point};
 
-use crate::{Variable, CarbonEngine, Property};
-use std::borrow::Cow;
+use crate::{Variable, Property};
 
 pub struct SceneGraph {
     pub root: Box<dyn RenderNode>
@@ -53,7 +52,7 @@ pub struct Stroke {
 }
 
 pub struct Rectangle {
-    pub width: Box<Property<f64>>,
+    pub width: Box<dyn Property<f64>>,
     pub height: f64,
     pub transform: Affine,
     pub stroke: Stroke,
