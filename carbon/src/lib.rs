@@ -54,7 +54,6 @@ impl RenderNode for Rectangle {
         let transformed_bez_path = *transform * bez_path;
 
         let phased_color = Color::hlc(127., 75., 127.);
-        rc.clear(Color::rgb8(0,0,0));
         rc.fill(transformed_bez_path, &phased_color);
     }
 }
@@ -82,9 +81,19 @@ impl CarbonEngine {
                     transform: Affine::default(),
                     children: vec![
                         Box::new(Rectangle {
+                            width: 50.0,
+                            height: 50.0,
+                            transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
+                        }),
+                        Box::new(Rectangle {
                             width: 100.0,
                             height: 100.0,
-                            transform: Affine::translate(Vec2 { x: 300.0, y: 300.0 }),
+                            transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
+                        }),
+                        Box::new(Rectangle {
+                            width: 250.0,
+                            height: 250.0,
+                            transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
                         }),
                     ],
                 }),
@@ -111,7 +120,7 @@ impl CarbonEngine {
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done
 
-        let new_accumulated_transform = *accumulated_transform * *node.get_transform();
+        let new_accumulated_transform = *node.get_transform() * *accumulated_transform;
 
         match node.get_children() {
             Some(children) => {
@@ -120,10 +129,9 @@ impl CarbonEngine {
                     //note that we're iterating starting from the last child
                     let child = children.get(i); //TODO: ?-syntax
                     match child {
-                        None => { panic!() },
+                        None => { return Ok(()) },
                         Some(child) => {
                             &self.recurse_render_scene_graph(rc, child, &new_accumulated_transform);
-                            return Ok(());
                         }
                     }
                 }
@@ -131,7 +139,6 @@ impl CarbonEngine {
             None => {
                 //this is a leaf node.  render it & return.
                 node.render(rc, &new_accumulated_transform);
-                return Ok(())
             }
         }
 
@@ -147,6 +154,7 @@ impl CarbonEngine {
         rc.clear(Color::rgb8(255, 255, 0));
 
         self.render_scene_graph(rc);
+        self.frames_elapsed = self.frames_elapsed + 1;
 
         Ok(())
     }
