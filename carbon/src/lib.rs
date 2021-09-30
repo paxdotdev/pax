@@ -8,6 +8,7 @@ trait RenderNode
 {
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
     fn get_transform(&self) -> &Affine;
+    fn render(&self, rc: &mut WebRenderContext, transform: &Affine);
 }
 
 struct Group {
@@ -22,6 +23,7 @@ impl RenderNode for Group {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
+    fn render(&self, rc: &mut WebRenderContext, transform: &Affine) {}
 }
 
 struct Rectangle {
@@ -36,6 +38,24 @@ impl RenderNode for Rectangle {
     }
     fn get_transform(&self) -> &Affine {
         &self.transform
+    }
+    fn render(&self, rc: &mut WebRenderContext, transform: &Affine) {
+
+        let bp_width: f64 = self.width;
+        let bp_height: f64 = self.height;
+        let mut bez_path = BezPath::new();
+        bez_path.move_to(Point::new(-bp_width / 2., -bp_height / 2.));
+        bez_path.line_to(Point::new(bp_width / 2., -bp_height / 2.));
+        bez_path.line_to(Point::new(bp_width / 2., bp_height / 2.));
+        bez_path.line_to(Point::new(-bp_width / 2., bp_height / 2.));
+        bez_path.line_to(Point::new(-bp_width / 2., -bp_height / 2.));
+        bez_path.close_path();
+
+        let transformed_bez_path = *transform * bez_path;
+
+        let phased_color = Color::hlc(127., 75., 127.);
+        rc.clear(Color::rgb8(0,0,0));
+        rc.fill(transformed_bez_path, &phased_color);
     }
 }
 
@@ -64,7 +84,7 @@ impl CarbonEngine {
                         Box::new(Rectangle {
                             width: 100.0,
                             height: 100.0,
-                            transform: Affine::translate(Vec2 { x: 300.0, y: 300.0 }) * Affine::rotate(1.5),
+                            transform: Affine::translate(Vec2 { x: 300.0, y: 300.0 }),
                         }),
                     ],
                 }),
@@ -72,7 +92,7 @@ impl CarbonEngine {
         }
     }
 
-    fn render_scene_graph(&self) -> Result<(), Error> {
+    fn render_scene_graph(&self, rc: &mut WebRenderContext) -> Result<(), Error> {
         // hello world scene graph
         //           (root)
         //           /    \
@@ -80,11 +100,11 @@ impl CarbonEngine {
 
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
-        self.recurse_render_scene_graph(&self.scene_graph.root, &Affine::default());
+        self.recurse_render_scene_graph(rc, &self.scene_graph.root, &Affine::default());
         Ok(())
     }
 
-    fn recurse_render_scene_graph(&self, node: &Box<dyn RenderNode>, accumulated_transform: &Affine) -> Result<(), Error> {
+    fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine) -> Result<(), Error> {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
@@ -96,13 +116,13 @@ impl CarbonEngine {
         match node.get_children() {
             Some(children) => {
                 //keep recursing
-                for i in (0..children.len() - 1).rev() {
+                for i in (0..children.len()).rev() {
                     //note that we're iterating starting from the last child
                     let child = children.get(i); //TODO: ?-syntax
                     match child {
                         None => { panic!() },
                         Some(child) => {
-                            &self.recurse_render_scene_graph(child, &new_accumulated_transform);
+                            &self.recurse_render_scene_graph(rc, child, &new_accumulated_transform);
                             return Ok(());
                         }
                     }
@@ -110,7 +130,8 @@ impl CarbonEngine {
             },
             None => {
                 //this is a leaf node.  render it & return.
-
+                node.render(rc, &new_accumulated_transform);
+                return Ok(())
             }
         }
 
@@ -125,7 +146,7 @@ impl CarbonEngine {
     pub fn tick_and_render(&mut self, rc: &mut WebRenderContext) -> Result<(), Error> {
         rc.clear(Color::rgb8(255, 255, 0));
 
-        self.render_scene_graph();
+        self.render_scene_graph(rc);
 
         Ok(())
     }
