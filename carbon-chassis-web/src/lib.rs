@@ -77,7 +77,7 @@ pub fn log_wrapper(msg: &str) {
     console_log!("{}", msg);
 }
 
-pub fn render_loop(mut engine: CarbonEngine, mut piet_context: WebRenderContext<'static>) -> Result<(), JsValue> {
+pub fn render_loop(mut engine: CarbonEngine, mut piet_context: WebRenderContext<'static>) {
     engine.tick_and_render(&mut piet_context).unwrap();
 
     let f = Rc::new(RefCell::new(None));
@@ -99,5 +99,4 @@ pub fn render_loop(mut engine: CarbonEngine, mut piet_context: WebRenderContext<
     //kick off first rAF
     request_animation_frame(g.borrow().as_ref().unwrap());
 
-    Ok(())
 }

@@ -17,7 +17,7 @@ impl RenderNode for Group {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn render(&self, rc: &mut WebRenderContext, transform: &Affine) {}
+    fn render(&self, _: &mut WebRenderContext, _: &Affine) {}
 }
 
 pub struct Stroke {

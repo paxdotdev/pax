@@ -137,11 +137,12 @@ impl CarbonEngine {
         }
     }
 
+    #[allow(dead_code)]
     fn log(&self, msg: &str) {
         (self.logger)(msg);
     }
 
-    fn render_scene_graph(&self, rc: &mut WebRenderContext) -> Result<(), Error> {
+    fn render_scene_graph(&self, rc: &mut WebRenderContext) {
         // hello world scene graph
         //           (root)
         //           /    \
@@ -150,10 +151,9 @@ impl CarbonEngine {
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
         self.recurse_render_scene_graph(rc, &self.scene_graph.root, &Affine::default());
-        Ok(())
     }
 
-    fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine) -> Result<(), Error> {
+    fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine)  {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
@@ -169,7 +169,7 @@ impl CarbonEngine {
                     //note that we're iterating starting from the last child
                     let child = children.get(i); //TODO: ?-syntax
                     match child {
-                        None => { return Ok(()) },
+                        None => { return },
                         Some(child) => {
                             &self.recurse_render_scene_graph(rc, child, &new_accumulated_transform);
                         }
@@ -187,7 +187,6 @@ impl CarbonEngine {
         //TODO: Now that children have been rendered, if there's rendering to be done at this node,
         //      (e.g. for layouts, perhaps virtual nodes like $repeat), do that rendering here
 
-        Ok(())
     }
 
 
