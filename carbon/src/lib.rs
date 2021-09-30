@@ -13,18 +13,18 @@ pub struct Fill {
     solid: Color,
 }
 
-pub struct Group {
+pub struct Group<'a> {
     transform: Affine,
-    children: Vec<Box<&dyn RenderNode>>,
+    children: Vec<Box<&'a dyn RenderNode<'a>>>,
 }
 
-trait RenderNode {
-    fn get_children(self) -> Vec<Box<&dyn RenderNode>>;
+trait RenderNode<'a> {
+    fn get_children(self) -> Vec<Box<&'static dyn RenderNode<'a>>>;
     fn get_transform(self) -> Affine;
 }
 
-impl RenderNode for Group {
-    fn get_children(self) -> Vec<Box<&dyn RenderNode>> {
+impl<'a> RenderNode<'a> for Group<'a> {
+    fn get_children(self) -> Vec<Box<&'a dyn RenderNode<'a>>> {
         self.children
     }
     fn get_transform(self) -> Affine {
@@ -32,8 +32,8 @@ impl RenderNode for Group {
     }
 }
 
-impl RenderNode for Rectangle {
-    fn get_children(self) -> Vec<Box<&dyn RenderNode>> {
+impl<'a> RenderNode<'a> for Rectangle {
+    fn get_children(self) -> Vec<Box<&'a dyn RenderNode<'a>>> {
         Vec::new()
     }
     fn get_transform(self) -> Affine {
@@ -41,8 +41,8 @@ impl RenderNode for Rectangle {
     }
 }
 
-pub struct SceneGraph {
-    root: Group
+pub struct SceneGraph<'a> {
+    root: Group<'a>
 }
 
 // base class for scene graph entities
@@ -54,7 +54,6 @@ pub struct Rectangle {
     transform: Affine,
 }
 
-//TODO:  decorate with renderable trait
 //TODO:  organize alongside other nodes in fs, modules
 impl Rectangle {
     fn new(width: f64, height: f64, stroke: Stroke, fill: Fill, transform: Affine) -> Self {
@@ -71,47 +70,52 @@ impl Rectangle {
 }
 
 // Public method for consumption by engine chassis
-pub fn get_engine() -> CarbonEngine {
+pub fn get_engine() -> CarbonEngine<'a> {
     return CarbonEngine::new();
 }
 
-pub struct CarbonEngine {
+pub struct CarbonEngine<'a> {
     frames_elapsed: u32,
-    scene_graph: SceneGraph,
+    scene_graph: SceneGraph<'a>,
 }
 
-impl CarbonEngine {
+impl<'a> CarbonEngine<'a> {
     fn new() -> Self {
+
+        let rect_1 = Rectangle {
+            width: 200.0,
+            height: 200.0,
+            stroke: Stroke {
+                width: 1.0,
+                solid: Color::rgb8(255, 0, 0),
+            },
+            fill: Fill {
+                solid: Color::rgb8(0, 255, 0),
+            },
+            transform: Affine::default(),
+        };
+
+        let rect_2 = Rectangle {
+            width: 100.0,
+            height: 100.0,
+            stroke: Stroke {
+                width: 1.0,
+                solid: Color::rgb8(255, 0, 255),
+            },
+            fill: Fill {
+                solid: Color::rgb8(255, 255, 0),
+            },
+            transform: Affine::translate(Vec2{x: 300.0, y:300.0}),
+        };
+
         CarbonEngine {
             frames_elapsed: 0,
             scene_graph: SceneGraph {
                 root: Group {
-                    transform: Affine::default(),
+                    transform: Affine::rotate(1.5),
                     children: vec![
-                        Box::new(&Rectangle {
-                            width: 200.0,
-                            height: 200.0,
-                            stroke: Stroke {
-                                width: 1.0,
-                                solid: Color::rgb8(255, 0, 0),
-                            },
-                            fill: Fill {
-                                solid: Color::rgb8(0, 255, 0),
-                            },
-                            transform: Affine::default(),
-                        }),
-                        Box::new(&Rectangle {
-                            width: 100.0,
-                            height: 100.0,
-                            stroke: Stroke {
-                                width: 1.0,
-                                solid: Color::rgb8(255, 0, 255),
-                            },
-                            fill: Fill {
-                                solid: Color::rgb8(255, 255, 0),
-                            },
-                            transform: Affine::translate(Vec2{x: 300.0, y:300.0}),
-                        })
+                        Box::new(&rect_1 ),
+                        Box::new(&rect_2 )
                     ]
                 }
             },
@@ -145,7 +149,8 @@ impl CarbonEngine {
         if children.len() == 0 {
             //this is a leaf node.  render it.
 
-        } else { //keep recursing
+        } else {
+            //keep recursing
             for i in (0..children.len() - 1).rev() {
                 //note that we're iterating starting from the last child
                 let child = children.get(i);
