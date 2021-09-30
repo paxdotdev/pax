@@ -2,12 +2,12 @@ pub use kurbo::{Affine};
 pub use piet::{Color, StrokeStyle, Error};
 
 mod engine;
-mod scene_graph;
 mod rendering;
+mod expressions;
 
 pub use crate::engine::*;
-pub use crate::scene_graph::*;
 pub use crate::rendering::*;
+pub use crate::expressions::*;
 
 /*
 TODO:
@@ -16,15 +16,19 @@ TODO:
     [x] Refactor web chassis
     [x] Logging
     [x] Stroke, color, fill
-    [ ] Sizing + resizing support
+    [ ] Sizing + (browser) resizing support
         [ ] Transform.align
     [ ] Transform.origin
     [ ] Ellipse
     [x] Clean up warnings
     [ ] Expression engine
-        [ ] state & scopes
-        [ ] parser & syntax
-        [ ] dependency graph
+        [x] variables, declaration & storage
+        [x] node IDs
+        [ ] summonables
+            [ ] nested state access & access control (descendent vs ancestor)
+            [ ] build-in vars like frame count
+        [ ] parser & syntax (or MVP rust closures + manifest of deps)
+
     [ ] Text prefabs + support layer for Web adapter
         [ ] Clipping
     [ ] Layouts (stacks)
@@ -36,12 +40,18 @@ TODO:
     [ ] Gradients
         [ ] Multiple (stacked, polymorphic) fills
     [ ] De/serializing for BESTful format
+    [ ] Expressions
+        [ ] control flow ($repeat, $if)
+        [ ] dependency graph + caching
     [ ] Tests
     [ ] Authoring tool
         [ ] Drawing tools
         [ ] Layout-building tools
 === LOW
     [ ] Transform.shear
+    [ ] Expression pre-compiler
+        [ ] Enforce uniqueness and valid node/var naming, e.g. for `my_node.var.name`
+        [ ] Parser for custom expression lang
     [ ] Debugging chassis
     [ ] Perf-optimize Rectangle (assuming BezPath is inefficient)
  */

@@ -1,14 +1,4 @@
-use crate::{
-    SceneGraph,
-    Rectangle,
-    Affine,
-    Stroke,
-    Color,
-    StrokeStyle,
-    Group,
-    Error,
-    RenderNode,
-};
+use crate::{SceneGraph, Rectangle, Affine, Stroke, Color, StrokeStyle, Group, Error, RenderNode, Variable, PolymorphicValue};
 
 use kurbo::{
     Vec2,
@@ -38,9 +28,17 @@ impl CarbonEngine {
             frames_elapsed: 0,
             scene_graph: SceneGraph {
                 root: Box::new(Group {
+                    id: String::from("root"),
+                    variables: vec![
+                        Variable{
+                            name: String::from("rotation"),
+                            value: PolymorphicValue {float: 1.2},
+                        },
+                    ],
                     transform: Affine::default(),
                     children: vec![
                         Box::new(Rectangle {
+                            id: String::from("rect_1"),
                             width: 50.0,
                             height: 50.0,
                             fill: Color::hlc(0.0, 75.0, 127.0),
@@ -52,6 +50,7 @@ impl CarbonEngine {
                             },
                         }),
                         Box::new(Rectangle {
+                            id: String::from("rect_2"),
                             width: 100.0,
                             height: 100.0,
                             fill: Color::hlc(40.0, 75.0, 127.0),
@@ -63,6 +62,7 @@ impl CarbonEngine {
                             },
                         }),
                         Box::new(Rectangle {
+                            id: String::from("rect_3"),
                             width: 250.0,
                             height: 250.0,
                             fill: Color::hlc(80.0, 75.0, 127.0),
@@ -74,9 +74,12 @@ impl CarbonEngine {
                             },
                         }),
                         Box::new(Group {
+                            id: String::from("group_1"),
+                            variables: vec![],
                             transform: Affine::translate(Vec2{x: 800.0, y:-200.0}),
                             children: vec![
                                 Box::new(Rectangle {
+                                    id: String::from("rect_4"),
                                     width: 50.0,
                                     height: 50.0,
                                     fill: Color::hlc(120.0, 75.0, 127.0),
@@ -88,6 +91,7 @@ impl CarbonEngine {
                                     },
                                 }),
                                 Box::new(Rectangle {
+                                    id: String::from("rect_5"),
                                     width: 100.0,
                                     height: 100.0,
                                     fill: Color::hlc(160.0, 75.0, 127.0),
@@ -99,6 +103,7 @@ impl CarbonEngine {
                                     },
                                 }),
                                 Box::new(Rectangle {
+                                    id: String::from("rect_6"),
                                     width: 250.0,
                                     height: 250.0,
                                     fill: Color::hlc(200.0, 75.0, 127.0),
@@ -112,9 +117,12 @@ impl CarbonEngine {
                             ],
                         }),
                         Box::new(Group {
+                            id: String::from("group_2"),
+                            variables: vec![],
                             transform: Affine::translate(Vec2{x: 400.0, y:-100.0}),
                             children: vec![
                                 Box::new(Rectangle {
+                                    id: String::from("rect_7"),
                                     width: 50.0,
                                     height: 50.0,
                                     fill: Color::hlc(240.0, 75.0, 127.0),
@@ -126,6 +134,7 @@ impl CarbonEngine {
                                     },
                                 }),
                                 Box::new(Rectangle {
+                                    id: String::from("rect_8"),
                                     width: 100.0,
                                     height: 100.0,
                                     fill: Color::hlc(280.0, 75.0, 127.0),
@@ -137,6 +146,7 @@ impl CarbonEngine {
                                     },
                                 }),
                                 Box::new(Rectangle {
+                                    id: String::from("rect_9"),
                                     width: 250.0,
                                     height: 250.0,
                                     fill: Color::hlc(320.0, 75.0, 127.0),

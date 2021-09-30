@@ -3,11 +3,26 @@ use piet_web::{WebRenderContext};
 use piet::{Color, StrokeStyle, RenderContext};
 use kurbo::{Affine, BezPath, Point};
 
-use crate::RenderNode;
+use crate::{Variable};
+
+pub struct SceneGraph {
+    pub root: Box<dyn RenderNode>
+}
+
+pub trait RenderNode
+{
+    fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
+    fn get_transform(&self) -> &Affine;
+    fn get_id(&self) -> &str;
+    fn render(&self, rc: &mut WebRenderContext, transform: &Affine);
+}
+
 
 pub struct Group {
     pub children: Vec<Box<dyn RenderNode>>,
     pub transform: Affine,
+    pub variables: Vec<Variable>,
+    pub id: String,
 }
 
 impl RenderNode for Group {
@@ -16,6 +31,9 @@ impl RenderNode for Group {
     }
     fn get_transform(&self) -> &Affine {
         &self.transform
+    }
+    fn get_id(&self) -> &str {
+        &self.id.as_str()
     }
     fn render(&self, _: &mut WebRenderContext, _: &Affine) {}
 }
@@ -32,6 +50,7 @@ pub struct Rectangle {
     pub transform: Affine,
     pub stroke: Stroke,
     pub fill: Color,
+    pub id: String,
 }
 
 impl RenderNode for Rectangle {
@@ -41,10 +60,15 @@ impl RenderNode for Rectangle {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
+    fn get_id(&self) -> &str {
+        &self.id.as_str()
+    }
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine) {
         let bp_width: f64 = self.width;
         let bp_height: f64 = self.height;
         let mut bez_path = BezPath::new();
+
+        //TODO:  support dynamic Origin
         bez_path.move_to(Point::new(-bp_width / 2., -bp_height / 2.));
         bez_path.line_to(Point::new(bp_width / 2., -bp_height / 2.));
         bez_path.line_to(Point::new(bp_width / 2., bp_height / 2.));
