@@ -22,24 +22,19 @@ pub enum PolymorphicType {
     Boolean
 }
 
-enum ExpressableVariant {
-    Value,
-    Expression,
-}
-
-pub trait Expressable<T> {
-    //either unwrap Ta
+pub trait Property<T> {
+    //either unwrap T
     //or provide a fn -> T
-    fn eval(&mut self) -> &T;
+    fn eval_in_place(&mut self) -> &T;
     fn read(&self) -> &T;
 }
 
-pub struct ExpressableValue<T> {
+pub struct PropertyLiteral<T> {
     pub value: T,
 }
 
-impl<T> Expressable<T> for ExpressableValue<T> {
-    fn eval(&mut self) -> &T {
+impl<T> Property<T> for PropertyLiteral<T> {
+    fn eval_in_place(&mut self) -> &T {
         &self.value
     }
     fn read(&self) -> &T {
@@ -47,13 +42,14 @@ impl<T> Expressable<T> for ExpressableValue<T> {
     }
 }
 
-pub struct ExpressableExpression<T> {
+pub struct PropertyExpression<T> {
     pub expression: Expression<T>
 }
 
-impl<T> Expressable<T> for ExpressableExpression<T> {
-    fn eval(&mut self) -> &T {
-        &self.expression.eval()
+impl<T> Property<T> for PropertyExpression<T> {
+    fn eval_in_place(&mut self) -> &T {
+        self.expression.eval_in_place();
+        &self.expression.last_value
     }
     fn read(&self) -> &T {
         &self.expression.last_value
@@ -67,7 +63,7 @@ pub struct Expression<T> {
 }
 
 impl<T> Expression<T> {
-    pub fn eval(&mut self) -> &T {
+    pub fn eval_in_place(&mut self) -> &T {
         //first: derive values
         //  - iterate through dependencies
         //  - parse dep string into a value; cast as PolymorphicType
@@ -76,9 +72,6 @@ impl<T> Expression<T> {
 
 
         for (key, value) in self.dependencies.iter() {
-
-
-            //TODO:
 
             //TODO:  we will need a reference to Engine here
             //       -- should we make it 'static or should

@@ -3,7 +3,7 @@ use piet_web::{WebRenderContext};
 use piet::{Color, StrokeStyle, RenderContext};
 use kurbo::{Affine, BezPath, Point};
 
-use crate::{Variable, CarbonEngine, Expressable};
+use crate::{Variable, CarbonEngine, Property};
 use std::borrow::Cow;
 
 pub struct SceneGraph {
@@ -13,8 +13,10 @@ pub struct SceneGraph {
 pub trait RenderNode
 {
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
+    fn get_children_mut(&mut self) -> Option<&Vec<Box<dyn RenderNode>>>;
     fn get_transform(&self) -> &Affine;
     fn get_id(&self) -> &str;
+    fn eval_properties_in_place(&mut self);
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine);
 }
 
@@ -29,11 +31,17 @@ impl RenderNode for Group {
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
         Some(&self.children)
     }
+    fn get_children_mut(&mut self) -> Option<&Vec<Box<dyn RenderNode>>> {
+        Some(&self.children)
+    }
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
     fn get_id(&self) -> &str {
         &self.id.as_str()
+    }
+    fn eval_properties_in_place(&mut self) {
+
     }
     fn render(&self, _: &mut WebRenderContext, _: &Affine) {}
 }
@@ -45,7 +53,7 @@ pub struct Stroke {
 }
 
 pub struct Rectangle {
-    pub width: Box<Expressable<f64>>,
+    pub width: Box<Property<f64>>,
     pub height: f64,
     pub transform: Affine,
     pub stroke: Stroke,
@@ -56,6 +64,12 @@ pub struct Rectangle {
 impl RenderNode for Rectangle {
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
         None
+    }
+    fn get_children_mut(&mut self) -> Option<&Vec<Box<dyn RenderNode>>> {
+        None
+    }
+    fn eval_properties_in_place(&mut self) {
+
     }
     fn get_transform(&self) -> &Affine {
         &self.transform

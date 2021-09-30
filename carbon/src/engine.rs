@@ -1,3 +1,5 @@
+use std::cell::{Ref, RefCell};
+
 use kurbo::{
     BezPath,
     Point,
@@ -6,7 +8,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Group, PolymorphicValue, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, Expressable, Expression, ExpressableExpression, ExpressableValue};
+use crate::{Affine, Color, Error, Expression, Group, PolymorphicValue, Property, PropertyExpression, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable};
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str)) -> CarbonEngine {
@@ -16,7 +18,7 @@ pub fn get_engine(logger: fn(&str)) -> CarbonEngine {
 pub struct CarbonEngine {
     pub logger: fn(&str),
     pub frames_elapsed: u32,
-    pub scene_graph: SceneGraph,
+    pub scene_graph: RefCell<SceneGraph>,
 }
 
 impl CarbonEngine {
@@ -24,7 +26,7 @@ impl CarbonEngine {
         CarbonEngine {
             logger,
             frames_elapsed: 0,
-            scene_graph: SceneGraph {
+            scene_graph: RefCell::new(SceneGraph {
                 root: Box::new(Group {
                     id: String::from("root"),
                     variables: vec![
@@ -42,7 +44,7 @@ impl CarbonEngine {
                             children: vec![
                                 Box::new(Rectangle {
                                     id: String::from("rect_4"),
-                                    width: Box::new(ExpressableValue{value: 50.0}),
+                                    width: Box::new(PropertyLiteral { value: 50.0 }),
                                     height: 50.0,
                                     fill: Color::hlc(120.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
@@ -54,7 +56,7 @@ impl CarbonEngine {
                                 }),
                                 Box::new(Rectangle {
                                     id: String::from("rect_5"),
-                                    width: Box::new(ExpressableValue{value: 100.0}),
+                                    width: Box::new(PropertyLiteral { value: 100.0 }),
                                     height: 100.0,
                                     fill: Color::hlc(160.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
@@ -66,7 +68,7 @@ impl CarbonEngine {
                                 }),
                                 Box::new(Rectangle {
                                     id: String::from("rect_6"),
-                                    width: Box::new(ExpressableValue{value: 250.0}),
+                                    width: Box::new(PropertyLiteral { value: 250.0 }),
                                     height: 250.0,
                                     fill: Color::hlc(200.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
@@ -81,6 +83,7 @@ impl CarbonEngine {
                     ],
                 }),
             },
+            ),
         }
     }
 
@@ -97,7 +100,7 @@ impl CarbonEngine {
 
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
-        self.recurse_render_scene_graph(rc, &self.scene_graph.root, &Affine::default());
+        self.recurse_render_scene_graph(rc, &self.scene_graph.borrow().root, &Affine::default());
     }
 
     fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine)  {
@@ -140,9 +143,57 @@ impl CarbonEngine {
 
     }
 
+    pub fn update_property_tree(&self) {
+        //TODO:
+        // - traverse scene graph
+        // - update cache (current, `last_known_value`) for each property
+        // - done
 
-    pub fn tick_and_render(&mut self, rc: &mut WebRenderContext) -> Result<(), Error> {
+        // hello world scene graph
+        //           (root)
+        //           /    \
+        //       (rect)  (rect)
+
+        // 1. find lowest node (last child of last node), accumulating transform along the way
+        // 2. start rendering, from lowest node on-up
+
+        //TODO:  keep &self immutable; use RefCell<SceneGraph> instead
+
+        &self.recurse_update_property_tree(&mut self.scene_graph.borrow_mut().root);
+    }
+
+    fn recurse_update_property_tree(&self, node: &mut Box<dyn RenderNode>)  {
+        // Recurse:
+        //  - iterate in a pre-order traversal, ensuring ancestors have been evaluated first
+        //  - for each property, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
+        //  - done
+
+        node.eval_properties_in_place();
+
+        match &mut node.get_children_mut() {
+            Some(children) => {
+                //keep recursing
+                for i in (0..children.len()) {
+                    //note that we're iterating starting from the last child
+                    let mut child = children.get_mut(i); //TODO: ?-syntax
+                    match child {
+                        None => { return },
+                        Some(child) => {
+                            &self.recurse_update_property_tree(child);
+                        }
+                    }
+                }
+            },
+            None => {
+                //this is a leaf node.  we're done with this branch.
+            }
+        }
+    }
+
+    pub fn tick(&mut self, rc: &mut WebRenderContext) -> Result<(), Error> {
         rc.clear(Color::rgb8(0, 0, 0));
+
+        self.update_property_tree();
 
         self.render_scene_graph(rc);
         self.frames_elapsed = self.frames_elapsed + 1;

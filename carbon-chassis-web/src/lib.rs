@@ -78,7 +78,7 @@ pub fn log_wrapper(msg: &str) {
 }
 
 pub fn render_loop(mut engine: CarbonEngine, mut piet_context: WebRenderContext<'static>) {
-    engine.tick_and_render(&mut piet_context).unwrap();
+    engine.tick(&mut piet_context).unwrap();
 
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
@@ -92,7 +92,7 @@ pub fn render_loop(mut engine: CarbonEngine, mut piet_context: WebRenderContext<
         //     let _ = f.borrow_mut().take();
         //     return;
 
-        engine.tick_and_render(&mut piet_context).unwrap();
+        engine.tick(&mut piet_context).unwrap();
         request_animation_frame(f.borrow().as_ref().unwrap());
     }) as Box<dyn FnMut()>));
 
