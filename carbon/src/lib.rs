@@ -1,5 +1,5 @@
 use kurbo::{Affine, BezPath, Point, Vec2};
-pub use piet::{Color, Error};
+pub use piet::{Color, Error, StrokeStyle};
 use piet::RenderContext;
 pub use piet_web::WebRenderContext;
 
@@ -7,6 +7,7 @@ pub use piet_web::WebRenderContext;
 TODO:
 === HIGH
     [ ] Refactor PoC code into multi-file, better structure
+    [ ] Stroke, color, fill
     [ ] Transform-origin
     [ ] Ellipse
     [ ] Clean up warnings
@@ -17,6 +18,7 @@ TODO:
     [ ] Layouts (stacks)
         [ ] sizing introspection
         [ ] transform.align
+        [ ] clipping
     [ ] Timelines, transitions, t9ables
 === MED
     [ ] PoC on iOS, Android
@@ -50,10 +52,16 @@ impl RenderNode for Group {
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine) {}
 }
 
+struct Stroke {
+    color: Color,
+    style: StrokeStyle,
+}
+
 struct Rectangle {
     width: f64,
     height: f64,
     transform: Affine,
+    stroke: Stroke,
 }
 
 impl RenderNode for Rectangle {
@@ -76,9 +84,12 @@ impl RenderNode for Rectangle {
         bez_path.close_path();
 
         let transformed_bez_path = *transform * bez_path;
+        let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
-        let phased_color = Color::hlc(127., 75., 127.);
+        let phased_color = Color::rgba(227., 225., 27., 0.25);
         rc.fill(transformed_bez_path, &phased_color);
+
+        rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, 3.0);
     }
 }
 
@@ -108,16 +119,28 @@ impl CarbonEngine {
                             width: 50.0,
                             height: 50.0,
                             transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
+                            stroke: Stroke {
+                                color: Color::rgb8(150, 20, 200),
+                                style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                            },
                         }),
                         Box::new(Rectangle {
                             width: 100.0,
                             height: 100.0,
                             transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
+                            stroke: Stroke {
+                                color: Color::rgb8(150, 20, 200),
+                                style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                            },
                         }),
                         Box::new(Rectangle {
                             width: 250.0,
                             height: 250.0,
                             transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
+                            stroke: Stroke {
+                                color: Color::rgb8(150, 20, 200),
+                                style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                            },
                         }),
                         Box::new(Group {
                             transform: Affine::translate(Vec2{x: 800.0, y:-200.0}),
@@ -126,16 +149,60 @@ impl CarbonEngine {
                                     width: 50.0,
                                     height: 50.0,
                                     transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
+                                    stroke: Stroke {
+                                        color: Color::rgb8(150, 20, 200),
+                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                                    },
                                 }),
                                 Box::new(Rectangle {
                                     width: 100.0,
                                     height: 100.0,
                                     transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
+                                    stroke: Stroke {
+                                        color: Color::rgb8(150, 20, 200),
+                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                                    },
                                 }),
                                 Box::new(Rectangle {
                                     width: 250.0,
                                     height: 250.0,
                                     transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
+                                    stroke: Stroke {
+                                        color: Color::rgb8(150, 20, 200),
+                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                                    },
+                                }),
+                            ],
+                        }),
+                        Box::new(Group {
+                            transform: Affine::translate(Vec2{x: 400.0, y:-100.0}),
+                            children: vec![
+                                Box::new(Rectangle {
+                                    width: 50.0,
+                                    height: 50.0,
+                                    transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
+                                    stroke: Stroke {
+                                        color: Color::rgb8(150, 20, 200),
+                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                                    },
+                                }),
+                                Box::new(Rectangle {
+                                    width: 100.0,
+                                    height: 100.0,
+                                    transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
+                                    stroke: Stroke {
+                                        color: Color::rgb8(150, 20, 200),
+                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                                    },
+                                }),
+                                Box::new(Rectangle {
+                                    width: 250.0,
+                                    height: 250.0,
+                                    transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
+                                    stroke: Stroke {
+                                        color: Color::rgb8(150, 20, 200),
+                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                                    },
                                 }),
                             ],
                         })
@@ -182,7 +249,8 @@ impl CarbonEngine {
             },
             None => {
                 //this is a leaf node.  render it & return.
-                let frame_rotated_transform = new_accumulated_transform * Affine::rotate(self.frames_elapsed as f64 / 100.);
+                let theta = (self.frames_elapsed as f64 / 50.0).sin() * 5.0 + (self.frames_elapsed as f64 / 50.0);
+                let frame_rotated_transform = new_accumulated_transform * Affine::rotate(theta);
                 node.render(rc, &frame_rotated_transform);
             }
         }
@@ -195,7 +263,7 @@ impl CarbonEngine {
 
 
     pub fn tick_and_render(&mut self, rc: &mut WebRenderContext) -> Result<(), Error> {
-        rc.clear(Color::rgb8(255, 255, 0));
+        rc.clear(Color::rgb8(0, 0, 0));
 
         self.render_scene_graph(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
