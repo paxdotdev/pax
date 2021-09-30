@@ -16,11 +16,9 @@ TODO:
     [x] Refactor web chassis
     [x] Logging
     [x] Stroke, color, fill
+    [x] Clean up warnings
     [ ] Sizing + (browser) resizing support
         [ ] Transform.align
-    [ ] Transform.origin
-    [ ] Ellipse
-    [x] Clean up warnings
     [ ] Expression engine
         [x] variables, declaration & storage
         [x] node IDs
@@ -28,13 +26,14 @@ TODO:
             [ ] nested state access & access control (descendent vs ancestor)
             [ ] build-in vars like frame count
         [ ] parser & syntax (or MVP rust closures + manifest of deps)
-
     [ ] Text prefabs + support layer for Web adapter
         [ ] Clipping
     [ ] Layouts (stacks)
         [ ] Clipping
     [ ] Timelines, transitions, t9ables
 === MED
+    [ ] Ellipse
+    [ ] Transform.origin
     [ ] PoC on iOS, Android
         [ ] Extricate Engine's dependency on WebRenderContext
     [ ] Gradients

@@ -1,13 +1,12 @@
-use crate::{SceneGraph, Rectangle, Affine, Stroke, Color, StrokeStyle, Group, Error, RenderNode, Variable, PolymorphicValue};
-
 use kurbo::{
-    Vec2,
     BezPath,
     Point,
+    Vec2,
 };
-
-use piet_web::WebRenderContext;
 use piet::RenderContext;
+use piet_web::WebRenderContext;
+
+use crate::{Affine, Color, Error, Group, PolymorphicValue, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, Expressable, Expression, ExpressableExpression, ExpressableValue};
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str)) -> CarbonEngine {
@@ -21,7 +20,6 @@ pub struct CarbonEngine {
 }
 
 impl CarbonEngine {
-
     fn new(logger: fn(&str)) -> Self {
         CarbonEngine {
             logger,
@@ -30,135 +28,56 @@ impl CarbonEngine {
                 root: Box::new(Group {
                     id: String::from("root"),
                     variables: vec![
-                        Variable{
+                        Variable {
                             name: String::from("rotation"),
-                            value: PolymorphicValue {float: 1.2},
+                            value: PolymorphicValue { float: 1.2 },
                         },
                     ],
                     transform: Affine::default(),
                     children: vec![
-                        Box::new(Rectangle {
-                            id: String::from("rect_1"),
-                            width: 50.0,
-                            height: 50.0,
-                            fill: Color::hlc(0.0, 75.0, 127.0),
-                            transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
-                            stroke: Stroke {
-                                color: Color::hlc(180.0, 75.0, 127.0),
-                                width: 5.0,
-                                style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
-                            },
-                        }),
-                        Box::new(Rectangle {
-                            id: String::from("rect_2"),
-                            width: 100.0,
-                            height: 100.0,
-                            fill: Color::hlc(40.0, 75.0, 127.0),
-                            transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
-                            stroke: Stroke {
-                                color: Color::hlc(220.0, 75.0, 127.0),
-                                width: 5.0,
-                                style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
-                            },
-                        }),
-                        Box::new(Rectangle {
-                            id: String::from("rect_3"),
-                            width: 250.0,
-                            height: 250.0,
-                            fill: Color::hlc(80.0, 75.0, 127.0),
-                            transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
-                            stroke: Stroke {
-                                color: Color::hlc(240.0, 75.0, 127.0),
-                                width: 5.0,
-                                style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
-                            },
-                        }),
                         Box::new(Group {
                             id: String::from("group_1"),
                             variables: vec![],
-                            transform: Affine::translate(Vec2{x: 800.0, y:-200.0}),
+                            transform: Affine::translate(Vec2 { x: 800.0, y: -200.0 }),
                             children: vec![
                                 Box::new(Rectangle {
                                     id: String::from("rect_4"),
-                                    width: 50.0,
+                                    width: Box::new(ExpressableValue{value: 50.0}),
                                     height: 50.0,
                                     fill: Color::hlc(120.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
                                     stroke: Stroke {
                                         color: Color::hlc(280.0, 75.0, 127.0),
                                         width: 5.0,
-                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
                                 }),
                                 Box::new(Rectangle {
                                     id: String::from("rect_5"),
-                                    width: 100.0,
+                                    width: Box::new(ExpressableValue{value: 100.0}),
                                     height: 100.0,
                                     fill: Color::hlc(160.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
                                     stroke: Stroke {
                                         color: Color::hlc(320.0, 75.0, 127.0),
                                         width: 5.0,
-                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
                                 }),
                                 Box::new(Rectangle {
                                     id: String::from("rect_6"),
-                                    width: 250.0,
+                                    width: Box::new(ExpressableValue{value: 250.0}),
                                     height: 250.0,
                                     fill: Color::hlc(200.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
                                     stroke: Stroke {
                                         color: Color::hlc(0.0, 75.0, 127.0),
                                         width: 5.0,
-                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
+                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
                                 }),
                             ],
                         }),
-                        Box::new(Group {
-                            id: String::from("group_2"),
-                            variables: vec![],
-                            transform: Affine::translate(Vec2{x: 400.0, y:-100.0}),
-                            children: vec![
-                                Box::new(Rectangle {
-                                    id: String::from("rect_7"),
-                                    width: 50.0,
-                                    height: 50.0,
-                                    fill: Color::hlc(240.0, 75.0, 127.0),
-                                    transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
-                                    stroke: Stroke {
-                                        color: Color::hlc(40.0, 75.0, 127.0),
-                                        width: 5.0,
-                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
-                                    },
-                                }),
-                                Box::new(Rectangle {
-                                    id: String::from("rect_8"),
-                                    width: 100.0,
-                                    height: 100.0,
-                                    fill: Color::hlc(280.0, 75.0, 127.0),
-                                    transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
-                                    stroke: Stroke {
-                                        color: Color::hlc(80.0, 75.0, 127.0),
-                                        width: 5.0,
-                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
-                                    },
-                                }),
-                                Box::new(Rectangle {
-                                    id: String::from("rect_9"),
-                                    width: 250.0,
-                                    height: 250.0,
-                                    fill: Color::hlc(320.0, 75.0, 127.0),
-                                    transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
-                                    stroke: Stroke {
-                                        color: Color::hlc(120.0, 75.0, 127.0),
-                                        width: 5.0,
-                                        style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
-                                    },
-                                }),
-                            ],
-                        })
                     ],
                 }),
             },
@@ -189,6 +108,10 @@ impl CarbonEngine {
         //  - done
 
         let new_accumulated_transform = *accumulated_transform * *node.get_transform();
+
+        // TODO:
+        //  - evaluate Expressions and update (or alias) relevant properties
+        //  -
 
         match node.get_children() {
             Some(children) => {

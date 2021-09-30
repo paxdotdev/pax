@@ -3,7 +3,8 @@ use piet_web::{WebRenderContext};
 use piet::{Color, StrokeStyle, RenderContext};
 use kurbo::{Affine, BezPath, Point};
 
-use crate::{Variable};
+use crate::{Variable, CarbonEngine, Expressable};
+use std::borrow::Cow;
 
 pub struct SceneGraph {
     pub root: Box<dyn RenderNode>
@@ -16,7 +17,6 @@ pub trait RenderNode
     fn get_id(&self) -> &str;
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine);
 }
-
 
 pub struct Group {
     pub children: Vec<Box<dyn RenderNode>>,
@@ -45,7 +45,7 @@ pub struct Stroke {
 }
 
 pub struct Rectangle {
-    pub width: f64,
+    pub width: Box<Expressable<f64>>,
     pub height: f64,
     pub transform: Affine,
     pub stroke: Stroke,
@@ -64,16 +64,33 @@ impl RenderNode for Rectangle {
         &self.id.as_str()
     }
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine) {
-        let bp_width: f64 = self.width;
-        let bp_height: f64 = self.height;
+        //TODO:
+        //  for each property that's used here (e.g. self.width and self.height)
+        //  unbox the Value vs Expression and pack into a local for eval here
+
+
+        //Note — either:
+        //  expressions need to belong to themselves/the exp engine,
+        //    only linked here by ref
+        //  OR rendering needs to be &mut self, so that expression
+        //    caches can be written to
+        //  OR we can use a more exotic wrapper (`Cow`?) to address
+        //    the mutability problem with minimal footprint
+        //  OR tree rendering reads from a read-only cache,
+        //    while expression evaluation happens as a whole
+        //    separate step (before rendering each frame)
+        let width: f64 = *self.width.read();
+        let height: f64 = self.height;
+
+
         let mut bez_path = BezPath::new();
 
         //TODO:  support dynamic Origin
-        bez_path.move_to(Point::new(-bp_width / 2., -bp_height / 2.));
-        bez_path.line_to(Point::new(bp_width / 2., -bp_height / 2.));
-        bez_path.line_to(Point::new(bp_width / 2., bp_height / 2.));
-        bez_path.line_to(Point::new(-bp_width / 2., bp_height / 2.));
-        bez_path.line_to(Point::new(-bp_width / 2., -bp_height / 2.));
+        bez_path.move_to(Point::new(-width / 2., -height / 2.));
+        bez_path.line_to(Point::new(width / 2., -height / 2.));
+        bez_path.line_to(Point::new(width / 2., height / 2.));
+        bez_path.line_to(Point::new(-width / 2., height / 2.));
+        bez_path.line_to(Point::new(-width / 2., -height / 2.));
         bez_path.close_path();
 
         let transformed_bez_path = *transform * bez_path;
