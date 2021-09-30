@@ -5,22 +5,6 @@ pub use piet::{Color, Error};
 use piet::RenderContext;
 pub use piet_web::WebRenderContext;
 
-//
-// pub struct Stroke {
-//     width: f64,
-//     solid: Color,
-// }
-//
-// pub struct Fill {
-//     solid: Color,
-// }
-//
-// pub struct Group {
-//     transform: Affine,
-//     children: Vec<Box<dyn RenderNode>>,
-// }
-
-
 
 
 
@@ -32,8 +16,6 @@ pub use piet_web::WebRenderContext;
 // pub struct Rectangle {
 //     width: f64,
 //     height: f64,
-//     stroke: Stroke,
-//     fill: Fill,
 //     transform: Affine,
 // }
 
@@ -79,14 +61,36 @@ pub use piet_web::WebRenderContext;
 // }
 
 
-struct Node {
-    children: Vec<Node>,
+trait RenderNode
+{
+    fn get_children(&self) -> Option<&Vec<dyn RenderNode>>;
+    fn get_transform(&self) -> &Affine;
+}
+
+
+struct Group {
+    children: Vec<dyn RenderNode>,
     transform: Affine,
 }
 
-impl Node {
-    fn get_children(&self) -> Option<&Vec<Node>> {
+impl RenderNode for Group {
+    fn get_children(&self) -> Option<&Vec<dyn RenderNode>> {
         Some(&self.children)
+    }
+    fn get_transform(&self) -> &Affine {
+        &self.transform
+    }
+}
+
+struct Rectangle {
+    width: f64,
+    height: f64,
+    transform: Affine,
+}
+
+impl RenderNode for Rectangle {
+    fn get_children(&self) -> Option<&Vec<dyn RenderNode>> {
+        None
     }
     fn get_transform(&self) -> &Affine {
         &self.transform
@@ -99,7 +103,7 @@ pub fn get_engine() -> CarbonEngine {
 }
 
 pub struct SceneGraph {
-    root: Node
+    root: Group
 }
 
 pub struct CarbonEngine {
@@ -107,19 +111,18 @@ pub struct CarbonEngine {
     scene_graph: SceneGraph,
 }
 
-
-
 impl CarbonEngine {
     fn new() -> Self {
         CarbonEngine {
             frames_elapsed: 0,
             scene_graph: SceneGraph {
-                root: Node {
-                    transform: Affine::rotate(1.5),
+                root: Group {
+                    transform: Affine::default(),
                     children: vec![
-                        Node {
-                            transform: Affine::translate(Vec2 { x: 300.0, y: 300.0 }) * Affine::rotate(1.2),
-                            children: Vec::new(),
+                        Rectangle {
+                            width: 100.0,
+                            height: 100.0,
+                            transform: Affine::translate(Vec2 { x: 300.0, y: 300.0 }) * Affine::rotate(1.5),
                         },
                     ],
                 },
@@ -139,7 +142,7 @@ impl CarbonEngine {
         Ok(())
     }
 
-    fn recurse_render_scene_graph(&self, node: &Node, accumulated_transform: &Affine) -> Result<(), Error> {
+    fn recurse_render_scene_graph(&self, node: &RenderNode, accumulated_transform: &Affine) -> Result<(), Error> {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
