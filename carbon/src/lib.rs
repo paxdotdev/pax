@@ -3,6 +3,30 @@ pub use piet::{Color, Error};
 use piet::RenderContext;
 pub use piet_web::WebRenderContext;
 
+/*
+TODO:
+=== HIGH
+    [ ] Refactor PoC code into multi-file, better structure
+    [ ] Transform-origin
+    [ ] Ellipse
+    [ ] Clean up warnings
+    [ ] Debugging chassis, or at least logging
+    [ ] Expression engine, state
+    [ ] Text prefabs + support layer for Web adapter
+        [ ] Also clean up the drawing_loop logic for Web
+    [ ] Layouts (stacks)
+        [ ] sizing introspection
+        [ ] transform.align
+    [ ] Timelines, transitions, t9ables
+=== MED
+    [ ] PoC on iOS, Android
+    [ ] De/serializing for BESTful format
+    [ ] Authoring tool
+        [ ] Drawing tools
+        [ ] Layout-building tools
+=== LOW
+    [ ] transform.shear
+ */
 
 trait RenderNode
 {
