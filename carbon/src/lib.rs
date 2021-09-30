@@ -95,6 +95,26 @@ impl CarbonEngine {
                             height: 250.0,
                             transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
                         }),
+                        Group {
+                            transform: Affine::translate(Vec2{x: 800.0, y:0.0}),
+                            children: vec![
+                                Box::new(Rectangle {
+                                    width: 50.0,
+                                    height: 50.0,
+                                    transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
+                                }),
+                                Box::new(Rectangle {
+                                    width: 100.0,
+                                    height: 100.0,
+                                    transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
+                                }),
+                                Box::new(Rectangle {
+                                    width: 250.0,
+                                    height: 250.0,
+                                    transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
+                                }),
+                            ],
+                        }
                     ],
                 }),
             },
