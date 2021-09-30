@@ -13,7 +13,7 @@ pub struct SceneGraph {
 pub trait RenderNode
 {
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
-    fn get_children_mut(&mut self) -> Option<&Vec<Box<dyn RenderNode>>>;
+    fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>>;
     fn get_transform(&self) -> &Affine;
     fn get_id(&self) -> &str;
     fn eval_properties_in_place(&mut self);
@@ -31,8 +31,8 @@ impl RenderNode for Group {
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
         Some(&self.children)
     }
-    fn get_children_mut(&mut self) -> Option<&Vec<Box<dyn RenderNode>>> {
-        Some(&self.children)
+    fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> {
+        Some(&mut self.children)
     }
     fn get_transform(&self) -> &Affine {
         &self.transform
@@ -65,7 +65,7 @@ impl RenderNode for Rectangle {
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
         None
     }
-    fn get_children_mut(&mut self) -> Option<&Vec<Box<dyn RenderNode>>> {
+    fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> {
         None
     }
     fn eval_properties_in_place(&mut self) {
