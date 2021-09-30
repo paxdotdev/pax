@@ -7,11 +7,12 @@ pub use piet_web::WebRenderContext;
 TODO:
 === HIGH
     [ ] Refactor PoC code into multi-file, better structure
+    [x] Refactor web chassis
+    [x] Logging
     [ ] Stroke, color, fill
     [ ] Transform-origin
     [ ] Ellipse
     [ ] Clean up warnings
-    [ ] Debugging chassis, or at least logging
     [ ] Expression engine, state
     [ ] Text prefabs + support layer for Web adapter
         [ ] Also clean up the drawing_loop logic for Web
@@ -29,6 +30,7 @@ TODO:
         [ ] Layout-building tools
 === LOW
     [ ] transform.shear
+    [ ] Debugging chassis
  */
 
 trait RenderNode
