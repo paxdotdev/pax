@@ -14,36 +14,14 @@ pub struct Fill {
     solid: Color,
 }
 
-pub struct Group<'a> {
+pub struct Group {
     transform: Affine,
-    children: Vec<Rc<&'a dyn RenderNode<'a>>>,
+    children: Vec<Box<dyn RenderNode>>,
 }
 
-trait RenderNode<'a> {
-    fn get_children<'a, T: RenderNode>(self) -> Vec<Rc<T<'a>>>;
-    fn get_transform(self) -> Affine;
-}
 
-impl<'a> RenderNode<'a> for Group<'a> {
-    fn get_children<T: RenderNode>(self) -> Vec<Rc<&'a dyn RenderNode<'a>>> {
-        self.children
-    }
-    fn get_transform(self) -> Affine {
-        self.transform
-    }
-}
-
-impl<'a> RenderNode<'a> for Rectangle {
-    fn get_children(self) -> Vec<Rc<&'a dyn RenderNode<'a>>> {
-        Vec::new()
-    }
-    fn get_transform(self) -> Affine {
-        self.transform
-    }
-}
-
-pub struct SceneGraph<'a> {
-    root: Group<'a>
+pub struct SceneGraph {
+    root: Box<Group>
 }
 
 // base class for scene graph entities
@@ -53,6 +31,32 @@ pub struct Rectangle {
     stroke: Stroke,
     fill: Fill,
     transform: Affine,
+}
+
+trait RenderNode
+{
+    fn get_children(self) -> Vec<Box<dyn RenderNode>>;
+    fn get_transform(self) -> Affine;
+}
+
+impl RenderNode for Group
+{
+    fn get_children(self) -> Vec<Box<dyn RenderNode>> {
+        self.children
+    }
+    fn get_transform(self) -> Affine {
+        self.transform
+    }
+}
+
+impl RenderNode for Rectangle
+{
+    fn get_children(self) -> Vec<Box<dyn RenderNode>> {
+        Vec::new()
+    }
+    fn get_transform(self) -> Affine {
+        self.transform
+    }
 }
 
 //TODO:  organize alongside other nodes in fs, modules
@@ -71,24 +75,26 @@ impl Rectangle {
 }
 
 // Public method for consumption by engine chassis
-pub fn get_engine<'a>() -> CarbonEngine<'a> {
+pub fn get_engine() -> CarbonEngine {
     return CarbonEngine::new();
 }
 
-pub struct CarbonEngine<'a> {
+pub struct CarbonEngine {
     frames_elapsed: u32,
-    scene_graph: SceneGraph<'a>,
+    scene_graph: SceneGraph,
 }
 
-impl<'a> CarbonEngine<'_> {
+
+
+impl CarbonEngine {
     fn new() -> Self {
         CarbonEngine {
             frames_elapsed: 0,
             scene_graph: SceneGraph {
-                root: Group {
+                root: Box::new(Group {
                     transform: Affine::rotate(1.5),
                     children: vec![
-                        Rc::new(&Rectangle {
+                        Box::new(Rectangle {
                             width: 100.0,
                             height: 100.0,
                             stroke: Stroke {
@@ -98,22 +104,10 @@ impl<'a> CarbonEngine<'_> {
                             fill: Fill {
                                 solid: Color::rgb8(255, 255, 0),
                             },
-                            transform: Affine::translate(Vec2 { x: 300.0, y: 300.0 }),
+                            transform: Affine::translate(Vec2 { x: 300.0, y: 300.0 }) * Affine::rotate(1.2),
                         }),
-                        Rc::new(&Rectangle {
-                            width: 200.0,
-                            height: 200.0,
-                            stroke: Stroke {
-                                width: 1.0,
-                                solid: Color::rgb8(255, 0, 0),
-                            },
-                            fill: Fill {
-                                solid: Color::rgb8(0, 255, 0),
-                            },
-                            transform: Affine::default(),
-                        })
                     ],
-                }
+                })
             },
         }
     }
@@ -126,12 +120,11 @@ impl<'a> CarbonEngine<'_> {
 
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
-        let root = &Rc::new(&self.scene_graph.root);
-        &self.recurse_render_scene_graph(root, &Affine::default());
+        &self.recurse_render_scene_graph(&self.scene_graph.root, &Affine::default());
         Ok(())
     }
 
-    fn recurse_render_scene_graph<T: RenderNode<'a>>(&self, node: &Rc<&T>, accumulated_transform: &Affine) -> Result<(), Error> {
+    fn recurse_render_scene_graph<T: RenderNode>(&self, node: &Box<T>, accumulated_transform: &Affine) -> Result<(), Error> {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
@@ -140,7 +133,7 @@ impl<'a> CarbonEngine<'_> {
 
         let new_accumulated_transform = *accumulated_transform * node.get_transform();
 
-        let children = Rc::clone(node).get_children();
+        let children = node.get_children();
 
         if children.len() == 0 {
             //this is a leaf node.  render it.
