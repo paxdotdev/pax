@@ -112,7 +112,7 @@ impl CarbonEngine {
         }
     }
 
-    fn render_scene_graph(&self) -> Result<(), Error> {
+    fn render_scene_graph(&mut self) -> Result<(), Error> {
         // hello world scene graph
         //           (root)
         //           /    \
@@ -120,11 +120,11 @@ impl CarbonEngine {
 
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
-        &self.recurse_render_scene_graph(&self.scene_graph.root, &Affine::default());
+        self.recurse_render_scene_graph(self.scene_graph.root, &Affine::default());
         Ok(())
     }
 
-    fn recurse_render_scene_graph<T: RenderNode>(&self, node: &Box<T>, accumulated_transform: &Affine) -> Result<(), Error> {
+    fn recurse_render_scene_graph<T: RenderNode>(&self, node: Box<T>, accumulated_transform: &Affine) -> Result<(), Error> {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
@@ -133,7 +133,7 @@ impl CarbonEngine {
 
         let new_accumulated_transform = *accumulated_transform * node.get_transform();
 
-        let children = node.get_children();
+        let children = node.as_ref().get_children();
 
         if children.len() == 0 {
             //this is a leaf node.  render it.
