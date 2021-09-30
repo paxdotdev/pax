@@ -2,10 +2,10 @@
 
 members = [
     "carbon",
-    "examples/basic",
+    "carbon-chassis-web",
 ]
 
 default-members = [
     "carbon",
-    "examples/basic",
+    "carbon-chassis-web",
 ]

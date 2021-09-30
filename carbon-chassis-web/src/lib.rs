@@ -69,8 +69,12 @@ pub fn run() {
     let _ = context.scale(dpr, dpr);
 
     let mut piet_context  = WebRenderContext::new(context, window);
-    let engine = carbon::get_engine();
+    let engine = carbon::get_engine(log_wrapper);
     drawing_loop(engine,piet_context);
+}
+
+pub fn log_wrapper(msg: &str) {
+    console_log!("{}", msg);
 }
 
 pub fn drawing_loop(mut engine: CarbonEngine, mut piet_context: WebRenderContext<'static>) -> Result<(), JsValue> {
@@ -82,14 +86,11 @@ pub fn drawing_loop(mut engine: CarbonEngine, mut piet_context: WebRenderContext
     *g.borrow_mut() = Some(Closure::wrap(Box::new(move || {
 
         // Keeping following sample re: elegant clean-up (from wasm-bindgen docs)
-        // if i == -1 {
-        //     console_log!("All done!");
         //
         //     // Drop our handle to this closure so that it will get cleaned
         //     // up once we return.
         //     let _ = f.borrow_mut().take();
         //     return;
-        // }
 
         engine.tick_and_render(&mut piet_context).unwrap();
         request_animation_frame(f.borrow().as_ref().unwrap());

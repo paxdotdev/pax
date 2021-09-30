@@ -13,7 +13,7 @@ default = ["console_error_panic_hook"]
 [dependencies]
 piet = "0.3.1"
 piet-web = "0.3.1"
-carbon = { path = "../../carbon"}
+carbon = { path = "../carbon"}
 
 wasm-bindgen = "0.2.30"
 console_error_panic_hook = { version = "0.1.6", optional = true }

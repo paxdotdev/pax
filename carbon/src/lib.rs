@@ -22,6 +22,7 @@ TODO:
     [ ] Timelines, transitions, t9ables
 === MED
     [ ] PoC on iOS, Android
+    [ ] Gradients
     [ ] De/serializing for BESTful format
     [ ] Authoring tool
         [ ] Drawing tools
@@ -94,8 +95,8 @@ impl RenderNode for Rectangle {
 }
 
 // Public method for consumption by engine chassis, e.g. WebChassis
-pub fn get_engine() -> CarbonEngine {
-    return CarbonEngine::new();
+pub fn get_engine(logger: fn(&str)) -> CarbonEngine {
+    return CarbonEngine::new(logger);
 }
 
 pub struct SceneGraph {
@@ -103,13 +104,19 @@ pub struct SceneGraph {
 }
 
 pub struct CarbonEngine {
+    logger: fn(&str),
     frames_elapsed: u32,
     scene_graph: SceneGraph,
 }
 
 impl CarbonEngine {
-    fn new() -> Self {
+
+    fn log(&self, msg: &str) {
+        (self.logger)(msg);
+    }
+    fn new(logger: fn(&str)) -> Self {
         CarbonEngine {
+            logger,
             frames_elapsed: 0,
             scene_graph: SceneGraph {
                 root: Box::new(Group {
@@ -267,6 +274,9 @@ impl CarbonEngine {
 
         self.render_scene_graph(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
+
+        // Logging example:
+        // self.log(format!("Frame: {}", self.frames_elapsed).as_str());
 
         Ok(())
     }
