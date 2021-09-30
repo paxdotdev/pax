@@ -95,8 +95,8 @@ impl CarbonEngine {
                             height: 250.0,
                             transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
                         }),
-                        Group {
-                            transform: Affine::translate(Vec2{x: 800.0, y:0.0}),
+                        Box::new(Group {
+                            transform: Affine::translate(Vec2{x: 800.0, y:-200.0}),
                             children: vec![
                                 Box::new(Rectangle {
                                     width: 50.0,
@@ -114,7 +114,7 @@ impl CarbonEngine {
                                     transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
                                 }),
                             ],
-                        }
+                        })
                     ],
                 }),
             },
@@ -140,7 +140,7 @@ impl CarbonEngine {
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done
 
-        let new_accumulated_transform = *node.get_transform() * *accumulated_transform;
+        let new_accumulated_transform = *accumulated_transform * *node.get_transform();
 
         match node.get_children() {
             Some(children) => {
@@ -158,13 +158,13 @@ impl CarbonEngine {
             },
             None => {
                 //this is a leaf node.  render it & return.
-                node.render(rc, &new_accumulated_transform);
+                let frame_rotated_transform = new_accumulated_transform * Affine::rotate(self.frames_elapsed as f64 / 100.);
+                node.render(rc, &frame_rotated_transform);
             }
         }
 
         //TODO: Now that children have been rendered, if there's rendering to be done at this node,
         //      (e.g. for layouts, perhaps virtual nodes like $repeat), do that rendering here
-
 
         Ok(())
     }
