@@ -68,16 +68,16 @@ pub fn run() {
     canvas.set_height((canvas.offset_height() as f64 * dpr) as u32);
     let _ = context.scale(dpr, dpr);
 
-    let mut piet_context  = WebRenderContext::new(context, window);
+    let piet_context  = WebRenderContext::new(context, window);
     let engine = carbon::get_engine(log_wrapper);
-    drawing_loop(engine,piet_context);
+    render_loop(engine, piet_context);
 }
 
 pub fn log_wrapper(msg: &str) {
     console_log!("{}", msg);
 }
 
-pub fn drawing_loop(mut engine: CarbonEngine, mut piet_context: WebRenderContext<'static>) -> Result<(), JsValue> {
+pub fn render_loop(mut engine: CarbonEngine, mut piet_context: WebRenderContext<'static>) -> Result<(), JsValue> {
     engine.tick_and_render(&mut piet_context).unwrap();
 
     let f = Rc::new(RefCell::new(None));
