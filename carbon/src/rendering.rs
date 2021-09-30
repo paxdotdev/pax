@@ -22,6 +22,7 @@ impl RenderNode for Group {
 
 pub struct Stroke {
     pub color: Color,
+    pub width: f64,
     pub style: StrokeStyle,
 }
 
@@ -30,6 +31,7 @@ pub struct Rectangle {
     pub height: f64,
     pub transform: Affine,
     pub stroke: Stroke,
+    pub fill: Color,
 }
 
 impl RenderNode for Rectangle {
@@ -53,9 +55,7 @@ impl RenderNode for Rectangle {
         let transformed_bez_path = *transform * bez_path;
         let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
-        let phased_color = Color::rgba(227., 225., 27., 0.25);
-        rc.fill(transformed_bez_path, &phased_color);
-
-        rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, 3.0);
+        rc.fill(transformed_bez_path, &self.fill);
+        rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
     }
 }

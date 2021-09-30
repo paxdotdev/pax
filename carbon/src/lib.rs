@@ -15,12 +15,12 @@ TODO:
     [x] Refactor PoC code into multi-file, better structure
     [x] Refactor web chassis
     [x] Logging
-    [ ] Stroke, color, fill
+    [x] Stroke, color, fill
     [ ] Sizing + resizing support
         [ ] Transform.align
     [ ] Transform.origin
     [ ] Ellipse
-    [ ] Clean up warnings
+    [x] Clean up warnings
     [ ] Expression engine
         [ ] state & scopes
         [ ] parser & syntax
@@ -34,6 +34,7 @@ TODO:
     [ ] PoC on iOS, Android
         [ ] Extricate Engine's dependency on WebRenderContext
     [ ] Gradients
+        [ ] Multiple (stacked, polymorphic) fills
     [ ] De/serializing for BESTful format
     [ ] Tests
     [ ] Authoring tool

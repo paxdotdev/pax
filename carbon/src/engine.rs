@@ -43,27 +43,33 @@ impl CarbonEngine {
                         Box::new(Rectangle {
                             width: 50.0,
                             height: 50.0,
+                            fill: Color::hlc(0.0, 75.0, 127.0),
                             transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
                             stroke: Stroke {
                                 color: Color::rgb8(150, 20, 200),
+                                width: 5.0,
                                 style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
                             },
                         }),
                         Box::new(Rectangle {
                             width: 100.0,
                             height: 100.0,
+                            fill: Color::hlc(40.0, 75.0, 127.0),
                             transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
                             stroke: Stroke {
                                 color: Color::rgb8(150, 20, 200),
+                                width: 5.0,
                                 style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
                             },
                         }),
                         Box::new(Rectangle {
                             width: 250.0,
                             height: 250.0,
+                            fill: Color::hlc(80.0, 75.0, 127.0),
                             transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
                             stroke: Stroke {
                                 color: Color::rgb8(150, 20, 200),
+                                width: 5.0,
                                 style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
                             },
                         }),
@@ -73,27 +79,33 @@ impl CarbonEngine {
                                 Box::new(Rectangle {
                                     width: 50.0,
                                     height: 50.0,
+                                    fill: Color::hlc(120.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
                                     stroke: Stroke {
                                         color: Color::rgb8(150, 20, 200),
+                                        width: 5.0,
                                         style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
                                     },
                                 }),
                                 Box::new(Rectangle {
                                     width: 100.0,
                                     height: 100.0,
+                                    fill: Color::hlc(160.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
                                     stroke: Stroke {
                                         color: Color::rgb8(150, 20, 200),
+                                        width: 5.0,
                                         style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
                                     },
                                 }),
                                 Box::new(Rectangle {
                                     width: 250.0,
                                     height: 250.0,
+                                    fill: Color::hlc(200.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
                                     stroke: Stroke {
                                         color: Color::rgb8(150, 20, 200),
+                                        width: 5.0,
                                         style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
                                     },
                                 }),
@@ -105,27 +117,33 @@ impl CarbonEngine {
                                 Box::new(Rectangle {
                                     width: 50.0,
                                     height: 50.0,
+                                    fill: Color::hlc(240.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
                                     stroke: Stroke {
                                         color: Color::rgb8(150, 20, 200),
+                                        width: 5.0,
                                         style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
                                     },
                                 }),
                                 Box::new(Rectangle {
                                     width: 100.0,
                                     height: 100.0,
+                                    fill: Color::hlc(280.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
                                     stroke: Stroke {
                                         color: Color::rgb8(150, 20, 200),
+                                        width: 5.0,
                                         style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
                                     },
                                 }),
                                 Box::new(Rectangle {
                                     width: 250.0,
                                     height: 250.0,
+                                    fill: Color::hlc(320.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
                                     stroke: Stroke {
                                         color: Color::rgb8(150, 20, 200),
+                                        width: 5.0,
                                         style: StrokeStyle {line_cap: None, dash: None, line_join: None, miter_limit: None,},
                                     },
                                 }),
