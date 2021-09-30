@@ -1,80 +1,22 @@
-use std::rc::Rc;
-
 use kurbo::{Affine, BezPath, Point, Vec2};
 pub use piet::{Color, Error};
 use piet::RenderContext;
 pub use piet_web::WebRenderContext;
 
 
-
-
-//Simplify:
-// - Traverse a non-polymorphic tree (everything a Node)
-// - Then make polymorphic
-
-// base class for scene graph entities
-// pub struct Rectangle {
-//     width: f64,
-//     height: f64,
-//     transform: Affine,
-// }
-
-// trait RenderNode
-// {
-//     fn get_children(self) -> Vec<Box<dyn RenderNode>>;
-//     fn get_transform(self) -> Affine;
-// }
-//
-// impl RenderNode for Group
-// {
-//     fn get_children(self) -> Vec<Box<dyn RenderNode>> {
-//         self.children
-//     }
-//     fn get_transform(self) -> Affine {
-//         self.transform
-//     }
-// }
-//
-// impl RenderNode for Rectangle
-// {
-//     fn get_children(self) -> Vec<Box<dyn RenderNode>> {
-//         Vec::new()
-//     }
-//     fn get_transform(self) -> Affine {
-//         self.transform
-//     }
-// }
-//
-// //TODO:  organize alongside other nodes in fs, modules
-// impl Rectangle {
-//     fn new(width: f64, height: f64, stroke: Stroke, fill: Fill, transform: Affine) -> Self {
-//         Rectangle {
-//             width,
-//             height,
-//             stroke,
-//             fill,
-//             transform, //TODO:  this should probably be SugaryTransform
-//         }
-//     }
-//     fn render(ctx: WebRenderContext) {
-//     }
-// }
-
-
 trait RenderNode
 {
-    fn get_children(&self) -> Option<&Vec<dyn RenderNode>>;
+    fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
     fn get_transform(&self) -> &Affine;
 }
 
-
 struct Group {
-    children: Vec<dyn RenderNode>,
+    children: Vec<Box<dyn RenderNode>>,
     transform: Affine,
 }
 
 impl RenderNode for Group {
-    fn get_children(&self) -> Option<&Vec<dyn RenderNode>> {
+    fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
         Some(&self.children)
     }
     fn get_transform(&self) -> &Affine {
@@ -89,7 +31,7 @@ struct Rectangle {
 }
 
 impl RenderNode for Rectangle {
-    fn get_children(&self) -> Option<&Vec<dyn RenderNode>> {
+    fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
         None
     }
     fn get_transform(&self) -> &Affine {
@@ -103,7 +45,7 @@ pub fn get_engine() -> CarbonEngine {
 }
 
 pub struct SceneGraph {
-    root: Group
+    root: Box<dyn RenderNode>
 }
 
 pub struct CarbonEngine {
@@ -116,16 +58,16 @@ impl CarbonEngine {
         CarbonEngine {
             frames_elapsed: 0,
             scene_graph: SceneGraph {
-                root: Group {
+                root: Box::new(Group {
                     transform: Affine::default(),
                     children: vec![
-                        Rectangle {
+                        Box::new(Rectangle {
                             width: 100.0,
                             height: 100.0,
                             transform: Affine::translate(Vec2 { x: 300.0, y: 300.0 }) * Affine::rotate(1.5),
-                        },
+                        }),
                     ],
-                },
+                }),
             },
         }
     }
@@ -142,7 +84,7 @@ impl CarbonEngine {
         Ok(())
     }
 
-    fn recurse_render_scene_graph(&self, node: &RenderNode, accumulated_transform: &Affine) -> Result<(), Error> {
+    fn recurse_render_scene_graph(&self, node: &Box<dyn RenderNode>, accumulated_transform: &Affine) -> Result<(), Error> {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
@@ -150,8 +92,6 @@ impl CarbonEngine {
         //  - done
 
         let new_accumulated_transform = *accumulated_transform * *node.get_transform();
-
-
 
         match node.get_children() {
             Some(children) => {
@@ -169,11 +109,13 @@ impl CarbonEngine {
                 }
             },
             None => {
-                //this is a leaf node.  render it.
-                //TODO:  some nodes (e.g. layouts) can have children AND require rendering.
-                //       also: some nodes are virtual, e.g. $repeat
+                //this is a leaf node.  render it & return.
+
             }
         }
+
+        //TODO: Now that children have been rendered, if there's rendering to be done at this node,
+        //      (e.g. for layouts, perhaps virtual nodes like $repeat), do that rendering here
 
 
         Ok(())
