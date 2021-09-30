@@ -10,16 +10,17 @@ TODO:
     [x] Refactor web chassis
     [x] Logging
     [ ] Stroke, color, fill
-    [ ] Transform-origin
+    [ ] Sizing + resizing support
+        [ ] Transform.align
+    [ ] Transform.origin
     [ ] Ellipse
     [ ] Clean up warnings
     [ ] Expression engine, state
     [ ] Text prefabs + support layer for Web adapter
         [ ] Also clean up the drawing_loop logic for Web
+        [ ] Clipping
     [ ] Layouts (stacks)
-        [ ] sizing introspection
-        [ ] transform.align
-        [ ] clipping
+        [ ] Clipping
     [ ] Timelines, transitions, t9ables
 === MED
     [ ] PoC on iOS, Android
@@ -29,8 +30,9 @@ TODO:
         [ ] Drawing tools
         [ ] Layout-building tools
 === LOW
-    [ ] transform.shear
+    [ ] Transform.shear
     [ ] Debugging chassis
+    [ ] Perf-optimize Rectangle (assuming BezPath is inefficient)
  */
 
 trait RenderNode
@@ -113,9 +115,6 @@ pub struct CarbonEngine {
 
 impl CarbonEngine {
 
-    fn log(&self, msg: &str) {
-        (self.logger)(msg);
-    }
     fn new(logger: fn(&str)) -> Self {
         CarbonEngine {
             logger,
@@ -219,6 +218,10 @@ impl CarbonEngine {
                 }),
             },
         }
+    }
+
+    fn log(&self, msg: &str) {
+        (self.logger)(msg);
     }
 
     fn render_scene_graph(&self, rc: &mut WebRenderContext) -> Result<(), Error> {
