@@ -206,9 +206,6 @@ impl CarbonEngine {
     }
 
     pub fn set_viewport_size(&mut self, dimens: (f64, f64)) {
-        // this affects the size of root
-        //OR:  root can specify a concrete size (a la Flash stage)
-        //     or dynamic size, e.g. fn(viewport size)
     }
 
     pub fn tick(&mut self, rc: &mut WebRenderContext) -> Result<(), Error> {

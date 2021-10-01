@@ -3,7 +3,7 @@ use piet_web::{WebRenderContext};
 use piet::{Color, StrokeStyle, RenderContext};
 use kurbo::{Affine, BezPath, Point};
 
-use crate::{Variable, Property, CarbonEngine, PropertyTreeContext};
+use crate::{Variable, Property, PropertyTreeContext};
 
 pub struct SceneGraph {
     pub root: Box<dyn RenderNode>

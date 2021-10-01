@@ -43,6 +43,10 @@ macro_rules! console_log {
     ($($t:tt)*) => (log(&format_args!($($t)*).to_string()))
 }
 
+pub fn log_wrapper(msg: &str) {
+    console_log!("{}", msg);
+}
+
 #[wasm_bindgen]
 pub fn run() {
     #[cfg(feature = "console_error_panic_hook")]
@@ -56,7 +60,7 @@ pub fn run() {
         .unwrap()
         .dyn_into::<HtmlCanvasElement>()
         .unwrap();
-    let context = canvas
+    let context : web_sys::CanvasRenderingContext2d = canvas
         .get_context("2d")
         .unwrap()
         .unwrap()
@@ -74,6 +78,7 @@ pub fn run() {
     let _ = context.scale(dpr, dpr);
 
     let piet_context  = WebRenderContext::new(context, window);
+    // piet_context.
     let engine = carbon::get_engine(log_wrapper, (width, height));
 
     let engine_container : Rc<RefCell<CarbonEngine>> = Rc::new(RefCell::new(engine));
@@ -84,6 +89,9 @@ pub fn run() {
         let engine_rc_pointer = engine_container.clone();
         let closure = Closure::wrap(Box::new(move |event: web_sys::Event| {
             let mut engine = engine_rc_pointer.borrow_mut();
+
+            //TODO:  can probably tackle this more elegantly by reusing / capturing / Rc-ing
+            //       previously declared window / canvas / context / etc.
             let inner_window = web_sys::window().unwrap();
             let inner_canvas = inner_window
                 .document()
@@ -99,9 +107,12 @@ pub fn run() {
                 .dyn_into::<web_sys::CanvasRenderingContext2d>()
                 .unwrap();
 
-            let dpr = inner_window.device_pixel_ratio();
-            let width = (inner_canvas.offset_width() as f64 * dpr);
-            let height = (inner_canvas.offset_height() as f64 * dpr);
+            //inner_width and inner_height
+            //already account for device pixel ratio.
+            let width = (inner_window.inner_width().unwrap().as_f64().unwrap());
+            let height = (inner_window.inner_height().unwrap().as_f64().unwrap());
+            canvas.set_attribute("width", format!("{}",width).as_str());
+            canvas.set_attribute("height", format!("{}",height).as_str());
             engine.set_viewport_size((width, height));
         }) as Box<dyn FnMut(_)>);
         let inner_window = web_sys::window().unwrap();
@@ -112,12 +123,9 @@ pub fn run() {
     render_loop(&engine_container, piet_context);
 }
 
-pub fn log_wrapper(msg: &str) {
-    console_log!("{}", msg);
-}
-
 pub fn render_loop(engine_container: &Rc<RefCell<CarbonEngine>>, mut piet_context: WebRenderContext<'static>) {
-    //
+    //this special Rc dance lets us kick off the initial rAF loop (`g`)
+    //AND fire the subsequent rAF calls (`f`)
     let f = Rc::new(RefCell::new(None));
     let g = f.clone();
     {
