@@ -43,28 +43,13 @@ impl<T> Property<T> for PropertyLiteral<T> {
 }
 
 pub struct PropertyExpression<T> {
-    pub expression: Expression<T>
-}
-
-impl<T> Property<T> for PropertyExpression<T> {
-    fn eval_in_place(&mut self) -> &T {
-        self.expression.eval_in_place();
-        &self.expression.last_value
-    }
-    fn read(&self) -> &T {
-        &self.expression.last_value
-    }
-}
-
-//TODO:  may be able to merge Expression and PropertyExpression into one struct/impl
-pub struct Expression<T> {
     pub evaluator: fn(HashMap<String, PolymorphicValue>) -> T,
     pub dependencies : Vec<(String, PolymorphicType)>,
     pub last_value: T,
 }
 
-impl<T> Expression<T> {
-    pub fn eval_in_place(&mut self) -> &T {
+impl<T> Property<T> for PropertyExpression<T> {
+    fn eval_in_place(&mut self) -> &T {
         //first: derive values
         //  - iterate through dependencies
         //  - parse dep string into a value; cast as PolymorphicType
@@ -97,6 +82,9 @@ impl<T> Expression<T> {
         let dep_values : HashMap<String, PolymorphicValue> = HashMap::new();
 
         self.last_value = (self.evaluator)(dep_values);
+        &self.last_value
+    }
+    fn read(&self) -> &T {
         &self.last_value
     }
 }

@@ -12,7 +12,6 @@ use crate::{
     Affine,
     Color,
     Error,
-    Expression,
     Group,
     PolymorphicValue,
     PropertyExpression,
@@ -25,6 +24,9 @@ use crate::{
     Variable,
     PolymorphicType,
 };
+
+
+
 
 use std::collections::HashMap;
 
@@ -65,13 +67,11 @@ impl CarbonEngine {
                                 Box::new(Rectangle {
                                     id: String::from("rect_4"),
                                     width: Box::new(PropertyExpression {
-                                        expression: Expression {
-                                            last_value: 100.0,
-                                            dependencies: vec![(String::from("var1"), PolymorphicType::Float)],
-                                            evaluator: (|_dep_values: HashMap<String, PolymorphicValue>| -> f64 {
-                                                250.0
-                                            })
-                                        }
+                                        last_value: 100.0,
+                                        dependencies: vec![(String::from("var1"), PolymorphicType::Float)],
+                                        evaluator: (|_dep_values: HashMap<String, PolymorphicValue>| -> f64 {
+                                            return 1200.
+                                        })
                                     }),
                                     height: 50.0,
                                     fill: Color::hlc(120.0, 75.0, 127.0),
@@ -110,8 +110,7 @@ impl CarbonEngine {
                         }),
                     ],
                 }),
-            },
-            ),
+            }),
         }
     }
 
