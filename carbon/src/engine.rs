@@ -8,7 +8,27 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Expression, Group, PolymorphicValue, Property, PropertyExpression, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable};
+use crate::{
+    Affine,
+    Color,
+    Error,
+    Expression,
+    Group,
+    PolymorphicValue,
+    PropertyExpression,
+    PropertyLiteral,
+    Rectangle,
+    RenderNode,
+    SceneGraph,
+    Stroke,
+    StrokeStyle,
+    Variable,
+    PolymorphicType,
+};
+
+use std::collections::HashMap;
+
+
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str)) -> CarbonEngine {
@@ -44,7 +64,15 @@ impl CarbonEngine {
                             children: vec![
                                 Box::new(Rectangle {
                                     id: String::from("rect_4"),
-                                    width: Box::new(PropertyLiteral { value: 50.0 }),
+                                    width: Box::new(PropertyExpression {
+                                        expression: Expression {
+                                            last_value: 100.0,
+                                            dependencies: vec![(String::from("var1"), PolymorphicType::Float)],
+                                            evaluator: (|_dep_values: HashMap<String, PolymorphicValue>| -> f64 {
+                                                250.0
+                                            })
+                                        }
+                                    }),
                                     height: 50.0,
                                     fill: Color::hlc(120.0, 75.0, 127.0),
                                     transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),

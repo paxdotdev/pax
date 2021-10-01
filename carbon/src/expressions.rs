@@ -25,7 +25,7 @@ pub enum PolymorphicType {
 pub trait Property<T> {
     //either unwrap T
     //or provide a fn -> T
-    fn eval_in_place(&mut self) -> &T;
+    fn eval_in_place(&mut self) -> &T; //TODO:  maybe this doesn't need to return
     fn read(&self) -> &T;
 }
 
@@ -56,9 +56,10 @@ impl<T> Property<T> for PropertyExpression<T> {
     }
 }
 
+//TODO:  may be able to merge Expression and PropertyExpression into one struct/impl
 pub struct Expression<T> {
     pub evaluator: fn(HashMap<String, PolymorphicValue>) -> T,
-    pub dependencies : HashMap<String, PolymorphicType>,
+    pub dependencies : Vec<(String, PolymorphicType)>,
     pub last_value: T,
 }
 
@@ -70,8 +71,7 @@ impl<T> Expression<T> {
         //  - future: track use of dependency in dep graph
         //then: call the evaluator, passing the derived values
 
-
-        for (key, value) in self.dependencies.iter() {
+        for (_key, value) in self.dependencies.iter() {
 
             //TODO:  we will need a reference to Engine here
             //       -- should we make it 'static or should
@@ -80,9 +80,7 @@ impl<T> Expression<T> {
             //  this value needs to be evaluated from a combination of:
             //  - engine, for globals like current frame count
             //  - local component, for locals like vars and descendents
-            //  - ... who should own this?
-            //  - (should we accept a ref to both here?)
-            // println!("{} / {}", key, value);
+
             match value {
                 PolymorphicType::Float => {
 
@@ -94,7 +92,6 @@ impl<T> Expression<T> {
 
                 }
             }
-            // map.remove(key);
         }
 
         let dep_values : HashMap<String, PolymorphicValue> = HashMap::new();

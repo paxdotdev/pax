@@ -40,7 +40,8 @@ impl RenderNode for Group {
         &self.id.as_str()
     }
     fn eval_properties_in_place(&mut self) {
-
+        //TODO: loop over each of Group's `Expressable` properties,
+        //
     }
     fn render(&self, _: &mut WebRenderContext, _: &Affine) {}
 }
@@ -68,7 +69,7 @@ impl RenderNode for Rectangle {
         None
     }
     fn eval_properties_in_place(&mut self) {
-
+        self.width.eval_in_place();
     }
     fn get_transform(&self) -> &Affine {
         &self.transform
@@ -81,7 +82,6 @@ impl RenderNode for Rectangle {
         //  for each property that's used here (e.g. self.width and self.height)
         //  unbox the Value vs Expression and pack into a local for eval here
 
-
         //Note — either:
         //  expressions need to belong to themselves/the exp engine,
         //    only linked here by ref
@@ -89,12 +89,11 @@ impl RenderNode for Rectangle {
         //    caches can be written to
         //  OR we can use a more exotic wrapper (`Cow`?) to address
         //    the mutability problem with minimal footprint
-        //  OR tree rendering reads from a read-only cache,
+        //  [*] OR tree rendering reads from a read-only cache,
         //    while expression evaluation happens as a whole
         //    separate step (before rendering each frame)
         let width: f64 = *self.width.read();
         let height: f64 = self.height;
-
 
         let mut bez_path = BezPath::new();
 
