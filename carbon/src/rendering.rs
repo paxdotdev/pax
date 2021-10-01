@@ -3,7 +3,7 @@ use piet_web::{WebRenderContext};
 use piet::{Color, StrokeStyle, RenderContext};
 use kurbo::{Affine, BezPath, Point};
 
-use crate::{Variable, Property};
+use crate::{Variable, Property, CarbonEngine, PropertyTreeContext};
 
 pub struct SceneGraph {
     pub root: Box<dyn RenderNode>
@@ -15,7 +15,7 @@ pub trait RenderNode
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>>;
     fn get_transform(&self) -> &Affine;
     fn get_id(&self) -> &str;
-    fn eval_properties_in_place(&mut self);
+    fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine);
 }
 
@@ -39,7 +39,7 @@ impl RenderNode for Group {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
-    fn eval_properties_in_place(&mut self) {
+    fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
         //TODO: loop over each of Group's `Expressable` properties,
         //
     }
@@ -68,8 +68,8 @@ impl RenderNode for Rectangle {
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> {
         None
     }
-    fn eval_properties_in_place(&mut self) {
-        self.width.eval_in_place();
+    fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
+        self.width.eval_in_place(ctx);
     }
     fn get_transform(&self) -> &Affine {
         &self.transform
@@ -82,16 +82,6 @@ impl RenderNode for Rectangle {
         //  for each property that's used here (e.g. self.width and self.height)
         //  unbox the Value vs Expression and pack into a local for eval here
 
-        //Note — either:
-        //  expressions need to belong to themselves/the exp engine,
-        //    only linked here by ref
-        //  OR rendering needs to be &mut self, so that expression
-        //    caches can be written to
-        //  OR we can use a more exotic wrapper (`Cow`?) to address
-        //    the mutability problem with minimal footprint
-        //  [*] OR tree rendering reads from a read-only cache,
-        //    while expression evaluation happens as a whole
-        //    separate step (before rendering each frame)
         let width: f64 = *self.width.read();
         let height: f64 = self.height;
 

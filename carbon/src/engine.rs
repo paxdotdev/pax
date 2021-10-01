@@ -8,22 +8,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{
-    Affine,
-    Color,
-    Error,
-    Group,
-    PolymorphicValue,
-    PropertyExpression,
-    PropertyLiteral,
-    Rectangle,
-    RenderNode,
-    SceneGraph,
-    Stroke,
-    StrokeStyle,
-    Variable,
-    PolymorphicType,
-};
+use crate::{Affine, Color, Error, Group, PolymorphicValue, PropertyExpression, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext};
 
 
 
@@ -68,9 +53,12 @@ impl CarbonEngine {
                                     id: String::from("rect_4"),
                                     width: Box::new(PropertyExpression {
                                         last_value: 100.0,
-                                        dependencies: vec![(String::from("var1"), PolymorphicType::Float)],
-                                        evaluator: (|_dep_values: HashMap<String, PolymorphicValue>| -> f64 {
-                                            return 1200.
+                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> f64 {
+                                            unsafe {
+                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                return (frames_elapsed / 100.).sin() * 500.
+                                            }
                                         })
                                     }),
                                     height: 50.0,
@@ -176,26 +164,20 @@ impl CarbonEngine {
         // - update cache (current, `last_known_value`) for each property
         // - done
 
-        // hello world scene graph
-        //           (root)
-        //           /    \
-        //       (rect)  (rect)
+        let ctx = PropertyTreeContext {
+            engine: &self,
+        };
 
-        // 1. find lowest node (last child of last node), accumulating transform along the way
-        // 2. start rendering, from lowest node on-up
-
-        //TODO:  keep &self immutable; use RefCell<SceneGraph> instead
-
-        &self.recurse_update_property_tree(&mut self.scene_graph.borrow_mut().root);
+        &self.recurse_update_property_tree(&ctx,&mut self.scene_graph.borrow_mut().root);
     }
 
-    fn recurse_update_property_tree(&self, node: &mut Box<dyn RenderNode>)  {
+    fn recurse_update_property_tree(&self, ctx: &PropertyTreeContext, node: &mut Box<dyn RenderNode>)  {
         // Recurse:
         //  - iterate in a pre-order traversal, ensuring ancestors have been evaluated first
         //  - for each property, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
         //  - done
 
-        node.eval_properties_in_place();
+        node.eval_properties_in_place(ctx);
 
         match &mut node.get_children_mut() {
             Some(children) => {
@@ -206,7 +188,7 @@ impl CarbonEngine {
                     match child {
                         None => { return },
                         Some(child) => {
-                            &self.recurse_update_property_tree(child);
+                            &self.recurse_update_property_tree(ctx, child);
                         }
                     }
                 }
