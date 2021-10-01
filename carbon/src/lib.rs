@@ -22,10 +22,10 @@ TODO:
     [ ] Expression engine
         [x] variables, declaration & storage
         [x] node IDs
-        [ ] summonables
-            [ ] nested state access & access control (descendent vs ancestor)
-            [ ] build-in vars like frame count
-        [ ] parser & syntax (or MVP rust closures + manifest of deps)
+        [x] summonables
+            [ ] nested state access & figure out access control (descendent vs ancestor vs global+acyclic+(private?))
+            [x] built-in vars like frame count
+        [x] MVP rust closures + manifest of deps
     [ ] Text prefabs + support layer for Web adapter
         [ ] Clipping
     [ ] Layouts (stacks)
@@ -40,6 +40,8 @@ TODO:
         [ ] Multiple (stacked, polymorphic) fills
     [ ] De/serializing for BESTful format
     [ ] Expressions
+        [ ] dependency graph, smart traversal, circ. ref detection
+        [ ] parser & syntax
         [ ] control flow ($repeat, $if)
         [ ] dependency graph + caching
     [ ] Tests

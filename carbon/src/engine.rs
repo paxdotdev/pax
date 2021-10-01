@@ -159,11 +159,15 @@ impl CarbonEngine {
     }
 
     pub fn update_property_tree(&self) {
-        //TODO:
         // - traverse scene graph
         // - update cache (current, `last_known_value`) for each property
         // - done
 
+        //TODO:
+        // - be smarter about updates, think "spreadsheet"
+        //      - don't update values that don't need updating
+        //      - traverse dependency graph, "distal"-inward
+        //      - disallow circular deps
         let ctx = PropertyTreeContext {
             engine: &self,
         };
@@ -197,6 +201,12 @@ impl CarbonEngine {
                 //this is a leaf node.  we're done with this branch.
             }
         }
+    }
+
+    pub fn set_viewport_size(&mut self, dimens: (f64, f64)) {
+        // this affects the size of root
+        //OR:  root can specify a concrete size (a la Flash stage)
+        //     or dynamic size, e.g. fn(viewport size)
     }
 
     pub fn tick(&mut self, rc: &mut WebRenderContext) -> Result<(), Error> {

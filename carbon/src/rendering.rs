@@ -40,8 +40,7 @@ impl RenderNode for Group {
         &self.id.as_str()
     }
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
-        //TODO: loop over each of Group's `Expressable` properties,
-        //
+        //TODO: handle each of Group's `Expressable` properties
     }
     fn render(&self, _: &mut WebRenderContext, _: &Affine) {}
 }

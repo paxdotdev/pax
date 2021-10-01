@@ -63,7 +63,7 @@ impl<T> PropertyExpression<T> {
                 //       now perform dynamic evaluation
                 //    1. handle `this`
                 //    2. handle property access; `this.height`
-                //      - do we need
+                //       [do we allow endless ref loops here? and trust a pre-processor to avoid them?]
                 //    3. collect ids of children, handle e.g. `rect_1`
 
                 panic!("unsupported dependency")
