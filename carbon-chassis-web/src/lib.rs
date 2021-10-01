@@ -107,12 +107,12 @@ pub fn run() {
                 .dyn_into::<web_sys::CanvasRenderingContext2d>()
                 .unwrap();
 
-            //inner_width and inner_height
-            //already account for device pixel ratio.
+            //inner_width and inner_height already account for device pixel ratio.
             let width = (inner_window.inner_width().unwrap().as_f64().unwrap());
             let height = (inner_window.inner_height().unwrap().as_f64().unwrap());
             canvas.set_attribute("width", format!("{}",width).as_str());
             canvas.set_attribute("height", format!("{}",height).as_str());
+            console_log!("width: {}", width);
             engine.set_viewport_size((width, height));
         }) as Box<dyn FnMut(_)>);
         let inner_window = web_sys::window().unwrap();
@@ -130,16 +130,12 @@ pub fn render_loop(engine_container: &Rc<RefCell<CarbonEngine>>, mut piet_contex
     let g = f.clone();
     {
         let engine_rc_pointer = engine_container.clone();
+
         let closure = Closure::wrap(Box::new(move || {
             let mut engine = engine_rc_pointer.borrow_mut();
-
-            // (from wasm-bindgen docs)
-            // TODO: Drop our handle to this closure so that it will get cleaned up once we return.
-            //  // let _ = f.borrow_mut().take();
-            //  // return;
-
-            engine.tick(&mut piet_context).unwrap();
+            engine.tick(&mut piet_context);
             request_animation_frame(f.borrow().as_ref().unwrap());
+            // let _ = f.borrow_mut().take(); // clean up
         }) as Box<dyn FnMut()>);
 
         *g.borrow_mut() = Some(closure);

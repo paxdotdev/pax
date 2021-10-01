@@ -19,8 +19,7 @@ use std::collections::HashMap;
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
-    let mut engine = CarbonEngine::new(logger);
-    engine.set_viewport_size(viewport_size);
+    let mut engine = CarbonEngine::new(logger, viewport_size);
     engine
 }
 
@@ -28,10 +27,11 @@ pub struct CarbonEngine {
     pub logger: fn(&str),
     pub frames_elapsed: u32,
     pub scene_graph: RefCell<SceneGraph>,
+    viewport_size: (f64, f64),
 }
 
 impl CarbonEngine {
-    fn new(logger: fn(&str)) -> Self {
+    fn new(logger: fn(&str), viewport_size: (f64, f64)) -> Self {
         CarbonEngine {
             logger,
             frames_elapsed: 0,
@@ -63,8 +63,28 @@ impl CarbonEngine {
                                             }
                                         })
                                     }),
-                                    height: 50.0,
-                                    fill: Color::hlc(120.0, 75.0, 127.0),
+                                    height: Box::new(PropertyExpression {
+                                        last_value: 500.0,
+                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> f64 {
+                                            unsafe {
+                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                return (frames_elapsed / 100.).sin() * 500.
+                                            }
+                                        })
+                                    }),
+                                    fill: Box::new(
+                                        PropertyExpression {
+                                            last_value: Color::hlc(0.0,0.0,0.0),
+                                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Color {
+                                                unsafe {
+                                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                    return Color::hlc((((frames_elapsed / 500.) * 360.) as i64 % 360) as f64, 75.0, 127.0);
+                                                }
+                                            })
+                                        }
+                                    ),
                                     transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
                                     stroke: Stroke {
                                         color: Color::hlc(280.0, 75.0, 127.0),
@@ -75,8 +95,8 @@ impl CarbonEngine {
                                 Box::new(Rectangle {
                                     id: String::from("rect_5"),
                                     width: Box::new(PropertyLiteral { value: 100.0 }),
-                                    height: 100.0,
-                                    fill: Color::hlc(160.0, 75.0, 127.0),
+                                    height: Box::new(PropertyLiteral { value: 100.0 }),
+                                    fill: Box::new(PropertyLiteral{value: Color::hlc(160.0, 75.0, 127.0)}),
                                     transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
                                     stroke: Stroke {
                                         color: Color::hlc(320.0, 75.0, 127.0),
@@ -87,8 +107,8 @@ impl CarbonEngine {
                                 Box::new(Rectangle {
                                     id: String::from("rect_6"),
                                     width: Box::new(PropertyLiteral { value: 250.0 }),
-                                    height: 250.0,
-                                    fill: Color::hlc(200.0, 75.0, 127.0),
+                                    height: Box::new(PropertyLiteral { value: 100.0 }),
+                                    fill: Box::new(PropertyLiteral{value: Color::hlc(200.0, 75.0, 127.0)}),
                                     transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
                                     stroke: Stroke {
                                         color: Color::hlc(0.0, 75.0, 127.0),
@@ -101,6 +121,7 @@ impl CarbonEngine {
                     ],
                 }),
             }),
+            viewport_size,
         }
     }
 
@@ -149,7 +170,9 @@ impl CarbonEngine {
             },
             None => {
                 //this is a leaf node.  render it.
-                let theta = (self.frames_elapsed as f64 / 50.0).sin() * 5.0 + (self.frames_elapsed as f64 / 50.0);
+
+                //HACK:  hard-code some rotation here to make things feel alive
+                let theta = (self.frames_elapsed as f64 / 65.0);
                 let frame_rotated_transform = new_accumulated_transform * Affine::rotate(theta);
                 node.render(rc, &frame_rotated_transform);
             }
@@ -205,10 +228,11 @@ impl CarbonEngine {
         }
     }
 
-    pub fn set_viewport_size(&mut self, dimens: (f64, f64)) {
+    pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
+        self.viewport_size = new_viewport_size;
     }
 
-    pub fn tick(&mut self, rc: &mut WebRenderContext) -> Result<(), Error> {
+    pub fn tick(&mut self, rc: &mut WebRenderContext) {
         rc.clear(Color::rgb8(0, 0, 0));
 
         self.update_property_tree();
@@ -219,7 +243,8 @@ impl CarbonEngine {
         // Logging example:
         // self.log(format!("Frame: {}", self.frames_elapsed).as_str());
 
-        Ok(())
+        let mut outer_bounds = kurbo::Rect::new(0.0,0.0,self.viewport_size.0, self.viewport_size.1);
+        rc.stroke(outer_bounds, &piet::Color::rgba(1.0, 0.0, 0.0, 1.0), 5.0);
     }
 
     //keeping until this can be done via scene graph

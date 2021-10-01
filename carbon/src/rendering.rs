@@ -53,10 +53,10 @@ pub struct Stroke {
 
 pub struct Rectangle {
     pub width: Box<dyn Property<f64>>,
-    pub height: f64,
+    pub height: Box<dyn Property<f64>>,
     pub transform: Affine,
     pub stroke: Stroke,
-    pub fill: Color,
+    pub fill: Box<dyn Property<Color>>,
     pub id: String,
 }
 
@@ -69,6 +69,8 @@ impl RenderNode for Rectangle {
     }
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
         self.width.eval_in_place(ctx);
+        self.height.eval_in_place(ctx);
+        self.fill.eval_in_place(ctx);
     }
     fn get_transform(&self) -> &Affine {
         &self.transform
@@ -82,7 +84,8 @@ impl RenderNode for Rectangle {
         //  unbox the Value vs Expression and pack into a local for eval here
 
         let width: f64 = *self.width.read();
-        let height: f64 = self.height;
+        let height: f64 = *self.height.read();
+        let fill: &Color = &self.fill.read();
 
         let mut bez_path = BezPath::new();
 
@@ -97,7 +100,7 @@ impl RenderNode for Rectangle {
         let transformed_bez_path = *transform * bez_path;
         let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
-        rc.fill(transformed_bez_path, &self.fill);
+        rc.fill(transformed_bez_path, fill);
         rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
     }
 }
