@@ -73,15 +73,13 @@ pub fn run() {
 
     let _ = context.scale(dpr, dpr);
 
-
-
-
     let piet_context  = WebRenderContext::new(context, window);
-    let engine = carbon::get_engine(log_wrapper);
-    // engine.set_viewport_size((width, height));
+    let engine = carbon::get_engine(log_wrapper, (width, height));
 
     let engine_container : Rc<RefCell<CarbonEngine>> = Rc::new(RefCell::new(engine));
 
+    //see web-sys docs for handling browser events with closures
+    //https://rustwasm.github.io/docs/wasm-bindgen/examples/closures.html
     {
         let engine_rc_pointer = engine_container.clone();
         let closure = Closure::wrap(Box::new(move |event: web_sys::Event| {
@@ -111,28 +109,7 @@ pub fn run() {
         closure.forget();
     }
 
-    //see web-sys docs for handling browser events with closures
-    //https://rustwasm.github.io/docs/wasm-bindgen/examples/closures.html
-    // let f = Rc::new(RefCell::new(None));
-    // let g = f.clone();
-    // {
-    //     let mut engine_rc = &engine_container.clone();
-    //     let closure = Closure::wrap(Box::new(move |event: web_sys::Event| {
-    //         console_log!("resized!");
-    //         let mut engine = engine_rc.borrow_mut();
-    //
-    //         let width = (canvas.offset_width() as f64 * dpr);
-    //         let height = (canvas.offset_height() as f64 * dpr);
-    //
-    //         engine.set_viewport_size((width, height));
-    //     }) as Box<dyn FnMut(_)>);
-    //
-    //     *g.borrow_mut() = Some(closure);
-    //
-    //     let window_for_resize = web_sys::window().unwrap();
-    //     window_for_resize.add_event_listener_with_callback("resize", g.borrow().as_ref().unwrap());
-    // }
-    // render_loop(&engine_container, piet_context);
+    render_loop(&engine_container, piet_context);
 }
 
 pub fn log_wrapper(msg: &str) {
@@ -141,28 +118,27 @@ pub fn log_wrapper(msg: &str) {
 
 pub fn render_loop(engine_container: &Rc<RefCell<CarbonEngine>>, mut piet_context: WebRenderContext<'static>) {
     //
-    // let f = Rc::new(RefCell::new(None));
-    // let g = f.clone();
-    // {
-    //     let mut engine_rc = &engine_container.clone();
-    //
-    //     let closure = Closure::wrap(Box::new(move || {
-    //         let mut engine = engine_rc.borrow_mut();
-    //
-    //         // (from wasm-bindgen docs)
-    //         // TODO: Drop our handle to this closure so that it will get cleaned up once we return.
-    //         //  // let _ = f.borrow_mut().take();
-    //         //  // return;
-    //
-    //         engine.tick(&mut piet_context).unwrap();
-    //         request_animation_frame(f.borrow().as_ref().unwrap());
-    //     }) as Box<dyn FnMut()>);
-    //
-    //     *g.borrow_mut() = Some(closure);
-    //
-    // }
-    //
-    // //kick off first rAF
-    // request_animation_frame(g.borrow().as_ref().unwrap());
+    let f = Rc::new(RefCell::new(None));
+    let g = f.clone();
+    {
+        let engine_rc_pointer = engine_container.clone();
+        let closure = Closure::wrap(Box::new(move || {
+            let mut engine = engine_rc_pointer.borrow_mut();
+
+            // (from wasm-bindgen docs)
+            // TODO: Drop our handle to this closure so that it will get cleaned up once we return.
+            //  // let _ = f.borrow_mut().take();
+            //  // return;
+
+            engine.tick(&mut piet_context).unwrap();
+            request_animation_frame(f.borrow().as_ref().unwrap());
+        }) as Box<dyn FnMut()>);
+
+        *g.borrow_mut() = Some(closure);
+
+    }
+
+    //kick off first rAF
+    request_animation_frame(g.borrow().as_ref().unwrap());
 
 }
