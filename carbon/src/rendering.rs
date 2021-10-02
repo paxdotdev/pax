@@ -16,6 +16,7 @@ pub trait RenderNode
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>>;
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)>;
+    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64);
     fn get_id(&self) -> &str;
     fn get_origin(&self) -> (Size<f64>, Size<f64>);
     fn get_transform(&self) -> &Affine;
@@ -41,6 +42,7 @@ impl RenderNode for Group {
     }
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> { Some(&mut self.children) }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
+    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
@@ -79,7 +81,7 @@ pub struct Rectangle {
 
 
 impl RenderNode for Rectangle {
-    fn get_align(&self) -> (f64, f64) {self.align}
+    fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
         None
     }
@@ -91,8 +93,30 @@ impl RenderNode for Rectangle {
         self.size.1.eval_in_place(ctx);
         self.fill.eval_in_place(ctx);
     }
-    fn get_origin(&self) -> (Size<f64>, Size<f64>) {self.origin}
+    fn get_origin(&self) -> (Size<f64>, Size<f64>) { self.origin }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
+    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
+        let size_raw = self.get_size().unwrap();
+        let mut size_calc = (0.0, 0.0);
+        //handle percent vs. pixel dimensions
+        match size_raw.0 {
+            Size::Pixel(width) => {
+                size_calc.0 = width
+            },
+            Size::Percent(width) => {
+                size_calc.0 = bounds.0 * (width / 100.0)
+            }
+        }
+        match size_raw.1 {
+            Size::Pixel(height) => {
+                size_calc.1 = height
+            },
+            Size::Percent(height) => {
+                size_calc.1 = bounds.1 * (height / 100.0)
+            }
+        }
+        size_calc
+    }
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
@@ -112,11 +136,18 @@ impl RenderNode for Rectangle {
         let mut bez_path = BezPath::new();
 
         //TODO:  support dynamic Origin
-        bez_path.move_to(Point::new(-width / 2., -height / 2.));
-        bez_path.line_to(Point::new(width / 2., -height / 2.));
-        bez_path.line_to(Point::new(width / 2., height / 2.));
-        bez_path.line_to(Point::new(-width / 2., height / 2.));
-        bez_path.line_to(Point::new(-width / 2., -height / 2.));
+        // bez_path.move_to(Point::new(-width / 2., -height / 2.));
+        // bez_path.line_to(Point::new(width / 2., -height / 2.));
+        // bez_path.line_to(Point::new(width / 2., height / 2.));
+        // bez_path.line_to(Point::new(-width / 2., height / 2.));
+        // bez_path.line_to(Point::new(-width / 2., -height / 2.));
+        // bez_path.close_path();
+
+        bez_path.move_to((0.0, 0.0));
+        bez_path.line_to((width , 0.0));
+        bez_path.line_to((width , height ));
+        bez_path.line_to((0.0, height));
+        bez_path.line_to((0.0,0.0));
         bez_path.close_path();
 
         let transformed_bez_path = *transform * bez_path;

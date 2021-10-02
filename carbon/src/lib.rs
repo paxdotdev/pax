@@ -17,10 +17,10 @@ TODO:
     [x] Logging
     [x] Stroke, color, fill
     [x] Clean up warnings
-    [ ] Sizing
+    [x] Sizing
         [x] Browser resize support
-        [ ] None-sizing
-        [ ] Transform.align
+        [x] None-sizing
+        [x] Transform.align
     [ ] Expression engine
         [x] variables, declaration & storage
         [x] node IDs

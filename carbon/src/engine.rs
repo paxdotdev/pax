@@ -58,7 +58,7 @@ impl CarbonEngine {
                                 Box::new(Rectangle {
                                     id: String::from("rect_4"),
                                     align: (0.5, 0.5),
-                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
+                                    origin: (Size::Percent(50.0), Size::Percent(50.0),),
                                     size: (
                                         Box::new(PropertyExpression {
                                             last_value: Size::Pixel(100.0),
@@ -195,14 +195,32 @@ impl CarbonEngine {
         //       `(parent_matrix * align_matrix * node_matrix)`
         // let align_transform = (node.get_align().0 * bounds.0, node.get_align().1 * bounds.1)
 
+        let node_size_calc = node.get_size_calc(accumulated_bounds);
+        let origin_transform = Affine::translate(
+        (
+                match node.get_origin().0 {
+                    Size::Pixel(x) => { -x },
+                    Size::Percent(x) => {
+                        -node_size_calc.0 * (x / 100.0)
+                    },
+                },
+                match node.get_origin().1 {
+                    Size::Pixel(y) => { -y },
+                    Size::Percent(y) => {
+                        -node_size_calc.1 * (y / 100.0)
+                    },
+                }
+            )
+        );
+
         let align_transform = Affine::translate((node.get_align().0 * accumulated_bounds.0, node.get_align().1 * accumulated_bounds.1));
-        let new_accumulated_transform = *accumulated_transform * align_transform * *node.get_transform();
+        let new_accumulated_transform = *accumulated_transform * align_transform * origin_transform * *node.get_transform();
 
         //default to our parent-provided bounding dimensions
         let mut new_accumulated_bounds = accumulated_bounds.clone();
 
         //if this node has explicit dimensions, those dimensions
-        //are our new accumulated dimensions.  These will be passed onto descendents.
+        //are our new accumulated dimensions.  These will be passed onto descendants.
         let dimensions = node.get_size();
         match dimensions {
             None => (), //do nothing; this defaults to our parent dimens
