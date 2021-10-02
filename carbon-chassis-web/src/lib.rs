@@ -68,8 +68,8 @@ pub fn run() {
         .unwrap();
 
     let dpr = window.device_pixel_ratio();
-    let width = (canvas.offset_width() as f64 * dpr);
-    let height = (canvas.offset_height() as f64 * dpr);
+    let width = canvas.offset_width() as f64 * dpr;
+    let height = canvas.offset_height() as f64 * dpr;
     //TODO:  update these values on window resize
     //       future:  update these values on _element_ resize
     canvas.set_width(width as u32);
@@ -87,36 +87,36 @@ pub fn run() {
     //https://rustwasm.github.io/docs/wasm-bindgen/examples/closures.html
     {
         let engine_rc_pointer = engine_container.clone();
-        let closure = Closure::wrap(Box::new(move |event: web_sys::Event| {
+        let closure = Closure::wrap(Box::new(move |_event: web_sys::Event| {
             let mut engine = engine_rc_pointer.borrow_mut();
 
             //TODO:  can probably tackle this more elegantly by reusing / capturing / Rc-ing
             //       previously declared window / canvas / context / etc.
             let inner_window = web_sys::window().unwrap();
-            let inner_canvas = inner_window
-                .document()
-                .unwrap()
-                .get_element_by_id("canvas")
-                .unwrap()
-                .dyn_into::<HtmlCanvasElement>()
-                .unwrap();
-            let inner_context = inner_canvas
-                .get_context("2d")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<web_sys::CanvasRenderingContext2d>()
-                .unwrap();
+            // let inner_canvas = inner_window
+            //     .document()
+            //     .unwrap()
+            //     .get_element_by_id("canvas")
+            //     .unwrap()
+            //     .dyn_into::<HtmlCanvasElement>()
+            //     .unwrap();
+            // let inner_context = inner_canvas
+            //     .get_context("2d")
+            //     .unwrap()
+            //     .unwrap()
+            //     .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            //     .unwrap();
 
             //inner_width and inner_height already account for device pixel ratio.
-            let width = (inner_window.inner_width().unwrap().as_f64().unwrap());
-            let height = (inner_window.inner_height().unwrap().as_f64().unwrap());
-            canvas.set_attribute("width", format!("{}",width).as_str());
-            canvas.set_attribute("height", format!("{}",height).as_str());
+            let width = inner_window.inner_width().unwrap().as_f64().unwrap();
+            let height = inner_window.inner_height().unwrap().as_f64().unwrap();
+            let _ = canvas.set_attribute("width", format!("{}",width).as_str());
+            let _ = canvas.set_attribute("height", format!("{}",height).as_str());
             console_log!("width: {}", width);
             engine.set_viewport_size((width, height));
         }) as Box<dyn FnMut(_)>);
         let inner_window = web_sys::window().unwrap();
-        inner_window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref());
+        let _ = inner_window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref());
         closure.forget();
     }
 

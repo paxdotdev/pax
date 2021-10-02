@@ -1,7 +1,7 @@
 
 use piet_web::{WebRenderContext};
 use piet::{Color, StrokeStyle, RenderContext};
-use kurbo::{Affine, BezPath, Point};
+use kurbo::{Affine, BezPath};
 
 use crate::{Variable, Property, PropertyTreeContext};
 
@@ -37,7 +37,7 @@ pub struct Group {
 }
 
 impl RenderNode for Group {
-    fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
+    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
         //TODO: handle each of Group's `Expressable` properties
     }
     fn get_align(&self) -> (f64, f64) { self.align }
@@ -54,7 +54,7 @@ impl RenderNode for Group {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn render(&self, _: &mut WebRenderContext, _: &Affine, bounding_dimens: (f64, f64)) {}
+    fn render(&self, _: &mut WebRenderContext, _: &Affine, _: (f64, f64)) {}
 }
 
 pub struct Stroke {

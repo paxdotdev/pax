@@ -35,7 +35,7 @@ pub struct PropertyLiteral<T> {
 }
 
 impl<T> Property<T> for PropertyLiteral<T> {
-    fn eval_in_place(&mut self, ctx: &PropertyTreeContext) -> &T {
+    fn eval_in_place(&mut self, _ctx: &PropertyTreeContext) -> &T {
         &self.value
     }
     fn read(&self) -> &T {

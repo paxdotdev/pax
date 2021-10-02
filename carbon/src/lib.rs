@@ -21,7 +21,6 @@ TODO:
         [x] Browser resize support
         [x] None-sizing
         [x] Transform.align
-        [x] Transform.origin
     [ ] Expression engine
         [x] variables, declaration & storage
         [x] node IDs
@@ -33,11 +32,18 @@ TODO:
         [ ] Clipping
     [ ] Hook up all relevant properties to Property
     [ ] Layouts (stacks)
-        [ ] Clipping
+        [ ] `yield`ing inputs/children (and ensure placeholder's design)
+        [ ] Clipping & Frames
     [ ] Timelines, transitions, t9ables
+    [ ] Documentation & usage
+    [ ] Form controls (native?)
+        [ ] ButtonNative (vs. ButtonGroup/ButtonContainer/ButtonFrame?)
+        [ ] Text input
+        [ ] Dropdown
 === MED
     [ ] Ellipse
-    [ ] Transform.origin
+    [ ] Path
+    [x] Transform.origin
     [ ] PoC on iOS, Android
         [ ] Extricate Engine's dependency on WebRenderContext
     [ ] Gradients

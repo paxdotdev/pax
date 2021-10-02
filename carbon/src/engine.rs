@@ -19,7 +19,7 @@ use std::collections::HashMap;
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
-    let mut engine = CarbonEngine::new(logger, viewport_size);
+    let engine = CarbonEngine::new(logger, viewport_size);
     engine
 }
 
