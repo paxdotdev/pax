@@ -49,8 +49,29 @@ impl CarbonEngine {
                         Box::new(Group {
                             id: String::from("group_1"),
                             variables: vec![],
-                            transform: Affine::translate(Vec2 { x: 800.0, y: -200.0 }),
+                            transform: Affine::default(),
                             children: vec![
+                                Box::new(Rectangle {
+                                    id: String::from("rect_5"),
+                                    width: Box::new(PropertyLiteral { value: Dimension::Percent(100.0) }),
+                                    height: Box::new(PropertyLiteral { value: Dimension::Percent(100.0) }),
+                                    fill: Box::new(PropertyExpression {
+                                        last_value: Color::hlc(0.0,0.0,0.0),
+                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Color {
+                                            unsafe {
+                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                return Color::hlc((((frames_elapsed / 250.) * 360.) as i64 % 360) as f64, 75.0, 127.0);
+                                            }
+                                        })
+                                    }),
+                                    transform: Affine::translate((0.0, 0.0)),
+                                    stroke: Stroke {
+                                        color: Color::hlc(0.0, 75.0, 127.0),
+                                        width: 25.0,
+                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                    },
+                                }),
                                 Box::new(Rectangle {
                                     id: String::from("rect_4"),
                                     width: Box::new(PropertyExpression {
@@ -92,18 +113,7 @@ impl CarbonEngine {
                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
                                 }),
-                                Box::new(Rectangle {
-                                    id: String::from("rect_5"),
-                                    width: Box::new(PropertyLiteral { value: Dimension::Pixel(100.0) }),
-                                    height: Box::new(PropertyLiteral { value: Dimension::Pixel(100.0) }),
-                                    fill: Box::new(PropertyLiteral{value: Color::hlc(160.0, 75.0, 127.0)}),
-                                    transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
-                                    stroke: Stroke {
-                                        color: Color::hlc(320.0, 75.0, 127.0),
-                                        width: 5.0,
-                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                    },
-                                }),
+
                                 Box::new(Rectangle {
                                     id: String::from("rect_6"),
                                     width: Box::new(PropertyLiteral { value: Dimension::Pixel(250.0) }),
@@ -197,9 +207,11 @@ impl CarbonEngine {
                 //this is a leaf node.  render it.
 
                 //HACK:  hard-code some rotation here to make things feel alive
-                let theta = (self.frames_elapsed as f64 / 65.0);
-                let frame_rotated_transform = new_accumulated_transform * Affine::rotate(theta);
-                node.render(rc, &frame_rotated_transform, new_accumulated_bounding_dimens);
+                // let theta = (self.frames_elapsed as f64 / 65.0);
+                // let frame_rotated_transform = new_accumulated_transform * Affine::rotate(theta);
+                // node.render(rc, &frame_rotated_transform, new_accumulated_bounding_dimens);
+
+                node.render(rc, &new_accumulated_transform, new_accumulated_bounding_dimens);
             }
         }
 

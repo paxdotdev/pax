@@ -92,19 +92,9 @@ impl RenderNode for Rectangle {
         //  for each property that's used here (e.g. self.width and self.height)
         //  unbox the Value vs Expression and pack into a local for eval here
 
-        let width: f64 =  match *self.width.read() {
-            Dimension::Pixel(width) => { width },
-            Dimension::Percent(width) => {
-                bounding_dimens.0 * (width / 100.0)
-            }
-        };
+        let width: f64 =  bounding_dimens.0;
+        let height: f64 =  bounding_dimens.1;
 
-        let height: f64 =  match *self.height.read() {
-            Dimension::Pixel(height) => { height },
-            Dimension::Percent(height) => {
-                bounding_dimens.1 * (height / 100.0)
-            }
-        };
         let fill: &Color = &self.fill.read();
 
         let mut bez_path = BezPath::new();
