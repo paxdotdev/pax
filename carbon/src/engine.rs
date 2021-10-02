@@ -38,6 +38,7 @@ impl CarbonEngine {
             scene_graph: RefCell::new(SceneGraph {
                 root: Box::new(Group {
                     id: String::from("root"),
+                    align: (0.0, 0.0),
                     variables: vec![
                         Variable {
                             name: String::from("rotation"),
@@ -48,32 +49,13 @@ impl CarbonEngine {
                     children: vec![
                         Box::new(Group {
                             id: String::from("group_1"),
+                            align: (0.0, 0.0),
                             variables: vec![],
                             transform: Affine::default(),
                             children: vec![
                                 Box::new(Rectangle {
-                                    id: String::from("rect_5"),
-                                    width: Box::new(PropertyLiteral { value: Dimension::Percent(100.0) }),
-                                    height: Box::new(PropertyLiteral { value: Dimension::Percent(100.0) }),
-                                    fill: Box::new(PropertyExpression {
-                                        last_value: Color::hlc(0.0,0.0,0.0),
-                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Color {
-                                            unsafe {
-                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return Color::hlc((((frames_elapsed / 250.) * 360.) as i64 % 360) as f64, 75.0, 127.0);
-                                            }
-                                        })
-                                    }),
-                                    transform: Affine::translate((0.0, 0.0)),
-                                    stroke: Stroke {
-                                        color: Color::hlc(0.0, 75.0, 127.0),
-                                        width: 25.0,
-                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                    },
-                                }),
-                                Box::new(Rectangle {
                                     id: String::from("rect_4"),
+                                    align: (0.5, 0.5),
                                     width: Box::new(PropertyExpression {
                                         last_value: Dimension::Pixel(100.0),
                                         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
@@ -106,20 +88,60 @@ impl CarbonEngine {
                                             })
                                         }
                                     ),
-                                    transform: Affine::translate(Vec2 { x: 550.0, y: 550.0 }),
+                                    transform: Affine::default(),
                                     stroke: Stroke {
                                         color: Color::hlc(280.0, 75.0, 127.0),
                                         width: 5.0,
                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
                                 }),
-
                                 Box::new(Rectangle {
                                     id: String::from("rect_6"),
+                                    align: (0.0, 0.0),
                                     width: Box::new(PropertyLiteral { value: Dimension::Pixel(250.0) }),
                                     height: Box::new(PropertyLiteral { value: Dimension::Pixel(100.0) }),
                                     fill: Box::new(PropertyLiteral{value: Color::hlc(200.0, 75.0, 127.0)}),
                                     transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
+                                    stroke: Stroke {
+                                        color: Color::hlc(0.0, 75.0, 127.0),
+                                        width: 5.0,
+                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                    },
+                                }),
+                                Box::new(Rectangle {
+                                    id: String::from("rect_5"),
+                                    align: (0.5, 0.5),
+                                    width: Box::new(PropertyExpression {
+                                        last_value: Dimension::Pixel(100.0),
+                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Dimension<f64>  {
+                                            unsafe {
+                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                return Dimension::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
+                                            }
+                                        })
+                                    }),
+                                    height: Box::new(PropertyExpression {
+                                        last_value: Dimension::Pixel(100.0),
+                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Dimension<f64>  {
+                                            unsafe {
+                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                return Dimension::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
+                                            }
+                                        })
+                                    }),
+                                    fill: Box::new(PropertyExpression {
+                                        last_value: Color::hlc(0.0,0.0,0.0),
+                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Color {
+                                            unsafe {
+                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                return Color::hlc((((frames_elapsed / 250.) * 360.) as i64 % 360) as f64, 75.0, 127.0);
+                                            }
+                                        })
+                                    }),
+                                    transform: Affine::translate((0.0, 0.0)),
                                     stroke: Stroke {
                                         color: Color::hlc(0.0, 75.0, 127.0),
                                         width: 5.0,
@@ -151,39 +173,44 @@ impl CarbonEngine {
         self.recurse_render_scene_graph(rc, &self.scene_graph.borrow().root, &Affine::default(), self.viewport_size.clone() );
     }
 
-    fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine, accumulated_bounding_dimens: (f64, f64))  {
+    fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine, accumulated_bounds: (f64, f64))  {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done
 
-        let new_accumulated_transform = *accumulated_transform * *node.get_transform();
+        //TODO:  calculate a translation matrix for Align here, then:
+        //       `(parent_matrix * align_matrix * node_matrix)`
+        // let align_transform = (node.get_align().0 * bounds.0, node.get_align().1 * bounds.1)
+
+        let align_transform = Affine::translate((node.get_align().0 * accumulated_bounds.0, node.get_align().1 * accumulated_bounds.1));
+        let new_accumulated_transform = *accumulated_transform * align_transform * *node.get_transform();
 
         //default to our parent-provided bounding dimensions
-        let mut new_accumulated_bounding_dimens= accumulated_bounding_dimens.clone();
+        let mut new_accumulated_bounds = accumulated_bounds.clone();
 
         //if this node has explicit dimensions, those dimensions
         //are our new accumulated dimensions.  These will be passed onto descendents.
-        let dimens = node.get_dimensions();
-        match dimens {
+        let dimensions = node.get_dimensions();
+        match dimensions {
             None => (), //do nothing; this defaults to our parent dimens
             Some(dimens) => {
                 //handle percent vs. pixel dimensions
                 match dimens.0 {
                     Dimension::Pixel(width) => {
-                        new_accumulated_bounding_dimens.0 = width
+                        new_accumulated_bounds.0 = width
                     },
                     Dimension::Percent(width) => {
-                        new_accumulated_bounding_dimens.0 = accumulated_bounding_dimens.0 * (width / 100.0)
+                        new_accumulated_bounds.0 = accumulated_bounds.0 * (width / 100.0)
                     }
                 }
                 match dimens.1 {
                     Dimension::Pixel(height) => {
-                        new_accumulated_bounding_dimens.1 = height
+                        new_accumulated_bounds.1 = height
                     },
                     Dimension::Percent(height) => {
-                        new_accumulated_bounding_dimens.1 = accumulated_bounding_dimens.1 * (height / 100.0)
+                        new_accumulated_bounds.1 = accumulated_bounds.1 * (height / 100.0)
                     }
                 }
             }
@@ -198,7 +225,7 @@ impl CarbonEngine {
                     match child {
                         None => { return },
                         Some(child) => {
-                            &self.recurse_render_scene_graph(rc, child, &new_accumulated_transform, new_accumulated_bounding_dimens);
+                            &self.recurse_render_scene_graph(rc, child, &new_accumulated_transform, new_accumulated_bounds);
                         }
                     }
                 }
@@ -211,7 +238,7 @@ impl CarbonEngine {
                 // let frame_rotated_transform = new_accumulated_transform * Affine::rotate(theta);
                 // node.render(rc, &frame_rotated_transform, new_accumulated_bounding_dimens);
 
-                node.render(rc, &new_accumulated_transform, new_accumulated_bounding_dimens);
+                node.render(rc, &new_accumulated_transform, new_accumulated_bounds);
             }
         }
 

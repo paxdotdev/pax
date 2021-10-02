@@ -12,6 +12,7 @@ pub struct SceneGraph {
 pub trait RenderNode
 {
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
+    fn get_align(&self) -> (f64, f64);
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>>;
     fn get_dimensions(&self) -> Option<(Dimension<f64>, Dimension<f64>)>;
@@ -23,6 +24,7 @@ pub trait RenderNode
 pub struct Group {
     pub children: Vec<Box<dyn RenderNode>>,
     pub id: String,
+    pub align: (f64, f64),
     pub transform: Affine,
     pub variables: Vec<Variable>,
 }
@@ -31,7 +33,7 @@ impl RenderNode for Group {
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
         //TODO: handle each of Group's `Expressable` properties
     }
-
+    fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
         Some(&self.children)
     }
@@ -43,7 +45,6 @@ impl RenderNode for Group {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-
     fn render(&self, _: &mut WebRenderContext, _: &Affine, bounding_dimens: (f64, f64)) {}
 }
 
@@ -53,7 +54,15 @@ pub struct Stroke {
     pub style: StrokeStyle,
 }
 
+
+#[derive(Copy, Clone)]
+pub enum Dimension<T> {
+    Pixel(T),
+    Percent(T),
+}
+
 pub struct Rectangle {
+    pub align: (f64, f64),
     pub width: Box<dyn Property<Dimension<f64>>>,
     pub height: Box<dyn Property<Dimension<f64>>>,
     pub transform: Affine,
@@ -62,13 +71,9 @@ pub struct Rectangle {
     pub id: String,
 }
 
-#[derive(Copy, Clone)]
-pub enum Dimension<T> {
-    Pixel(T),
-    Percent(T),
-}
 
 impl RenderNode for Rectangle {
+    fn get_align(&self) -> (f64, f64) {self.align}
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
         None
     }
