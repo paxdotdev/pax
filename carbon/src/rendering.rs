@@ -14,7 +14,7 @@ pub trait RenderNode
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>>;
-    fn get_dimensions(&self) -> Option<(f64, f64)>;
+    fn get_dimensions(&self) -> Option<(Dimension<f64>, Dimension<f64>)>;
     fn get_id(&self) -> &str;
     fn get_transform(&self) -> &Affine;
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine, bounding_dimens: (f64, f64));
@@ -36,7 +36,7 @@ impl RenderNode for Group {
         Some(&self.children)
     }
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> { Some(&mut self.children) }
-    fn get_dimensions(&self) -> Option<(f64,f64)> { None }
+    fn get_dimensions(&self) -> Option<(Dimension<f64>,Dimension<f64>)> { None }
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
@@ -54,15 +54,19 @@ pub struct Stroke {
 }
 
 pub struct Rectangle {
-    pub width: Box<dyn Property<f64>>,
-    pub height: Box<dyn Property<f64>>,
+    pub width: Box<dyn Property<Dimension<f64>>>,
+    pub height: Box<dyn Property<Dimension<f64>>>,
     pub transform: Affine,
     pub stroke: Stroke,
     pub fill: Box<dyn Property<Color>>,
     pub id: String,
 }
 
-
+#[derive(Copy, Clone)]
+pub enum Dimension<T> {
+    Pixel(T),
+    Percent(T),
+}
 
 impl RenderNode for Rectangle {
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
@@ -76,7 +80,7 @@ impl RenderNode for Rectangle {
         self.height.eval_in_place(ctx);
         self.fill.eval_in_place(ctx);
     }
-    fn get_dimensions(&self) -> Option<(f64, f64)> { Some((*self.width.read(), *self.height.read())) }
+    fn get_dimensions(&self) -> Option<(Dimension<f64>, Dimension<f64>)> { Some((*self.width.read(), *self.height.read())) }
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
@@ -88,8 +92,19 @@ impl RenderNode for Rectangle {
         //  for each property that's used here (e.g. self.width and self.height)
         //  unbox the Value vs Expression and pack into a local for eval here
 
-        let width: f64 =  *self.width.read();
-        let height: f64 =  *self.height.read();
+        let width: f64 =  match *self.width.read() {
+            Dimension::Pixel(width) => { width },
+            Dimension::Percent(width) => {
+                bounding_dimens.0 * (width / 100.0)
+            }
+        };
+
+        let height: f64 =  match *self.height.read() {
+            Dimension::Pixel(height) => { height },
+            Dimension::Percent(height) => {
+                bounding_dimens.1 * (height / 100.0)
+            }
+        };
         let fill: &Color = &self.fill.read();
 
         let mut bez_path = BezPath::new();

@@ -8,7 +8,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Group, PolymorphicValue, PropertyExpression, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext};
+use crate::{Affine, Color, Error, Group, Dimension, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext};
 
 
 
@@ -54,22 +54,22 @@ impl CarbonEngine {
                                 Box::new(Rectangle {
                                     id: String::from("rect_4"),
                                     width: Box::new(PropertyExpression {
-                                        last_value: 100.0,
+                                        last_value: Dimension::Pixel(100.0),
                                         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> f64 {
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Dimension<f64>  {
                                             unsafe {
                                                 let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                (frames_elapsed / 100.).sin() * 500.
+                                                return Dimension::Pixel((frames_elapsed / 100.).sin() * 500.)
                                             }
                                         })
                                     }),
                                     height: Box::new(PropertyExpression {
-                                        last_value: 500.0,
+                                        last_value: Dimension::Pixel(500.0),
                                         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> f64 {
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| {
                                             unsafe {
                                                 let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return (frames_elapsed / 100.).sin() * 500.
+                                                return Dimension::Pixel((frames_elapsed / 100.).sin() * 500.)
                                             }
                                         })
                                     }),
@@ -94,8 +94,8 @@ impl CarbonEngine {
                                 }),
                                 Box::new(Rectangle {
                                     id: String::from("rect_5"),
-                                    width: Box::new(PropertyLiteral { value: 100.0 }),
-                                    height: Box::new(PropertyLiteral { value: 100.0 }),
+                                    width: Box::new(PropertyLiteral { value: Dimension::Pixel(100.0) }),
+                                    height: Box::new(PropertyLiteral { value: Dimension::Pixel(100.0) }),
                                     fill: Box::new(PropertyLiteral{value: Color::hlc(160.0, 75.0, 127.0)}),
                                     transform: Affine::translate(Vec2 { x: 350.0, y: 350.0 }),
                                     stroke: Stroke {
@@ -106,8 +106,8 @@ impl CarbonEngine {
                                 }),
                                 Box::new(Rectangle {
                                     id: String::from("rect_6"),
-                                    width: Box::new(PropertyLiteral { value: 250.0 }),
-                                    height: Box::new(PropertyLiteral { value: 100.0 }),
+                                    width: Box::new(PropertyLiteral { value: Dimension::Pixel(250.0) }),
+                                    height: Box::new(PropertyLiteral { value: Dimension::Pixel(100.0) }),
                                     fill: Box::new(PropertyLiteral{value: Color::hlc(200.0, 75.0, 127.0)}),
                                     transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
                                     stroke: Stroke {
@@ -143,7 +143,7 @@ impl CarbonEngine {
 
     fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine, accumulated_bounding_dimens: (f64, f64))  {
         // Recurse:
-        //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix along the way.
+        //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done
@@ -154,11 +154,29 @@ impl CarbonEngine {
         let mut new_accumulated_bounding_dimens= accumulated_bounding_dimens.clone();
 
         //if this node has explicit dimensions, those dimensions
-        //are our new accumulated dimensions - for passing onto descendents
+        //are our new accumulated dimensions.  These will be passed onto descendents.
         let dimens = node.get_dimensions();
         match dimens {
-            None => (),
-            Some(dimens) => { new_accumulated_bounding_dimens = dimens.clone() }
+            None => (), //do nothing; this defaults to our parent dimens
+            Some(dimens) => {
+                //handle percent vs. pixel dimensions
+                match dimens.0 {
+                    Dimension::Pixel(width) => {
+                        new_accumulated_bounding_dimens.0 = width
+                    },
+                    Dimension::Percent(width) => {
+                        new_accumulated_bounding_dimens.0 = accumulated_bounding_dimens.0 * (width / 100.0)
+                    }
+                }
+                match dimens.1 {
+                    Dimension::Pixel(height) => {
+                        new_accumulated_bounding_dimens.1 = height
+                    },
+                    Dimension::Percent(height) => {
+                        new_accumulated_bounding_dimens.1 = accumulated_bounding_dimens.1 * (height / 100.0)
+                    }
+                }
+            }
         }
 
         match node.get_children() {

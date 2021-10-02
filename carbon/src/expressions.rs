@@ -43,13 +43,13 @@ impl<T> Property<T> for PropertyLiteral<T> {
     }
 }
 
-pub struct PropertyExpression<T> {
-    pub evaluator: fn(HashMap<String, PolymorphicValue>) -> T,
+pub struct PropertyExpression<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> {
+    pub evaluator: E,
     pub dependencies : Vec<(String, PolymorphicType)>,
     pub last_value: T,
 }
 
-impl<T> PropertyExpression<T> {
+impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> PropertyExpression<T, E> {
     //TODO:  support types other than f64
     fn resolve_dependency(&self, name: &str, engine: &CarbonEngine) -> f64 {
         // Turn a string like `"this.property_name"` or `"engine.frames_elapsed"`
@@ -76,7 +76,7 @@ pub struct PropertyTreeContext<'a> {
     pub engine: &'a CarbonEngine,
 }
 
-impl<T> Property<T> for PropertyExpression<T> {
+impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> Property<T> for PropertyExpression<T, E> {
     fn eval_in_place(&mut self, ctx: &PropertyTreeContext) -> &T {
         //first: derive values
         //  - iterate through dependencies
