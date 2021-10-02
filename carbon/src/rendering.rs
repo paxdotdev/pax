@@ -16,7 +16,11 @@ pub trait RenderNode
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>>;
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)>;
+
+    /// Returns the pixel dimensions of this node, accepting
+    /// parent bounds for calculation of `Percent` values
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64);
+
     fn get_id(&self) -> &str;
     fn get_origin(&self) -> (Size<f64>, Size<f64>);
     fn get_transform(&self) -> &Affine;

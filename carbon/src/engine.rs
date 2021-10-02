@@ -58,7 +58,7 @@ impl CarbonEngine {
                                 Box::new(Rectangle {
                                     id: String::from("rect_4"),
                                     align: (0.5, 0.5),
-                                    origin: (Size::Percent(50.0), Size::Percent(50.0),),
+                                    origin: (Size::Percent(50.0), Size::Percent(50.0)),
                                     size: (
                                         Box::new(PropertyExpression {
                                             last_value: Size::Pixel(100.0),
@@ -96,30 +96,36 @@ impl CarbonEngine {
                                     transform: Affine::default(),
                                     stroke: Stroke {
                                         color: Color::hlc(280.0, 75.0, 127.0),
-                                        width: 5.0,
+                                        width: 1.0,
                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
                                 }),
+
+                                ///////////////////////
+
                                 Box::new(Rectangle {
                                     id: String::from("rect_6"),
-                                    align: (0.5, 0.5),
-                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
+                                    align: (1.0, 0.5),
+                                    origin: (Size::Percent(100.0), Size::Percent(50.0)),
                                     size: (
                                         Box::new(PropertyLiteral { value: Size::Pixel(250.0) }),
-                                        Box::new(PropertyLiteral { value: Size::Pixel(100.0) }),
+                                        Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
                                     ),
                                     fill: Box::new(PropertyLiteral{value: Color::hlc(200.0, 75.0, 127.0)}),
                                     transform: Affine::default(),
                                     stroke: Stroke {
                                         color: Color::hlc(0.0, 75.0, 127.0),
-                                        width: 5.0,
+                                        width: 1.0,
                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
                                 }),
+
+                                ///////////////////////////
+
                                 Box::new(Rectangle {
                                     id: String::from("rect_5"),
                                     align: (0.5, 0.5),
-                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
+                                    origin: (Size::Percent(0.0), Size::Percent(0.0),),
                                     size: (
                                         Box::new(PropertyExpression {
                                             last_value: Size::Pixel(100.0),
@@ -127,7 +133,7 @@ impl CarbonEngine {
                                             evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
                                                 unsafe {
                                                     let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                    return Size::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
+                                                    return Size::Percent((frames_elapsed / 200.0).cos() * 100.0)
                                                 }
                                             })
                                         }),
@@ -137,7 +143,7 @@ impl CarbonEngine {
                                             evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
                                                 unsafe {
                                                     let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                    return Size::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
+                                                    return Size::Percent((frames_elapsed / 200.0).sin() * 100.0)
                                                 }
                                             })
                                         })
@@ -155,7 +161,7 @@ impl CarbonEngine {
                                     transform: Affine::translate((0.0, 0.0)),
                                     stroke: Stroke {
                                         color: Color::hlc(0.0, 75.0, 127.0),
-                                        width: 5.0,
+                                        width: 1.0,
                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
                                 }),
@@ -336,8 +342,9 @@ impl CarbonEngine {
         // Logging example:
         // self.log(format!("Frame: {}", self.frames_elapsed).as_str());
 
-        let mut outer_bounds = kurbo::Rect::new(0.0,0.0,self.viewport_size.0, self.viewport_size.1);
-        rc.stroke(outer_bounds, &piet::Color::rgba(1.0, 0.0, 0.0, 1.0), 5.0);
+        // Draw a red box around viewport:
+        // let mut outer_bounds = kurbo::Rect::new(0.0,0.0,self.viewport_size.0, self.viewport_size.1);
+        // rc.stroke(outer_bounds, &piet::Color::rgba(1.0, 0.0, 0.0, 1.0), 5.0);
     }
 
     //keeping until this can be done via scene graph

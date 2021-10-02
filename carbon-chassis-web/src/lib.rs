@@ -79,7 +79,7 @@ pub fn run() {
 
     let piet_context  = WebRenderContext::new(context, window);
     // piet_context.
-    let engine = carbon::get_engine(log_wrapper, (width, height));
+    let engine = carbon::get_engine(log_wrapper, (width / dpr, height / dpr));
 
     let engine_container : Rc<RefCell<CarbonEngine>> = Rc::new(RefCell::new(engine));
 

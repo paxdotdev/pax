@@ -21,6 +21,7 @@ TODO:
         [x] Browser resize support
         [x] None-sizing
         [x] Transform.align
+        [x] Transform.origin
     [ ] Expression engine
         [x] variables, declaration & storage
         [x] node IDs
@@ -30,6 +31,7 @@ TODO:
         [x] MVP rust closures + manifest of deps
     [ ] Text prefabs + support layer for Web adapter
         [ ] Clipping
+    [ ] Hook up all relevant properties to Property
     [ ] Layouts (stacks)
         [ ] Clipping
     [ ] Timelines, transitions, t9ables
