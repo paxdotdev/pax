@@ -56,10 +56,10 @@ impl CarbonEngine {
                                     width: Box::new(PropertyExpression {
                                         last_value: 100.0,
                                         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> f64 {
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Option<f64> {
                                             unsafe {
                                                 let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return (frames_elapsed / 100.).sin() * 500.
+                                                Some((frames_elapsed / 100.).sin() * 500.)
                                             }
                                         })
                                     }),
@@ -138,10 +138,10 @@ impl CarbonEngine {
 
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
-        self.recurse_render_scene_graph(rc, &self.scene_graph.borrow().root, &Affine::default());
+        self.recurse_render_scene_graph(rc, &self.scene_graph.borrow().root, &Affine::default(), self.viewport_size.clone() );
     }
 
-    fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine)  {
+    fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine, accumulated_bounding_dimens: (f64, f64))  {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
@@ -149,6 +149,18 @@ impl CarbonEngine {
         //  - done
 
         let new_accumulated_transform = *accumulated_transform * *node.get_transform();
+
+        let dimens = node.get_dimensions();
+        let new_accumulated_bounding_dimens = (
+            match dimens.0 {
+                Some(val) => val,
+                None => accumulated_bounding_dimens.0,
+            },
+            match dimens.1 {
+                Some(val) => val,
+                None => accumulated_bounding_dimens.1,
+            }
+        );
 
         // TODO:
         //  - evaluate Expressions and update (or alias) relevant properties
@@ -163,7 +175,7 @@ impl CarbonEngine {
                     match child {
                         None => { return },
                         Some(child) => {
-                            &self.recurse_render_scene_graph(rc, child, &new_accumulated_transform);
+                            &self.recurse_render_scene_graph(rc, child, &new_accumulated_transform, new_accumulated_bounding_dimens);
                         }
                     }
                 }
@@ -174,7 +186,7 @@ impl CarbonEngine {
                 //HACK:  hard-code some rotation here to make things feel alive
                 let theta = (self.frames_elapsed as f64 / 65.0);
                 let frame_rotated_transform = new_accumulated_transform * Affine::rotate(theta);
-                node.render(rc, &frame_rotated_transform);
+                node.render(rc, &frame_rotated_transform, new_accumulated_bounding_dimens);
             }
         }
 

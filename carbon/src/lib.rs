@@ -17,7 +17,9 @@ TODO:
     [x] Logging
     [x] Stroke, color, fill
     [x] Clean up warnings
-    [ ] Sizing + (browser) resizing support
+    [ ] Sizing
+        [x] Browser resize support
+        [ ] None-sizing
         [ ] Transform.align
     [ ] Expression engine
         [x] variables, declaration & storage
