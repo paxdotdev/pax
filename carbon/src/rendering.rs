@@ -15,8 +15,9 @@ pub trait RenderNode
     fn get_align(&self) -> (f64, f64);
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>>;
-    fn get_dimensions(&self) -> Option<(Dimension<f64>, Dimension<f64>)>;
+    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)>;
     fn get_id(&self) -> &str;
+    fn get_origin(&self) -> (Size<f64>, Size<f64>);
     fn get_transform(&self) -> &Affine;
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine, bounding_dimens: (f64, f64));
 }
@@ -25,6 +26,7 @@ pub struct Group {
     pub children: Vec<Box<dyn RenderNode>>,
     pub id: String,
     pub align: (f64, f64),
+    pub origin: (Size<f64>, Size<f64>),
     pub transform: Affine,
     pub variables: Vec<Variable>,
 }
@@ -38,10 +40,11 @@ impl RenderNode for Group {
         Some(&self.children)
     }
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> { Some(&mut self.children) }
-    fn get_dimensions(&self) -> Option<(Dimension<f64>,Dimension<f64>)> { None }
+    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
+    fn get_origin(&self) -> (Size<f64>, Size<f64>) { self.origin }
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
@@ -56,15 +59,16 @@ pub struct Stroke {
 
 
 #[derive(Copy, Clone)]
-pub enum Dimension<T> {
+pub enum Size<T> {
     Pixel(T),
     Percent(T),
 }
 
 pub struct Rectangle {
     pub align: (f64, f64),
-    pub width: Box<dyn Property<Dimension<f64>>>,
-    pub height: Box<dyn Property<Dimension<f64>>>,
+    pub width: Box<dyn Property<Size<f64>>>,
+    pub height: Box<dyn Property<Size<f64>>>,
+    pub origin: (Size<f64>, Size<f64>),
     pub transform: Affine,
     pub stroke: Stroke,
     pub fill: Box<dyn Property<Color>>,
@@ -85,7 +89,8 @@ impl RenderNode for Rectangle {
         self.height.eval_in_place(ctx);
         self.fill.eval_in_place(ctx);
     }
-    fn get_dimensions(&self) -> Option<(Dimension<f64>, Dimension<f64>)> { Some((*self.width.read(), *self.height.read())) }
+    fn get_origin(&self) -> (Size<f64>, Size<f64>) {self.origin}
+    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.width.read(), *self.height.read())) }
     fn get_transform(&self) -> &Affine {
         &self.transform
     }

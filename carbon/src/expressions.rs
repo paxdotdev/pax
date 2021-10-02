@@ -106,7 +106,7 @@ impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> Property<T> for Proper
                     panic!("Integer types not implemented for expression dependencies")
                 }
                 PolymorphicType::Boolean => {
-                    panic!("Integer types not implemented for expression dependencies")
+                    panic!("Boolean types not implemented for expression dependencies")
                 }
             }
         }

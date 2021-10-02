@@ -8,7 +8,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Group, Dimension, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext};
+use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext};
 
 
 
@@ -39,6 +39,7 @@ impl CarbonEngine {
                 root: Box::new(Group {
                     id: String::from("root"),
                     align: (0.0, 0.0),
+                    origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
                     variables: vec![
                         Variable {
                             name: String::from("rotation"),
@@ -50,29 +51,31 @@ impl CarbonEngine {
                         Box::new(Group {
                             id: String::from("group_1"),
                             align: (0.0, 0.0),
+                            origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
                             variables: vec![],
                             transform: Affine::default(),
                             children: vec![
                                 Box::new(Rectangle {
                                     id: String::from("rect_4"),
                                     align: (0.5, 0.5),
+                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
                                     width: Box::new(PropertyExpression {
-                                        last_value: Dimension::Pixel(100.0),
+                                        last_value: Size::Pixel(100.0),
                                         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Dimension<f64>  {
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
                                             unsafe {
                                                 let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return Dimension::Pixel((frames_elapsed / 100.).sin() * 500.)
+                                                return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
                                             }
                                         })
                                     }),
                                     height: Box::new(PropertyExpression {
-                                        last_value: Dimension::Pixel(500.0),
+                                        last_value: Size::Pixel(500.0),
                                         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
                                         evaluator: (|dep_values: HashMap<String, PolymorphicValue>| {
                                             unsafe {
                                                 let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return Dimension::Pixel((frames_elapsed / 100.).sin() * 500.)
+                                                return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
                                             }
                                         })
                                     }),
@@ -97,11 +100,12 @@ impl CarbonEngine {
                                 }),
                                 Box::new(Rectangle {
                                     id: String::from("rect_6"),
-                                    align: (0.0, 0.0),
-                                    width: Box::new(PropertyLiteral { value: Dimension::Pixel(250.0) }),
-                                    height: Box::new(PropertyLiteral { value: Dimension::Pixel(100.0) }),
+                                    align: (0.5, 0.5),
+                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
+                                    width: Box::new(PropertyLiteral { value: Size::Pixel(250.0) }),
+                                    height: Box::new(PropertyLiteral { value: Size::Pixel(100.0) }),
                                     fill: Box::new(PropertyLiteral{value: Color::hlc(200.0, 75.0, 127.0)}),
-                                    transform: Affine::translate(Vec2 { x: 750.0, y: 750.0 }),
+                                    transform: Affine::default(),
                                     stroke: Stroke {
                                         color: Color::hlc(0.0, 75.0, 127.0),
                                         width: 5.0,
@@ -111,23 +115,24 @@ impl CarbonEngine {
                                 Box::new(Rectangle {
                                     id: String::from("rect_5"),
                                     align: (0.5, 0.5),
+                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
                                     width: Box::new(PropertyExpression {
-                                        last_value: Dimension::Pixel(100.0),
+                                        last_value: Size::Pixel(100.0),
                                         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Dimension<f64>  {
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
                                             unsafe {
                                                 let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return Dimension::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
+                                                return Size::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
                                             }
                                         })
                                     }),
                                     height: Box::new(PropertyExpression {
-                                        last_value: Dimension::Pixel(100.0),
+                                        last_value: Size::Pixel(100.0),
                                         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Dimension<f64>  {
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
                                             unsafe {
                                                 let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return Dimension::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
+                                                return Size::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
                                             }
                                         })
                                     }),
@@ -192,24 +197,24 @@ impl CarbonEngine {
 
         //if this node has explicit dimensions, those dimensions
         //are our new accumulated dimensions.  These will be passed onto descendents.
-        let dimensions = node.get_dimensions();
+        let dimensions = node.get_size();
         match dimensions {
             None => (), //do nothing; this defaults to our parent dimens
             Some(dimens) => {
                 //handle percent vs. pixel dimensions
                 match dimens.0 {
-                    Dimension::Pixel(width) => {
+                    Size::Pixel(width) => {
                         new_accumulated_bounds.0 = width
                     },
-                    Dimension::Percent(width) => {
+                    Size::Percent(width) => {
                         new_accumulated_bounds.0 = accumulated_bounds.0 * (width / 100.0)
                     }
                 }
                 match dimens.1 {
-                    Dimension::Pixel(height) => {
+                    Size::Pixel(height) => {
                         new_accumulated_bounds.1 = height
                     },
-                    Dimension::Percent(height) => {
+                    Size::Percent(height) => {
                         new_accumulated_bounds.1 = accumulated_bounds.1 * (height / 100.0)
                     }
                 }
