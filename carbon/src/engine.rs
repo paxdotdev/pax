@@ -59,26 +59,28 @@ impl CarbonEngine {
                                     id: String::from("rect_4"),
                                     align: (0.5, 0.5),
                                     origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                                    width: Box::new(PropertyExpression {
-                                        last_value: Size::Pixel(100.0),
-                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
-                                            unsafe {
-                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
-                                            }
+                                    size: (
+                                        Box::new(PropertyExpression {
+                                            last_value: Size::Pixel(100.0),
+                                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
+                                                unsafe {
+                                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                    return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
+                                                }
+                                            })
+                                        }),
+                                        Box::new(PropertyExpression {
+                                            last_value: Size::Pixel(500.0),
+                                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| {
+                                                unsafe {
+                                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                    return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
+                                                }
+                                            })
                                         })
-                                    }),
-                                    height: Box::new(PropertyExpression {
-                                        last_value: Size::Pixel(500.0),
-                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| {
-                                            unsafe {
-                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
-                                            }
-                                        })
-                                    }),
+                                    ),
                                     fill: Box::new(
                                         PropertyExpression {
                                             last_value: Color::hlc(0.0,0.0,0.0),
@@ -102,8 +104,10 @@ impl CarbonEngine {
                                     id: String::from("rect_6"),
                                     align: (0.5, 0.5),
                                     origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                                    width: Box::new(PropertyLiteral { value: Size::Pixel(250.0) }),
-                                    height: Box::new(PropertyLiteral { value: Size::Pixel(100.0) }),
+                                    size: (
+                                        Box::new(PropertyLiteral { value: Size::Pixel(250.0) }),
+                                        Box::new(PropertyLiteral { value: Size::Pixel(100.0) }),
+                                    ),
                                     fill: Box::new(PropertyLiteral{value: Color::hlc(200.0, 75.0, 127.0)}),
                                     transform: Affine::default(),
                                     stroke: Stroke {
@@ -116,26 +120,28 @@ impl CarbonEngine {
                                     id: String::from("rect_5"),
                                     align: (0.5, 0.5),
                                     origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                                    width: Box::new(PropertyExpression {
-                                        last_value: Size::Pixel(100.0),
-                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
-                                            unsafe {
-                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return Size::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
-                                            }
+                                    size: (
+                                        Box::new(PropertyExpression {
+                                            last_value: Size::Pixel(100.0),
+                                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
+                                                unsafe {
+                                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                    return Size::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
+                                                }
+                                            })
+                                        }),
+                                        Box::new(PropertyExpression {
+                                            last_value: Size::Pixel(100.0),
+                                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
+                                                unsafe {
+                                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                                    return Size::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
+                                                }
+                                            })
                                         })
-                                    }),
-                                    height: Box::new(PropertyExpression {
-                                        last_value: Size::Pixel(100.0),
-                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
-                                            unsafe {
-                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return Size::Percent(((frames_elapsed / 1.25) as i64 % 100) as f64)
-                                            }
-                                        })
-                                    }),
+                                    ),
                                     fill: Box::new(PropertyExpression {
                                         last_value: Color::hlc(0.0,0.0,0.0),
                                         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],

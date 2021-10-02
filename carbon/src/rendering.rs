@@ -66,8 +66,10 @@ pub enum Size<T> {
 
 pub struct Rectangle {
     pub align: (f64, f64),
-    pub width: Box<dyn Property<Size<f64>>>,
-    pub height: Box<dyn Property<Size<f64>>>,
+    pub size: (
+        Box<dyn Property<Size<f64>>>,
+        Box<dyn Property<Size<f64>>>,
+    ),
     pub origin: (Size<f64>, Size<f64>),
     pub transform: Affine,
     pub stroke: Stroke,
@@ -85,12 +87,12 @@ impl RenderNode for Rectangle {
         None
     }
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
-        self.width.eval_in_place(ctx);
-        self.height.eval_in_place(ctx);
+        self.size.0.eval_in_place(ctx);
+        self.size.1.eval_in_place(ctx);
         self.fill.eval_in_place(ctx);
     }
     fn get_origin(&self) -> (Size<f64>, Size<f64>) {self.origin}
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.width.read(), *self.height.read())) }
+    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
