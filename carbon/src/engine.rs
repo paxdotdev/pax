@@ -56,10 +56,10 @@ impl CarbonEngine {
                                     width: Box::new(PropertyExpression {
                                         last_value: 100.0,
                                         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Option<f64> {
+                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> f64 {
                                             unsafe {
                                                 let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                Some((frames_elapsed / 100.).sin() * 500.)
+                                                (frames_elapsed / 100.).sin() * 500.
                                             }
                                         })
                                     }),
@@ -150,27 +150,22 @@ impl CarbonEngine {
 
         let new_accumulated_transform = *accumulated_transform * *node.get_transform();
 
-        let dimens = node.get_dimensions();
-        let new_accumulated_bounding_dimens = (
-            match dimens.0 {
-                Some(val) => val,
-                None => accumulated_bounding_dimens.0,
-            },
-            match dimens.1 {
-                Some(val) => val,
-                None => accumulated_bounding_dimens.1,
-            }
-        );
+        //default to our parent-provided bounding dimensions
+        let mut new_accumulated_bounding_dimens= accumulated_bounding_dimens.clone();
 
-        // TODO:
-        //  - evaluate Expressions and update (or alias) relevant properties
-        //  -
+        //if this node has explicit dimensions, those dimensions
+        //are our new accumulated dimensions - for passing onto descendents
+        let dimens = node.get_dimensions();
+        match dimens {
+            None => (),
+            Some(dimens) => { new_accumulated_bounding_dimens = dimens.clone() }
+        }
 
         match node.get_children() {
             Some(children) => {
                 //keep recursing
                 for i in (0..children.len()).rev() {
-                    //note that we're iterating starting from the last child
+                    //note that we're iterating starting from the last child, for z-index
                     let child = children.get(i); //TODO: ?-syntax
                     match child {
                         None => { return },

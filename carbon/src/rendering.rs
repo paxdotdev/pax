@@ -14,7 +14,7 @@ pub trait RenderNode
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>>;
-    fn get_dimensions(&self) -> (Option<f64>, Option<f64>);
+    fn get_dimensions(&self) -> Option<(f64, f64)>;
     fn get_id(&self) -> &str;
     fn get_transform(&self) -> &Affine;
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine, bounding_dimens: (f64, f64));
@@ -22,11 +22,9 @@ pub trait RenderNode
 
 pub struct Group {
     pub children: Vec<Box<dyn RenderNode>>,
-    pub height: Option<f64>,
     pub id: String,
     pub transform: Affine,
     pub variables: Vec<Variable>,
-    pub width: Option<f64>,
 }
 
 impl RenderNode for Group {
@@ -38,7 +36,7 @@ impl RenderNode for Group {
         Some(&self.children)
     }
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> { Some(&mut self.children) }
-    fn get_dimensions(&self) -> (Option<f64>, Option<f64>) { (self.width, self.height) }
+    fn get_dimensions(&self) -> Option<(f64,f64)> { None }
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
@@ -56,29 +54,13 @@ pub struct Stroke {
 }
 
 pub struct Rectangle {
-    pub width: Box<dyn Property<Option<f64>>>,
-    pub height: Box<dyn Property<Option<f64>>>,
+    pub width: Box<dyn Property<f64>>,
+    pub height: Box<dyn Property<f64>>,
     pub transform: Affine,
     pub stroke: Stroke,
     pub fill: Box<dyn Property<Color>>,
     pub id: String,
 }
-
-
-
-
-
-/*
-
-TODO: back out the `None`-sizing logic
-Remove concept of `None` sizing
-Instead, support %, and make explicit width=100% the only way
-    to fill a container.  Implications to consider:  how is the
-    width
-
- */
-
-
 
 
 
@@ -94,7 +76,7 @@ impl RenderNode for Rectangle {
         self.height.eval_in_place(ctx);
         self.fill.eval_in_place(ctx);
     }
-    fn get_dimensions(&self) -> (Option<f64>, Option<f64>) { (*self.width.read(), *self.height.read()) }
+    fn get_dimensions(&self) -> Option<(f64, f64)> { Some((*self.width.read(), *self.height.read())) }
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
@@ -106,14 +88,8 @@ impl RenderNode for Rectangle {
         //  for each property that's used here (e.g. self.width and self.height)
         //  unbox the Value vs Expression and pack into a local for eval here
 
-        let width: f64 = match *self.width.read() {
-            Some(val) => val,
-            None => bounding_dimens.0
-        };
-        let height: f64 = match *self.height.read() {
-            Some(val) => val,
-            None => bounding_dimens.1
-        };
+        let width: f64 =  *self.width.read();
+        let height: f64 =  *self.height.read();
         let fill: &Color = &self.fill.read();
 
         let mut bez_path = BezPath::new();
