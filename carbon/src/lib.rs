@@ -25,7 +25,7 @@ TODO:
         [x] variables, declaration & storage
         [x] node IDs
         [x] summonables
-            [ ] nested state access & figure out access control (descendent vs ancestor vs global+acyclic+(private?))
+            [ ] nested property access & figure out access control (descendent vs ancestor vs global+acyclic+(private?))
             [x] built-in vars like frame count
         [x] MVP rust closures + manifest of deps
     [ ] Text prefabs + support layer for Web adapter
@@ -55,6 +55,9 @@ TODO:
         [ ] control flow ($repeat, $if)
         [ ] dependency graph + caching
     [ ] Tests
+    [ ] State + Actions
+        [ ] track and update custom states/variables
+        [ ] expose API for manipulating state via Actions
     [ ] Authoring tool
         [ ] Drawing tools
         [ ] Layout-building tools

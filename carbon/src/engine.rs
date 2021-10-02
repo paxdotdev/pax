@@ -197,10 +197,6 @@ impl CarbonEngine {
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done
 
-        //TODO:  calculate a translation matrix for Align here, then:
-        //       `(parent_matrix * align_matrix * node_matrix)`
-        // let align_transform = (node.get_align().0 * bounds.0, node.get_align().1 * bounds.1)
-
         let node_size_calc = node.get_size_calc(accumulated_bounds);
         let origin_transform = Affine::translate(
         (
@@ -223,33 +219,7 @@ impl CarbonEngine {
         let new_accumulated_transform = *accumulated_transform * align_transform * origin_transform * *node.get_transform();
 
         //default to our parent-provided bounding dimensions
-        let mut new_accumulated_bounds = accumulated_bounds.clone();
-
-        //if this node has explicit dimensions, those dimensions
-        //are our new accumulated dimensions.  These will be passed onto descendants.
-        let dimensions = node.get_size();
-        match dimensions {
-            None => (), //do nothing; this defaults to our parent dimens
-            Some(dimens) => {
-                //handle percent vs. pixel dimensions
-                match dimens.0 {
-                    Size::Pixel(width) => {
-                        new_accumulated_bounds.0 = width
-                    },
-                    Size::Percent(width) => {
-                        new_accumulated_bounds.0 = accumulated_bounds.0 * (width / 100.0)
-                    }
-                }
-                match dimens.1 {
-                    Size::Pixel(height) => {
-                        new_accumulated_bounds.1 = height
-                    },
-                    Size::Percent(height) => {
-                        new_accumulated_bounds.1 = accumulated_bounds.1 * (height / 100.0)
-                    }
-                }
-            }
-        }
+        let mut new_accumulated_bounds = node.get_size_calc(accumulated_bounds);
 
         match node.get_children() {
             Some(children) => {

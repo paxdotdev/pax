@@ -17,7 +17,7 @@ pub trait RenderNode
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>>;
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)>;
 
-    /// Returns the pixel dimensions of this node, accepting
+    /// Returns the size of this node in pixels, requiring
     /// parent bounds for calculation of `Percent` values
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64);
 
@@ -128,9 +128,6 @@ impl RenderNode for Rectangle {
         &self.id.as_str()
     }
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine, bounding_dimens: (f64, f64)) {
-        //TODO:
-        //  for each property that's used here (e.g. self.width and self.height)
-        //  unbox the Value vs Expression and pack into a local for eval here
 
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
@@ -138,15 +135,6 @@ impl RenderNode for Rectangle {
         let fill: &Color = &self.fill.read();
 
         let mut bez_path = BezPath::new();
-
-        //TODO:  support dynamic Origin
-        // bez_path.move_to(Point::new(-width / 2., -height / 2.));
-        // bez_path.line_to(Point::new(width / 2., -height / 2.));
-        // bez_path.line_to(Point::new(width / 2., height / 2.));
-        // bez_path.line_to(Point::new(-width / 2., height / 2.));
-        // bez_path.line_to(Point::new(-width / 2., -height / 2.));
-        // bez_path.close_path();
-
         bez_path.move_to((0.0, 0.0));
         bez_path.line_to((width , 0.0));
         bez_path.line_to((width , height ));
