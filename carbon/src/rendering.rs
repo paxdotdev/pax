@@ -3,7 +3,7 @@ use piet_web::{WebRenderContext};
 use piet::{Color, StrokeStyle, RenderContext};
 use kurbo::{Affine, BezPath};
 
-use crate::{Variable, Property, PropertyTreeContext};
+use crate::{Variable, Property, PropertyTreeContext, SceneGraphContext};
 
 pub struct SceneGraph {
     pub root: Box<dyn RenderNode>
@@ -25,7 +25,7 @@ pub trait RenderNode
     fn get_origin(&self) -> (Size<f64>, Size<f64>);
     fn get_transform(&self) -> &Affine;
     fn pre_render(&self);
-    fn render(&self, rc: &mut WebRenderContext, transform: &Affine, bounding_dimens: (f64, f64));
+    fn render(&self, rc: &mut WebRenderContext, sc: &SceneGraphContext);
 }
 
 pub struct Group {
@@ -57,7 +57,7 @@ impl RenderNode for Group {
         &self.transform
     }
     fn pre_render(&self) {}
-    fn render(&self, _: &mut WebRenderContext, _: &Affine, _: (f64, f64)) {}
+    fn render(&self, _: &mut WebRenderContext, _: &SceneGraphContext) {}
 }
 
 pub struct Stroke {
@@ -130,8 +130,10 @@ impl RenderNode for Rectangle {
         &self.id.as_str()
     }
     fn pre_render(&self) {}
-    fn render(&self, rc: &mut WebRenderContext, transform: &Affine, bounding_dimens: (f64, f64)) {
+    fn render(&self, rc: &mut WebRenderContext, sc: &SceneGraphContext) {
 
+        let transform = sc.transform;
+        let bounding_dimens = sc.bounding_dimens;
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 
@@ -181,7 +183,7 @@ impl RenderNode for Yield {
         &self.transform
     }
     fn pre_render(&self) {}
-    fn render(&self, _: &mut WebRenderContext, _: &Affine, _: (f64, f64)) {}
+    fn render(&self, _: &mut WebRenderContext, _: &SceneGraphContext) {}
 }
 
 pub struct Repeat {

@@ -1,10 +1,11 @@
-
+use std::cell::{RefCell};
 use piet_web::{WebRenderContext};
-use crate::{Variable, Property, PropertyTreeContext, RenderNode, Size, Affine};
+use crate::{Variable, Property, PropertyTreeContext, RenderNode, Size, Affine, SceneGraphContext, SceneGraph};
 
 
 pub struct Stack {
     pub children: Vec<Box<dyn RenderNode>>,
+    pub internal_scene_graph: RefCell<SceneGraph>,
     pub id: String,
     pub align: (f64, f64),
     pub origin: (Size<f64>, Size<f64>),
@@ -55,9 +56,10 @@ impl RenderNode for Stack {
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
 
 
-        // we want these children at render time — i.e. we want
-        // to return the APPLICATION SCENE GRAPH children (`adoptee`)
-        // reasoning in ASCII:
+        // return the root of the internal template here — as long
+        // as we capture refs to (c) and (d) below during Stack's `render` or `pre_render` fn,
+        // we can happily let rendering just take its course,
+        // recursing through the subtree starting with (e).
         //
         // example application scene graph
         //          a( root )
@@ -68,11 +70,11 @@ impl RenderNode for Stack {
         //
         // example Stack (prefab) scene graph
         //          e( root )
-        //              |     //  expanded:
+        //              |      //  expanded:
         //          f( Repeat  //  n=2 )
-        //           /        //    \
+        //           /         //    \
         //      g( Frame )     //   i( Frame )
-        //          |         //      |
+        //          |          //      |
         //      h( Yield )     //   j( Yield )
         //
         // traversal order:
@@ -83,20 +85,23 @@ impl RenderNode for Stack {
         //    get its children from the Engine (get_children)
         //    — these are the `adoptees` that will be passed to `Yield`
         //    and they need to be tracked.
-        //    We can do this with a Context that we pass between recursive calls
+        //    We can do this with a SceneGraphContext that we pass between recursive calls
         //    when rendering.  We can keep a stack of prefab "scopes," allowing `yield`'s render
         //    function to handily grab a reference to `adoptees[i]` when needed.  The stack
         //    enables prefabs to nest among themselves
         // e: is Stack::render()
         // f: first child of Stack — it's a Repeat;
-        //    loop twice, passing rendering onto a Frame, waits for it to finish,
-        //    then passes onto the next Frame
+        //    loop twice, first passing rendering onto a Frame (g), waiting for it to return,
+        //    then passing onto the next Frame (i)
         // g: render the containing frame in the correct position,
         //    (plus clipping, maybe)
         // h: needs to "evaluate" into the rectangle itself — directs the
-        //    flow of the scene graph to (c) via the Context passed through rendering
+        //    flow of the scene graph to (c) via the Context described in (b)
         // c: finally render the rectangle itself; return & allow recursion to keep whirring
         // i,j,d: repeat g,h,c
+
+        //TODO:  return root of internal scene graph here, instead of `self.children`
+        //       (which are the adoptees)
 
         Some(&self.children)
     }
@@ -134,10 +139,17 @@ impl RenderNode for Stack {
         //TODO:  calc & memoize the layout/transform for each cell of the stack
         //       probably need to do the memoization via a RefCell for mutability concerns,
         //       since pre_render happens during immutable scene graph recursion
+        //
+
 
     }
-    fn render(&self, _: &mut WebRenderContext, _: &Affine, _: (f64, f64)) {
+    fn render(&self, _: &mut WebRenderContext, _: &SceneGraphContext) {
         //TODO:  render cell borders if appropriate
+        //TODO:  capture a reference to the application-scene-graph-provided children,
+        //       into a `frame` that will ride with the SceneGraphContext
+        //TODO:  in order to actually adopt an adoptee, we need to either
+        //       mutate the adoptees Vec, or keep an index alongside.
+        //       Let's try making the SceneGraphContext mutable.
     }
 
 }

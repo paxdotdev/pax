@@ -30,6 +30,18 @@ pub struct CarbonEngine {
     viewport_size: (f64, f64),
 }
 
+
+pub struct SceneGraphContext<'a> {
+    pub transform: &'a Affine,
+    pub bounding_dimens: (f64, f64)
+}
+
+
+pub struct StackFrame {
+    pub adoptees: Vec<Box<dyn RenderNode>>,
+    //TODO: manage scope here for expressions, dynamic templating
+}
+
 impl CarbonEngine {
     fn new(logger: fn(&str), viewport_size: (f64, f64)) -> Self {
         CarbonEngine {
@@ -187,12 +199,17 @@ impl CarbonEngine {
 
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
-        self.recurse_render_scene_graph(rc, &self.scene_graph.borrow().root, &Affine::default(), self.viewport_size.clone() );
+        let mut scene_graph_context = SceneGraphContext {
+            transform: &Affine::default(),
+            bounding_dimens: self.viewport_size.clone(),
+        };
+        self.recurse_render_scene_graph(rc,  &mut scene_graph_context, &self.scene_graph.borrow().root );
     }
 
-    fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine, accumulated_bounds: (f64, f64))  {
+    fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, sc: &mut SceneGraphContext, node: &Box<dyn RenderNode>)  {
 
-
+        let accumulated_transform = sc.transform;
+        let accumulated_bounds = sc.bounding_dimens;
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
@@ -200,6 +217,7 @@ impl CarbonEngine {
         //  - done
 
         //lifecycle: pre_render happens before anything else for this node
+        //           this is useful for pre-calculation, e.g. for layout
         node.pre_render();
 
         let node_size_calc = node.get_size_calc(accumulated_bounds);
@@ -235,7 +253,11 @@ impl CarbonEngine {
                     match child {
                         None => { return },
                         Some(child) => {
-                            &self.recurse_render_scene_graph(rc, child, &new_accumulated_transform, new_accumulated_bounds);
+                            let mut new_scene_graph_context = SceneGraphContext {
+                                transform: &new_accumulated_transform,
+                                bounding_dimens: new_accumulated_bounds,
+                            };
+                            &self.recurse_render_scene_graph(rc, &mut new_scene_graph_context, child);
                         }
                     }
                 }
@@ -243,7 +265,11 @@ impl CarbonEngine {
             None => ()  // this is a leaf node — no special treatment required
                         // since it will render itself later in this method
         }
-        node.render(rc, &new_accumulated_transform, new_accumulated_bounds);
+        let new_scene_graph_context = SceneGraphContext {
+            bounding_dimens: new_accumulated_bounds,
+            transform: &new_accumulated_transform
+        };
+        node.render(rc, &new_scene_graph_context);
     }
 
     pub fn update_property_tree(&self) {
