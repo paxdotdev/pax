@@ -224,7 +224,7 @@ impl CarbonEngine {
         let new_accumulated_transform = *accumulated_transform * align_transform * origin_transform * *node.get_transform();
 
         //default to our parent-provided bounding dimensions
-        let mut new_accumulated_bounds = node.get_size_calc(accumulated_bounds);
+        let new_accumulated_bounds = node.get_size_calc(accumulated_bounds);
 
         match node.get_children() {
             Some(children) => {

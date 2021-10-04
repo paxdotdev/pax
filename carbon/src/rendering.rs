@@ -104,25 +104,24 @@ impl RenderNode for Rectangle {
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
         let size_raw = self.get_size().unwrap();
-        let mut size_calc = (0.0, 0.0);
-        //handle percent vs. pixel dimensions
-        match size_raw.0 {
-            Size::Pixel(width) => {
-                size_calc.0 = width
+        return (
+            match size_raw.0 {
+                Size::Pixel(width) => {
+                    width
+                },
+                Size::Percent(width) => {
+                    bounds.0 * (width / 100.0)
+                }
             },
-            Size::Percent(width) => {
-                size_calc.0 = bounds.0 * (width / 100.0)
+            match size_raw.1 {
+                Size::Pixel(height) => {
+                    height
+                },
+                Size::Percent(height) => {
+                    bounds.1 * (height / 100.0)
+                }
             }
-        }
-        match size_raw.1 {
-            Size::Pixel(height) => {
-                size_calc.1 = height
-            },
-            Size::Percent(height) => {
-                size_calc.1 = bounds.1 * (height / 100.0)
-            }
-        }
-        size_calc
+        )
     }
     fn get_transform(&self) -> &Affine {
         &self.transform
