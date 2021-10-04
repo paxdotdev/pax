@@ -152,3 +152,43 @@ impl RenderNode for Rectangle {
         rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
     }
 }
+
+
+pub struct Yield {
+    id: String,
+    transform: Affine,
+}
+
+impl RenderNode for Yield {
+    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
+        //TODO: handle each of Group's `Expressable` properties
+    }
+
+    fn get_align(&self) -> (f64, f64) { (0.0,0.0) }
+    fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
+        //TODO: return "surrogate"s children (find accurate term)
+        // Some(&self.children)
+        None
+    }
+    fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> { None }
+    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
+    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
+    fn get_id(&self) -> &str {
+        &self.id.as_str()
+    }
+    fn get_origin(&self) -> (Size<f64>, Size<f64>) { (Size::Pixel(0.0), Size::Pixel(0.0)) }
+    fn get_transform(&self) -> &Affine {
+        &self.transform
+    }
+    fn pre_render(&self) {}
+    fn render(&self, _: &mut WebRenderContext, _: &Affine, _: (f64, f64)) {}
+}
+
+pub struct Repeat {
+
+}
+
+pub struct If {
+
+}
+

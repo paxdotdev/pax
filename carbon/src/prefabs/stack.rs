@@ -33,8 +33,8 @@ TODO:
         - need to figure out yield — special kind of rendernode?
     [ ] Frame
         [ ] Clipping
-    [ ] yield
-    [ ] repeat
+    [ ] Yield
+    [ ] Repeat
         [ ] "flattening yield" to support <Stack><Repeat n=5><Rect>...
         [ ] scopes:
             [ ] `i`
@@ -53,9 +53,51 @@ impl RenderNode for Stack {
 
     fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
-        //TODO: "unpack" or "flatten" `repeat`ed elements
-        //      (or should that happen elsewhere?)
-        //      also be sure to update get_children_mut logic
+
+
+        // we want these children at render time — i.e. we want
+        // to return the APPLICATION SCENE GRAPH children (`adoptee`)
+        // reasoning in ASCII:
+        //
+        // example application scene graph
+        //          a( root )
+        //              |
+        //          b( Stack )
+        //         /          \
+        //    c( Rect )      d( Rect )
+        //
+        // example Stack (prefab) scene graph
+        //          e( root )
+        //              |     //  expanded:
+        //          f( Repeat  //  n=2 )
+        //           /        //    \
+        //      g( Frame )     //   i( Frame )
+        //          |         //      |
+        //      h( Yield )     //   j( Yield )
+        //
+        // traversal order:
+        // [a b e f g h c i j d]
+        //
+        // a: load the application root Group
+        // b: found a Stack, start rendering it
+        //    get its children from the Engine (get_children)
+        //    — these are the `adoptees` that will be passed to `Yield`
+        //    and they need to be tracked.
+        //    We can do this with a Context that we pass between recursive calls
+        //    when rendering.  We can keep a stack of prefab "scopes," allowing `yield`'s render
+        //    function to handily grab a reference to `adoptees[i]` when needed.  The stack
+        //    enables prefabs to nest among themselves
+        // e: is Stack::render()
+        // f: first child of Stack — it's a Repeat;
+        //    loop twice, passing rendering onto a Frame, waits for it to finish,
+        //    then passes onto the next Frame
+        // g: render the containing frame in the correct position,
+        //    (plus clipping, maybe)
+        // h: needs to "evaluate" into the rectangle itself — directs the
+        //    flow of the scene graph to (c) via the Context passed through rendering
+        // c: finally render the rectangle itself; return & allow recursion to keep whirring
+        // i,j,d: repeat g,h,c
+
         Some(&self.children)
     }
     fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> { Some(&mut self.children) }

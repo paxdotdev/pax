@@ -244,11 +244,6 @@ impl CarbonEngine {
                         // since it will render itself later in this method
         }
         node.render(rc, &new_accumulated_transform, new_accumulated_bounds);
-
-
-        //TODO: Now that children have been rendered, if there's rendering to be done at this node,
-        //      (e.g. for layouts, perhaps virtual nodes like $repeat), do that rendering here
-
     }
 
     pub fn update_property_tree(&self) {
