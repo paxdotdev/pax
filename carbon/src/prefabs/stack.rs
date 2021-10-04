@@ -1,6 +1,6 @@
 use std::cell::{RefCell};
 use piet_web::{WebRenderContext};
-use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, StackFrame, SceneGraphContext, SceneGraph};
+use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, SceneGraphContext, SceneGraph};
 
 
 pub struct Stack {
@@ -142,22 +142,30 @@ impl RenderNode for Stack {
 
 
     }
-    fn render(&self, _sc: &SceneGraphContext, _rc: &mut WebRenderContext) {
+    fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {
         //TODO:  render cell borders if appropriate
         //TODO:  capture a reference to the application-scene-graph-provided children,
         //       into a `frame` that will ride with the SceneGraphContext
-        //TODO:  in order to actually adopt an adoptee, we need to either
-        //       mutate the adoptees Vec, or keep an index alongside.
-        //       Let's try making the SceneGraphContext mutable.
-
-        let mut new_stack_frame = StackFrame {
-            adoptees: self.get_children().unwrap().iter()
-        };
-
-        //Yield can call the following to retrieve the next adoptee from the Context
-        new_stack_frame.adoptees.next();
 
 
+        // To fix our call_stack ownership tangle:
+        //   1. add SceneGraph reference to SceneGraphContext
+        //   2. add push_stack_frame, peek_stack_frame, and pop_stack_frame methods to SceneGraph
+        //      (can introduce a separate CallStack entity if needed down the road)
+        //   3.
+        // sc.call_stack.push_frame(
+        //
+        // let mut new_stack_frame = StackFrame {
+        //     adoptees: RefCell::new(self.get_children().unwrap().iter())
+        // };
+        //
+        // //Seems that we need the canonical call_stack to live somewhere
+        // //central (SceneGraph?) and to be referenced & updated (via shared mutability/RefCell?)
+        // //here
+        // sc.call_stack.push(new_stack_frame);
+        //
+        // //Yield can call the following to retrieve the next adoptee from the Context
+        // new_stack_frame.adoptees.next();
 
     }
 

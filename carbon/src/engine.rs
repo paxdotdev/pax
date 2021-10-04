@@ -1,5 +1,4 @@
 use std::cell::{RefCell};
-use core::option::Iter;
 
 use kurbo::{
     BezPath,
@@ -17,7 +16,6 @@ use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicVa
 use std::collections::HashMap;
 
 
-
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
     let engine = CarbonEngine::new(logger, viewport_size);
@@ -32,15 +30,17 @@ pub struct CarbonEngine {
 }
 
 
-pub struct SceneGraphContext<'a> {
+pub struct SceneGraphContext<'a>
+{
     pub transform: &'a Affine,
-    pub bounding_dimens: (f64, f64)
+    pub bounding_dimens: (f64, f64),
+    pub scene_graph: &'a RefCell<SceneGraph>,
 }
 
 
-pub struct StackFrame<'a, I: Iterator<Item = &'a Box<dyn RenderNode>>>
+pub struct StackFrame<'a>
 {
-    pub adoptees: I,
+    pub adoptees: Box<dyn Iterator<Item = &'a Box<dyn RenderNode>>>,
     //TODO: manage scope here for expressions, dynamic templating
 }
 
@@ -201,9 +201,12 @@ impl CarbonEngine {
 
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
+
+        // let mut call_stack = Vec::new();
         let mut scene_graph_context = SceneGraphContext {
             transform: &Affine::default(),
             bounding_dimens: self.viewport_size.clone(),
+            scene_graph: &self.scene_graph,
         };
         self.recurse_render_scene_graph(&mut scene_graph_context, rc, &self.scene_graph.borrow().root);
     }
@@ -258,6 +261,7 @@ impl CarbonEngine {
                             let mut new_scene_graph_context = SceneGraphContext {
                                 transform: &new_accumulated_transform,
                                 bounding_dimens: new_accumulated_bounds,
+                                scene_graph: sc.scene_graph,
                             };
                             &self.recurse_render_scene_graph(&mut new_scene_graph_context, rc, child);
                         }
@@ -267,11 +271,12 @@ impl CarbonEngine {
             None => ()  // this is a leaf node — no special treatment required
                         // since it will render itself later in this method
         }
-        let new_scene_graph_context = SceneGraphContext {
+        let mut new_scene_graph_context = SceneGraphContext {
             bounding_dimens: new_accumulated_bounds,
-            transform: &new_accumulated_transform
+            transform: &new_accumulated_transform,
+            scene_graph: sc.scene_graph,
         };
-        node.render(&new_scene_graph_context, rc);
+        node.render(&mut new_scene_graph_context, rc);
     }
 
     pub fn update_property_tree(&self) {
