@@ -1,6 +1,6 @@
 use std::cell::{RefCell};
 use piet_web::{WebRenderContext};
-use crate::{Variable, Property, PropertyTreeContext, RenderNode, Size, Affine, SceneGraphContext, SceneGraph};
+use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, StackFrame, SceneGraphContext, SceneGraph};
 
 
 pub struct Stack {
@@ -54,7 +54,6 @@ impl RenderNode for Stack {
 
     fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
-
 
         // return the root of the internal template here — as long
         // as we capture refs to (c) and (d) below during Stack's `render` or `pre_render` fn,
@@ -143,13 +142,23 @@ impl RenderNode for Stack {
 
 
     }
-    fn render(&self, _: &mut WebRenderContext, _: &SceneGraphContext) {
+    fn render(&self, _sc: &SceneGraphContext, _rc: &mut WebRenderContext) {
         //TODO:  render cell borders if appropriate
         //TODO:  capture a reference to the application-scene-graph-provided children,
         //       into a `frame` that will ride with the SceneGraphContext
         //TODO:  in order to actually adopt an adoptee, we need to either
         //       mutate the adoptees Vec, or keep an index alongside.
         //       Let's try making the SceneGraphContext mutable.
+
+        let mut new_stack_frame = StackFrame {
+            adoptees: self.get_children().unwrap().iter()
+        };
+
+        //Yield can call the following to retrieve the next adoptee from the Context
+        new_stack_frame.adoptees.next();
+
+
+
     }
 
 }

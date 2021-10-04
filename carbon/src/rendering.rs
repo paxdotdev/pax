@@ -25,7 +25,7 @@ pub trait RenderNode
     fn get_origin(&self) -> (Size<f64>, Size<f64>);
     fn get_transform(&self) -> &Affine;
     fn pre_render(&self);
-    fn render(&self, rc: &mut WebRenderContext, sc: &SceneGraphContext);
+    fn render(&self, sc: &SceneGraphContext, rc: &mut WebRenderContext);
 }
 
 pub struct Group {
@@ -57,7 +57,7 @@ impl RenderNode for Group {
         &self.transform
     }
     fn pre_render(&self) {}
-    fn render(&self, _: &mut WebRenderContext, _: &SceneGraphContext) {}
+    fn render(&self, _sc: &SceneGraphContext, _rc: &mut WebRenderContext) {}
 }
 
 pub struct Stroke {
@@ -130,7 +130,7 @@ impl RenderNode for Rectangle {
         &self.id.as_str()
     }
     fn pre_render(&self) {}
-    fn render(&self, rc: &mut WebRenderContext, sc: &SceneGraphContext) {
+    fn render(&self, sc: &SceneGraphContext, rc: &mut WebRenderContext) {
 
         let transform = sc.transform;
         let bounding_dimens = sc.bounding_dimens;
@@ -183,7 +183,7 @@ impl RenderNode for Yield {
         &self.transform
     }
     fn pre_render(&self) {}
-    fn render(&self, _: &mut WebRenderContext, _: &SceneGraphContext) {}
+    fn render(&self, _sc: &SceneGraphContext, _rc: &mut WebRenderContext) {}
 }
 
 pub struct Repeat {

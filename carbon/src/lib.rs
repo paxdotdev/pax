@@ -56,6 +56,10 @@ TODO:
             [ ] Text input
             [ ] Dropdown
     [ ] Hook up all relevant properties to Property
+    [ ] Refactors
+        [ ] Rename various properties, e.g. bounding_dimens => bounds
+        [ ] Bundle Transform into "sugary transform," incl. origin & align; consider a separate transform_matrix property
+        [ ] Take a pass on references/ownership in render_scene_graph — perhaps &Affine should transfer ownership instead, for example
 === MED
     [ ] Ellipse
     [ ] Path

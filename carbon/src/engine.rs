@@ -1,4 +1,5 @@
 use std::cell::{RefCell};
+use core::option::Iter;
 
 use kurbo::{
     BezPath,
@@ -37,8 +38,9 @@ pub struct SceneGraphContext<'a> {
 }
 
 
-pub struct StackFrame {
-    pub adoptees: Vec<Box<dyn RenderNode>>,
+pub struct StackFrame<'a, I: Iterator<Item = &'a Box<dyn RenderNode>>>
+{
+    pub adoptees: I,
     //TODO: manage scope here for expressions, dynamic templating
 }
 
@@ -203,10 +205,10 @@ impl CarbonEngine {
             transform: &Affine::default(),
             bounding_dimens: self.viewport_size.clone(),
         };
-        self.recurse_render_scene_graph(rc,  &mut scene_graph_context, &self.scene_graph.borrow().root );
+        self.recurse_render_scene_graph(&mut scene_graph_context, rc, &self.scene_graph.borrow().root);
     }
 
-    fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, sc: &mut SceneGraphContext, node: &Box<dyn RenderNode>)  {
+    fn recurse_render_scene_graph(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>)  {
 
         let accumulated_transform = sc.transform;
         let accumulated_bounds = sc.bounding_dimens;
@@ -257,7 +259,7 @@ impl CarbonEngine {
                                 transform: &new_accumulated_transform,
                                 bounding_dimens: new_accumulated_bounds,
                             };
-                            &self.recurse_render_scene_graph(rc, &mut new_scene_graph_context, child);
+                            &self.recurse_render_scene_graph(&mut new_scene_graph_context, rc, child);
                         }
                     }
                 }
@@ -269,7 +271,7 @@ impl CarbonEngine {
             bounding_dimens: new_accumulated_bounds,
             transform: &new_accumulated_transform
         };
-        node.render(rc, &new_scene_graph_context);
+        node.render(&new_scene_graph_context, rc);
     }
 
     pub fn update_property_tree(&self) {
