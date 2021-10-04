@@ -24,6 +24,7 @@ pub trait RenderNode
     fn get_id(&self) -> &str;
     fn get_origin(&self) -> (Size<f64>, Size<f64>);
     fn get_transform(&self) -> &Affine;
+    fn pre_render(&self);
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine, bounding_dimens: (f64, f64));
 }
 
@@ -40,6 +41,7 @@ impl RenderNode for Group {
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
         //TODO: handle each of Group's `Expressable` properties
     }
+
     fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
         Some(&self.children)
@@ -54,6 +56,7 @@ impl RenderNode for Group {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
+    fn pre_render(&self) {}
     fn render(&self, _: &mut WebRenderContext, _: &Affine, _: (f64, f64)) {}
 }
 
@@ -127,6 +130,7 @@ impl RenderNode for Rectangle {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
+    fn pre_render(&self) {}
     fn render(&self, rc: &mut WebRenderContext, transform: &Affine, bounding_dimens: (f64, f64)) {
 
         let width: f64 =  bounding_dimens.0;

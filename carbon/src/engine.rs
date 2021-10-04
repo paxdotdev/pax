@@ -191,11 +191,16 @@ impl CarbonEngine {
     }
 
     fn recurse_render_scene_graph(&self, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>, accumulated_transform: &Affine, accumulated_bounds: (f64, f64))  {
+
+
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done
+
+        //lifecycle: pre_render happens before anything else for this node
+        node.pre_render();
 
         let node_size_calc = node.get_size_calc(accumulated_bounds);
         let origin_transform = Affine::translate(
@@ -235,17 +240,11 @@ impl CarbonEngine {
                     }
                 }
             },
-            None => {
-                //this is a leaf node.  render it.
-
-                //HACK:  hard-code some rotation here to make things feel alive
-                // let theta = (self.frames_elapsed as f64 / 65.0);
-                // let frame_rotated_transform = new_accumulated_transform * Affine::rotate(theta);
-                // node.render(rc, &frame_rotated_transform, new_accumulated_bounding_dimens);
-
-                node.render(rc, &new_accumulated_transform, new_accumulated_bounds);
-            }
+            None => ()  // this is a leaf node — no special treatment required
+                        // since it will render itself later in this method
         }
+        node.render(rc, &new_accumulated_transform, new_accumulated_bounds);
+
 
         //TODO: Now that children have been rendered, if there's rendering to be done at this node,
         //      (e.g. for layouts, perhaps virtual nodes like $repeat), do that rendering here

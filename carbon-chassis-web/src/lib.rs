@@ -112,7 +112,6 @@ pub fn run() {
             let height = inner_window.inner_height().unwrap().as_f64().unwrap();
             let _ = canvas.set_attribute("width", format!("{}",width).as_str());
             let _ = canvas.set_attribute("height", format!("{}",height).as_str());
-            console_log!("width: {}", width);
             engine.set_viewport_size((width, height));
         }) as Box<dyn FnMut(_)>);
         let inner_window = web_sys::window().unwrap();
