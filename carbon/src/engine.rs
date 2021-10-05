@@ -52,7 +52,7 @@ impl CarbonEngine {
         CarbonEngine {
             logger,
             frames_elapsed: 0,
-            runtime: Rc::new(RefCell::new(Runtime {})),
+            runtime: Rc::new(RefCell::new(Runtime::new())),
             scene_graph: Rc::new(RefCell::new(SceneGraph {
                 //TODO:  root is a Component (specifically: a Component definition — i.e. definition of a prefab,) not a Group
                 //       - Components have locals/variables but Groups are just primitives

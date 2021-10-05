@@ -21,15 +21,24 @@ impl SceneGraph {
 
 }
 
-pub struct Runtime {}
+pub struct Runtime {
+    stack: Vec<StackFrame>
+}
 
 impl Runtime {
+    pub fn new() -> Self {
+        Runtime {
+            stack: Vec::new()
+        }
+    }
     pub fn peek_stack_frame() {}
     pub fn pop_stack_frame() {}
     pub fn push_stack_frame(&mut self, stack_frame: StackFrame) {
         // StackFrame {
         //     adoptees: Box::new(sc.node.get_children().unwrap().iter()),
         // };
+        //TODO:  manage iterator
+        self.stack.push(stack_frame);
     }
 }
 
