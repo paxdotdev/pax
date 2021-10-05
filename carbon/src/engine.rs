@@ -8,14 +8,13 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime, RenderNodePtr};
+use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime, RenderNodePtr, RenderNodePtrList};
 
 
 
 
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::prefabs::stack::RenderNodeChildPtrList;
 
 
 // Public method for consumption by engine chassis, e.g. WebChassis
@@ -44,7 +43,7 @@ pub struct SceneGraphContext<'a>
 
 pub struct StackFrame
 {
-    pub adoptees: Option<RenderNodeChildPtrList>,
+    pub adoptees: Option<RenderNodePtrList>,
     //TODO: manage scope here for expressions, dynamic templating
 }
 

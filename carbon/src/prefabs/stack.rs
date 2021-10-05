@@ -1,13 +1,12 @@
 use std::cell::{RefCell};
 use piet_web::{WebRenderContext};
-use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, SceneGraphContext, SceneGraph, StackFrame, RenderNodePtr};
+use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, SceneGraphContext, SceneGraph, StackFrame, RenderNodePtr, RenderNodePtrList};
 use std::rc::Rc;
 
 
-pub type RenderNodeChildPtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
 
 pub struct Stack {
-    pub children: RenderNodeChildPtrList,
+    pub children: RenderNodePtrList,
     pub internal_scene_graph: RefCell<SceneGraph>,
     pub id: String,
     pub align: (f64, f64),
@@ -56,7 +55,7 @@ impl RenderNode for Stack {
     }
 
     fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> Option<RenderNodeChildPtrList> {
+    fn get_children(&self) -> Option<RenderNodePtrList> {
 
         // return the root of the internal template here — as long
         // as we capture refs to (c) and (d) below during Stack's `render` or `pre_render` fn,
@@ -145,24 +144,11 @@ impl RenderNode for Stack {
         // let mut x = (*(sc.runtime.borrow_mut())). ;
         // x.
 
-        let children = sc.node.borrow().get_children();
-        match children {
-            Some(children) => {
-                sc.runtime.borrow_mut().push_stack_frame(
-                    StackFrame {
-                        adoptees: Some(Rc::clone(&children)),
-                    }
-                );
-            },
-            None => {
-                sc.runtime.borrow_mut().push_stack_frame(
-                    StackFrame {
-                        adoptees: None,
-                    }
-                );
-            },
-        }
-
+        sc.runtime.borrow_mut().push_stack_frame(
+            StackFrame {
+                adoptees: sc.node.borrow().get_children(),
+            }
+        );
 
     }
     fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {

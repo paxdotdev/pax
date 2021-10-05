@@ -6,8 +6,11 @@ use kurbo::{Affine, BezPath};
 use crate::{Variable, Property, PropertyTreeContext, SceneGraphContext, StackFrame};
 use std::rc::Rc;
 use std::cell::RefCell;
-use crate::stack::Stack;
-use crate::prefabs::stack::RenderNodeChildPtrList;
+
+
+pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
+pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
+
 
 pub struct SceneGraph {
     pub root: RenderNodePtr
@@ -34,7 +37,7 @@ pub trait RenderNode
 {
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
     fn get_align(&self) -> (f64, f64);
-    fn get_children(&self) -> Option<RenderNodeChildPtrList>;
+    fn get_children(&self) -> Option<RenderNodePtrList>;
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)>;
 
     /// Returns the size of this node in pixels, requiring
@@ -63,7 +66,7 @@ impl RenderNode for Group {
     }
 
     fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> Option<RenderNodeChildPtrList> {
+    fn get_children(&self) -> Option<RenderNodePtrList> {
         Some(Rc::clone(&self.children))
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
@@ -108,7 +111,7 @@ pub struct Rectangle {
 
 impl RenderNode for Rectangle {
     fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> Option<RenderNodeChildPtrList> {
+    fn get_children(&self) -> Option<RenderNodePtrList> {
         None
     }
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
@@ -177,7 +180,6 @@ pub struct Yield {
     transform: Affine,
 }
 
-pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 
 impl RenderNode for Yield {
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
@@ -185,7 +187,7 @@ impl RenderNode for Yield {
     }
 
     fn get_align(&self) -> (f64, f64) { (0.0,0.0) }
-    fn get_children(&self) -> Option<RenderNodeChildPtrList> {
+    fn get_children(&self) -> Option<RenderNodePtrList> {
         //TODO: return adoptee via iterator from stack frame
         // Some(&self.children)
         None
