@@ -45,21 +45,35 @@ pub struct SceneGraphContext<'a>
 pub struct StackFrame
 {
     adoptees: RenderNodePtrList,
-    adoptee_iter: Box<dyn Iterator<Item = RenderNodePtr>>,
+    // adoptee_iter: Box<dyn Iterator<Item = RenderNodePtr>>,
+    adoptee_index: usize,
     //TODO: manage scope here for expressions, dynamic templating
 }
 
 impl StackFrame {
-
+    //
     pub fn new(adoptees: RenderNodePtrList) -> Self {
         //TODO:  construct & store iterator
         //       Do we need a custom iterator for RenderNodePtrList?
         StackFrame {
-            adoptees: adoptees,
-            adoptees: adoptees,
-
+            adoptees: Rc::clone(&adoptees),
+            adoptee_index: 0,
         }
     }
+
+    pub fn next_adoptee(&mut self) -> Option<RenderNodePtr> {
+        let len = self.adoptees.borrow().len();
+        if self.adoptee_index < len {
+            let elem = &self.adoptees.borrow()[self.adoptee_index];
+            self.adoptee_index += 1;
+            Some(Rc::clone(&elem))
+        } else {
+            None
+        }
+    }
+
+
+
 }
 
 impl CarbonEngine {

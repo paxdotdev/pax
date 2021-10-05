@@ -11,21 +11,32 @@ use std::cell::{RefCell, Ref};
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
+//
+// pub struct RenderNodePtrListIterator {
+//     index: u64
+// }
+//
+// impl RenderNodePtrListIterator {
+//     next
+// }
+// impl Iterator for RenderNodePtrListIterator {
+//     type Item = RenderNodePtr;
+//
+//     fn next(&mut self) -> Option<Self::Item> {
+//         unimplemented!()
+//     }
+// }
 
-
-
-
-impl Iterator for RenderNodePtrList {
-    type Item = RenderNodePtr;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        None
-    }
-}
 
 pub fn wrap_render_node_ptr_into_list(rnp: RenderNodePtr) -> RenderNodePtrList {
     Rc::new(RefCell::new(vec![Rc::clone(&rnp)]))
 }
+
+
+
+
+
+//
 
 pub struct SceneGraph {
     pub root: RenderNodePtr
@@ -59,13 +70,13 @@ impl Runtime {
         //  - either an internal int counter, or
         //  - figure out a with-the-grain way to store an iter internally & expose via push_stack_frame/pop_stack_frame/peek_stack_frame
 
-        let x = adoptees.borrow();
-        let x_iter = x.iter();
-        x_iter.ne
-
-        self.stack.push(StackFrame::new() {
-            adoptee_iter: Box::new(x_iter)
-        });
+        // let x = adoptees.borrow();
+        // let x_iter = x.iter();
+        // x_iter.ne
+        //
+        // self.stack.push(StackFrame::new() {
+        //     adoptee_iter: Box::new(x_iter)
+        // });
     }
     // pub fn get_next_adoptee_for_current_stack_frame(&self) {
     //     self.peek_stack_frame().adoptees

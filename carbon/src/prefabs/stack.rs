@@ -104,7 +104,7 @@ impl RenderNode for Stack {
         //TODO:  return root of internal scene graph here, instead of `self.children`
         //       (which are the adoptees)
 
-        Rc::clone(&self.children)
+        Rc::clone(&self.children) //this logic is a placeholder & is wrong
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
