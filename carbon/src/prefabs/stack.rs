@@ -55,7 +55,7 @@ impl RenderNode for Stack {
     }
 
     fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> Option<RenderNodePtrList> {
+    fn get_children(&self) -> RenderNodePtrList {
 
         // return the root of the internal template here — as long
         // as we capture refs to (c) and (d) below during Stack's `render` or `pre_render` fn,
@@ -104,7 +104,7 @@ impl RenderNode for Stack {
         //TODO:  return root of internal scene graph here, instead of `self.children`
         //       (which are the adoptees)
 
-        Some(Rc::clone(&self.children))
+        Rc::clone(&self.children)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
@@ -135,17 +135,13 @@ impl RenderNode for Stack {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&self, sc: &mut SceneGraphContext) {
+    fn pre_render(&mut self, sc: &mut SceneGraphContext) {
         //TODO:  calc & memoize the layout/transform for each cell of the stack
         //       probably need to do the memoization via a RefCell for mutability concerns,
         //       since pre_render happens during immutable scene graph recursion
 
 
-        sc.runtime.borrow_mut().push_stack_frame(
-            StackFrame {
-                adoptees: sc.node.borrow().get_children(),
-            }
-        );
+        sc.runtime.borrow_mut().push_stack_frame(Rc::clone(&sc.node.borrow().get_children()));
 
     }
     fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {

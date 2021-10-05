@@ -5,12 +5,27 @@ use kurbo::{Affine, BezPath};
 
 use crate::{Variable, Property, PropertyTreeContext, SceneGraphContext, StackFrame};
 use std::rc::Rc;
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref};
+
 
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
 
+
+
+
+impl Iterator for RenderNodePtrList {
+    type Item = RenderNodePtr;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        None
+    }
+}
+
+pub fn wrap_render_node_ptr_into_list(rnp: RenderNodePtr) -> RenderNodePtrList {
+    Rc::new(RefCell::new(vec![Rc::clone(&rnp)]))
+}
 
 pub struct SceneGraph {
     pub root: RenderNodePtr
@@ -22,34 +37,46 @@ impl SceneGraph {
 }
 
 pub struct Runtime {
-    stack: Vec<StackFrame>
+    stack: Vec<StackFrame>,
 }
 
 impl Runtime {
     pub fn new() -> Self {
         Runtime {
-            stack: Vec::new()
+            stack: Vec::new(),
         }
     }
-    pub fn peek_stack_frame() {}
+    // pub fn peek_stack_frame(&self) -> StackFrame {
+    //     // &self.stack[0]
+    // }
     pub fn pop_stack_frame(&mut self) {
         self.stack.pop();
+        // self.adoptee_index
     }
-    pub fn push_stack_frame(&mut self, stack_frame: StackFrame) {
+    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList) {
 
         //TODO:  manage iterator:
         //  - either an internal int counter, or
         //  - figure out a with-the-grain way to store an iter internally & expose via push_stack_frame/pop_stack_frame/peek_stack_frame
 
-        self.stack.push(stack_frame);
+        let x = adoptees.borrow();
+        let x_iter = x.iter();
+        x_iter.ne
+
+        self.stack.push(StackFrame::new() {
+            adoptee_iter: Box::new(x_iter)
+        });
     }
+    // pub fn get_next_adoptee_for_current_stack_frame(&self) {
+    //     self.peek_stack_frame().adoptees
+    // }
 }
 
 pub trait RenderNode
 {
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
     fn get_align(&self) -> (f64, f64);
-    fn get_children(&self) -> Option<RenderNodePtrList>;
+    fn get_children(&self) -> RenderNodePtrList;
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)>;
 
     /// Returns the size of this node in pixels, requiring
@@ -59,7 +86,7 @@ pub trait RenderNode
     fn get_id(&self) -> &str;
     fn get_origin(&self) -> (Size<f64>, Size<f64>);
     fn get_transform(&self) -> &Affine;
-    fn pre_render(&self, sc: &mut SceneGraphContext);
+    fn pre_render(&mut self, sc: &mut SceneGraphContext);
     fn render(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext);
     fn post_render(&self, sc: &mut SceneGraphContext);
 }
@@ -79,8 +106,8 @@ impl RenderNode for Group {
     }
 
     fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> Option<RenderNodePtrList> {
-        Some(Rc::clone(&self.children))
+    fn get_children(&self) -> RenderNodePtrList {
+        Rc::clone(&self.children)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
@@ -91,7 +118,7 @@ impl RenderNode for Group {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&self, _sc: &mut SceneGraphContext) {}
+    fn pre_render(&mut self, _sc: &mut SceneGraphContext) {}
     fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _sc: &mut SceneGraphContext) {}
 }
@@ -125,8 +152,8 @@ pub struct Rectangle {
 
 impl RenderNode for Rectangle {
     fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> Option<RenderNodePtrList> {
-        None
+    fn get_children(&self) -> RenderNodePtrList {
+        Rc::new(RefCell::new(vec![]))
     }
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
         self.size.0.eval_in_place(ctx);
@@ -162,7 +189,7 @@ impl RenderNode for Rectangle {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
-    fn pre_render(&self, _sc: &mut SceneGraphContext) {}
+    fn pre_render(&mut self, _sc: &mut SceneGraphContext) {}
     fn render(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext) {
 
         let transform = sc.transform;
@@ -191,9 +218,12 @@ impl RenderNode for Rectangle {
 
 
 pub struct Yield {
-    id: String,
-    transform: Affine,
+    pub id: String,
+    pub transform: Affine,
+    children: RenderNodePtrList,
 }
+
+
 
 
 impl RenderNode for Yield {
@@ -202,10 +232,10 @@ impl RenderNode for Yield {
     }
 
     fn get_align(&self) -> (f64, f64) { (0.0,0.0) }
-    fn get_children(&self) -> Option<RenderNodePtrList> {
+    fn get_children(&self) -> RenderNodePtrList {
         //TODO: return adoptee via iterator from stack frame
         // Some(&self.children)
-        None
+        Rc::clone(&self.children)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
@@ -216,8 +246,14 @@ impl RenderNode for Yield {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&self, _sc: &mut SceneGraphContext) {}
-    fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {}
+    fn pre_render(&mut self, sc: &mut SceneGraphContext) {
+        //TODO: grab the first adoptee from the current stack frame
+        //      make it Yield's child
+        // sc.borrow().runtime.borrow().
+    }
+    fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {
+
+    }
     fn post_render(&self, _sc: &mut SceneGraphContext) {}
 }
 

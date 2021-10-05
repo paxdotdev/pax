@@ -15,6 +15,7 @@ use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicVa
 
 use std::collections::HashMap;
 use std::rc::Rc;
+use crate::stack::Stack;
 
 
 // Public method for consumption by engine chassis, e.g. WebChassis
@@ -43,8 +44,22 @@ pub struct SceneGraphContext<'a>
 
 pub struct StackFrame
 {
-    pub adoptees: Option<RenderNodePtrList>,
+    adoptees: RenderNodePtrList,
+    adoptee_iter: Box<dyn Iterator<Item = RenderNodePtr>>,
     //TODO: manage scope here for expressions, dynamic templating
+}
+
+impl StackFrame {
+
+    pub fn new(adoptees: RenderNodePtrList) -> Self {
+        //TODO:  construct & store iterator
+        //       Do we need a custom iterator for RenderNodePtrList?
+        StackFrame {
+            adoptees: adoptees,
+            adoptees: adoptees,
+
+        }
+    }
 }
 
 impl CarbonEngine {
@@ -235,6 +250,7 @@ impl CarbonEngine {
 
         //lifecycle: pre_render happens before anything else for this node
         //           this is useful for pre-calculation, e.g. for layout
+        //           or for in-place mutations, e.g. `Yield`
         node.borrow_mut().pre_render(sc);
 
         let node_size_calc = node.borrow().get_size_calc(accumulated_bounds);
@@ -261,8 +277,10 @@ impl CarbonEngine {
         //default to our parent-provided bounding dimensions
         let new_accumulated_bounds = node.borrow().get_size_calc(accumulated_bounds);
 
-        match node.borrow().get_children() {
-            Some(children) => {
+        {
+            let children = node.borrow().get_children();
+
+            if children.borrow().len() > 0 {
                 //keep recursing
                 for i in (0..children.borrow().len()).rev() {
                     //note that we're iterating starting from the last child, for z-index
@@ -282,9 +300,7 @@ impl CarbonEngine {
                         }
                     }
                 }
-            },
-            None => ()  // this is a leaf node — no special treatment required
-                        // since it will render itself later in this method
+            }
         }
         let mut new_scene_graph_context = SceneGraphContext {
             bounding_dimens: new_accumulated_bounds,
@@ -324,24 +340,19 @@ impl CarbonEngine {
         //  - done
 
         node.borrow_mut().eval_properties_in_place(ctx);
-
-        match &mut node.borrow_mut().get_children() {
-            Some(children) => {
-                //keep recursing
-                for i in 0..children.borrow().len() {
-                    //note that we're iterating starting from the last child
-                    let mut children_borrowed = children.borrow_mut();
-                    let child = children_borrowed.get_mut(i); //TODO: ?-syntax
-                    match child {
-                        None => { return },
-                        Some(child) => {
-                            &self.recurse_update_property_tree(ctx, child);
-                        }
+        {
+            let children = node.borrow_mut().get_children();
+            //keep recursing as long as we have children
+            for i in 0..children.borrow().len() {
+                //note that we're iterating starting from the last child
+                let mut children_borrowed = children.borrow_mut();
+                let child = children_borrowed.get_mut(i); //TODO: ?-syntax
+                match child {
+                    None => { return },
+                    Some(child) => {
+                        &self.recurse_update_property_tree(ctx, child);
                     }
                 }
-            },
-            None => {
-                //this is a leaf node.  we're done with this branch.
             }
         }
     }
