@@ -1,10 +1,11 @@
 use std::cell::{RefCell};
 use piet_web::{WebRenderContext};
 use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, SceneGraphContext, SceneGraph, StackFrame};
+use std::rc::Rc;
 
 
 pub struct Stack {
-    pub children: Vec<Box<dyn RenderNode>>,
+    pub children: Vec<Rc<RefCell<dyn RenderNode>>>,
     pub internal_scene_graph: RefCell<SceneGraph>,
     pub id: String,
     pub align: (f64, f64),
@@ -53,7 +54,7 @@ impl RenderNode for Stack {
     }
 
     fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
+    fn get_children(&self) -> Option<&Vec<Rc<RefCell<dyn RenderNode>>>> {
 
         // return the root of the internal template here — as long
         // as we capture refs to (c) and (d) below during Stack's `render` or `pre_render` fn,
@@ -104,7 +105,7 @@ impl RenderNode for Stack {
 
         Some(&self.children)
     }
-    fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> { Some(&mut self.children) }
+    fn get_children_mut(&mut self) -> Option<&mut Vec<Rc<RefCell<dyn RenderNode>>>> { Some(&mut self.children) }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
         let size_raw = self.get_size().unwrap();
@@ -142,6 +143,13 @@ impl RenderNode for Stack {
         // sg.
         // let mut x = (*(sc.runtime.borrow_mut())). ;
         // x.
+        let children = sc.node.borrow().get_children();
+        match children {
+            Some(children) => {
+                children
+            },
+            None => (),
+        }
         sc.runtime.borrow_mut().push_stack_frame();
 
 

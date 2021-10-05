@@ -4,9 +4,11 @@ use piet::{Color, StrokeStyle, RenderContext};
 use kurbo::{Affine, BezPath};
 
 use crate::{Variable, Property, PropertyTreeContext, SceneGraphContext, StackFrame};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub struct SceneGraph {
-    pub root: Box<dyn RenderNode>
+    pub root: Rc<RefCell<dyn RenderNode>>
     // pub call_stack: Vec<StackFrame<'a>>
 }
 
@@ -20,9 +22,9 @@ impl Runtime {
     pub fn peek_stack_frame() {}
     pub fn pop_stack_frame() {}
     pub fn push_stack_frame(&mut self, sc: &mut SceneGraphContext) {
-        StackFrame {
-            adoptees: Box::new(sc.node.get_children().unwrap().iter()),
-        };
+        // StackFrame {
+        //     adoptees: Box::new(sc.node.get_children().unwrap().iter()),
+        // };
     }
 }
 
@@ -30,8 +32,8 @@ pub trait RenderNode
 {
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
     fn get_align(&self) -> (f64, f64);
-    fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>>;
-    fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>>;
+    fn get_children(&self) -> Option<&Vec<Rc<RefCell<dyn RenderNode>>>>;
+    fn get_children_mut(&mut self) -> Option<&mut Vec<Rc<RefCell<dyn RenderNode>>>>;
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)>;
 
     /// Returns the size of this node in pixels, requiring
@@ -46,7 +48,7 @@ pub trait RenderNode
 }
 
 pub struct Group {
-    pub children: Vec<Box<dyn RenderNode>>,
+    pub children: Vec<Rc<RefCell<dyn RenderNode>>>,
     pub id: String,
     pub align: (f64, f64),
     pub origin: (Size<f64>, Size<f64>),
@@ -60,10 +62,10 @@ impl RenderNode for Group {
     }
 
     fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
+    fn get_children(&self) -> Option<&Vec<Rc<RefCell<dyn RenderNode>>>> {
         Some(&self.children)
     }
-    fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> { Some(&mut self.children) }
+    fn get_children_mut(&mut self) -> Option<&mut Vec<Rc<RefCell<dyn RenderNode>>>> { Some(&mut self.children) }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_id(&self) -> &str {
@@ -106,10 +108,10 @@ pub struct Rectangle {
 
 impl RenderNode for Rectangle {
     fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
+    fn get_children(&self) -> Option<&Vec<Rc<RefCell<dyn RenderNode>>>> {
         None
     }
-    fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> {
+    fn get_children_mut(&mut self) -> Option<&mut Vec<Rc<RefCell<dyn RenderNode>>>> {
         None
     }
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
@@ -178,18 +180,20 @@ pub struct Yield {
     transform: Affine,
 }
 
+pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
+
 impl RenderNode for Yield {
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
         //TODO: handle each of Group's `Expressable` properties
     }
 
     fn get_align(&self) -> (f64, f64) { (0.0,0.0) }
-    fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
+    fn get_children(&self) -> Option<&Vec<Rc<RefCell<dyn RenderNode>>>> {
         //TODO: return adoptee via iterator from stack frame
         // Some(&self.children)
         None
     }
-    fn get_children_mut(&mut self) -> Option<&mut Vec<Box<dyn RenderNode>>> { None }
+    fn get_children_mut(&mut self) -> Option<&mut Vec<RenderNodePtr>> { None }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_id(&self) -> &str {

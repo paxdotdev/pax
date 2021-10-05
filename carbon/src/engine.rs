@@ -37,20 +37,13 @@ pub struct SceneGraphContext<'a>
     pub transform: &'a Affine,
     pub bounding_dimens: (f64, f64),
     pub runtime: Rc<RefCell<Runtime>>,
-    pub parent: Rc<dyn RenderNode>,
-    pub node: Rc<dyn RenderNode>,
+    pub parent: Rc<RefCell<dyn RenderNode>>,
+    pub node: Rc<RefCell<dyn RenderNode>>,
 }
-
-impl<'a> SceneGraphContext<'a> {
-    pub fn set_active_node(&mut self, node: &'a Box<dyn RenderNode>) {
-        self.node = node;
-    }
-}
-
 
 pub struct StackFrame<'a>
 {
-    pub adoptees: Box<dyn Iterator<Item = &'a Box<dyn RenderNode>>>,
+    pub adoptees: Box<dyn Iterator<Item = &'a Rc<dyn RenderNode>>>,
     //TODO: manage scope here for expressions, dynamic templating
 }
 
@@ -64,7 +57,7 @@ impl CarbonEngine {
                 //TODO:  root is a Component (specifically: a Component definition — i.e. definition of a prefab,) not a Group
                 //       - Components have locals/variables but Groups are just primitives
                 //
-                root: Box::new(Group {
+                root: Rc::new(RefCell::new(Group {
                     id: String::from("root"),
                     align: (0.0, 0.0),
                     origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
@@ -76,14 +69,14 @@ impl CarbonEngine {
                     ],
                     transform: Affine::default(),
                     children: vec![
-                        Box::new(Group {
+                        Rc::new(RefCell::new(Group {
                             id: String::from("group_1"),
                             align: (0.0, 0.0),
                             origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
                             transform: Affine::default(),
                             variables: Vec::new(),
                             children: vec![
-                                Box::new(Rectangle {
+                                Rc::new(RefCell::new(Rectangle {
                                     id: String::from("rect_4"),
                                     align: (0.5, 0.5),
                                     origin: (Size::Percent(50.0), Size::Percent(50.0)),
@@ -127,11 +120,11 @@ impl CarbonEngine {
                                         width: 1.0,
                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
-                                }),
+                                })),
 
                                 ///////////////////////
 
-                                Box::new(Rectangle {
+                                Rc::new(RefCell::new(Rectangle {
                                     id: String::from("rect_6"),
                                     align: (1.0, 0.5),
                                     origin: (Size::Percent(100.0), Size::Percent(50.0)),
@@ -146,11 +139,11 @@ impl CarbonEngine {
                                         width: 1.0,
                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
-                                }),
+                                })),
 
                                 ///////////////////////////
 
-                                Box::new(Rectangle {
+                                Rc::new(RefCell::new(Rectangle {
                                     id: String::from("rect_5"),
                                     align: (0.5, 0.5),
                                     origin: (Size::Percent(0.0), Size::Percent(0.0),),
@@ -192,11 +185,11 @@ impl CarbonEngine {
                                         width: 1.0,
                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
-                                }),
+                                })),
                             ],
-                        }),
+                        })),
                     ],
-                }),
+                })),
             })),
             viewport_size,
         }
@@ -221,16 +214,16 @@ impl CarbonEngine {
             transform: &Affine::default(),
             bounding_dimens: self.viewport_size.clone(),
             runtime: self.runtime.clone(),
-            node: &self.scene_graph.borrow().root,
-            parent: &self.scene_graph.borrow().root,
+            node: Rc::clone(&self.scene_graph.borrow().root),
+            parent: Rc::clone(&self.scene_graph.borrow().root),
         };
-        self.recurse_render_scene_graph(&mut scene_graph_context, rc, &self.scene_graph.borrow().root);
+        self.recurse_render_scene_graph(&mut scene_graph_context, rc, Rc::clone(&self.scene_graph.borrow().root));
     }
 
-    fn recurse_render_scene_graph(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>)  {
+    fn recurse_render_scene_graph(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext, node: Rc<RefCell<dyn RenderNode>>)  {
 
         //populate a pointer to this (current) `RenderNode` onto `sc`
-        sc.set_active_node(node);
+        sc.node = Rc::clone(&node);
 
         let accumulated_transform = sc.transform;
         let accumulated_bounds = sc.bounding_dimens;
@@ -242,18 +235,18 @@ impl CarbonEngine {
 
         //lifecycle: pre_render happens before anything else for this node
         //           this is useful for pre-calculation, e.g. for layout
-        node.pre_render(sc);
+        node.borrow_mut().pre_render(sc);
 
-        let node_size_calc = node.get_size_calc(accumulated_bounds);
+        let node_size_calc = node.borrow().get_size_calc(accumulated_bounds);
         let origin_transform = Affine::translate(
         (
-                match node.get_origin().0 {
+                match node.borrow().get_origin().0 {
                     Size::Pixel(x) => { -x },
                     Size::Percent(x) => {
                         -node_size_calc.0 * (x / 100.0)
                     },
                 },
-                match node.get_origin().1 {
+                match node.borrow().get_origin().1 {
                     Size::Pixel(y) => { -y },
                     Size::Percent(y) => {
                         -node_size_calc.1 * (y / 100.0)
@@ -262,13 +255,13 @@ impl CarbonEngine {
             )
         );
 
-        let align_transform = Affine::translate((node.get_align().0 * accumulated_bounds.0, node.get_align().1 * accumulated_bounds.1));
-        let new_accumulated_transform = *accumulated_transform * align_transform * origin_transform * *node.get_transform();
+        let align_transform = Affine::translate((node.borrow().get_align().0 * accumulated_bounds.0, node.borrow().get_align().1 * accumulated_bounds.1));
+        let new_accumulated_transform = *accumulated_transform * align_transform * origin_transform * *node.borrow().get_transform();
 
         //default to our parent-provided bounding dimensions
-        let new_accumulated_bounds = node.get_size_calc(accumulated_bounds);
+        let new_accumulated_bounds = node.borrow().get_size_calc(accumulated_bounds);
 
-        match node.get_children() {
+        match node.borrow().get_children() {
             Some(children) => {
                 //keep recursing
                 for i in (0..children.len()).rev() {
@@ -281,10 +274,10 @@ impl CarbonEngine {
                                 transform: &new_accumulated_transform,
                                 bounding_dimens: new_accumulated_bounds,
                                 runtime: Rc::clone(&sc.runtime),
-                                parent: node,
-                                node,
+                                parent: Rc::clone(&node),
+                                node: Rc::clone(&node),
                             };
-                            &self.recurse_render_scene_graph(&mut new_scene_graph_context, rc, child);
+                            &self.recurse_render_scene_graph(&mut new_scene_graph_context, rc, Rc::clone(child));
                         }
                     }
                 }
@@ -296,10 +289,10 @@ impl CarbonEngine {
             bounding_dimens: new_accumulated_bounds,
             transform: &new_accumulated_transform,
             runtime: Rc::clone(&sc.runtime),
-            parent: node,
-            node,
+            parent: Rc::clone(&node),
+            node: Rc::clone(&node),
         };
-        node.render(&mut new_scene_graph_context, rc);
+        node.borrow().render(&mut new_scene_graph_context, rc);
     }
 
     pub fn update_property_tree(&self) {
@@ -319,15 +312,15 @@ impl CarbonEngine {
         &self.recurse_update_property_tree(&ctx,&mut self.scene_graph.borrow_mut().root);
     }
 
-    fn recurse_update_property_tree(&self, ctx: &PropertyTreeContext, node: &mut Box<dyn RenderNode>)  {
+    fn recurse_update_property_tree(&self, ctx: &PropertyTreeContext, node: &mut Rc<RefCell<dyn RenderNode>>)  {
         // Recurse:
         //  - iterate in a pre-order traversal, ensuring ancestors have been evaluated first
         //  - for each property, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
         //  - done
 
-        node.eval_properties_in_place(ctx);
+        node.borrow_mut().eval_properties_in_place(ctx);
 
-        match &mut node.get_children_mut() {
+        match &mut node.borrow_mut().get_children_mut() {
             Some(children) => {
                 //keep recursing
                 for i in 0..children.len() {
