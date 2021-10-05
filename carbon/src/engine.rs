@@ -220,15 +220,11 @@ impl CarbonEngine {
     }
 
     fn render_render_tree(&self, rc: &mut WebRenderContext) {
-        // hello world scene graph
-        //           (root)
-        //           /    \
-        //       (rect)  (rect)
 
+        // Broadly:
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
 
-        // let mut call_stack = Vec::new();
         let mut rtc = RenderTreeContext {
             transform: &Affine::default(),
             bounding_dimens: self.viewport_size.clone(),
@@ -241,7 +237,7 @@ impl CarbonEngine {
 
     fn recurse_render_render_tree(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext, node: RenderNodePtr)  {
 
-        //populate a pointer to this (current) `RenderNode` onto `sc`
+        //populate a pointer to this (current) `RenderNode` onto `rtc`
         rtc.node = Rc::clone(&node);
 
         let accumulated_transform = rtc.transform;
@@ -293,35 +289,35 @@ impl CarbonEngine {
                     match child {
                         None => { return },
                         Some(child) => {
-                            let mut new_scene_graph_context = RenderTreeContext {
+                            let mut new_rtc = RenderTreeContext {
                                 transform: &new_accumulated_transform,
                                 bounding_dimens: new_accumulated_bounds,
                                 runtime: Rc::clone(&rtc.runtime),
                                 parent: Rc::clone(&node),
                                 node: Rc::clone(&node),
                             };
-                            &self.recurse_render_render_tree(&mut new_scene_graph_context, rc, Rc::clone(child));
+                            &self.recurse_render_render_tree(&mut new_rtc, rc, Rc::clone(child));
                         }
                     }
                 }
             }
         }
-        let mut new_scene_graph_context = RenderTreeContext {
+        let mut new_rtc = RenderTreeContext {
             bounding_dimens: new_accumulated_bounds,
             transform: &new_accumulated_transform,
             runtime: Rc::clone(&rtc.runtime),
             parent: Rc::clone(&node),
             node: Rc::clone(&node),
         };
-        node.borrow().render(&mut new_scene_graph_context, rc);
+        node.borrow().render(&mut new_rtc, rc);
 
         //Lifecycle event: post_render can be used for cleanup, e.g. for
         //components to pop a stack frame
-        node.borrow().post_render(&mut new_scene_graph_context);
+        node.borrow().post_render(&mut new_rtc);
     }
 
     pub fn update_property_tree(&self) {
-        // - traverse scene graph
+        // - traverse render tree
         // - update cache (current, `last_known_value`) for each property
         // - done
 

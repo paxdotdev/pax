@@ -36,7 +36,7 @@ TODO:
         [ ] Clipping
     [x] Yield
         - might be done but can't be tested until we have a proper Component
-          subtree ("prefab scene graph") to work with
+          subtree ("prefab render tree") to work with
     [ ] Repeat
         [ ] "flattening yield" to support <Stack><Repeat n=5><Rect>...
         [ ] scopes:
@@ -62,14 +62,14 @@ impl RenderNode for Stack {
         // we can happily let rendering just take its course,
         // recursing through the subtree starting with (e).
         //
-        // example application scene graph
+        // example application render tree
         //          a( root )
         //              |
         //          b( Stack )
         //         /          \
         //    c( Rect )      d( Rect )
         //
-        // example Stack (prefab) scene graph
+        // example Stack (prefab) render tree
         //          e( root )
         //              |      //  expanded:
         //          f( Repeat  //  n=2 )
@@ -97,7 +97,7 @@ impl RenderNode for Stack {
         // g: render the containing frame in the correct position,
         //    (plus clipping, maybe)
         // h: needs to "evaluate" into the rectangle itself — directs the
-        //    flow of the scene graph to (c) via the Context described in (b)
+        //    flow of the render tree to (c) via the Context described in (b)
         // c: finally render the rectangle itself; return & allow recursion to keep whirring
         // i,j,d: repeat g,h,c
 
@@ -136,12 +136,12 @@ impl RenderNode for Stack {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&mut self, sc: &mut RenderTreeContext) {
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext) {
         //TODO:  calc & memoize the layout/transform for each cell of the stack
         //       probably need to do the memoization via a RefCell for mutability concerns,
-        //       since pre_render happens during immutable scene graph recursion
+        //       since pre_render happens during immutable render tree recursion
 
-        sc.runtime.borrow_mut().push_stack_frame(Rc::clone(&sc.node.borrow().get_children()));
+        rtc.runtime.borrow_mut().push_stack_frame(Rc::clone(&rtc.node.borrow().get_children()));
     }
 
     fn render(&self, _sc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {

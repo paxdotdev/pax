@@ -29,7 +29,6 @@ impl RenderTree {
 pub struct Runtime {
     stack: Vec<Rc<RefCell<StackFrame>>>,
 }
-
 impl Runtime {
     pub fn new() -> Self {
         Runtime {
@@ -96,9 +95,9 @@ pub trait RenderNode
     fn get_id(&self) -> &str;
     fn get_origin(&self) -> (Size<f64>, Size<f64>);
     fn get_transform(&self) -> &Affine;
-    fn pre_render(&mut self, sc: &mut RenderTreeContext);
-    fn render(&self, sc: &mut RenderTreeContext, rc: &mut WebRenderContext);
-    fn post_render(&self, sc: &mut RenderTreeContext);
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext);
+    fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
+    fn post_render(&self, rtc: &mut RenderTreeContext);
 }
 
 pub struct Group {
@@ -127,9 +126,9 @@ impl RenderNode for Group {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&mut self, _sc: &mut RenderTreeContext) {}
-    fn render(&self, _sc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _sc: &mut RenderTreeContext) {}
+    fn pre_render(&mut self, _rtc: &mut RenderTreeContext) {}
+    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
+    fn post_render(&self, _rtc: &mut RenderTreeContext) {}
 }
 
 pub struct Component {
@@ -160,9 +159,9 @@ impl RenderNode for Component {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&mut self, _sc: &mut RenderTreeContext) {}
-    fn render(&self, _sc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _sc: &mut RenderTreeContext) {}
+    fn pre_render(&mut self, _rtc: &mut RenderTreeContext) {}
+    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
+    fn post_render(&self, _rtc: &mut RenderTreeContext) {}
 }
 
 pub struct Stroke {
@@ -230,11 +229,11 @@ impl RenderNode for Rectangle {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
-    fn pre_render(&mut self, _sc: &mut RenderTreeContext) {}
-    fn render(&self, sc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn pre_render(&mut self, _rtc: &mut RenderTreeContext) {}
+    fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
 
-        let transform = sc.transform;
-        let bounding_dimens = sc.bounding_dimens;
+        let transform = rtc.transform;
+        let bounding_dimens = rtc.bounding_dimens;
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 
@@ -254,7 +253,7 @@ impl RenderNode for Rectangle {
         rc.fill(transformed_bez_path, fill);
         rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
     }
-    fn post_render(&self, _sc: &mut RenderTreeContext) {}
+    fn post_render(&self, _rtc: &mut RenderTreeContext) {}
 }
 
 pub struct Yield {
@@ -302,8 +301,8 @@ impl RenderNode for Yield {
             None => {Rc::new(RefCell::new(vec![]))}
         }
     }
-    fn render(&self, _sc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _sc: &mut RenderTreeContext) {}
+    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
+    fn post_render(&self, _rtc: &mut RenderTreeContext) {}
 }
 
 pub struct Repeat {
