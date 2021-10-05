@@ -5,7 +5,7 @@ use kurbo::{Affine, BezPath};
 
 use crate::{Variable, Property, PropertyTreeContext, SceneGraphContext, StackFrame};
 use std::rc::Rc;
-use std::cell::{RefCell, Ref};
+use std::cell::{RefCell};
 
 
 
@@ -51,7 +51,7 @@ impl Runtime {
         // self.adoptee_index
     }
     pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList) {
-
+        self.stack.push(Rc::new(RefCell::new(StackFrame::new(adoptees))));
         //TODO:  manage iterator:
         //  - either an internal int counter, or
         //  - figure out a with-the-grain way to store an iter internally & expose via push_stack_frame/pop_stack_frame/peek_stack_frame
@@ -68,6 +68,22 @@ impl Runtime {
     //     self.peek_stack_frame().adoptees
     // }
 }
+
+//TODO:  do we need to refactor primitive properties (like Rectangle::width)
+//       into the same `Property` structure as Components?
+//          e.g. a `get_properties()` method
+//       this would be imporant for addressing properties e.g. through
+//       the property tree
+
+/*
+ Node {
+    id: String
+    properties: vec![
+        (String.from("size"), PropertyLiteral {value: 500.0})
+    ]
+ }
+ */
+
 
 pub trait RenderNode
 {
@@ -94,8 +110,8 @@ pub struct Group {
     pub align: (f64, f64),
     pub origin: (Size<f64>, Size<f64>),
     pub transform: Affine,
-    pub variables: Vec<Variable>,
 }
+
 
 impl RenderNode for Group {
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
@@ -119,6 +135,41 @@ impl RenderNode for Group {
     fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _sc: &mut SceneGraphContext) {}
 }
+
+pub struct Component {
+    pub children: Rc<RefCell<Vec<RenderNodePtr>>>,
+    pub id: String,
+    pub align: (f64, f64),
+    pub origin: (Size<f64>, Size<f64>),
+    pub transform: Affine,
+    pub variables: Vec<Variable>,
+}
+
+impl RenderNode for Component {
+    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
+        //TODO: handle each of Component's `Expressable` properties
+        //  - this includes any custom properties (inputs) passed into this component
+    }
+
+    fn get_align(&self) -> (f64, f64) { self.align }
+    fn get_children(&self) -> RenderNodePtrList {
+        Rc::clone(&self.children)
+    }
+    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
+    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
+    fn get_id(&self) -> &str {
+        &self.id.as_str()
+    }
+    fn get_origin(&self) -> (Size<f64>, Size<f64>) { self.origin }
+    fn get_transform(&self) -> &Affine {
+        &self.transform
+    }
+    fn pre_render(&mut self, _sc: &mut SceneGraphContext) {}
+    fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {}
+    fn post_render(&self, _sc: &mut SceneGraphContext) {}
+}
+
+
 
 pub struct Stroke {
     pub color: Color,

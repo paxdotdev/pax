@@ -8,14 +8,13 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime, RenderNodePtr, RenderNodePtrList};
+use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime, RenderNodePtr, RenderNodePtrList, VariableAccessLevel, Component};
 
 
 
 
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::stack::Stack;
 
 
 // Public method for consumption by engine chassis, e.g. WebChassis
@@ -51,10 +50,7 @@ pub struct StackFrame
 }
 
 impl StackFrame {
-    //
     pub fn new(adoptees: RenderNodePtrList) -> Self {
-        //TODO:  construct & store iterator
-        //       Do we need a custom iterator for RenderNodePtrList?
         StackFrame {
             adoptees: Rc::clone(&adoptees),
             adoptee_index: 0,
@@ -81,10 +77,10 @@ impl CarbonEngine {
             frames_elapsed: 0,
             runtime: Rc::new(RefCell::new(Runtime::new())),
             scene_graph: Rc::new(RefCell::new(SceneGraph {
-                //TODO:  root is a Component (specifically: a Component definition — i.e. definition of a prefab,) not a Group
+                //TODO:  root should be a Component (specifically: a Component definition — i.e. definition of a prefab,) not a Group
                 //       - Components have locals/variables but Groups are just primitives
                 //
-                root: Rc::new(RefCell::new(Group {
+                root: Rc::new(RefCell::new(Component {
                     id: String::from("root"),
                     align: (0.0, 0.0),
                     origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
@@ -92,6 +88,7 @@ impl CarbonEngine {
                         Variable {
                             name: String::from("rotation"),
                             value: PolymorphicValue { float: 1.2 },
+                            access: VariableAccessLevel::Public,
                         },
                     ],
                     transform: Affine::default(),
@@ -101,7 +98,6 @@ impl CarbonEngine {
                             align: (0.0, 0.0),
                             origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
                             transform: Affine::default(),
-                            variables: Vec::new(),
                             children: Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(Rectangle {
                                     id: String::from("rect_4"),

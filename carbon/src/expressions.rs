@@ -4,6 +4,12 @@ use crate::CarbonEngine;
 pub struct Variable {
     pub name: String,
     pub value: PolymorphicValue,
+    pub access: VariableAccessLevel,
+}
+
+pub enum VariableAccessLevel {
+    Public,
+    Private,
 }
 
 pub union PolymorphicValue {
