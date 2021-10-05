@@ -8,13 +8,14 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime};
+use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime, RenderNodePtr};
 
 
 
 
 use std::collections::HashMap;
 use std::rc::Rc;
+use crate::prefabs::stack::RenderNodeChildPtrList;
 
 
 // Public method for consumption by engine chassis, e.g. WebChassis
@@ -37,13 +38,13 @@ pub struct SceneGraphContext<'a>
     pub transform: &'a Affine,
     pub bounding_dimens: (f64, f64),
     pub runtime: Rc<RefCell<Runtime>>,
-    pub parent: Rc<RefCell<dyn RenderNode>>,
-    pub node: Rc<RefCell<dyn RenderNode>>,
+    pub parent: RenderNodePtr,
+    pub node: RenderNodePtr,
 }
 
-pub struct StackFrame<'a>
+pub struct StackFrame
 {
-    pub adoptees: Box<dyn Iterator<Item = &'a Rc<dyn RenderNode>>>,
+    pub adoptees: Option<RenderNodeChildPtrList>,
     //TODO: manage scope here for expressions, dynamic templating
 }
 
@@ -68,14 +69,14 @@ impl CarbonEngine {
                         },
                     ],
                     transform: Affine::default(),
-                    children: vec![
+                    children: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Group {
                             id: String::from("group_1"),
                             align: (0.0, 0.0),
                             origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
                             transform: Affine::default(),
                             variables: Vec::new(),
-                            children: vec![
+                            children: Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(Rectangle {
                                     id: String::from("rect_4"),
                                     align: (0.5, 0.5),
@@ -186,9 +187,9 @@ impl CarbonEngine {
                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                     },
                                 })),
-                            ],
+                            ])),
                         })),
-                    ],
+                    ])),
                 })),
             })),
             viewport_size,
@@ -220,7 +221,7 @@ impl CarbonEngine {
         self.recurse_render_scene_graph(&mut scene_graph_context, rc, Rc::clone(&self.scene_graph.borrow().root));
     }
 
-    fn recurse_render_scene_graph(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext, node: Rc<RefCell<dyn RenderNode>>)  {
+    fn recurse_render_scene_graph(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext, node: RenderNodePtr)  {
 
         //populate a pointer to this (current) `RenderNode` onto `sc`
         sc.node = Rc::clone(&node);
@@ -264,9 +265,10 @@ impl CarbonEngine {
         match node.borrow().get_children() {
             Some(children) => {
                 //keep recursing
-                for i in (0..children.len()).rev() {
+                for i in (0..children.borrow().len()).rev() {
                     //note that we're iterating starting from the last child, for z-index
-                    let child = children.get(i); //TODO: ?-syntax
+                    let children_borrowed = children.borrow();
+                    let child = children_borrowed.get(i); //TODO: ?-syntax
                     match child {
                         None => { return },
                         Some(child) => {
@@ -312,7 +314,7 @@ impl CarbonEngine {
         &self.recurse_update_property_tree(&ctx,&mut self.scene_graph.borrow_mut().root);
     }
 
-    fn recurse_update_property_tree(&self, ctx: &PropertyTreeContext, node: &mut Rc<RefCell<dyn RenderNode>>)  {
+    fn recurse_update_property_tree(&self, ctx: &PropertyTreeContext, node: &mut RenderNodePtr)  {
         // Recurse:
         //  - iterate in a pre-order traversal, ensuring ancestors have been evaluated first
         //  - for each property, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
@@ -320,12 +322,13 @@ impl CarbonEngine {
 
         node.borrow_mut().eval_properties_in_place(ctx);
 
-        match &mut node.borrow_mut().get_children_mut() {
+        match &mut node.borrow_mut().get_children() {
             Some(children) => {
                 //keep recursing
-                for i in 0..children.len() {
+                for i in 0..children.borrow().len() {
                     //note that we're iterating starting from the last child
-                    let child = children.get_mut(i); //TODO: ?-syntax
+                    let mut children_borrowed = children.borrow_mut();
+                    let child = children_borrowed.get_mut(i); //TODO: ?-syntax
                     match child {
                         None => { return },
                         Some(child) => {

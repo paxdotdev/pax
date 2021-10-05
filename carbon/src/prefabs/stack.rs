@@ -1,11 +1,13 @@
 use std::cell::{RefCell};
 use piet_web::{WebRenderContext};
-use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, SceneGraphContext, SceneGraph, StackFrame};
+use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, SceneGraphContext, SceneGraph, StackFrame, RenderNodePtr};
 use std::rc::Rc;
 
 
+pub type RenderNodeChildPtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
+
 pub struct Stack {
-    pub children: Vec<Rc<RefCell<dyn RenderNode>>>,
+    pub children: RenderNodeChildPtrList,
     pub internal_scene_graph: RefCell<SceneGraph>,
     pub id: String,
     pub align: (f64, f64),
@@ -54,7 +56,7 @@ impl RenderNode for Stack {
     }
 
     fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> Option<&Vec<Rc<RefCell<dyn RenderNode>>>> {
+    fn get_children(&self) -> Option<RenderNodeChildPtrList> {
 
         // return the root of the internal template here — as long
         // as we capture refs to (c) and (d) below during Stack's `render` or `pre_render` fn,
@@ -103,9 +105,8 @@ impl RenderNode for Stack {
         //TODO:  return root of internal scene graph here, instead of `self.children`
         //       (which are the adoptees)
 
-        Some(&self.children)
+        Some(Rc::clone(&self.children))
     }
-    fn get_children_mut(&mut self) -> Option<&mut Vec<Rc<RefCell<dyn RenderNode>>>> { Some(&mut self.children) }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
         let size_raw = self.get_size().unwrap();
@@ -143,14 +144,24 @@ impl RenderNode for Stack {
         // sg.
         // let mut x = (*(sc.runtime.borrow_mut())). ;
         // x.
+
         let children = sc.node.borrow().get_children();
         match children {
             Some(children) => {
-                children
+                sc.runtime.borrow_mut().push_stack_frame(
+                    StackFrame {
+                        adoptees: Some(Rc::clone(&children)),
+                    }
+                );
             },
-            None => (),
+            None => {
+                sc.runtime.borrow_mut().push_stack_frame(
+                    StackFrame {
+                        adoptees: None,
+                    }
+                );
+            },
         }
-        sc.runtime.borrow_mut().push_stack_frame();
 
 
     }
