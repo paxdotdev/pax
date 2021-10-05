@@ -8,14 +8,10 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime, RenderNodePtr, RenderNodePtrList, VariableAccessLevel, Component};
-
-
-
+use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderTree, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime, RenderNodePtr, RenderNodePtrList, VariableAccessLevel, Component};
 
 use std::collections::HashMap;
 use std::rc::Rc;
-
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
@@ -26,13 +22,13 @@ pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
 pub struct CarbonEngine {
     pub logger: fn(&str),
     pub frames_elapsed: u32,
-    pub scene_graph: Rc<RefCell<SceneGraph>>,
+    pub render_tree: Rc<RefCell<RenderTree>>,
     pub runtime: Rc<RefCell<Runtime>>,
     viewport_size: (f64, f64),
 }
 
 
-pub struct SceneGraphContext<'a>
+pub struct RenderTreeContext<'a>
 {
     pub transform: &'a Affine,
     pub bounding_dimens: (f64, f64),
@@ -76,7 +72,7 @@ impl CarbonEngine {
             logger,
             frames_elapsed: 0,
             runtime: Rc::new(RefCell::new(Runtime::new())),
-            scene_graph: Rc::new(RefCell::new(SceneGraph {
+            render_tree: Rc::new(RefCell::new(RenderTree {
                 //TODO:  root should be a Component (specifically: a Component definition — i.e. definition of a prefab,) not a Group
                 //       - Components have locals/variables but Groups are just primitives
                 //
@@ -223,7 +219,7 @@ impl CarbonEngine {
         (self.logger)(msg);
     }
 
-    fn render_scene_graph(&self, rc: &mut WebRenderContext) {
+    fn render_render_tree(&self, rc: &mut WebRenderContext) {
         // hello world scene graph
         //           (root)
         //           /    \
@@ -233,23 +229,23 @@ impl CarbonEngine {
         // 2. start rendering, from lowest node on-up
 
         // let mut call_stack = Vec::new();
-        let mut scene_graph_context = SceneGraphContext {
+        let mut rtc = RenderTreeContext {
             transform: &Affine::default(),
             bounding_dimens: self.viewport_size.clone(),
             runtime: self.runtime.clone(),
-            node: Rc::clone(&self.scene_graph.borrow().root),
-            parent: Rc::clone(&self.scene_graph.borrow().root),
+            node: Rc::clone(&self.render_tree.borrow().root),
+            parent: Rc::clone(&self.render_tree.borrow().root),
         };
-        self.recurse_render_scene_graph(&mut scene_graph_context, rc, Rc::clone(&self.scene_graph.borrow().root));
+        self.recurse_render_render_tree(&mut rtc, rc, Rc::clone(&self.render_tree.borrow().root));
     }
 
-    fn recurse_render_scene_graph(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext, node: RenderNodePtr)  {
+    fn recurse_render_render_tree(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext, node: RenderNodePtr)  {
 
         //populate a pointer to this (current) `RenderNode` onto `sc`
-        sc.node = Rc::clone(&node);
+        rtc.node = Rc::clone(&node);
 
-        let accumulated_transform = sc.transform;
-        let accumulated_bounds = sc.bounding_dimens;
+        let accumulated_transform = rtc.transform;
+        let accumulated_bounds = rtc.bounding_dimens;
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
@@ -259,7 +255,7 @@ impl CarbonEngine {
         //lifecycle: pre_render happens before anything else for this node
         //           this is useful for pre-calculation, e.g. for layout
         //           or for in-place mutations, e.g. `Yield`
-        node.borrow_mut().pre_render(sc);
+        node.borrow_mut().pre_render(rtc);
 
         let node_size_calc = node.borrow().get_size_calc(accumulated_bounds);
         let origin_transform = Affine::translate(
@@ -297,23 +293,23 @@ impl CarbonEngine {
                     match child {
                         None => { return },
                         Some(child) => {
-                            let mut new_scene_graph_context = SceneGraphContext {
+                            let mut new_scene_graph_context = RenderTreeContext {
                                 transform: &new_accumulated_transform,
                                 bounding_dimens: new_accumulated_bounds,
-                                runtime: Rc::clone(&sc.runtime),
+                                runtime: Rc::clone(&rtc.runtime),
                                 parent: Rc::clone(&node),
                                 node: Rc::clone(&node),
                             };
-                            &self.recurse_render_scene_graph(&mut new_scene_graph_context, rc, Rc::clone(child));
+                            &self.recurse_render_render_tree(&mut new_scene_graph_context, rc, Rc::clone(child));
                         }
                     }
                 }
             }
         }
-        let mut new_scene_graph_context = SceneGraphContext {
+        let mut new_scene_graph_context = RenderTreeContext {
             bounding_dimens: new_accumulated_bounds,
             transform: &new_accumulated_transform,
-            runtime: Rc::clone(&sc.runtime),
+            runtime: Rc::clone(&rtc.runtime),
             parent: Rc::clone(&node),
             node: Rc::clone(&node),
         };
@@ -334,11 +330,12 @@ impl CarbonEngine {
         //      - don't update values that don't need updating
         //      - traverse dependency graph, "distal"-inward
         //      - disallow circular deps
+        // - make this and all `property` logic part of `Runtime`?
         let ctx = PropertyTreeContext {
             engine: &self,
         };
 
-        &self.recurse_update_property_tree(&ctx,&mut self.scene_graph.borrow_mut().root);
+        &self.recurse_update_property_tree(&ctx,&mut self.render_tree.borrow_mut().root);
     }
 
     fn recurse_update_property_tree(&self, ctx: &PropertyTreeContext, node: &mut RenderNodePtr)  {
@@ -374,7 +371,7 @@ impl CarbonEngine {
 
         self.update_property_tree();
 
-        self.render_scene_graph(rc);
+        self.render_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
 
         // Logging example:

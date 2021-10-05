@@ -1,13 +1,11 @@
 use std::cell::{RefCell};
 use piet_web::{WebRenderContext};
-use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, SceneGraphContext, SceneGraph, RenderNodePtrList};
+use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, RenderTreeContext, RenderTree, RenderNodePtrList, wrap_render_node_ptr_into_list};
 use std::rc::Rc;
-
-
 
 pub struct Stack {
     pub children: RenderNodePtrList,
-    pub internal_scene_graph: RefCell<SceneGraph>,
+    pub template: Rc<RefCell<RenderTree>>,
     pub id: String,
     pub align: (f64, f64),
     pub origin: (Size<f64>, Size<f64>),
@@ -88,7 +86,7 @@ impl RenderNode for Stack {
         //    get its children from the Engine (get_children)
         //    — these are the `adoptees` that will be passed to `Yield`
         //    and they need to be tracked.
-        //    We can do this with a SceneGraphContext that we pass between recursive calls
+        //    We can do this with a RenderNodeContext that we pass between recursive calls
         //    when rendering.  We can keep a stack of prefab "scopes," allowing `yield`'s render
         //    function to handily grab a reference to `adoptees[i]` when needed.  The stack
         //    enables prefabs to nest among themselves
@@ -103,10 +101,11 @@ impl RenderNode for Stack {
         // c: finally render the rectangle itself; return & allow recursion to keep whirring
         // i,j,d: repeat g,h,c
 
-        //TODO:  return root of internal scene graph here, instead of `self.children`
+        //TODO:  return root of internal render tree here, instead of `self.children`
         //       (which are the adoptees)
+        wrap_render_node_ptr_into_list(Rc::clone(&self.template.borrow().root))
 
-        Rc::clone(&self.children) //this logic is a placeholder & is wrong
+        // Rc::clone(&self.children) //this logic is a placeholder & is wrong
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
@@ -137,44 +136,27 @@ impl RenderNode for Stack {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&mut self, sc: &mut SceneGraphContext) {
+    fn pre_render(&mut self, sc: &mut RenderTreeContext) {
         //TODO:  calc & memoize the layout/transform for each cell of the stack
         //       probably need to do the memoization via a RefCell for mutability concerns,
         //       since pre_render happens during immutable scene graph recursion
 
-
         sc.runtime.borrow_mut().push_stack_frame(Rc::clone(&sc.node.borrow().get_children()));
-
     }
-    fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {
+
+    fn render(&self, _sc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
         //TODO:  render cell borders if appropriate
-        //TODO:  capture a reference to the application-scene-graph-provided children,
-        //       into a `frame` that will ride with the SceneGraphContext
-
-
-        // To fix our call_stack ownership tangle:
-        //   1. add SceneGraph reference to SceneGraphContext
-        //   2. add push_stack_frame, peek_stack_frame, and pop_stack_frame methods to SceneGraph
-        //      (can introduce a separate CallStack entity if needed down the road)
-        //   3.
-        // sc.call_stack.push_frame(
-        //
-        // let mut new_stack_frame = StackFrame {
-        //     adoptees: RefCell::new(self.get_children().unwrap().iter())
-        // };
-        //
-        // //Seems that we need the canonical call_stack to live somewhere
-        // //central (SceneGraph?) and to be referenced & updated (via shared mutability/RefCell?)
-        // //here
-        // sc.call_stack.push(new_stack_frame);
-        //
-        // //Yield can call the following to retrieve the next adoptee from the Context
-        // new_stack_frame.adoptees.next();
-
     }
 
-    fn post_render(&self, sc: &mut SceneGraphContext) {
+    fn post_render(&self, sc: &mut RenderTreeContext) {
+        //clean up the stack frame for the next component
         sc.runtime.borrow_mut().pop_stack_frame();
     }
 
 }
+
+/* Things that a component needs to do, beyond being just a rendernode
+    - declare a list of Properties [maybe this should be the same as RenderNodes?? i.e. change RenderNode to be more like this]
+    - push a stackframe during pre_render and pop it during post_render
+    - declare a `template` that's separate from its `children`
+*/
