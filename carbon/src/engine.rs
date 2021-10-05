@@ -72,8 +72,6 @@ impl StackFrame {
         }
     }
 
-
-
 }
 
 impl CarbonEngine {

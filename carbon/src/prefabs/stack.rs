@@ -36,7 +36,9 @@ TODO:
         - need to figure out yield — special kind of rendernode?
     [ ] Frame
         [ ] Clipping
-    [ ] Yield
+    [x] Yield
+        - might be done but can't be tested until we have a proper Component
+          subtree ("prefab scene graph") to work with
     [ ] Repeat
         [ ] "flattening yield" to support <Stack><Repeat n=5><Rect>...
         [ ] scopes:

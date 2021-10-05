@@ -11,32 +11,10 @@ use std::cell::{RefCell, Ref};
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
-//
-// pub struct RenderNodePtrListIterator {
-//     index: u64
-// }
-//
-// impl RenderNodePtrListIterator {
-//     next
-// }
-// impl Iterator for RenderNodePtrListIterator {
-//     type Item = RenderNodePtr;
-//
-//     fn next(&mut self) -> Option<Self::Item> {
-//         unimplemented!()
-//     }
-// }
-
 
 pub fn wrap_render_node_ptr_into_list(rnp: RenderNodePtr) -> RenderNodePtrList {
     Rc::new(RefCell::new(vec![Rc::clone(&rnp)]))
 }
-
-
-
-
-
-//
 
 pub struct SceneGraph {
     pub root: RenderNodePtr
@@ -48,7 +26,7 @@ impl SceneGraph {
 }
 
 pub struct Runtime {
-    stack: Vec<StackFrame>,
+    stack: Vec<Rc<RefCell<StackFrame>>>,
 }
 
 impl Runtime {
@@ -60,6 +38,14 @@ impl Runtime {
     // pub fn peek_stack_frame(&self) -> StackFrame {
     //     // &self.stack[0]
     // }
+
+    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame>>> {
+        if self.stack.len() > 0 {
+            Some(Rc::clone(&self.stack[0]))
+        }else{
+            None
+        }
+    }
     pub fn pop_stack_frame(&mut self) {
         self.stack.pop();
         // self.adoptee_index
@@ -227,15 +213,11 @@ impl RenderNode for Rectangle {
     fn post_render(&self, _sc: &mut SceneGraphContext) {}
 }
 
-
 pub struct Yield {
     pub id: String,
     pub transform: Affine,
     children: RenderNodePtrList,
 }
-
-
-
 
 impl RenderNode for Yield {
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
@@ -258,13 +240,25 @@ impl RenderNode for Yield {
         &self.transform
     }
     fn pre_render(&mut self, sc: &mut SceneGraphContext) {
-        //TODO: grab the first adoptee from the current stack frame
-        //      make it Yield's child
-        // sc.borrow().runtime.borrow().
+        // grab the first adoptee from the current stack frame
+        // and make it Yield's own child.
+        //
+        // this might be more elegant as a dynamic lookup inside the get_children
+        // method, but at the time of authoring that would require refactoring
+        // get_children to accept the SceneGraphContext.  This felt better at the time.
+        self.children = match sc.runtime.borrow_mut().peek_stack_frame() {
+            Some(stack_frame) => {
+                match stack_frame.borrow_mut().next_adoptee() {
+                    Some(adoptee) => {
+                        wrap_render_node_ptr_into_list(adoptee)
+                    },
+                    None => {Rc::new(RefCell::new(vec![]))}
+                }
+            },
+            None => {Rc::new(RefCell::new(vec![]))}
+        }
     }
-    fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {
-
-    }
+    fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _sc: &mut SceneGraphContext) {}
 }
 
