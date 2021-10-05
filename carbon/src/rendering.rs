@@ -32,12 +32,15 @@ impl Runtime {
         }
     }
     pub fn peek_stack_frame() {}
-    pub fn pop_stack_frame() {}
+    pub fn pop_stack_frame(&mut self) {
+        self.stack.pop();
+    }
     pub fn push_stack_frame(&mut self, stack_frame: StackFrame) {
-        // StackFrame {
-        //     adoptees: Box::new(sc.node.get_children().unwrap().iter()),
-        // };
-        //TODO:  manage iterator
+
+        //TODO:  manage iterator:
+        //  - either an internal int counter, or
+        //  - figure out a with-the-grain way to store an iter internally & expose via push_stack_frame/pop_stack_frame/peek_stack_frame
+
         self.stack.push(stack_frame);
     }
 }
@@ -58,6 +61,7 @@ pub trait RenderNode
     fn get_transform(&self) -> &Affine;
     fn pre_render(&self, sc: &mut SceneGraphContext);
     fn render(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext);
+    fn post_render(&self, sc: &mut SceneGraphContext);
 }
 
 pub struct Group {
@@ -89,6 +93,7 @@ impl RenderNode for Group {
     }
     fn pre_render(&self, _sc: &mut SceneGraphContext) {}
     fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {}
+    fn post_render(&self, _sc: &mut SceneGraphContext) {}
 }
 
 pub struct Stroke {
@@ -181,6 +186,7 @@ impl RenderNode for Rectangle {
         rc.fill(transformed_bez_path, fill);
         rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
     }
+    fn post_render(&self, _sc: &mut SceneGraphContext) {}
 }
 
 
@@ -212,6 +218,7 @@ impl RenderNode for Yield {
     }
     fn pre_render(&self, _sc: &mut SceneGraphContext) {}
     fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {}
+    fn post_render(&self, _sc: &mut SceneGraphContext) {}
 }
 
 pub struct Repeat {

@@ -294,6 +294,10 @@ impl CarbonEngine {
             node: Rc::clone(&node),
         };
         node.borrow().render(&mut new_scene_graph_context, rc);
+
+        //Lifecycle event: post_render can be used for cleanup, e.g. for
+        //components to pop a stack frame
+        node.borrow().post_render(&mut new_scene_graph_context);
     }
 
     pub fn update_property_tree(&self) {

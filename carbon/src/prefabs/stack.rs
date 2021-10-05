@@ -139,10 +139,7 @@ impl RenderNode for Stack {
         //TODO:  calc & memoize the layout/transform for each cell of the stack
         //       probably need to do the memoization via a RefCell for mutability concerns,
         //       since pre_render happens during immutable scene graph recursion
-        // let mut sg = sc.scene_graph.borrow_mut().;
-        // sg.
-        // let mut x = (*(sc.runtime.borrow_mut())). ;
-        // x.
+
 
         sc.runtime.borrow_mut().push_stack_frame(
             StackFrame {
@@ -176,6 +173,10 @@ impl RenderNode for Stack {
         // //Yield can call the following to retrieve the next adoptee from the Context
         // new_stack_frame.adoptees.next();
 
+    }
+
+    fn post_render(&self, sc: &mut SceneGraphContext) {
+        sc.runtime.borrow_mut().pop_stack_frame();
     }
 
 }
