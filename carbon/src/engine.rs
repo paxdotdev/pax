@@ -12,6 +12,7 @@ use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicVa
 
 use std::collections::HashMap;
 use std::rc::Rc;
+use crate::prefabs::stack::Stack;
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
@@ -95,6 +96,35 @@ impl CarbonEngine {
                             origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
                             transform: Affine::default(),
                             children: Rc::new(RefCell::new(vec![
+                                Rc::new(RefCell::new(Stack {
+                                    children: Rc::new(RefCell::new(vec![
+                                        Rc::new(RefCell::new(
+                                            Rectangle {
+                                                transform: Affine::default(),
+                                                origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
+                                                align: (0.0, 0.0),
+                                                fill:  Box::new(
+                                                    PropertyLiteral {value: Color::rgba(0.0, 0.0, 1.0, 1.0) }
+                                                ),
+                                                stroke: Stroke {
+                                                    width: 4.0,
+                                                    style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                    color: Color::rgba(0.8, 0.8, 0.1, 1.0)
+                                                },
+                                                id: String::from("frame_filler"),
+                                                size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                                            }
+                                        )),
+                                    ])),
+                                    template: Rc::new(RefCell::new(RenderTree {})),
+                                    id: String::from("my_first_stack"),
+                                    align: (0.0, 0.0),
+                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
+                                    size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                                    transform: Default::default(),
+
+                                    variables: vec![]
+                                })),
                                 Rc::new(RefCell::new(Rectangle {
                                     id: String::from("rect_4"),
                                     align: (0.5, 0.5),

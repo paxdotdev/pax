@@ -1,11 +1,12 @@
 use std::cell::{RefCell};
 use piet_web::{WebRenderContext};
-use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, RenderTreeContext, RenderTree, RenderNodePtrList, wrap_render_node_ptr_into_list};
+use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, RenderTreeContext, RenderTree, RenderNodePtrList, wrap_render_node_ptr_into_list, RenderNodePtr, Yield};
 use std::rc::Rc;
 
 pub struct Stack {
     pub children: RenderNodePtrList,
-    pub template: Rc<RefCell<RenderTree>>,
+
+    template: Rc<RefCell<RenderTree>>,
     pub id: String,
     pub align: (f64, f64),
     pub origin: (Size<f64>, Size<f64>),
@@ -15,6 +16,28 @@ pub struct Stack {
     ),
     pub transform: Affine,
     pub variables: Vec<Variable>,
+}
+
+
+
+pub trait Component {
+    fn get_template_root() -> RenderNodePtr;
+}
+
+impl Component for Stack {
+    fn get_template_root() -> RenderNodePtr {
+        //TODO:  author internal template here
+
+        //         <Frame repeat=self.children transform=get_transform(i)>
+        //             <Yield index=i>
+        //         </Frame>
+        
+        Rc::new(RefCell::new(Yield {
+            id: String::from("stack_template_yield"),
+            transform: Affine::default(),
+        }))
+
+    }
 }
 
 /*
@@ -50,6 +73,8 @@ TODO:
 
 
 impl RenderNode for Stack {
+
+
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
         //TODO: handle each of Stack's `Expressable` properties
     }
@@ -141,7 +166,9 @@ impl RenderNode for Stack {
         //       probably need to do the memoization via a RefCell for mutability concerns,
         //       since pre_render happens during immutable render tree recursion
 
-        rtc.runtime.borrow_mut().push_stack_frame(Rc::clone(&rtc.node.borrow().get_children()));
+        rtc.runtime.borrow_mut().push_stack_frame(
+            Rc::clone(&rtc.node.borrow().get_children())
+        );
     }
 
     fn render(&self, _sc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {

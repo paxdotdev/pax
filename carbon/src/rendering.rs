@@ -11,6 +11,9 @@ use std::cell::{RefCell};
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
 
+// Take a singleton node and wrap it into a Vec, e.g. to make a
+// single node the entire `children` of another node
+//TODO: handle this more elegantly, perhaps with some metaprogramming mojo?
 pub fn wrap_render_node_ptr_into_list(rnp: RenderNodePtr) -> RenderNodePtrList {
     Rc::new(RefCell::new(vec![Rc::clone(&rnp)]))
 }
