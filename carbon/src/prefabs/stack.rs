@@ -1,6 +1,6 @@
 use std::cell::{RefCell};
 use piet_web::{WebRenderContext};
-use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, SceneGraphContext, SceneGraph};
+use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, SceneGraphContext, SceneGraph, StackFrame};
 
 
 pub struct Stack {
@@ -39,7 +39,7 @@ TODO:
         [ ] "flattening yield" to support <Stack><Repeat n=5><Rect>...
         [ ] scopes:
             [ ] `i`
-            [ ] Handlebars templating {} ? or otherwise figure out `eval`
+            [ ] braced templating {} ? or otherwise figure out `eval`
                 - Code-gen?  piece together strings into a file and run rustc on it?
             [ ] calling "class methods" from templates, e.g. <Repeat n=5><Rect color="get_color(i)"
 
@@ -134,11 +134,15 @@ impl RenderNode for Stack {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&self) {
+    fn pre_render(&self, sc: &mut SceneGraphContext) {
         //TODO:  calc & memoize the layout/transform for each cell of the stack
         //       probably need to do the memoization via a RefCell for mutability concerns,
         //       since pre_render happens during immutable scene graph recursion
-        //
+        // let mut sg = sc.scene_graph.borrow_mut().;
+        // sg.
+        // let mut x = (*(sc.runtime.borrow_mut())). ;
+        // x.
+        sc.runtime.borrow_mut().push_stack_frame();
 
 
     }

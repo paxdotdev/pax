@@ -8,12 +8,13 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext};
+use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderNode, SceneGraph, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime};
 
 
 
 
 use std::collections::HashMap;
+use std::rc::Rc;
 
 
 // Public method for consumption by engine chassis, e.g. WebChassis
@@ -25,7 +26,8 @@ pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
 pub struct CarbonEngine {
     pub logger: fn(&str),
     pub frames_elapsed: u32,
-    pub scene_graph: RefCell<SceneGraph>,
+    pub scene_graph: Rc<RefCell<SceneGraph>>,
+    pub runtime: Rc<RefCell<Runtime>>,
     viewport_size: (f64, f64),
 }
 
@@ -34,7 +36,15 @@ pub struct SceneGraphContext<'a>
 {
     pub transform: &'a Affine,
     pub bounding_dimens: (f64, f64),
-    pub scene_graph: &'a RefCell<SceneGraph>,
+    pub runtime: Rc<RefCell<Runtime>>,
+    pub parent: Rc<dyn RenderNode>,
+    pub node: Rc<dyn RenderNode>,
+}
+
+impl<'a> SceneGraphContext<'a> {
+    pub fn set_active_node(&mut self, node: &'a Box<dyn RenderNode>) {
+        self.node = node;
+    }
 }
 
 
@@ -49,7 +59,11 @@ impl CarbonEngine {
         CarbonEngine {
             logger,
             frames_elapsed: 0,
-            scene_graph: RefCell::new(SceneGraph {
+            runtime: Rc::new(RefCell::new(Runtime {})),
+            scene_graph: Rc::new(RefCell::new(SceneGraph {
+                //TODO:  root is a Component (specifically: a Component definition — i.e. definition of a prefab,) not a Group
+                //       - Components have locals/variables but Groups are just primitives
+                //
                 root: Box::new(Group {
                     id: String::from("root"),
                     align: (0.0, 0.0),
@@ -66,8 +80,8 @@ impl CarbonEngine {
                             id: String::from("group_1"),
                             align: (0.0, 0.0),
                             origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                            variables: vec![],
                             transform: Affine::default(),
+                            variables: Vec::new(),
                             children: vec![
                                 Box::new(Rectangle {
                                     id: String::from("rect_4"),
@@ -183,7 +197,7 @@ impl CarbonEngine {
                         }),
                     ],
                 }),
-            }),
+            })),
             viewport_size,
         }
     }
@@ -206,12 +220,17 @@ impl CarbonEngine {
         let mut scene_graph_context = SceneGraphContext {
             transform: &Affine::default(),
             bounding_dimens: self.viewport_size.clone(),
-            scene_graph: &self.scene_graph,
+            runtime: self.runtime.clone(),
+            node: &self.scene_graph.borrow().root,
+            parent: &self.scene_graph.borrow().root,
         };
         self.recurse_render_scene_graph(&mut scene_graph_context, rc, &self.scene_graph.borrow().root);
     }
 
     fn recurse_render_scene_graph(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext, node: &Box<dyn RenderNode>)  {
+
+        //populate a pointer to this (current) `RenderNode` onto `sc`
+        sc.set_active_node(node);
 
         let accumulated_transform = sc.transform;
         let accumulated_bounds = sc.bounding_dimens;
@@ -223,7 +242,7 @@ impl CarbonEngine {
 
         //lifecycle: pre_render happens before anything else for this node
         //           this is useful for pre-calculation, e.g. for layout
-        node.pre_render();
+        node.pre_render(sc);
 
         let node_size_calc = node.get_size_calc(accumulated_bounds);
         let origin_transform = Affine::translate(
@@ -261,7 +280,9 @@ impl CarbonEngine {
                             let mut new_scene_graph_context = SceneGraphContext {
                                 transform: &new_accumulated_transform,
                                 bounding_dimens: new_accumulated_bounds,
-                                scene_graph: sc.scene_graph,
+                                runtime: Rc::clone(&sc.runtime),
+                                parent: node,
+                                node,
                             };
                             &self.recurse_render_scene_graph(&mut new_scene_graph_context, rc, child);
                         }
@@ -274,7 +295,9 @@ impl CarbonEngine {
         let mut new_scene_graph_context = SceneGraphContext {
             bounding_dimens: new_accumulated_bounds,
             transform: &new_accumulated_transform,
-            scene_graph: sc.scene_graph,
+            runtime: Rc::clone(&sc.runtime),
+            parent: node,
+            node,
         };
         node.render(&mut new_scene_graph_context, rc);
     }

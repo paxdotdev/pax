@@ -1,5 +1,5 @@
 [package]
-name = "carbon-example"
+name = "carbon-chassis-web"
 version = "0.0.1"
 authors = ["Zack Brown <zack@zpad.io>"]
 edition = "2018"

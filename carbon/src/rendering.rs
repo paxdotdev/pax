@@ -11,10 +11,18 @@ pub struct SceneGraph {
 }
 
 impl SceneGraph {
+
+}
+
+pub struct Runtime {}
+
+impl Runtime {
     pub fn peek_stack_frame() {}
     pub fn pop_stack_frame() {}
-    pub fn push_stack_frame(_frame: StackFrame) {
-
+    pub fn push_stack_frame(&mut self, sc: &mut SceneGraphContext) {
+        StackFrame {
+            adoptees: Box::new(sc.node.get_children().unwrap().iter()),
+        };
     }
 }
 
@@ -33,7 +41,7 @@ pub trait RenderNode
     fn get_id(&self) -> &str;
     fn get_origin(&self) -> (Size<f64>, Size<f64>);
     fn get_transform(&self) -> &Affine;
-    fn pre_render(&self);
+    fn pre_render(&self, sc: &mut SceneGraphContext);
     fn render(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext);
 }
 
@@ -65,7 +73,7 @@ impl RenderNode for Group {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&self) {}
+    fn pre_render(&self, _sc: &mut SceneGraphContext) {}
     fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {}
 }
 
@@ -138,7 +146,7 @@ impl RenderNode for Rectangle {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
-    fn pre_render(&self) {}
+    fn pre_render(&self, _sc: &mut SceneGraphContext) {}
     fn render(&self, sc: &mut SceneGraphContext, rc: &mut WebRenderContext) {
 
         let transform = sc.transform;
@@ -177,7 +185,7 @@ impl RenderNode for Yield {
 
     fn get_align(&self) -> (f64, f64) { (0.0,0.0) }
     fn get_children(&self) -> Option<&Vec<Box<dyn RenderNode>>> {
-        //TODO: return "surrogate"s children (find accurate term)
+        //TODO: return adoptee via iterator from stack frame
         // Some(&self.children)
         None
     }
@@ -191,7 +199,7 @@ impl RenderNode for Yield {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&self) {}
+    fn pre_render(&self, _sc: &mut SceneGraphContext) {}
     fn render(&self, _sc: &mut SceneGraphContext, _rc: &mut WebRenderContext) {}
 }
 
