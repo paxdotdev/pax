@@ -5,8 +5,10 @@ mod engine;
 mod rendering;
 mod expressions;
 mod components;
+mod primitives;
 
 pub use crate::engine::*;
+pub use crate::primitives::*;
 pub use crate::rendering::*;
 pub use crate::expressions::*;
 pub use crate::components::*;
@@ -41,7 +43,7 @@ TODO:
         [x] Decide `primitive` vs. userland `components`
             `components`
         [ ] Template mechanism for components
-        [ ] Control-flow `yield` for inputs/children
+        [ ] Control-flow `placeholder` (`placeholder`) for inputs/children
             [ ] Ensure path forward to userland `placeholders`
         [ ] Control-flow `repeat` for cells & dividers inside template
         [ ] Clipping & Frames

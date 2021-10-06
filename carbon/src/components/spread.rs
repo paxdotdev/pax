@@ -1,10 +1,14 @@
-use std::cell::{RefCell};
-use piet_web::{WebRenderContext};
-use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, RenderTreeContext, RenderTree, RenderNodePtrList, wrap_render_node_ptr_into_list, RenderNodePtr, Yield, PropertyExpression, PolymorphicValue, PolymorphicType};
-use std::rc::Rc;
+use std::cell::RefCell;
 use std::collections::HashMap;
+use std::rc::Rc;
+
 use kurbo::BezPath;
 use piet::RenderContext;
+use piet_web::WebRenderContext;
+
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list,};
+use crate::primitives::placeholder::Placeholder;
+use crate::primitives::frame::Frame;
 
 pub struct Spread {
     pub children: RenderNodePtrList,
@@ -19,81 +23,6 @@ pub struct Spread {
 
     template: RenderNodePtrList,
     variables: Vec<Variable>,
-}
-
-//NEXT:  implement Frame, so that we can fill in the template
-//       of Spread
-//THEN:  implement Repeat, so that we can repeat our Frames for real
-pub struct Frame {
-    pub id: String,
-    pub children: RenderNodePtrList,
-    pub align: (f64, f64),
-    pub origin: (Size<f64>, Size<f64>),
-    pub size: (
-        Box<dyn Property<Size<f64>>>,
-        Box<dyn Property<Size<f64>>>,
-    ),
-    pub transform: Affine,
-
-    //Is Frame a Component, or just a special-rendering primitive?
-    //   Seems like the latter - no need for a fancy template; just
-    //   take children + a size/transform spec, then start kicking some
-    //   clipping masks through the render-recursion logic
-
-    //TODO:
-    // Understand clipping + Piet
-    //   easy:  rc.clip(T: Shape), draw, then rc.restore()
-    // Revisit mixed mode clipping, at least for Web (ensure viable path)
-    //   seems like we can implement a similar API:  wrc.clip(path), draw (scroll bars, text, form controls), then wrc.restore()
-    // Add clipping (path?) data to the RenderTreeContext here in Frame's logic
-    //   or.... maybe we can just use rc.clip() directly from pre_render (and rc.restore() from post_render)
-}
-
-impl RenderNode for Frame {
-    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
-        //TODO: handle each of Frame's `Expressable` properties
-    }
-    fn get_align(&self) -> (f64, f64) { self.align }
-    fn get_children(&self) -> RenderNodePtrList {
-        Rc::clone(&self.children)
-    }
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
-    fn get_id(&self) -> &str {
-        &self.id.as_str()
-    }
-    fn get_origin(&self) -> (Size<f64>, Size<f64>) { self.origin }
-    fn get_transform(&self) -> &Affine {
-        &self.transform
-    }
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-
-        // construct a BezPath of this frame's bounds * its transform,
-        // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
-        //TODO:  if clipping is TURNED OFF for this Frame, don't do any of this
-        let transform = rtc.transform;
-        let bounding_dimens = rtc.bounding_dimens;
-        let width: f64 =  bounding_dimens.0;
-        let height: f64 =  bounding_dimens.1;
-
-        let mut bez_path = BezPath::new();
-        bez_path.move_to((0.0, 0.0));
-        bez_path.line_to((width , 0.0));
-        bez_path.line_to((width , height ));
-        bez_path.line_to((0.0, height));
-        bez_path.line_to((0.0,0.0));
-        bez_path.close_path();
-
-        // rtc.runtime.borrow().log(&format!("Clipping: {} x {}", width ,height));
-
-        let transformed_bez_path = *transform * bez_path;
-        rc.save(); //our "save point" before clipping — restored to in the post_render
-        rc.clip(transformed_bez_path);
-    }
-    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        //pop the clipping context from the stack
-        rc.restore();
-    }
 }
 
 impl Spread {
@@ -146,7 +75,7 @@ impl Spread {
                     children:  Rc::new(RefCell::new(vec![
                         //TODO:wrap in repeat
                         Rc::new(RefCell::new(
-                            Yield::new( "spread_frame_yield".to_string(), Affine::default())
+                            Placeholder::new( "spread_frame_placeholder".to_string(), Affine::default())
                         ))
                     ])),
                 }))])
@@ -162,7 +91,7 @@ impl Spread {
     // <Template>
         // <Repeat declarations={{(i, elem)}} iterable={{get_children()}}>
             // <Frame transform={{get_frame_transform(i)}} size={{get_frame_size(i)}}>
-                // <Yield index={{i}}>
+                // <Placeholder index={{i}}>
             // </Frame>
         // <Repeat/>
     // </Template>
@@ -177,20 +106,20 @@ TODO:
         - Cell widths
     [x] expose a Spread element for consumption by engine
     [x] accept children, just like primitives e.g. `Group`
-    [ ] author an internal template, incl. `yield`ing children and `repeating` inputs
+    [ ] author an internal template, incl. `placeholder`ing children and `repeating` inputs
         <Frame repeat=self.children transform=get_transform(i)>
-            <Yield index=i>
+            <Placeholder index=i>
         </Frame>
         - need to be able to define/call methods on containing class (a la VB)
         - need to figure out polymorphism, Vec<T> (?) for repeat
-        - need to figure out yield — special kind of rendernode?
-    [ ] Frame
-        [ ] Clipping
-    [x] Yield
+        - need to figure out placeholder — special kind of rendernode?
+    [x] Frame
+        [x] Clipping
+    [x] Placeholder
         - might be done but can't be tested until we have a proper Component
           subtree ("prefab render tree") to work with
     [ ] Repeat
-        [ ] "flattening yield" to support <Spread><Repeat n=5><Rect>...
+        [ ] "flattening placeholder" to support <Spread><Repeat n=5><Rect>...
         [ ] scopes:
             [ ] `i`
             [ ] braced templating {} ? or otherwise figure out `eval`
@@ -226,7 +155,7 @@ impl RenderNode for Spread {
         //           /         //    \
         //      g( Frame )     //   i( Frame )
         //          |          //      |
-        //      h( Yield )     //   j( Yield )
+        //      h( Placeholder )     //   j( Placeholder )
         //
         // traversal order:
         // [a b e f g h c i j d]
@@ -234,10 +163,10 @@ impl RenderNode for Spread {
         // a: load the application root Group
         // b: found a Spread, start rendering it
         //    get its children from the Engine (get_children)
-        //    — these are the `adoptees` that will be passed to `Yield`
+        //    — these are the `adoptees` that will be passed to `Placeholder`
         //    and they need to be tracked.
         //    We can do this with a RenderNodeContext that we pass between recursive calls
-        //    when rendering.  We can keep a stack of prefab "scopes," allowing `yield`'s render
+        //    when rendering.  We can keep a stack of prefab "scopes," allowing `placeholder`'s render
         //    function to handily grab a reference to `adoptees[i]` when needed.  The stack
         //    enables components to nest among themselves
         // e: is Spread::render()
@@ -291,8 +220,6 @@ impl RenderNode for Spread {
     - declare a `template` that's separate from its `children`
 */
 
-
-
 /* Thinking ahead briefly to the userland component authoring experience:
     - Importantly, every application's `root` is a _component definition_,
       including custom properties (component inputs), timelines, event handlers, and a template
@@ -338,7 +265,7 @@ impl RenderNode for Spread {
         <Template>
             <Repeat declarations={{(i, elem)}} iterable={{get_children()}}>
                 <Frame transform={{get_frame_transform(i)}} size={{get_frame_size(i)}}>
-                    <Yield index={{i}}>
+                    <Placeholder index={{i}}>
                 </Frame>
             <Repeat/>
         </Template>

@@ -12,7 +12,10 @@ use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicVa
 
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::components::spread::{Spread, Frame};
+use crate::components::spread::{Spread};
+use crate::primitives::frame::{Frame};
+use crate::primitives::placeholder::{Placeholder};
+// use crate::primitives::{Frame};
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
@@ -350,7 +353,7 @@ impl CarbonEngine {
 
         //lifecycle: pre_render happens before traversing this node's children
         //           this is useful for pre-computation, e.g. for layout
-        //           or for in-place mutations, e.g. `Yield`'s children/adoptee-switching logic
+        //           or for in-place mutations, e.g. `Placeholder`'s children/adoptee-switching logic
 
         node.borrow_mut().pre_render(&mut new_rtc, rc);
 

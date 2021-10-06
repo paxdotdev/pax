@@ -1,12 +1,11 @@
-
-use piet_web::{WebRenderContext};
-use piet::{Color, StrokeStyle, RenderContext};
-use kurbo::{Affine, BezPath};
-
-use crate::{Variable, Property, PropertyTreeContext, RenderTreeContext, StackFrame};
+use std::cell::RefCell;
 use std::rc::Rc;
-use std::cell::{RefCell};
 
+use kurbo::{Affine, BezPath};
+use piet::{Color, RenderContext, StrokeStyle};
+use piet_web::WebRenderContext;
+
+use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable};
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
@@ -62,7 +61,7 @@ impl Runtime {
     }
 
     /// Add a new frame to the stack, passing a list of adoptees
-    /// that may be handled by `Yield`
+    /// that may be handled by `Placeholder`
     pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList) {
         self.stack.push(
             Rc::new(RefCell::new(
@@ -291,73 +290,6 @@ impl RenderNode for Rectangle {
         rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
         // rc.restore();
     }
-    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
-}
-
-pub struct Yield {
-    pub id: String,
-    pub transform: Affine,
-    children: RenderNodePtrList,
-}
-
-impl Yield {
-    pub fn new(id: String, transform: Affine) -> Self {
-        Yield {
-            id,
-            transform,
-            children: Rc::new(RefCell::new(vec![])),
-        }
-    }
-}
-
-
-//TODO:  should `Yield` expose an explicit index property, so that
-//       consumers can specify which index adoptee the yield should accept?
-//       like <Yield index={{i}} />
-//       or should we stick with this side-effectful "first come first served" approach?
-//       Seems like the former is more robust, and the latter is a bit more "magical"
-//       (one fewer button to press! but one more trick to learn.)
-impl RenderNode for Yield {
-    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
-        //TODO: handle each of Group's `Expressable` properties
-    }
-
-    fn get_align(&self) -> (f64, f64) { (0.0,0.0) }
-    fn get_children(&self) -> RenderNodePtrList {
-        //NOTE: this relies on side-effects from elsewhere.
-        //      Returning &self.children works because a child
-        //      is side-effectfully added there during pre_render.
-        Rc::clone(&self.children)
-    }
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
-    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_id(&self) -> &str {
-        &self.id.as_str()
-    }
-    fn get_origin(&self) -> (Size<f64>, Size<f64>) { (Size::Pixel(0.0), Size::Pixel(0.0)) }
-    fn get_transform(&self) -> &Affine {
-        &self.transform
-    }
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        // grab the first adoptee from the current stack frame
-        // and make it Yield's own child.
-        //
-        // this might be more elegant as a dynamic lookup inside the get_children
-        // method, but at the time of authoring that would require refactoring
-        // get_children to accept the RenderNodeContext, which zb opted not to do.
-        self.children = match rtc.runtime.borrow_mut().peek_stack_frame() {
-            Some(stack_frame) => {
-                match stack_frame.borrow_mut().next_adoptee() {
-                    Some(adoptee) => {
-                        wrap_render_node_ptr_into_list(adoptee)
-                    },
-                    None => {Rc::new(RefCell::new(vec![]))}
-                }
-            },
-            None => {Rc::new(RefCell::new(vec![]))}
-        }
-    }
-    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }
 
