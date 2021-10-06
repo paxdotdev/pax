@@ -12,7 +12,7 @@ use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicVa
 
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::prefabs::stack::Stack;
+use crate::components::spread::Spread;
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
@@ -89,42 +89,40 @@ impl CarbonEngine {
                         },
                     ],
                     transform: Affine::default(),
-                    children: Rc::new(RefCell::new(vec![
+                    template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Group {
                             id: String::from("group_1"),
                             align: (0.0, 0.0),
                             origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
                             transform: Affine::default(),
                             children: Rc::new(RefCell::new(vec![
-                                Rc::new(RefCell::new(Stack {
-                                    children: Rc::new(RefCell::new(vec![
-                                        Rc::new(RefCell::new(
-                                            Rectangle {
-                                                transform: Affine::default(),
-                                                origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-                                                align: (0.0, 0.0),
-                                                fill:  Box::new(
-                                                    PropertyLiteral {value: Color::rgba(0.0, 0.0, 1.0, 1.0) }
-                                                ),
-                                                stroke: Stroke {
-                                                    width: 4.0,
-                                                    style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                    color: Color::rgba(0.8, 0.8, 0.1, 1.0)
-                                                },
-                                                id: String::from("frame_filler"),
-                                                size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
-                                            }
-                                        )),
-                                    ])),
-                                    template: Rc::new(RefCell::new(RenderTree {})),
-                                    id: String::from("my_first_stack"),
-                                    align: (0.0, 0.0),
-                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-                                    size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
-                                    transform: Default::default(),
-
-                                    variables: vec![]
-                                })),
+                                Rc::new(RefCell::new(
+                                    Spread::new(
+                                        Rc::new(RefCell::new(vec![
+                                            Rc::new(RefCell::new(
+                                                Rectangle {
+                                                    transform: Affine::default(),
+                                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
+                                                    align: (0.0, 0.0),
+                                                    fill:  Box::new(
+                                                        PropertyLiteral {value: Color::rgba(0.0, 0.0, 1.0, 1.0) }
+                                                    ),
+                                                    stroke: Stroke {
+                                                        width: 4.0,
+                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                        color: Color::rgba(0.8, 0.8, 0.1, 1.0)
+                                                    },
+                                                    id: String::from("frame_filler"),
+                                                    size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                                                }
+                                            )),
+                                        ])),
+                                    String::from("my_first_spread"),
+                                    (0.0, 0.0),
+                                    (Size::Pixel(0.0), Size::Pixel(0.0)),
+                                    (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                                    Default::default(),
+                                ))),
                                 Rc::new(RefCell::new(Rectangle {
                                     id: String::from("rect_4"),
                                     align: (0.5, 0.5),
@@ -278,10 +276,7 @@ impl CarbonEngine {
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done
 
-        //lifecycle: pre_render happens before anything else for this node
-        //           this is useful for pre-calculation, e.g. for layout
-        //           or for in-place mutations, e.g. `Yield`
-        node.borrow_mut().pre_render(rtc);
+
 
         let node_size_calc = node.borrow().get_size_calc(accumulated_bounds);
         let origin_transform = Affine::translate(
@@ -307,6 +302,23 @@ impl CarbonEngine {
         //default to our parent-provided bounding dimensions
         let new_accumulated_bounds = node.borrow().get_size_calc(accumulated_bounds);
 
+
+        let mut new_rtc = RenderTreeContext {
+            bounding_dimens: new_accumulated_bounds,
+            transform: &new_accumulated_transform,
+            runtime: Rc::clone(&rtc.runtime),
+            parent: Rc::clone(&node),
+            node: Rc::clone(&node),
+        };
+
+        //lifecycle: pre_render happens before traversing this node's children
+        //           this is useful for pre-computation, e.g. for layout
+        //           or for in-place mutations, e.g. `Yield`'s children/adoptee-switching logic
+
+        {
+            node.borrow_mut().pre_render(&mut new_rtc, rc);
+        }
+
         {
             let children = node.borrow().get_children();
 
@@ -319,31 +331,23 @@ impl CarbonEngine {
                     match child {
                         None => { return },
                         Some(child) => {
-                            let mut new_rtc = RenderTreeContext {
-                                transform: &new_accumulated_transform,
-                                bounding_dimens: new_accumulated_bounds,
-                                runtime: Rc::clone(&rtc.runtime),
-                                parent: Rc::clone(&node),
-                                node: Rc::clone(&node),
-                            };
                             &self.recurse_render_render_tree(&mut new_rtc, rc, Rc::clone(child));
                         }
                     }
                 }
             }
         }
-        let mut new_rtc = RenderTreeContext {
-            bounding_dimens: new_accumulated_bounds,
-            transform: &new_accumulated_transform,
-            runtime: Rc::clone(&rtc.runtime),
-            parent: Rc::clone(&node),
-            node: Rc::clone(&node),
-        };
+
+        // `render` lifecycle event:
+        // this is this node's time to do its own rendering, aside
+        // from its children.  Its children have already been rendered
         node.borrow().render(&mut new_rtc, rc);
 
         //Lifecycle event: post_render can be used for cleanup, e.g. for
         //components to pop a stack frame
-        node.borrow().post_render(&mut new_rtc);
+        {
+            node.borrow().post_render(&mut new_rtc, rc);
+        }
     }
 
     pub fn update_property_tree(&self) {
@@ -396,7 +400,6 @@ impl CarbonEngine {
         rc.clear(Color::rgb8(0, 0, 0));
 
         self.update_property_tree();
-
         self.render_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
 

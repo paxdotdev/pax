@@ -98,9 +98,9 @@ pub trait RenderNode
     fn get_id(&self) -> &str;
     fn get_origin(&self) -> (Size<f64>, Size<f64>);
     fn get_transform(&self) -> &Affine;
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext);
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
-    fn post_render(&self, rtc: &mut RenderTreeContext);
+    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
 }
 
 pub struct Group {
@@ -129,13 +129,13 @@ impl RenderNode for Group {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext) {}
+    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _rtc: &mut RenderTreeContext) {}
+    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }
 
 pub struct Component {
-    pub children: Rc<RefCell<Vec<RenderNodePtr>>>,
+    pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
     pub id: String,
     pub align: (f64, f64),
     pub origin: (Size<f64>, Size<f64>),
@@ -151,7 +151,7 @@ impl RenderNode for Component {
 
     fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> RenderNodePtrList {
-        Rc::clone(&self.children)
+        Rc::clone(&self.template)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
@@ -162,9 +162,9 @@ impl RenderNode for Component {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext) {}
+    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _rtc: &mut RenderTreeContext) {}
+    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }
 
 pub struct Stroke {
@@ -232,7 +232,7 @@ impl RenderNode for Rectangle {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext) {}
+    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
 
         let transform = rtc.transform;
@@ -256,7 +256,7 @@ impl RenderNode for Rectangle {
         rc.fill(transformed_bez_path, fill);
         rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
     }
-    fn post_render(&self, _rtc: &mut RenderTreeContext) {}
+    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }
 
 pub struct Yield {
@@ -265,6 +265,23 @@ pub struct Yield {
     children: RenderNodePtrList,
 }
 
+impl Yield {
+    pub fn new(id: String, transform: Affine) -> Self {
+        Yield {
+            id,
+            transform,
+            children: Rc::new(RefCell::new(vec![])),
+        }
+    }
+}
+
+
+//TODO:  should `Yield` expose an explicit index property, so that
+//       consumers can specify which index adoptee the yield should accept?
+//       like <Yield index={{i}} />
+//       or should we stick with this side-effectful "first come first served" approach?
+//       Seems like the former is more robust, and the latter is a bit more "magical"
+//       (one fewer button to press!)
 impl RenderNode for Yield {
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
         //TODO: handle each of Group's `Expressable` properties
@@ -285,14 +302,14 @@ impl RenderNode for Yield {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&mut self, sc: &mut RenderTreeContext) {
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         // grab the first adoptee from the current stack frame
         // and make it Yield's own child.
         //
         // this might be more elegant as a dynamic lookup inside the get_children
         // method, but at the time of authoring that would require refactoring
         // get_children to accept the RenderNodeContext, which zb opted not to do.
-        self.children = match sc.runtime.borrow_mut().peek_stack_frame() {
+        self.children = match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
                 match stack_frame.borrow_mut().next_adoptee() {
                     Some(adoptee) => {
@@ -305,7 +322,7 @@ impl RenderNode for Yield {
         }
     }
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _rtc: &mut RenderTreeContext) {}
+    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }
 
 pub struct Repeat {

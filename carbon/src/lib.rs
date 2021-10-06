@@ -4,12 +4,12 @@ pub use piet::{Color, StrokeStyle, Error};
 mod engine;
 mod rendering;
 mod expressions;
-mod prefabs;
+mod components;
 
 pub use crate::engine::*;
 pub use crate::rendering::*;
 pub use crate::expressions::*;
-pub use crate::prefabs::*;
+pub use crate::components::*;
 
 /*
 Creative development environment
@@ -38,9 +38,9 @@ TODO:
             [x] built-in vars like frame count
         [x] MVP rust closures + manifest of deps
     [ ] Layouts (stacks)
-        [x] Decide `primitive` vs. userland `prefabs`
-            `prefabs`
-        [ ] Template mechanism for prefabs
+        [x] Decide `primitive` vs. userland `components`
+            `components`
+        [ ] Template mechanism for components
         [ ] Control-flow `yield` for inputs/children
             [ ] Ensure path forward to userland `placeholders`
         [ ] Control-flow `repeat` for cells & dividers inside template
@@ -85,8 +85,8 @@ TODO:
         [ ] Layout-building tools
 === LOW
     [ ] Transform.shear
-    [ ] Audio/video prefabs
-        [ ] "headless" prefabs
+    [ ] Audio/video components
+        [ ] "headless" components
     [ ] Expression pre-compiler
         [ ] Enforce uniqueness and valid node/var naming, e.g. for `my_node.var.name`
         [ ] Parser for custom expression lang
