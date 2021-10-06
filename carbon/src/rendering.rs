@@ -99,7 +99,32 @@ pub trait RenderNode
 
     /// Returns the size of this node in pixels, requiring
     /// parent bounds for calculation of `Percent` values
-    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64);
+    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
+        let size_raw = self.get_size();
+        match size_raw {
+            Some(size_raw) => {
+                return (
+                    match size_raw.0 {
+                        Size::Pixel(width) => {
+                            width
+                        },
+                        Size::Percent(width) => {
+                            bounds.0 * (width / 100.0)
+                        }
+                    },
+                    match size_raw.1 {
+                        Size::Pixel(height) => {
+                            height
+                        },
+                        Size::Percent(height) => {
+                            bounds.1 * (height / 100.0)
+                        }
+                    }
+                )
+            },
+            None => return bounds
+        }
+    }
 
     fn get_id(&self) -> &str;
     fn get_origin(&self) -> (Size<f64>, Size<f64>);
@@ -258,9 +283,13 @@ impl RenderNode for Rectangle {
 
         let transformed_bez_path = *transform * bez_path;
         let duplicate_transformed_bez_path = transformed_bez_path.clone();
+        // let mock_clipping_path = Affine::translate((width / 4.0, height / 4.0)) * transformed_bez_path.clone();
 
+        // rc.clip(mock_clipping_path);
+        // rc.save();
         rc.fill(transformed_bez_path, fill);
         rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
+        // rc.restore();
     }
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }
@@ -295,8 +324,9 @@ impl RenderNode for Yield {
 
     fn get_align(&self) -> (f64, f64) { (0.0,0.0) }
     fn get_children(&self) -> RenderNodePtrList {
-        //TODO: return adoptee via iterator from stack frame
-        // Some(&self.children)
+        //NOTE: this relies on side-effects from elsewhere.
+        //      Returning &self.children works because a child
+        //      is side-effectfully added there during pre_render.
         Rc::clone(&self.children)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }

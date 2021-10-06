@@ -124,7 +124,7 @@ impl CarbonEngine {
                                 ))),
                                 Rc::new(RefCell::new(Rectangle {
                                     id: String::from("rect_4"),
-                                    align: (0.0, 0.5),
+                                    align: (0.5, 0.5),
                                     origin: (Size::Percent(50.0), Size::Percent(50.0)),
                                     size: (
                                         Box::new(PropertyExpression {

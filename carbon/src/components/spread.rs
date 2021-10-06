@@ -57,8 +57,7 @@ impl RenderNode for Frame {
     fn get_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
     }
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
-    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
+    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
@@ -84,7 +83,10 @@ impl RenderNode for Frame {
         bez_path.line_to((0.0,0.0));
         bez_path.close_path();
 
+        // rtc.runtime.borrow().log(&format!("Clipping: {} x {}", width ,height));
+
         let transformed_bez_path = *transform * bez_path;
+        rc.save(); //our "save point" before clipping — restored to in the post_render
         rc.clip(transformed_bez_path);
     }
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
@@ -254,27 +256,7 @@ impl RenderNode for Spread {
         Rc::clone(&self.template)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
-    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
-        let size_raw = self.get_size().unwrap();
-        return (
-            match size_raw.0 {
-                Size::Pixel(width) => {
-                    width
-                },
-                Size::Percent(width) => {
-                    bounds.0 * (width / 100.0)
-                }
-            },
-            match size_raw.1 {
-                Size::Pixel(height) => {
-                    height
-                },
-                Size::Percent(height) => {
-                    bounds.1 * (height / 100.0)
-                }
-            }
-        )
-    }
+
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
