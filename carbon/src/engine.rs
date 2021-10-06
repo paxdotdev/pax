@@ -9,12 +9,12 @@ use piet::RenderContext;
 use piet_web::WebRenderContext;
 
 use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderTree, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime, RenderNodePtr, RenderNodePtrList, VariableAccessLevel, Component};
+use crate::primitives::{Placeholder, Frame};
+use crate::components::{Spread};
 
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::components::spread::{Spread};
-use crate::primitives::frame::{Frame};
-use crate::primitives::placeholder::{Placeholder};
+
 // use crate::primitives::{Frame};
 
 // Public method for consumption by engine chassis, e.g. WebChassis
