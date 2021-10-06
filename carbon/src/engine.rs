@@ -90,9 +90,9 @@ impl CarbonEngine {
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Frame {
                             id: String::from("frame_1"),
-                            align: (0.0, 0.0),
-                            origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                            size: (Box::new(PropertyLiteral{value: Size::Pixel(450.0)}),Box::new(PropertyLiteral{value: Size::Pixel(450.0)})),
+                            align: (0.5, 0.5),
+                            origin: (Size::Percent(50.0), Size::Percent(50.0),),
+                            size: (Box::new(PropertyLiteral{value: Size::Pixel(550.0)}),Box::new(PropertyLiteral{value: Size::Pixel(400.0)})),
                             transform: Affine::default(),
                             children: Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
@@ -115,6 +115,23 @@ impl CarbonEngine {
                                                     size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
                                                 }
                                             )),
+                                            Rc::new(RefCell::new(
+                                                Rectangle {
+                                                    transform: Affine::default(),
+                                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
+                                                    align: (0.0, 0.0),
+                                                    fill:  Box::new(
+                                                        PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0) }
+                                                    ),
+                                                    stroke: Stroke {
+                                                        width: 4.0,
+                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                        color: Color::rgba(0.8, 0.8, 0.1, 1.0)
+                                                    },
+                                                    id: String::from("frame_filler"),
+                                                    size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                                                }
+                                            )),
                                         ])),
                                     String::from("my_first_spread"),
                                     (0.0, 0.0),
@@ -122,116 +139,137 @@ impl CarbonEngine {
                                     (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
                                     Default::default(),
                                 ))),
-                                Rc::new(RefCell::new(Rectangle {
-                                    id: String::from("rect_4"),
-                                    align: (0.5, 0.5),
-                                    origin: (Size::Percent(50.0), Size::Percent(50.0)),
-                                    size: (
-                                        Box::new(PropertyExpression {
-                                            last_value: Size::Pixel(100.0),
-                                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
-                                                unsafe {
-                                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                    return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
-                                                }
-                                            })
-                                        }),
-                                        Box::new(PropertyExpression {
-                                            last_value: Size::Pixel(500.0),
-                                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| {
-                                                unsafe {
-                                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                    return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
-                                                }
-                                            })
-                                        })
-                                    ),
-                                    fill: Box::new(
-                                        PropertyExpression {
-                                            last_value: Color::hlc(0.0,0.0,0.0),
-                                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Color {
-                                                unsafe {
-                                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                    return Color::hlc((((frames_elapsed / 500.) * 360.) as i64 % 360) as f64, 75.0, 127.0);
-                                                }
-                                            })
-                                        }
-                                    ),
-                                    transform: Affine::default(),
-                                    stroke: Stroke {
-                                        color: Color::hlc(280.0, 75.0, 127.0),
-                                        width: 1.0,
-                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                    },
-                                })),
+
+                                /////////
+
+                                // Rc::new(RefCell::new(Rectangle {
+                                //     id: String::from("rect_4"),
+                                //     align: (0.5, 0.5),
+                                //     origin: (Size::Percent(50.0), Size::Percent(50.0)),
+                                //     size: (
+                                //         Box::new(PropertyExpression {
+                                //             last_value: Size::Pixel(100.0),
+                                //             dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                //             evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
+                                //                 unsafe {
+                                //                     let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                //                     return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
+                                //                 }
+                                //             })
+                                //         }),
+                                //         Box::new(PropertyExpression {
+                                //             last_value: Size::Pixel(500.0),
+                                //             dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                //             evaluator: (|dep_values: HashMap<String, PolymorphicValue>| {
+                                //                 unsafe {
+                                //                     let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                //                     return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
+                                //                 }
+                                //             })
+                                //         })
+                                //     ),
+                                //     fill: Box::new(
+                                //         PropertyExpression {
+                                //             last_value: Color::hlc(0.0,0.0,0.0),
+                                //             dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                //             evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Color {
+                                //                 unsafe {
+                                //                     let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                //                     return Color::hlc((((frames_elapsed / 500.) * 360.) as i64 % 360) as f64, 75.0, 127.0);
+                                //                 }
+                                //             })
+                                //         }
+                                //     ),
+                                //     transform: Affine::default(),
+                                //     stroke: Stroke {
+                                //         color: Color::hlc(280.0, 75.0, 127.0),
+                                //         width: 1.0,
+                                //         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                //     },
+                                // })),
 
                                 ///////////////////////
 
-                                Rc::new(RefCell::new(Rectangle {
-                                    id: String::from("rect_6"),
-                                    align: (1.0, 0.5),
-                                    origin: (Size::Percent(100.0), Size::Percent(50.0)),
-                                    size: (
-                                        Box::new(PropertyLiteral { value: Size::Pixel(250.0) }),
-                                        Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
-                                    ),
-                                    fill: Box::new(PropertyLiteral{value: Color::hlc(200.0, 75.0, 127.0)}),
-                                    transform: Affine::default(),
-                                    stroke: Stroke {
-                                        color: Color::hlc(0.0, 75.0, 127.0),
-                                        width: 1.0,
-                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                    },
-                                })),
+                                // Rc::new(RefCell::new(Rectangle {
+                                //     id: String::from("rect_6"),
+                                //     align: (1.0, 0.5),
+                                //     origin: (Size::Percent(100.0), Size::Percent(50.0)),
+                                //     size: (
+                                //         Box::new(PropertyLiteral { value: Size::Pixel(250.0) }),
+                                //         Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
+                                //     ),
+                                //     fill: Box::new(PropertyLiteral{value: Color::hlc(200.0, 75.0, 127.0)}),
+                                //     transform: Affine::default(),
+                                //     stroke: Stroke {
+                                //         color: Color::hlc(0.0, 75.0, 127.0),
+                                //         width: 1.0,
+                                //         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                //     },
+                                // })),
 
                                 ///////////////////////////
 
-                                Rc::new(RefCell::new(Rectangle {
-                                    id: String::from("rect_5"),
-                                    align: (0.5, 0.5),
-                                    origin: (Size::Percent(0.0), Size::Percent(0.0),),
-                                    size: (
-                                        Box::new(PropertyExpression {
-                                            last_value: Size::Pixel(100.0),
-                                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
-                                                unsafe {
-                                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                    return Size::Percent((frames_elapsed / 200.0).cos() * 100.0)
-                                                }
-                                            })
-                                        }),
-                                        Box::new(PropertyExpression {
-                                            last_value: Size::Pixel(100.0),
-                                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
-                                                unsafe {
-                                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                    return Size::Percent((frames_elapsed / 200.0).sin() * 100.0)
-                                                }
-                                            })
-                                        })
-                                    ),
-                                    fill: Box::new(PropertyExpression {
-                                        last_value: Color::hlc(0.0,0.0,0.0),
-                                        dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                                        evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Color {
-                                            unsafe {
-                                                let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                                return Color::hlc((((frames_elapsed / 250.) * 360.) as i64 % 360) as f64, 75.0, 127.0);
-                                            }
-                                        })
-                                    }),
-                                    transform: Affine::translate((0.0, 0.0)),
-                                    stroke: Stroke {
-                                        color: Color::hlc(0.0, 75.0, 127.0),
-                                        width: 1.0,
-                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                    },
-                                })),
+                                // Rc::new(RefCell::new(Rectangle {
+                                //     id: String::from("rect_5"),
+                                //     align: (0.5, 0.5),
+                                //     origin: (Size::Percent(0.0), Size::Percent(0.0),),
+                                //     size: (
+                                //         Box::new(PropertyExpression {
+                                //             last_value: Size::Pixel(100.0),
+                                //             dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                //             evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
+                                //                 unsafe {
+                                //                     let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                //                     return Size::Percent((frames_elapsed / 200.0).cos() * 100.0)
+                                //                 }
+                                //             })
+                                //         }),
+                                //         Box::new(PropertyExpression {
+                                //             last_value: Size::Pixel(100.0),
+                                //             dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                //             evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
+                                //                 unsafe {
+                                //                     let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                //                     return Size::Percent((frames_elapsed / 200.0).sin() * 100.0)
+                                //                 }
+                                //             })
+                                //         })
+                                //     ),
+                                //     fill: Box::new(PropertyExpression {
+                                //         last_value: Color::hlc(0.0,0.0,0.0),
+                                //         dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
+                                //         evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Color {
+                                //             unsafe {
+                                //                 let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
+                                //                 return Color::hlc((((frames_elapsed / 250.) * 360.) as i64 % 360) as f64, 75.0, 127.0);
+                                //             }
+                                //         })
+                                //     }),
+                                //     transform: Affine::translate((0.0, 0.0)),
+                                //     stroke: Stroke {
+                                //         color: Color::hlc(0.0, 75.0, 127.0),
+                                //         width: 1.0,
+                                //         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                //     },
+                                // })),
+
+                                Rc::new(RefCell::new(
+                                    Rectangle {
+                                        transform: Affine::default(),
+                                        origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
+                                        align: (0.0, 0.0),
+                                        fill:  Box::new(
+                                            PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
+                                        ),
+                                        stroke: Stroke {
+                                            width: 4.0,
+                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                            color: Color::rgba(0.8, 0.8, 0.1, 1.0)
+                                        },
+                                        id: String::from("frame_filler"),
+                                        size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                                    }
+                                )),
                             ])),
                         })),
                     ])),
