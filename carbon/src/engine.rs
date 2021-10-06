@@ -141,6 +141,8 @@ impl CarbonEngine {
                                     (Size::Pixel(0.0), Size::Pixel(0.0)),
                                     (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
                                     Default::default(),
+                                    Size::Pixel(10.0),
+                                    None,
                                 ))),
 
                                 /////////

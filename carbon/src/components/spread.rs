@@ -6,96 +6,13 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list,};
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 
-pub struct Spread {
-    pub children: RenderNodePtrList,
-    pub id: String,
-    pub align: (f64, f64),
-    pub origin: (Size<f64>, Size<f64>),
-    pub size: (
-        Box<dyn Property<Size<f64>>>,
-        Box<dyn Property<Size<f64>>>,
-    ),
-    pub transform: Affine,
 
-    template: RenderNodePtrList,
-    variables: Vec<Variable>,
-}
 
-impl Spread {
-    pub fn new(
-    //TODO:  parameterize
-        children: RenderNodePtrList,
-        id: String,
-        align: (f64, f64),
-        origin: (Size<f64>, Size<f64>),
-        size: (Box<dyn Property<Size<f64>>>, Box<dyn Property<Size<f64>>>),
-        transform: Affine,
-    ) -> Self {
-        Spread {
-            children,
-            id,
-            align,
-            origin,
-            size,
-            transform,
-            //private "component declaration" here
-            template: Rc::new(RefCell::new(
-                vec![ Rc::new(RefCell::new(Frame {
-                    id: "cell_frame".to_string(),
-                    align: (0.0, 0.0),
-                    origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                    size:(
-                        Box::new(PropertyExpression {
-                            last_value: Size::Pixel(100.0),
-                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| -> Size<f64>  {
-                                unsafe {
-                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                    return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
-                                }
-                            })
-                        }),
-                        Box::new(PropertyExpression {
-                            last_value: Size::Pixel(500.0),
-                            dependencies: vec![(String::from("engine.frames_elapsed"), PolymorphicType::Float)],
-                            evaluator: (|dep_values: HashMap<String, PolymorphicValue>| {
-                                unsafe {
-                                    let frames_elapsed = dep_values.get("engine.frames_elapsed").unwrap().float;
-                                    return Size::Pixel((frames_elapsed / 100.).sin() * 500.)
-                                }
-                            })
-                        })
-                    ),
-                    transform: Affine::default(),
 
-                    children:  Rc::new(RefCell::new(vec![
-                        //TODO:wrap in repeat
-                        Rc::new(RefCell::new(
-                            Placeholder::new( "spread_frame_placeholder".to_string(), Affine::default())
-                        ))
-                    ])),
-                }))])
-            ),
-            variables: vec![]
-        }
-    }
-}
-
-//EXAMPLE SPREAD COMPONENT
-// <Component>
-    // <Metadata />
-    // <Template>
-        // <Repeat declarations={{(i, elem)}} iterable={{get_children()}}>
-            // <Frame transform={{get_frame_transform(i)}} size={{get_frame_size(i)}}>
-                // <Placeholder index={{i}}>
-            // </Frame>
-        // <Repeat/>
-    // </Template>
-// </Component>
 
 
 /*
@@ -126,6 +43,119 @@ TODO:
                 - Code-gen?  piece together strings into a file and run rustc on it?
             [ ] calling "class methods" from templates, e.g. <Repeat n=5><Rect color="get_color(i)"
  */
+
+
+//EXAMPLE SPREAD COMPONENT
+// <Component>
+//      <Metadata />
+//      <Template>
+//          <Repeat declarations={{(i, elem)}} iterable={{get_children()}}>
+//              <Frame transform={{get_frame_transform(i)}} size={{get_frame_size(i)}}>
+//                  <Placeholder index={{i}}>
+//              </Frame>
+//          <Repeat/>
+//      </Template>
+// </Component>
+
+
+pub struct Spread {
+    pub children: RenderNodePtrList,
+    pub id: String,
+    pub align: (f64, f64),
+    pub origin: (Size<f64>, Size<f64>),
+    pub size: (
+        Box<dyn Property<Size<f64>>>,
+        Box<dyn Property<Size<f64>>>,
+    ),
+    pub transform: Affine,
+
+    pub gutter: Size<f64>,
+    pub cell_size_spec: Option<Vec<Size<f64>>>,
+
+    template: RenderNodePtrList,
+    variables: Vec<Variable>,
+}
+
+impl Spread {
+    pub fn new(
+    //TODO:  parameterize
+        children: RenderNodePtrList,
+        id: String,
+        align: (f64, f64),
+        origin: (Size<f64>, Size<f64>),
+        size: (Box<dyn Property<Size<f64>>>, Box<dyn Property<Size<f64>>>),
+        transform: Affine,
+        gutter: Size<f64>,
+        cell_size_spec: Option<Vec<Size<f64>>>,
+    ) -> Self {
+        Spread {
+            children,
+            id,
+            align,
+            origin,
+            size,
+            transform,
+            gutter,
+            cell_size_spec,
+            //private "component declaration" here, for template & variables
+            template: Rc::new(RefCell::new(
+                vec![
+                    Rc::new(RefCell::new(
+                    //TODO:wrap in repeat
+                    Frame {
+                        id: "cell_frame_left".to_string(),
+                        align: (0.0, 0.0),
+                        origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
+                        size:(
+                            (
+                                Box::new(PropertyLiteral { value: Size::Percent(50.0) } ),
+                                Box::new(PropertyLiteral { value: Size::Percent(100.0) } ),
+                            )
+                        ),
+                        transform: Affine::default(),
+
+                        children:  Rc::new(RefCell::new(vec![
+                            Rc::new(RefCell::new(
+                                Placeholder::new( "spread_frame_placeholder_left".to_string(), Affine::default())
+                            )),
+                            Rc::new(RefCell::new(
+                                Placeholder::new( "spread_frame_placeholder_right".to_string(), Affine::default())
+                            ))
+                        ])),
+                    })),
+                    Rc::new(RefCell::new(
+                        //TODO:wrap in repeat
+                        Frame {
+                            id: "cell_frame_right".to_string(),
+                            align: (1.0, 0.0),
+                            origin: (Size::Percent(100.0), Size::Pixel(0.0),),
+                            size:(
+                                (
+                                    Box::new(PropertyLiteral { value: Size::Percent(50.0) } ),
+                                    Box::new(PropertyLiteral { value: Size::Percent(100.0) } ),
+                                )
+                            ),
+                            transform: Affine::default(),
+
+                            children:  Rc::new(RefCell::new(vec![
+                                Rc::new(RefCell::new(
+                                    Placeholder::new( "spread_frame_placeholder_left".to_string(), Affine::default())
+                                )),
+                                Rc::new(RefCell::new(
+                                    Placeholder::new( "spread_frame_placeholder_right".to_string(), Affine::default())
+                                ))
+                            ])
+                        ),
+                        }
+                    )),
+                ])
+            ),
+            variables: vec![]
+        }
+    }
+}
+
+
 
 impl RenderNode for Spread {
 
@@ -180,8 +210,8 @@ impl RenderNode for Spread {
         // c: finally render the rectangle itself; return & allow recursion to keep whirring
         // i,j,d: repeat g,h,c
 
-        //TODO:  return root of internal template here, instead of `self.children`
-        //       (which are the adoptees)
+        //return root of internal template here, instead of `self.children`
+        //(which are the adoptees)
         Rc::clone(&self.template)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
@@ -198,8 +228,16 @@ impl RenderNode for Spread {
         //       probably need to do the memoization via a RefCell for mutability concerns,
         //       since pre_render happens during immutable render tree recursion
 
+        //Algo:
+        // 1. determine number of adoptees (&self.children), `n`
+        // 2. determine gutter, `g`
+        // 3. determine bounding size, `(x,y)`
+
+        //TODO:  can this be done purely via expressions?
+
+
         rtc.runtime.borrow_mut().push_stack_frame(
-            Rc::clone(&self.get_children())
+            Rc::clone(&self.children)
         );
     }
 
