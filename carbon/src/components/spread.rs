@@ -118,9 +118,6 @@ impl Spread {
                             Rc::new(RefCell::new(
                                 Placeholder::new( "spread_frame_placeholder_left".to_string(), Affine::default())
                             )),
-                            Rc::new(RefCell::new(
-                                Placeholder::new( "spread_frame_placeholder_right".to_string(), Affine::default())
-                            ))
                         ])),
                     })),
                     Rc::new(RefCell::new(
@@ -139,11 +136,8 @@ impl Spread {
 
                             children:  Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
-                                    Placeholder::new( "spread_frame_placeholder_left".to_string(), Affine::default())
-                                )),
-                                Rc::new(RefCell::new(
                                     Placeholder::new( "spread_frame_placeholder_right".to_string(), Affine::default())
-                                ))
+                                )),
                             ])
                         ),
                         }
@@ -233,7 +227,14 @@ impl RenderNode for Spread {
         // 2. determine gutter, `g`
         // 3. determine bounding size, `(x,y)`
 
-        //TODO:  can this be done purely via expressions?
+        match &self.cell_size_spec {
+            //If a cell_size_spec is provided, use it.
+            Some(cell_size_spec) => (),
+            //Otherwise, calculate one
+            None => {
+
+            }
+        }
 
 
         rtc.runtime.borrow_mut().push_stack_frame(

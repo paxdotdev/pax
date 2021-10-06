@@ -1,4 +1,6 @@
-use std::cell::{RefCell};
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
 use kurbo::{
     BezPath,
@@ -8,12 +10,10 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicValue, PropertyLiteral, Rectangle, RenderTree, Stroke, StrokeStyle, Variable, PolymorphicType, PropertyTreeContext, Runtime, RenderNodePtr, RenderNodePtrList, VariableAccessLevel, Component};
-use crate::primitives::{Placeholder, Frame};
-use crate::components::{Spread};
-
-use std::collections::HashMap;
-use std::rc::Rc;
+use crate::{Affine, Color, Component, Error, PolymorphicType, PolymorphicValue, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Variable, VariableAccessLevel};
+use crate::components::Spread;
+use crate::primitives::{Frame, Placeholder};
+use crate::primitives::group::Group;
 
 // use crate::primitives::{Frame};
 
@@ -112,7 +112,7 @@ impl CarbonEngine {
                                                     stroke: Stroke {
                                                         width: 4.0,
                                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                        color: Color::rgba(0.8, 0.8, 0.1, 1.0)
+                                                        color: Color::rgba(1.0, 1.0, 0.0, 1.0)
                                                     },
                                                     id: String::from("frame_filler"),
                                                     size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
@@ -129,7 +129,7 @@ impl CarbonEngine {
                                                     stroke: Stroke {
                                                         width: 4.0,
                                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                        color: Color::rgba(0.8, 0.8, 0.1, 1.0)
+                                                        color: Color::rgba(0.0, 1.0, 1.0, 1.0)
                                                     },
                                                     id: String::from("frame_filler"),
                                                     size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),

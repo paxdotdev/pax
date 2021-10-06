@@ -28,25 +28,27 @@ TODO:
     [x] Refactor web chassis
     [x] Logging
     [x] Stroke, color, fill
-    [x] Clean up warnings
     [x] Sizing
         [x] Browser resize support
         [x] None-sizing
         [x] Transform.align
+        [x] Transform.origin
     [x] Expression engine
         [x] variables, declaration & storage
         [x] node IDs
         [x] summonables
             [x] built-in vars like frame count
         [x] MVP rust closures + manifest of deps
-    [ ] Layouts (stacks)
+    [ ] Spreads (née Stacks)
         [x] Decide `primitive` vs. userland `components`
             `components`
-        [ ] Template mechanism for components
-        [ ] Control-flow `placeholder` (`placeholder`) for inputs/children
-            [ ] Ensure path forward to userland `placeholders`
+        [x] Internal template mechanism for components
+            [x] Make `root` into a component definition
+        [x] Control-flow `placeholder` (`placeholder`) for inputs/children
+            [x] Ensure path forward to userland `placeholders`
+        [x] Clipping & Frames
         [ ] Control-flow `repeat` for cells & dividers inside template
-        [ ] Clipping & Frames
+        [ ] Gutter
     [ ] Timelines, transitions, t9ables
     [ ] Documentation & usage
     [ ] Mixed mode
@@ -58,6 +60,14 @@ TODO:
             [ ] Text input
             [ ] Dropdown
     [ ] Hook up all relevant properties to Property
+    [ ] Template compilation
+        [ ] Syntax & file design
+        [ ] File extension, FS structure decisions
+            - Non-HTML extension (so it doesn't get confusedly treated as HTML)
+              but "every Dash file is a valid HTML file"
+            - Check out Unity FS structure: components, assets, code-behind
+        [ ] Code-behind & default implementations
+        [ ] Helpful compiler errors, line numbers
     [ ] Refactors
         [ ] Is there a way to better-DRY the shared logic across render-nodes?
             e.g. check out the `get_size` methods for Frame and Spread
@@ -68,16 +78,18 @@ TODO:
         [ ] Rename various properties, e.g. bounding_dimens => bounds
         [ ] Bundle Transform into "sugary transform," incl. origin & align; consider a separate transform_matrix property
         [ ] Take a pass on references/ownership in render_render_tree — perhaps &Affine should transfer ownership instead, for example
+        [ ] introduce a way to #derive `eval_in_place`
 === MED
     [ ] Ellipse
     [ ] Path
-    [x] Transform.origin
+    [ ] Frames: overflow scrolling
     [ ] PoC on iOS, Android
         [ ] Extricate Engine's dependency on WebRenderContext
     [ ] Image primitive
+        [ ] Hook into `piet`s image rendering
+        [ ] Asset management
     [ ] Gradients
         [ ] Multiple (stacked, polymorphic) fills
-    [ ] De/serializing for BESTful format
     [ ] Expressions
         [ ] dependency graph, smart traversal, circ. ref detection
         [ ] nested property access & figure out access control (descendent vs ancestor vs global+acyclic+(+private?))
@@ -89,6 +101,7 @@ TODO:
         [ ] track and update custom states/variables
         [ ] expose API for manipulating state via Actions
     [ ] Authoring tool
+        [ ] De/serialization to BESTful (HTML-ish, template) format
         [ ] Drawing tools
         [ ] Layout-building tools
 === LOW
