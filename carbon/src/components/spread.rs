@@ -3,6 +3,8 @@ use piet_web::{WebRenderContext};
 use crate::{Variable, Property, Affine, PropertyTreeContext, RenderNode, Size, RenderTreeContext, RenderTree, RenderNodePtrList, wrap_render_node_ptr_into_list, RenderNodePtr, Yield, PropertyExpression, PolymorphicValue, PolymorphicType};
 use std::rc::Rc;
 use std::collections::HashMap;
+use kurbo::BezPath;
+use piet::RenderContext;
 
 pub struct Spread {
     pub children: RenderNodePtrList,
@@ -44,7 +46,7 @@ pub struct Frame {
     // Revisit mixed mode clipping, at least for Web (ensure viable path)
     //   seems like we can implement a similar API:  wrc.clip(path), draw (scroll bars, text, form controls), then wrc.restore()
     // Add clipping (path?) data to the RenderTreeContext here in Frame's logic
-    //   or.... maybe we can just use rc.clip() directly from
+    //   or.... maybe we can just use rc.clip() directly from pre_render (and rc.restore() from post_render)
 }
 
 impl RenderNode for Frame {
@@ -64,13 +66,31 @@ impl RenderNode for Frame {
     fn get_transform(&self) -> &Affine {
         &self.transform
     }
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        //TODO: construct a BezPath of this frame's bounds * its transform
-        //      and pass that BezPath into rc.clip()
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+
+        // construct a BezPath of this frame's bounds * its transform,
+        // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
+        //TODO:  if clipping is TURNED OFF for this Frame, don't do any of this
+        let transform = rtc.transform;
+        let bounding_dimens = rtc.bounding_dimens;
+        let width: f64 =  bounding_dimens.0;
+        let height: f64 =  bounding_dimens.1;
+
+        let mut bez_path = BezPath::new();
+        bez_path.move_to((0.0, 0.0));
+        bez_path.line_to((width , 0.0));
+        bez_path.line_to((width , height ));
+        bez_path.line_to((0.0, height));
+        bez_path.line_to((0.0,0.0));
+        bez_path.close_path();
+
+        let transformed_bez_path = *transform * bez_path;
+        rc.clip(transformed_bez_path);
     }
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-
+        //pop the clipping context from the stack
+        rc.restore();
     }
 }
 
@@ -268,7 +288,7 @@ impl RenderNode for Spread {
         //       since pre_render happens during immutable render tree recursion
 
         rtc.runtime.borrow_mut().push_stack_frame(
-            Rc::clone(&rtc.node.borrow().get_children())
+            Rc::clone(&self.get_children())
         );
     }
 

@@ -12,7 +12,7 @@ use crate::{Affine, Color, Error, Group, Size, PropertyExpression, PolymorphicVa
 
 use std::collections::HashMap;
 use std::rc::Rc;
-use crate::components::spread::Spread;
+use crate::components::spread::{Spread, Frame};
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
@@ -69,14 +69,12 @@ impl StackFrame {
 
 impl CarbonEngine {
     fn new(logger: fn(&str), viewport_size: (f64, f64)) -> Self {
+        (logger)("Logging is working inside Engine constructor");
         CarbonEngine {
             logger,
             frames_elapsed: 0,
-            runtime: Rc::new(RefCell::new(Runtime::new())),
+            runtime: Rc::new(RefCell::new(Runtime::new(logger))),
             render_tree: Rc::new(RefCell::new(RenderTree {
-                //TODO:  root should be a Component (specifically: a Component definition — i.e. definition of a prefab,) not a Group
-                //       - Components have locals/variables but Groups are just primitives
-                //
                 root: Rc::new(RefCell::new(Component {
                     id: String::from("root"),
                     align: (0.0, 0.0),
@@ -90,10 +88,11 @@ impl CarbonEngine {
                     ],
                     transform: Affine::default(),
                     template: Rc::new(RefCell::new(vec![
-                        Rc::new(RefCell::new(Group {
-                            id: String::from("group_1"),
+                        Rc::new(RefCell::new(Frame {
+                            id: String::from("frame_1"),
                             align: (0.0, 0.0),
                             origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
+                            size: (Box::new(PropertyLiteral{value: Size::Pixel(450.0)}),Box::new(PropertyLiteral{value: Size::Pixel(450.0)})),
                             transform: Affine::default(),
                             children: Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
@@ -125,7 +124,7 @@ impl CarbonEngine {
                                 ))),
                                 Rc::new(RefCell::new(Rectangle {
                                     id: String::from("rect_4"),
-                                    align: (0.5, 0.5),
+                                    align: (0.0, 0.5),
                                     origin: (Size::Percent(50.0), Size::Percent(50.0)),
                                     size: (
                                         Box::new(PropertyExpression {
@@ -264,7 +263,6 @@ impl CarbonEngine {
     }
 
     fn recurse_render_render_tree(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext, node: RenderNodePtr)  {
-
         //populate a pointer to this (current) `RenderNode` onto `rtc`
         rtc.node = Rc::clone(&node);
 
@@ -299,9 +297,10 @@ impl CarbonEngine {
         let align_transform = Affine::translate((node.borrow().get_align().0 * accumulated_bounds.0, node.borrow().get_align().1 * accumulated_bounds.1));
         let new_accumulated_transform = *accumulated_transform * align_transform * origin_transform * *node.borrow().get_transform();
 
-        //default to our parent-provided bounding dimensions
+        //get the size of this node (calc'd or otherwise) and use
+        //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
+        //and for this node itself (e.g. for specifying the size of a Rectangle node)
         let new_accumulated_bounds = node.borrow().get_size_calc(accumulated_bounds);
-
 
         let mut new_rtc = RenderTreeContext {
             bounding_dimens: new_accumulated_bounds,
@@ -315,9 +314,7 @@ impl CarbonEngine {
         //           this is useful for pre-computation, e.g. for layout
         //           or for in-place mutations, e.g. `Yield`'s children/adoptee-switching logic
 
-        {
-            node.borrow_mut().pre_render(&mut new_rtc, rc);
-        }
+        node.borrow_mut().pre_render(&mut new_rtc, rc);
 
         {
             let children = node.borrow().get_children();
@@ -371,16 +368,20 @@ impl CarbonEngine {
     fn recurse_update_property_tree(&self, ctx: &PropertyTreeContext, node: &mut RenderNodePtr)  {
         // Recurse:
         //  - iterate in a pre-order traversal, ensuring ancestors have been evaluated first
-        //  - for each property, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
+        //  - for each propzerty, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
         //  - done
 
-        node.borrow_mut().eval_properties_in_place(ctx);
+        let mut node_borrowed = node.borrow_mut();
+        let rnpl = node_borrowed.get_children(); //gnarly unboxing step.  can we improve ergonomics here?
+        let mut children_borrowed = rnpl.borrow_mut();
+
+        node_borrowed.eval_properties_in_place(ctx);
+
         {
-            let children = node.borrow_mut().get_children();
+
             //keep recursing as long as we have children
-            for i in 0..children.borrow().len() {
+            for i in 0..children_borrowed.len() {
                 //note that we're iterating starting from the last child
-                let mut children_borrowed = children.borrow_mut();
                 let child = children_borrowed.get_mut(i); //TODO: ?-syntax
                 match child {
                     None => { return },

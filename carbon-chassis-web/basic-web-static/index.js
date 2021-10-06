@@ -1,4 +1,4 @@
-const rust = import('./dist/carbon_example');
+const rust = import('./dist/carbon_chassis_web');
 console.log("JS loaded")
 rust
   .then(m => m.run())

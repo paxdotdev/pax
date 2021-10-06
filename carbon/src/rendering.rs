@@ -19,7 +19,7 @@ pub fn wrap_render_node_ptr_into_list(rnp: RenderNodePtr) -> RenderNodePtrList {
 }
 
 pub struct RenderTree {
-    pub root: RenderNodePtr
+    pub root: RenderNodePtr //TODO:  maybe this should be more strictly a Rc<RefCell<Component>>, or a new type (alias) "ComponentPtr"
 }
 
 impl RenderTree {
@@ -31,12 +31,18 @@ impl RenderTree {
 /// scopes, stack frames, and properties should live here.
 pub struct Runtime {
     stack: Vec<Rc<RefCell<StackFrame>>>,
+    logger: fn(&str),
 }
 impl Runtime {
-    pub fn new() -> Self {
+    pub fn new(logger: fn(&str)) -> Self {
         Runtime {
             stack: Vec::new(),
+            logger,
         }
+    }
+
+    pub fn log(&self, message: &str) {
+        (&self.logger)(message);
     }
 
     /// Return a pointer to the top StackFrame on the stack,
@@ -281,7 +287,7 @@ impl Yield {
 //       like <Yield index={{i}} />
 //       or should we stick with this side-effectful "first come first served" approach?
 //       Seems like the former is more robust, and the latter is a bit more "magical"
-//       (one fewer button to press!)
+//       (one fewer button to press! but one more trick to learn.)
 impl RenderNode for Yield {
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
         //TODO: handle each of Group's `Expressable` properties
