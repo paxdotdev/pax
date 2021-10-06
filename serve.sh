@@ -9,7 +9,7 @@ set -ex
 
 #cargo build --manifest-path=../../../piet/Cargo.toml --all-targets --all-features
 cd carbon-chassis-web
-wasm-pack build -d basic-web-static/dist
+wasm-pack build --dev -d basic-web-static/dist
 
 # Finally, package everything up using Webpack and start a server so we can
 # browse the result

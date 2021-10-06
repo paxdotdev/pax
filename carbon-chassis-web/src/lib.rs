@@ -52,8 +52,6 @@ pub fn run() {
     #[cfg(feature = "console_error_panic_hook")]
     std::panic::set_hook(Box::new(console_error_panic_hook::hook));
 
-
-    console_log!("Logging is working in chassis-web via console_log");
     let window = window().unwrap();
     let canvas = window
         .document()

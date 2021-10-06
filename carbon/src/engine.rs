@@ -24,7 +24,6 @@ pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
 }
 
 pub struct CarbonEngine {
-    pub logger: fn(&str),
     pub frames_elapsed: u32,
     pub render_tree: Rc<RefCell<RenderTree>>,
     pub runtime: Rc<RefCell<Runtime>>,
@@ -72,9 +71,7 @@ impl StackFrame {
 
 impl CarbonEngine {
     fn new(logger: fn(&str), viewport_size: (f64, f64)) -> Self {
-        (logger)("Logging is working inside Engine constructor");
         CarbonEngine {
-            logger,
             frames_elapsed: 0,
             runtime: Rc::new(RefCell::new(Runtime::new(logger))),
             render_tree: Rc::new(RefCell::new(RenderTree {
@@ -282,11 +279,6 @@ impl CarbonEngine {
             })),
             viewport_size,
         }
-    }
-
-    #[allow(dead_code)]
-    fn log(&self, msg: &str) {
-        (self.logger)(msg);
     }
 
     fn render_render_tree(&self, rc: &mut WebRenderContext) {
