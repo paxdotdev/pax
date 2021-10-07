@@ -72,7 +72,6 @@ pub struct Spread {
     pub cell_size_spec: Option<Vec<Size<f64>>>,
 
     template: RenderNodePtrList,
-    variables: Vec<Variable>,
 }
 
 impl Spread {
@@ -143,7 +142,7 @@ impl Spread {
                     )),
                 ])
             ),
-            variables: vec![]
+            // variables: vec![]
         }
     }
 }

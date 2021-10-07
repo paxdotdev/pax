@@ -10,7 +10,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Component, Error, PolymorphicType, PolymorphicValue, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Variable, VariableAccessLevel};
+use crate::{Affine, Color, Component, Error, PolymorphicType, PolymorphicValue, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Variable, VariableAccessLevel, RepeatableDatum};
 use crate::components::Spread;
 use crate::primitives::{Frame, Placeholder};
 use crate::primitives::group::Group;
@@ -40,12 +40,9 @@ pub struct RenderTreeContext<'a>
     pub node: RenderNodePtr,
 }
 
-
 pub struct Scope {
-
     types: HashMap<String, PolymorphicType>,
     values: HashMap<String, PolymorphicValue>,
-
 }
 
 /// Attaches to stack frames to provide an evaluation context + relevant data access
@@ -112,6 +109,11 @@ impl StackFrame {
     }
 }
 
+struct MyMainComponent {
+    rotation: f64,
+}
+impl MyMainComponent {}
+
 impl CarbonEngine {
     fn new(logger: fn(&str), viewport_size: (f64, f64)) -> Self {
         CarbonEngine {
@@ -120,15 +122,16 @@ impl CarbonEngine {
             render_tree: Rc::new(RefCell::new(RenderTree {
                 root: Rc::new(RefCell::new(Component {
                     id: String::from("root"),
+                    properties: MyMainComponent{ rotation: 0.44},
                     align: (0.0, 0.0),
                     origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                    variables: vec![
-                        Variable {
-                            name: String::from("rotation"),
-                            value: PolymorphicValue { float: 1.2 },
-                            access: VariableAccessLevel::Public,
-                        },
-                    ],
+                    // variables: vec![
+                    //     Variable {
+                    //         name: String::from("rotation"),
+                    //         value: Box::new(PolymorphicValue::Float(1.2)),
+                    //         access: VariableAccessLevel::Public,
+                    //     },
+                    // ],
                     transform: Affine::default(),
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Frame {

@@ -113,6 +113,16 @@ impl Runtime {
     ]
  }
  */
+//
+// TODO:
+//  - Rename ScopeFrame to RepeatFrame
+//  - make RepeatFrame<D(atum)> a component definition instead of a primitive
+//     - this gives us a scope, stack frame, & data model for free
+//       (just need to pass `i, datum` into the component declaration via Repeat's "template")
+//  - What else do we need to do for <D> and <T> as they relate to Component?
+//    (e.g. Component<D>?  What are the implications?)
+//
+
 
 pub trait RenderNode
 {
@@ -178,16 +188,16 @@ pub trait RenderNode
     fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
 }
 
-pub struct Component {
+pub struct Component<P> {
     pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
     pub id: String,
     pub align: (f64, f64),
     pub origin: (Size<f64>, Size<f64>),
     pub transform: Affine,
-    pub variables: Vec<Variable>,
+    pub properties: P,
 }
 
-impl RenderNode for Component {
+impl<T> RenderNode for Component<T> {
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
         //TODO: handle each of Component's `Expressable` properties
         //  - this includes any custom properties (inputs) passed into this component
@@ -195,6 +205,8 @@ impl RenderNode for Component {
 
     fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> RenderNodePtrList {
+        //Perhaps counter-intuitively, `Component`s return the root
+        //of their template, rather than their `children`, for calls to get_children
         Rc::clone(&self.template)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }

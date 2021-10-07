@@ -1,11 +1,11 @@
 use std::collections::HashMap;
-use crate::{CarbonEngine, Runtime};
+use crate::{CarbonEngine, Runtime, RepeatableDatum};
 use std::rc::Rc;
 use std::cell::RefCell;
 
 pub struct Variable {
     pub name: String,
-    pub value: PolymorphicValue,
+    pub value: Box<PolymorphicValue>,
     pub access: VariableAccessLevel,
 }
 
@@ -14,21 +14,17 @@ pub enum VariableAccessLevel {
     Private,
 }
 
-pub union PolymorphicValue {
-    pub float: f64,
-    pub int: i64,
-    pub boolean: bool,
-    //TODO:  support String
-    //  ^ perhaps `ManuallyDrop<String>`, a la
-    //  `ManuallyDrop::new(String::from("literal"))`
-    //  see https://doc.rust-lang.org/reference/items/unions.html
-    //  NOTE: it appears rustc ^1.50 is needed for this
+pub enum PolymorphicValue
+{
+    Float(f64),
+    Integer(i64),
+    Boolean(bool),
 }
 
 pub enum PolymorphicType {
     Float,
     Integer,
-    Boolean
+    Boolean,
 }
 
 pub trait Property<T> {
@@ -51,13 +47,17 @@ impl<T> Property<T> for PropertyLiteral<T> {
     }
 }
 
-pub struct PropertyExpression<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> {
+pub struct PropertyExpression<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T>
+where T: Sized
+{
     pub evaluator: E,
     pub dependencies : Vec<(String, PolymorphicType)>,
     pub last_value: T,
 }
 
-impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> PropertyExpression<T, E> {
+impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> PropertyExpression<T, E>
+where T: Sized
+{
     //TODO:  support types other than f64
     fn resolve_dependency(&self, name: &str, engine: &CarbonEngine) -> f64 {
         // Turn a string like `"this.property_name"` or `"engine.frames_elapsed"`
@@ -104,7 +104,7 @@ impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> Property<T> for Proper
             match value {
                 PolymorphicType::Float => {
                     let val = &self.resolve_dependency(key, ctx.engine);
-                    dep_values.insert(key.to_owned(), PolymorphicValue{float: *val});
+                    dep_values.insert(key.to_owned(), PolymorphicValue::Float(*val));
                 }
                 PolymorphicType::Integer => {
                     panic!("Integer types not implemented for expression dependencies")
