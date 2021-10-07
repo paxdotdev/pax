@@ -29,18 +29,30 @@ TODO:
     [x] Frame
         [x] Clipping
     [x] Placeholder
-    [ ] Repeat
-        [ ] "flattening yield" to support <Spread><Repeat n=5><Rect>...
-        [ ] scopes:
-            [ ] `i`, `datum`
+    [x] Repeat
+        [x] "flattening yield" to support <Spread><Repeat n=5><Rect>...
+        [x] scopes:
+            [x] `i`, `datum`
             [x] braced templating {} ? or otherwise figure out `eval`
                 - Code-gen?  piece together strings into a file and run rustc on it?
                 * Can achieve this with Expressions for now
             [x] calling "class methods" from templates, e.g. <Repeat n=5><Rect color="get_color(i)"
                 * Can achieve with expressions
-    [ ] Parameterization
-        [ ] Gutter
-        [ ] Size specs
+    [ ] Scopes & DI
+        [ ] Figure out dissonance between:  1. string based keys, 2. struct `Properties`
+            and figure out how this plays out into the property DI mechanism.  Along the way,
+            figure out how to inject complex objects (ideally with a path forward to a JS runtime.)
+                - Option A: write a macro that decorates expression definitions (or _is_ the exp. def.) and (if possible)
+                            generates the necessary code to match param names to elsewhere-registered dependency streams (Angular-style)
+
+        [ ] Support getting self (or Scope) for access to Repeat Data
+            - use-case: translate each element within a `repeat` by `i * k`
+        [ ] Quick pass on other relevant data to get from Scopes
+    [ ] Layout
+        [ ] Primary logic + repeat via expression
+        [ ] Parameterize:
+            - Gutter
+            - Size specs
  */
 
 
