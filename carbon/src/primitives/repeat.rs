@@ -24,7 +24,7 @@ struct RepeatFrame<D> {
 }
 
 impl<D> Repeat<D> {
-    fn new(list: Vec<Rc<D>>, children: RenderNodePtrList, id: String, transform: Affine) -> Self {
+    pub fn new(list: Vec<Rc<D>>, children: RenderNodePtrList, id: String, transform: Affine) -> Self {
         Repeat {
             list,
             children,
@@ -39,85 +39,22 @@ impl<D> Repeat<D> {
 impl<D: 'static> RenderNode for Repeat<D> {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Repeat's `Expressable` properties
-        //
-
-        // TODO:
-        //  - add internal component store for virtual nodes, making this node their owner
-        //  - add generics throughout Component to represent its data model
-        //  - add a Component<RepeatFrame<D>> to the above store for each datum in array
-        //  - return
-        //
-
-
 
         //reset children
-        self.children = Rc::new(RefCell::new(Vec::new()));
-
+        self.virtual_children = Rc::new(RefCell::new(Vec::new()));
 
         //for each element in self.list, create a new child (Component) and push it to self.children
         for (i, datum) in self.list.iter().enumerate() {
             let properties = RepeatFrame { datum: Rc::clone(&datum), i, id: format!("repeat_frame_{}", i) };
-            let adoptees = &ptc.runtime.borrow_mut().peek_stack_frame().unwrap().borrow().get_adoptees();
-
-            self.children.borrow_mut().push(Rc::new(RefCell::new(Component {
-                template: Rc::clone(adoptees),
+            self.virtual_children.borrow_mut().push(Rc::new(RefCell::new(Component {
+                template: Rc::clone(&self.children),
                 id: "".to_string(),
                 align: (0.0, 0.0),
                 origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
                 transform: Affine::default(),
                 properties,
             })));
-            // self.child_node_values.push(Rc::new(RefCell::new(Component {
-            //     template: Rc::clone(adoptees),
-            //     id: "".to_string(),
-            //     align: (0.0, 0.0),
-            //     origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-            //     transform: Affine::default(),
-            //     properties,
-            // })));
-            // self.children.borrow_mut().push(Rc::clone(&self.child_node_values[i]))
         }
-        //
-        // let y : Vec<_> = self.list.iter().enumerate().map(|(i, datum)|{
-        //     //Construct the RepeatFrame that wraps each repeated datum
-        //
-        //     let adoptees = &ptc.runtime.borrow_mut().peek_stack_frame().unwrap().borrow().get_adoptees();
-        //     Rc::new(RefCell::new(Component {
-        //         template: Rc::clone(adoptees),
-        //         id: "".to_string(),
-        //         align: (0.0, 0.0),
-        //         origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-        //         transform: Affine::default(),
-        //         properties: frame
-        //     }))
-        // }).collect();
-        //
-        // for i in y {
-        //     self.children.borrow_mut().push(Rc::clone(&i));
-        // }
-
-
-         //TODO:  how do we set self.children = ^ the above?
-
-
-
-        //
-        // self.children = Rc::new(RefCell::new(
-        //     self.list.iter().enumerate().map(|(i, datum)|{
-        //
-        //         // 1. construct a `puppeteer` node,
-        //         //     - pass it the scope data (i, datum)
-        //         // 2. Attach a copy of each child of this `repeat` node
-        //         //     as a child of `puppeteer`
-        //         // 3. write logic in `puppeteer` that delegates rendering to its contained nodes
-        //         // 4. evaluate if we need to support any flattening fanciness around here
-        //
-        //
-        //         let children_borrowed = self.children.borrow();
-        //
-        //
-        //     }).collect()
-        // ))
     }
 
     fn get_align(&self) -> (f64, f64) {
@@ -127,7 +64,7 @@ impl<D: 'static> RenderNode for Repeat<D> {
         true
     }
     fn get_children(&self) -> RenderNodePtrList {
-        Rc::clone(&self.children)
+        Rc::clone(&self.virtual_children)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
@@ -144,46 +81,6 @@ impl<D: 'static> RenderNode for Repeat<D> {
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }
-
-//
-// impl RenderNode for RepeatFrame {
-//     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-//         //TODO: handle each of ScopeFrame's `Expressable` properties
-//
-//
-//         ptc.runtime.borrow_mut().push_stack_frame(
-//             Rc::clone(&self.children),
-//             //TODO:  cloning this data is a potentially heavy operation.  May be worth
-//             //       revisiting design here, e.g. to pass a smart/pointer of `Scope` to the stack
-//             self.scope.clone(),
-//         );
-//
-//     }
-//
-//     fn get_align(&self) -> (f64, f64) {
-//         (0.0, 0.0)
-//     }
-//     fn should_flatten(&self) -> bool {
-//         true
-//     }
-//     fn get_children(&self) -> RenderNodePtrList {
-//         Rc::clone(&self.children)
-//     }
-//     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
-//     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-//     fn get_id(&self) -> &str {
-//         &self.id.as_str()
-//     }
-//     fn get_origin(&self) -> (Size<f64>, Size<f64>) {
-//         (Size::Pixel(0.0), Size::Pixel(0.0))
-//     }
-//     fn get_transform(&self) -> &Affine {
-//         &self.transform
-//     }
-//     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
-//     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-//     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
-// }
 
 
 /*

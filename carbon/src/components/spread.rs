@@ -6,7 +6,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat};
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 
@@ -98,83 +98,86 @@ impl Spread {
             //private "component declaration" here, for template & variables
             template: Rc::new(RefCell::new(
                 vec![
-
-
-
-                    // Rc::new(RefCell::new(
-                    //     //TODO:wrap in repeat
-                    //     Repeat {
-                    //         list:
-                    //         id: "cell_frame_left".to_string(),
-                    //         align: (0.0, 0.0),
-                    //         origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                    //         size:(
-                    //             (
-                    //                 Box::new(PropertyLiteral { value: Size::Percent(50.0) } ),
-                    //                 Box::new(PropertyLiteral { value: Size::Percent(100.0) } ),
-                    //             )
-                    //         ),
-                    //
-                    //         transform: Affine::default(),
-                    //
-                    //         children:  Rc::new(RefCell::new(vec![
-                    //             Rc::new(RefCell::new(
-                    //                 Placeholder::new( "spread_frame_placeholder_left".to_string(), Affine::default(), 0)
-                    //             )),
-                    //         ])),
-                    //     }
-                    // )),
-
-
-                    ///////////
-
-
-
                     Rc::new(RefCell::new(
-
-                    //TODO:wrap in repeat
-                    Frame {
-                        id: "cell_frame_left".to_string(),
-                        align: (0.0, 0.0),
-                        origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                        size:(
-                            (
-                                Box::new(PropertyLiteral { value: Size::Percent(50.0) } ),
-                                Box::new(PropertyLiteral { value: Size::Percent(100.0) } ),
-                            )
-                        ),
-                        transform: Affine::default(),
-
-                        children:  Rc::new(RefCell::new(vec![
-                            Rc::new(RefCell::new(
-                                Placeholder::new( "spread_frame_placeholder_left".to_string(), Affine::default(), 0)
-                            )),
-                        ])),
-                    })),
-                    Rc::new(RefCell::new(
-                        //TODO:wrap in repeat
-                        Frame {
-                            id: "cell_frame_right".to_string(),
-                            align: (1.0, 0.0),
-                            origin: (Size::Percent(100.0), Size::Pixel(0.0),),
-                            size:(
-                                (
-                                    Box::new(PropertyLiteral { value: Size::Percent(50.0) } ),
-                                    Box::new(PropertyLiteral { value: Size::Percent(100.0) } ),
-                                )
-                            ),
-                            transform: Affine::default(),
-
-                            children:  Rc::new(RefCell::new(vec![
+                        Repeat::new(
+                            vec![Rc::new(1),Rc::new(2),Rc::new(3),Rc::new(2),Rc::new(3),Rc::new(2),Rc::new(3)],
+                            Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
-                                    Placeholder::new( "spread_frame_placeholder_right".to_string(), Affine::default(), 1)
-                                )),
-                            ])
-                        ),
-                        }
-                    )),
-                ])
-            ),
+                                    Rectangle {
+                                        transform: Affine::default(),
+                                        origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
+                                        align: (0.0, 0.0),
+                                        fill:  Box::new(
+                                            PropertyLiteral {value: Color::rgba(0.14, 0.44, 0.64, 0.25) }
+                                        ),
+                                        stroke: Stroke {
+                                            width: 4.0,
+                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                            color: Color::rgba(1.0, 1.0, 0.0, 1.0)
+                                        },
+                                        id: String::from("frame_half_filler"),
+                                        size: (Box::new(PropertyLiteral{value: Size::Percent(50.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                                    }
+                                ))
+                            ])),
+                            "id".to_string(),
+                            Affine::default()
+                        )
+                    ))
+                ]
+            ))
+
+
+
+
+            /*
+
+            Rc::new(RefCell::new(
+                                                        Frame {
+                                                            id: "cell_frame_left".to_string(),
+                                                            align: (0.0, 0.0),
+                                                            origin: (Size::Pixel(0.0), Size::Pixel(0.0), ),
+                                                            size: (
+                                                                (
+                                                                    Box::new(PropertyLiteral { value: Size::Percent(50.0) }),
+                                                                    Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
+                                                                )
+                                                            ),
+                                                            transform: Affine::default(),
+
+                                                            children: Rc::new(RefCell::new(vec![
+                                                                Rc::new(RefCell::new(
+                                                                    Placeholder::new("spread_frame_placeholder_left".to_string(), Affine::default(), 0)
+                                                                )),
+                                                            ])),
+                                                        }
+                                                    )),
+                                                    Rc::new(RefCell::new(
+                                                        //TODO:wrap in repeat
+                                                        Frame {
+                                                            id: "cell_frame_right".to_string(),
+                                                            align: (1.0, 0.0),
+                                                            origin: (Size::Percent(100.0), Size::Pixel(0.0), ),
+                                                            size: (
+                                                                (
+                                                                    Box::new(PropertyLiteral { value: Size::Percent(50.0) }),
+                                                                    Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
+                                                                )
+                                                            ),
+                                                            transform: Affine::default(),
+
+                                                            children: Rc::new(RefCell::new(
+                                                                vec![
+                                                                    Rc::new(RefCell::new(
+                                                                        Placeholder::new("spread_frame_placeholder_right".to_string(), Affine::default(), 1)
+                                                                    )),
+                                                                ])
+                                                            ),
+                                                        }
+                                                    )),
+             */
+
+
             // variables: vec![]
         }
     }
