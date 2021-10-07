@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, PolymorphicType, StackFrame};
+use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, PolymorphicType, StackFrame, Component, wrap_render_node_ptr_into_list};
 use std::collections::HashMap;
 
 pub struct Repeat<T> {
@@ -13,19 +13,8 @@ pub struct Repeat<T> {
     pub transform: Affine,
 }
 
-
-struct SampleDatum {
-   user_avatar_url: String,
-   user_id: usize,
-}
-
-pub trait RepeatableDatum {
-}
-
-impl RepeatableDatum for SampleDatum {}
-
 impl<D> RenderNode for Repeat<D> {
-    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
+    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Repeat's `Expressable` properties
         //
 
@@ -36,29 +25,29 @@ impl<D> RenderNode for Repeat<D> {
         //  - return
         //
 
-        let frame = RepeatFrame { datum: d, i: i, id: format!("repeat_frame_{}", i) };
 
 
-        self.list.iter().enumerate().map(|i, datum|{
-            let mut adoptees = ();
-            //keys:  i, datum
-            let mut types = HashMap::new();
-            types.insert("i".to_string(), PolymorphicType::Integer);
-            let sample_datum = SampleDatum{
-                user_avatar_url: "https://catpix.rs/144395".to_string(),
-                user_id: i * 1000 + i,
-            };
-            types.insert("datum".to_string(), PolymorphicType::Object(sample_datum)); //TODO:  what to do here?
-            let values = HashMap::new();
-            values.insert("i".to_string(), unimplemented!());
-            values.insert("datum".to_string(), unimplemented!());
-            let scope = Scope {
-                types,
-                values,
-            };
-            let new_stack_frame = StackFrame::new(adoptees, scope);
-            new_children.push()
-        });
+
+
+            let y : Vec<_> = self.list.iter().enumerate().map(|(i, datum)|{
+                //Construct the RepeatFrame that wraps each repeated datum
+                let frame = RepeatFrame { datum, i, id: format!("repeat_frame_{}", i) };
+                let adoptees = &ptc.runtime.borrow_mut().peek_stack_frame().unwrap().borrow().get_adoptees();
+                Rc::new(RefCell::new(Component {
+                    template: Rc::clone(adoptees),
+                    id: "".to_string(),
+                    align: (0.0, 0.0),
+                    origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
+                    transform: Affine::default(),
+                    properties: frame
+                }))
+            }).collect();
+        wrap_render_node_ptr_into_list(y)
+
+         //TODO:  how do we set self.children = ^ the above?
+
+
+
         //
         // self.children = Rc::new(RefCell::new(
         //     self.list.iter().enumerate().map(|(i, datum)|{
@@ -108,9 +97,9 @@ impl<D> RenderNode for Repeat<D> {
 ///
 /// This is useful, for example, in the `Repeat` component definition, where each
 /// repeated node needs a unique scope available containing the active index & datum.
-struct RepeatFrame<D> {
+struct RepeatFrame<'a, D> {
     pub i: usize,
-    pub datum: D,
+    pub datum: &'a D,
     pub id: String,
 }
 //
