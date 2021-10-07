@@ -16,8 +16,20 @@ impl RenderNode for Repeat {
         //TODO: handle each of Repeat's `Expressable` properties
     }
 
+
+    // TODO:  Figure out "flattening" for
+    //        e.g. passing repeated children into
+    //        a Spread.
+    //        One (somewhat clunky) option is to
+    //        introduce a `flatten` method onto every
+    //        RenderNode, such that `if node is Repeat, flatten returns its children, else flatten returns the node itself`.
+
+
     fn get_align(&self) -> (f64, f64) {
         (0.0, 0.0)
+    }
+    fn should_flatten(&self) -> bool {
+        true
     }
     fn get_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)

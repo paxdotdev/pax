@@ -11,10 +11,6 @@ use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 
 
-
-
-
-
 /*
 TODO:
     [x] decide on API design, expected GUI experience
@@ -23,7 +19,7 @@ TODO:
         - Cell widths
     [x] expose a Spread element for consumption by engine
     [x] accept children, just like primitives e.g. `Group`
-    [ ] author an internal template, incl. `placeholder`ing children and `repeating` inputs
+    [x] author an internal template, incl. `placeholder`ing children and `repeating` inputs
         <Frame repeat=self.children transform=get_transform(i)>
             <Placeholder index=i>
         </Frame>
@@ -33,15 +29,18 @@ TODO:
     [x] Frame
         [x] Clipping
     [x] Placeholder
-        - might be done but can't be tested until we have a proper Component
-          subtree ("prefab render tree") to work with
     [ ] Repeat
-        [ ] "flattening placeholder" to support <Spread><Repeat n=5><Rect>...
+        [ ] "flattening yield" to support <Spread><Repeat n=5><Rect>...
         [ ] scopes:
-            [ ] `i`
-            [ ] braced templating {} ? or otherwise figure out `eval`
+            [ ] `i`, `datum`
+            [x] braced templating {} ? or otherwise figure out `eval`
                 - Code-gen?  piece together strings into a file and run rustc on it?
-            [ ] calling "class methods" from templates, e.g. <Repeat n=5><Rect color="get_color(i)"
+                * Can achieve this with Expressions for now
+            [x] calling "class methods" from templates, e.g. <Repeat n=5><Rect color="get_color(i)"
+                * Can achieve with expressions
+    [ ] Parameterization
+        [ ] Gutter
+        [ ] Size specs
  */
 
 
@@ -116,7 +115,7 @@ impl Spread {
 
                         children:  Rc::new(RefCell::new(vec![
                             Rc::new(RefCell::new(
-                                Placeholder::new( "spread_frame_placeholder_left".to_string(), Affine::default())
+                                Placeholder::new( "spread_frame_placeholder_left".to_string(), Affine::default(), 0)
                             )),
                         ])),
                     })),
@@ -136,7 +135,7 @@ impl Spread {
 
                             children:  Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
-                                    Placeholder::new( "spread_frame_placeholder_right".to_string(), Affine::default())
+                                    Placeholder::new( "spread_frame_placeholder_right".to_string(), Affine::default(), 1)
                                 )),
                             ])
                         ),
@@ -153,8 +152,19 @@ impl Spread {
 
 impl RenderNode for Spread {
 
-    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
+    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Spread's `Expressable` properties
+
+        //TODO:  handle caching children/adoptees
+
+        ptc.runtime.borrow_mut().push_stack_frame(
+            Rc::clone(&self.children)
+        );
+    }
+
+    fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
+        //clean up the stack frame for the next component
+        ptc.runtime.borrow_mut().pop_stack_frame();
     }
 
     fn get_align(&self) -> (f64, f64) { self.align }
@@ -174,12 +184,12 @@ impl RenderNode for Spread {
         //
         // example Spread (prefab) render tree
         //          e( root )
-        //              |      //  expanded:
-        //          f( Repeat  //  n=2 )
-        //           /         //    \
-        //      g( Frame )     //   i( Frame )
-        //          |          //      |
-        //      h( Placeholder )     //   j( Placeholder )
+        //              |         //  expanded:
+        //          f( Repeat  .. //  n=2 )
+        //           /            //      \
+        //      g( Frame )        //     i( Frame )
+        //          |             //        |
+        //      h( Placeholder )  //     j( Placeholder )
         //
         // traversal order:
         // [a b e f g h c i j d]
@@ -237,9 +247,6 @@ impl RenderNode for Spread {
         }
 
 
-        rtc.runtime.borrow_mut().push_stack_frame(
-            Rc::clone(&self.children)
-        );
     }
 
     fn render(&self, _sc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
@@ -247,8 +254,7 @@ impl RenderNode for Spread {
     }
 
     fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        //clean up the stack frame for the next component
-        rtc.runtime.borrow_mut().pop_stack_frame();
+
     }
 
 }

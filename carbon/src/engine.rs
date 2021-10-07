@@ -66,7 +66,6 @@ impl StackFrame {
             None
         }
     }
-
 }
 
 impl CarbonEngine {
@@ -261,7 +260,7 @@ impl CarbonEngine {
                                         origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
                                         align: (0.0, 0.0),
                                         fill:  Box::new(
-                                            PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
+                                            PropertyLiteral {value: Color::rgba(0.5, 0.5, 0.5, 1.0) }
                                         ),
                                         stroke: Stroke {
                                             width: 4.0,
@@ -282,7 +281,6 @@ impl CarbonEngine {
     }
 
     fn render_render_tree(&self, rc: &mut WebRenderContext) {
-
         // Broadly:
         // 1. find lowest node (last child of last node), accumulating transform along the way
         // 2. start rendering, from lowest node on-up
@@ -307,9 +305,7 @@ impl CarbonEngine {
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
-        //  - done
-
-
+        //  - done with this frame
 
         let node_size_calc = node.borrow().get_size_calc(accumulated_bounds);
         let origin_transform = Affine::translate(
@@ -346,9 +342,9 @@ impl CarbonEngine {
         };
 
         //lifecycle: pre_render happens before traversing this node's children
-        //           this is useful for pre-computation, e.g. for layout
-        //           or for in-place mutations, e.g. `Placeholder`'s children/adoptee-switching logic
-
+        //           this is useful for pre-computation or for in-place mutations,
+        //           e.g. `Placeholder`'s children/adoptee-switching logic
+        //           and `Spread`'s layout-computing logic
         node.borrow_mut().pre_render(&mut new_rtc, rc);
 
         {
@@ -372,14 +368,12 @@ impl CarbonEngine {
 
         // `render` lifecycle event:
         // this is this node's time to do its own rendering, aside
-        // from its children.  Its children have already been rendered
+        // from its children.  Its children have already been rendered.
         node.borrow().render(&mut new_rtc, rc);
 
         //Lifecycle event: post_render can be used for cleanup, e.g. for
         //components to pop a stack frame
-        {
-            node.borrow().post_render(&mut new_rtc, rc);
-        }
+        node.borrow().post_render(&mut new_rtc, rc);
     }
 
     pub fn update_property_tree(&self) {
@@ -395,6 +389,7 @@ impl CarbonEngine {
         // - make this and all `property` logic part of `Runtime`?
         let ctx = PropertyTreeContext {
             engine: &self,
+            runtime: Rc::clone(&self.runtime),
         };
 
         &self.recurse_update_property_tree(&ctx,&mut self.render_tree.borrow_mut().root);
@@ -402,12 +397,12 @@ impl CarbonEngine {
 
     fn recurse_update_property_tree(&self, ctx: &PropertyTreeContext, node: &mut RenderNodePtr)  {
         // Recurse:
-        //  - iterate in a pre-order traversal, ensuring ancestors have been evaluated first
-        //  - for each propzerty, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
+        //  - evaluate in a pre-order traversal, ensuring ancestors have been evaluated first
+        //  - for each property, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
         //  - done
 
         let mut node_borrowed = node.borrow_mut();
-        let rnpl = node_borrowed.get_children(); //gnarly unboxing step.  can we improve ergonomics here?
+        let rnpl = node_borrowed.get_children(); //gnarly unboxing step to appease borrow-checker.  can we improve ergonomics here?
         let mut children_borrowed = rnpl.borrow_mut();
 
         node_borrowed.eval_properties_in_place(ctx);
@@ -426,6 +421,8 @@ impl CarbonEngine {
                 }
             }
         }
+
+        node_borrowed.post_eval_properties_in_place(ctx);
     }
 
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {

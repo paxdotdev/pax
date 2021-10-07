@@ -10,14 +10,16 @@ use crate::{RenderNodePtrList, RenderNode, PropertyTreeContext, Size, RenderTree
 pub struct Placeholder {
     pub id: String,
     pub transform: Affine,
+    pub index: i64,
     children: RenderNodePtrList,
 }
 
 impl Placeholder {
-    pub fn new(id: String, transform: Affine) -> Self {
+    pub fn new(id: String, transform: Affine, index: i64) -> Self {
         Placeholder {
             id,
             transform,
+            index,
             children: Rc::new(RefCell::new(vec![])),
         }
     }
@@ -31,15 +33,28 @@ impl Placeholder {
 //       Seems like the former is more robust, and the latter is a bit more "magical"
 //       (one fewer button to press! but one more trick to learn.)
 impl RenderNode for Placeholder {
-    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
+    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Group's `Expressable` properties
+
+        // The following sort of children-caching is done by "control flow" primitives
+        // (Placeholder, Repeat, If) —
+        self.children = match ptc.runtime.borrow_mut().peek_stack_frame() {
+            Some(stack_frame) => {
+                // Grab the first adoptee from the current stack frame
+                // and make it Placeholder's own child.
+                match stack_frame.borrow_mut().next_adoptee() {
+                    Some(adoptee) => {
+                        rendering::wrap_render_node_ptr_into_list(adoptee)
+                    },
+                    None => {Rc::new(RefCell::new(vec![]))}
+                }
+            },
+            None => {Rc::new(RefCell::new(vec![]))}
+        }
     }
 
     fn get_align(&self) -> (f64, f64) { (0.0,0.0) }
     fn get_children(&self) -> RenderNodePtrList {
-        //NOTE: this relies on side-effects from elsewhere.
-        //      Returning &self.children works because a child
-        //      is side-effectfully added there during pre_render.
         Rc::clone(&self.children)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
@@ -52,23 +67,7 @@ impl RenderNode for Placeholder {
         &self.transform
     }
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        // grab the first adoptee from the current stack frame
-        // and make it Placeholder's own child.
-        //
-        // this might be more elegant as a dynamic lookup inside the get_children
-        // method, but at the time of authoring that would require refactoring
-        // get_children to accept the RenderNodeContext, which zb opted not to do.
-        self.children = match rtc.runtime.borrow_mut().peek_stack_frame() {
-            Some(stack_frame) => {
-                match stack_frame.borrow_mut().next_adoptee() {
-                    Some(adoptee) => {
-                        rendering::wrap_render_node_ptr_into_list(adoptee)
-                    },
-                    None => {Rc::new(RefCell::new(vec![]))}
-                }
-            },
-            None => {Rc::new(RefCell::new(vec![]))}
-        }
+
     }
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}

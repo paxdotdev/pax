@@ -1,5 +1,7 @@
 use std::collections::HashMap;
-use crate::CarbonEngine;
+use crate::{CarbonEngine, Runtime};
+use std::rc::Rc;
+use std::cell::RefCell;
 
 pub struct Variable {
     pub name: String,
@@ -80,6 +82,7 @@ impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> PropertyExpression<T, 
 
 pub struct PropertyTreeContext<'a> {
     pub engine: &'a CarbonEngine,
+    pub runtime: Rc<RefCell<Runtime>>,
 }
 
 impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> Property<T> for PropertyExpression<T, E> {
@@ -92,12 +95,7 @@ impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> Property<T> for Proper
 
         let mut dep_values : HashMap<String, PolymorphicValue> = HashMap::new();
 
-
         for (key, value) in self.dependencies.iter() {
-
-            //TODO:  we will need a reference to Engine here
-            //       -- should we make it 'static or should
-            //          we pass a reference?  (or other?)
 
             //  this value needs to be evaluated from a combination of:
             //  - engine, for globals like current frame count

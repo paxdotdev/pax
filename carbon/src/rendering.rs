@@ -7,7 +7,7 @@ use piet_web::WebRenderContext;
 
 use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable};
 
-pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
+pub type RenderNodePtr = Rc<RefCell<dyn RenderNode >>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
 
 // Take a singleton node and wrap it into a Vec, e.g. to make a
@@ -63,11 +63,42 @@ impl Runtime {
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Placeholder`
     pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList) {
+
+
+        //TODO:  for all children inside `adoptees`, check whether child `should_flatten`.
+        //       If so, retrieve the `RenderNodePtrList` for its children and splice that list
+        //       into a working full `RenderNodePtrList`.  This should be done recursively until
+        //       there are no more descendents who are "contiguously flat".
+        //PROBLEM: because of the way we're relying on side-effectful, lifecycle driven `children` swaps
+        //       to handle things like `Placeholder`, we can't rely on this pre-emptive flattening to be accurate.
+        //       Ideally, in `Placeholder` (and `Repeat`) calls to `get_children()` are dynamic, digging into the current stack_frame
+        //       as appropriate.
+
+
         self.stack.push(
             Rc::new(RefCell::new(
                 StackFrame::new(adoptees)
             ))
         );
+    }
+
+
+    fn flatten_render_node_ptr_list (nested: RenderNodePtrList) -> RenderNodePtrList {
+        // let mut expanded = Vec::new();
+        let len = nested.borrow().len();
+        for i in (0..len) {
+            if nested.borrow()[i].borrow().should_flatten() {
+                // expanded.inappend(Rc::clone(&nested.borrow()[i]));
+            }else{
+
+            }
+        };
+        //TODO:  change to expanded
+        Rc::clone(&nested)
+    }
+
+    fn recurse_flatten_render_node_ptr_list(nested: RenderNodePtrList) -> RenderNodePtrList {
+        unimplemented!()
     }
 }
 
@@ -89,12 +120,20 @@ impl Runtime {
 pub trait RenderNode
 {
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
+    fn post_eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {}
     fn get_align(&self) -> (f64, f64);
-    fn get_children(&self) -> RenderNodePtrList;
-
+    fn get_children(&self, ) -> RenderNodePtrList;
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)>;
+
+    /// Rarely needed:  Used for exotic tree traversals, e.g. for `Spread` > `Repeat` > `Rectangle`
+    /// where the repeated `Rectangle`s need to be be considered direct children of `Spread`.
+    /// `Repeat` overrides `should_flatten` to return true, which `Engine` interprets to mean "ignore this
+    /// node and consume its children" during traversal
+    fn should_flatten(&self) -> bool {
+        false
+    }
 
     /// Returns the size of this node in pixels, requiring
     /// parent bounds for calculation of `Percent` values
