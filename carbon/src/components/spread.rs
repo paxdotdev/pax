@@ -6,7 +6,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral};
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 
@@ -158,7 +158,8 @@ impl RenderNode for Spread {
         //TODO:  handle caching children/adoptees
 
         ptc.runtime.borrow_mut().push_stack_frame(
-            Rc::clone(&self.children)
+            Rc::clone(&self.children),
+            Scope::empty()
         );
     }
 

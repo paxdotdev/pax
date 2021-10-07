@@ -40,19 +40,59 @@ pub struct RenderTreeContext<'a>
     pub node: RenderNodePtr,
 }
 
+
+pub struct Scope {
+
+    types: HashMap<String, PolymorphicType>,
+    values: HashMap<String, PolymorphicValue>,
+
+}
+
+/// Attaches to stack frames to provide an evaluation context + relevant data access
+/// for features like Expressions.
+/// The stored values that are DI'ed into expressions are held in these scopes,
+/// e.g. `index` and `datum` for `Repeat`.
+impl Scope {
+
+    /// Holds a triplet of data (key: String, value: PolymorphicValue, type: PolymorphicType)
+    /// but does so in two parallel hashmaps of (key -> value) and (key -> type).
+    /// Constructing a new scope requires passing those two hashmaps.
+    pub fn new(types: HashMap<String, PolymorphicType>,
+        values: HashMap<String, PolymorphicValue>) -> Self {
+        Scope {
+            types, values,
+        }
+    }
+
+    pub fn get_type(&self, key: &str) -> &PolymorphicType {
+        &self.types.get(key).unwrap()
+    }
+
+    pub fn get_value(&self, key: &str) -> &PolymorphicValue {
+        &self.values.get(key).unwrap()
+    }
+
+    pub fn empty() -> Self {
+        Scope {
+            types: HashMap::new(),
+            values: HashMap::new(),
+        }
+    }
+}
+
 pub struct StackFrame
 {
     adoptees: RenderNodePtrList,
-    // adoptee_iter: Box<dyn Iterator<Item = RenderNodePtr>>,
     adoptee_index: usize,
-    //TODO: manage scope here for expressions, dynamic templating
+    scope: Scope,
 }
 
 impl StackFrame {
-    pub fn new(adoptees: RenderNodePtrList) -> Self {
+    pub fn new(adoptees: RenderNodePtrList, scope: Scope) -> Self {
         StackFrame {
             adoptees: Rc::clone(&adoptees),
             adoptee_index: 0,
+            scope,
         }
     }
 

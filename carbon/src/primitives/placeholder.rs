@@ -25,9 +25,12 @@ impl Placeholder {
     }
 }
 
+
+
+
 impl RenderNode for Placeholder {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-        //TODO: handle each of Group's `Expressable` properties
+        //TODO: handle each of Placeholder's `Expressable` properties
 
         // The following sort of children-caching is done by "control flow" primitives
         // (Placeholder, Repeat, If) —

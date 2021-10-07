@@ -5,7 +5,8 @@ use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable};
+use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType};
+use std::collections::HashMap;
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode >>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
@@ -62,22 +63,18 @@ impl Runtime {
 
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Placeholder`
-    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList) {
+    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Scope) {
 
 
         //TODO:  for all children inside `adoptees`, check whether child `should_flatten`.
         //       If so, retrieve the `RenderNodePtrList` for its children and splice that list
         //       into a working full `RenderNodePtrList`.  This should be done recursively until
         //       there are no more descendents who are "contiguously flat".
-        //PROBLEM: because of the way we're relying on side-effectful, lifecycle driven `children` swaps
-        //       to handle things like `Placeholder`, we can't rely on this pre-emptive flattening to be accurate.
-        //       Ideally, in `Placeholder` (and `Repeat`) calls to `get_children()` are dynamic, digging into the current stack_frame
-        //       as appropriate.
 
 
         self.stack.push(
             Rc::new(RefCell::new(
-                StackFrame::new(adoptees)
+                StackFrame::new(adoptees, scope)
             ))
         );
     }
