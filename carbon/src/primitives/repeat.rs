@@ -6,14 +6,37 @@ use piet_web::WebRenderContext;
 use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, PolymorphicType, StackFrame, Component, wrap_render_node_ptr_into_list};
 use std::collections::HashMap;
 
-pub struct Repeat<T> {
-    pub children: Rc<RefCell<Vec<RenderNodePtr>>>,
-    pub list: Vec<T>,
+pub struct Repeat<D> {
+    pub children: RenderNodePtrList,
+    pub list: Vec<Rc<D>>,
     pub id: String,
     pub transform: Affine,
+    virtual_children: RenderNodePtrList,
 }
 
-impl<D> RenderNode for Repeat<D> {
+/// Data structure for the virtually duplicated container that surrounds repeated nodes.
+/// This is attached to a Component<RepeatFrame> that `Repeat` adds to its children dynamically
+/// during property-tree traversal
+struct RepeatFrame<D> {
+    pub i: usize,
+    pub datum: Rc<D>,
+    pub id: String,
+}
+
+impl<D> Repeat<D> {
+    fn new(list: Vec<Rc<D>>, children: RenderNodePtrList, id: String, transform: Affine) -> Self {
+        Repeat {
+            list,
+            children,
+            id,
+            transform,
+            virtual_children:  Rc::new(RefCell::new(vec![])),
+
+        }
+    }
+}
+
+impl<D: 'static> RenderNode for Repeat<D> {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Repeat's `Expressable` properties
         //
@@ -27,22 +50,52 @@ impl<D> RenderNode for Repeat<D> {
 
 
 
+        //reset children
+        self.children = Rc::new(RefCell::new(Vec::new()));
 
 
-            let y : Vec<_> = self.list.iter().enumerate().map(|(i, datum)|{
-                //Construct the RepeatFrame that wraps each repeated datum
-                let frame = RepeatFrame { datum, i, id: format!("repeat_frame_{}", i) };
-                let adoptees = &ptc.runtime.borrow_mut().peek_stack_frame().unwrap().borrow().get_adoptees();
-                Rc::new(RefCell::new(Component {
-                    template: Rc::clone(adoptees),
-                    id: "".to_string(),
-                    align: (0.0, 0.0),
-                    origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-                    transform: Affine::default(),
-                    properties: frame
-                }))
-            }).collect();
-        wrap_render_node_ptr_into_list(y)
+        //for each element in self.list, create a new child (Component) and push it to self.children
+        for (i, datum) in self.list.iter().enumerate() {
+            let properties = RepeatFrame { datum: Rc::clone(&datum), i, id: format!("repeat_frame_{}", i) };
+            let adoptees = &ptc.runtime.borrow_mut().peek_stack_frame().unwrap().borrow().get_adoptees();
+
+            self.children.borrow_mut().push(Rc::new(RefCell::new(Component {
+                template: Rc::clone(adoptees),
+                id: "".to_string(),
+                align: (0.0, 0.0),
+                origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
+                transform: Affine::default(),
+                properties,
+            })));
+            // self.child_node_values.push(Rc::new(RefCell::new(Component {
+            //     template: Rc::clone(adoptees),
+            //     id: "".to_string(),
+            //     align: (0.0, 0.0),
+            //     origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
+            //     transform: Affine::default(),
+            //     properties,
+            // })));
+            // self.children.borrow_mut().push(Rc::clone(&self.child_node_values[i]))
+        }
+        //
+        // let y : Vec<_> = self.list.iter().enumerate().map(|(i, datum)|{
+        //     //Construct the RepeatFrame that wraps each repeated datum
+        //
+        //     let adoptees = &ptc.runtime.borrow_mut().peek_stack_frame().unwrap().borrow().get_adoptees();
+        //     Rc::new(RefCell::new(Component {
+        //         template: Rc::clone(adoptees),
+        //         id: "".to_string(),
+        //         align: (0.0, 0.0),
+        //         origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
+        //         transform: Affine::default(),
+        //         properties: frame
+        //     }))
+        // }).collect();
+        //
+        // for i in y {
+        //     self.children.borrow_mut().push(Rc::clone(&i));
+        // }
+
 
          //TODO:  how do we set self.children = ^ the above?
 
@@ -92,16 +145,6 @@ impl<D> RenderNode for Repeat<D> {
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }
 
-/// Similar in concept to a `Frame` but unrelated to rendering, `ScopedFrame` pushes
-/// a frame onto the runtime stack containing the specified `scope`.
-///
-/// This is useful, for example, in the `Repeat` component definition, where each
-/// repeated node needs a unique scope available containing the active index & datum.
-struct RepeatFrame<'a, D> {
-    pub i: usize,
-    pub datum: &'a D,
-    pub id: String,
-}
 //
 // impl RenderNode for RepeatFrame {
 //     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {

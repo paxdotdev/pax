@@ -6,7 +6,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope};
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 
@@ -98,7 +98,40 @@ impl Spread {
             //private "component declaration" here, for template & variables
             template: Rc::new(RefCell::new(
                 vec![
+
+
+
+                    // Rc::new(RefCell::new(
+                    //     //TODO:wrap in repeat
+                    //     Repeat {
+                    //         list:
+                    //         id: "cell_frame_left".to_string(),
+                    //         align: (0.0, 0.0),
+                    //         origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
+                    //         size:(
+                    //             (
+                    //                 Box::new(PropertyLiteral { value: Size::Percent(50.0) } ),
+                    //                 Box::new(PropertyLiteral { value: Size::Percent(100.0) } ),
+                    //             )
+                    //         ),
+                    //
+                    //         transform: Affine::default(),
+                    //
+                    //         children:  Rc::new(RefCell::new(vec![
+                    //             Rc::new(RefCell::new(
+                    //                 Placeholder::new( "spread_frame_placeholder_left".to_string(), Affine::default(), 0)
+                    //             )),
+                    //         ])),
+                    //     }
+                    // )),
+
+
+                    ///////////
+
+
+
                     Rc::new(RefCell::new(
+
                     //TODO:wrap in repeat
                     Frame {
                         id: "cell_frame_left".to_string(),

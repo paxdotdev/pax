@@ -39,6 +39,8 @@ TODO:
         [x] summonables
             [x] built-in vars like frame count
         [x] MVP rust closures + manifest of deps
+    [ ] Split out userland code
+        [ ] Add a third project to workspace, the sample project
     [ ] Spreads (née Stacks)
         [x] Decide `primitive` vs. userland `components`
             `components`
