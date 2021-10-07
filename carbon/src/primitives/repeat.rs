@@ -5,25 +5,39 @@ use piet_web::WebRenderContext;
 
 use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size};
 
-pub struct Repeat {
+pub struct Repeat<T> {
     pub children: Rc<RefCell<Vec<RenderNodePtr>>>,
+    pub list: Vec<T>,
     pub id: String,
     pub transform: Affine,
 }
 
-impl RenderNode for Repeat {
+impl<T> RenderNode for Repeat<T> {
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
         //TODO: handle each of Repeat's `Expressable` properties
+
+
+        self.children = Rc::new(RefCell::new(
+            self.list.iter().enumerate().map(|(i, datum)|{
+                //TODO: assemble stack frame scope: index, datum.
+                //      How do we pass that scope to the duplicated nodes?
+                //      Should we construct a "puppeteer" node that
+                //         1. pushes the stack frame for us, and
+                //         2. delegates the rendering to our duplicated node
+
+                // 1. construct a `puppeteer` node,
+                //     - pass it the stack_frame details (i, datum)
+                // 2. Attach a copy of each child of this `repeat` node
+                //     as a child of `puppeteer`
+                // 3. write logic in `puppeteer` that delegates rendering to its contained nodes
+                // 4. evaluate if we need to support any flattening fanciness around here
+                
+
+                let children_borrowed = self.children.borrow();
+
+            }).collect()
+        ))
     }
-
-
-    // TODO:  Figure out "flattening" for
-    //        e.g. passing repeated children into
-    //        a Spread.
-    //        One (somewhat clunky) option is to
-    //        introduce a `flatten` method onto every
-    //        RenderNode, such that `if node is Repeat, flatten returns its children, else flatten returns the node itself`.
-
 
     fn get_align(&self) -> (f64, f64) {
         (0.0, 0.0)

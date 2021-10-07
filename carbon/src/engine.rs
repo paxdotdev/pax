@@ -56,6 +56,10 @@ impl StackFrame {
         }
     }
 
+    pub fn get_adoptees(&self) -> RenderNodePtrList {
+        Rc::clone(&self.adoptees)
+    }
+
     pub fn next_adoptee(&mut self) -> Option<RenderNodePtr> {
         let len = self.adoptees.borrow().len();
         if self.adoptee_index < len {

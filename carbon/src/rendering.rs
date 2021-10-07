@@ -119,13 +119,22 @@ impl Runtime {
 
 pub trait RenderNode
 {
+
     fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
+
+    /// Lifecycle event: fires after evaluating a node's properties in place and its descendents properties
+    /// in place.  Useful for cleaning up after a node (e.g. popping from the runtime stack) because
+    /// this is the last time this node will be visited within the property tree for this frame.
+    /// (Empty) default implementation because this is a rarely needed hook
     fn post_eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {}
-    fn get_align(&self) -> (f64, f64);
+
+    fn get_align(&self) -> (f64, f64) { (0.0,0.0) }
     fn get_children(&self, ) -> RenderNodePtrList;
+
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)>;
+
 
     /// Rarely needed:  Used for exotic tree traversals, e.g. for `Spread` > `Repeat` > `Rectangle`
     /// where the repeated `Rectangle`s need to be be considered direct children of `Spread`.
@@ -165,7 +174,7 @@ pub trait RenderNode
     }
 
     fn get_id(&self) -> &str;
-    fn get_origin(&self) -> (Size<f64>, Size<f64>);
+    fn get_origin(&self) -> (Size<f64>, Size<f64>) { (Size::Pixel(0.0), Size::Pixel(0.0)) }
     fn get_transform(&self) -> &Affine;
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
