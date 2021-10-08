@@ -8,7 +8,7 @@ use piet_web::WebRenderContext;
 use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType};
 use std::collections::HashMap;
 
-pub type RenderNodePtr = Rc<RefCell<dyn RenderNode >>;
+pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
 
 // Take a singleton node and wrap it into a Vec, e.g. to make a
@@ -16,6 +16,12 @@ pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
 //TODO: handle this more elegantly, perhaps with some metaprogramming mojo?
 pub fn wrap_render_node_ptr_into_list(rnp: RenderNodePtr) -> RenderNodePtrList {
     Rc::new(RefCell::new(vec![Rc::clone(&rnp)]))
+}
+
+pub fn decompose_render_node_ptr_list_into_vec(rnpl: RenderNodePtrList) -> Vec<RenderNodePtr> {
+    let mut ret_vec = Vec::new();
+    rnpl.borrow().iter().for_each(|rnp| {ret_vec.push(Rc::clone(&rnp))});
+    ret_vec
 }
 
 pub struct RenderTree {

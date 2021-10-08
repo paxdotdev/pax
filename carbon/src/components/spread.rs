@@ -6,7 +6,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, PropertySet};
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, PropertySet, decompose_render_node_ptr_list_into_vec};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 
@@ -88,8 +88,6 @@ pub struct Spread {
 }
 
 
-
-
 struct ScopeInjectorMacroExpression<T> {
     pub variadic_evaluator: fn(scope: &Scope) -> T,
 }
@@ -125,6 +123,13 @@ impl Spread {
         transform: Affine,
         properties: Rc<SpreadProperties>,
     ) -> Self {
+        let child_data_list : Vec<Rc<usize>> =
+            children.borrow()
+            .iter()
+            .enumerate()
+            .map(|(i, _rnp)| { Rc::new(i) })
+            .collect();
+
         Spread {
             children,
             id,
@@ -139,15 +144,21 @@ impl Spread {
                 vec![
                     Rc::new(RefCell::new(
                         Repeat::new(
-                            vec![Rc::new(1),Rc::new(2),Rc::new(3),],
+                            child_data_list ,
                             Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
                                     Rectangle {
+
+                                        //TODO: break out `transform` into sugarytransform
+                                        //      enable each sub-property to be a Property
+                                        //      set Affine::translate for each child as an
+                                        //      Expression (fn of `i` and `properties` (gutter, etc.))
+
                                         transform: Affine::default(),
                                         origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
                                         align: (0.0, 0.0),
                                         fill:  Box::new(
-                                            PropertyLiteral {value: Color::rgba(0.14, 0.44, 0.64, 0.25) }
+                                            PropertyLiteral {value: Color::rgba(1.0, 1.0, 0.0, 0.50) }
                                         ),
                                         stroke: Stroke {
                                             width: 4.0,
