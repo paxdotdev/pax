@@ -10,7 +10,7 @@ pub struct Repeat<D> {
     pub children: RenderNodePtrList,
     pub list: Vec<Rc<D>>,
     pub id: String,
-    pub transform: Affine,
+    pub transform: Transform,
     virtual_children: RenderNodePtrList,
 }
 
@@ -26,7 +26,7 @@ struct RepeatProperties<D> {
 impl<D> PropertySet for RepeatProperties<D> {}
 
 impl<D> Repeat<D> {
-    pub fn new(list: Vec<Rc<D>>, children: RenderNodePtrList, id: String, transform: Affine) -> Self {
+    pub fn new(list: Vec<Rc<D>>, children: RenderNodePtrList, id: String, transform: Transform) -> Self {
         Repeat {
             list,
             children,
@@ -37,9 +37,6 @@ impl<D> Repeat<D> {
         }
     }
 }
-
-
-
 
 impl<D: 'static> RenderNode for Repeat<D> {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
@@ -54,17 +51,12 @@ impl<D: 'static> RenderNode for Repeat<D> {
             self.virtual_children.borrow_mut().push(Rc::new(RefCell::new(Component {
                 template: Rc::clone(&self.children),
                 id: "".to_string(),
-                align: (0.0, 0.0),
-                origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-                transform: Transform::new(),
+                transform: Transform::default(),
                 properties,
             })));
         }
     }
 
-    fn get_align(&self) -> (f64, f64) {
-        (0.0, 0.0)
-    }
     fn should_flatten(&self) -> bool {
         true
     }
@@ -76,15 +68,17 @@ impl<D: 'static> RenderNode for Repeat<D> {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
-    fn get_origin(&self) -> (Size<f64>, Size<f64>) {
-        (Size::Pixel(0.0), Size::Pixel(0.0))
+    fn get_transform_computed(&self) -> &Affine {
+        &self.transform.cached_computed_transform
     }
-    fn get_computed_transform(&self) -> &Affine {
-        &self.transform
-    }
+
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
+
+    fn get_transform_mut(&mut self) -> &mut Transform {
+        &mut self.transform
+    }
 }
 
 

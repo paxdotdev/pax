@@ -5,17 +5,17 @@ use core::option::Option;
 use core::option::Option::{None, Some};
 use kurbo::Affine;
 use piet_web::WebRenderContext;
-use crate::{RenderNodePtrList, RenderNode, PropertyTreeContext, Size, RenderTreeContext, rendering, wrap_render_node_ptr_into_list};
+use crate::{RenderNodePtrList, RenderNode, PropertyTreeContext, Size, RenderTreeContext, rendering, wrap_render_node_ptr_into_list, Transform};
 
 pub struct Placeholder {
     pub id: String,
-    pub transform: Affine,
+    pub transform: Transform,
     pub index: usize,
     children: RenderNodePtrList,
 }
 
 impl Placeholder {
-    pub fn new(id: String, transform: Affine, index: usize) -> Self {
+    pub fn new(id: String, transform: Transform, index: usize) -> Self {
         Placeholder {
             id,
             transform,
@@ -55,9 +55,15 @@ impl RenderNode for Placeholder {
         &self.id.as_str()
     }
 
-    fn get_computed_transform(&self) -> &Affine {
-        &self.transform
+    fn get_transform_computed(&self) -> &Affine {
+        &self.transform.cached_computed_transform
     }
+
+    fn get_transform_mut(&mut self) -> &mut Transform {
+        &mut self.transform
+    }
+
+
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
 
     }

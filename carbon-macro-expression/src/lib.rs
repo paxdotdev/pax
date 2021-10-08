@@ -17,7 +17,5 @@ pub fn expression(input: TokenStream) -> TokenStream {
 }
 
 fn impl_expression(ast: &DeriveInput) -> TokenStream {
-
-
     unimplemented!()
 }

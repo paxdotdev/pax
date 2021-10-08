@@ -124,7 +124,6 @@ pub trait RenderNode
     /// (Empty) default implementation because this is a rarely needed hook
     fn post_eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {}
 
-    fn get_align(&self) -> (f64, f64) { (0.0,0.0) }
     fn get_children(&self, ) -> RenderNodePtrList;
 
     /// Returns the size of this node, or `None` if this node
@@ -170,8 +169,8 @@ pub trait RenderNode
     }
 
     fn get_id(&self) -> &str;
-    fn get_origin(&self) -> (Size<f64>, Size<f64>) { (Size::Pixel(0.0), Size::Pixel(0.0)) }
-    fn get_computed_transform(&self) -> &Affine;
+    fn get_transform_computed(&self) -> &Affine;
+    fn get_transform_mut(&mut self) -> &mut Transform;
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
     fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
@@ -184,37 +183,25 @@ pub struct Transform {
     //TODO: add shear? needed at least to support ungrouping after scale+rotate
     pub origin: (Box<dyn Property<Size<f64>>>, Box<dyn Property<Size<f64>>>),
     pub align: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
-    cached_value: Affine,
+    pub cached_computed_transform: Affine,
 }
 
-
-impl Transform {
-
-    pub fn new() -> Self {
+impl Default for Transform {
+    fn default() -> Self {
         Transform{
-            cached_value: Affine::default(),
-            align: (Box::new(PropertyLiteral { value: 0.0 }),Box::new(PropertyLiteral { value: 0.0 })),
-            origin: (Box::new(PropertyLiteral { value: Size::Pixel(0.0)}),Box::new(PropertyLiteral { value: Size::Pixel(0.0)})),
-            translate: (Box::new(PropertyLiteral { value: 0.0}),Box::new(PropertyLiteral { value: 0.0})),
-            scale: (Box::new(PropertyLiteral { value: 1.0}),Box::new(PropertyLiteral { value: 1.0})),
+            cached_computed_transform: Affine::default(),
+            align: (Box::new(PropertyLiteral { value: 0.0 }), Box::new(PropertyLiteral { value: 0.0 })),
+            origin: (Box::new(PropertyLiteral { value: Size::Pixel(0.0)}), Box::new(PropertyLiteral { value: Size::Pixel(0.0)})),
+            translate: (Box::new(PropertyLiteral { value: 0.0}), Box::new(PropertyLiteral { value: 0.0})),
+            scale: (Box::new(PropertyLiteral { value: 1.0}), Box::new(PropertyLiteral { value: 1.0})),
             rotate: Box::new(PropertyLiteral { value: 0.0 }),
         }
     }
-
-    pub fn set_align(&mut self, align: (Box<dyn Property<f64>>, Box<dyn Property<f64>>)) -> &mut Transform {
-        self.align = align;
-        self
-    }
-
-    pub fn calc_affine(&self) -> Affine {
-
-
-        Affine::default()
-    }
 }
 
-impl Property<Affine> for Transform {
-    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) -> &Affine {
+impl Transform {
+
+    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {
         &self.translate.0.eval_in_place(ptc);
         &self.translate.1.eval_in_place(ptc);
         &self.scale.0.eval_in_place(ptc);
@@ -225,20 +212,70 @@ impl Property<Affine> for Transform {
         &self.align.0.eval_in_place(ptc);
         &self.align.1.eval_in_place(ptc);
 
-        self.cached_value = self.calc_affine();
-        &self.cached_value
+        //Note:  the final affine transform is NOT computed here in the Property Tree
+        //       traversal, because it relies on rendering specific context, e.g. the
+        //       node size and containing bounds.
+        //
+        //       This is a somewhat awkward conceptual divide
+        //       through the middle of `Transform`, especially since we ultimately
+        //       want to cache the computed matrix for each node and only re-compute
+        //       upon changes (making a call to calculate the transfrom from the `rendering` traversal
+        //       look a LOT like a "special" eval_in_place kind-of call a la the `property` traversal.
+        //
+        //       If we revisit the design of Transform:
+        //        - Consider that transform order would be nice to specify in userland, without needing a special magical API (ideally as expressive as Affine::translate() * Affine::scale())
+        //        - See if we can better draw the boundaries between AUTHOR-TIME properties (translate/scale/rotate/origin/align)
+        //          and RENDER-TIME properties (bounds, node size, computed matrix)
+
     }
 
-    fn read(&self) -> &Affine {
-        unimplemented!()
+    //TODO:  if providing bounds is prohibitive or awkward for some use-case,
+    //       we can make `bounds` and `align` BOTH TOGETHER optional — align requires `bounds`
+    //       but it's the only thing that requires `bounds`
+
+    //Distinction of note: scale, translate, rotate, origin, and align are all AUTHOR-TIME properties
+    //                     node_size and container_bounds are (computed) RUNTIME properties
+    pub fn compute_transform_in_place(&mut self, node_size: (f64, f64), container_bounds: (f64, f64)) -> &Affine {
+        let origin_transform = Affine::translate(
+        (
+                match self.origin.0.read() {
+                    Size::Pixel(x) => { -x },
+                    Size::Percent(x) => {
+                        -node_size.0 * (x / 100.0)
+                    },
+                },
+                match self.origin.1.read() {
+                    Size::Pixel(y) => { -y },
+                    Size::Percent(y) => {
+                        -node_size.1 * (y / 100.0)
+                    },
+                }
+            )
+        );
+
+        //TODO: support custom user-specified transform order?
+        // Is the only use-case for this or is grouping sufficient to achieve "rotation about an axis"?
+        // If so, grouping/framing is likely sufficient
+        let base_transform =
+            Affine::rotate(*self.rotate.read()) *
+            Affine::scale_non_uniform(*self.scale.0.read(), *self.scale.1.read()) *
+            Affine::translate((*self.translate.0.read(), *self.translate.1.read()));
+
+        let align_transform = Affine::translate((self.align.0.read() * container_bounds.0, self.align.1.read() * container_bounds.1));
+        self.cached_computed_transform = align_transform * origin_transform * base_transform;
+        &self.cached_computed_transform
     }
+
+    pub fn get_cached_computed_value(&self) -> &Affine {
+        &self.cached_computed_transform
+    }
+
 }
+
 
 pub struct Component<P: ?Sized> {
     pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
     pub id: String,
-    pub align: (f64, f64),
-    pub origin: (Size<f64>, Size<f64>),
     pub transform: Transform,
     pub properties: P,
 }
@@ -249,7 +286,6 @@ impl<T> RenderNode for Component<T> {
         //  - this includes any custom properties (inputs) passed into this component
     }
 
-    fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> RenderNodePtrList {
         //Perhaps counter-intuitively, `Component`s return the root
         //of their template, rather than their `children`, for calls to get_children
@@ -260,10 +296,10 @@ impl<T> RenderNode for Component<T> {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
-    fn get_origin(&self) -> (Size<f64>, Size<f64>) { self.origin }
-    fn get_computed_transform(&self) -> &Affine {
-        &self.transform.cached_value
+    fn get_transform_computed(&self) -> &Affine {
+        &self.transform.cached_computed_transform
     }
+    fn get_transform_mut(&mut self) -> &mut Transform { &mut self.transform }
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
@@ -282,21 +318,17 @@ pub enum Size<T> {
 }
 
 pub struct Rectangle {
-    pub align: (f64, f64),
     pub size: (
         Box<dyn Property<Size<f64>>>,
         Box<dyn Property<Size<f64>>>,
     ),
-    pub origin: (Size<f64>, Size<f64>),
-    pub transform: Affine,
+    pub transform: Transform,
     pub stroke: Stroke,
     pub fill: Box<dyn Property<Color>>,
     pub id: String,
 }
 
-
 impl RenderNode for Rectangle {
-    fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
     }
@@ -305,7 +337,6 @@ impl RenderNode for Rectangle {
         self.size.1.eval_in_place(ctx);
         self.fill.eval_in_place(ctx);
     }
-    fn get_origin(&self) -> (Size<f64>, Size<f64>) { self.origin }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
         let size_raw = self.get_size().unwrap();
@@ -328,15 +359,15 @@ impl RenderNode for Rectangle {
             }
         )
     }
-    fn get_computed_transform(&self) -> &Affine {
-        &self.transform
+    fn get_transform_computed(&self) -> &Affine {
+        &self.transform.cached_computed_transform
     }
+    fn get_transform_mut(&mut self) -> &mut Transform { &mut self.transform }
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounding_dimens;
         let width: f64 =  bounding_dimens.0;
@@ -354,13 +385,9 @@ impl RenderNode for Rectangle {
 
         let transformed_bez_path = *transform * bez_path;
         let duplicate_transformed_bez_path = transformed_bez_path.clone();
-        // let mock_clipping_path = Affine::translate((width / 4.0, height / 4.0)) * transformed_bez_path.clone();
 
-        // rc.clip(mock_clipping_path);
-        // rc.save();
         rc.fill(transformed_bez_path, fill);
         rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
-        // rc.restore();
     }
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }

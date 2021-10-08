@@ -6,7 +6,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, PropertySet, decompose_render_node_ptr_list_into_vec};
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, PropertySet, decompose_render_node_ptr_list_into_vec, Transform};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 
@@ -75,13 +75,11 @@ TODO:
 pub struct Spread {
     pub children: RenderNodePtrList,
     pub id: String,
-    pub align: (f64, f64),
-    pub origin: (Size<f64>, Size<f64>),
     pub size: (
         Box<dyn Property<Size<f64>>>,
         Box<dyn Property<Size<f64>>>,
     ),
-    pub transform: Affine,
+    pub transform: Transform,
     pub properties: Rc<SpreadProperties>,
 
     template: RenderNodePtrList,
@@ -112,15 +110,40 @@ pub struct SpreadProperties {
 
 impl PropertySet for SpreadProperties {}
 
+/*
+Sparse constructor pattern (ft. macro)
+
+
+
+#derive[(Default)]
+struct MyStruct {
+    pub a: &str,
+    pub b: &str,
+    pub c: &str,
+}
+
+impl MyStruct {
+
+    fn new() -> Self {
+
+    }
+
+    MyStruct { sparse!(MyStruct { a: "abc", c: "cde"}) }) //note the lack of `b`
+}
+
+
+
+
+ */
+
+
+
 impl Spread {
     pub fn new(
-    //TODO:  parameterize
         children: RenderNodePtrList,
         id: String,
-        align: (f64, f64),
-        origin: (Size<f64>, Size<f64>),
         size: (Box<dyn Property<Size<f64>>>, Box<dyn Property<Size<f64>>>),
-        transform: Affine,
+        transform: Transform,
         properties: Rc<SpreadProperties>,
     ) -> Self {
         let child_data_list : Vec<Rc<usize>> =
@@ -133,8 +156,6 @@ impl Spread {
         Spread {
             children,
             id,
-            align,
-            origin,
             size,
             transform,
             properties,
@@ -154,9 +175,7 @@ impl Spread {
                                         //      set Affine::translate for each child as an
                                         //      Expression (fn of `i` and `properties` (gutter, etc.))
 
-                                        transform: Affine::default(),
-                                        origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-                                        align: (0.0, 0.0),
+                                        transform: Transform::default(),
                                         fill:  Box::new(
                                             PropertyLiteral {value: Color::rgba(1.0, 1.0, 0.0, 0.50) }
                                         ),
@@ -171,7 +190,7 @@ impl Spread {
                                 ))
                             ])),
                             "id".to_string(),
-                            Affine::default()
+                            Transform::default()
                         )
                     ))
                 ]
@@ -247,7 +266,6 @@ impl RenderNode for Spread {
         ptc.runtime.borrow_mut().pop_stack_frame();
     }
 
-    fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> RenderNodePtrList {
 
         // return the root of the internal template here — as long
@@ -303,10 +321,14 @@ impl RenderNode for Spread {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
-    fn get_origin(&self) -> (Size<f64>, Size<f64>) { self.origin }
-    fn get_computed_transform(&self) -> &Affine {
-        &self.transform
+    fn get_transform_computed(&self) -> &Affine {
+        &self.transform.cached_computed_transform
     }
+
+    fn get_transform_mut(&mut self) -> &mut Transform {
+        &mut self.transform
+    }
+
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //TODO:  calc & memoize the layout/transform for each cell of the Sprad
         //       probably need to do the memoization via a RefCell for mutability concerns,

@@ -3,14 +3,12 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size};
+use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Transform};
 
 pub struct Group {
     pub children: Rc<RefCell<Vec<RenderNodePtr>>>,
     pub id: String,
-    pub align: (f64, f64),
-    pub origin: (Size<f64>, Size<f64>),
-    pub transform: Affine,
+    pub transform: Transform,
 }
 
 impl RenderNode for Group {
@@ -18,7 +16,6 @@ impl RenderNode for Group {
         //TODO: handle each of Group's `Expressable` properties
     }
 
-    fn get_align(&self) -> (f64, f64) { self.align }
     fn get_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
     }
@@ -27,10 +24,14 @@ impl RenderNode for Group {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
-    fn get_origin(&self) -> (Size<f64>, Size<f64>) { self.origin }
-    fn get_computed_transform(&self) -> &Affine {
-        &self.transform
+    fn get_transform_computed(&self) -> &Affine {
+        &self.transform.cached_computed_transform
     }
+
+    fn get_transform_mut(&mut self) -> &mut Transform {
+        &mut self.transform
+    }
+
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}

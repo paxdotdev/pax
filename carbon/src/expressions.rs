@@ -31,7 +31,7 @@ pub enum PolymorphicType {
 pub trait Property<T> {
     //either unwrap T
     //or provide a fn -> T
-    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) -> &T; //TODO:  maybe this doesn't need to return
+    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {}
     fn read(&self) -> &T;
 }
 
@@ -40,9 +40,6 @@ pub struct PropertyLiteral<T> {
 }
 
 impl<T> Property<T> for PropertyLiteral<T> {
-    fn eval_in_place(&mut self, _ctx: &PropertyTreeContext) -> &T {
-        &self.value
-    }
     fn read(&self) -> &T {
         &self.value
     }
@@ -108,7 +105,7 @@ pub struct PropertyTreeContext<'a> {
 }
 
 impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
-    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) -> &T {
+    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {
         //first: derive values
         //  - iterate through dependencies
         //  - parse dep string into a value; cast as PolymorphicType
@@ -143,7 +140,6 @@ impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
             stack_frame: ptc.runtime.borrow_mut().peek_stack_frame().clone()
         };
         self.cached_value = self.evaluator.inject_and_evaluate(&ic);
-        &self.cached_value
     }
     fn read(&self) -> &T {
         &self.cached_value

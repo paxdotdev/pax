@@ -5,27 +5,22 @@ use core::option::Option::Some;
 use kurbo::Affine;
 use kurbo::BezPath;
 use piet_web::WebRenderContext;
-use crate::{RenderNodePtrList, Size, Property, RenderNode, PropertyTreeContext, RenderTreeContext};
+use crate::{RenderNodePtrList, Size, Property, RenderNode, PropertyTreeContext, RenderTreeContext, Transform};
 use piet::RenderContext;
 
 pub struct Frame {
     pub id: String,
     pub children: RenderNodePtrList,
-    pub align: (f64, f64),
-    pub origin: (Size<f64>, Size<f64>),
     pub size: (
         Box<dyn Property<Size<f64>>>,
         Box<dyn Property<Size<f64>>>,
     ),
-    pub transform: Affine,
+    pub transform: Transform,
 }
 
 impl RenderNode for Frame {
     fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
         //TODO: handle each of Frame's `Expressable` properties
-    }
-    fn get_align(&self) -> (f64, f64) {
-        self.align
     }
     fn get_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
@@ -36,12 +31,14 @@ impl RenderNode for Frame {
     fn get_id(&self) -> &str {
         &self.id.as_str()
     }
-    fn get_origin(&self) -> (Size<f64>, Size<f64>) {
-        self.origin
+    fn get_transform_computed(&self) -> &Affine {
+        self.transform.get_cached_computed_value()
     }
-    fn get_computed_transform(&self) -> &Affine {
-        &self.transform
+
+    fn get_transform_mut(&mut self) -> &mut Transform {
+        &mut self.transform
     }
+
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
 
         // construct a BezPath of this frame's bounds * its transform,

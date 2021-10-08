@@ -153,22 +153,27 @@ impl CarbonEngine {
                 root: Rc::new(RefCell::new(Component {
                     id: String::from("root"),
                     properties: MyMainComponentProperties { rotation: 0.44},
-                    align: (0.0, 0.0),
-                    origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                    transform: Transform::new(),
+                    transform: Transform::default(),
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Frame {
                             id: String::from("frame_1"),
-                            align: (0.5, 0.5),
-                            origin: (Size::Percent(50.0), Size::Percent(50.0),),
                             size: (Box::new(PropertyLiteral{value: Size::Pixel(550.0)}),Box::new(PropertyLiteral{value: Size::Pixel(400.0)})),
-                            transform: Affine::default(),
+                            transform: Transform {
+                                //TODO:  literal!() macro for literal property values
+                                //       (wrap in `Box::new(PropertyLiteral{value: `)
+                                origin: (Box::new(PropertyLiteral{value: Size::Percent(50.0)}), Box::new(PropertyLiteral {value: Size::Percent(50.0)})),
+                                align: (Box::new(PropertyLiteral { value: 0.5 }), Box::new(PropertyLiteral { value: 0.5 })),
+                                ..Default::default()
+                            },
                             children: Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
                                 Rectangle {
-                                    transform: Affine::default(),
-                                    origin: (Size::Percent(100.0), Size::Pixel(0.0)),
-                                    align: (1.0, 0.0),
+                                    transform: Transform {
+                                        origin: (Box::new(PropertyLiteral { value: Size::Percent(100.0)}), Box::new(PropertyLiteral {value: Size::Pixel(0.0) })),
+                                        align: (Box::new(PropertyLiteral {value: 1.0}) , Box::new(PropertyLiteral { value: 0.0 })),
+                                        ..Default::default()
+                                    },
+
                                     fill: Box::new(
                                         PropertyExpression {
                                             cached_value: Color::hlc(0.0,0.0,0.0),
@@ -193,9 +198,7 @@ impl CarbonEngine {
                                         Rc::new(RefCell::new(vec![
                                             Rc::new(RefCell::new(
                                                 Rectangle {
-                                                    transform: Affine::default(),
-                                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-                                                    align: (0.0, 0.0),
+                                                    transform: Transform::default(),
                                                     fill: Box::new(
                                                         PropertyExpression {
                                                             cached_value: Color::hlc(0.0,0.0,0.0),
@@ -217,9 +220,7 @@ impl CarbonEngine {
                                             )),
                                             Rc::new(RefCell::new(
                                                 Rectangle {
-                                                    transform: Affine::default(),
-                                                    origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-                                                    align: (0.0, 0.0),
+                                                    transform: Transform::default(),
                                                     fill:  Box::new(
                                                         PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0) }
                                                     ),
@@ -234,8 +235,6 @@ impl CarbonEngine {
                                             )),
                                         ])),
                                     String::from("my_first_spread"),
-                                    (0.0, 0.0),
-                                    (Size::Pixel(0.0), Size::Pixel(0.0)),
                                     (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
                                     Default::default(),
                                     Rc::new(SpreadProperties {
@@ -360,9 +359,7 @@ impl CarbonEngine {
 
                                 Rc::new(RefCell::new(
                                     Rectangle {
-                                        transform: Affine::default(),
-                                        origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-                                        align: (0.0, 0.0),
+                                        transform: Transform::default(),
                                         fill:  Box::new(
                                             PropertyLiteral {value: Color::rgba(0.5, 0.5, 0.5, 1.0) }
                                         ),
@@ -400,37 +397,31 @@ impl CarbonEngine {
     }
 
     fn recurse_render_render_tree(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext, node: RenderNodePtr)  {
-        //populate a pointer to this (current) `RenderNode` onto `rtc`
-        rtc.node = Rc::clone(&node);
-
-        let accumulated_transform = rtc.transform;
-        let accumulated_bounds = rtc.bounding_dimens;
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done with this frame
 
-        let node_size_calc = node.borrow().get_size_calc(accumulated_bounds);
-        let origin_transform = Affine::translate(
-        (
-                match node.borrow().get_origin().0 {
-                    Size::Pixel(x) => { -x },
-                    Size::Percent(x) => {
-                        -node_size_calc.0 * (x / 100.0)
-                    },
-                },
-                match node.borrow().get_origin().1 {
-                    Size::Pixel(y) => { -y },
-                    Size::Percent(y) => {
-                        -node_size_calc.1 * (y / 100.0)
-                    },
-                }
-            )
-        );
+        //populate a pointer to this (current) `RenderNode` onto `rtc`
+        rtc.node = Rc::clone(&node);
 
-        let align_transform = Affine::translate((node.borrow().get_align().0 * accumulated_bounds.0, node.borrow().get_align().1 * accumulated_bounds.1));
-        let new_accumulated_transform = *accumulated_transform * align_transform * origin_transform * *node.borrow().get_computed_transform();
+        let accumulated_transform = rtc.transform;
+        let accumulated_bounds = rtc.bounding_dimens;
+
+        //Note: this cloning transform-fetching logic could certainly be written more efficiently
+
+        let node_computed_transform = {
+            let mut node_borrowed = rtc.node.borrow_mut();
+            let node_size = node_borrowed.get_size_calc(accumulated_bounds);
+            node_borrowed.get_transform_mut()
+            .compute_transform_in_place(
+                node_size,
+                accumulated_bounds
+            ).clone()
+        };
+
+        let new_accumulated_transform = *accumulated_transform * node_computed_transform;
 
         //get the size of this node (calc'd or otherwise) and use
         //it as the new accumulated bounds: both for this nodes children (their parent container bounds)

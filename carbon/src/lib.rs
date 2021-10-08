@@ -72,6 +72,7 @@ TODO:
         [ ] Code-behind & default implementations
         [ ] Helpful compiler errors, line numbers
     [ ] Refactors
+        [ ] Bundle Transform into "sugary transform," incl. origin & align; consider a separate transform_matrix property
         [ ] Is there a way to better-DRY the shared logic across render-nodes?
             e.g. check out the `get_size` methods for Frame and Spread
         [ ] Maybe related to above:  can we DRY the default properties for a render node?
@@ -79,7 +80,6 @@ TODO:
         [ ] Should (can?) `align` be (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
         [ ] Can we do something better than `(Box<......>, Box<.......>)` for `Size`?
         [ ] Rename various properties, e.g. bounding_dimens => bounds
-        [ ] Bundle Transform into "sugary transform," incl. origin & align; consider a separate transform_matrix property
         [ ] Take a pass on references/ownership in render_render_tree — perhaps &Affine should transfer ownership instead, for example
         [ ] introduce a way to #derive `eval_in_place`
         [ ] Better ergonomics for `wrap_render_node_ptr_into_list`
