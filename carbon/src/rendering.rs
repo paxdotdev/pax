@@ -79,24 +79,6 @@ impl Runtime {
         );
     }
 
-
-    fn flatten_render_node_ptr_list (nested: RenderNodePtrList) -> RenderNodePtrList {
-        // let mut expanded = Vec::new();
-        let len = nested.borrow().len();
-        for i in (0..len) {
-            if nested.borrow()[i].borrow().should_flatten() {
-                // expanded.inappend(Rc::clone(&nested.borrow()[i]));
-            }else{
-
-            }
-        };
-        //TODO:  change to expanded
-        Rc::clone(&nested)
-    }
-
-    fn recurse_flatten_render_node_ptr_list(nested: RenderNodePtrList) -> RenderNodePtrList {
-        unimplemented!()
-    }
 }
 
 //TODO:  do we need to refactor primitive properties (like Rectangle::width)

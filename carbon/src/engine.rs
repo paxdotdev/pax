@@ -10,10 +10,11 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Component, Error, PolymorphicType, PolymorphicValue, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Variable, VariableAccessLevel};
+use crate::{Affine, Color, Component, Error, PolymorphicType, PolymorphicValue, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Variable, VariableAccessLevel, Evaluator, InjectionContext};
 use crate::components::Spread;
 use crate::primitives::{Frame, Placeholder};
 use crate::primitives::group::Group;
+use std::marker::PhantomData;
 
 // use crate::primitives::{Frame};
 
@@ -109,6 +110,52 @@ impl StackFrame {
     }
 }
 
+
+
+/*****************************/
+/* Codegen (macro) territory */
+
+pub struct MyManualMacroExpression<T> {
+    pub variadic_evaluator: fn(engine: &CarbonEngine) -> T,
+}
+
+//TODO:  should this hard-code the return type
+impl<T> MyManualMacroExpression<T> {
+
+}
+
+impl<T> Evaluator<T> for MyManualMacroExpression<T> {
+    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
+        //TODO:CODEGEN
+        //       pull necessary data from `ic`,
+        //       map into the variadic args of self.variadic_evaluator()
+        //       Perhaps this is a LUT of `String => (Fn(InjectionContext) -> V)` for any variadic type (injection stream) V
+        let engine = ic.engine;
+        (self.variadic_evaluator)(engine)
+    }
+}
+
+// TODO:  this LUT _has_ to happen in macro territory, because it's
+//       inherently variadic.  We can't turn strings into logic outside of
+//       the macro context, so we must *hand-write the InjectionContext -> Stream logic*
+//       for the pre-macro Expressions v2 PoC
+//       Node, an advantage of the LUT living in macro territory:  should avoid footprint bloat!
+//       ** Note:  `match pattern {}` may be a better, Rustier approach than a HashMap "literal"
+//
+// struct InjectionMapperLUT {
+//     function_map: HashMap<String, Fn(InjectionContext)>
+// }
+//
+// impl InjectionMapperLUT {
+//
+// }
+//
+
+/* End codegen (macro) territory */
+/*********************************/
+
+
+
 struct MyMainComponent {
     rotation: f64,
 }
@@ -125,13 +172,6 @@ impl CarbonEngine {
                     properties: MyMainComponent{ rotation: 0.44},
                     align: (0.0, 0.0),
                     origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                    // variables: vec![
-                    //     Variable {
-                    //         name: String::from("rotation"),
-                    //         value: Box::new(PolymorphicValue::Float(1.2)),
-                    //         access: VariableAccessLevel::Public,
-                    //     },
-                    // ],
                     transform: Affine::default(),
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Frame {
@@ -142,6 +182,30 @@ impl CarbonEngine {
                             transform: Affine::default(),
                             children: Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
+                                Rectangle {
+                                    transform: Affine::default(),
+                                    origin: (Size::Percent(100.0), Size::Pixel(0.0)),
+                                    align: (1.0, 0.0),
+                                    fill: Box::new(
+                                        PropertyExpression {
+                                            cached_value: Color::hlc(0.0,0.0,0.0),
+                                            dependencies: vec!["engine".to_string()],
+                                            // expression!(|engine: &CarbonEngine| ->
+                                            evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                                Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                            }}
+                                        }
+                                    ),
+                                    stroke: Stroke {
+                                        width: 4.0,
+                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                        color: Color::rgba(1.0, 1.0, 0.0, 1.0)
+                                    },
+                                    id: String::from("frame_filler"),
+                                    size: (Box::new(PropertyLiteral{value: Size::Percent(50.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                                }
+                            )),
+                                Rc::new(RefCell::new(
                                     Spread::new(
                                         Rc::new(RefCell::new(vec![
                                             Rc::new(RefCell::new(
@@ -149,8 +213,15 @@ impl CarbonEngine {
                                                     transform: Affine::default(),
                                                     origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
                                                     align: (0.0, 0.0),
-                                                    fill:  Box::new(
-                                                        PropertyLiteral {value: Color::rgba(0.0, 0.0, 1.0, 1.0) }
+                                                    fill: Box::new(
+                                                        PropertyExpression {
+                                                            cached_value: Color::hlc(0.0,0.0,0.0),
+                                                            dependencies: vec!["engine".to_string()],
+                                                            // expression!(|engine: &CarbonEngine| ->
+                                                            evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                                                Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                                            }}
+                                                        }
                                                     ),
                                                     stroke: Stroke {
                                                         width: 4.0,

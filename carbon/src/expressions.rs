@@ -48,8 +48,9 @@ impl<T> Property<T> for PropertyLiteral<T> {
     }
 }
 
-pub struct InjectionContext {
+pub struct InjectionContext<'a> {
     //TODO: add scope tree, etc.
+    pub engine: &'a CarbonEngine,
 }
 
 pub trait Evaluator<T> {
@@ -57,33 +58,20 @@ pub trait Evaluator<T> {
     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T;
 }
 
-pub struct MyQuasiMacroExpression<T> {
-    phantom: PhantomData<T>,
-}
 
-impl<T> MyQuasiMacroExpression<T> {
-    fn variadic_evaluator(&self /* TODO: inject variadic args */) -> T {
-        unimplemented!()
-    }
-}
-
-impl<T> Evaluator<T> for MyQuasiMacroExpression<T> {
-    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
-        //TODO:  pull necessary data from `ic`,
-        //       map into the variadic args of
-        self.variadic_evaluator()
-    }
-}
 
 //TODO:  can we genericize the signature of the FnMut?
-//       1. it should always return `T`
-//       2. it should support dynamic, variadic signatures
+//          1. it should always return `T`
+//          2. it should support dynamic, variadic signatures
 //       See: https://github.com/rust-lang/rfcs/issues/376
-//       If not through vanilla generics, this might be achievable through a macro?
+//          If not through vanilla generics, this might be achievable through a macro?
+//       Given the lack of variadic support (at time of authoring,) YES a macro
+//       seems to be the only viable approach.  For PoC, proceeding with a "hand-unrolled"
+//       PoC with the aim to "roll" that logic into a macro
 pub struct PropertyExpression<T, E: Evaluator<T>>
 {
     pub evaluator: E,
-    pub dependencies : Vec<(String, PolymorphicType)>,
+    pub dependencies : Vec<String>,
     pub cached_value: T,
 }
 
@@ -119,7 +107,7 @@ pub struct PropertyTreeContext<'a> {
 }
 
 impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
-    fn eval_in_place(&mut self, ctx: &PropertyTreeContext) -> &T {
+    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) -> &T {
         //first: derive values
         //  - iterate through dependencies
         //  - parse dep string into a value; cast as PolymorphicType
@@ -127,29 +115,31 @@ impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
         //then: call the evaluator, passing the derived values
 
         let mut dep_values : HashMap<String, PolymorphicValue> = HashMap::new();
+        //
+        // for (key, value) in self.dependencies.iter() {
+        //
+        //     //  this value needs to be evaluated from a combination of:
+        //     //  - engine, for globals like current frame count
+        //     //  - local component, for locals like vars and descendents
+        //
+        //     match value {
+        //         PolymorphicType::Float => {
+        //             // let val = &self.resolve_dependency(key, ptc.engine);
+        //             // dep_values.insert(key.to_owned(), PolymorphicValue::Float(*val));
+        //         }
+        //         PolymorphicType::Integer => {
+        //             panic!("Integer types not implemented for expression dependencies")
+        //         }
+        //         PolymorphicType::Boolean => {
+        //             panic!("Boolean types not implemented for expression dependencies")
+        //         }
+        //     }
+        // }
 
-        for (key, value) in self.dependencies.iter() {
 
-            //  this value needs to be evaluated from a combination of:
-            //  - engine, for globals like current frame count
-            //  - local component, for locals like vars and descendents
-
-            match value {
-                PolymorphicType::Float => {
-                    let val = &self.resolve_dependency(key, ctx.engine);
-                    dep_values.insert(key.to_owned(), PolymorphicValue::Float(*val));
-                }
-                PolymorphicType::Integer => {
-                    panic!("Integer types not implemented for expression dependencies")
-                }
-                PolymorphicType::Boolean => {
-                    panic!("Boolean types not implemented for expression dependencies")
-                }
-            }
-        }
-
-
-        let ic = InjectionContext {};
+        let ic = InjectionContext {
+            engine: ptc.engine,
+        };
         self.cached_value = self.evaluator.inject_and_evaluate(&ic);
         &self.cached_value
     }
