@@ -31,7 +31,7 @@ pub enum PolymorphicType {
 pub trait Property<T> {
     //either unwrap T
     //or provide a fn -> T
-    fn eval_in_place(&mut self, ctx: &PropertyTreeContext) -> &T; //TODO:  maybe this doesn't need to return
+    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) -> &T; //TODO:  maybe this doesn't need to return
     fn read(&self) -> &T;
 }
 

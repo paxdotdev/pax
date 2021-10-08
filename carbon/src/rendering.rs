@@ -5,8 +5,9 @@ use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType};
+use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType, PropertyLiteral};
 use std::collections::HashMap;
+use crate::Size::Percent;
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
@@ -170,10 +171,67 @@ pub trait RenderNode
 
     fn get_id(&self) -> &str;
     fn get_origin(&self) -> (Size<f64>, Size<f64>) { (Size::Pixel(0.0), Size::Pixel(0.0)) }
-    fn get_transform(&self) -> &Affine;
+    fn get_computed_transform(&self) -> &Affine;
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
     fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
+}
+
+pub struct Transform {
+    pub translate: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
+    pub scale: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
+    pub rotate: Box<dyn Property<f64>>, //z-axis only for 2D rendering
+    //TODO: add shear? needed at least to support ungrouping after scale+rotate
+    pub origin: (Box<dyn Property<Size<f64>>>, Box<dyn Property<Size<f64>>>),
+    pub align: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
+    cached_value: Affine,
+}
+
+
+impl Transform {
+
+    pub fn new() -> Self {
+        Transform{
+            cached_value: Affine::default(),
+            align: (Box::new(PropertyLiteral { value: 0.0 }),Box::new(PropertyLiteral { value: 0.0 })),
+            origin: (Box::new(PropertyLiteral { value: Size::Pixel(0.0)}),Box::new(PropertyLiteral { value: Size::Pixel(0.0)})),
+            translate: (Box::new(PropertyLiteral { value: 0.0}),Box::new(PropertyLiteral { value: 0.0})),
+            scale: (Box::new(PropertyLiteral { value: 1.0}),Box::new(PropertyLiteral { value: 1.0})),
+            rotate: Box::new(PropertyLiteral { value: 0.0 }),
+        }
+    }
+
+    pub fn set_align(&mut self, align: (Box<dyn Property<f64>>, Box<dyn Property<f64>>)) -> &mut Transform {
+        self.align = align;
+        self
+    }
+
+    pub fn calc_affine(&self) -> Affine {
+
+
+        Affine::default()
+    }
+}
+
+impl Property<Affine> for Transform {
+    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) -> &Affine {
+        &self.translate.0.eval_in_place(ptc);
+        &self.translate.1.eval_in_place(ptc);
+        &self.scale.0.eval_in_place(ptc);
+        &self.scale.1.eval_in_place(ptc);
+        &self.rotate.eval_in_place(ptc);
+        &self.origin.0.eval_in_place(ptc);
+        &self.origin.1.eval_in_place(ptc);
+        &self.align.0.eval_in_place(ptc);
+        &self.align.1.eval_in_place(ptc);
+
+        self.cached_value = self.calc_affine();
+        &self.cached_value
+    }
+
+    fn read(&self) -> &Affine {
+        unimplemented!()
+    }
 }
 
 pub struct Component<P: ?Sized> {
@@ -181,7 +239,7 @@ pub struct Component<P: ?Sized> {
     pub id: String,
     pub align: (f64, f64),
     pub origin: (Size<f64>, Size<f64>),
-    pub transform: Affine,
+    pub transform: Transform,
     pub properties: P,
 }
 
@@ -203,8 +261,8 @@ impl<T> RenderNode for Component<T> {
         &self.id.as_str()
     }
     fn get_origin(&self) -> (Size<f64>, Size<f64>) { self.origin }
-    fn get_transform(&self) -> &Affine {
-        &self.transform
+    fn get_computed_transform(&self) -> &Affine {
+        &self.transform.cached_value
     }
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
@@ -270,7 +328,7 @@ impl RenderNode for Rectangle {
             }
         )
     }
-    fn get_transform(&self) -> &Affine {
+    fn get_computed_transform(&self) -> &Affine {
         &self.transform
     }
     fn get_id(&self) -> &str {

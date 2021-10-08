@@ -55,7 +55,7 @@ impl RenderNode for Placeholder {
         &self.id.as_str()
     }
 
-    fn get_transform(&self) -> &Affine {
+    fn get_computed_transform(&self) -> &Affine {
         &self.transform
     }
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {

@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, PolymorphicType, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, PropertySet};
+use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, PolymorphicType, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, PropertySet, Transform};
 use std::collections::HashMap;
 
 pub struct Repeat<D> {
@@ -56,7 +56,7 @@ impl<D: 'static> RenderNode for Repeat<D> {
                 id: "".to_string(),
                 align: (0.0, 0.0),
                 origin: (Size::Pixel(0.0), Size::Pixel(0.0)),
-                transform: Affine::default(),
+                transform: Transform::new(),
                 properties,
             })));
         }
@@ -79,7 +79,7 @@ impl<D: 'static> RenderNode for Repeat<D> {
     fn get_origin(&self) -> (Size<f64>, Size<f64>) {
         (Size::Pixel(0.0), Size::Pixel(0.0))
     }
-    fn get_transform(&self) -> &Affine {
+    fn get_computed_transform(&self) -> &Affine {
         &self.transform
     }
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}

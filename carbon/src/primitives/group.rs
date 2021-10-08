@@ -28,7 +28,7 @@ impl RenderNode for Group {
         &self.id.as_str()
     }
     fn get_origin(&self) -> (Size<f64>, Size<f64>) { self.origin }
-    fn get_transform(&self) -> &Affine {
+    fn get_computed_transform(&self) -> &Affine {
         &self.transform
     }
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}

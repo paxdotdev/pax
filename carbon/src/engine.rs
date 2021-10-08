@@ -10,7 +10,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Component, Error, PolymorphicType, PolymorphicValue, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Variable, VariableAccessLevel, Evaluator, InjectionContext, RenderNode, SpreadProperties};
+use crate::{Affine, Color, Transform, Component, Error, PolymorphicType, PolymorphicValue, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Variable, VariableAccessLevel, Evaluator, InjectionContext, RenderNode, SpreadProperties};
 use crate::components::Spread;
 use crate::primitives::{Frame, Placeholder};
 use crate::primitives::group::Group;
@@ -155,7 +155,7 @@ impl CarbonEngine {
                     properties: MyMainComponentProperties { rotation: 0.44},
                     align: (0.0, 0.0),
                     origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
-                    transform: Affine::default(),
+                    transform: Transform::new(),
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Frame {
                             id: String::from("frame_1"),
@@ -430,7 +430,7 @@ impl CarbonEngine {
         );
 
         let align_transform = Affine::translate((node.borrow().get_align().0 * accumulated_bounds.0, node.borrow().get_align().1 * accumulated_bounds.1));
-        let new_accumulated_transform = *accumulated_transform * align_transform * origin_transform * *node.borrow().get_transform();
+        let new_accumulated_transform = *accumulated_transform * align_transform * origin_transform * *node.borrow().get_computed_transform();
 
         //get the size of this node (calc'd or otherwise) and use
         //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
