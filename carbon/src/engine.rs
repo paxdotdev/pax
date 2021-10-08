@@ -10,7 +10,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Component, Error, PolymorphicType, PolymorphicValue, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Variable, VariableAccessLevel, Evaluator, InjectionContext};
+use crate::{Affine, Color, Component, Error, PolymorphicType, PolymorphicValue, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Variable, VariableAccessLevel, Evaluator, InjectionContext, RenderNode, SpreadProperties};
 use crate::components::Spread;
 use crate::primitives::{Frame, Placeholder};
 use crate::primitives::group::Group;
@@ -31,6 +31,7 @@ pub struct CarbonEngine {
     viewport_size: (f64, f64),
 }
 
+pub trait PropertySet{}
 
 pub struct RenderTreeContext<'a>
 {
@@ -41,9 +42,11 @@ pub struct RenderTreeContext<'a>
     pub node: RenderNodePtr,
 }
 
+//TODO:  Scopes need to play nicely with variadic expressions.  We need to be
+//       able to access `self` (current component) and its `properties` <P>
 pub struct Scope {
-    types: HashMap<String, PolymorphicType>,
-    values: HashMap<String, PolymorphicValue>,
+    pub properties: Rc<dyn PropertySet>,
+    // TODO: children, parent, etc.
 }
 
 /// Attaches to stack frames to provide an evaluation context + relevant data access
@@ -52,41 +55,17 @@ pub struct Scope {
 /// e.g. `index` and `datum` for `Repeat`.
 impl Scope {
 
-    /// Holds a triplet of data (key: String, value: PolymorphicValue, type: PolymorphicType)
-    /// but does so in two parallel hashmaps of (key -> value) and (key -> type).
-    /// Constructing a new scope requires passing those two hashmaps.
-    pub fn new(types: HashMap<String, PolymorphicType>,
-        values: HashMap<String, PolymorphicValue>) -> Self {
-        Scope {
-            types, values,
-        }
-    }
-
-    pub fn get_type(&self, key: &str) -> &PolymorphicType {
-        &self.types.get(key).unwrap()
-    }
-
-    pub fn get_value(&self, key: &str) -> &PolymorphicValue {
-        &self.values.get(key).unwrap()
-    }
-
-    pub fn empty() -> Self {
-        Scope {
-            types: HashMap::new(),
-            values: HashMap::new(),
-        }
-    }
 }
 
 pub struct StackFrame
 {
     adoptees: RenderNodePtrList,
     adoptee_index: usize,
-    scope: Scope,
+    scope: Rc<RefCell<Scope>>,
 }
 
 impl StackFrame {
-    pub fn new(adoptees: RenderNodePtrList, scope: Scope) -> Self {
+    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>) -> Self {
         StackFrame {
             adoptees: Rc::clone(&adoptees),
             adoptee_index: 0,
@@ -96,6 +75,10 @@ impl StackFrame {
 
     pub fn get_adoptees(&self) -> RenderNodePtrList {
         Rc::clone(&self.adoptees)
+    }
+
+    pub fn get_scope(&self) -> Rc<RefCell<Scope>> {
+        Rc::clone(&self.scope)
     }
 
     pub fn next_adoptee(&mut self) -> Option<RenderNodePtr> {
@@ -115,7 +98,7 @@ impl StackFrame {
 /*****************************/
 /* Codegen (macro) territory */
 
-pub struct MyManualMacroExpression<T> {
+struct MyManualMacroExpression<T> {
     pub variadic_evaluator: fn(engine: &CarbonEngine) -> T,
 }
 
@@ -156,10 +139,10 @@ impl<T> Evaluator<T> for MyManualMacroExpression<T> {
 
 
 
-struct MyMainComponent {
+struct MyMainComponentProperties {
     rotation: f64,
 }
-impl MyMainComponent {}
+impl PropertySet for MyMainComponentProperties {}
 
 impl CarbonEngine {
     fn new(logger: fn(&str), viewport_size: (f64, f64)) -> Self {
@@ -169,7 +152,7 @@ impl CarbonEngine {
             render_tree: Rc::new(RefCell::new(RenderTree {
                 root: Rc::new(RefCell::new(Component {
                     id: String::from("root"),
-                    properties: MyMainComponent{ rotation: 0.44},
+                    properties: MyMainComponentProperties { rotation: 0.44},
                     align: (0.0, 0.0),
                     origin: (Size::Pixel(0.0), Size::Pixel(0.0),),
                     transform: Affine::default(),
@@ -190,7 +173,7 @@ impl CarbonEngine {
                                         PropertyExpression {
                                             cached_value: Color::hlc(0.0,0.0,0.0),
                                             dependencies: vec!["engine".to_string()],
-                                            // expression!(|engine: &CarbonEngine| ->
+                                            //TODO: expression!(|engine: &CarbonEngine| -> Color {})
                                             evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
                                                 Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
                                             }}
@@ -255,8 +238,11 @@ impl CarbonEngine {
                                     (Size::Pixel(0.0), Size::Pixel(0.0)),
                                     (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
                                     Default::default(),
-                                    Size::Pixel(10.0),
-                                    None,
+                                    Rc::new(SpreadProperties {
+                                        gutter: Size::Pixel(10.0),
+                                        cell_size_spec: None,
+                                    })
+
                                 ))),
 
                                 /////////

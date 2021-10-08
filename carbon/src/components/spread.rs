@@ -6,7 +6,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle};
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, PropertySet};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 
@@ -82,12 +82,37 @@ pub struct Spread {
         Box<dyn Property<Size<f64>>>,
     ),
     pub transform: Affine,
-
-    pub gutter: Size<f64>,
-    pub cell_size_spec: Option<Vec<Size<f64>>>,
+    pub properties: Rc<SpreadProperties>,
 
     template: RenderNodePtrList,
 }
+
+
+
+
+struct ScopeInjectorMacroExpression<T> {
+    pub variadic_evaluator: fn(scope: &Scope) -> T,
+}
+
+impl<T> ScopeInjectorMacroExpression<T> {}
+
+impl<T> Evaluator<T> for ScopeInjectorMacroExpression<T> {
+    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
+        //TODO:CODEGEN
+
+        let stack_frame = &ic.stack_frame;
+        let stack_frame_unwrapped = Rc::clone(&stack_frame.as_ref().unwrap());
+        let scope_borrowed = stack_frame_unwrapped.borrow();
+        (self.variadic_evaluator)(&scope_borrowed.get_scope().borrow())
+    }
+}
+
+pub struct SpreadProperties {
+    pub gutter: Size<f64>,
+    pub cell_size_spec: Option<Vec<Size<f64>>>,
+}
+
+impl PropertySet for SpreadProperties {}
 
 impl Spread {
     pub fn new(
@@ -98,8 +123,7 @@ impl Spread {
         origin: (Size<f64>, Size<f64>),
         size: (Box<dyn Property<Size<f64>>>, Box<dyn Property<Size<f64>>>),
         transform: Affine,
-        gutter: Size<f64>,
-        cell_size_spec: Option<Vec<Size<f64>>>,
+        properties: Rc<SpreadProperties>,
     ) -> Self {
         Spread {
             children,
@@ -108,14 +132,14 @@ impl Spread {
             origin,
             size,
             transform,
-            gutter,
-            cell_size_spec,
+            properties,
             //private "component declaration" here, for template & variables
+
             template: Rc::new(RefCell::new(
                 vec![
                     Rc::new(RefCell::new(
                         Repeat::new(
-                            vec![Rc::new(1),Rc::new(2),Rc::new(3),Rc::new(2),Rc::new(3),Rc::new(2),Rc::new(3)],
+                            vec![Rc::new(1),Rc::new(2),Rc::new(3),],
                             Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
                                     Rectangle {
@@ -140,10 +164,7 @@ impl Spread {
                         )
                     ))
                 ]
-            ))
-
-
-
+            )),
 
             /*
             Rc::new(RefCell::new(
@@ -189,9 +210,6 @@ impl Spread {
                 }
             )),
              */
-
-
-            // variables: vec![]
         }
     }
 }
@@ -207,7 +225,9 @@ impl RenderNode for Spread {
 
         ptc.runtime.borrow_mut().push_stack_frame(
             Rc::clone(&self.children),
-            Scope::empty()
+              Scope {
+                  properties: Rc::clone(&self.properties) as Rc<dyn PropertySet>
+              }
         );
     }
 
@@ -286,7 +306,7 @@ impl RenderNode for Spread {
         // 2. determine gutter, `g`
         // 3. determine bounding size, `(x,y)`
 
-        match &self.cell_size_spec {
+        match &self.properties.cell_size_spec {
             //If a cell_size_spec is provided, use it.
             Some(cell_size_spec) => (),
             //Otherwise, calculate one

@@ -62,7 +62,7 @@ impl Runtime {
     }
 
     /// Add a new frame to the stack, passing a list of adoptees
-    /// that may be handled by `Placeholder`
+    /// that may be handled by `Placeholder` and a scope that includes
     pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Scope) {
 
 
@@ -74,7 +74,7 @@ impl Runtime {
 
         self.stack.push(
             Rc::new(RefCell::new(
-                StackFrame::new(adoptees, scope)
+                StackFrame::new(adoptees, Rc::new(RefCell::new(scope)))
             ))
         );
     }
@@ -170,7 +170,7 @@ pub trait RenderNode
     fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
 }
 
-pub struct Component<P> {
+pub struct Component<P: ?Sized> {
     pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
     pub id: String,
     pub align: (f64, f64),

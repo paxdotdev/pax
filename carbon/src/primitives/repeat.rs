@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, PolymorphicType, StackFrame, Component, wrap_render_node_ptr_into_list};
+use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, PolymorphicType, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, PropertySet};
 use std::collections::HashMap;
 
 pub struct Repeat<D> {
@@ -17,11 +17,13 @@ pub struct Repeat<D> {
 /// Data structure for the virtually duplicated container that surrounds repeated nodes.
 /// This is attached to a Component<RepeatFrame> that `Repeat` adds to its children dynamically
 /// during property-tree traversal
-struct RepeatFrame<D> {
+struct RepeatProperties<D> {
     pub i: usize,
     pub datum: Rc<D>,
     pub id: String,
 }
+
+impl<D> PropertySet for RepeatProperties<D> {}
 
 impl<D> Repeat<D> {
     pub fn new(list: Vec<Rc<D>>, children: RenderNodePtrList, id: String, transform: Affine) -> Self {
@@ -36,6 +38,9 @@ impl<D> Repeat<D> {
     }
 }
 
+
+
+
 impl<D: 'static> RenderNode for Repeat<D> {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Repeat's `Expressable` properties
@@ -45,7 +50,7 @@ impl<D: 'static> RenderNode for Repeat<D> {
 
         //for each element in self.list, create a new child (Component) and push it to self.children
         for (i, datum) in self.list.iter().enumerate() {
-            let properties = RepeatFrame { datum: Rc::clone(&datum), i, id: format!("repeat_frame_{}", i) };
+            let properties = RepeatProperties { datum: Rc::clone(&datum), i, id: format!("repeat_frame_{}", i) };
             self.virtual_children.borrow_mut().push(Rc::new(RefCell::new(Component {
                 template: Rc::clone(&self.children),
                 id: "".to_string(),

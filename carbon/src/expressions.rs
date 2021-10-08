@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::{CarbonEngine, Runtime};
+use crate::{CarbonEngine, Runtime, StackFrame};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::marker::PhantomData;
@@ -51,6 +51,7 @@ impl<T> Property<T> for PropertyLiteral<T> {
 pub struct InjectionContext<'a> {
     //TODO: add scope tree, etc.
     pub engine: &'a CarbonEngine,
+    pub stack_frame: Option<Rc<RefCell<StackFrame>>>,
 }
 
 pub trait Evaluator<T> {
@@ -139,6 +140,7 @@ impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
 
         let ic = InjectionContext {
             engine: ptc.engine,
+            stack_frame: ptc.runtime.borrow_mut().peek_stack_frame().clone()
         };
         self.cached_value = self.evaluator.inject_and_evaluate(&ic);
         &self.cached_value
