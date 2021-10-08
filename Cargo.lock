@@ -16,6 +16,7 @@ checksum = "f07aa6688c702439a1be0307b6a94dffe1168569e45b9500c1372bc580740d59"
 name = "carbon"
 version = "0.1.0"
 dependencies = [
+ "carbon-macro-expression",
  "kurbo",
  "piet",
  "piet-web",
@@ -32,6 +33,14 @@ dependencies = [
  "piet-web",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "carbon-macro-expression"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]

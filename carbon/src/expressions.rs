@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use crate::{CarbonEngine, Runtime};
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::marker::PhantomData;
 
 pub struct Variable {
     pub name: String,
@@ -47,21 +48,53 @@ impl<T> Property<T> for PropertyLiteral<T> {
     }
 }
 
-pub struct PropertyExpression<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T>
-where T: Sized
+pub struct InjectionContext {
+    //TODO: add scope tree, etc.
+}
+
+pub trait Evaluator<T> {
+    //calls (variadic) self.evaluate and returns its value
+    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T;
+}
+
+pub struct MyQuasiMacroExpression<T> {
+    phantom: PhantomData<T>,
+}
+
+impl<T> MyQuasiMacroExpression<T> {
+    fn variadic_evaluator(&self /* TODO: inject variadic args */) -> T {
+        unimplemented!()
+    }
+}
+
+impl<T> Evaluator<T> for MyQuasiMacroExpression<T> {
+    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
+        //TODO:  pull necessary data from `ic`,
+        //       map into the variadic args of
+        self.variadic_evaluator()
+    }
+}
+
+//TODO:  can we genericize the signature of the FnMut?
+//       1. it should always return `T`
+//       2. it should support dynamic, variadic signatures
+//       See: https://github.com/rust-lang/rfcs/issues/376
+//       If not through vanilla generics, this might be achievable through a macro?
+pub struct PropertyExpression<T, E: Evaluator<T>>
 {
     pub evaluator: E,
     pub dependencies : Vec<(String, PolymorphicType)>,
-    pub last_value: T,
+    pub cached_value: T,
 }
 
-impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> PropertyExpression<T, E>
-where T: Sized
+impl<T, E: Evaluator<T>> PropertyExpression<T, E>
 {
     //TODO:  support types other than f64
     fn resolve_dependency(&self, name: &str, engine: &CarbonEngine) -> f64 {
         // Turn a string like `"this.property_name"` or `"engine.frames_elapsed"`
         // into the appropriate underlying value.
+        // TODO:  determine if there's a better, with-the-type-system way to handle this
+        //        (perhaps through macros.)  Keep an eye on support for a future bolt-on JS runtime.
         match name {
             "engine.frames_elapsed" => {
                 engine.frames_elapsed as f64
@@ -85,7 +118,7 @@ pub struct PropertyTreeContext<'a> {
     pub runtime: Rc<RefCell<Runtime>>,
 }
 
-impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> Property<T> for PropertyExpression<T, E> {
+impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
     fn eval_in_place(&mut self, ctx: &PropertyTreeContext) -> &T {
         //first: derive values
         //  - iterate through dependencies
@@ -116,10 +149,11 @@ impl<T, E: FnMut(HashMap<String, PolymorphicValue>) -> T> Property<T> for Proper
         }
 
 
-        self.last_value = (self.evaluator)(dep_values);
-        &self.last_value
+        let ic = InjectionContext {};
+        self.cached_value = self.evaluator.inject_and_evaluate(&ic);
+        &self.cached_value
     }
     fn read(&self) -> &T {
-        &self.last_value
+        &self.cached_value
     }
 }

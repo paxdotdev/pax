@@ -21,6 +21,7 @@ graphical user interfaces
 Creative dev env
 for makers of GUIs
 [ . . . . . ]
+(design, build, and ship.)?
 
 TODO:
 === HIGH
@@ -39,8 +40,6 @@ TODO:
         [x] summonables
             [x] built-in vars like frame count
         [x] MVP rust closures + manifest of deps
-    [ ] Split out userland code
-        [ ] Add a third project to workspace, the sample project
     [ ] Spreads (née Stacks)
         [x] Decide `primitive` vs. userland `components`
             `components`
@@ -49,8 +48,10 @@ TODO:
         [x] Control-flow `placeholder` (`placeholder`) for inputs/children
             [x] Ensure path forward to userland `placeholders`
         [x] Clipping & Frames
-        [ ] Control-flow `repeat` for cells & dividers inside template
+        [x] Control-flow `repeat` for cells & dividers inside template
         [ ] Gutter
+    [ ] Split out userland code
+            [ ] Add a third project to workspace, the sample project
     [ ] Timelines, transitions, t9ables
     [ ] Documentation & usage
     [ ] Mixed mode
@@ -88,7 +89,8 @@ TODO:
     [ ] Ellipse
     [ ] Path
     [ ] Frames: overflow scrolling
-    [ ] PoC on iOS, Android
+    [ ] Macros for magical expression declaration
+    [ ] PoC on macOS, iOS, Android
         [ ] Extricate Engine's dependency on WebRenderContext
     [ ] Image primitive
         [ ] Hook into `piet`s image rendering

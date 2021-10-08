@@ -42,9 +42,12 @@ TODO:
         [ ] Figure out dissonance between:  1. string based keys, 2. struct `Properties`
             and figure out how this plays out into the property DI mechanism.  Along the way,
             figure out how to inject complex objects (ideally with a path forward to a JS runtime.)
-                - Option A: write a macro that decorates expression definitions (or _is_ the exp. def.) and (if possible)
-                            generates the necessary code to match param names to elsewhere-registered dependency streams (Angular-style)
-
+                - Option A:  write a macro that decorates expression definitions (or _is_ the exp. def.) and (if possible)
+                             generates the necessary code to match param names to elsewhere-registered dependency streams (Angular-style)
+                - Option A0: don't write the macro (above, A) yet, but write the expanded version of it by hand, incl. string deps (present-day approach)
+                             ^ to achieve "DI," does this require a hand-rolled "monomorphization" of each expression invocation?
+                             Or does a string dependency list suffice?  If the latter, we must solve a way to pass a data-type <D> through PolymorphicValue
+                             Probably the answer is the _former_ — write the DI-binding logic manually alongside a string dep list (roughly how the macro unrolling will work)
         [ ] Support getting self (or Scope) for access to Repeat Data
             - use-case: translate each element within a `repeat` by `i * k`
         [ ] Quick pass on other relevant data to get from Scopes
@@ -143,50 +146,48 @@ impl Spread {
 
 
             /*
-
             Rc::new(RefCell::new(
-                                                        Frame {
-                                                            id: "cell_frame_left".to_string(),
-                                                            align: (0.0, 0.0),
-                                                            origin: (Size::Pixel(0.0), Size::Pixel(0.0), ),
-                                                            size: (
-                                                                (
-                                                                    Box::new(PropertyLiteral { value: Size::Percent(50.0) }),
-                                                                    Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
-                                                                )
-                                                            ),
-                                                            transform: Affine::default(),
+                Frame {
+                    id: "cell_frame_left".to_string(),
+                    align: (0.0, 0.0),
+                    origin: (Size::Pixel(0.0), Size::Pixel(0.0), ),
+                    size: (
+                        (
+                            Box::new(PropertyLiteral { value: Size::Percent(50.0) }),
+                            Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
+                        )
+                    ),
+                    transform: Affine::default(),
 
-                                                            children: Rc::new(RefCell::new(vec![
-                                                                Rc::new(RefCell::new(
-                                                                    Placeholder::new("spread_frame_placeholder_left".to_string(), Affine::default(), 0)
-                                                                )),
-                                                            ])),
-                                                        }
-                                                    )),
-                                                    Rc::new(RefCell::new(
-                                                        //TODO:wrap in repeat
-                                                        Frame {
-                                                            id: "cell_frame_right".to_string(),
-                                                            align: (1.0, 0.0),
-                                                            origin: (Size::Percent(100.0), Size::Pixel(0.0), ),
-                                                            size: (
-                                                                (
-                                                                    Box::new(PropertyLiteral { value: Size::Percent(50.0) }),
-                                                                    Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
-                                                                )
-                                                            ),
-                                                            transform: Affine::default(),
+                    children: Rc::new(RefCell::new(vec![
+                        Rc::new(RefCell::new(
+                            Placeholder::new("spread_frame_placeholder_left".to_string(), Affine::default(), 0)
+                        )),
+                    ])),
+                }
+            )),
+            Rc::new(RefCell::new(
+                Frame {
+                    id: "cell_frame_right".to_string(),
+                    align: (1.0, 0.0),
+                    origin: (Size::Percent(100.0), Size::Pixel(0.0), ),
+                    size: (
+                        (
+                            Box::new(PropertyLiteral { value: Size::Percent(50.0) }),
+                            Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
+                        )
+                    ),
+                    transform: Affine::default(),
 
-                                                            children: Rc::new(RefCell::new(
-                                                                vec![
-                                                                    Rc::new(RefCell::new(
-                                                                        Placeholder::new("spread_frame_placeholder_right".to_string(), Affine::default(), 1)
-                                                                    )),
-                                                                ])
-                                                            ),
-                                                        }
-                                                    )),
+                    children: Rc::new(RefCell::new(
+                        vec![
+                            Rc::new(RefCell::new(
+                                Placeholder::new("spread_frame_placeholder_right".to_string(), Affine::default(), 1)
+                            )),
+                        ])
+                    ),
+                }
+            )),
              */
 
 
