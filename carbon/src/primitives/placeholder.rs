@@ -61,7 +61,6 @@ impl RenderNode for Placeholder {
         &mut self.transform
     }
 
-
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
 
     }

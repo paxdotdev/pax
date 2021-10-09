@@ -82,16 +82,6 @@ impl<T: Any + ?Sized> StackFrame<T> {
         Rc::clone(&self.scope)
     }
 
-    pub fn next_adoptee(&mut self) -> Option<RenderNodePtr> {
-        let len = self.adoptees.borrow().len();
-        if self.adoptee_index < len {
-            let elem = &self.adoptees.borrow()[self.adoptee_index];
-            self.adoptee_index += 1;
-            Some(Rc::clone(&elem))
-        } else {
-            None
-        }
-    }
 }
 
 
@@ -153,7 +143,7 @@ impl CarbonEngine {
             render_tree: Rc::new(RefCell::new(RenderTree {
                 root: Rc::new(RefCell::new(Component {
                     id: String::from("root"),
-                    properties: MyMainComponentProperties { rotation: 0.44},
+                    properties: Rc::new(MyMainComponentProperties { rotation: 0.44}),
                     transform: Transform::default(),
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Frame {

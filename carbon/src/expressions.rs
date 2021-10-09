@@ -49,7 +49,7 @@ impl<T> Property<T> for PropertyLiteral<T> {
 pub struct InjectionContext<'a> {
     //TODO: add scope tree, etc.
     pub engine: &'a CarbonEngine,
-    pub stack_frame: Option<Rc<RefCell<StackFrame<dyn Any>>>>,
+    pub stack_frame: Rc<RefCell<StackFrame<dyn Any>>>,
 }
 
 pub trait Evaluator<T> {
@@ -107,38 +107,10 @@ pub struct PropertyTreeContext<'a> {
 
 impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
     fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {
-        //first: derive values
-        //  - iterate through dependencies
-        //  - parse dep string into a value; cast as PolymorphicType
-        //  - future: track use of dependency in dep graph
-        //then: call the evaluator, passing the derived values
-
-        let mut dep_values : HashMap<String, PolymorphicValue> = HashMap::new();
-        //
-        // for (key, value) in self.dependencies.iter() {
-        //
-        //     //  this value needs to be evaluated from a combination of:
-        //     //  - engine, for globals like current frame count
-        //     //  - local component, for locals like vars and descendents
-        //
-        //     match value {
-        //         PolymorphicType::Float => {
-        //             // let val = &self.resolve_dependency(key, ptc.engine);
-        //             // dep_values.insert(key.to_owned(), PolymorphicValue::Float(*val));
-        //         }
-        //         PolymorphicType::Integer => {
-        //             panic!("Integer types not implemented for expression dependencies")
-        //         }
-        //         PolymorphicType::Boolean => {
-        //             panic!("Boolean types not implemented for expression dependencies")
-        //         }
-        //     }
-        // }
-
 
         let ic = InjectionContext {
             engine: ptc.engine,
-            stack_frame: ptc.runtime.borrow_mut().peek_stack_frame().clone()
+            stack_frame: Rc::clone(&ptc.runtime.borrow_mut().peek_stack_frame().unwrap())
         };
         self.cached_value = self.evaluator.inject_and_evaluate(&ic);
     }

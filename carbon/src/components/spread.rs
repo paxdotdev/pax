@@ -1,3 +1,5 @@
+use std::any::type_name_of_val;
+
 use std::cell::{RefCell, Ref};
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -10,6 +12,12 @@ use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpress
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 use std::any::Any;
+
+
+
+
+
+
 
 
 /*
@@ -97,10 +105,41 @@ impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
         //TODO:CODEGEN
 
+
+        //Perhaps there's a single stack frame with all `n` of the RepeatProperties<D> for
+        //this data set.  To get the right `properties_borrowed`, we then need to peek the stack
+        //frame and look up the all_the_properties[i] -- but how do we know `i` here?
+        //Alternatively, `Repeat` can push a stack frame on each iteration? and pop it before the next
+
+
+
         let stack_frame = &ic.stack_frame;
-        let stack_frame_unwrapped = Rc::clone(&stack_frame.as_ref().unwrap());
-        let stack_frame_borrowed: Ref<StackFrame<dyn Any>>  = stack_frame_unwrapped.borrow();
-        let properties_borrowed = Rc::clone(&stack_frame_borrowed.get_scope().borrow().properties).downcast::<RepeatProperties<SpreadCellProperties>>().unwrap();
+        let stack_frame_borrowed = stack_frame.borrow();
+        let scope = &stack_frame_borrowed.get_scope();
+        let scope_borrowed = scope.borrow();
+        let properties_as_any = &scope_borrowed.properties as &dyn Any;
+
+        ic.engine.runtime.borrow()
+            .log(
+                &format!("Any type {}", type_name_of_val( properties_as_any))
+            );
+        /// DEBUG:
+        //print the `type ID` of our received Any type
+        //along with the `type ID`s of suspected stand-ins, incl. their references.
+        //
+        // properties_as_any.type_id().
+        // let suspect_a : &Rc<RefCell<
+
+
+        /// END DEBUG
+
+
+
+        let repeat_properties = Rc::clone(
+            properties_as_any
+            .downcast_ref::<Rc<RepeatProperties<SpreadCellProperties>>>()
+            .unwrap()
+        );
 
         /* TODO:  evaluate if this Any/downcasting approach could work for us:
             fn main() {
@@ -110,7 +149,6 @@ impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
                     None => panic!("&a isn't a B!")
                 };
             }
-
 
 
             OR
@@ -150,7 +188,7 @@ impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
 
          */
 
-        (self.variadic_evaluator)(properties_borrowed)
+        (self.variadic_evaluator)(repeat_properties)
     }
 }
 
@@ -179,11 +217,16 @@ impl Spread {
         transform: Transform,
         properties: Rc<SpreadProperties>,
     ) -> Self {
-        let child_data_list : Vec<Rc<usize>> =
+        let child_data_list : Vec<Rc<SpreadCellProperties>> =
             children.borrow()
             .iter()
             .enumerate()
-            .map(|(i, _rnp)| { Rc::new(i) })
+            .map(|(i, _rnp)| { Rc::new(SpreadCellProperties {
+                height: 100,
+                width: 100,
+                x: 100,
+                y: 100,
+             }) })
             .collect();
 
         Spread {

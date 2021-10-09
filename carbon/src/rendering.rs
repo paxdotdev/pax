@@ -279,13 +279,26 @@ pub struct Component<P: ?Sized> {
     pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
     pub id: String,
     pub transform: Transform,
-    pub properties: P,
+    pub properties: Rc<P>,
 }
 
-impl<T> RenderNode for Component<T> {
-    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
+impl<T: 'static> RenderNode for Component<T> {
+    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Component's `Expressable` properties
         //  - this includes any custom properties (inputs) passed into this component
+
+        //TODO:  support adoptees here.  Currently hard-coding an empty vec
+        ptc.runtime.borrow_mut().push_stack_frame(
+            Rc::new(RefCell::new(vec![])),
+              Box::new(Scope {
+                  properties: Rc::clone(&self.properties) as Rc<dyn Any>
+              })
+        );
+    }
+
+    fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
+        //clean up the stack frame for the next component
+        ptc.runtime.borrow_mut().pop_stack_frame();
     }
 
     fn get_children(&self) -> RenderNodePtrList {
