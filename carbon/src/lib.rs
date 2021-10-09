@@ -1,7 +1,3 @@
-#![feature(type_name_of_val)]
-// The above was brought in for https://doc.rust-lang.org/std/any/fn.type_name_of_val.html
-// which was needed for some debugging.
-
 pub use kurbo::{Affine};
 pub use piet::{Color, StrokeStyle, Error};
 

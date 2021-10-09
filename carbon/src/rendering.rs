@@ -5,10 +5,11 @@ use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType, PropertyLiteral, PropertySet};
+use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType, PropertyLiteral, StackUnion};
 use std::collections::HashMap;
 use crate::Size::Percent;
 use std::any::Any;
+use dynstack::DynStack;
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
@@ -37,12 +38,12 @@ impl RenderTree {
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, logic for managing
 /// scopes, stack frames, and properties should live here.
-pub struct Runtime {
-    stack: Vec<Rc<RefCell<StackFrame<dyn Any>>>>,
+pub struct Runtime<D> {
+    stack: Vec<Rc<RefCell<StackFrame<D>>>>,
     logger: fn(&str),
 }
 
-impl Runtime {
+impl<D> Runtime<D> {
     pub fn new(logger: fn(&str)) -> Self {
         Runtime {
             stack: Vec::new(),
@@ -56,7 +57,7 @@ impl Runtime {
 
     /// Return a pointer to the top StackFrame on the stack,
     /// without mutating the stack or consuming the value
-    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame<dyn Any>>>> {
+    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame<D>>>> {
         if self.stack.len() > 0 {
             Some(Rc::clone(&self.stack[0]))
         }else{
@@ -72,7 +73,7 @@ impl Runtime {
 
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Placeholder` and a scope that includes
-    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Box<Scope<dyn Any>>) {
+    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Box<Scope>) {
 
 
         //TODO:  for all children inside `adoptees`, check whether child `should_flatten`.
@@ -115,16 +116,16 @@ impl Runtime {
 //
 
 
-pub trait RenderNode
+pub trait RenderNode<D>
 {
 
-    fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
+    fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext<D>);
 
     /// Lifecycle event: fires after evaluating a node's properties in place and its descendents properties
     /// in place.  Useful for cleaning up after a node (e.g. popping from the runtime stack) because
     /// this is the last time this node will be visited within the property tree for this frame.
     /// (Empty) default implementation because this is a rarely needed hook
-    fn post_eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {}
+    fn post_eval_properties_in_place(&mut self, ctx: &PropertyTreeContext<D>) {}
 
     fn get_children(&self, ) -> RenderNodePtrList;
 
@@ -275,14 +276,14 @@ impl Transform {
 }
 
 
-pub struct Component<P: ?Sized> {
+pub struct Component<D> {
     pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
     pub id: String,
     pub transform: Transform,
-    pub properties: Rc<P>,
+    pub properties: Rc<StackUnion<D>>,
 }
 
-impl<T: 'static> RenderNode for Component<T> {
+impl<D> RenderNode for Component<D> {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Component's `Expressable` properties
         //  - this includes any custom properties (inputs) passed into this component
@@ -291,7 +292,7 @@ impl<T: 'static> RenderNode for Component<T> {
         ptc.runtime.borrow_mut().push_stack_frame(
             Rc::new(RefCell::new(vec![])),
               Box::new(Scope {
-                  properties: Rc::clone(&self.properties) as Rc<dyn Any>
+                  properties: Rc::clone(&self.properties)
               })
         );
     }

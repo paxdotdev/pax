@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::{CarbonEngine, Runtime, StackFrame, PropertySet};
+use crate::{CarbonEngine, Runtime, StackFrame};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::marker::PhantomData;
@@ -46,15 +46,15 @@ impl<T> Property<T> for PropertyLiteral<T> {
     }
 }
 
-pub struct InjectionContext<'a> {
+pub struct InjectionContext<'a, D> {
     //TODO: add scope tree, etc.
-    pub engine: &'a CarbonEngine,
-    pub stack_frame: Rc<RefCell<StackFrame<dyn Any>>>,
+    pub engine: &'a CarbonEngine<D>,
+    pub stack_frame: Rc<RefCell<StackFrame<D>>>,
 }
 
-pub trait Evaluator<T> {
+pub trait Evaluator<T, D> {
     //calls (variadic) self.evaluate and returns its value
-    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T;
+    fn inject_and_evaluate(&self, ic: &InjectionContext<D>) -> T;
 }
 
 
@@ -100,9 +100,9 @@ impl<T, E: Evaluator<T>> PropertyExpression<T, E>
     }
 }
 
-pub struct PropertyTreeContext<'a> {
-    pub engine: &'a CarbonEngine,
-    pub runtime: Rc<RefCell<Runtime>>,
+pub struct PropertyTreeContext<'a, D> {
+    pub engine: &'a CarbonEngine<D>,
+    pub runtime: Rc<RefCell<Runtime<D>>>,
 }
 
 impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
