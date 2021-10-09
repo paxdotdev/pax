@@ -1,8 +1,9 @@
 use std::collections::HashMap;
-use crate::{CarbonEngine, Runtime, StackFrame};
+use crate::{CarbonEngine, Runtime, StackFrame, PropertySet};
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::marker::PhantomData;
+use std::any::Any;
 
 pub struct Variable {
     pub name: String,
@@ -48,7 +49,7 @@ impl<T> Property<T> for PropertyLiteral<T> {
 pub struct InjectionContext<'a> {
     //TODO: add scope tree, etc.
     pub engine: &'a CarbonEngine,
-    pub stack_frame: Option<Rc<RefCell<StackFrame>>>,
+    pub stack_frame: Option<Rc<RefCell<StackFrame<dyn Any>>>>,
 }
 
 pub trait Evaluator<T> {

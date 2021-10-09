@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{RefCell, Ref};
 use std::collections::HashMap;
 use std::rc::Rc;
 
@@ -6,9 +6,10 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, PropertySet, decompose_render_node_ptr_list_into_vec, Transform};
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, PropertySet, decompose_render_node_ptr_list_into_vec, Transform, RepeatProperties};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
+use std::any::Any;
 
 
 /*
@@ -85,57 +86,89 @@ pub struct Spread {
     template: RenderNodePtrList,
 }
 
-
-struct ScopeInjectorMacroExpression<T> {
-    pub variadic_evaluator: fn(scope: &Scope) -> T,
+/* FUTURE CODEGEN VIA MACRO */
+struct RepeatInjectorMacroExpression<T> {
+    pub variadic_evaluator: fn(scope: Rc<RepeatProperties<SpreadCellProperties>>) -> T,
 }
 
-impl<T> ScopeInjectorMacroExpression<T> {}
+impl<T> RepeatInjectorMacroExpression<T> {}
 
-impl<T> Evaluator<T> for ScopeInjectorMacroExpression<T> {
+impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
         //TODO:CODEGEN
 
         let stack_frame = &ic.stack_frame;
         let stack_frame_unwrapped = Rc::clone(&stack_frame.as_ref().unwrap());
-        let scope_borrowed = stack_frame_unwrapped.borrow();
-        (self.variadic_evaluator)(&scope_borrowed.get_scope().borrow())
+        let stack_frame_borrowed: Ref<StackFrame<dyn Any>>  = stack_frame_unwrapped.borrow();
+        let properties_borrowed = stack_frame_borrowed.get_scope().borrow().properties.downcast::<RepeatProperties<SpreadCellProperties>>().unwrap();
+
+        /* TODO:  evaluate if this Any/downcasting approach could work for us:
+            fn main() {
+                let a: Box<dyn Any> = Box::new(B);
+                let _: &B = match a.downcast_ref::<B>() {
+                    Some(b) => b,
+                    None => panic!("&a isn't a B!")
+                };
+            }
+
+
+
+            OR
+
+
+            use std::any::Any;
+
+            trait A {
+                fn as_any(&self) -> &dyn Any;
+            }
+
+            struct B;
+
+            impl A for B {
+                fn as_any(&self) -> &dyn Any {
+                    self
+                }
+            }
+
+            fn main() {
+                let a: Box<dyn A> = Box::new(B);
+                // The indirection through `as_any` is because using `downcast_ref`
+                // on `Box<A>` *directly* only lets us downcast back to `&A` again.
+                // The method ensures we get an `Any` vtable that lets us downcast
+                // back to the original, concrete type.
+                let b: &B = match a.as_any().downcast_ref::<B>() {
+                    Some(b) => b,
+                    None => panic!("&a isn't a B!"),
+                };
+            }
+        */
+
+
+        /* Other options:
+            - Eliminate variadic expressions; instead just always pass the same fat args (e.g. Engine, Scope)
+            - do some unsafe casting, enforced "safe" by our own runtime stack, a makeshift polymorphic smart pointer mechanism
+
+         */
+
+        (self.variadic_evaluator)(properties_borrowed)
     }
 }
+
+/* END FUTURE CODEGEN VIA MACRO */
+
 
 pub struct SpreadProperties {
     pub gutter: Size<f64>,
     pub cell_size_spec: Option<Vec<Size<f64>>>,
 }
 
-impl PropertySet for SpreadProperties {}
-
-/*
-Sparse constructor pattern (ft. macro)
-
-
-
-#derive[(Default)]
-struct MyStruct {
-    pub a: &str,
-    pub b: &str,
-    pub c: &str,
+struct SpreadCellProperties {
+    //TODO: map correct types to our relevant transforms
+    pub x: usize,
+    pub y: usize,
+    pub width: usize,
+    pub height: usize,
 }
-
-impl MyStruct {
-
-    fn new() -> Self {
-
-    }
-
-    MyStruct { sparse!(MyStruct { a: "abc", c: "cde"}) }) //note the lack of `b`
-}
-
-
-
-
- */
-
 
 
 impl Spread {
@@ -168,25 +201,28 @@ impl Spread {
                             child_data_list ,
                             Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
-                                    Rectangle {
-
-                                        //TODO: break out `transform` into sugarytransform
-                                        //      enable each sub-property to be a Property
-                                        //      set Affine::translate for each child as an
-                                        //      Expression (fn of `i` and `properties` (gutter, etc.))
-
-                                        transform: Transform::default(),
-                                        fill:  Box::new(
-                                            PropertyLiteral {value: Color::rgba(1.0, 1.0, 0.0, 0.50) }
+                                    Frame {
+                                        id: "spread_frame".to_string(),
+                                        children: Rc::new(RefCell::new(vec![Rc::new(RefCell::new(
+                                            Placeholder::new(
+                                                "spread_frame_placeholder".to_string(),
+                                                Transform::default(),
+                                                Box::new(PropertyExpression {
+                                                    cached_value: Color::hlc(0.0,0.0,0.0),
+                                                    dependencies: vec!["engine".to_string()],
+                                                    evaluator: RepeatInjectorMacroExpression {variadic_evaluator: |scope: Rc<RepeatProperties<SpreadCellProperties>>| -> usize {
+                                                        *scope.datum
+                                                    }}
+                                                })
+                                            )
+                                        ))])),
+                                        size: (
+                                            Box::new(PropertyLiteral {value: Size::Pixel(50.0)}),
+                                            Box::new(PropertyLiteral {value: Size::Pixel(50.0)}),
                                         ),
-                                        stroke: Stroke {
-                                            width: 4.0,
-                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                            color: Color::rgba(1.0, 1.0, 0.0, 1.0)
-                                        },
-                                        id: String::from("frame_half_filler"),
-                                        size: (Box::new(PropertyLiteral{value: Size::Percent(50.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                                        transform: Transform::default(),
                                     }
+
                                 ))
                             ])),
                             "id".to_string(),
@@ -256,7 +292,7 @@ impl RenderNode for Spread {
         ptc.runtime.borrow_mut().push_stack_frame(
             Rc::clone(&self.children),
               Scope {
-                  properties: Rc::clone(&self.properties) as Rc<dyn PropertySet>
+                  properties: Rc::clone(&self.properties) as Rc<dyn Any>
               }
         );
     }

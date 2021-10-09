@@ -77,14 +77,18 @@ TODO:
             e.g. check out the `get_size` methods for Frame and Spread
         [ ] Maybe related to above:  can we DRY the default properties for a render node?
             Perhaps a macro is the answer?
-        [ ] Should (can?) `align` be (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
+        [ ] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
+            Same with `scale`
         [ ] Can we do something better than `(Box<......>, Box<.......>)` for `Size`?
         [ ] Rename various properties, e.g. bounding_dimens => bounds
         [ ] Take a pass on references/ownership in render_render_tree — perhaps &Affine should transfer ownership instead, for example
         [ ] introduce a way to #derive `eval_in_place`
         [ ] Better ergonomics for `wrap_render_node_ptr_into_list`
         [ ] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
-        [ ]
+        [ ] literal!() macro for literal property values
+            (wrap in `Box::new(PropertyLiteral{value: `)
+        [ ] expression!(|engine: &CarbonEngine| -> Color {}) macro
+
 === MED
     [ ] Ellipse
     [ ] Path
@@ -123,6 +127,31 @@ TODO:
  */
 
 
+
+
+/*
+
+Scribble: can (should?) we achieve something like the following?
+
+Sparse constructor pattern (ft. macro)
+
+#derive[(Default)]
+struct MyStruct {
+    pub a: &str,
+    pub b: &str,
+    pub c: &str,
+}
+
+impl MyStruct {
+
+    fn new() -> Self {
+
+    }
+
+    MyStruct { sparse!(MyStruct { a: "abc", c: "cde"}) }) //note the lack of `b`
+}
+
+ */
 
 
 

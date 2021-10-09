@@ -17,7 +17,7 @@ pub struct Repeat<D> {
 /// Data structure for the virtually duplicated container that surrounds repeated nodes.
 /// This is attached to a Component<RepeatFrame> that `Repeat` adds to its children dynamically
 /// during property-tree traversal
-struct RepeatProperties<D> {
+pub struct RepeatProperties<D> {
     pub i: usize,
     pub datum: Rc<D>,
     pub id: String,

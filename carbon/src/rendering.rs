@@ -5,9 +5,10 @@ use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType, PropertyLiteral};
+use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType, PropertyLiteral, PropertySet};
 use std::collections::HashMap;
 use crate::Size::Percent;
+use std::any::Any;
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
@@ -37,9 +38,10 @@ impl RenderTree {
 /// explicitly aside from rendering.  For example, logic for managing
 /// scopes, stack frames, and properties should live here.
 pub struct Runtime {
-    stack: Vec<Rc<RefCell<StackFrame>>>,
+    stack: Vec<Rc<RefCell<StackFrame<dyn Any>>>>,
     logger: fn(&str),
 }
+
 impl Runtime {
     pub fn new(logger: fn(&str)) -> Self {
         Runtime {
@@ -54,7 +56,7 @@ impl Runtime {
 
     /// Return a pointer to the top StackFrame on the stack,
     /// without mutating the stack or consuming the value
-    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame>>> {
+    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame<dyn Any>>>> {
         if self.stack.len() > 0 {
             Some(Rc::clone(&self.stack[0]))
         }else{
@@ -70,7 +72,7 @@ impl Runtime {
 
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Placeholder` and a scope that includes
-    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Scope) {
+    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Box<Scope<dyn Any>>) {
 
 
         //TODO:  for all children inside `adoptees`, check whether child `should_flatten`.
@@ -81,7 +83,7 @@ impl Runtime {
 
         self.stack.push(
             Rc::new(RefCell::new(
-                StackFrame::new(adoptees, Rc::new(RefCell::new(scope)))
+                StackFrame::new(adoptees, Rc::new(RefCell::new(*scope)))
             ))
         );
     }

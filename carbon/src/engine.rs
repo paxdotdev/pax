@@ -15,13 +15,13 @@ use crate::components::Spread;
 use crate::primitives::{Frame, Placeholder};
 use crate::primitives::group::Group;
 use std::marker::PhantomData;
+use std::any::Any;
 
 // use crate::primitives::{Frame};
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
-    let engine = CarbonEngine::new(logger, viewport_size);
-    engine
+    CarbonEngine::new(logger, viewport_size)
 }
 
 pub struct CarbonEngine {
@@ -42,30 +42,31 @@ pub struct RenderTreeContext<'a>
     pub node: RenderNodePtr,
 }
 
-//TODO:  Scopes need to play nicely with variadic expressions.  We need to be
-//       able to access `self` (current component) and its `properties` <P>
-pub struct Scope {
-    pub properties: Rc<dyn PropertySet>,
-    // TODO: children, parent, etc.
-}
 
-/// Attaches to stack frames to provide an evaluation context + relevant data access
+
+/// `Scope` attaches to stack frames to provide an evaluation context + relevant data access
 /// for features like Expressions.
 /// The stored values that are DI'ed into expressions are held in these scopes,
 /// e.g. `index` and `datum` for `Repeat`.
-impl Scope {
 
+//TODO:  Scopes need to play nicely with variadic expressions.  We need to be
+//       able to access `self` (current component) and its `properties` <P>
+pub struct Scope<T: Any + ?Sized> {
+    pub properties: Rc<T>,
+    // TODO: children, parent, etc.
 }
 
-pub struct StackFrame
+
+
+pub struct StackFrame<T: Any + ?Sized>
 {
     adoptees: RenderNodePtrList,
     adoptee_index: usize,
-    scope: Rc<RefCell<Scope>>,
+    scope: Rc<RefCell<Scope<T>>>,
 }
 
-impl StackFrame {
-    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>) -> Self {
+impl<T: Any + ?Sized> StackFrame<T> {
+    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope<T>>>) -> Self {
         StackFrame {
             adoptees: Rc::clone(&adoptees),
             adoptee_index: 0,
@@ -77,7 +78,7 @@ impl StackFrame {
         Rc::clone(&self.adoptees)
     }
 
-    pub fn get_scope(&self) -> Rc<RefCell<Scope>> {
+    pub fn get_scope(&self) -> Rc<RefCell<Scope<T>>> {
         Rc::clone(&self.scope)
     }
 
@@ -159,8 +160,6 @@ impl CarbonEngine {
                             id: String::from("frame_1"),
                             size: (Box::new(PropertyLiteral{value: Size::Pixel(550.0)}),Box::new(PropertyLiteral{value: Size::Pixel(400.0)})),
                             transform: Transform {
-                                //TODO:  literal!() macro for literal property values
-                                //       (wrap in `Box::new(PropertyLiteral{value: `)
                                 origin: (Box::new(PropertyLiteral{value: Size::Percent(50.0)}), Box::new(PropertyLiteral {value: Size::Percent(50.0)})),
                                 align: (Box::new(PropertyLiteral { value: 0.5 }), Box::new(PropertyLiteral { value: 0.5 })),
                                 ..Default::default()

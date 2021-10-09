@@ -5,17 +5,17 @@ use core::option::Option;
 use core::option::Option::{None, Some};
 use kurbo::Affine;
 use piet_web::WebRenderContext;
-use crate::{RenderNodePtrList, RenderNode, PropertyTreeContext, Size, RenderTreeContext, rendering, wrap_render_node_ptr_into_list, Transform};
+use crate::{RenderNodePtrList, RenderNode, PropertyTreeContext, Size, RenderTreeContext, rendering, wrap_render_node_ptr_into_list, Transform, Property};
 
 pub struct Placeholder {
     pub id: String,
     pub transform: Transform,
-    pub index: usize,
+    pub index: Box<Property<usize>>,
     children: RenderNodePtrList,
 }
 
 impl Placeholder {
-    pub fn new(id: String, transform: Transform, index: usize) -> Self {
+    pub fn new(id: String, transform: Transform, index: Box<Property<usize>>) -> Self {
         Placeholder {
             id,
             transform,
@@ -25,13 +25,11 @@ impl Placeholder {
     }
 }
 
-
-
-
 impl RenderNode for Placeholder {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Placeholder's `Expressable` properties
 
+        self.index.eval_in_place(ptc);
         // The following sort of children-caching is done by "control flow" primitives
         // (Placeholder, Repeat, If) —
         self.children = match ptc.runtime.borrow_mut().peek_stack_frame() {
