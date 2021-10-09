@@ -100,7 +100,7 @@ impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
         let stack_frame = &ic.stack_frame;
         let stack_frame_unwrapped = Rc::clone(&stack_frame.as_ref().unwrap());
         let stack_frame_borrowed: Ref<StackFrame<dyn Any>>  = stack_frame_unwrapped.borrow();
-        let properties_borrowed = stack_frame_borrowed.get_scope().borrow().properties.downcast::<RepeatProperties<SpreadCellProperties>>().unwrap();
+        let properties_borrowed = Rc::clone(&stack_frame_borrowed.get_scope().borrow().properties).downcast::<RepeatProperties<SpreadCellProperties>>().unwrap();
 
         /* TODO:  evaluate if this Any/downcasting approach could work for us:
             fn main() {
@@ -208,10 +208,10 @@ impl Spread {
                                                 "spread_frame_placeholder".to_string(),
                                                 Transform::default(),
                                                 Box::new(PropertyExpression {
-                                                    cached_value: Color::hlc(0.0,0.0,0.0),
+                                                    cached_value: 0,
                                                     dependencies: vec!["engine".to_string()],
                                                     evaluator: RepeatInjectorMacroExpression {variadic_evaluator: |scope: Rc<RepeatProperties<SpreadCellProperties>>| -> usize {
-                                                        *scope.datum
+                                                        scope.i
                                                     }}
                                                 })
                                             )
@@ -291,9 +291,9 @@ impl RenderNode for Spread {
 
         ptc.runtime.borrow_mut().push_stack_frame(
             Rc::clone(&self.children),
-              Scope {
+              Box::new(Scope {
                   properties: Rc::clone(&self.properties) as Rc<dyn Any>
-              }
+              })
         );
     }
 
