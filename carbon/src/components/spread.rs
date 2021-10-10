@@ -6,7 +6,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, decompose_render_node_ptr_list_into_vec, Transform, RepeatProperties, PropertiesCoproduct, RepeatPropertiesCoproduct, RepeatItem};
+use crate::{Affine, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, decompose_render_node_ptr_list_into_vec, Transform, RepeatProperties, PropertiesCoproduct, RepeatItem};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 use std::any::Any;
@@ -251,15 +251,15 @@ impl Spread {
                             //    As a refinement, we could cache the bounds values for future reading by the render tree traversal
                             //    ** This is because bounds are required for the calculation of the cell spec for a spread **
                             //
-                            repeated_data: Box::new(PropertyExpression {
-                                cached_value: vec![Rc::new(RepeatPropertiesCoproduct::SpreadCell(Rc::new(SpreadCellProperties{..Default::default()})))],
+                            data_list: Box::new(PropertyExpression {
+                                cached_value: vec![Rc::new(PropertiesCoproduct::SpreadCell(Rc::new(SpreadCellProperties{..Default::default()})))],
                                 dependencies: vec!["engine".to_string()],
                                 // expression!(|engine: &CarbonEngine| ->
-                                evaluator: SpreadPropertiesInjector {variadic_evaluator: |scope: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<RepeatPropertiesCoproduct>> {
+                                evaluator: SpreadPropertiesInjector {variadic_evaluator: |scope: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
                                     //TODO:  unwrap SpreadCell from the repeat-item.
                                     //       make this part of the expression! macro
                                     scope.borrow()._cached_computed_cells.iter()
-                                        .map(|ccc|{Rc::new(RepeatPropertiesCoproduct::SpreadCell(Rc::clone(ccc)))}).collect()
+                                        .map(|ccc|{Rc::new(PropertiesCoproduct::SpreadCell(Rc::clone(ccc)))}).collect()
                                 }}
                             }),
                             children: Rc::new(RefCell::new(vec![
@@ -278,7 +278,7 @@ impl Spread {
                                                                 //TODO:  unwrap SpreadCell from the repeat-item.
                                                                 //       make this part of the expression! macro
                                                                 match &*scope.borrow().repeat_properties {
-                                                                    RepeatPropertiesCoproduct::SpreadCell(sc) => {
+                                                                    PropertiesCoproduct::SpreadCell(sc) => {
                                                                         sc.x
                                                                     },
                                                                     _ => panic!("Unknown property coproduct")
@@ -292,7 +292,7 @@ impl Spread {
                                                                 //TODO:  unwrap SpreadCell from the repeat-item.
                                                                 //       make this part of the expression! macro
                                                                 match &*scope.borrow().repeat_properties {
-                                                                    RepeatPropertiesCoproduct::SpreadCell(sc) => {
+                                                                    PropertiesCoproduct::SpreadCell(sc) => {
                                                                         sc.y
                                                                     },
                                                                     _ => panic!("Unknown property coproduct")
@@ -321,7 +321,7 @@ impl Spread {
                                                     //TODO:  unwrap SpreadCell from the repeat-item.
                                                     //       make this part of the expression! macro
                                                     match &*scope.borrow().repeat_properties {
-                                                        RepeatPropertiesCoproduct::SpreadCell(sc) => {
+                                                        PropertiesCoproduct::SpreadCell(sc) => {
                                                             Size::Pixel(sc.width)
                                                         },
                                                         _ => panic!("Unknown property coproduct")
@@ -335,7 +335,7 @@ impl Spread {
                                                     //TODO:  unwrap SpreadCell from the repeat-item.
                                                     //       make this part of the expression! macro
                                                     match &*scope.borrow().repeat_properties {
-                                                        RepeatPropertiesCoproduct::SpreadCell(sc) => {
+                                                        PropertiesCoproduct::SpreadCell(sc) => {
                                                             Size::Pixel(sc.height)
                                                         },
                                                         _ => panic!("Unknown property coproduct")
@@ -427,13 +427,13 @@ impl RenderNode for Spread {
         // add a spread_cells property, which is evaluated as an expression dependent on
         // the number of cells, gutter, and override specs, that is: f(cells, gutter, overrides)
 
-        // let child_data_list : Vec<Rc<RepeatPropertiesCoproduct>> =
+        // let child_data_list : Vec<Rc<PropertiesCoproduct>> =
         //     children.borrow()
         //     .iter()
         //     .enumerate()
         //     .map(|(i, _rnp)| {
         //         Rc::new(
-        //         RepeatPropertiesCoproduct::SpreadCell(
+        //         PropertiesCoproduct::SpreadCell(
         //             Rc::new(SpreadCellProperties {
         //                 height: 200.0,
         //                 width: 100.0,

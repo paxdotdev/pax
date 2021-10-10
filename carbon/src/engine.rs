@@ -86,16 +86,13 @@ pub struct Scope {
 pub enum PropertiesCoproduct {
     RepeatItem(Rc<RefCell<RepeatItem>>),
     Spread(Rc<RefCell<SpreadProperties>>),
+    SpreadCell(Rc<SpreadCellProperties>),
     Empty,
 }
 
 pub struct RepeatItem {
     pub i: usize,
-    pub repeat_properties: Rc<RepeatPropertiesCoproduct>
-}
-
-pub enum RepeatPropertiesCoproduct {
-    SpreadCell(Rc<SpreadCellProperties>)
+    pub repeat_properties: Rc<PropertiesCoproduct>
 }
 
 pub struct StackFrame

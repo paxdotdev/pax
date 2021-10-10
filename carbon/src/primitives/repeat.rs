@@ -3,12 +3,12 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, Transform, PropertiesCoproduct, RepeatPropertiesCoproduct, RepeatItem, Property, PropertyLiteral};
+use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, Transform, PropertiesCoproduct, RepeatItem, Property, PropertyLiteral};
 use std::collections::HashMap;
 
 pub struct Repeat {
     pub children: RenderNodePtrList,
-    pub repeated_data: Box<Property<Vec<Rc<RepeatPropertiesCoproduct>>>>,
+    pub data_list: Box<Property<Vec<Rc<PropertiesCoproduct>>>>,
     pub transform: Transform,
 
     //TODO: any way to make this legit-private along with the ..Default::default() syntax?
@@ -20,7 +20,7 @@ pub struct Repeat {
 /// during property-tree traversal
 pub struct RepeatProperties {
     pub i: usize,
-    pub datum: Rc<RepeatPropertiesCoproduct>,
+    pub datum: Rc<PropertiesCoproduct>,
     pub id: String,
 }
 
@@ -31,7 +31,7 @@ impl Default for Repeat {
     fn default() -> Self {
         Repeat {
             children: Rc::new(RefCell::new(vec![])),
-            repeated_data: Box::new(PropertyLiteral {value: vec![]}),
+            data_list: Box::new(PropertyLiteral {value: vec![]}),
             transform: Default::default(),
             _virtual_children: Rc::new(RefCell::new(vec![]))
         }
@@ -46,7 +46,7 @@ impl RenderNode for Repeat {
         self._virtual_children = Rc::new(RefCell::new(Vec::new()));
 
         //for each element in self.list, create a new child (Component) and push it to self.children
-        for (i, datum) in self.repeated_data.read().iter().enumerate() {
+        for (i, datum) in self.data_list.read().iter().enumerate() {
             let properties = Rc::new(RefCell::new(RepeatItem { i, repeat_properties: Rc::clone(datum)}));
 
             self._virtual_children.borrow_mut().push(Rc::new(RefCell::new(Component {
