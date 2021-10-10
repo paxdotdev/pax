@@ -101,19 +101,37 @@ pub struct StackFrame
     adoptees: RenderNodePtrList,
     adoptee_index: usize,
     scope: Rc<RefCell<Scope>>,
+    parent: Option<Rc<RefCell<StackFrame>>>,
 }
 
 impl StackFrame {
-    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>) -> Self {
+    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>, parent: Option<Rc<RefCell<StackFrame>>>) -> Self {
         StackFrame {
             adoptees: Rc::clone(&adoptees),
             adoptee_index: 0,
             scope,
+            parent,
         }
     }
 
+    pub fn has_adoptees(&self) -> bool {
+        self.adoptees.borrow().len() > 0
+    }
+
+    /// Returns the adoptees attached to this stack frame, if present.
+    /// Otherwise, recurses up the stack return ancestors' adoptees if found
     pub fn get_adoptees(&self) -> RenderNodePtrList {
-        Rc::clone(&self.adoptees)
+        if self.has_adoptees() {
+            Rc::clone(&self.adoptees)
+        }else {
+            match &self.parent {
+                Some(sf) => {
+                    sf.borrow().get_adoptees()
+                },
+                None => Rc::new(RefCell::new(vec![]))
+            }
+        }
+
     }
 
     pub fn get_scope(&self) -> Rc<RefCell<Scope>> {

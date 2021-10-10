@@ -81,10 +81,11 @@ impl Runtime {
         //       into a working full `RenderNodePtrList`.  This should be done recursively until
         //       there are no more descendents who are "contiguously flat".
 
+        let parent = self.peek_stack_frame();
 
         self.stack.push(
             Rc::new(RefCell::new(
-                StackFrame::new(adoptees, Rc::new(RefCell::new(*scope)))
+                StackFrame::new(adoptees, Rc::new(RefCell::new(*scope)), parent)
             ))
         );
     }
