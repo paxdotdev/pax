@@ -5,7 +5,7 @@ use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType, PropertyLiteral, StackUnion};
+use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType, PropertyLiteral, PropertyCoproduct};
 use std::collections::HashMap;
 use crate::Size::Percent;
 use std::any::Any;
@@ -38,12 +38,12 @@ impl RenderTree {
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, logic for managing
 /// scopes, stack frames, and properties should live here.
-pub struct Runtime<D> {
-    stack: Vec<Rc<RefCell<StackFrame<D>>>>,
+pub struct Runtime {
+    stack: Vec<Rc<RefCell<StackFrame>>>,
     logger: fn(&str),
 }
 
-impl<D> Runtime<D> {
+impl Runtime {
     pub fn new(logger: fn(&str)) -> Self {
         Runtime {
             stack: Vec::new(),
@@ -57,7 +57,7 @@ impl<D> Runtime<D> {
 
     /// Return a pointer to the top StackFrame on the stack,
     /// without mutating the stack or consuming the value
-    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame<D>>>> {
+    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame>>> {
         if self.stack.len() > 0 {
             Some(Rc::clone(&self.stack[0]))
         }else{
@@ -116,16 +116,16 @@ impl<D> Runtime<D> {
 //
 
 
-pub trait RenderNode<D>
+pub trait RenderNode
 {
 
-    fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext<D>);
+    fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
 
     /// Lifecycle event: fires after evaluating a node's properties in place and its descendents properties
     /// in place.  Useful for cleaning up after a node (e.g. popping from the runtime stack) because
     /// this is the last time this node will be visited within the property tree for this frame.
     /// (Empty) default implementation because this is a rarely needed hook
-    fn post_eval_properties_in_place(&mut self, ctx: &PropertyTreeContext<D>) {}
+    fn post_eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {}
 
     fn get_children(&self, ) -> RenderNodePtrList;
 
@@ -276,14 +276,14 @@ impl Transform {
 }
 
 
-pub struct Component<D> {
+pub struct Component {
     pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
     pub id: String,
     pub transform: Transform,
-    pub properties: Rc<StackUnion<D>>,
+    pub properties: Rc<PropertyCoproduct>,
 }
 
-impl<D> RenderNode for Component<D> {
+impl RenderNode for Component {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Component's `Expressable` properties
         //  - this includes any custom properties (inputs) passed into this component

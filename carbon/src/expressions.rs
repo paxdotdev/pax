@@ -46,15 +46,15 @@ impl<T> Property<T> for PropertyLiteral<T> {
     }
 }
 
-pub struct InjectionContext<'a, D> {
+pub struct InjectionContext<'a> {
     //TODO: add scope tree, etc.
-    pub engine: &'a CarbonEngine<D>,
-    pub stack_frame: Rc<RefCell<StackFrame<D>>>,
+    pub engine: &'a CarbonEngine,
+    pub stack_frame: Rc<RefCell<StackFrame>>,
 }
 
-pub trait Evaluator<T, D> {
+pub trait Evaluator<T> {
     //calls (variadic) self.evaluate and returns its value
-    fn inject_and_evaluate(&self, ic: &InjectionContext<D>) -> T;
+    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T;
 }
 
 
@@ -100,9 +100,9 @@ impl<T, E: Evaluator<T>> PropertyExpression<T, E>
     }
 }
 
-pub struct PropertyTreeContext<'a, D> {
-    pub engine: &'a CarbonEngine<D>,
-    pub runtime: Rc<RefCell<Runtime<D>>>,
+pub struct PropertyTreeContext<'a> {
+    pub engine: &'a CarbonEngine,
+    pub runtime: Rc<RefCell<Runtime>>,
 }
 
 impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {

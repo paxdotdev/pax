@@ -6,7 +6,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, decompose_render_node_ptr_list_into_vec, Transform, RepeatProperties, StackUnion};
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, decompose_render_node_ptr_list_into_vec, Transform, RepeatProperties, PropertyCoproduct, RepeatPropertyCoproduct, RepeatItem};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 use std::any::Any;
@@ -74,7 +74,7 @@ TODO:
 // </Component>
 
 
-pub struct Spread<D> {
+pub struct Spread {
     pub children: RenderNodePtrList,
     pub id: String,
     pub size: (
@@ -82,20 +82,20 @@ pub struct Spread<D> {
         Box<dyn Property<Size<f64>>>,
     ),
     pub transform: Transform,
-    pub properties: Rc<StackUnion<D>>,
+    pub properties: Rc<PropertyCoproduct>,
 
     template: RenderNodePtrList,
 }
 
 /* FUTURE CODEGEN VIA MACRO */
 struct RepeatInjectorMacroExpression<T> {
-    pub variadic_evaluator: fn(scope: Rc<RepeatProperties<SpreadCellProperties>>) -> T,
+    pub variadic_evaluator: fn(scope: Rc<RepeatItem>) -> T,
 }
 
 impl<T> RepeatInjectorMacroExpression<T> {}
 
-impl<T, D> Evaluator<T, D> for RepeatInjectorMacroExpression<T> {
-    fn inject_and_evaluate(&self, ic: &InjectionContext<D>) -> T {
+impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
+    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
         //TODO:CODEGEN
 
 
@@ -111,120 +111,33 @@ impl<T, D> Evaluator<T, D> for RepeatInjectorMacroExpression<T> {
         let scope = &stack_frame_borrowed.get_scope();
         let scope_borrowed = scope.borrow();
         // let properties_as_any = &scope_borrowed.properties as &dyn Any;
-        let repeat_properties = Rc::clone( unsafe { &scope_borrowed.properties.repeat_spread_cell });
+        let repeat_properties = Rc::clone(  &scope_borrowed.properties );
 
-        // ic.engine.runtime.borrow()
-        //     .log(
-        //         &format!("Any type {}", type_name_of_val( properties_as_any))
-        //     );
-        /// DEBUG:
-        //print the `type ID` of our received Any type
-        //along with the `type ID`s of suspected stand-ins, incl. their references.
+
+
+        let unwrapped_repeat_properties = match &*repeat_properties {
+            PropertyCoproduct::Repeat(rs) => {
+                Rc::clone(rs)
+            },
+            _ => {
+                panic!("Unexpected type.");
+            }
+        };
         //
-        // properties_as_any.type_id().
-        // let suspect_a : &Rc<RefCell<
+        // if let PropertyCoproduct::RepeatSpreadCell(rp) = repeat_properties {
+        //     unwrapped_repeat_properties = Rc::clone(&rp)
+        // }else{
+        //     panic!("Not the right property coproduct, mate!")
+        // }
 
 
-        /// END DEBUG
-        ///
-        /// Conclusion of the `Any` foray:  we won't be able
-        /// to downcast into an Rc, making it a non-viable path
-        ///
-        /// Another possible direction:
-        /// invert the roles of data and evaluation —
-        /// turn `evaluate_property(&str)` into a trait method
-        /// on stack frames...
-        /// A token can be
-        ///  - a property name (like an implicit &self.name for the token `name`)
-        ///  - a child node id (like an implicit &self.children.get_by_id(id) for the token `id`)
-        ///  - a nested descendent (child.child) or descendent-property (child.property)
-
-        /// We can create a higher-order data structure for a Property
-        /// Will we be able to store polymorphic Properties elegantly alongside each other?
-        /// Are we back to union-typed
-        ///
-        /// Yet another possible direction:  make each stack frame a big fat union type, that is:
-        /// for all polymorphic "scope shapes" in an application (e.g. RepeatProperties, SpreadProperties)
-        /// build a single mega-structure that contains memory (a field) for every one of those scopes
-        /// and attach an instance of that mega-structure to each stack frame.
-        /// Then:  each component knows how to pack and unpack its specific "scope shape"
-        ///        into/out-of that mega structure.
-        ///        That mega-structure declaration & maintenance can ultimately be managed with macros.
-        /// Question: will this make for an unmanageable memory footprint?
-        ///           will the bloated memory footprint become a bottleneck at any point for iteration, or e.g. stack traversal?
-        ///           will there be a realistic real-world use-case with so many distinct scopes * so deep a call stack that we exceed
-        ///           Napkin math:  imagine a component tree 500 elements deep (huge, but maybe possible e.g. in a heavily componentized app)
-        ///                         then imagine that each distinct "scope shape" (property set) contains 100kb of data
-        ///                         mega_structure_size = (500 * 100) => 50.000 MB
-        ///                         total_runtime_memory_footpring = 500 * 50.0 MB => 25,000.00 MB
-        ///           Memory would grow quadratically with the depth of component tree
-        ///           This might be viable for the short term, AND there's likely a path forward to a smaller footprint
-        ///           using a combo of macros and `unsafe` (each stack frame becomes the size of the "single largest stack frame," then perform an unsafe cast on each blob of memory)
-        ///           Perhaps a simple version of this can be achieved with Rust's union types
-        ///
-        /// What if we limit the possible types for Properties?
-        /// For example, if Properties can be only one of {String, Number, Boolean}, arrays, and MAYBE JS-hash-like nested {string => {String, Number, Boolean}}
-        /// This would enable us to decorate plain-ol Rust structs with a macro
-        /// that introspects the definition and builds a string-keyed lookup table
-
-
-        //
-        // let repeat_properties = Rc::clone(
-        //     properties_as_any
-        //     .downcast_ref::<Rc<RepeatProperties<SpreadCellProperties>>>()
-        //     .unwrap()
-        // );
+        (self.variadic_evaluator)(unwrapped_repeat_properties)
 
 
 
-        /* TODO:  evaluate if this Any/downcasting approach could work for us:
-            fn main() {
-                let a: Box<dyn Any> = Box::new(B);
-                let _: &B = match a.downcast_ref::<B>() {
-                    Some(b) => b,
-                    None => panic!("&a isn't a B!")
-                };
-            }
 
 
-            OR
 
-
-            use std::any::Any;
-
-            trait A {
-                fn as_any(&self) -> &dyn Any;
-            }
-
-            struct B;
-
-            impl A for B {
-                fn as_any(&self) -> &dyn Any {
-                    self
-                }
-            }
-
-            fn main() {
-                let a: Box<dyn A> = Box::new(B);
-                // The indirection through `as_any` is because using `downcast_ref`
-                // on `Box<A>` *directly* only lets us downcast back to `&A` again.
-                // The method ensures we get an `Any` vtable that lets us downcast
-                // back to the original, concrete type.
-                let b: &B = match a.as_any().downcast_ref::<B>() {
-                    Some(b) => b,
-                    None => panic!("&a isn't a B!"),
-                };
-            }
-        */
-
-
-        /* Other options:
-            - Eliminate variadic expressions; instead just always pass the same fat args (e.g. Engine, Scope)
-            - do some unsafe casting, enforced "safe" by our own runtime stack, a makeshift polymorphic smart pointer mechanism
-         */
-
-
-        (self.variadic_evaluator)(repeat_properties)
     }
 }
 
@@ -236,7 +149,7 @@ pub struct SpreadProperties {
     pub cell_size_spec: Option<Vec<Size<f64>>>,
 }
 
-pub(crate) struct SpreadCellProperties {
+pub struct SpreadCellProperties {
     //TODO: map correct types to our relevant transforms
     pub x: usize,
     pub y: usize,
@@ -251,18 +164,18 @@ impl Spread {
         id: String,
         size: (Box<dyn Property<Size<f64>>>, Box<dyn Property<Size<f64>>>),
         transform: Transform,
-        properties: Rc<StackUnion>,
+        properties: Rc<PropertyCoproduct>,
     ) -> Self {
-        let child_data_list : Vec<Rc<SpreadCellProperties>> =
+        let child_data_list : Vec<Rc<RepeatItem>> =
             children.borrow()
             .iter()
             .enumerate()
-            .map(|(i, _rnp)| { Rc::new(SpreadCellProperties {
+            .map(|(i, _rnp)| {Rc::new(RepeatItem {i, property_coproduct:  RepeatPropertyCoproduct::SpreadCell(Rc::new(SpreadCellProperties {
                 height: 100,
                 width: 100,
                 x: 100,
                 y: 100,
-             }) })
+             }))})})
             .collect();
 
         Spread {
@@ -289,7 +202,9 @@ impl Spread {
                                                 Box::new(PropertyExpression {
                                                     cached_value: 0,
                                                     dependencies: vec!["engine".to_string()],
-                                                    evaluator: RepeatInjectorMacroExpression {variadic_evaluator: |scope: Rc<RepeatProperties<SpreadCellProperties>>| -> usize {
+                                                    evaluator: RepeatInjectorMacroExpression {variadic_evaluator: |scope: Rc<RepeatItem>| -> usize {
+                                                        //TODO:  unwrap SpreadCell from the repeat-item.
+                                                        //       make this part of the expression! macro
                                                         scope.i
                                                     }}
                                                 })
@@ -361,9 +276,9 @@ impl Spread {
 
 
 
-impl<D> RenderNode for Spread<D> {
+impl RenderNode for Spread {
 
-    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext<D>) {
+    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Spread's `Expressable` properties
 
         //TODO:  handle caching children/adoptees
@@ -376,7 +291,7 @@ impl<D> RenderNode for Spread<D> {
         );
     }
 
-    fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext<D>) {
+    fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //clean up the stack frame for the next component
         ptc.runtime.borrow_mut().pop_stack_frame();
     }
@@ -454,14 +369,14 @@ impl<D> RenderNode for Spread<D> {
         // 2. determine gutter, `g`
         // 3. determine bounding size, `(x,y)`
 
-        match &self.properties.spread.cell_size_spec {
-            //If a cell_size_spec is provided, use it.
-            Some(cell_size_spec) => (),
-            //Otherwise, calculate one
-            None => {
-
-            }
-        }
+        // match &self.properties.spread.cell_size_spec {
+        //     //If a cell_size_spec is provided, use it.
+        //     Some(cell_size_spec) => (),
+        //     //Otherwise, calculate one
+        //     None => {
+        //
+        //     }
+        // }
 
 
     }
@@ -536,3 +451,118 @@ impl<D> RenderNode for Spread<D> {
 
 // for={for (i, elem) in (&self) -> { &self.get_children()}.iter().enumerate()}
  */
+
+
+
+
+
+// repeat_properties
+        // ic.engine.runtime.borrow()
+        //     .log(
+        //         &format!("Any type {}", type_name_of_val( properties_as_any))
+        //     );
+
+        //print the `type ID` of our received Any type
+        //along with the `type ID`s of suspected stand-ins, incl. their references.
+        //
+        // properties_as_any.type_id().
+        // let suspect_a : &Rc<RefCell<
+
+
+        // END DEBUG
+        //
+        // Conclusion of the `Any` foray:  we won't be able
+        // to downcast into an Rc, making it a non-viable path
+        //
+        // Another possible direction:
+        // invert the roles of data and evaluation —
+        // turn `evaluate_property(&str)` into a trait method
+        // on stack frames...
+        // A token can be
+        //  - a property name (like an implicit &self.name for the token `name`)
+        //  - a child node id (like an implicit &self.children.get_by_id(id) for the token `id`)
+        //  - a nested descendent (child.child) or descendent-property (child.property)
+        //
+        // We can create a higher-order data structure for a Property
+        // Will we be able to store polymorphic Properties elegantly alongside each other?
+        // Are we back to union-typed
+        //
+        // Yet another possible direction:  make each stack frame a big fat union type, that is:
+        // for all polymorphic "scope shapes" in an application (e.g. RepeatProperties, SpreadProperties)
+        // build a single mega-structure that contains memory (a field) for every one of those scopes
+        // and attach an instance of that mega-structure to each stack frame.
+        // Then:  each component knows how to pack and unpack its specific "scope shape"
+        //        into/out-of that mega structure.
+        //        That mega-structure declaration & maintenance can ultimately be managed with macros.
+        // Question: will this make for an unmanageable memory footprint?
+        //           will the bloated memory footprint become a bottleneck at any point for iteration, or e.g. stack traversal?
+        //           will there be a realistic real-world use-case with so many distinct scopes * so deep a call stack that we exceed
+        //           Napkin math:  imagine a component tree 500 elements deep (huge, but maybe possible e.g. in a heavily componentized app)
+        //                         then imagine that each distinct "scope shape" (property set) contains 100kb of data
+        //                         mega_structure_size = (500 * 100) => 50.000 MB
+        //                         total_runtime_memory_footpring = 500 * 50.0 MB => 25,000.00 MB
+        //           Memory would grow quadratically with the depth of component tree
+        //           This might be viable for the short term, AND there's likely a path forward to a smaller footprint
+        //           using a combo of macros and `unsafe` (each stack frame becomes the size of the "single largest stack frame," then perform an unsafe cast on each blob of memory)
+        //           Perhaps a simple version of this can be achieved with Rust's union types
+        //
+        // What if we limit the possible types for Properties?
+        // For example, if Properties can be only one of {String, Number, Boolean}, arrays, and MAYBE JS-hash-like nested {string => {String, Number, Boolean}}
+        // This would enable us to decorate plain-ol Rust structs with a macro
+        // that introspects the definition and builds a string-keyed lookup table
+
+
+        //
+        // let repeat_properties = Rc::clone(
+        //     properties_as_any
+        //     .downcast_ref::<Rc<RepeatProperties<SpreadCellProperties>>>()
+        //     .unwrap()
+        // );
+
+
+
+        /* TODO:  evaluate if this Any/downcasting approach could work for us:
+            fn main() {
+                let a: Box<dyn Any> = Box::new(B);
+                let _: &B = match a.downcast_ref::<B>() {
+                    Some(b) => b,
+                    None => panic!("&a isn't a B!")
+                };
+            }
+
+
+            OR
+
+
+            use std::any::Any;
+
+            trait A {
+                fn as_any(&self) -> &dyn Any;
+            }
+
+            struct B;
+
+            impl A for B {
+                fn as_any(&self) -> &dyn Any {
+                    self
+                }
+            }
+
+            fn main() {
+                let a: Box<dyn A> = Box::new(B);
+                // The indirection through `as_any` is because using `downcast_ref`
+                // on `Box<A>` *directly* only lets us downcast back to `&A` again.
+                // The method ensures we get an `Any` vtable that lets us downcast
+                // back to the original, concrete type.
+                let b: &B = match a.as_any().downcast_ref::<B>() {
+                    Some(b) => b,
+                    None => panic!("&a isn't a B!"),
+                };
+            }
+        */
+
+
+        /* Other options:
+            - Eliminate variadic expressions; instead just always pass the same fat args (e.g. Engine, Scope)
+            - do some unsafe casting, enforced "safe" by our own runtime stack, a makeshift polymorphic smart pointer mechanism
+         */

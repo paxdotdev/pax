@@ -21,53 +21,53 @@ use std::mem::ManuallyDrop;
 // use crate::primitives::{Frame};
 
 // Public method for consumption by engine chassis, e.g. WebChassis
-pub fn get_engine<D>(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine<D> {
+pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
     CarbonEngine::new(logger, viewport_size)
 }
 
-pub struct CarbonEngine<D> {
+pub struct CarbonEngine {
     pub frames_elapsed: u32,
     pub render_tree: Rc<RefCell<RenderTree>>,
-    pub runtime: Rc<RefCell<Runtime<D>>>,
+    pub runtime: Rc<RefCell<Runtime>>,
     viewport_size: (f64, f64),
 }
 
-pub struct RenderTreeContext<'a, D>
+pub struct RenderTreeContext<'a>
 {
     pub transform: &'a Affine,
     pub bounding_dimens: (f64, f64),
-    pub runtime: Rc<RefCell<Runtime<D>>>,
+    pub runtime: Rc<RefCell<Runtime>>,
     pub parent: RenderNodePtr,
     pub node: RenderNodePtr,
 }
 
 
 
-
-
-pub union StackUnion<D> {
-    pub repeat_properties: ManuallyDrop<Rc<RepeatProperties<D>>>,
-    pub main_component_properties: ManuallyDrop<Rc<MyMainComponentProperties>>,
-    pub spread: ManuallyDrop<Rc<SpreadProperties>>,
-}
-
-impl<D> Drop for StackUnion<D> {
-    fn drop(&mut self) {
-        unsafe {
-            match self {
-                StackUnion { repeat_properties } => {
-                    ManuallyDrop::drop(&mut self.repeat_properties);
-                },
-                StackUnion { main_component_properties } => {
-                    ManuallyDrop::drop(&mut self.main_component_properties);
-                }
-                StackUnion { spread } => {
-                    ManuallyDrop::drop(&mut self.spread);
-                }
-            }
-        }
-    }
-}
+//
+//
+// pub union StackUnion<D> {
+//     pub repeat_properties: ManuallyDrop<Rc<RepeatProperties<D>>>,
+//     pub main_component_properties: ManuallyDrop<Rc<MyMainComponentProperties>>,
+//     pub spread: ManuallyDrop<Rc<SpreadProperties>>,
+// }
+//
+// impl<D> Drop for StackUnion<D> {
+//     fn drop(&mut self) {
+//         unsafe {
+//             match self {
+//                 StackUnion { repeat_properties } => {
+//                     ManuallyDrop::drop(&mut self.repeat_properties);
+//                 },
+//                 StackUnion { main_component_properties } => {
+//                     ManuallyDrop::drop(&mut self.main_component_properties);
+//                 }
+//                 StackUnion { spread } => {
+//                     ManuallyDrop::drop(&mut self.spread);
+//                 }
+//             }
+//         }
+//     }
+// }
 
 /// `Scope` attaches to stack frames to provide an evaluation context + relevant data access
 /// for features like Expressions.
@@ -76,22 +76,34 @@ impl<D> Drop for StackUnion<D> {
 
 //TODO:  Scopes need to play nicely with variadic expressions.  We need to be
 //       able to access `self` (current component) and its `properties` <P>
-pub struct Scope<D> {
-    pub properties: Rc<StackUnion<D>>,
+pub struct Scope {
+    pub properties: Rc<PropertyCoproduct>,
     // TODO: children, parent, etc.
 }
 
+pub enum PropertyCoproduct {
+    Repeat(Rc<RepeatItem>),
+    Empty,
+}
 
+pub struct RepeatItem {
+    pub i: usize,
+    pub property_coproduct: RepeatPropertyCoproduct
+}
 
-pub struct StackFrame<D>
+pub enum RepeatPropertyCoproduct {
+    SpreadCell(Rc<SpreadCellProperties>)
+}
+
+pub struct StackFrame
 {
     adoptees: RenderNodePtrList,
     adoptee_index: usize,
-    scope: Rc<RefCell<Scope<D>>>,
+    scope: Rc<RefCell<Scope>>,
 }
 
-impl<D> StackFrame<D> {
-    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope<D>>>) -> Self {
+impl StackFrame {
+    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>) -> Self {
         StackFrame {
             adoptees: Rc::clone(&adoptees),
             adoptee_index: 0,
@@ -103,7 +115,7 @@ impl<D> StackFrame<D> {
         Rc::clone(&self.adoptees)
     }
 
-    pub fn get_scope(&self) -> Rc<RefCell<Scope<D>>> {
+    pub fn get_scope(&self) -> Rc<RefCell<Scope>> {
         Rc::clone(&self.scope)
     }
 
@@ -114,17 +126,17 @@ impl<D> StackFrame<D> {
 /*****************************/
 /* Codegen (macro) territory */
 
-struct MyManualMacroExpression<T, D> {
-    pub variadic_evaluator: fn(engine: &CarbonEngine<D>) -> T,
+struct MyManualMacroExpression<T> {
+    pub variadic_evaluator: fn(engine: &CarbonEngine) -> T,
 }
 
 //TODO:  should this hard-code the return type
-impl<T, D> MyManualMacroExpression<T, D> {
+impl<T> MyManualMacroExpression<T> {
 
 }
 
-impl<T, D> Evaluator<T, D> for MyManualMacroExpression<T, D> {
-    fn inject_and_evaluate(&self, ic: &InjectionContext<D>) -> T {
+impl<T> Evaluator<T> for MyManualMacroExpression<T> {
+    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
         //TODO:CODEGEN
         //       pull necessary data from `ic`,
         //       map into the variadic args of self.variadic_evaluator()
@@ -159,7 +171,7 @@ pub struct MyMainComponentProperties {
     rotation: f64,
 }
 
-impl<D> CarbonEngine<D> {
+impl CarbonEngine {
     fn new(logger: fn(&str), viewport_size: (f64, f64)) -> Self {
         CarbonEngine {
             frames_elapsed: 0,
@@ -167,7 +179,10 @@ impl<D> CarbonEngine<D> {
             render_tree: Rc::new(RefCell::new(RenderTree {
                 root: Rc::new(RefCell::new(Component {
                     id: String::from("root"),
-                    properties: Rc::new(StackUnion {main_component_properties: ManuallyDrop::new(Rc::new(MyMainComponentProperties { rotation: 0.44}))}),
+                    properties: Rc::new(
+                        PropertyCoproduct::Empty
+                        // StackUnion {main_component_properties: ManuallyDrop::new(Rc::new(MyMainComponentProperties { rotation: 0.44}))}
+                    ),
                     transform: Transform::default(),
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Frame {
@@ -250,10 +265,13 @@ impl<D> CarbonEngine<D> {
                                     String::from("my_first_spread"),
                                     (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
                                     Default::default(),
-                                    Rc::new(StackUnion { spread: ManuallyDrop::new(Rc::new(SpreadProperties {
-                                        gutter: Size::Pixel(10.0),
-                                        cell_size_spec: None,
-                                    }))})
+                                    Rc::new(
+                                        PropertyCoproduct::Empty
+                                        // StackUnion { spread: ManuallyDrop::new(Rc::new(SpreadProperties {
+                                        // gutter: Size::Pixel(10.0),
+                                        // cell_size_spec: None,
+                                        // }))}
+                                    )
 
                                 ))),
 
@@ -409,7 +427,7 @@ impl<D> CarbonEngine<D> {
         self.recurse_render_render_tree(&mut rtc, rc, Rc::clone(&self.render_tree.borrow().root));
     }
 
-    fn recurse_render_render_tree(&self, rtc: &mut RenderTreeContext<D>, rc: &mut WebRenderContext, node: RenderNodePtr)  {
+    fn recurse_render_render_tree(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext, node: RenderNodePtr)  {
         // Recurse:
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
@@ -503,7 +521,7 @@ impl<D> CarbonEngine<D> {
         &self.recurse_update_property_tree(&ctx,&mut self.render_tree.borrow_mut().root);
     }
 
-    fn recurse_update_property_tree(&self, ctx: &PropertyTreeContext<D>, node: &mut RenderNodePtr)  {
+    fn recurse_update_property_tree(&self, ctx: &PropertyTreeContext, node: &mut RenderNodePtr)  {
         // Recurse:
         //  - evaluate in a pre-order traversal, ensuring ancestors have been evaluated first
         //  - for each property, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
