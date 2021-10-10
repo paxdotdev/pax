@@ -155,21 +155,21 @@ impl Spread {
         transform: Transform,
         properties: Rc<RefCell<PropertiesCoproduct>>,
     ) -> Self {
-        let child_data_list : Vec<Rc<RefCell<RepeatPropertiesCoproduct>>> =
+        let child_data_list : Vec<Rc<RepeatPropertiesCoproduct>> =
             children.borrow()
             .iter()
             .enumerate()
             .map(|(i, _rnp)| {
-                Rc::new(RefCell::new(
+                Rc::new(
                 RepeatPropertiesCoproduct::SpreadCell(
-                    Rc::new(RefCell::new(SpreadCellProperties {
+                    Rc::new(SpreadCellProperties {
                         height: 200.0,
                         width: 100.0,
                         x: 100.0 * (i as f64),
                         y: 100.0 * (i as f64),
-                    }))
+                    })
                 )
-            ))})
+            )})
             .collect();
 
         Spread {
@@ -200,9 +200,9 @@ impl Spread {
                                                             evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
                                                                 //TODO:  unwrap SpreadCell from the repeat-item.
                                                                 //       make this part of the expression! macro
-                                                                match &*scope.borrow().repeat_properties.borrow() {
+                                                                match &*scope.borrow().repeat_properties {
                                                                     RepeatPropertiesCoproduct::SpreadCell(sc) => {
-                                                                        sc.borrow().x
+                                                                        sc.x
                                                                     },
                                                                     _ => panic!("Unknown property coproduct")
                                                                 }
@@ -214,9 +214,9 @@ impl Spread {
                                                             evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
                                                                 //TODO:  unwrap SpreadCell from the repeat-item.
                                                                 //       make this part of the expression! macro
-                                                                match &*scope.borrow().repeat_properties.borrow() {
+                                                                match &*scope.borrow().repeat_properties {
                                                                     RepeatPropertiesCoproduct::SpreadCell(sc) => {
-                                                                        sc.borrow().y
+                                                                        sc.y
                                                                     },
                                                                     _ => panic!("Unknown property coproduct")
                                                                 }
@@ -243,9 +243,9 @@ impl Spread {
                                                 evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size<f64> {
                                                     //TODO:  unwrap SpreadCell from the repeat-item.
                                                     //       make this part of the expression! macro
-                                                    match &*scope.borrow().repeat_properties.borrow() {
+                                                    match &*scope.borrow().repeat_properties {
                                                         RepeatPropertiesCoproduct::SpreadCell(sc) => {
-                                                            Size::Pixel(sc.borrow().width)
+                                                            Size::Pixel(sc.width)
                                                         },
                                                         _ => panic!("Unknown property coproduct")
                                                     }
@@ -257,9 +257,9 @@ impl Spread {
                                                 evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size<f64> {
                                                     //TODO:  unwrap SpreadCell from the repeat-item.
                                                     //       make this part of the expression! macro
-                                                    match &*scope.borrow().repeat_properties.borrow() {
+                                                    match &*scope.borrow().repeat_properties {
                                                         RepeatPropertiesCoproduct::SpreadCell(sc) => {
-                                                            Size::Pixel(sc.borrow().height)
+                                                            Size::Pixel(sc.height)
                                                         },
                                                         _ => panic!("Unknown property coproduct")
                                                     }

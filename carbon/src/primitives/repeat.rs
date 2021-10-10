@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 pub struct Repeat {
     pub children: RenderNodePtrList,
-    pub list: Vec<Rc<RefCell<RepeatPropertiesCoproduct>>>,
+    pub list: Vec<Rc<RepeatPropertiesCoproduct>>,
     pub id: String,
     pub transform: Transform,
     virtual_children: RenderNodePtrList,
@@ -19,12 +19,12 @@ pub struct Repeat {
 /// during property-tree traversal
 pub struct RepeatProperties {
     pub i: usize,
-    pub datum: Rc<RefCell<RepeatPropertiesCoproduct>>,
+    pub datum: Rc<RepeatPropertiesCoproduct>,
     pub id: String,
 }
 
 impl Repeat {
-    pub fn new(list: Vec<Rc<RefCell<RepeatPropertiesCoproduct>>>, children: RenderNodePtrList, id: String, transform: Transform) -> Self {
+    pub fn new(list: Vec<Rc<RepeatPropertiesCoproduct>>, children: RenderNodePtrList, id: String, transform: Transform) -> Self {
         Repeat {
             list,
             children,
@@ -54,6 +54,7 @@ impl RenderNode for Repeat {
                 properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
             })));
         }
+
     }
 
     fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
