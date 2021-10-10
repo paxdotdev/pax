@@ -213,33 +213,33 @@ impl CarbonEngine {
                                 ..Default::default()
                             },
                             children: Rc::new(RefCell::new(vec![
-                                Rc::new(RefCell::new(
-                                Rectangle {
-                                    transform: Transform {
-                                        origin: (Box::new(PropertyLiteral { value: Size::Percent(100.0)}), Box::new(PropertyLiteral {value: Size::Pixel(0.0) })),
-                                        align: (Box::new(PropertyLiteral {value: 1.0}) , Box::new(PropertyLiteral { value: 0.0 })),
-                                        ..Default::default()
-                                    },
-
-                                    fill: Box::new(
-                                        PropertyExpression {
-                                            cached_value: Color::hlc(0.0,0.0,0.0),
-                                            dependencies: vec!["engine".to_string()],
-                                            //TODO: expression!(|engine: &CarbonEngine| -> Color {})
-                                            evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                                Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-                                            }}
-                                        }
-                                    ),
-                                    stroke: Stroke {
-                                        width: 4.0,
-                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                        color: Color::rgba(1.0, 1.0, 0.0, 1.0)
-                                    },
-                                    id: String::from("frame_filler"),
-                                    size: (Box::new(PropertyLiteral{value: Size::Percent(50.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
-                                }
-                            )),
+                            //     Rc::new(RefCell::new(
+                            //     Rectangle {
+                            //         transform: Transform {
+                            //             origin: (Box::new(PropertyLiteral { value: Size::Percent(100.0)}), Box::new(PropertyLiteral {value: Size::Pixel(0.0) })),
+                            //             align: (Box::new(PropertyLiteral {value: 1.0}) , Box::new(PropertyLiteral { value: 0.0 })),
+                            //             ..Default::default()
+                            //         },
+                            //
+                            //         fill: Box::new(
+                            //             PropertyExpression {
+                            //                 cached_value: Color::hlc(0.0,0.0,0.0),
+                            //                 dependencies: vec!["engine".to_string()],
+                            //                 //TODO: expression!(|engine: &CarbonEngine| -> Color {})
+                            //                 evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                            //                     Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                            //                 }}
+                            //             }
+                            //         ),
+                            //         stroke: Stroke {
+                            //             width: 4.0,
+                            //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                            //             color: Color::rgba(1.0, 1.0, 0.0, 1.0)
+                            //         },
+                            //         id: String::from("frame_filler"),
+                            //         size: (Box::new(PropertyLiteral{value: Size::Percent(50.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                            //     }
+                            // )),
                                 Rc::new(RefCell::new(
                                     Spread::new(
                                         Rc::new(RefCell::new(vec![
@@ -269,7 +269,7 @@ impl CarbonEngine {
                                                 Rectangle {
                                                     transform: Transform::default(),
                                                     fill:  Box::new(
-                                                        PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0) }
+                                                        PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
                                                     ),
                                                     stroke: Stroke {
                                                         width: 4.0,

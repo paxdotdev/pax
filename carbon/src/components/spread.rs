@@ -98,14 +98,6 @@ impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
         //TODO:CODEGEN
 
-
-        //Perhaps there's a single stack frame with all `n` of the RepeatProperties<D> for
-        //this data set.  To get the right `properties_borrowed`, we then need to peek the stack
-        //frame and look up the all_the_properties[i] -- but how do we know `i` here?
-        //Alternatively, `Repeat` can push a stack frame on each iteration? and pop it before the next
-
-
-
         let stack_frame = &ic.stack_frame;
         let stack_frame_borrowed = stack_frame.borrow();
         let scope = &stack_frame_borrowed.get_scope();
@@ -116,31 +108,12 @@ impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
             PropertyCoproduct::RepeatItem(rs) => {
                 Rc::clone(rs)
             },
-            PropertyCoproduct::Spread(s) => {
-                panic!("It's a Spread!!");
-            },
-            PropertyCoproduct::Empty => {
-                panic!("It's empty!!");
-            },
             _ => {
                 panic!("Unexpected type.");
             }
         };
-        //
-        // if let PropertyCoproduct::RepeatSpreadCell(rp) = repeat_properties {
-        //     unwrapped_repeat_properties = Rc::clone(&rp)
-        // }else{
-        //     panic!("Not the right property coproduct, mate!")
-        // }
-
 
         (self.variadic_evaluator)(unwrapped_repeat_properties)
-
-
-
-
-
-
     }
 }
 
@@ -154,8 +127,8 @@ pub struct SpreadProperties {
 
 pub struct SpreadCellProperties {
     //TODO: map correct types to our relevant transforms
-    pub x: usize,
-    pub y: usize,
+    pub x: f64,
+    pub y: f64,
     pub width: usize,
     pub height: usize,
 }
@@ -173,17 +146,16 @@ impl Spread {
             children.borrow()
             .iter()
             .enumerate()
-            .map(|(i, _rnp)| {  Rc::new(RepeatPropertyCoproduct::SpreadCell(
-                            Rc::new(SpreadCellProperties {
-                                height: 100,
-                                width: 100,
-                                x: 100,
-                                y: 100,
-                            }
-                            )
-                        ))
-                    }
+            .map(|(i, _rnp)| {  Rc::new(
+                RepeatPropertyCoproduct::SpreadCell(
+                    Rc::new(SpreadCellProperties {
+                        height: 200,
+                        width: 100,
+                        x: 100.0 * i as f64,
+                        y: 100.0 * i as f64,
+                    })
                 )
+            )})
             .collect();
 
         Spread {
@@ -206,7 +178,39 @@ impl Spread {
                                         children: Rc::new(RefCell::new(vec![Rc::new(RefCell::new(
                                             Placeholder::new(
                                                 "spread_frame_placeholder".to_string(),
-                                                Transform::default(),
+                                                Transform {
+                                                    translate: (
+                                                        Box::new(PropertyExpression {
+                                                            cached_value: 0.0,
+                                                            dependencies: vec!["engine".to_string()],
+                                                            evaluator: RepeatInjectorMacroExpression {variadic_evaluator: |scope: Rc<RepeatItem>| -> f64 {
+                                                                //TODO:  unwrap SpreadCell from the repeat-item.
+                                                                //       make this part of the expression! macro
+                                                                match &*scope.property_coproduct {
+                                                                    RepeatPropertyCoproduct::SpreadCell(sc) => {
+                                                                        sc.x
+                                                                    },
+                                                                    _ => panic!("Unknown property coproduct")
+                                                                }
+                                                            }}
+                                                        }),
+                                                        Box::new(PropertyExpression {
+                                                            cached_value: 0.0,
+                                                            dependencies: vec!["engine".to_string()],
+                                                            evaluator: RepeatInjectorMacroExpression {variadic_evaluator: |scope: Rc<RepeatItem>| -> f64 {
+                                                                //TODO:  unwrap SpreadCell from the repeat-item.
+                                                                //       make this part of the expression! macro
+                                                                match &*scope.property_coproduct {
+                                                                    RepeatPropertyCoproduct::SpreadCell(sc) => {
+                                                                        sc.y
+                                                                    },
+                                                                    _ => panic!("Unknown property coproduct")
+                                                                }
+                                                            }}
+                                                        })
+                                                    ),
+                                                    ..Default::default()
+                                                },
                                                 Box::new(PropertyExpression {
                                                     cached_value: 0,
                                                     dependencies: vec!["engine".to_string()],
