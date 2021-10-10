@@ -78,7 +78,7 @@ TODO:
 
 pub struct Spread {
     pub children: RenderNodePtrList,
-    component: Rc<RefCell<Component>>,
+    properties: Rc<RefCell<SpreadProperties>>,
     template: RenderNodePtrList,
 }
 
@@ -100,39 +100,22 @@ impl Spread {
         //  this is the root of Spread's own rendering, and is what should be returned
         //  by get_children.  note that it includes a pointer (Rc) to `self.component` as well.
 
-        let raw_component = Component {
-            template: init_and_retrieve_template(),
-            transform: Rc::new(RefCell::new(Default::default())),
-            properties: Rc::new(RefCell::new(PropertiesCoproduct::Spread(properties))),
-        };
-        let cast_component_reference = &raw_component as &dyn RenderNode;
-        let component = Rc::new(RefCell::new(
+
+        let component: RenderNodePtr = Rc::new(RefCell::new(
             Component {
                 template: init_and_retrieve_template(),
                 transform: Rc::new(RefCell::new(Default::default())),
-                properties: Rc::new(RefCell::new(PropertiesCoproduct::Spread(properties))),
+                properties: Rc::new(RefCell::new(PropertiesCoproduct::Spread(Rc::clone(&properties)))),
             }
         ));
         let template: RenderNodePtrList = Rc::new(RefCell::new(vec![
-            Rc::new((&component.borrow() as &dyn RenderNode))
+            Rc::clone(&component)
         ]));
+
         Spread {
             children,
             template,
-            component,
-        }
-    }
-
-    //Rather than maintaining duplicate pointers for Spread's higher-level properties as well as the
-    //true "source of truth" that's bundled and wrapped into the Component,
-    //this method is exposed here to allow Spread.get_properties to point to the
-    //real deal
-    pub fn get_properties(&self) -> Rc<RefCell<SpreadProperties>> {
-        match &self.component.borrow().properties {
-            PropertiesCoproduct::Spread(props) => {
-                Rc::clone(props)
-            }
-            _ => {panic!("Spread properties must be of type SpreadProperties")}
+            properties,
         }
     }
 }
@@ -216,7 +199,7 @@ impl RenderNode for Spread {
 
         //TODO:  handle caching children/adoptees
 
-        self.template.borrow_mut().get_mut(0).unwrap().borrow_mut().properties.eval_in_place(ptc);
+        self.properties.borrow_mut().eval_in_place(ptc);
     }
 
     fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
@@ -283,9 +266,9 @@ impl RenderNode for Spread {
 
         Rc::clone(&self.template)
     }
-    fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.get_properties().borrow().size)) }
+    fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.properties.borrow().size)) }
 
-    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.get_properties().borrow().transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.properties.borrow().transform) }
 
 }
 

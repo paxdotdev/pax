@@ -285,7 +285,7 @@ impl Transform {
 
 
 pub struct Component {
-    pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
+    pub template: RenderNodePtrList,
     pub transform: Rc<RefCell<Transform>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
 }
