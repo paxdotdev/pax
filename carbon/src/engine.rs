@@ -41,34 +41,6 @@ pub struct RenderTreeContext<'a>
     pub node: RenderNodePtr,
 }
 
-
-
-//
-//
-// pub union StackUnion<D> {
-//     pub repeat_properties: ManuallyDrop<Rc<RepeatProperties<D>>>,
-//     pub main_component_properties: ManuallyDrop<Rc<MyMainComponentProperties>>,
-//     pub spread: ManuallyDrop<Rc<SpreadProperties>>,
-// }
-//
-// impl<D> Drop for StackUnion<D> {
-//     fn drop(&mut self) {
-//         unsafe {
-//             match self {
-//                 StackUnion { repeat_properties } => {
-//                     ManuallyDrop::drop(&mut self.repeat_properties);
-//                 },
-//                 StackUnion { main_component_properties } => {
-//                     ManuallyDrop::drop(&mut self.main_component_properties);
-//                 }
-//                 StackUnion { spread } => {
-//                     ManuallyDrop::drop(&mut self.spread);
-//                 }
-//             }
-//         }
-//     }
-// }
-
 /// `Scope` attaches to stack frames to provide an evaluation context + relevant data access
 /// for features like Expressions.
 /// The stored values that are DI'ed into expressions are held in these scopes,
@@ -82,21 +54,23 @@ pub struct Scope {
 }
 
 // ∐
-// TODO: could these be vanilla references instead of `Rc`s?
 pub enum PropertiesCoproduct {
     RepeatItem(Rc<RefCell<RepeatItem>>),
     Spread(Rc<RefCell<SpreadProperties>>),
     Empty,
 }
 
+pub enum RepeatPropertiesCoproduct {
+    SpreadCell(Rc<RefCell<SpreadCellProperties>>)
+}
+// ∐∎
+
+
 pub struct RepeatItem {
     pub i: usize,
-    pub repeat_properties: Rc<RepeatPropertiesCoproduct>
+    pub repeat_properties: Rc<RefCell<RepeatPropertiesCoproduct>>
 }
 
-pub enum RepeatPropertiesCoproduct {
-    SpreadCell(Rc<SpreadCellProperties>)
-}
 
 pub struct StackFrame
 {
