@@ -2,32 +2,7 @@ use std::collections::HashMap;
 use crate::{CarbonEngine, Runtime, StackFrame};
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::marker::PhantomData;
 use std::any::Any;
-
-pub struct Variable {
-    pub name: String,
-    pub value: Box<PolymorphicValue>,
-    pub access: VariableAccessLevel,
-}
-
-pub enum VariableAccessLevel {
-    Public,
-    Private,
-}
-
-pub enum PolymorphicValue
-{
-    Float(f64),
-    Integer(i64),
-    Boolean(bool),
-}
-
-pub enum PolymorphicType {
-    Float,
-    Integer,
-    Boolean,
-}
 
 pub trait Property<T> {
     //either unwrap T

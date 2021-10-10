@@ -21,9 +21,6 @@ impl RenderNode for Group {
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_id(&self) -> &str {
-        &self.id.as_str()
-    }
     fn get_transform_computed(&self) -> &Affine {
         &self.transform.cached_computed_transform
     }

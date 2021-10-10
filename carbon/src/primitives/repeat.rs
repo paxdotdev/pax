@@ -3,15 +3,16 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, PolymorphicType, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, Transform, PropertiesCoproduct, RepeatPropertiesCoproduct, RepeatItem};
+use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, Transform, PropertiesCoproduct, RepeatPropertiesCoproduct, RepeatItem, Property, PropertyLiteral};
 use std::collections::HashMap;
 
 pub struct Repeat {
     pub children: RenderNodePtrList,
-    pub list: Vec<Rc<RepeatPropertiesCoproduct>>,
-    pub id: String,
+    pub repeated_data: Box<Property<Vec<Rc<RepeatPropertiesCoproduct>>>>,
     pub transform: Transform,
-    virtual_children: RenderNodePtrList,
+
+    //TODO: any way to make this legit-private along with the ..Default::default() syntax?
+    pub _virtual_children: RenderNodePtrList,
 }
 
 /// Data structure for the virtually duplicated container that surrounds repeated nodes.
@@ -24,14 +25,15 @@ pub struct RepeatProperties {
 }
 
 impl Repeat {
-    pub fn new(list: Vec<Rc<RepeatPropertiesCoproduct>>, children: RenderNodePtrList, id: String, transform: Transform) -> Self {
-        Repeat {
-            list,
-            children,
-            id,
-            transform,
-            virtual_children:  Rc::new(RefCell::new(vec![])),
+}
 
+impl Default for Repeat {
+    fn default() -> Self {
+        Repeat {
+            children: Rc::new(RefCell::new(vec![])),
+            repeated_data: Box::new(PropertyLiteral {value: vec![]}),
+            transform: Default::default(),
+            _virtual_children: Rc::new(RefCell::new(vec![]))
         }
     }
 }
@@ -41,15 +43,14 @@ impl RenderNode for Repeat {
         //TODO: handle each of Repeat's `Expressable` properties
 
         //reset children
-        self.virtual_children = Rc::new(RefCell::new(Vec::new()));
+        self._virtual_children = Rc::new(RefCell::new(Vec::new()));
 
         //for each element in self.list, create a new child (Component) and push it to self.children
-        for (i, datum) in self.list.iter().enumerate() {
+        for (i, datum) in self.repeated_data.read().iter().enumerate() {
             let properties = Rc::new(RefCell::new(RepeatItem { i, repeat_properties: Rc::clone(datum)}));
 
-            self.virtual_children.borrow_mut().push(Rc::new(RefCell::new(Component {
+            self._virtual_children.borrow_mut().push(Rc::new(RefCell::new(Component {
                 template: Rc::clone(&self.children),
-                id: "".to_string(),
                 transform: Transform::default(),
                 properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
             })));
@@ -66,13 +67,10 @@ impl RenderNode for Repeat {
         true
     }
     fn get_children(&self) -> RenderNodePtrList {
-        Rc::clone(&self.virtual_children)
+        Rc::clone(&self._virtual_children)
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_id(&self) -> &str {
-        &self.id.as_str()
-    }
     fn get_transform_computed(&self) -> &Affine {
         &self.transform.cached_computed_transform
     }

@@ -31,9 +31,6 @@ impl RenderNode for Frame {
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> {
         Some((*self.size.0.read(), *self.size.1.read()))
     }
-    fn get_id(&self) -> &str {
-        &self.id.as_str()
-    }
     fn get_transform_computed(&self) -> &Affine {
         self.transform.get_cached_computed_value()
     }

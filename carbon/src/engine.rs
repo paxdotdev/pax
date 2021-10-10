@@ -10,7 +10,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Transform, Component, Error, PolymorphicType, PolymorphicValue, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Variable, VariableAccessLevel, Evaluator, InjectionContext, RenderNode, SpreadProperties, RepeatProperties, SpreadCellProperties};
+use crate::{Affine, Color, Transform, Component, Error, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, Stroke, StrokeStyle, Evaluator, InjectionContext, RenderNode, SpreadProperties, RepeatProperties, SpreadCellProperties};
 use crate::components::Spread;
 use crate::primitives::{Frame, Placeholder};
 use crate::primitives::group::Group;
@@ -122,6 +122,9 @@ impl StackFrame {
 
     /// Returns the adoptees attached to this stack frame, if present.
     /// Otherwise, recurses up the stack return ancestors' adoptees if found
+    /// TODO:  if this logic is problematic, e.g. descendants are grabbing ancestors' adoptees
+    ///        inappropriately, then we could adjust this logic to:
+    ///        grab direct parent's adoptees, only if current node is a `should_flatten` node like `Repeat`
     pub fn get_adoptees(&self) -> RenderNodePtrList {
         if self.has_adoptees() {
             Rc::clone(&self.adoptees)
@@ -199,7 +202,6 @@ impl CarbonEngine {
             runtime: Rc::new(RefCell::new(Runtime::new(logger))),
             render_tree: Rc::new(RefCell::new(RenderTree {
                 root: Rc::new(RefCell::new(Component {
-                    id: String::from("root"),
                     properties: Rc::new(RefCell::new(
                         PropertiesCoproduct::Empty
                         // StackUnion {main_component_properties: ManuallyDrop::new(Rc::new(MyMainComponentProperties { rotation: 0.44}))}
@@ -306,8 +308,7 @@ impl CarbonEngine {
                                             RefCell::new(SpreadProperties {
                                                 cell_count: Box::new(PropertyLiteral{value: 5}),
                                                 gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(5.0)}),
-                                                overrides_cell_size: vec![],
-                                                overrides_gutter_size: vec![]
+                                                ..Default::default()
                                             })
                                         ))
                                     ))

@@ -5,7 +5,7 @@ use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType, PropertyLiteral, PropertiesCoproduct};
+use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Scope, PropertyLiteral, PropertiesCoproduct};
 use std::collections::HashMap;
 use crate::Size::Percent;
 use std::any::Any;
@@ -172,7 +172,6 @@ pub trait RenderNode
         }
     }
 
-    fn get_id(&self) -> &str;
     fn get_transform_computed(&self) -> &Affine;
     fn get_transform_mut(&mut self) -> &mut Transform;
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
@@ -282,7 +281,6 @@ impl Transform {
 
 pub struct Component {
     pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
-    pub id: String,
     pub transform: Transform,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
 }
@@ -313,9 +311,6 @@ impl RenderNode for Component {
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_id(&self) -> &str {
-        &self.id.as_str()
-    }
     fn get_transform_computed(&self) -> &Affine {
         &self.transform.cached_computed_transform
     }
@@ -383,9 +378,6 @@ impl RenderNode for Rectangle {
         &self.transform.cached_computed_transform
     }
     fn get_transform_mut(&mut self) -> &mut Transform { &mut self.transform }
-    fn get_id(&self) -> &str {
-        &self.id.as_str()
-    }
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         let transform = rtc.transform;
