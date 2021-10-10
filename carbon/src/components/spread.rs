@@ -102,7 +102,7 @@ pub struct Spread {
 
 pub struct SpreadProperties {
     pub size: Size2D,
-    pub transform: Transform,
+    pub transform: Rc<RefCell<Transform>>,
     pub cell_count: Box<dyn Property<usize>>,
     pub gutter_width: Box<dyn Property<Size<f64>>>,
 
@@ -205,7 +205,6 @@ fn get_template() -> Rc<RefCell<Vec<Rc<RefCell<dyn RenderNode>>>>> {
                                 id: "spread_frame".to_string(),
                                 children: Rc::new(RefCell::new(vec![Rc::new(RefCell::new(
                                     Placeholder::new(
-                                        "spread_frame_placeholder".to_string(),
                                         Transform {
                                             translate: (
                                                 Box::new(PropertyExpression {
@@ -280,7 +279,7 @@ fn get_template() -> Rc<RefCell<Vec<Rc<RefCell<dyn RenderNode>>>>> {
                                         }}
                                     }),
                                 ))),
-                                transform: Transform::default(),
+                                transform: Rc::new(RefCell::new(Transform::default())),
                             }
                         ))
                     ])),
@@ -465,13 +464,7 @@ impl RenderNode for Spread {
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.properties.borrow().size)) }
 
-    fn get_transform_computed(&self) -> &Affine {
-        &self.properties.borrow().transform.get_cached_computed_value()
-    }
-
-    fn get_transform_mut(&mut self) -> &mut Transform {
-        &mut self.properties.borrow().transform
-    }
+    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.properties.borrow().transform) }
 
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //TODO:  calc & memoize the layout/transform for each cell of the Sprad

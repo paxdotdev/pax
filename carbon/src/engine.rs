@@ -202,23 +202,23 @@ impl CarbonEngine {
                     properties: Rc::new(RefCell::new(
                         PropertiesCoproduct::Empty
                     )),
-                    transform: Transform::default(),
+                    transform: Rc::new(RefCell::new(Transform::default())),
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Frame {
                             id: String::from("frame_1"),
                             size: Size2DFactory::Literal(Size::Pixel(550.0), Size::Pixel(400.0)),
-                            transform: Transform {
+                            transform: Rc::new(RefCell::new(Transform {
                                 origin: (Box::new(PropertyLiteral{value: Size::Percent(50.0)}), Box::new(PropertyLiteral {value: Size::Percent(50.0)})),
                                 align: (Box::new(PropertyLiteral { value: 0.5 }), Box::new(PropertyLiteral { value: 0.5 })),
                                 ..Default::default()
-                            },
+                            })),
                             children: Rc::new(RefCell::new(vec![
                                 Rc::new(RefCell::new(
                                     Spread {
                                         children: Rc::new(RefCell::new(vec![
                                             Rc::new(RefCell::new(
                                                 Rectangle {
-                                                    transform: Transform::default(),
+                                                    transform: Rc::new(RefCell::new(Transform::default())),
                                                     fill: Box::new(
                                                         PropertyExpression {
                                                             cached_value: Color::hlc(0.0,0.0,0.0),
@@ -239,7 +239,7 @@ impl CarbonEngine {
                                             )),
                                             Rc::new(RefCell::new(
                                                 Rectangle {
-                                                    transform: Transform::default(),
+                                                    transform: Rc::new(RefCell::new(Transform::default())),
                                                     fill:  Box::new(
                                                         PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
                                                     ),
@@ -253,7 +253,7 @@ impl CarbonEngine {
                                             )),
                                             Rc::new(RefCell::new(
                                                 Rectangle {
-                                                    transform: Transform {translate: (Box::new(PropertyLiteral{value: 100.0}),Box::new(PropertyLiteral{value: 100.0})), ..Default::default() },
+                                                    transform: Rc::new(RefCell::new(Transform {translate: (Box::new(PropertyLiteral{value: 100.0}),Box::new(PropertyLiteral{value: 100.0})), ..Default::default() })),
                                                     fill:  Box::new(
                                                         PropertyLiteral {value: Color::rgba(0.0, 0.0, 1.0, 1.0) }
                                                     ),
@@ -393,7 +393,7 @@ impl CarbonEngine {
 
                                 Rc::new(RefCell::new(
                                     Rectangle {
-                                        transform: Transform::default(),
+                                        transform: Rc::new(RefCell::new(Transform::default())),
                                         fill:  Box::new(
                                             PropertyLiteral {value: Color::rgba(0.5, 0.5, 0.5, 1.0) }
                                         ),
@@ -446,7 +446,7 @@ impl CarbonEngine {
         let node_computed_transform = {
             let mut node_borrowed = rtc.node.borrow_mut();
             let node_size = node_borrowed.get_size_calc(accumulated_bounds);
-            node_borrowed.get_transform_mut()
+            node_borrowed.get_transform_mut().borrow_mut()
             .compute_transform_in_place(
                 node_size,
                 accumulated_bounds

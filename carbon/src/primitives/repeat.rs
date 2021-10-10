@@ -9,7 +9,7 @@ use std::collections::HashMap;
 pub struct Repeat {
     pub children: RenderNodePtrList,
     pub data_list: Box<Property<Vec<Rc<PropertiesCoproduct>>>>,
-    pub transform: Transform,
+    pub transform: Rc<RefCell<Transform>>,
 
     //TODO: any way to make this legit-private along with the ..Default::default() syntax?
     pub _virtual_children: RenderNodePtrList,
@@ -55,7 +55,7 @@ impl RenderNode for Repeat {
 
             self._virtual_children.borrow_mut().push(Rc::new(RefCell::new(Component {
                 template: Rc::clone(&self.children),
-                transform: Transform::default(),
+                transform: Rc::new(RefCell::new(Transform::default())),
                 properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
             })));
         }
@@ -75,17 +75,12 @@ impl RenderNode for Repeat {
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform_computed(&self) -> &Affine {
-        &self.transform.cached_computed_transform
-    }
 
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 
-    fn get_transform_mut(&mut self) -> &mut Transform {
-        &mut self.transform
-    }
+    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
 }
 
 

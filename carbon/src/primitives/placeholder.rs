@@ -8,17 +8,15 @@ use piet_web::WebRenderContext;
 use crate::{RenderNodePtrList, RenderNode, PropertyTreeContext, Size, RenderTreeContext, rendering, wrap_render_node_ptr_into_list, Transform, Property, Size2D};
 
 pub struct Placeholder {
-    pub id: String,
-    pub transform: Transform,
-    pub index: Box<Property<usize>>,
+    pub transform: Rc<RefCell<Transform>>,
+    pub index: Box<dyn Property<usize>>,
     children: RenderNodePtrList,
 }
 
 impl Placeholder {
-    pub fn new(id: String, transform: Transform, index: Box<Property<usize>>) -> Self {
+    pub fn new(transform: Transform, index: Box<Property<usize>>) -> Self {
         Placeholder {
-            id,
-            transform,
+            transform: Rc::new(RefCell::new(transform)),
             index,
             children: Rc::new(RefCell::new(vec![])),
         }
@@ -62,13 +60,7 @@ impl RenderNode for Placeholder {
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
 
-    fn get_transform_computed(&self) -> &Affine {
-        &self.transform.cached_computed_transform
-    }
-
-    fn get_transform_mut(&mut self) -> &mut Transform {
-        &mut self.transform
-    }
+    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
 
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
 

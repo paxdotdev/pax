@@ -8,7 +8,7 @@ use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePt
 pub struct Group {
     pub children: Rc<RefCell<Vec<RenderNodePtr>>>,
     pub id: String,
-    pub transform: Transform,
+    pub transform: Rc<RefCell<Transform>>,
 }
 
 impl RenderNode for Group {
@@ -21,13 +21,8 @@ impl RenderNode for Group {
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform_computed(&self) -> &Affine {
-        &self.transform.cached_computed_transform
-    }
 
-    fn get_transform_mut(&mut self) -> &mut Transform {
-        &mut self.transform
-    }
+    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
 
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}

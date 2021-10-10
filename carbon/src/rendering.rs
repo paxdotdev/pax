@@ -171,8 +171,7 @@ pub trait RenderNode
         }
     }
 
-    fn get_transform_computed(&self) -> &Affine;
-    fn get_transform_mut(&mut self) -> &mut Transform;
+    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>>;
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
     fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
@@ -280,7 +279,7 @@ impl Transform {
 
 pub struct Component {
     pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
-    pub transform: Transform,
+    pub transform: Rc<RefCell<Transform>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
 }
 
@@ -310,10 +309,7 @@ impl RenderNode for Component {
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform_computed(&self) -> &Affine {
-        &self.transform.cached_computed_transform
-    }
-    fn get_transform_mut(&mut self) -> &mut Transform { &mut self.transform }
+    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
@@ -333,7 +329,7 @@ pub enum Size<T> {
 
 pub struct Rectangle {
     pub size: Size2D,
-    pub transform: Transform,
+    pub transform: Rc<RefCell<Transform>>,
     pub stroke: Stroke,
     pub fill: Box<dyn Property<Color>>,
 }
@@ -348,10 +344,7 @@ impl RenderNode for Rectangle {
         self.fill.eval_in_place(ptc);
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
-    fn get_transform_computed(&self) -> &Affine {
-        &self.transform.cached_computed_transform
-    }
-    fn get_transform_mut(&mut self) -> &mut Transform { &mut self.transform }
+    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         let transform = rtc.transform;

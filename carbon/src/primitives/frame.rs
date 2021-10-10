@@ -7,17 +7,18 @@ use kurbo::BezPath;
 use piet_web::WebRenderContext;
 use crate::{RenderNodePtrList, Size, Property, RenderNode, PropertyTreeContext, RenderTreeContext, Transform, Size2D};
 use piet::RenderContext;
+use std::cell::RefCell;
 
 pub struct Frame {
     pub id: String,
     pub children: RenderNodePtrList,
     pub size: Size2D,
-    pub transform: Transform,
+    pub transform: Rc<RefCell<Transform>>,
 }
 
 impl RenderNode for Frame {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-        self.transform.eval_in_place(ptc);
+        self.transform.borrow_mut().eval_in_place(ptc);
         self.size.borrow_mut().0.eval_in_place(ptc);
         self.size.borrow_mut().1.eval_in_place(ptc);
         //TODO: handle each of Frame's `Expressable` properties
@@ -28,13 +29,8 @@ impl RenderNode for Frame {
     fn get_size(&self) -> Option<Size2D> {
         Some(Rc::clone(&self.size))
     }
-    fn get_transform_computed(&self) -> &Affine {
-        self.transform.get_cached_computed_value()
-    }
 
-    fn get_transform_mut(&mut self) -> &mut Transform {
-        &mut self.transform
-    }
+    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
 
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
 
