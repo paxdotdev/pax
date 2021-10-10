@@ -8,7 +8,8 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, decompose_render_node_ptr_list_into_vec, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Repeat, RepeatItem, RepeatItemProperties, Scope, Size, StackFrame, Stroke, StrokeStyle, Transform, wrap_render_node_ptr_into_list, MyManualMacroExpression, CarbonEngine};
+use crate::{Affine, CarbonEngine, Color, Component, decompose_render_node_ptr_list_into_vec, Evaluator, InjectionContext, MyManualMacroExpression, PropertiesCoproduct, Property, PropertyExpression, PropertyLiteral, Rectangle, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Repeat, RepeatItem, RepeatItemProperties, Scope, Size, StackFrame, Stroke, StrokeStyle, Transform, wrap_render_node_ptr_into_list};
+use crate::engine::PropertyTreeContext;
 use crate::primitives::frame::Frame;
 use crate::primitives::placeholder::Placeholder;
 use crate::rendering::{Size2D, Size2DFactory};
@@ -73,9 +74,67 @@ TODO:
 //      </Template>
 // </Component>
 
+
+
 pub struct Spread {
     pub children: RenderNodePtrList,
-    pub properties: Rc<RefCell<SpreadProperties>>,
+    component: Rc<RefCell<Component>>,
+    template: RenderNodePtrList,
+}
+
+
+
+//Stepping back:
+//  - maybe this approach will work, of keeping a reference to a Component
+//    and unboxing its properties when needed
+//  - maybe we should revert to manual stackframe-pushing and -popping
+//    instead of shimming in a Component to this template
+//  - maybe there's a more elegant way to achieve reusing Component
+//    than wrapping it in a thin template, e.g. via traits
+//    (can Component be implemented?  get_properties, push_stack_frame, etc?  maybe just get_properties?)
+
+impl Spread {
+    pub fn new(properties: Rc<RefCell<SpreadProperties>>, children: RenderNodePtrList) -> Self {
+        //Component must be accessible so that we can unwrap its properties
+        //Template is a "higher template" that belongs to Spread, not Component —
+        //  this is the root of Spread's own rendering, and is what should be returned
+        //  by get_children.  note that it includes a pointer (Rc) to `self.component` as well.
+
+        let raw_component = Component {
+            template: init_and_retrieve_template(),
+            transform: Rc::new(RefCell::new(Default::default())),
+            properties: Rc::new(RefCell::new(PropertiesCoproduct::Spread(properties))),
+        };
+        let cast_component_reference = &raw_component as &dyn RenderNode;
+        let component = Rc::new(RefCell::new(
+            Component {
+                template: init_and_retrieve_template(),
+                transform: Rc::new(RefCell::new(Default::default())),
+                properties: Rc::new(RefCell::new(PropertiesCoproduct::Spread(properties))),
+            }
+        ));
+        let template: RenderNodePtrList = Rc::new(RefCell::new(vec![
+            Rc::new((&component.borrow() as &dyn RenderNode))
+        ]));
+        Spread {
+            children,
+            template,
+            component,
+        }
+    }
+
+    //Rather than maintaining duplicate pointers for Spread's higher-level properties as well as the
+    //true "source of truth" that's bundled and wrapped into the Component,
+    //this method is exposed here to allow Spread.get_properties to point to the
+    //real deal
+    pub fn get_properties(&self) -> Rc<RefCell<SpreadProperties>> {
+        match &self.component.borrow().properties {
+            PropertiesCoproduct::Spread(props) => {
+                Rc::clone(props)
+            }
+            _ => {panic!("Spread properties must be of type SpreadProperties")}
+        }
+    }
 }
 
 pub struct SpreadProperties {
@@ -157,30 +216,12 @@ impl RenderNode for Spread {
 
         //TODO:  handle caching children/adoptees
 
-
-        //TODO: calc layout
-        // let sp = match &*self.properties.borrow() {
-        //     PropertiesCoproduct::Spread(sp) => {Rc::clone(sp)}
-        //     _ => {panic!("Spread encountered unexpected properties type")}
-        // };
-
-        self.properties.borrow_mut().eval_in_place(ptc);
-
-
-
-
-
-        ptc.runtime.borrow_mut().push_stack_frame(
-            Rc::clone(&self.children),
-              Box::new(Scope {
-                  properties: Rc::new(RefCell::new(PropertiesCoproduct::Spread(Rc::clone(&self.properties))))
-              })
-        );
+        self.template.borrow_mut().get_mut(0).unwrap().borrow_mut().properties.eval_in_place(ptc);
     }
 
     fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //clean up the stack frame for the next component
-        ptc.runtime.borrow_mut().pop_stack_frame();
+        // ptc.runtime.borrow_mut().pop_stack_frame();
     }
 
     fn get_children(&self) -> RenderNodePtrList {
@@ -231,11 +272,20 @@ impl RenderNode for Spread {
 
         //return root of internal template here, instead of `self.children`
         //(which are the adoptees provided by instantiator)
-        get_template()
-    }
-    fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.properties.borrow().size)) }
 
-    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.properties.borrow().transform) }
+
+        //THIS!!!!!!
+        //We're retuning a NEW INSTANCE of a component on every frame.
+        //Thus the fresh new instance is stuck on the cached value (maybe?)
+        //To fix, try: returning a ref to an existing, non-volatile Component and template
+        //(like the old approach that attached template to the local struct)
+
+
+        Rc::clone(&self.template)
+    }
+    fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.get_properties().borrow().size)) }
+
+    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.get_properties().borrow().transform) }
 
 }
 
@@ -259,43 +309,53 @@ impl Default for SpreadCellProperties{
     }
 }
 
-fn get_template() -> RenderNodePtrList {
+
+
+
+/*
+TODO:  figure out why expressions aren't evaluating beyond the root
+
+Findings so far:
+     - Property tree traversal is working, as evidenced by "accumulated bounds" logging
+     - When we set up a simple expression for bg color of a Rectangle inside Spread,
+       we observe that the color doesn't update beyond the cached value.  Th
+
+
+
+ */
+
+
+
+
+
+
+
+
+fn init_and_retrieve_template() -> RenderNodePtrList {
     Rc::new(RefCell::new(
         vec![
             Rc::new(RefCell::new(
-                                                    Rectangle {
-                                                        transform: Rc::new(RefCell::new(Transform::default())),
-                                                        fill: Box::new(
-                                                            PropertyExpression {
-                                                                cached_value: Color::hlc(0.0,0.0,0.0),
-                                                                // expression!(|engine: &CarbonEngine| ->
-                                                                evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                                                    Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-                                                                }}
-                                                            }
-                                                        ),
-                                                        stroke: Stroke {
-                                                            width: 4.0,
-                                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                            color: Color::rgba(0.0, 0.0, 1.0, 1.0)
-                                                        },
-                                                        size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                                    }
-                                                )),
-            // Rc::new(RefCell::new(
-            //     Rectangle {
-            //         transform: Rc::new(RefCell::new(Transform::default())),
-            //         fill:  Box::new(
-            //             PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0) }
-            //         ),
-            //         stroke: Stroke {
-            //             width: 4.0,
-            //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-            //             color: Color::rgba(0.0, 1.0, 1.0, 1.0)
-            //         },
-            //         size: Size2DFactory::Literal(Size::Pixel(100.0), Size::Pixel(100.0)),
-            //     }
-            // )),
+            Rectangle {
+                    transform: Rc::new(RefCell::new(Transform::default())),
+                    fill: Box::new(
+                        // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
+                        PropertyExpression {
+                            cached_value: Color::hlc(1.0,75.0,75.0),
+                            evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                            }}
+                        }
+                    ),
+                    stroke: Stroke {
+                        width: 4.0,
+                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                        color: Color::rgba(0.0, 0.5, 0.5, 1.0)
+                    },
+                    size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                }
+            )),
+
+
 
 
             Rc::new(RefCell::new(
@@ -378,40 +438,39 @@ fn get_template() -> RenderNodePtrList {
                                         },
                                 )),
                                 children: Rc::new(RefCell::new(vec![
-                                    Rc::new(RefCell::new(
-                                                    Rectangle {
-                                                        transform: Rc::new(RefCell::new(Transform::default())),
-                                                        fill: Box::new(
-                                                            PropertyExpression {
-                                                                cached_value: Color::hlc(0.0,0.0,0.0),
-                                                                // expression!(|engine: &CarbonEngine| ->
-                                                                evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                                                    Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-                                                                }}
-                                                            }
-                                                        ),
-                                                        stroke: Stroke {
-                                                            width: 4.0,
-                                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                            color: Color::rgba(0.0, 0.0, 1.0, 1.0)
-                                                        },
-                                                        size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                                    }
-                                                )),
                                     // Rc::new(RefCell::new(
-                                    //     Placeholder::new(
-                                    //         Transform::default(),
-                                    //         Box::new(PropertyExpression {
-                                    //             cached_value: 0,
-                                    //             dependencies: vec!["engine".to_string()],
-                                    //             evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
-                                    //                 //TODO:  unwrap SpreadCell from the repeat-item.
-                                    //                 //       make this part of the expression! macro
-                                    //                 scope.borrow().i
-                                    //             }}
-                                    //         })
-                                    //     )
-                                    // ))
+                                    //                 Rectangle {
+                                    //                     transform: Rc::new(RefCell::new(Transform::default())),
+                                    //                     fill: Box::new(
+                                    //                         PropertyExpression {
+                                    //                             cached_value: Color::hlc(0.0,0.0,0.0),
+                                    //                             // expression!(|engine: &CarbonEngine| ->
+                                    //                             evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                    //                                 Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                    //                             }}
+                                    //                         }
+                                    //                     ),
+                                    //                     stroke: Stroke {
+                                    //                         width: 4.0,
+                                    //                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                    //                         color: Color::rgba(0.0, 0.0, 1.0, 1.0)
+                                    //                     },
+                                    //                     size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                    //                 }
+                                    //             )),
+                                    Rc::new(RefCell::new(
+                                        Placeholder::new(
+                                            Transform::default(),
+                                            Box::new(PropertyExpression {
+                                                cached_value: 0,
+                                                evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
+                                                    //TODO:  unwrap SpreadCell from the repeat-item.
+                                                    //       make this part of the expression! macro
+                                                    scope.borrow().i
+                                                }}
+                                            })
+                                        )
+                                    ))
                                 ])),
 
                             }

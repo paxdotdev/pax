@@ -6,7 +6,8 @@ use std::rc::Rc;
 use kurbo::Affine;
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, rendering, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform, wrap_render_node_ptr_into_list};
+use crate::{Property, rendering, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform, wrap_render_node_ptr_into_list};
+use crate::engine::PropertyTreeContext;
 use crate::rendering::Size2D;
 
 pub struct Placeholder {
@@ -16,7 +17,7 @@ pub struct Placeholder {
 }
 
 impl Placeholder {
-    pub fn new(transform: Transform, index: Box<Property<usize>>) -> Self {
+    pub fn new(transform: Transform, index: Box<dyn Property<usize>>) -> Self {
         Placeholder {
             transform: Rc::new(RefCell::new(transform)),
             index,

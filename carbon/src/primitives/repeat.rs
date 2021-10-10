@@ -4,7 +4,8 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Component, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyLiteral, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatItem, Scope, Size, StackFrame, Transform, wrap_render_node_ptr_into_list};
+use crate::{Affine, Component, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatItem, Scope, Size, StackFrame, Transform, wrap_render_node_ptr_into_list};
+use crate::engine::PropertyTreeContext;
 use crate::rendering::Size2D;
 
 pub struct Repeat {
@@ -72,8 +73,7 @@ impl RenderNode for Repeat {
     }
 
     fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-        //clean up the stack frame for the next component
-        ptc.runtime.borrow_mut().pop_stack_frame();
+
     }
 
     fn should_flatten(&self) -> bool {

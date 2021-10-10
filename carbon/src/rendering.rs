@@ -8,7 +8,8 @@ use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{PropertiesCoproduct, Property, PropertyLiteral, PropertyTreeContext, RenderTreeContext, Scope, StackFrame};
+use crate::{PropertiesCoproduct, Property, PropertyLiteral, RenderTreeContext, Scope, StackFrame};
+use crate::engine::PropertyTreeContext;
 use crate::Size::Percent;
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
@@ -128,17 +129,22 @@ pub trait RenderNode
     /// (Empty) default implementation because this is a rarely needed hook
     fn post_eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {}
 
-    fn get_children(&self, ) -> RenderNodePtrList;
+    fn get_children(&self) -> RenderNodePtrList;
 
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
     fn get_size(&self) -> Option<Size2D>;
 
-
     /// Rarely needed:  Used for exotic tree traversals, e.g. for `Spread` > `Repeat` > `Rectangle`
     /// where the repeated `Rectangle`s need to be be considered direct children of `Spread`.
     /// `Repeat` overrides `should_flatten` to return true, which `Engine` interprets to mean "ignore this
-    /// node and consume its children" during traversal
+    /// node and consume its children" during traversal.
+    ///
+    /// This may also be useful as a check during placeholder -> adoptee
+    /// searching via stackframes — currently placeholders will recurse
+    /// up the stackframe looking for adoptees, but it may be the case that
+    /// checking should_flatten and NOT recursing is better behavior.  TBD
+    /// as more use-cases are vetted.
     fn should_flatten(&self) -> bool {
         false
     }
@@ -291,10 +297,10 @@ impl RenderNode for Component {
 
         //TODO:  support adoptees here.  Currently hard-coding an empty vec
         ptc.runtime.borrow_mut().push_stack_frame(
-            Rc::new(RefCell::new(vec![])),
-              Box::new(Scope {
-                  properties: Rc::clone(&self.properties)
-              })
+          Rc::new(RefCell::new(vec![])),
+          Box::new(Scope {
+              properties: Rc::clone(&self.properties)
+          })
         );
     }
 

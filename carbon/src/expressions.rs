@@ -1,8 +1,10 @@
-use std::collections::HashMap;
-use crate::{CarbonEngine, Runtime, StackFrame};
-use std::rc::Rc;
-use std::cell::RefCell;
 use std::any::Any;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
+
+use crate::{CarbonEngine, Runtime, StackFrame};
+use crate::engine::PropertyTreeContext;
 
 pub trait Property<T> {
     //either unwrap T
@@ -51,12 +53,6 @@ pub struct PropertyExpression<T, E: Evaluator<T>>
 impl<T, E: Evaluator<T>> PropertyExpression<T, E>
 {
 
-}
-
-pub struct PropertyTreeContext<'a> {
-    pub engine: &'a CarbonEngine,
-    pub runtime: Rc<RefCell<Runtime>>,
-    pub bounds: (f64, f64),
 }
 
 impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {

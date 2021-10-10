@@ -8,7 +8,8 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform};
+use crate::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform};
+use crate::engine::PropertyTreeContext;
 use crate::rendering::Size2D;
 
 pub struct Frame {
