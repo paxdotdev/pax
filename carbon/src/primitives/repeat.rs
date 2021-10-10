@@ -4,12 +4,12 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Component, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatItem, Scope, Size, StackFrame, Transform, wrap_render_node_ptr_into_list};
+use crate::{Affine, Component, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatItem, Scope, Size, StackFrame, Transform, wrap_render_node_ptr_into_list, Stroke, StrokeStyle, Rectangle, Color, Size2DFactory, PropertyExpression, RepeatInjector};
 use crate::engine::PropertyTreeContext;
 use crate::rendering::Size2D;
 
 pub struct Repeat {
-    pub children: RenderNodePtrList,
+    pub template: RenderNodePtrList,
     pub data_list: Box<Property<Vec<Rc<PropertiesCoproduct>>>>,
     pub transform: Rc<RefCell<Transform>>,
 
@@ -36,7 +36,7 @@ impl Repeat {
 impl Default for Repeat {
     fn default() -> Self {
         Repeat {
-            children: Rc::new(RefCell::new(vec![])),
+            template: Rc::new(RefCell::new(vec![])),
             data_list: Box::new(PropertyLiteral {value: vec![]}),
             transform: Default::default(),
             _virtual_children: Rc::new(RefCell::new(vec![]))
@@ -51,24 +51,68 @@ impl RenderNode for Repeat {
         self.data_list.eval_in_place(ptc);
         self.transform.borrow_mut().eval_in_place(ptc);
 
-        //reset children
-        self._virtual_children = Rc::new(RefCell::new(Vec::new()));
-
+        //reset children:
         //wrap data_list into repeat_items and attach "puppeteer" components that attach
         //the necessary data as stack frame context
-        for (i, datum) in self.data_list.read().iter().enumerate() {
-            let properties = Rc::new(RefCell::new(
-                RepeatItem { i, datum: Rc::clone(datum)}
-            ));
+        self._virtual_children = Rc::new(RefCell::new(
+            self.data_list.read().iter().enumerate().map(|(i, datum)| {
+                let properties = Rc::new(RefCell::new(
+                    RepeatItem { i, datum: Rc::clone(datum)}
+                ));
 
-            self._virtual_children.borrow_mut().push(Rc::new(RefCell::new(
-                Component {
-                    template: Rc::clone(&self.children),
-                    transform: Rc::new(RefCell::new(Transform::default())),
-                    properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
-                })
-            ));
-        }
+                // let render_node : RenderNodePtr = Rc::new(RefCell::new(
+                //     Component {
+                //         adoptees: Rc::new(RefCell::new(vec![])), //TODO: is an empty array here correct?
+                //         template: Rc::clone(&self.template),
+                //         transform: Rc::new(RefCell::new(Transform::default())),
+                //         properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
+                //     }
+                // ));
+
+                //TODO:  perhaps our missing render issue is due to our
+                //       greedy gobbling of adoptees?
+
+
+                let derefed = Rc::clone(datum);
+                let spread_cell_properties = match &*derefed {
+                    PropertiesCoproduct::SpreadCell(sc) => {
+                        sc
+                    }
+                    &_ => {panic!("ain't a spreadcell, ain't it?")}
+                };
+
+                let render_node : RenderNodePtr = Rc::new(RefCell::new(
+                                    Rectangle {
+                                            fill: Box::new(
+                                                // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
+                                                PropertyLiteral{value: Color::rgba(1.0,0.0,0.0,1.0)}
+                                            ),
+                                            stroke: Stroke {
+                                                width: 4.0,
+                                                style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                color: Color::rgba(0.0, 0.5, 0.5, 1.0)
+                                            },
+                                            size: Rc::new(RefCell::new((
+                                                Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.width_px)}),
+                                                Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.height_px)}),
+                                            ))),
+                                transform: Rc::new(RefCell::new(
+                                    Transform {
+                                            translate: (
+                                                Box::new(PropertyLiteral {value: spread_cell_properties.x_px}),
+                                                Box::new(PropertyLiteral {value: spread_cell_properties.y_px}),
+                                            ),
+                                            ..Default::default()
+                                        },
+                                )),
+                                        }
+                                    ));
+
+                render_node
+            }).collect()
+        ));
+
+        ptc.runtime.borrow_mut().log(&format!("Computed virtual children, length{}", self._virtual_children.borrow().len()));
 
     }
 
@@ -79,7 +123,7 @@ impl RenderNode for Repeat {
     fn should_flatten(&self) -> bool {
         true
     }
-    fn get_children(&self) -> RenderNodePtrList {
+    fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::clone(&self._virtual_children)
     }
     fn get_size(&self) -> Option<Size2D> { None }

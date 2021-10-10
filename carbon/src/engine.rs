@@ -10,10 +10,11 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Component, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, Rectangle, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RepeatItemProperties, Runtime, Size, SpreadCellProperties, SpreadProperties, Stroke, StrokeStyle, Transform};
+use crate::{Affine, Color, Component, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RepeatItemProperties, Runtime, Size, SpreadCellProperties, SpreadProperties, Stroke, StrokeStyle, Transform};
 use crate::components::Spread;
 use crate::primitives::{Frame, Placeholder};
 use crate::primitives::group::Group;
+use crate::rectangle::Rectangle;
 use crate::rendering::Size2DFactory;
 
 // use crate::primitives::{Frame};
@@ -200,6 +201,7 @@ impl CarbonEngine {
             runtime: Rc::new(RefCell::new(Runtime::new(logger))),
             render_tree: Rc::new(RefCell::new(RenderTree {
                 root: Rc::new(RefCell::new(Component {
+                    adoptees: Rc::new(RefCell::new(vec![])),//TODO: accept from outside application, e.g. from a React app or iOS app
                     properties: Rc::new(RefCell::new(
                         PropertiesCoproduct::DevAppRoot(Rc::new(RefCell::new(DevAppRootProperties{})))
                     )),
@@ -221,7 +223,7 @@ impl CarbonEngine {
                                         Spread::new(
                                             Rc::new(RefCell::new(
                                                 SpreadProperties {
-                                                        cell_count: Box::new(PropertyLiteral{value: 5}),
+                                                        cell_count: Box::new(PropertyLiteral{value: 3}),
                                                         gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(5.0)}),
                                                         ..Default::default()
                                                 }
@@ -304,26 +306,26 @@ impl CarbonEngine {
 
                         // bg rainbowz
 
-                        Rc::new(RefCell::new(
-                        Rectangle {
-                                transform: Rc::new(RefCell::new(Transform::default())),
-                                fill: Box::new(
-                                    // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
-                                    PropertyExpression {
-                                        cached_value: Color::hlc(1.0,75.0,75.0),
-                                        evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                            Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-                                        }}
-                                    }
-                                ),
-                                stroke: Stroke {
-                                    width: 4.0,
-                                    style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                    color: Color::rgba(0.0, 0.5, 0.5, 1.0)
-                                },
-                                size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                            }
-                        )),
+                        // Rc::new(RefCell::new(
+                        // Rectangle {
+                        //         transform: Rc::new(RefCell::new(Transform::default())),
+                        //         fill: Box::new(
+                        //             // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
+                        //             PropertyExpression {
+                        //                 cached_value: Color::hlc(1.0,75.0,75.0),
+                        //                 evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                        //                     Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                        //                 }}
+                        //             }
+                        //         ),
+                        //         stroke: Stroke {
+                        //             width: 4.0,
+                        //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                        //             color: Color::rgba(0.0, 0.5, 0.5, 1.0)
+                        //         },
+                        //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                        //     }
+                        // )),
 
                     ])),
                 })),
@@ -392,7 +394,7 @@ impl CarbonEngine {
         //           and `Spread`'s layout-computing logic
         node.borrow_mut().pre_render(&mut new_rtc, rc);
 
-        let children = node.borrow().get_children();
+        let children = node.borrow().get_rendering_children();
 
         //keep recursing
         for i in (0..children.borrow().len()).rev() {
@@ -452,13 +454,13 @@ impl CarbonEngine {
             bounds: new_accumulated_bounds,
         };
 
-        new_ptc.runtime.borrow_mut().log(&format!("accumulated bounds: {}, {}", new_accumulated_bounds.0, new_accumulated_bounds.1));
+        // new_ptc.runtime.borrow_mut().log(&format!("accumulated bounds: {}, {}", new_accumulated_bounds.0, new_accumulated_bounds.1));
 
         //Note: it's important to eval_properties_in_place before calling get_children —
         //      some nodes like Yield and Repeat manipulate their children during property evaluation
         node_borrowed.eval_properties_in_place(&new_ptc);
 
-        let children = node_borrowed.get_children();
+        let children = node_borrowed.get_rendering_children();
         let mut children_borrowed = children.borrow_mut();
 
         //keep recursing as long as we have children

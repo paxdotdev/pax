@@ -8,10 +8,11 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, CarbonEngine, Color, Component, decompose_render_node_ptr_list_into_vec, Evaluator, InjectionContext, MyManualMacroExpression, PropertiesCoproduct, Property, PropertyExpression, PropertyLiteral, Rectangle, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Repeat, RepeatItem, RepeatItemProperties, Scope, Size, StackFrame, Stroke, StrokeStyle, Transform, wrap_render_node_ptr_into_list};
+use crate::{Affine, CarbonEngine, Color, Component, decompose_render_node_ptr_list_into_vec, Evaluator, InjectionContext, MyManualMacroExpression, PropertiesCoproduct, Property, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Repeat, RepeatItem, RepeatItemProperties, Scope, Size, StackFrame, Stroke, StrokeStyle, Transform, wrap_render_node_ptr_into_list};
 use crate::engine::PropertyTreeContext;
 use crate::primitives::frame::Frame;
 use crate::primitives::placeholder::Placeholder;
+use crate::rectangle::Rectangle;
 use crate::rendering::{Size2D, Size2DFactory};
 
 /*
@@ -77,7 +78,6 @@ TODO:
 
 
 pub struct Spread {
-    pub children: RenderNodePtrList,
     properties: Rc<RefCell<SpreadProperties>>,
     template: RenderNodePtrList,
 }
@@ -94,7 +94,7 @@ pub struct Spread {
 //    (can Component be implemented?  get_properties, push_stack_frame, etc?  maybe just get_properties?)
 
 impl Spread {
-    pub fn new(properties: Rc<RefCell<SpreadProperties>>, children: RenderNodePtrList) -> Self {
+    pub fn new(properties: Rc<RefCell<SpreadProperties>>, adoptees: RenderNodePtrList) -> Self {
         //Component must be accessible so that we can unwrap its properties
         //Template is a "higher template" that belongs to Spread, not Component —
         //  this is the root of Spread's own rendering, and is what should be returned
@@ -104,6 +104,7 @@ impl Spread {
         let component: RenderNodePtr = Rc::new(RefCell::new(
             Component {
                 template: init_and_retrieve_template(),
+                adoptees,
                 transform: Rc::new(RefCell::new(Default::default())),
                 properties: Rc::new(RefCell::new(PropertiesCoproduct::Spread(Rc::clone(&properties)))),
             }
@@ -113,7 +114,6 @@ impl Spread {
         ]));
 
         Spread {
-            children,
             template,
             properties,
         }
@@ -181,10 +181,10 @@ impl SpreadProperties {
 
             // ptc.runtime.borrow_mut().log(&format!("Caching computed cells: {}", ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space));
             Rc::new(SpreadCellProperties {
-                height: 200.0,
-                width: per_cell_space,
-                x: ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
-                y: 0.0,
+                height_px: bounds.1,
+                width_px: per_cell_space,
+                x_px: ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
+                y_px: 0.0,
             })
         }).collect();
 
@@ -207,7 +207,7 @@ impl RenderNode for Spread {
         // ptc.runtime.borrow_mut().pop_stack_frame();
     }
 
-    fn get_children(&self) -> RenderNodePtrList {
+    fn get_rendering_children(&self) -> RenderNodePtrList {
 
         // return the root of the internal template here — as long
         // as we capture refs to (c) and (d) below during Spread's `render` or `pre_render` fn,
@@ -275,19 +275,19 @@ impl RenderNode for Spread {
 
 
 pub struct SpreadCellProperties {
-    pub x: f64,
-    pub y: f64,
-    pub width: f64,
-    pub height: f64,
+    pub x_px: f64,
+    pub y_px: f64,
+    pub width_px: f64,
+    pub height_px: f64,
 }
 
 impl Default for SpreadCellProperties{
     fn default() -> Self {
         SpreadCellProperties {
-            x: 0.0,
-            y: 0.0,
-            width: 0.0,
-            height: 0.0,
+            x_px: 0.0,
+            y_px: 0.0,
+            width_px: 0.0,
+            height_px: 0.0,
         }
     }
 }
@@ -309,51 +309,44 @@ Findings so far:
 
 
 
-
-
-
-
-
 fn init_and_retrieve_template() -> RenderNodePtrList {
     Rc::new(RefCell::new(
         vec![
-            Rc::new(RefCell::new(
-            Rectangle {
-                    transform: Rc::new(RefCell::new(Transform::default())),
-                    fill: Box::new(
-                        // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
-                        PropertyExpression {
-                            cached_value: Color::hlc(1.0,75.0,75.0),
-                            evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-                            }}
-                        }
-                    ),
-                    stroke: Stroke {
-                        width: 4.0,
-                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                        color: Color::rgba(0.0, 0.5, 0.5, 1.0)
-                    },
-                    size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                }
-            )),
-
-
-
+            // Rc::new(RefCell::new(
+            // Rectangle {
+            //         transform: Rc::new(RefCell::new(Transform::default())),
+            //         fill: Box::new(
+            //             // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
+            //             PropertyExpression {
+            //                 cached_value: Color::hlc(1.0,75.0,75.0),
+            //                 evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+            //                     Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+            //                 }}
+            //             }
+            //         ),
+            //         stroke: Stroke {
+            //             width: 4.0,
+            //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+            //             color: Color::rgba(0.0, 0.5, 0.5, 1.0)
+            //         },
+            //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+            //     }
+            // )),
 
             Rc::new(RefCell::new(
                 Repeat {
+                    // data_list: Box::new(PropertyLiteral {value: vec![
+                    //     Rc::new(PropertiesCoproduct::SpreadCell(Rc::new(SpreadCellProperties{height_px: 100.0, width_px: 100.0, x_px: 0.0, y_px: 0.0}))),
+                    //     Rc::new(PropertiesCoproduct::SpreadCell(Rc::new(SpreadCellProperties{height_px: 140.0, width_px: 200.0, x_px: 150.0, y_px: 150.0}))),
+                    // ]}),
                     data_list: Box::new(PropertyExpression {
-                        cached_value: vec![Rc::new(PropertiesCoproduct::SpreadCell(Rc::new(SpreadCellProperties{..Default::default()})))],
-                        // expression!(|engine: &CarbonEngine| ->
+                        cached_value: vec![],
                         evaluator: SpreadPropertiesInjector {variadic_evaluator: |scope: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
-                            //TODO:  make this unwrapping part of the expression! macro
                             scope.borrow()._cached_computed_layout_spec.iter()
                                 .map(|scp|{Rc::new(PropertiesCoproduct::SpreadCell(Rc::clone(scp)))}).collect()
                         }}
                     }),
-                    children: Rc::new(RefCell::new(vec![
-
+                    template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(
                             Frame {
                                 size: Rc::new(RefCell::new((
@@ -364,8 +357,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                             //       make this part of the expression! macro
                                             match &*scope.borrow().datum {
                                                 PropertiesCoproduct::SpreadCell(sc) => {
-                                                    // Size::Pixel(sc.width)
-                                                    Size::Pixel(200.0)
+                                                    Size::Pixel(sc.width_px)
                                                 },
                                                 _ => panic!("Unknown property coproduct")
                                             }
@@ -378,8 +370,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                             //       make this part of the expression! macro
                                             match &*scope.borrow().datum {
                                                 PropertiesCoproduct::SpreadCell(sc) => {
-                                                    // Size::Pixel(sc.height)
-                                                    Size::Pixel(200.0)
+                                                    Size::Pixel(sc.height_px)
                                                 },
                                                 _ => panic!("Unknown property coproduct")
                                             }
@@ -396,8 +387,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                                         //       make this part of the expression! macro
                                                         match &*scope.borrow().datum {
                                                             PropertiesCoproduct::SpreadCell(sc) => {
-                                                                0.0
-                                                                //sc.x
+                                                                sc.x_px
                                                             },
                                                             _ => panic!("Unknown property coproduct")
                                                         }
@@ -409,8 +399,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                                         //TODO:  make this part of the expression! macro
                                                         match &*scope.borrow().datum {
                                                             PropertiesCoproduct::SpreadCell(sc) => {
-                                                                0.0
-                                                                //sc.y
+                                                                sc.y_px
                                                             },
                                                             _ => panic!("Unknown property coproduct")
                                                         }
@@ -442,18 +431,39 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                     //                 }
                                     //             )),
                                     Rc::new(RefCell::new(
-                                        Placeholder::new(
-                                            Transform::default(),
-                                            Box::new(PropertyExpression {
-                                                cached_value: 0,
-                                                evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
-                                                    //TODO:  unwrap SpreadCell from the repeat-item.
-                                                    //       make this part of the expression! macro
-                                                    scope.borrow().i
-                                                }}
-                                            })
-                                        )
-                                    ))
+                                    Rectangle {
+                                            transform: Rc::new(RefCell::new(Transform::default())),
+                                            fill: Box::new(
+                                                // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
+                                                PropertyExpression {
+                                                    cached_value: Color::hlc(1.0,75.0,75.0),
+                                                    evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                                        Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                                    }}
+                                                }
+                                            ),
+                                            stroke: Stroke {
+                                                width: 4.0,
+                                                style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                color: Color::rgba(0.0, 0.5, 0.5, 1.0)
+                                            },
+                                            size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                        }
+                                    )),
+                        //             Rc::new(RefCell::new(
+                        //                 Placeholder::new(
+                        //                     Transform::default(),
+                        //                     Box::new(PropertyExpression {
+                        //                         cached_value: 0,
+                        //                         evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
+                        //                             //TODO:  unwrap SpreadCell from the repeat-item.
+                        //                             //       make this part of the expression! macro
+                        //                             scope.borrow().i
+                        //                         }}
+                        //                     })
+                        //                 )
+                        //             ))
+
                                 ])),
 
                             }
@@ -470,7 +480,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
 
 
 /* FUTURE CODEGEN VIA MACRO [MAYBE?] */
-struct RepeatInjector<T> {
+pub(crate) struct RepeatInjector<T> {
     pub variadic_evaluator: fn(scope: Rc<RefCell<RepeatItem>>) -> T,
 }
 

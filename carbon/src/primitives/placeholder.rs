@@ -46,7 +46,7 @@ impl RenderNode for Placeholder {
         }
     }
 
-    fn get_children(&self) -> RenderNodePtrList {
+    fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
     }
 

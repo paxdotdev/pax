@@ -26,7 +26,7 @@ impl RenderNode for Frame {
 
         //TODO: handle each of Frame's `Expressable` properties
     }
-    fn get_children(&self) -> RenderNodePtrList {
+    fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
     }
     fn get_size(&self) -> Option<Size2D> {
