@@ -116,7 +116,7 @@ impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
 
 
         let unwrapped_repeat_properties = match &*repeat_properties {
-            PropertyCoproduct::Repeat(rs) => {
+            PropertyCoproduct::RepeatItem(rs) => {
                 Rc::clone(rs)
             },
             _ => {
@@ -166,16 +166,21 @@ impl Spread {
         transform: Transform,
         properties: Rc<PropertyCoproduct>,
     ) -> Self {
-        let child_data_list : Vec<Rc<RepeatItem>> =
+        let child_data_list : Vec<Rc<RepeatPropertyCoproduct>> =
             children.borrow()
             .iter()
             .enumerate()
-            .map(|(i, _rnp)| {Rc::new(RepeatItem {i, property_coproduct:  RepeatPropertyCoproduct::SpreadCell(Rc::new(SpreadCellProperties {
-                height: 100,
-                width: 100,
-                x: 100,
-                y: 100,
-             }))})})
+            .map(|(i, _rnp)| {  Rc::new(RepeatPropertyCoproduct::SpreadCell(
+                            Rc::new(SpreadCellProperties {
+                                height: 100,
+                                width: 100,
+                                x: 100,
+                                y: 100,
+                            }
+                            )
+                        ))
+                    }
+                )
             .collect();
 
         Spread {

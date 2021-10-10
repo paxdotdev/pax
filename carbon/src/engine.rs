@@ -82,13 +82,13 @@ pub struct Scope {
 }
 
 pub enum PropertyCoproduct {
-    Repeat(Rc<RepeatItem>),
+    RepeatItem(Rc<RepeatItem>),
     Empty,
 }
 
 pub struct RepeatItem {
     pub i: usize,
-    pub property_coproduct: RepeatPropertyCoproduct
+    pub property_coproduct: Rc<RepeatPropertyCoproduct>
 }
 
 pub enum RepeatPropertyCoproduct {

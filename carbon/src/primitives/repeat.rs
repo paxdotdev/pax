@@ -8,7 +8,7 @@ use std::collections::HashMap;
 
 pub struct Repeat {
     pub children: RenderNodePtrList,
-    pub list: Vec<Rc<RepeatItem>>,
+    pub list: Vec<Rc<RepeatPropertyCoproduct>>,
     pub id: String,
     pub transform: Transform,
     virtual_children: RenderNodePtrList,
@@ -24,7 +24,7 @@ pub struct RepeatProperties {
 }
 
 impl Repeat {
-    pub fn new(list: Vec<Rc<RepeatItem>>, children: RenderNodePtrList, id: String, transform: Transform) -> Self {
+    pub fn new(list: Vec<Rc<RepeatPropertyCoproduct>>, children: RenderNodePtrList, id: String, transform: Transform) -> Self {
         Repeat {
             list,
             children,
@@ -45,13 +45,13 @@ impl RenderNode for Repeat {
 
         //for each element in self.list, create a new child (Component) and push it to self.children
         for (i, datum) in self.list.iter().enumerate() {
-            let properties = Rc::new(PropertyCoproduct::Repeat (Rc::clone(&datum)));
+            let properties = Rc::new(RepeatItem { i, property_coproduct: Rc::clone(datum)});
 
             self.virtual_children.borrow_mut().push(Rc::new(RefCell::new(Component {
                 template: Rc::clone(&self.children),
                 id: "".to_string(),
                 transform: Transform::default(),
-                properties,
+                properties: Rc::new(PropertyCoproduct::RepeatItem(properties)),
             })));
         }
 
