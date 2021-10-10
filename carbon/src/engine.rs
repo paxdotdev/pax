@@ -129,8 +129,8 @@ impl StackFrame {
             Rc::clone(&self.adoptees)
         }else {
             match &self.parent {
-                Some(sf) => {
-                    sf.borrow().get_adoptees()
+                Some(parent_frame) => {
+                    parent_frame.borrow().get_adoptees()
                 },
                 None => Rc::new(RefCell::new(vec![]))
             }
