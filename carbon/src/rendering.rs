@@ -5,7 +5,7 @@ use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Scope, PropertyLiteral, PropertiesCoproduct};
+use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Scope, PropertyLiteral, PropertiesCoproduct, Size2D};
 use std::collections::HashMap;
 use crate::Size::Percent;
 use std::any::Any;
@@ -132,7 +132,7 @@ pub trait RenderNode
 
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)>;
+    fn get_size(&self) -> Option<Size2D>;
 
 
     /// Rarely needed:  Used for exotic tree traversals, e.g. for `Spread` > `Repeat` > `Rectangle`
@@ -146,29 +146,28 @@ pub trait RenderNode
     /// Returns the size of this node in pixels, requiring
     /// parent bounds for calculation of `Percent` values
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
-        let size_raw = self.get_size();
-        match size_raw {
+        match self.get_size() {
+            None => bounds,
             Some(size_raw) => {
-                return (
-                    match size_raw.0 {
+                (
+                    match size_raw.borrow().0.read() {
                         Size::Pixel(width) => {
-                            width
+                            *width
                         },
                         Size::Percent(width) => {
-                            bounds.0 * (width / 100.0)
+                            bounds.0 * (*width / 100.0)
                         }
                     },
-                    match size_raw.1 {
+                    match size_raw.borrow().1.read() {
                         Size::Pixel(height) => {
-                            height
+                            *height
                         },
                         Size::Percent(height) => {
-                            bounds.1 * (height / 100.0)
+                            bounds.1 * (*height / 100.0)
                         }
                     }
                 )
-            },
-            None => return bounds
+            }
         }
     }
 
@@ -309,7 +308,7 @@ impl RenderNode for Component {
         //of their template, rather than their `children`, for calls to get_children
         Rc::clone(&self.template)
     }
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
+    fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform_computed(&self) -> &Affine {
         &self.transform.cached_computed_transform
@@ -333,14 +332,10 @@ pub enum Size<T> {
 }
 
 pub struct Rectangle {
-    pub size: (
-        Box<dyn Property<Size<f64>>>,
-        Box<dyn Property<Size<f64>>>,
-    ),
+    pub size: Size2D,
     pub transform: Transform,
     pub stroke: Stroke,
     pub fill: Box<dyn Property<Color>>,
-    pub id: String,
 }
 
 impl RenderNode for Rectangle {
@@ -348,32 +343,11 @@ impl RenderNode for Rectangle {
         Rc::new(RefCell::new(vec![]))
     }
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-        self.size.0.eval_in_place(ptc);
-        self.size.1.eval_in_place(ptc);
+        self.size.borrow_mut().0.eval_in_place(ptc);
+        self.size.borrow_mut().1.eval_in_place(ptc);
         self.fill.eval_in_place(ptc);
     }
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
-    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
-        let size_raw = self.get_size().unwrap();
-        return (
-            match size_raw.0 {
-                Size::Pixel(width) => {
-                    width
-                },
-                Size::Percent(width) => {
-                    bounds.0 * (width / 100.0)
-                }
-            },
-            match size_raw.1 {
-                Size::Pixel(height) => {
-                    height
-                },
-                Size::Percent(height) => {
-                    bounds.1 * (height / 100.0)
-                }
-            }
-        )
-    }
+    fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform_computed(&self) -> &Affine {
         &self.transform.cached_computed_transform
     }

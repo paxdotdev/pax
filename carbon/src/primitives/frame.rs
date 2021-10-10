@@ -5,31 +5,28 @@ use core::option::Option::Some;
 use kurbo::Affine;
 use kurbo::BezPath;
 use piet_web::WebRenderContext;
-use crate::{RenderNodePtrList, Size, Property, RenderNode, PropertyTreeContext, RenderTreeContext, Transform};
+use crate::{RenderNodePtrList, Size, Property, RenderNode, PropertyTreeContext, RenderTreeContext, Transform, Size2D};
 use piet::RenderContext;
 
 pub struct Frame {
     pub id: String,
     pub children: RenderNodePtrList,
-    pub size: (
-        Box<dyn Property<Size<f64>>>,
-        Box<dyn Property<Size<f64>>>,
-    ),
+    pub size: Size2D,
     pub transform: Transform,
 }
 
 impl RenderNode for Frame {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         self.transform.eval_in_place(ptc);
-        self.size.0.eval_in_place(ptc);
-        self.size.1.eval_in_place(ptc);
+        self.size.borrow_mut().0.eval_in_place(ptc);
+        self.size.borrow_mut().1.eval_in_place(ptc);
         //TODO: handle each of Frame's `Expressable` properties
     }
     fn get_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
     }
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> {
-        Some((*self.size.0.read(), *self.size.1.read()))
+    fn get_size(&self) -> Option<Size2D> {
+        Some(Rc::clone(&self.size))
     }
     fn get_transform_computed(&self) -> &Affine {
         self.transform.get_cached_computed_value()

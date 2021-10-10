@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Transform};
+use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Transform, Size2D};
 
 pub struct Group {
     pub children: Rc<RefCell<Vec<RenderNodePtr>>>,
@@ -19,7 +19,7 @@ impl RenderNode for Group {
     fn get_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
     }
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
+    fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform_computed(&self) -> &Affine {
         &self.transform.cached_computed_transform

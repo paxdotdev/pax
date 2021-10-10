@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, Transform, PropertiesCoproduct, RepeatItem, Property, PropertyLiteral};
+use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, Transform, PropertiesCoproduct, RepeatItem, Property, PropertyLiteral, Size2D};
 use std::collections::HashMap;
 
 pub struct Repeat {
@@ -15,10 +15,14 @@ pub struct Repeat {
     pub _virtual_children: RenderNodePtrList,
 }
 
+pub struct RepeatProperties {
+
+}
+
 /// Data structure for the virtually duplicated container that surrounds repeated nodes.
 /// This is attached to a Component<RepeatFrame> that `Repeat` adds to its children dynamically
 /// during property-tree traversal
-pub struct RepeatProperties {
+pub struct RepeatItemProperties {
     pub i: usize,
     pub datum: Rc<PropertiesCoproduct>,
     pub id: String,
@@ -69,7 +73,7 @@ impl RenderNode for Repeat {
     fn get_children(&self) -> RenderNodePtrList {
         Rc::clone(&self._virtual_children)
     }
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
+    fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform_computed(&self) -> &Affine {
         &self.transform.cached_computed_transform

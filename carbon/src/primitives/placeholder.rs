@@ -5,7 +5,7 @@ use core::option::Option;
 use core::option::Option::{None, Some};
 use kurbo::Affine;
 use piet_web::WebRenderContext;
-use crate::{RenderNodePtrList, RenderNode, PropertyTreeContext, Size, RenderTreeContext, rendering, wrap_render_node_ptr_into_list, Transform, Property};
+use crate::{RenderNodePtrList, RenderNode, PropertyTreeContext, Size, RenderTreeContext, rendering, wrap_render_node_ptr_into_list, Transform, Property, Size2D};
 
 pub struct Placeholder {
     pub id: String,
@@ -59,7 +59,7 @@ impl RenderNode for Placeholder {
         Rc::clone(&self.children)
     }
 
-    fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { None }
+    fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
 
     fn get_transform_computed(&self) -> &Affine {
