@@ -4,7 +4,6 @@ use std::rc::Rc;
 use piet_web::WebRenderContext;
 
 use crate::{Affine, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Transform};
-use crate::engine::PropertyTreeContext;
 use crate::rendering::Size2D;
 
 pub struct Group {
@@ -14,9 +13,6 @@ pub struct Group {
 }
 
 impl RenderNode for Group {
-    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
-        //TODO: handle each of Group's `Expressable` properties
-    }
 
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)

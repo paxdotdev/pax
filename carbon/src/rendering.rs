@@ -9,7 +9,6 @@ use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
 use crate::{PropertiesCoproduct, Property, PropertyLiteral, RenderTreeContext, Scope, StackFrame};
-use crate::engine::PropertyTreeContext;
 use crate::Size::Percent;
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
@@ -121,14 +120,6 @@ impl Runtime {
 pub trait RenderNode
 {
 
-    fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext);
-
-    /// Lifecycle event: fires after evaluating a node's properties in place and its descendents properties
-    /// in place.  Useful for cleaning up after a node (e.g. popping from the runtime stack) because
-    /// this is the last time this node will be visited within the property tree for this frame.
-    /// (Empty) default implementation because this is a rarely needed hook
-    fn post_eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {}
-
     fn get_rendering_children(&self) -> RenderNodePtrList;
 
     /// Returns the size of this node, or `None` if this node
@@ -178,9 +169,15 @@ pub trait RenderNode
     }
 
     fn get_transform(&mut self) -> Rc<RefCell<Transform>>;
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
-    fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
-    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+        //no-op default implementation
+    }
+    fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+        //no-op default implementation
+    }
+    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+        //no-op default implementation
+    }
 }
 
 pub struct Transform {
@@ -208,16 +205,16 @@ impl Default for Transform {
 
 impl Transform {
 
-    pub fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {
-        &self.translate.0.eval_in_place(ptc);
-        &self.translate.1.eval_in_place(ptc);
-        &self.scale.0.eval_in_place(ptc);
-        &self.scale.1.eval_in_place(ptc);
-        &self.rotate.eval_in_place(ptc);
-        &self.origin.0.eval_in_place(ptc);
-        &self.origin.1.eval_in_place(ptc);
-        &self.align.0.eval_in_place(ptc);
-        &self.align.1.eval_in_place(ptc);
+    pub fn eval_in_place(&mut self, rtc: &RenderTreeContext) {
+        &self.translate.0.eval_in_place(rtc);
+        &self.translate.1.eval_in_place(rtc);
+        &self.scale.0.eval_in_place(rtc);
+        &self.scale.1.eval_in_place(rtc);
+        &self.rotate.eval_in_place(rtc);
+        &self.origin.0.eval_in_place(rtc);
+        &self.origin.1.eval_in_place(rtc);
+        &self.align.0.eval_in_place(rtc);
+        &self.align.1.eval_in_place(rtc);
 
         //Note:  the final affine transform is NOT computed here in the Property Tree
         //       traversal, because it relies on rendering specific context, e.g. the
@@ -292,23 +289,6 @@ pub struct Component {
 }
 
 impl RenderNode for Component {
-    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-        //TODO: handle each of Component's `Expressable` properties
-        //  - this includes any custom properties (inputs) passed into this component
-
-        //TODO:  support adoptees here.  Currently hard-coding an empty vec
-        ptc.runtime.borrow_mut().push_stack_frame(
-            Rc::clone(&self.adoptees),
-            Box::new(Scope {
-              properties: Rc::clone(&self.properties)
-          })
-        );
-    }
-
-    fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-        //clean up the stack frame for the next component
-        ptc.runtime.borrow_mut().pop_stack_frame();
-    }
 
     fn get_rendering_children(&self) -> RenderNodePtrList {
         //Perhaps counter-intuitively, `Component`s return the root
@@ -318,9 +298,18 @@ impl RenderNode for Component {
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
-    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+        rtc.runtime.borrow_mut().push_stack_frame(
+            Rc::clone(&self.adoptees),
+            Box::new(Scope {
+              properties: Rc::clone(&self.properties)
+          })
+        );
+    }
+
+    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+        rtc.runtime.borrow_mut().pop_stack_frame();
+    }
 }
 
 pub struct Stroke {

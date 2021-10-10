@@ -9,7 +9,6 @@ use piet::RenderContext;
 use piet_web::WebRenderContext;
 
 use crate::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform};
-use crate::engine::PropertyTreeContext;
 use crate::rendering::Size2D;
 
 pub struct Frame {
@@ -19,13 +18,6 @@ pub struct Frame {
 }
 
 impl RenderNode for Frame {
-    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-        self.size.borrow_mut().0.eval_in_place(ptc);
-        self.size.borrow_mut().1.eval_in_place(ptc);
-        self.transform.borrow_mut().eval_in_place(ptc);
-
-        //TODO: handle each of Frame's `Expressable` properties
-    }
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
     }
@@ -36,12 +28,15 @@ impl RenderNode for Frame {
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
 
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+        self.size.borrow_mut().0.eval_in_place(rtc);
+        self.size.borrow_mut().1.eval_in_place(rtc);
+        self.transform.borrow_mut().eval_in_place(rtc);
 
         // construct a BezPath of this frame's bounds * its transform,
         // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
         //TODO:  if clipping is TURNED OFF for this Frame, don't do any of this
         let transform = rtc.transform;
-        let bounding_dimens = rtc.bounding_dimens;
+        let bounding_dimens = rtc.bounds;
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 
@@ -57,8 +52,7 @@ impl RenderNode for Frame {
         rc.save(); //our "save point" before clipping — restored to in the post_render
         rc.clip(transformed_bez_path);
     }
-    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //pop the clipping context from the stack
         rc.restore();
     }

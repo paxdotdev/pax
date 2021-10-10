@@ -7,7 +7,6 @@ use kurbo::Affine;
 use piet_web::WebRenderContext;
 
 use crate::{Property, rendering, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform, wrap_render_node_ptr_into_list};
-use crate::engine::PropertyTreeContext;
 use crate::rendering::Size2D;
 
 pub struct Placeholder {
@@ -27,13 +26,13 @@ impl Placeholder {
 }
 
 impl RenderNode for Placeholder {
-    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
+    fn pre_render(&mut self, ctx: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //TODO: handle each of Placeholder's `Expressable` properties
 
-        self.index.eval_in_place(ptc);
+        self.index.eval_in_place(ctx);
         // The following sort of children-caching is done by "control flow" primitives
         // (Placeholder, Repeat, If) —
-        self.children = match ptc.runtime.borrow_mut().peek_stack_frame() {
+        self.children = match ctx.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
                 // Grab the adoptee from the current stack_frame at Placeholder's specified `index`
                 // then make it Placeholder's own child.

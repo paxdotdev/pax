@@ -3,13 +3,12 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::{CarbonEngine, Runtime, StackFrame};
-use crate::engine::PropertyTreeContext;
+use crate::{CarbonEngine, Runtime, StackFrame, RenderTreeContext};
 
 pub trait Property<T> {
     //either unwrap T
     //or provide a fn -> T
-    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {}
+    fn eval_in_place(&mut self, rtc: &RenderTreeContext) {}
     fn read(&self) -> &T;
 }
 
@@ -56,11 +55,11 @@ impl<T, E: Evaluator<T>> PropertyExpression<T, E>
 }
 
 impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
-    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {
+    fn eval_in_place(&mut self, rtc: &RenderTreeContext) {
 
         let ic = InjectionContext {
-            engine: ptc.engine,
-            stack_frame: Rc::clone(&ptc.runtime.borrow_mut().peek_stack_frame().unwrap())
+            engine: rtc.engine,
+            stack_frame: Rc::clone(&rtc.runtime.borrow_mut().peek_stack_frame().unwrap())
         };
         self.cached_value = self.evaluator.inject_and_evaluate(&ic);
     }

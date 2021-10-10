@@ -5,7 +5,6 @@ use std::rc::Rc;
 use piet_web::WebRenderContext;
 
 use crate::{Affine, Component, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatItem, Scope, Size, StackFrame, Transform, wrap_render_node_ptr_into_list, Stroke, StrokeStyle, Rectangle, Color, Size2DFactory, PropertyExpression, RepeatInjector, Placeholder, Frame};
-use crate::engine::PropertyTreeContext;
 use crate::rendering::Size2D;
 
 pub struct Repeat {
@@ -45,11 +44,11 @@ impl Default for Repeat {
 }
 
 impl RenderNode for Repeat {
-    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //TODO: handle each of Repeat's `Expressable` properties
 
-        self.data_list.eval_in_place(ptc);
-        self.transform.borrow_mut().eval_in_place(ptc);
+        self.data_list.eval_in_place(rtc);
+        self.transform.borrow_mut().eval_in_place(rtc);
 
         //reset children:
         //wrap data_list into repeat_items and attach "puppeteer" components that attach
@@ -142,13 +141,10 @@ impl RenderNode for Repeat {
             }).collect()
         ));
 
-        // ptc.runtime.borrow_mut().log(&format!("Computed virtual children, length{}", self._virtual_children.borrow().len()));
+        // rtc.runtime.borrow_mut().log(&format!("Computed virtual children, length{}", self._virtual_children.borrow().len()));
 
     }
 
-    fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-
-    }
 
     fn should_flatten(&self) -> bool {
         true
@@ -228,7 +224,7 @@ Seems like a suitable solution.
         //a default implementation that's a no-op, but which Repeat can override to step through
         //an iterator.
 
-        // ptc.runtime.borrow_mut().push_stack_frame(
+        // rtc.runtime.borrow_mut().push_stack_frame(
         //     Rc::clone(&self.children),
         //       Box::new(Scope {
         //           properties: Rc::clone(&self.properties) as Rc<dyn Any>

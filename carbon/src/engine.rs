@@ -12,12 +12,9 @@ use piet_web::WebRenderContext;
 
 use crate::{Affine, Color, Component, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RepeatItemProperties, Runtime, Size, SpreadCellProperties, SpreadProperties, Stroke, StrokeStyle, Transform};
 use crate::components::Spread;
-use crate::primitives::{Frame, Placeholder};
-use crate::primitives::group::Group;
+use crate::primitives::{Frame, Group, Placeholder};
 use crate::rectangle::Rectangle;
 use crate::rendering::Size2DFactory;
-
-// use crate::primitives::{Frame};
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
@@ -33,8 +30,9 @@ pub struct CarbonEngine {
 
 pub struct RenderTreeContext<'a>
 {
+    pub engine: &'a CarbonEngine,
     pub transform: &'a Affine,
-    pub bounding_dimens: (f64, f64),
+    pub bounds: (f64, f64),
     pub runtime: Rc<RefCell<Runtime>>,
     pub parent: RenderNodePtr,
     pub node: RenderNodePtr,
@@ -42,39 +40,10 @@ pub struct RenderTreeContext<'a>
 
 
 
-//
-//
-// pub union StackUnion<D> {
-//     pub repeat_properties: ManuallyDrop<Rc<RepeatProperties<D>>>,
-//     pub main_component_properties: ManuallyDrop<Rc<MyMainComponentProperties>>,
-//     pub spread: ManuallyDrop<Rc<SpreadProperties>>,
-// }
-//
-// impl<D> Drop for StackUnion<D> {
-//     fn drop(&mut self) {
-//         unsafe {
-//             match self {
-//                 StackUnion { repeat_properties } => {
-//                     ManuallyDrop::drop(&mut self.repeat_properties);
-//                 },
-//                 StackUnion { main_component_properties } => {
-//                     ManuallyDrop::drop(&mut self.main_component_properties);
-//                 }
-//                 StackUnion { spread } => {
-//                     ManuallyDrop::drop(&mut self.spread);
-//                 }
-//             }
-//         }
-//     }
-// }
-
 /// `Scope` attaches to stack frames to provide an evaluation context + relevant data access
 /// for features like Expressions.
 /// The stored values that are DI'ed into expressions are held in these scopes,
 /// e.g. `index` and `datum` for `Repeat`.
-
-//TODO:  Scopes need to play nicely with variadic expressions.  We need to be
-//       able to access `self` (current component) and its `properties` <P>
 pub struct Scope {
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     // TODO: children, parent, etc.
@@ -123,7 +92,8 @@ impl StackFrame {
     /// Otherwise, recurses up the stack return ancestors' adoptees if found
     /// TODO:  if this logic is problematic, e.g. descendants are grabbing ancestors' adoptees
     ///        inappropriately, then we could adjust this logic to:
-    ///        grab direct parent's adoptees, only if current node is a `should_flatten` node like `Repeat`
+    ///        grab direct parent's adoptees instead of current node's,
+    ///        but only if current node is a `should_flatten` node like `Repeat`
     pub fn get_adoptees(&self) -> RenderNodePtrList {
         if self.has_adoptees() {
             Rc::clone(&self.adoptees)
@@ -141,13 +111,14 @@ impl StackFrame {
     pub fn get_scope(&self) -> Rc<RefCell<Scope>> {
         Rc::clone(&self.scope)
     }
-
 }
 
 
 
 /*****************************/
 /* Codegen (macro) territory */
+
+//OR: revisit this approach, without variadics.
 
 pub struct MyManualMacroExpression<T> {
     pub variadic_evaluator: fn(engine: &CarbonEngine) -> T,
@@ -169,21 +140,6 @@ impl<T> Evaluator<T> for MyManualMacroExpression<T> {
     }
 }
 
-// TODO:  this LUT _has_ to happen in macro territory, because it's
-//       inherently variadic.  We can't turn strings into logic outside of
-//       the macro context, so we must *hand-write the InjectionContext -> Stream logic*
-//       for the pre-macro Expressions v2 PoC
-//       Node, an advantage of the LUT living in macro territory:  should avoid footprint bloat!
-//       ** Note:  `match pattern {}` may be a better, Rustier approach than a HashMap "literal"
-//
-// struct InjectionMapperLUT {
-//     function_map: HashMap<String, Fn(InjectionContext)>
-// }
-//
-// impl InjectionMapperLUT {
-//
-// }
-//
 
 /* End codegen (macro) territory */
 /*********************************/
@@ -336,21 +292,24 @@ impl CarbonEngine {
 
     fn traverse_render_tree(&self, rc: &mut WebRenderContext) {
         // Broadly:
-        // 1. find lowest node (last child of last node), accumulating transform along the way
-        // 2. start rendering, from lowest node on-up
+        // 1. compute properties
+        // 2. find lowest node (last child of last node), accumulating transform along the way
+        // 3. start rendering, from lowest node on-up
 
         let mut rtc = RenderTreeContext {
+            engine: &self,
             transform: &Affine::default(),
-            bounding_dimens: self.viewport_size.clone(),
+            bounds: self.viewport_size,
             runtime: self.runtime.clone(),
             node: Rc::clone(&self.render_tree.borrow().root),
-            parent: Rc::clone(&self.render_tree.borrow().root),
+            parent: Rc::clone(&self.render_tree.borrow().root),//TODO: refactor to Option<> ?
         };
-        self.recurse_traverse_render_tree(&mut rtc, rc, Rc::clone(&self.render_tree.borrow().root));
+        &self.recurse_traverse_render_tree(&mut rtc, rc, Rc::clone(&self.render_tree.borrow().root));
     }
 
     fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext, node: RenderNodePtr)  {
         // Recurse:
+        //  - compute properties for this node
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
@@ -360,7 +319,7 @@ impl CarbonEngine {
         rtc.node = Rc::clone(&node);
 
         let accumulated_transform = rtc.transform;
-        let accumulated_bounds = rtc.bounding_dimens;
+        let accumulated_bounds = rtc.bounds;
 
         //Note: this cloning transform-fetching logic could certainly be written more efficiently
         let node_computed_transform = {
@@ -381,7 +340,8 @@ impl CarbonEngine {
         let new_accumulated_bounds = node.borrow().get_size_calc(accumulated_bounds);
 
         let mut new_rtc = RenderTreeContext {
-            bounding_dimens: new_accumulated_bounds,
+            engine: rtc.engine,
+            bounds: new_accumulated_bounds,
             transform: &new_accumulated_transform,
             runtime: Rc::clone(&rtc.runtime),
             parent: Rc::clone(&node),
@@ -392,22 +352,16 @@ impl CarbonEngine {
         //           this is useful for pre-computation or for in-place mutations,
         //           e.g. `Placeholder`'s children/adoptee-switching logic
         //           and `Spread`'s layout-computing logic
-        node.borrow_mut().pre_render(&mut new_rtc, rc);
+        node.borrow_mut().pre_render(&mut new_rtc, rc );
 
         let children = node.borrow().get_rendering_children();
 
-        //keep recursing
-        for i in (0..children.borrow().len()).rev() {
-            //note that we're iterating starting from the last child, for z-index
-            let children_borrowed = children.borrow();
-            let child = children_borrowed.get(i); //TODO: ?-syntax
-            match child {
-                None => { return },
-                Some(child) => {
-                    &self.recurse_traverse_render_tree(&mut new_rtc, rc, Rc::clone(child));
-                }
-            }
-        }
+        //keep recursing through children
+        children.borrow().iter().rev().for_each(|child| {
+            //note that we're iterating starting from the last child, for z-index (.rev())
+            &self.recurse_traverse_render_tree(&mut new_rtc, rc, Rc::clone(child));
+            //TODO: for dependency management, return computed values from subtree above
+        });
 
         // `render` lifecycle event:
         // this is this node's time to do its own rendering, aside
@@ -418,58 +372,58 @@ impl CarbonEngine {
         //components to pop a stack frame
         node.borrow().post_render(&mut new_rtc, rc);
     }
-
-    pub fn traverse_property_tree(&self) {
-        // - traverse render tree
-        // - update cache (current, `last_known_value`) for each property
-        // - done
-
-        //TODO:
-        // - be smarter about updates, think "spreadsheet"
-        //      - don't update values that don't need updating
-        //      - traverse dependency graph, "distal"-inward
-        //      - disallow circular deps
-        // - make this and all `property` logic part of `Runtime`?
-        let ptc = PropertyTreeContext {
-            engine: &self,
-            runtime: Rc::clone(&self.runtime),
-            bounds: self.viewport_size,
-        };
-
-        &self.recurse_traverse_property_tree(&ptc, &mut self.render_tree.borrow_mut().root);
-    }
-
-    fn recurse_traverse_property_tree(&self, ptc: &PropertyTreeContext, node: &mut RenderNodePtr)  {
-        // Recurse:
-        //  - evaluate in a pre-order traversal, ensuring ancestors have been evaluated first
-        //  - for each property, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
-        //  - done
-
-        let mut node_borrowed = node.borrow_mut();
-
-        let new_accumulated_bounds = node_borrowed.get_size_calc(ptc.bounds);
-        let new_ptc = PropertyTreeContext {
-            engine: ptc.engine,
-            runtime: Rc::clone(&ptc.runtime),
-            bounds: new_accumulated_bounds,
-        };
-
-        // new_ptc.runtime.borrow_mut().log(&format!("accumulated bounds: {}, {}", new_accumulated_bounds.0, new_accumulated_bounds.1));
-
-        //Note: it's important to eval_properties_in_place before calling get_children —
-        //      some nodes like Yield and Repeat manipulate their children during property evaluation
-        node_borrowed.eval_properties_in_place(&new_ptc);
-
-        let children = node_borrowed.get_rendering_children();
-        let mut children_borrowed = children.borrow_mut();
-
-        //keep recursing as long as we have children
-        for i in 0..(children_borrowed.len()) {
-            &self.recurse_traverse_property_tree(&new_ptc, children_borrowed.get_mut(i).unwrap());
-        }
-
-        node_borrowed.post_eval_properties_in_place(&new_ptc);
-    }
+    //
+    // pub fn traverse_property_tree(&self) {
+    //     // - traverse render tree
+    //     // - update cache (current, `last_known_value`) for each property
+    //     // - done
+    //
+    //     //TODO:
+    //     // - be smarter about updates, think "spreadsheet"
+    //     //      - don't update values that don't need updating
+    //     //      - traverse dependency graph, "distal"-inward
+    //     //      - disallow circular deps
+    //     // - make this and all `property` logic part of `Runtime`?
+    //     let ptc = RenderTreeContext {
+    //         engine: &self,
+    //         runtime: Rc::clone(&self.runtime),
+    //         bounds: self.viewport_size,
+    //     };
+    //
+    //     &self.recurse_traverse_property_tree(&ptc, &mut self.render_tree.borrow_mut().root);
+    // }
+    //
+    // fn recurse_traverse_property_tree(&self, rtc: &RenderTreeContext, node: &mut RenderNodePtr)  {
+    //     // Recurse:
+    //     //  - evaluate in a pre-order traversal, ensuring ancestors have been evaluated first
+    //     //  - for each property, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
+    //     //  - done
+    //
+    //     let mut node_borrowed = node.borrow_mut();
+    //
+    //     let new_accumulated_bounds = node_borrowed.get_size_calc(rtc.bounds);
+    //     let new_ptc = RenderTreeContext {
+    //         engine: rtc.engine,
+    //         runtime: Rc::clone(&rtc.runtime),
+    //         bounds: new_accumulated_bounds,
+    //     };
+    //
+    //     // new_rtc.runtime.borrow_mut().log(&format!("accumulated bounds: {}, {}", new_accumulated_bounds.0, new_accumulated_bounds.1));
+    //
+    //     //Note: it's important to eval_properties_in_place before calling get_children —
+    //     //      some nodes like Yield and Repeat manipulate their children during property evaluation
+    //     node_borrowed.eval_properties_in_place(&new_ptc);
+    //
+    //     let children = node_borrowed.get_rendering_children();
+    //     let mut children_borrowed = children.borrow_mut();
+    //
+    //     //keep recursing as long as we have children
+    //     for i in 0..(children_borrowed.len()) {
+    //         &self.recurse_traverse_property_tree(&new_ptc, children_borrowed.get_mut(i).unwrap());
+    //     }
+    //
+    //     node_borrowed.post_eval_properties_in_place(&new_ptc);
+    // }
 
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
         self.viewport_size = new_viewport_size;
@@ -478,7 +432,7 @@ impl CarbonEngine {
     pub fn tick(&mut self, rc: &mut WebRenderContext) {
         rc.clear(Color::rgb8(0, 0, 0));
 
-        self.traverse_property_tree();
+        // self.traverse_property_tree();
         self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
 
@@ -526,10 +480,4 @@ impl CarbonEngine {
         self.frames_elapsed = self.frames_elapsed + 1;
         Ok(())
     }
-}
-
-pub struct PropertyTreeContext<'a> {
-    pub engine: &'a CarbonEngine,
-    pub runtime: Rc<RefCell<Runtime>>,
-    pub bounds: (f64, f64),
 }

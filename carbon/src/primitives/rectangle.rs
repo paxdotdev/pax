@@ -5,7 +5,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Color, Property, PropertyTreeContext, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform};
+use crate::{Color, Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform};
 
 pub struct Rectangle {
     pub size: Size2D,
@@ -18,17 +18,16 @@ impl RenderNode for Rectangle {
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
     }
-    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-        self.size.borrow_mut().0.eval_in_place(ptc);
-        self.size.borrow_mut().1.eval_in_place(ptc);
-        self.fill.eval_in_place(ptc);
-    }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+        self.size.borrow_mut().0.eval_in_place(rtc);
+        self.size.borrow_mut().1.eval_in_place(rtc);
+        self.fill.eval_in_place(rtc);
+    }
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         let transform = rtc.transform;
-        let bounding_dimens = rtc.bounding_dimens;
+        let bounding_dimens = rtc.bounds;
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 

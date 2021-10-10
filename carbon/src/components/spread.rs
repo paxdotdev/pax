@@ -9,7 +9,6 @@ use piet::RenderContext;
 use piet_web::WebRenderContext;
 
 use crate::{Affine, CarbonEngine, Color, Component, decompose_render_node_ptr_list_into_vec, Evaluator, InjectionContext, MyManualMacroExpression, PropertiesCoproduct, Property, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Repeat, RepeatItem, RepeatItemProperties, Scope, Size, StackFrame, Stroke, StrokeStyle, Transform, wrap_render_node_ptr_into_list};
-use crate::engine::PropertyTreeContext;
 use crate::primitives::frame::Frame;
 use crate::primitives::placeholder::Placeholder;
 use crate::rectangle::Rectangle;
@@ -82,17 +81,6 @@ pub struct Spread {
     template: RenderNodePtrList,
 }
 
-
-
-//Stepping back:
-//  - maybe this approach will work, of keeping a reference to a Component
-//    and unboxing its properties when needed
-//  - maybe we should revert to manual stackframe-pushing and -popping
-//    instead of shimming in a Component to this template
-//  - maybe there's a more elegant way to achieve reusing Component
-//    than wrapping it in a thin template, e.g. via traits
-//    (can Component be implemented?  get_properties, push_stack_frame, etc?  maybe just get_properties?)
-
 impl Spread {
     pub fn new(properties: Rc<RefCell<SpreadProperties>>, adoptees: RenderNodePtrList) -> Self {
         //Component must be accessible so that we can unwrap its properties
@@ -155,17 +143,17 @@ impl Default for SpreadProperties {
 }
 
 impl SpreadProperties {
-    pub fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {
-        &self.size.borrow_mut().0.eval_in_place(ptc);
-        &self.size.borrow_mut().1.eval_in_place(ptc);
-        &self.cell_count.eval_in_place(ptc);
-        &self.gutter_width.eval_in_place(ptc);
-        &self.transform.borrow_mut().eval_in_place(ptc);
-        &self.calc_layout_spec_in_place(ptc);
+    pub fn eval_in_place(&mut self, rtc: &RenderTreeContext) {
+        &self.size.borrow_mut().0.eval_in_place(rtc);
+        &self.size.borrow_mut().1.eval_in_place(rtc);
+        &self.cell_count.eval_in_place(rtc);
+        &self.gutter_width.eval_in_place(rtc);
+        &self.transform.borrow_mut().eval_in_place(rtc);
+        &self.calc_layout_spec_in_place(rtc);
     }
 
-    pub fn calc_layout_spec_in_place(&mut self, ptc: &PropertyTreeContext) {
-        let bounds = ptc.bounds;
+    pub fn calc_layout_spec_in_place(&mut self, rtc: &RenderTreeContext) {
+        let bounds = rtc.bounds;
         let gutter_calc = match *self.gutter_width.read() {
             Size::Pixel(px) => px,
             Size::Percent(pct) => bounds.0 * (pct / 100.0),
@@ -179,7 +167,7 @@ impl SpreadProperties {
         //TODO: account for overrides
         self._cached_computed_layout_spec = (0..(cell_count as usize)).into_iter().map(|i| {
 
-            // ptc.runtime.borrow_mut().log(&format!("Caching computed cells: {}", ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space));
+            // rtc.runtime.borrow_mut().log(&format!("Caching computed cells: {}", ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space));
             Rc::new(SpreadCellProperties {
                 height_px: bounds.1,
                 width_px: per_cell_space,
@@ -193,19 +181,6 @@ impl SpreadProperties {
 
 
 impl RenderNode for Spread {
-
-    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-        //TODO: handle each of Spread's `Expressable` properties
-
-        //TODO:  handle caching children/adoptees
-
-        self.properties.borrow_mut().eval_in_place(ptc);
-    }
-
-    fn post_eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
-        //clean up the stack frame for the next component
-        // ptc.runtime.borrow_mut().pop_stack_frame();
-    }
 
     fn get_rendering_children(&self) -> RenderNodePtrList {
 
@@ -270,6 +245,9 @@ impl RenderNode for Spread {
 
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.properties.borrow().transform) }
 
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+        self.properties.borrow_mut().eval_in_place(rtc);
+    }
 }
 
 
