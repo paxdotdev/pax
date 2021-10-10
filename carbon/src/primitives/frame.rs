@@ -19,7 +19,10 @@ pub struct Frame {
 }
 
 impl RenderNode for Frame {
-    fn eval_properties_in_place(&mut self, _: &PropertyTreeContext) {
+    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
+        self.transform.eval_in_place(ptc);
+        self.size.0.eval_in_place(ptc);
+        self.size.1.eval_in_place(ptc);
         //TODO: handle each of Frame's `Expressable` properties
     }
     fn get_children(&self) -> RenderNodePtrList {

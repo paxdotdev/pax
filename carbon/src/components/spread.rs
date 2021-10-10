@@ -6,12 +6,11 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, decompose_render_node_ptr_list_into_vec, Transform, RepeatProperties, PropertyCoproduct, RepeatPropertyCoproduct, RepeatItem};
+use crate::{Affine, PolymorphicType, PolymorphicValue, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, Variable, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, decompose_render_node_ptr_list_into_vec, Transform, RepeatProperties, PropertiesCoproduct, RepeatPropertiesCoproduct, RepeatItem};
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::frame::Frame;
 use std::any::Any;
 use std::mem::ManuallyDrop;
-
 
 /*
 TODO:
@@ -73,7 +72,6 @@ TODO:
 //      </Template>
 // </Component>
 
-
 pub struct Spread {
     pub children: RenderNodePtrList,
     pub id: String,
@@ -82,19 +80,19 @@ pub struct Spread {
         Box<dyn Property<Size<f64>>>,
     ),
     pub transform: Transform,
-    pub properties: Rc<PropertyCoproduct>,
+    pub properties: Rc<RefCell<PropertiesCoproduct>>,
 
     template: RenderNodePtrList,
 }
 
-/* FUTURE CODEGEN VIA MACRO */
-struct RepeatInjectorMacroExpression<T> {
-    pub variadic_evaluator: fn(scope: Rc<RepeatItem>) -> T,
+/* FUTURE CODEGEN VIA MACRO [MAYBE?] */
+struct RepeatInjector<T> {
+    pub variadic_evaluator: fn(scope: Rc<RefCell<RepeatItem>>) -> T,
 }
 
-impl<T> RepeatInjectorMacroExpression<T> {}
+impl<T> RepeatInjector<T> {}
 
-impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
+impl<T> Evaluator<T> for RepeatInjector<T> {
     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
         //TODO:CODEGEN
 
@@ -104,8 +102,8 @@ impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
         let scope_borrowed = scope.borrow();
         let repeat_properties = Rc::clone(  &scope_borrowed.properties );
 
-        let unwrapped_repeat_properties = match &*repeat_properties {
-            PropertyCoproduct::RepeatItem(rs) => {
+        let unwrapped_repeat_properties = match &*repeat_properties.borrow() {
+            PropertiesCoproduct::RepeatItem(rs) => {
                 Rc::clone(rs)
             },
             _ => {
@@ -121,18 +119,33 @@ impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
 
 
 pub struct SpreadProperties {
-    pub gutter: Size<f64>,
-    pub cell_size_spec: Option<Vec<Size<f64>>>,
+    pub cell_count: Box<dyn Property<usize>>,
+    pub gutter_width: Box<dyn Property<Size<f64>>>,
+
+    //These two data structures act as "sparse maps," where
+    //the first element in the tuple is the index of the cell/gutter to
+    //override and the second is the override value.  In the absence
+    //of overrides (`vec![]`), cells and gutters will divide space
+    //evenly.
+    //TODO: these should probably be Expressable
+    pub overrides_cell_size: Vec<(usize, Size<f64>)>,
+    pub overrides_gutter_size: Vec<(usize, Size<f64>)>,
+}
+
+impl SpreadProperties {
+    pub fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {
+        &self.cell_count.eval_in_place(ptc);
+        &self.gutter_width.eval_in_place(ptc);
+    }
 }
 
 pub struct SpreadCellProperties {
     //TODO: map correct types to our relevant transforms
     pub x: f64,
     pub y: f64,
-    pub width: usize,
-    pub height: usize,
+    pub width: f64,
+    pub height: f64,
 }
-
 
 impl Spread {
     pub fn new(
@@ -140,19 +153,20 @@ impl Spread {
         id: String,
         size: (Box<dyn Property<Size<f64>>>, Box<dyn Property<Size<f64>>>),
         transform: Transform,
-        properties: Rc<PropertyCoproduct>,
+        properties: Rc<RefCell<PropertiesCoproduct>>,
     ) -> Self {
-        let child_data_list : Vec<Rc<RepeatPropertyCoproduct>> =
+        let child_data_list : Vec<Rc<RepeatPropertiesCoproduct>> =
             children.borrow()
             .iter()
             .enumerate()
-            .map(|(i, _rnp)| {  Rc::new(
-                RepeatPropertyCoproduct::SpreadCell(
+            .map(|(i, _rnp)| {
+                Rc::new(
+                RepeatPropertiesCoproduct::SpreadCell(
                     Rc::new(SpreadCellProperties {
-                        height: 200,
-                        width: 100,
-                        x: 100.0 * i as f64,
-                        y: 100.0 * i as f64,
+                        height: 200.0,
+                        width: 100.0,
+                        x: 100.0 * (i as f64),
+                        y: 100.0 * (i as f64),
                     })
                 )
             )})
@@ -183,11 +197,11 @@ impl Spread {
                                                         Box::new(PropertyExpression {
                                                             cached_value: 0.0,
                                                             dependencies: vec!["engine".to_string()],
-                                                            evaluator: RepeatInjectorMacroExpression {variadic_evaluator: |scope: Rc<RepeatItem>| -> f64 {
+                                                            evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
                                                                 //TODO:  unwrap SpreadCell from the repeat-item.
                                                                 //       make this part of the expression! macro
-                                                                match &*scope.property_coproduct {
-                                                                    RepeatPropertyCoproduct::SpreadCell(sc) => {
+                                                                match &*scope.borrow().repeat_properties {
+                                                                    RepeatPropertiesCoproduct::SpreadCell(sc) => {
                                                                         sc.x
                                                                     },
                                                                     _ => panic!("Unknown property coproduct")
@@ -197,11 +211,11 @@ impl Spread {
                                                         Box::new(PropertyExpression {
                                                             cached_value: 0.0,
                                                             dependencies: vec!["engine".to_string()],
-                                                            evaluator: RepeatInjectorMacroExpression {variadic_evaluator: |scope: Rc<RepeatItem>| -> f64 {
+                                                            evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
                                                                 //TODO:  unwrap SpreadCell from the repeat-item.
                                                                 //       make this part of the expression! macro
-                                                                match &*scope.property_coproduct {
-                                                                    RepeatPropertyCoproduct::SpreadCell(sc) => {
+                                                                match &*scope.borrow().repeat_properties {
+                                                                    RepeatPropertiesCoproduct::SpreadCell(sc) => {
                                                                         sc.y
                                                                     },
                                                                     _ => panic!("Unknown property coproduct")
@@ -214,17 +228,43 @@ impl Spread {
                                                 Box::new(PropertyExpression {
                                                     cached_value: 0,
                                                     dependencies: vec!["engine".to_string()],
-                                                    evaluator: RepeatInjectorMacroExpression {variadic_evaluator: |scope: Rc<RepeatItem>| -> usize {
+                                                    evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
                                                         //TODO:  unwrap SpreadCell from the repeat-item.
                                                         //       make this part of the expression! macro
-                                                        scope.i
+                                                        scope.borrow().i
                                                     }}
                                                 })
                                             )
                                         ))])),
                                         size: (
-                                            Box::new(PropertyLiteral {value: Size::Pixel(50.0)}),
-                                            Box::new(PropertyLiteral {value: Size::Pixel(50.0)}),
+                                            Box::new(PropertyExpression {
+                                                cached_value: Size::Pixel(100.0),
+                                                dependencies: vec!["engine".to_string()],
+                                                evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size<f64> {
+                                                    //TODO:  unwrap SpreadCell from the repeat-item.
+                                                    //       make this part of the expression! macro
+                                                    match &*scope.borrow().repeat_properties {
+                                                        RepeatPropertiesCoproduct::SpreadCell(sc) => {
+                                                            Size::Pixel(sc.width)
+                                                        },
+                                                        _ => panic!("Unknown property coproduct")
+                                                    }
+                                                }}
+                                            }),
+                                            Box::new(PropertyExpression {
+                                                cached_value: Size::Pixel(100.0),
+                                                dependencies: vec!["engine".to_string()],
+                                                evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size<f64> {
+                                                    //TODO:  unwrap SpreadCell from the repeat-item.
+                                                    //       make this part of the expression! macro
+                                                    match &*scope.borrow().repeat_properties {
+                                                        RepeatPropertiesCoproduct::SpreadCell(sc) => {
+                                                            Size::Pixel(sc.height)
+                                                        },
+                                                        _ => panic!("Unknown property coproduct")
+                                                    }
+                                                }}
+                                            }),
                                         ),
                                         transform: Transform::default(),
                                     }
@@ -294,6 +334,16 @@ impl RenderNode for Spread {
         //TODO: handle each of Spread's `Expressable` properties
 
         //TODO:  handle caching children/adoptees
+
+
+        //TODO: calc layout
+        let sp = match &*self.properties.borrow() {
+            PropertiesCoproduct::Spread(sp) => {Rc::clone(sp)}
+            _ => {panic!("Spread encountered unexpected properties type")}
+        };
+
+        sp.borrow_mut().gutter_width.eval_in_place(ptc);
+        sp.borrow_mut().cell_count.eval_in_place(ptc);
 
         ptc.runtime.borrow_mut().push_stack_frame(
             Rc::clone(&self.children),
@@ -468,62 +518,6 @@ impl RenderNode for Spread {
 
 
 
-// repeat_properties
-        // ic.engine.runtime.borrow()
-        //     .log(
-        //         &format!("Any type {}", type_name_of_val( properties_as_any))
-        //     );
-
-        //print the `type ID` of our received Any type
-        //along with the `type ID`s of suspected stand-ins, incl. their references.
-        //
-        // properties_as_any.type_id().
-        // let suspect_a : &Rc<RefCell<
-
-
-        // END DEBUG
-        //
-        // Conclusion of the `Any` foray:  we won't be able
-        // to downcast into an Rc, making it a non-viable path
-        //
-        // Another possible direction:
-        // invert the roles of data and evaluation —
-        // turn `evaluate_property(&str)` into a trait method
-        // on stack frames...
-        // A token can be
-        //  - a property name (like an implicit &self.name for the token `name`)
-        //  - a child node id (like an implicit &self.children.get_by_id(id) for the token `id`)
-        //  - a nested descendent (child.child) or descendent-property (child.property)
-        //
-        // We can create a higher-order data structure for a Property
-        // Will we be able to store polymorphic Properties elegantly alongside each other?
-        // Are we back to union-typed
-        //
-        // Yet another possible direction:  make each stack frame a big fat union type, that is:
-        // for all polymorphic "scope shapes" in an application (e.g. RepeatProperties, SpreadProperties)
-        // build a single mega-structure that contains memory (a field) for every one of those scopes
-        // and attach an instance of that mega-structure to each stack frame.
-        // Then:  each component knows how to pack and unpack its specific "scope shape"
-        //        into/out-of that mega structure.
-        //        That mega-structure declaration & maintenance can ultimately be managed with macros.
-        // Question: will this make for an unmanageable memory footprint?
-        //           will the bloated memory footprint become a bottleneck at any point for iteration, or e.g. stack traversal?
-        //           will there be a realistic real-world use-case with so many distinct scopes * so deep a call stack that we exceed
-        //           Napkin math:  imagine a component tree 500 elements deep (huge, but maybe possible e.g. in a heavily componentized app)
-        //                         then imagine that each distinct "scope shape" (property set) contains 100kb of data
-        //                         mega_structure_size = (500 * 100) => 50.000 MB
-        //                         total_runtime_memory_footpring = 500 * 50.0 MB => 25,000.00 MB
-        //           Memory would grow quadratically with the depth of component tree
-        //           This might be viable for the short term, AND there's likely a path forward to a smaller footprint
-        //           using a combo of macros and `unsafe` (each stack frame becomes the size of the "single largest stack frame," then perform an unsafe cast on each blob of memory)
-        //           Perhaps a simple version of this can be achieved with Rust's union types
-        //
-        // What if we limit the possible types for Properties?
-        // For example, if Properties can be only one of {String, Number, Boolean}, arrays, and MAYBE JS-hash-like nested {string => {String, Number, Boolean}}
-        // This would enable us to decorate plain-ol Rust structs with a macro
-        // that introspects the definition and builds a string-keyed lookup table
-
-
         //
         // let repeat_properties = Rc::clone(
         //     properties_as_any
@@ -578,3 +572,63 @@ impl RenderNode for Spread {
             - Eliminate variadic expressions; instead just always pass the same fat args (e.g. Engine, Scope)
             - do some unsafe casting, enforced "safe" by our own runtime stack, a makeshift polymorphic smart pointer mechanism
          */
+
+
+
+
+
+
+// repeat_properties
+        // ic.engine.runtime.borrow()
+        //     .log(
+        //         &format!("Any type {}", type_name_of_val( properties_as_any))
+        //     );
+
+        //print the `type ID` of our received Any type
+        //along with the `type ID`s of suspected stand-ins, incl. their references.
+        //
+        // properties_as_any.type_id().
+        // let suspect_a : &Rc<RefCell<
+
+
+        // END DEBUG
+        //
+        // Conclusion of the `Any` foray:  we won't be able
+        // to downcast into an Rc, making it a non-viable path
+        //
+        // Another possible direction:
+        // invert the roles of data and evaluation —
+        // turn `evaluate_property(&str)` into a trait method
+        // on stack frames...
+        // A token can be
+        //  - a property name (like an implicit &self.name for the token `name`)
+        //  - a child node id (like an implicit &self.children.get_by_id(id) for the token `id`)
+        //  - a nested descendent (child.child) or descendent-property (child.property)
+        //
+        // We can create a higher-order data structure for a Property
+        // Will we be able to store polymorphic Properties elegantly alongside each other?
+        // Are we back to union-typed
+        //
+        // Yet another possible direction:  make each stack frame a big fat union type, that is:
+        // for all polymorphic "scope shapes" in an application (e.g. RepeatProperties, SpreadProperties)
+        // build a single mega-structure that contains memory (a field) for every one of those scopes
+        // and attach an instance of that mega-structure to each stack frame.
+        // Then:  each component knows how to pack and unpack its specific "scope shape"
+        //        into/out-of that mega structure.
+        //        That mega-structure declaration & maintenance can ultimately be managed with macros.
+        // Question: will this make for an unmanageable memory footprint?
+        //           will the bloated memory footprint become a bottleneck at any point for iteration, or e.g. stack traversal?
+        //           will there be a realistic real-world use-case with so many distinct scopes * so deep a call stack that we exceed
+        //           Napkin math:  imagine a component tree 500 elements deep (huge, but maybe possible e.g. in a heavily componentized app)
+        //                         then imagine that each distinct "scope shape" (property set) contains 100kb of data
+        //                         mega_structure_size = (500 * 100) => 50.000 MB
+        //                         total_runtime_memory_footpring = 500 * 50.0 MB => 25,000.00 MB
+        //           Memory would grow quadratically with the depth of component tree
+        //           This might be viable for the short term, AND there's likely a path forward to a smaller footprint
+        //           using a combo of macros and `unsafe` (each stack frame becomes the size of the "single largest stack frame," then perform an unsafe cast on each blob of memory)
+        //           Perhaps a simple version of this can be achieved with Rust's union types
+        //
+        // What if we limit the possible types for Properties?
+        // For example, if Properties can be only one of {String, Number, Boolean}, arrays, and MAYBE JS-hash-like nested {string => {String, Number, Boolean}}
+        // This would enable us to decorate plain-ol Rust structs with a macro
+        // that introspects the definition and builds a string-keyed lookup table

@@ -77,22 +77,24 @@ pub struct RenderTreeContext<'a>
 //TODO:  Scopes need to play nicely with variadic expressions.  We need to be
 //       able to access `self` (current component) and its `properties` <P>
 pub struct Scope {
-    pub properties: Rc<PropertyCoproduct>,
+    pub properties: Rc<RefCell<PropertiesCoproduct>>,
     // TODO: children, parent, etc.
 }
 
-pub enum PropertyCoproduct {
-    RepeatItem(Rc<RepeatItem>),
-    Spread(Rc<SpreadProperties>),
+// ∐
+// TODO: could these be vanilla references instead of `Rc`s?
+pub enum PropertiesCoproduct {
+    RepeatItem(Rc<RefCell<RepeatItem>>),
+    Spread(Rc<RefCell<SpreadProperties>>),
     Empty,
 }
 
 pub struct RepeatItem {
     pub i: usize,
-    pub property_coproduct: Rc<RepeatPropertyCoproduct>
+    pub repeat_properties: Rc<RepeatPropertiesCoproduct>
 }
 
-pub enum RepeatPropertyCoproduct {
+pub enum RepeatPropertiesCoproduct {
     SpreadCell(Rc<SpreadCellProperties>)
 }
 
@@ -198,10 +200,10 @@ impl CarbonEngine {
             render_tree: Rc::new(RefCell::new(RenderTree {
                 root: Rc::new(RefCell::new(Component {
                     id: String::from("root"),
-                    properties: Rc::new(
-                        PropertyCoproduct::Empty
+                    properties: Rc::new(RefCell::new(
+                        PropertiesCoproduct::Empty
                         // StackUnion {main_component_properties: ManuallyDrop::new(Rc::new(MyMainComponentProperties { rotation: 0.44}))}
-                    ),
+                    )),
                     transform: Transform::default(),
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(Frame {
@@ -234,10 +236,10 @@ impl CarbonEngine {
                             //         stroke: Stroke {
                             //             width: 4.0,
                             //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                            //             color: Color::rgba(1.0, 1.0, 0.0, 1.0)
+                            //             color: Color::rgba(1.0, 0.0, 0.0, 1.0)
                             //         },
                             //         id: String::from("frame_filler"),
-                            //         size: (Box::new(PropertyLiteral{value: Size::Percent(50.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                            //         size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
                             //     }
                             // )),
                                 Rc::new(RefCell::new(
@@ -259,7 +261,7 @@ impl CarbonEngine {
                                                     stroke: Stroke {
                                                         width: 4.0,
                                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                        color: Color::rgba(1.0, 1.0, 0.0, 1.0)
+                                                        color: Color::rgba(0.0, 0.0, 1.0, 1.0)
                                                     },
                                                     id: String::from("frame_filler"),
                                                     size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
@@ -280,22 +282,35 @@ impl CarbonEngine {
                                                     size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
                                                 }
                                             )),
+                                            Rc::new(RefCell::new(
+                                                Rectangle {
+                                                    transform: Transform {translate: (Box::new(PropertyLiteral{value: 100.0}),Box::new(PropertyLiteral{value: 100.0})), ..Default::default() },
+                                                    fill:  Box::new(
+                                                        PropertyLiteral {value: Color::rgba(0.0, 0.0, 1.0, 1.0) }
+                                                    ),
+                                                    stroke: Stroke {
+                                                        width: 4.0,
+                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                        color: Color::rgba(1.0, 1.0, 1.0, 1.0)
+                                                    },
+                                                    id: String::from("frame_filler"),
+                                                    size: (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
+                                                }
+                                            )),
                                         ])),
                                     String::from("my_first_spread"),
                                     (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
                                     Default::default(),
-                                    Rc::new(
-                                        PropertyCoproduct::Spread(Rc::new(
-                                            SpreadProperties {
-                                                cell_size_spec: None,
-                                                gutter: Size::Pixel(10.0),
-                                            }
+                                    Rc::new(RefCell::new(
+                                        PropertiesCoproduct::Spread(Rc::new(
+                                            RefCell::new(SpreadProperties {
+                                                cell_count: Box::new(PropertyLiteral{value: 5}),
+                                                gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(5.0)}),
+                                                overrides_cell_size: vec![],
+                                                overrides_gutter_size: vec![]
+                                            })
                                         ))
-                                        // StackUnion { spread: ManuallyDrop::new(Rc::new(SpreadProperties {
-                                        // gutter: Size::Pixel(10.0),
-                                        // cell_size_spec: None,
-                                        // }))}
-                                    )
+                                    ))
 
                                 ))),
 
@@ -465,7 +480,6 @@ impl CarbonEngine {
         let accumulated_bounds = rtc.bounding_dimens;
 
         //Note: this cloning transform-fetching logic could certainly be written more efficiently
-
         let node_computed_transform = {
             let mut node_borrowed = rtc.node.borrow_mut();
             let node_size = node_borrowed.get_size_calc(accumulated_bounds);

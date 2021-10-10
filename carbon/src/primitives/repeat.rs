@@ -3,12 +3,12 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, PolymorphicType, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, Transform, PropertyCoproduct, RepeatPropertyCoproduct, RepeatItem};
+use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, PolymorphicType, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, Transform, PropertiesCoproduct, RepeatPropertiesCoproduct, RepeatItem};
 use std::collections::HashMap;
 
 pub struct Repeat {
     pub children: RenderNodePtrList,
-    pub list: Vec<Rc<RepeatPropertyCoproduct>>,
+    pub list: Vec<Rc<RepeatPropertiesCoproduct>>,
     pub id: String,
     pub transform: Transform,
     virtual_children: RenderNodePtrList,
@@ -19,12 +19,12 @@ pub struct Repeat {
 /// during property-tree traversal
 pub struct RepeatProperties {
     pub i: usize,
-    pub datum: Rc<RepeatPropertyCoproduct>,
+    pub datum: Rc<RepeatPropertiesCoproduct>,
     pub id: String,
 }
 
 impl Repeat {
-    pub fn new(list: Vec<Rc<RepeatPropertyCoproduct>>, children: RenderNodePtrList, id: String, transform: Transform) -> Self {
+    pub fn new(list: Vec<Rc<RepeatPropertiesCoproduct>>, children: RenderNodePtrList, id: String, transform: Transform) -> Self {
         Repeat {
             list,
             children,
@@ -45,13 +45,13 @@ impl RenderNode for Repeat {
 
         //for each element in self.list, create a new child (Component) and push it to self.children
         for (i, datum) in self.list.iter().enumerate() {
-            let properties = Rc::new(RepeatItem { i, property_coproduct: Rc::clone(datum)});
+            let properties = Rc::new(RefCell::new(RepeatItem { i, repeat_properties: Rc::clone(datum)}));
 
             self.virtual_children.borrow_mut().push(Rc::new(RefCell::new(Component {
                 template: Rc::clone(&self.children),
                 id: "".to_string(),
                 transform: Transform::default(),
-                properties: Rc::new(PropertyCoproduct::RepeatItem(properties)),
+                properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
             })));
         }
 

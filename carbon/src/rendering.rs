@@ -5,7 +5,7 @@ use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType, PropertyLiteral, PropertyCoproduct};
+use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Variable, Scope, PolymorphicType, PropertyLiteral, PropertiesCoproduct};
 use std::collections::HashMap;
 use crate::Size::Percent;
 use std::any::Any;
@@ -205,7 +205,7 @@ impl Default for Transform {
 
 impl Transform {
 
-    fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {
+    pub fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {
         &self.translate.0.eval_in_place(ptc);
         &self.translate.1.eval_in_place(ptc);
         &self.scale.0.eval_in_place(ptc);
@@ -230,6 +230,9 @@ impl Transform {
         //        - Consider that transform order would be nice to specify in userland, without needing a special magical API (ideally as expressive as Affine::translate() * Affine::scale())
         //        - See if we can better draw the boundaries between AUTHOR-TIME properties (translate/scale/rotate/origin/align)
         //          and RENDER-TIME properties (bounds, node size, computed matrix)
+        //        - Take a closer look at the implementation of Affine in `kurbo`, e.g.
+        //          the deref + multiplication behavior.  That approach, plus
+        //          support for origin & align (and shear!) would be very nice.
 
     }
 
@@ -281,7 +284,7 @@ pub struct Component {
     pub template: Rc<RefCell<Vec<RenderNodePtr>>>,
     pub id: String,
     pub transform: Transform,
-    pub properties: Rc<PropertyCoproduct>,
+    pub properties: Rc<RefCell<PropertiesCoproduct>>,
 }
 
 impl RenderNode for Component {
@@ -349,10 +352,10 @@ impl RenderNode for Rectangle {
     fn get_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
     }
-    fn eval_properties_in_place(&mut self, ctx: &PropertyTreeContext) {
-        self.size.0.eval_in_place(ctx);
-        self.size.1.eval_in_place(ctx);
-        self.fill.eval_in_place(ctx);
+    fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
+        self.size.0.eval_in_place(ptc);
+        self.size.1.eval_in_place(ptc);
+        self.fill.eval_in_place(ptc);
     }
     fn get_size(&self) -> Option<(Size<f64>, Size<f64>)> { Some((*self.size.0.read(), *self.size.1.read())) }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
