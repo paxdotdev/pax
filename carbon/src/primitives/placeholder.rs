@@ -36,7 +36,20 @@ impl RenderNode for Placeholder {
             Some(stack_frame) => {
                 // Grab the adoptee from the current stack_frame at Placeholder's specified `index`
                 // then make it Placeholder's own child.
-                wrap_render_node_ptr_into_list(Rc::clone(stack_frame.borrow().get_adoptees().borrow().get(*self.index.read()).unwrap()))
+                match stack_frame.borrow().get_adoptees().borrow().get(*self.index.read()) {
+                    Some(rnp) => wrap_render_node_ptr_into_list(Rc::clone(&rnp)),
+                    //no adoptees found
+                    //TODO:  should we recurse up the stack continuing our
+                    //       quest for adoptees?  use-case:
+                    //       we have a Spread with adoptees, attached to its top-level component
+                    //       stack frame.  We use repeat, which pushes "puppeteer" stack frames
+                    //       for each repeated datum.  Inside repeat, we have placeholders,
+                    //       which expect to access the top-level component's adoptees.
+                    //       YES, we need to traverse stack frames in this case.
+
+                    //       What about in the case of an application component exposing
+                    None => Rc::new(RefCell::new(vec![])),
+                }
             },
             None => {Rc::new(RefCell::new(vec![]))}
         }

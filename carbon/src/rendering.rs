@@ -59,7 +59,7 @@ impl Runtime {
     /// without mutating the stack or consuming the value
     pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame>>> {
         if self.stack.len() > 0 {
-            Some(Rc::clone(&self.stack[0]))
+            Some(Rc::clone(&self.stack[&self.stack.len() - 1]))
         }else{
             None
         }

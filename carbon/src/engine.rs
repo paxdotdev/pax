@@ -83,6 +83,7 @@ pub struct Scope {
 
 pub enum PropertyCoproduct {
     RepeatItem(Rc<RepeatItem>),
+    Spread(Rc<SpreadProperties>),
     Empty,
 }
 
@@ -266,7 +267,12 @@ impl CarbonEngine {
                                     (Box::new(PropertyLiteral{value: Size::Percent(100.0)}),Box::new(PropertyLiteral{value: Size::Percent(100.0)})),
                                     Default::default(),
                                     Rc::new(
-                                        PropertyCoproduct::Empty
+                                        PropertyCoproduct::Spread(Rc::new(
+                                            SpreadProperties {
+                                                cell_size_spec: None,
+                                                gutter: Size::Pixel(10.0),
+                                            }
+                                        ))
                                         // StackUnion { spread: ManuallyDrop::new(Rc::new(SpreadProperties {
                                         // gutter: Size::Pixel(10.0),
                                         // cell_size_spec: None,

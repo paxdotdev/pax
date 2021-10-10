@@ -110,14 +110,17 @@ impl<T> Evaluator<T> for RepeatInjectorMacroExpression<T> {
         let stack_frame_borrowed = stack_frame.borrow();
         let scope = &stack_frame_borrowed.get_scope();
         let scope_borrowed = scope.borrow();
-        // let properties_as_any = &scope_borrowed.properties as &dyn Any;
         let repeat_properties = Rc::clone(  &scope_borrowed.properties );
-
-
 
         let unwrapped_repeat_properties = match &*repeat_properties {
             PropertyCoproduct::RepeatItem(rs) => {
                 Rc::clone(rs)
+            },
+            PropertyCoproduct::Spread(s) => {
+                panic!("It's a Spread!!");
+            },
+            PropertyCoproduct::Empty => {
+                panic!("It's empty!!");
             },
             _ => {
                 panic!("Unexpected type.");
