@@ -3,7 +3,8 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Transform, Size2D};
+use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Transform};
+use crate::rendering::Size2D;
 
 pub struct Group {
     pub children: Rc<RefCell<Vec<RenderNodePtr>>>,
@@ -22,9 +23,6 @@ impl RenderNode for Group {
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
 
-    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
 
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
-    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }

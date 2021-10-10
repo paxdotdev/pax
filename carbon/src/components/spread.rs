@@ -1,16 +1,17 @@
-use std::cell::{RefCell, Ref};
+use std::any::Any;
+use std::cell::{Ref, RefCell};
 use std::collections::HashMap;
+use std::mem::ManuallyDrop;
 use std::rc::Rc;
 
 use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Property, PropertyExpression, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Size, wrap_render_node_ptr_into_list, PropertyLiteral, Scope, Repeat, Rectangle, Color, Stroke, StrokeStyle, Evaluator, StackFrame, InjectionContext, decompose_render_node_ptr_list_into_vec, Transform, RepeatItemProperties, PropertiesCoproduct, RepeatItem};
-use crate::primitives::placeholder::Placeholder;
+use crate::{Affine, Color, decompose_render_node_ptr_list_into_vec, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyExpression, PropertyLiteral, PropertyTreeContext, Rectangle, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Repeat, RepeatItem, RepeatItemProperties, Scope, Size, StackFrame, Stroke, StrokeStyle, Transform, wrap_render_node_ptr_into_list, MyManualMacroExpression, CarbonEngine};
 use crate::primitives::frame::Frame;
-use std::any::Any;
-use std::mem::ManuallyDrop;
+use crate::primitives::placeholder::Placeholder;
+use crate::rendering::{Size2D, Size2DFactory};
 
 /*
 TODO:
@@ -72,33 +73,10 @@ TODO:
 //      </Template>
 // </Component>
 
-pub type Size2D = Rc<RefCell<(
-    Box<dyn Property<Size<f64>>>,
-    Box<dyn Property<Size<f64>>>,
-)>>;
-
-pub struct Size2DFactory {}
-impl Size2DFactory {
-    pub fn Literal(x: Size<f64>, y: Size<f64>) -> Size2D {
-        Rc::new(RefCell::new(
-            (
-                Box::new(
-                    PropertyLiteral { value: x }
-                ),
-                Box::new(
-                    PropertyLiteral { value: y }
-                )
-            )
-        ))
-    }
-}
-
 pub struct Spread {
     pub children: RenderNodePtrList,
     pub properties: Rc<RefCell<SpreadProperties>>,
 }
-
-
 
 pub struct SpreadProperties {
     pub size: Size2D,
@@ -116,18 +94,18 @@ pub struct SpreadProperties {
     pub overrides_gutter_size: Vec<(usize, Size<f64>)>,
 
     //storage for memoized layout calc
-    //TODO: any way to make this legit private?
-    pub _cached_computed_cells: Vec<Rc<SpreadCellProperties>>,
+    //TODO: any way to make this legit private while supporting `..Default::default()` ergonomics?
+    pub _cached_computed_layout_spec: Vec<Rc<SpreadCellProperties>>,
 }
 
 impl Default for SpreadProperties {
     fn default() -> Self {
         SpreadProperties {
-            size: Size2DFactory::Literal(Size::Pixel(0.0), Size::Pixel(0.0)),
+            size: Size2DFactory::default(),
             transform: Default::default(),
             cell_count: Box::new(PropertyLiteral{value: 0}),
             gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(0.0)}),
-            _cached_computed_cells: vec![],
+            _cached_computed_layout_spec: vec![],
             overrides_cell_size: vec![],
             overrides_gutter_size: vec![],
         }
@@ -136,223 +114,40 @@ impl Default for SpreadProperties {
 
 impl SpreadProperties {
     pub fn eval_in_place(&mut self, ptc: &PropertyTreeContext) {
+        &self.size.borrow_mut().0.eval_in_place(ptc);
+        &self.size.borrow_mut().1.eval_in_place(ptc);
         &self.cell_count.eval_in_place(ptc);
         &self.gutter_width.eval_in_place(ptc);
+        &self.transform.borrow_mut().eval_in_place(ptc);
+        &self.calc_layout_spec_in_place(ptc);
     }
 
-    pub fn calc_cells_properties_in_place(&mut self) {
-        //TODO:  handle overrides/specs
-        (0..*self.cell_count.read()).into_iter().map(|i| {
-            SpreadCellProperties {
+    pub fn calc_layout_spec_in_place(&mut self, ptc: &PropertyTreeContext) {
+        let bounds = ptc.bounds;
+        let gutter_calc = match *self.gutter_width.read() {
+            Size::Pixel(px) => px,
+            Size::Percent(pct) => bounds.0 * (pct / 100.0),
+        };
+        let cell_count = *self.cell_count.read() as f64;
+
+        //hard-coding horizontal to start
+        let usable_interior_space = bounds.0 - (cell_count + 1.0) * gutter_calc;
+        let per_cell_space = usable_interior_space / cell_count;
+
+        //TODO: account for overrides
+        self._cached_computed_layout_spec = (0..(cell_count as usize)).into_iter().map(|i| {
+
+            // ptc.runtime.borrow_mut().log(&format!("Caching computed cells: {}", ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space));
+            Rc::new(SpreadCellProperties {
                 height: 200.0,
-                width: 100.0,
-                x: 100.0 * (i as f64),
-                y: 100.0 * (i as f64),
-            }
-        });
+                width: per_cell_space,
+                x: ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
+                y: 0.0,
+            })
+        }).collect();
+
     }
 }
-
-
-
-pub struct SpreadCellProperties {
-    //TODO: map correct types to our relevant transforms
-    pub x: f64,
-    pub y: f64,
-    pub width: f64,
-    pub height: f64,
-}
-
-impl Default for SpreadCellProperties{
-    fn default() -> Self {
-        SpreadCellProperties {
-            x: 0.0,
-            y: 0.0,
-            width: 0.0,
-            height: 0.0,
-        }
-    }
-}
-
-fn get_template() -> Rc<RefCell<Vec<Rc<RefCell<dyn RenderNode>>>>> {
-    Rc::new(RefCell::new(
-        vec![
-            Rc::new(RefCell::new(
-                Repeat {
-
-                    //******************
-                    //TODO:
-                    //  [x] wrap in expression, referring to memoized property computed during property tree traversal
-                    //  [ ] move bounds-computing logic to the property tree traversal.
-                    //    Easiest may be to duplicate the sizing logic (call `node.get_size_calc()`, even though it will be called again for rendering)
-                    //    As a refinement, we could cache the bounds values for future reading by the render tree traversal
-                    //    ** This is because bounds are required for the calculation of the cell spec for a spread **
-                    //
-                    data_list: Box::new(PropertyExpression {
-                        cached_value: vec![Rc::new(PropertiesCoproduct::SpreadCell(Rc::new(SpreadCellProperties{..Default::default()})))],
-                        dependencies: vec!["engine".to_string()],
-                        // expression!(|engine: &CarbonEngine| ->
-                        evaluator: SpreadPropertiesInjector {variadic_evaluator: |scope: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
-                            //TODO:  unwrap SpreadCell from the repeat-item.
-                            //       make this part of the expression! macro
-                            scope.borrow()._cached_computed_cells.iter()
-                                .map(|ccc|{Rc::new(PropertiesCoproduct::SpreadCell(Rc::clone(ccc)))}).collect()
-                        }}
-                    }),
-                    children: Rc::new(RefCell::new(vec![
-                        Rc::new(RefCell::new(
-                            Frame {
-                                id: "spread_frame".to_string(),
-                                children: Rc::new(RefCell::new(vec![Rc::new(RefCell::new(
-                                    Placeholder::new(
-                                        Transform {
-                                            translate: (
-                                                Box::new(PropertyExpression {
-                                                    cached_value: 0.0,
-                                                    dependencies: vec!["engine".to_string()],
-                                                    evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
-                                                        //TODO:  unwrap SpreadCell from the repeat-item.
-                                                        //       make this part of the expression! macro
-                                                        match &*scope.borrow().repeat_properties {
-                                                            PropertiesCoproduct::SpreadCell(sc) => {
-                                                                sc.x
-                                                            },
-                                                            _ => panic!("Unknown property coproduct")
-                                                        }
-                                                    }}
-                                                }),
-                                                Box::new(PropertyExpression {
-                                                    cached_value: 0.0,
-                                                    dependencies: vec!["engine".to_string()],
-                                                    evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
-                                                        //TODO:  unwrap SpreadCell from the repeat-item.
-                                                        //       make this part of the expression! macro
-                                                        match &*scope.borrow().repeat_properties {
-                                                            PropertiesCoproduct::SpreadCell(sc) => {
-                                                                sc.y
-                                                            },
-                                                            _ => panic!("Unknown property coproduct")
-                                                        }
-                                                    }}
-                                                })
-                                            ),
-                                            ..Default::default()
-                                        },
-                                        Box::new(PropertyExpression {
-                                            cached_value: 0,
-                                            dependencies: vec!["engine".to_string()],
-                                            evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
-                                                //TODO:  unwrap SpreadCell from the repeat-item.
-                                                //       make this part of the expression! macro
-                                                scope.borrow().i
-                                            }}
-                                        })
-                                    )
-                                ))])),
-                                size: Rc::new(RefCell::new((
-                                    Box::new(PropertyExpression {
-                                        cached_value: Size::Pixel(100.0),
-                                        dependencies: vec!["engine".to_string()],
-                                        evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size<f64> {
-                                            //TODO:  unwrap SpreadCell from the repeat-item.
-                                            //       make this part of the expression! macro
-                                            match &*scope.borrow().repeat_properties {
-                                                PropertiesCoproduct::SpreadCell(sc) => {
-                                                    Size::Pixel(sc.width)
-                                                },
-                                                _ => panic!("Unknown property coproduct")
-                                            }
-                                        }}
-                                    }),
-                                    Box::new(PropertyExpression {
-                                        cached_value: Size::Pixel(100.0),
-                                        dependencies: vec!["engine".to_string()],
-                                        evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size<f64> {
-                                            //TODO:  unwrap SpreadCell from the repeat-item.
-                                            //       make this part of the expression! macro
-                                            match &*scope.borrow().repeat_properties {
-                                                PropertiesCoproduct::SpreadCell(sc) => {
-                                                    Size::Pixel(sc.height)
-                                                },
-                                                _ => panic!("Unknown property coproduct")
-                                            }
-                                        }}
-                                    }),
-                                ))),
-                                transform: Rc::new(RefCell::new(Transform::default())),
-                            }
-                        ))
-                    ])),
-                    ..Default::default()
-                }
-            ))
-        ]
-    ))
-}
-
-
-impl Spread {
-    pub fn new(
-        children: RenderNodePtrList,
-        id: String,
-        properties: Rc<RefCell<SpreadProperties>>,
-    ) -> Self {
-
-
-        Spread {
-            children,
-            properties,
-            //private "component declaration" here, for template & variables
-
-
-            /*
-            Rc::new(RefCell::new(
-                Frame {
-                    id: "cell_frame_left".to_string(),
-                    align: (0.0, 0.0),
-                    origin: (Size::Pixel(0.0), Size::Pixel(0.0), ),
-                    size: (
-                        (
-                            Box::new(PropertyLiteral { value: Size::Percent(50.0) }),
-                            Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
-                        )
-                    ),
-                    transform: Affine::default(),
-
-                    children: Rc::new(RefCell::new(vec![
-                        Rc::new(RefCell::new(
-                            Placeholder::new("spread_frame_placeholder_left".to_string(), Affine::default(), 0)
-                        )),
-                    ])),
-                }
-            )),
-            Rc::new(RefCell::new(
-                Frame {
-                    id: "cell_frame_right".to_string(),
-                    align: (1.0, 0.0),
-                    origin: (Size::Percent(100.0), Size::Pixel(0.0), ),
-                    size: (
-                        (
-                            Box::new(PropertyLiteral { value: Size::Percent(50.0) }),
-                            Box::new(PropertyLiteral { value: Size::Percent(100.0) }),
-                        )
-                    ),
-                    transform: Affine::default(),
-
-                    children: Rc::new(RefCell::new(
-                        vec![
-                            Rc::new(RefCell::new(
-                                Placeholder::new("spread_frame_placeholder_right".to_string(), Affine::default(), 1)
-                            )),
-                        ])
-                    ),
-                }
-            )),
-             */
-        }
-                }
-}
-
 
 
 impl RenderNode for Spread {
@@ -369,33 +164,9 @@ impl RenderNode for Spread {
         //     _ => {panic!("Spread encountered unexpected properties type")}
         // };
 
-        self.properties.borrow_mut().gutter_width.eval_in_place(ptc);
-        self.properties.borrow_mut().cell_count.eval_in_place(ptc);
+        self.properties.borrow_mut().eval_in_place(ptc);
 
-        //TODO: make this child list (or a simplified Vec<SpreadCellProperties> ?) a
-        //      direct property of Spread.  Repeat can then bind its data input via an expression.
-        //      Alternatively, expose an `n` property for repeat
 
-        // FIGURE OUT THE INTERFACE BETWEEN SPREAD AND REPEAT, AND REPEAT'S API
-        // add a spread_cells property, which is evaluated as an expression dependent on
-        // the number of cells, gutter, and override specs, that is: f(cells, gutter, overrides)
-
-        // let child_data_list : Vec<Rc<PropertiesCoproduct>> =
-        //     children.borrow()
-        //     .iter()
-        //     .enumerate()
-        //     .map(|(i, _rnp)| {
-        //         Rc::new(
-        //         PropertiesCoproduct::SpreadCell(
-        //             Rc::new(SpreadCellProperties {
-        //                 height: 200.0,
-        //                 width: 100.0,
-        //                 x: 100.0 * (i as f64),
-        //                 y: 100.0 * (i as f64),
-        //             })
-        //         )
-        //     )})
-        //     .collect();
 
 
 
@@ -464,38 +235,193 @@ impl RenderNode for Spread {
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.properties.borrow().size)) }
 
-    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.properties.borrow().transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.properties.borrow().transform) }
 
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        //TODO:  calc & memoize the layout/transform for each cell of the Sprad
-        //       probably need to do the memoization via a RefCell for mutability concerns,
-        //       since pre_render happens during immutable render tree recursion
-
-        //Algo:
-        // 1. determine number of adoptees (&self.children), `n`
-        // 2. determine gutter, `g`
-        // 3. determine bounding size, `(x,y)`
-
-        // match &self.properties.spread.cell_size_spec {
-        //     //If a cell_size_spec is provided, use it.
-        //     Some(cell_size_spec) => (),
-        //     //Otherwise, calculate one
-        //     None => {
-        //
-        //     }
-        // }
+}
 
 
+
+pub struct SpreadCellProperties {
+    pub x: f64,
+    pub y: f64,
+    pub width: f64,
+    pub height: f64,
+}
+
+impl Default for SpreadCellProperties{
+    fn default() -> Self {
+        SpreadCellProperties {
+            x: 0.0,
+            y: 0.0,
+            width: 0.0,
+            height: 0.0,
+        }
     }
+}
 
-    fn render(&self, _sc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
-        //TODO:  render cell borders if appropriate
-    }
+fn get_template() -> RenderNodePtrList {
+    Rc::new(RefCell::new(
+        vec![
+            Rc::new(RefCell::new(
+                                                    Rectangle {
+                                                        transform: Rc::new(RefCell::new(Transform::default())),
+                                                        fill: Box::new(
+                                                            PropertyExpression {
+                                                                cached_value: Color::hlc(0.0,0.0,0.0),
+                                                                // expression!(|engine: &CarbonEngine| ->
+                                                                evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                                                    Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                                                }}
+                                                            }
+                                                        ),
+                                                        stroke: Stroke {
+                                                            width: 4.0,
+                                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                            color: Color::rgba(0.0, 0.0, 1.0, 1.0)
+                                                        },
+                                                        size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                    }
+                                                )),
+            // Rc::new(RefCell::new(
+            //     Rectangle {
+            //         transform: Rc::new(RefCell::new(Transform::default())),
+            //         fill:  Box::new(
+            //             PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0) }
+            //         ),
+            //         stroke: Stroke {
+            //             width: 4.0,
+            //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+            //             color: Color::rgba(0.0, 1.0, 1.0, 1.0)
+            //         },
+            //         size: Size2DFactory::Literal(Size::Pixel(100.0), Size::Pixel(100.0)),
+            //     }
+            // )),
 
-    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
 
-    }
+            Rc::new(RefCell::new(
+                Repeat {
+                    data_list: Box::new(PropertyExpression {
+                        cached_value: vec![Rc::new(PropertiesCoproduct::SpreadCell(Rc::new(SpreadCellProperties{..Default::default()})))],
+                        // expression!(|engine: &CarbonEngine| ->
+                        evaluator: SpreadPropertiesInjector {variadic_evaluator: |scope: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
+                            //TODO:  make this unwrapping part of the expression! macro
+                            scope.borrow()._cached_computed_layout_spec.iter()
+                                .map(|scp|{Rc::new(PropertiesCoproduct::SpreadCell(Rc::clone(scp)))}).collect()
+                        }}
+                    }),
+                    children: Rc::new(RefCell::new(vec![
 
+                        Rc::new(RefCell::new(
+                            Frame {
+                                size: Rc::new(RefCell::new((
+                                    Box::new(PropertyExpression {
+                                        cached_value: Size::Pixel(100.0),
+                                        evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size<f64> {
+                                            //TODO:  unwrap SpreadCell from the repeat-item.
+                                            //       make this part of the expression! macro
+                                            match &*scope.borrow().datum {
+                                                PropertiesCoproduct::SpreadCell(sc) => {
+                                                    // Size::Pixel(sc.width)
+                                                    Size::Pixel(200.0)
+                                                },
+                                                _ => panic!("Unknown property coproduct")
+                                            }
+                                        }}
+                                    }),
+                                    Box::new(PropertyExpression {
+                                        cached_value: Size::Pixel(100.0),
+                                        evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size<f64> {
+                                            //TODO:  unwrap SpreadCell from the repeat-item.
+                                            //       make this part of the expression! macro
+                                            match &*scope.borrow().datum {
+                                                PropertiesCoproduct::SpreadCell(sc) => {
+                                                    // Size::Pixel(sc.height)
+                                                    Size::Pixel(200.0)
+                                                },
+                                                _ => panic!("Unknown property coproduct")
+                                            }
+                                        }}
+                                    }),
+                                ))),
+                                transform: Rc::new(RefCell::new(
+                                    Transform {
+                                            translate: (
+                                                Box::new(PropertyExpression {
+                                                    cached_value: 0.0,
+                                                    evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
+                                                        //TODO:  unwrap SpreadCell from the repeat-item.
+                                                        //       make this part of the expression! macro
+                                                        match &*scope.borrow().datum {
+                                                            PropertiesCoproduct::SpreadCell(sc) => {
+                                                                0.0
+                                                                //sc.x
+                                                            },
+                                                            _ => panic!("Unknown property coproduct")
+                                                        }
+                                                    }}
+                                                }),
+                                                Box::new(PropertyExpression {
+                                                    cached_value: 0.0,
+                                                    evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
+                                                        //TODO:  make this part of the expression! macro
+                                                        match &*scope.borrow().datum {
+                                                            PropertiesCoproduct::SpreadCell(sc) => {
+                                                                0.0
+                                                                //sc.y
+                                                            },
+                                                            _ => panic!("Unknown property coproduct")
+                                                        }
+                                                    }}
+                                                })
+                                            ),
+                                            ..Default::default()
+                                        },
+                                )),
+                                children: Rc::new(RefCell::new(vec![
+                                    Rc::new(RefCell::new(
+                                                    Rectangle {
+                                                        transform: Rc::new(RefCell::new(Transform::default())),
+                                                        fill: Box::new(
+                                                            PropertyExpression {
+                                                                cached_value: Color::hlc(0.0,0.0,0.0),
+                                                                // expression!(|engine: &CarbonEngine| ->
+                                                                evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                                                    Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                                                }}
+                                                            }
+                                                        ),
+                                                        stroke: Stroke {
+                                                            width: 4.0,
+                                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                            color: Color::rgba(0.0, 0.0, 1.0, 1.0)
+                                                        },
+                                                        size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                    }
+                                                )),
+                                    // Rc::new(RefCell::new(
+                                    //     Placeholder::new(
+                                    //         Transform::default(),
+                                    //         Box::new(PropertyExpression {
+                                    //             cached_value: 0,
+                                    //             dependencies: vec!["engine".to_string()],
+                                    //             evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
+                                    //                 //TODO:  unwrap SpreadCell from the repeat-item.
+                                    //                 //       make this part of the expression! macro
+                                    //                 scope.borrow().i
+                                    //             }}
+                                    //         })
+                                    //     )
+                                    // ))
+                                ])),
+
+                            }
+                        ))
+                    ])),
+                    ..Default::default()
+                }
+            ))
+        ]
+    ))
 }
 
 

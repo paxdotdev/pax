@@ -1,15 +1,15 @@
+use std::any::Any;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
+use dynstack::DynStack;
 use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyTreeContext, RenderTreeContext, StackFrame, Scope, PropertyLiteral, PropertiesCoproduct, Size2D};
-use std::collections::HashMap;
+use crate::{PropertiesCoproduct, Property, PropertyLiteral, PropertyTreeContext, RenderTreeContext, Scope, StackFrame};
 use crate::Size::Percent;
-use std::any::Any;
-use dynstack::DynStack;
 
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
@@ -171,10 +171,10 @@ pub trait RenderNode
         }
     }
 
-    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>>;
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
-    fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
-    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext);
+    fn get_transform(&mut self) -> Rc<RefCell<Transform>>;
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
+    fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
+    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
 }
 
 pub struct Transform {
@@ -215,7 +215,8 @@ impl Transform {
 
         //Note:  the final affine transform is NOT computed here in the Property Tree
         //       traversal, because it relies on rendering specific context, e.g. the
-        //       node size and containing bounds.
+        //       node size and containing bounds. [Update: we are now passing bounds through
+        //       the property tree context, so this may be worth revisiting.]
         //
         //       This is a somewhat awkward conceptual divide
         //       through the middle of `Transform`, especially since we ultimately
@@ -309,7 +310,7 @@ impl RenderNode for Component {
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
     fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
@@ -344,7 +345,7 @@ impl RenderNode for Rectangle {
         self.fill.eval_in_place(ptc);
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
-    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         let transform = rtc.transform;
@@ -374,5 +375,39 @@ impl RenderNode for Rectangle {
 
 pub struct If {
 
+}
+
+pub type Size2D = Rc<RefCell<(
+    Box<dyn Property<Size<f64>>>,
+    Box<dyn Property<Size<f64>>>,
+)>>;
+
+pub struct Size2DFactory {}
+
+impl Size2DFactory {
+    pub fn Literal(x: Size<f64>, y: Size<f64>) -> Size2D {
+        Rc::new(RefCell::new(
+            (
+                Box::new(
+                    PropertyLiteral { value: x }
+                ),
+                Box::new(
+                    PropertyLiteral { value: y }
+                )
+            )
+        ))
+    }
+    pub fn default() -> Size2D {
+       Rc::new(RefCell::new(
+            (
+                Box::new(
+                    PropertyLiteral { value: Size::Percent(100.0) }
+                ),
+                Box::new(
+                    PropertyLiteral { value: Size::Percent(100.0) }
+                )
+            )
+        ))
+    }
 }
 

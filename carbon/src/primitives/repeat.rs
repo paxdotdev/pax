@@ -1,10 +1,11 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Scope, StackFrame, Component, wrap_render_node_ptr_into_list, InjectionContext, Evaluator, Transform, PropertiesCoproduct, RepeatItem, Property, PropertyLiteral, Size2D};
-use std::collections::HashMap;
+use crate::{Affine, Component, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyLiteral, PropertyTreeContext, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatItem, Scope, Size, StackFrame, Transform, wrap_render_node_ptr_into_list};
+use crate::rendering::Size2D;
 
 pub struct Repeat {
     pub children: RenderNodePtrList,
@@ -46,18 +47,26 @@ impl RenderNode for Repeat {
     fn eval_properties_in_place(&mut self, ptc: &PropertyTreeContext) {
         //TODO: handle each of Repeat's `Expressable` properties
 
+        self.data_list.eval_in_place(ptc);
+        self.transform.borrow_mut().eval_in_place(ptc);
+
         //reset children
         self._virtual_children = Rc::new(RefCell::new(Vec::new()));
 
-        //for each element in self.list, create a new child (Component) and push it to self.children
+        //wrap data_list into repeat_items and attach "puppeteer" components that attach
+        //the necessary data as stack frame context
         for (i, datum) in self.data_list.read().iter().enumerate() {
-            let properties = Rc::new(RefCell::new(RepeatItem { i, repeat_properties: Rc::clone(datum)}));
+            let properties = Rc::new(RefCell::new(
+                RepeatItem { i, datum: Rc::clone(datum)}
+            ));
 
-            self._virtual_children.borrow_mut().push(Rc::new(RefCell::new(Component {
-                template: Rc::clone(&self.children),
-                transform: Rc::new(RefCell::new(Transform::default())),
-                properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
-            })));
+            self._virtual_children.borrow_mut().push(Rc::new(RefCell::new(
+                Component {
+                    template: Rc::clone(&self.children),
+                    transform: Rc::new(RefCell::new(Transform::default())),
+                    properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
+                })
+            ));
         }
 
     }
@@ -75,12 +84,7 @@ impl RenderNode for Repeat {
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
-    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
-
-    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
 }
 
 

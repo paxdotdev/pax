@@ -1,11 +1,13 @@
-use std::rc::Rc;
-
 use core::cell::RefCell;
 use core::option::Option;
 use core::option::Option::{None, Some};
+use std::rc::Rc;
+
 use kurbo::Affine;
 use piet_web::WebRenderContext;
-use crate::{RenderNodePtrList, RenderNode, PropertyTreeContext, Size, RenderTreeContext, rendering, wrap_render_node_ptr_into_list, Transform, Property, Size2D};
+
+use crate::{Property, PropertyTreeContext, rendering, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform, wrap_render_node_ptr_into_list};
+use crate::rendering::Size2D;
 
 pub struct Placeholder {
     pub transform: Rc<RefCell<Transform>>,
@@ -36,16 +38,6 @@ impl RenderNode for Placeholder {
                 // then make it Placeholder's own child.
                 match stack_frame.borrow().get_adoptees().borrow().get(*self.index.read()) {
                     Some(rnp) => wrap_render_node_ptr_into_list(Rc::clone(&rnp)),
-                    //no adoptees found
-                    //TODO:  should we recurse up the stack continuing our
-                    //       quest for adoptees?  use-case:
-                    //       we have a Spread with adoptees, attached to its top-level component
-                    //       stack frame.  We use repeat, which pushes "puppeteer" stack frames
-                    //       for each repeated datum.  Inside repeat, we have placeholders,
-                    //       which expect to access the top-level component's adoptees.
-                    //       YES, we need to traverse stack frames in this case.
-
-                    //       What about in the case of an application component exposing
                     None => Rc::new(RefCell::new(vec![])),
                 }
             },
@@ -60,11 +52,5 @@ impl RenderNode for Placeholder {
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
 
-    fn get_transform_mut(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
-
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-
-    }
-    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {}
-    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {}
+    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
 }

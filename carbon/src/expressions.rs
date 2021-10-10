@@ -45,39 +45,18 @@ pub trait Evaluator<T> {
 pub struct PropertyExpression<T, E: Evaluator<T>>
 {
     pub evaluator: E,
-    pub dependencies : Vec<String>,
     pub cached_value: T,
 }
 
 impl<T, E: Evaluator<T>> PropertyExpression<T, E>
 {
-    //TODO:  support types other than f64
-    fn resolve_dependency(&self, name: &str, engine: &CarbonEngine) -> f64 {
-        // Turn a string like `"this.property_name"` or `"engine.frames_elapsed"`
-        // into the appropriate underlying value.
-        // TODO:  determine if there's a better, with-the-type-system way to handle this
-        //        (perhaps through macros.)  Keep an eye on support for a future bolt-on JS runtime.
-        match name {
-            "engine.frames_elapsed" => {
-                engine.frames_elapsed as f64
-            }
-            _ => {
-                //TODO:  since this is not a hard-coded dependency,
-                //       now perform dynamic evaluation
-                //    1. handle `this`
-                //    2. handle property access; `this.height`
-                //       [do we allow endless ref loops here? and trust a pre-processor to avoid them?]
-                //    3. collect ids of children, handle e.g. `rect_1`
 
-                panic!("unsupported dependency")
-            }
-        }
-    }
 }
 
 pub struct PropertyTreeContext<'a> {
     pub engine: &'a CarbonEngine,
     pub runtime: Rc<RefCell<Runtime>>,
+    pub bounds: (f64, f64),
 }
 
 impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
