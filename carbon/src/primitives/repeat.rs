@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Component, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatItem, Scope, Size, StackFrame, Transform, wrap_render_node_ptr_into_list, Stroke, StrokeStyle, Rectangle, Color, Size2DFactory, PropertyExpression, RepeatInjector};
+use crate::{Affine, Component, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatItem, Scope, Size, StackFrame, Transform, wrap_render_node_ptr_into_list, Stroke, StrokeStyle, Rectangle, Color, Size2DFactory, PropertyExpression, RepeatInjector, Placeholder, Frame};
 use crate::engine::PropertyTreeContext;
 use crate::rendering::Size2D;
 
@@ -81,32 +81,61 @@ impl RenderNode for Repeat {
                     &_ => {panic!("ain't a spreadcell, ain't it?")}
                 };
 
+                // let render_node : RenderNodePtr = Rc::new(RefCell::new(
+                //                     Rectangle {
+                //                             fill: Box::new(
+                //                                 // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
+                //                                 PropertyLiteral{value: Color::rgba(1.0,0.0,0.0,1.0)}
+                //                             ),
+                //                             stroke: Stroke {
+                //                                 width: 4.0,
+                //                                 style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                //                                 color: Color::rgba(0.0, 0.5, 0.5, 1.0)
+                //                             },
+                //                             size: Rc::new(RefCell::new((
+                //                                 Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.width_px)}),
+                //                                 Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.height_px)}),
+                //                             ))),
+                //                 transform: Rc::new(RefCell::new(
+                //                     Transform {
+                //                             translate: (
+                //                                 Box::new(PropertyLiteral {value: spread_cell_properties.x_px}),
+                //                                 Box::new(PropertyLiteral {value: spread_cell_properties.y_px}),
+                //                             ),
+                //                             ..Default::default()
+                //                         },
+                //                 )),
+                //                         }
+                //                     ));
+
+                //Because the following works (!) it seems the culprit
+                //for this bug lies somewhere inside Component
                 let render_node : RenderNodePtr = Rc::new(RefCell::new(
-                                    Rectangle {
-                                            fill: Box::new(
-                                                // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
-                                                PropertyLiteral{value: Color::rgba(1.0,0.0,0.0,1.0)}
-                                            ),
-                                            stroke: Stroke {
-                                                width: 4.0,
-                                                style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                color: Color::rgba(0.0, 0.5, 0.5, 1.0)
-                                            },
-                                            size: Rc::new(RefCell::new((
-                                                Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.width_px)}),
-                                                Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.height_px)}),
-                                            ))),
-                                transform: Rc::new(RefCell::new(
-                                    Transform {
-                                            translate: (
-                                                Box::new(PropertyLiteral {value: spread_cell_properties.x_px}),
-                                                Box::new(PropertyLiteral {value: spread_cell_properties.y_px}),
-                                            ),
-                                            ..Default::default()
-                                        },
-                                )),
-                                        }
-                                    ));
+                    Frame {
+                        size: Rc::new(RefCell::new((
+                            Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.width_px)}),
+                            Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.height_px)}),
+                        ))),
+                        transform: Rc::new(RefCell::new(
+                            Transform {
+                                    translate: (
+                                        Box::new(PropertyLiteral {value: spread_cell_properties.x_px}),
+                                        Box::new(PropertyLiteral {value: spread_cell_properties.y_px}),
+                                    ),
+                                    ..Default::default()
+                                },
+                        )),
+                        children: Rc::new(RefCell::new(vec![Rc::new(RefCell::new(
+                            Placeholder::new(
+                                Transform::default(),
+                                Box::new(PropertyLiteral {value: i})
+                            )
+                        ))]))
+                    }
+                ));
+
+
+                // let render_node: RenderNodePtr = ;
 
                 render_node
             }).collect()
