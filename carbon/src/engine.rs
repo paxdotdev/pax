@@ -1,5 +1,4 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use kurbo::{
@@ -10,9 +9,8 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, Size, SpreadCellProperties, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform};
 use crate::components::Spread;
-use crate::primitives::{Frame, Group, Placeholder};
 use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
 use crate::rendering::Size2DFactory;

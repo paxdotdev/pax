@@ -1,13 +1,10 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
-use piet_web::WebRenderContext;
-
-use crate::{Affine, Color, Evaluator, Frame, InjectionContext, Placeholder, Property, PropertyExpression, PropertyLiteral, Rectangle, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatInjector, Size, Size2DFactory, Stroke, StrokeStyle, Transform};
+use crate::{Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Transform};
 use crate::primitives::component::Component;
 use crate::rendering::Size2D;
-use crate::runtime::{PropertiesCoproduct, Scope, StackFrame};
+use crate::runtime::{PropertiesCoproduct};
 
 
 /// A special "control-flow" primitive, Repeat allows for nodes

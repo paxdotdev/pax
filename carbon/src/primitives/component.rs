@@ -37,7 +37,7 @@ impl RenderNode for Component {
         );
     }
 
-    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn post_render(&self, rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
         rtc.runtime.borrow_mut().pop_stack_frame();
     }
 }

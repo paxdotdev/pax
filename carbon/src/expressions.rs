@@ -1,17 +1,15 @@
-use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::{CarbonEngine, RenderTreeContext};
-use crate::runtime::{Runtime, StackFrame};
+use crate::runtime::{StackFrame};
 
 /// An abstract Property that may be either Literal or
 /// a dynamic runtime Expression
 pub trait Property<T> {
     //either unwrap T
     //or provide a fn -> T
-    fn compute_in_place(&mut self, rtc: &RenderTreeContext) {}
+    fn compute_in_place(&mut self, _rtc: &RenderTreeContext) {}
     fn read(&self) -> &T;
 }
 

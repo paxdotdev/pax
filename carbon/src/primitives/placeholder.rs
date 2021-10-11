@@ -3,10 +3,7 @@ use core::option::Option;
 use core::option::Option::{None, Some};
 use std::rc::Rc;
 
-use kurbo::Affine;
-use piet_web::WebRenderContext;
-
-use crate::{Property, rendering, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform};
+use crate::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Transform};
 use crate::rendering::Size2D;
 
 pub struct Placeholder {

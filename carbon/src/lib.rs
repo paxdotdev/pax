@@ -102,10 +102,14 @@ TODO:
         [ ] Automate registration of Properties objects into PropertiesCoproduct
             (probably the same macro as above)
         [ ] Support `descendent-properties-as-dependancies`, including
+            [ ] Expose children (by id?) via dependency-lookup mechanism
+                [ ] consider how/whether to handle virtual_children like repeated nodes
             [ ] Piece together properties/deps as eval'd from children
             during render tree traversal
         [ ] Disallow circular dependencies a la Excel
-
+    [ ] Margin & padding?
+        [ ] Decide whether to support, e.g. is there a simpler alternative w/ existing pieces?
+        [ ] Decide whether to support ONE or BOTH
     [ ] Ellipse
     [ ] Path
     [ ] Frames: overflow scrolling

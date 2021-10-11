@@ -1,16 +1,11 @@
-use std::any::Any;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
-use dynstack::DynStack;
-use kurbo::{Affine, BezPath};
-use piet::{Color, RenderContext, StrokeStyle};
+use kurbo::{Affine};
+use piet::{Color, StrokeStyle};
 use piet_web::WebRenderContext;
 
 use crate::{Property, PropertyLiteral, RenderTreeContext};
-use crate::runtime::{PropertiesCoproduct, Scope, StackFrame};
-use crate::Size::Percent;
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.
@@ -90,7 +85,7 @@ pub trait RenderNode
     /// Very first lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.
     /// Occurs in a pre-order traversal of the render tree.
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+    fn compute_properties(&mut self, _rtc: &mut RenderTreeContext) {
         //no-op default implementation
     }
 
@@ -99,14 +94,14 @@ pub trait RenderNode
     /// Example use-case: perform side-effects to the drawing context.
     /// This is how [`Frame`] performs clipping, for example.
     /// Occurs in a pre-order traversal of the render tree.
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
         //no-op default implementation
     }
 
     /// Third lifecycle method during each render loop, occurs
     /// AFTER all descendents have been rendered.
     /// Occurs in a post-order traversal of the render tree.
-    fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
         //no-op default implementation
     }
 
@@ -115,7 +110,7 @@ pub trait RenderNode
     /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing context
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
-    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn post_render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
         //no-op default implementation
     }
 }

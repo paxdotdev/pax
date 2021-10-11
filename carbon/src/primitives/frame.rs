@@ -3,12 +3,11 @@ use core::option::Option::Some;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use kurbo::Affine;
 use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Transform};
 use crate::rendering::Size2D;
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
@@ -60,11 +59,11 @@ impl RenderNode for Frame {
         bez_path.close_path();
 
         let transformed_bez_path = transform * bez_path;
-        rc.save(); //our "save point" before clipping — restored to in the post_render
+        rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
         rc.clip(transformed_bez_path);
     }
-    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //pop the clipping context from the stack
-        rc.restore();
+        rc.restore().unwrap();
     }
 }

@@ -1,9 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use piet_web::WebRenderContext;
-
-use crate::{Affine, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Transform};
+use crate::{RenderNode, RenderNodePtr, RenderNodePtrList, Transform};
 use crate::rendering::Size2D;
 
 /// Gathers a set of children underneath a single render node:
