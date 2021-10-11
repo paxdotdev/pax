@@ -9,7 +9,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, PropertyValueTimeline, TimelineSegment, EasingCurve};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, PropertyValueTimeline, TimelineSegment, EasingCurve, Timeline};
 use crate::components::Spread;
 use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
@@ -56,9 +56,13 @@ impl CarbonEngine {
                         PropertiesCoproduct::DevAppRoot(Rc::new(RefCell::new(DevAppRootProperties{})))
                     )),
                     transform: Rc::new(RefCell::new(Transform::default())),
-                    timeline_frame_count: 300,
-                    timeline_playhead_position: 0,
-                    timeline_is_playing: true,
+                    timeline: Some(Rc::new(RefCell::new(
+                        Timeline {
+                            frame_count: 300,
+                            playhead_position: 0,
+                            is_playing: true,
+                        }
+                    ))),
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(
 
@@ -305,7 +309,7 @@ impl CarbonEngine {
         //peek at the current stack frame and set a scoped playhead position as needed
         match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
-                rtc.timeline_playhead_position = stack_frame.borrow().timeline_playhead_position;
+                rtc.timeline_playhead_position = stack_frame.borrow().get_timeline_playhead_position();
             },
             None => ()
         }
@@ -326,7 +330,7 @@ impl CarbonEngine {
             let mut node_borrowed = rtc.node.borrow_mut();
             let node_size = node_borrowed.get_size_calc(accumulated_bounds);
             node_borrowed.get_transform().borrow_mut()
-            .compute_transform_in_place(
+            .compute_matrix_in_place(
                 node_size,
                 accumulated_bounds,
             ).clone()

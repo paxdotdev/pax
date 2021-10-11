@@ -79,6 +79,13 @@ pub struct Spread {
     template: RenderNodePtrList,
 }
 
+
+pub struct Timeline {
+    pub playhead_position: usize,
+    pub frame_count: usize,
+    pub is_playing: bool,
+}
+
 impl Spread {
     pub fn new(properties: Rc<RefCell<SpreadProperties>>, adoptees: RenderNodePtrList) -> Self {
         //Component must be accessible so that we can unwrap its properties
@@ -91,9 +98,7 @@ impl Spread {
                 adoptees,
                 transform: Rc::new(RefCell::new(Default::default())),
                 properties: Rc::new(RefCell::new(PropertiesCoproduct::Spread(Rc::clone(&properties)))),
-                timeline_playhead_position: 0,
-                timeline_frame_count: 1,
-                timeline_is_playing: false,
+                timeline: None,
             }
         ));
         let template: RenderNodePtrList = Rc::new(RefCell::new(vec![

@@ -26,6 +26,7 @@ impl RenderNode for Rectangle {
         self.size.borrow_mut().0.compute_in_place(rtc);
         self.size.borrow_mut().1.compute_in_place(rtc);
         self.fill.compute_in_place(rtc);
+        self.transform.borrow_mut().compute_in_place(rtc);
     }
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         let transform = rtc.transform;

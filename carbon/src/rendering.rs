@@ -192,7 +192,7 @@ impl Transform {
 
     //Distinction of note: scale, translate, rotate, origin, and align are all AUTHOR-TIME properties
     //                     node_size and container_bounds are (computed) RUNTIME properties
-    pub fn compute_transform_in_place(&mut self, node_size: (f64, f64), container_bounds: (f64, f64)) -> &Affine {
+    pub fn compute_matrix_in_place(&mut self, node_size: (f64, f64), container_bounds: (f64, f64)) -> &Affine {
         let origin_transform = Affine::translate(
         (
                 match self.origin.0.read() {

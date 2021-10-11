@@ -70,11 +70,7 @@ impl RenderNode for Repeat {
                         template: Rc::clone(&self.template),
                         transform: Rc::new(RefCell::new(Transform::default())),
                         properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
-                        timeline_is_playing: false,
-                        timeline_frame_count: 1,
-                        //"Flatten" this component by referring to parent playhead position
-                        //TODO: perhaps this would be more robust as a flag on Component, should_flatten: true
-                        timeline_playhead_position: rtc.runtime.borrow_mut().peek_stack_frame().unwrap().borrow().timeline_playhead_position,
+                        timeline: None,
                     }
                 ));
 

@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{PropertiesCoproduct, RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, Transform};
+use crate::{PropertiesCoproduct, RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, Transform, Timeline};
 
 
 /// A render node with its own runtime context.  Will push a frame
@@ -17,10 +17,8 @@ pub struct Component {
     pub adoptees: RenderNodePtrList,
     pub transform: Rc<RefCell<Transform>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
-    pub timeline_frame_count: usize,
-    //TODO: private
-    pub timeline_playhead_position: usize,
-    pub timeline_is_playing: bool,
+    pub timeline: Option<Rc<RefCell<Timeline>>>,
+
 }
 
 //TODO:
@@ -39,20 +37,24 @@ impl RenderNode for Component {
             Box::new(Scope {
                 properties: Rc::clone(&self.properties)
             }),
-            self.timeline_playhead_position,
+            self.timeline.clone(),
         );
     }
 
-
-
     fn post_render(&mut self, rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
         rtc.runtime.borrow_mut().pop_stack_frame();
-
-        if self.timeline_is_playing {
-            self.timeline_playhead_position += 1;
-            if self.timeline_playhead_position >= self.timeline_frame_count {
-                self.timeline_playhead_position = 0;
-            }
+        match &self.timeline {
+            Some(timeline_rc) => {
+                let mut timeline = timeline_rc.borrow_mut();
+                if timeline.is_playing {
+                    timeline.playhead_position += 1;
+                    if timeline.playhead_position >= timeline.frame_count {
+                        timeline.playhead_position = 0;
+                    }
+                }
+            },
+            None => (),
         }
+
     }
 }

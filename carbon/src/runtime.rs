@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{DevAppRootProperties, RenderNodePtrList, SpreadCellProperties, SpreadProperties};
+use crate::{DevAppRootProperties, RenderNodePtrList, SpreadCellProperties, SpreadProperties, Timeline};
 use crate::primitives::repeat::RepeatItem;
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,
@@ -42,13 +42,13 @@ impl Runtime {
 
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Placeholder` and a scope that includes
-    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Box<Scope>, timeline_playhead_position: usize) {
+    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Box<Scope>, timeline: Option<Rc<RefCell<Timeline>>>) {
 
         let parent = self.peek_stack_frame();
 
         self.stack.push(
             Rc::new(RefCell::new(
-                StackFrame::new(adoptees, Rc::new(RefCell::new(*scope)), parent, timeline_playhead_position)
+                StackFrame::new(adoptees, Rc::new(RefCell::new(*scope)), parent, timeline)
             ))
         );
     }
@@ -101,16 +101,34 @@ pub struct StackFrame
     adoptees: RenderNodePtrList,
     scope: Rc<RefCell<Scope>>,
     parent: Option<Rc<RefCell<StackFrame>>>,
-    pub timeline_playhead_position: usize,
+    timeline: Option<Rc<RefCell<Timeline>>>,
 }
 
 impl StackFrame {
-    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>, parent: Option<Rc<RefCell<StackFrame>>>, timeline_playhead_position: usize) -> Self {
+    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>, parent: Option<Rc<RefCell<StackFrame>>>, timeline: Option<Rc<RefCell<Timeline>>>) -> Self {
         StackFrame {
             adoptees: Rc::clone(&adoptees),
             scope,
             parent,
-            timeline_playhead_position,
+            timeline,
+        }
+    }
+
+    pub fn get_timeline_playhead_position(&self) -> usize {
+        match &self.timeline {
+            None => {
+                //if this stackframe doesn't carry a timeline, then refer
+                //to the parent stackframe's timeline (and recurse)
+                match &self.parent {
+                    Some(parent_frame) => {
+                        parent_frame.borrow().get_timeline_playhead_position()
+                    },
+                    None => 0
+                }
+            },
+            Some(timeline) => {
+                timeline.borrow().playhead_position
+            }
         }
     }
 

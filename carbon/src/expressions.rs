@@ -24,7 +24,6 @@ impl<T> PropertyValue<T> for PropertyValueLiteral<T> {
     }
 }
 
-
 /// The Timeline form of a PropertyValue
 pub struct PropertyValueTimeline {
     pub starting_value: Box<dyn PropertyValue<f64>>,
@@ -91,9 +90,9 @@ impl PropertyValue<f64> for PropertyValueTimeline {
         // the current segment's ending_frame.  That ratio [0,100%] (capped)
         // is the number to pass into our easing curve
         let progress = (
-            (active_segment.ending_frame_inclusive - starting_frame) as f64
-            /
             (timeline_playhead_position - starting_frame) as f64
+            /
+            (active_segment.ending_frame_inclusive - starting_frame) as f64
         ).min(1.0); //cap at 1.0 to satisfy domain expectations of easing functions [0,1]
 
         let progress_eased = active_segment.curve_in.project(progress);
@@ -104,6 +103,7 @@ impl PropertyValue<f64> for PropertyValueTimeline {
         //interpolation, e.g. a standard elastic curve.  Such hyperextension, too,
         //is a function of the magnitude of the difference between val_last and val_next.
         let ending_value = active_segment.ending_value.read();
+        // rtc.runtime.borrow_mut().log(&format!("interpolated value{}", ending_value));
         self.cached_evaluated_value = starting_value + (progress_eased * (ending_value - starting_value));
     }
 
