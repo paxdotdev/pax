@@ -6,7 +6,7 @@ use std::rc::Rc;
 use kurbo::Affine;
 use piet_web::WebRenderContext;
 
-use crate::{Property, rendering, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform, wrap_render_node_ptr_into_list};
+use crate::{Property, rendering, RenderNode, RenderNodePtrList, RenderTreeContext, Size, Transform};
 use crate::rendering::Size2D;
 
 pub struct Placeholder {
@@ -15,6 +15,16 @@ pub struct Placeholder {
     children: RenderNodePtrList,
 }
 
+/// A special "control-flow" primitive: represents a slot into which
+/// an adoptee can be rendered.  Placeholder relies on `adoptees` being present
+/// on the [`Runtime`] stack and will not render any content of there are no `adoptees` found.
+///
+/// Consider a Spread:  the owner of a Spread passes the Spread some nodes to render
+/// inside the cells of the Spread.  To the owner of the Spread, those nodes might seem like
+/// "children," but to the Spread they are "adoptees" — children provided from
+/// the outside.  Inside Spread's template, there are a number of Placeholders — this primitive —
+/// that become the final rendered home of those adoptees.  This same technique
+/// is portable and applicable elsewhere via Placeholder.
 impl Placeholder {
     pub fn new(transform: Transform, index: Box<dyn Property<usize>>) -> Self {
         Placeholder {
@@ -36,7 +46,7 @@ impl RenderNode for Placeholder {
                 // Grab the adoptee from the current stack_frame at Placeholder's specified `index`
                 // then make it Placeholder's own child.
                 match stack_frame.borrow().get_adoptees().borrow().get(*self.index.read()) {
-                    Some(rnp) => wrap_render_node_ptr_into_list(Rc::clone(&rnp)),
+                    Some(rnp) => Rc::new(RefCell::new(vec![Rc::clone(&rnp)])),
                     None => Rc::new(RefCell::new(vec![])),
                 }
             },

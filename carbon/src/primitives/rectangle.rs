@@ -7,6 +7,8 @@ use piet_web::WebRenderContext;
 
 use crate::{Color, Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform};
 
+/// A basic 2D vector rectangle, drawn to fill the bounds specified
+/// by `size`, transformed by `transform`
 pub struct Rectangle {
     pub size: Size2D,
     pub transform: Rc<RefCell<Transform>>,

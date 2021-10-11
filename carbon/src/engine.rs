@@ -10,11 +10,13 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Component, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, SpreadCellProperties, SpreadProperties, Stroke, StrokeStyle, Transform, SpreadDirection};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, Size, SpreadCellProperties, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform};
 use crate::components::Spread;
 use crate::primitives::{Frame, Group, Placeholder};
+use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
 use crate::rendering::Size2DFactory;
+use crate::runtime::{PropertiesCoproduct, Runtime};
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
@@ -39,116 +41,8 @@ pub struct RenderTreeContext<'a>
     pub node: RenderNodePtr,
 }
 
-
-
-/// `Scope` attaches to stack frames to provide an evaluation context + relevant data access
-/// for features like Expressions.
-/// The stored values that are DI'ed into expressions are held in these scopes,
-/// e.g. `index` and `datum` for `Repeat`.
-pub struct Scope {
-    pub properties: Rc<RefCell<PropertiesCoproduct>>,
-    // TODO: children, parent, etc.
-}
-
-// ∐
-// TODO: could these be vanilla references instead of `Rc`s?
-pub enum PropertiesCoproduct {
-    DevAppRoot(Rc<RefCell<DevAppRootProperties>>),
-    RepeatItem(Rc<RefCell<RepeatItem>>),
-    Spread(Rc<RefCell<SpreadProperties>>),
-    SpreadCell(Rc<SpreadCellProperties>),
-    Empty,
-}
-
 pub struct DevAppRootProperties {
     //Here are the root app/component's "inputs" and properties
-}
-
-pub struct RepeatItem {
-    pub i: usize,
-    pub datum: Rc<PropertiesCoproduct>
-}
-
-pub struct StackFrame
-{
-    adoptees: RenderNodePtrList,
-    scope: Rc<RefCell<Scope>>,
-    parent: Option<Rc<RefCell<StackFrame>>>,
-}
-
-impl StackFrame {
-    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>, parent: Option<Rc<RefCell<StackFrame>>>) -> Self {
-        StackFrame {
-            adoptees: Rc::clone(&adoptees),
-            scope,
-            parent,
-        }
-    }
-
-    pub fn has_adoptees(&self) -> bool {
-        self.adoptees.borrow().len() > 0
-    }
-
-    /// Returns the adoptees attached to this stack frame, if present.
-    /// Otherwise, recurses up the stack return ancestors' adoptees if found
-    /// TODO:  if this logic is problematic, e.g. descendants are grabbing ancestors' adoptees
-    ///        inappropriately, then we could adjust this logic to:
-    ///        grab direct parent's adoptees instead of current node's,
-    ///        but only if current node is a `should_flatten` node like `Repeat`
-    pub fn get_adoptees(&self) -> RenderNodePtrList {
-        if self.has_adoptees() {
-            Rc::clone(&self.adoptees)
-        }else {
-            match &self.parent {
-                Some(parent_frame) => {
-                    parent_frame.borrow().get_adoptees()
-                },
-                None => Rc::new(RefCell::new(vec![]))
-            }
-        }
-
-    }
-
-    pub fn get_scope(&self) -> Rc<RefCell<Scope>> {
-        Rc::clone(&self.scope)
-    }
-}
-
-
-
-/*****************************/
-/* Codegen (macro) territory */
-
-//OR: revisit this approach, without variadics.
-
-pub struct MyManualMacroExpression<T> {
-    pub variadic_evaluator: fn(engine: &CarbonEngine) -> T,
-}
-
-//TODO:  should this hard-code the return type
-impl<T> MyManualMacroExpression<T> {
-
-}
-
-impl<T> Evaluator<T> for MyManualMacroExpression<T> {
-    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
-        //TODO:CODEGEN
-        //       pull necessary data from `ic`,
-        //       map into the variadic args of self.variadic_evaluator()
-        //       Perhaps this is a LUT of `String => (Fn(InjectionContext) -> V)` for any variadic type (injection stream) V
-        let engine = ic.engine;
-        (self.variadic_evaluator)(engine)
-    }
-}
-
-
-/* End codegen (macro) territory */
-/*********************************/
-
-
-
-pub struct MyMainComponentProperties {
-    rotation: f64,
 }
 
 impl CarbonEngine {
@@ -195,7 +89,7 @@ impl CarbonEngine {
                                                             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                                             color: Color::rgba(0.0, 0.0, 1.0, 1.0)
                                                         },
-                                                        size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }
                                                 )),
                                                 //green
@@ -210,7 +104,7 @@ impl CarbonEngine {
                                                             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                                             color: Color::rgba(0.0, 1.0, 1.0, 1.0)
                                                         },
-                                                        size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }
                                                 )),
                                                 //off-center blue
@@ -225,7 +119,7 @@ impl CarbonEngine {
                                                             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                                             color: Color::rgba(1.0, 1.0, 1.0, 1.0)
                                                         },
-                                                        size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }
                                                 )),
 
@@ -260,7 +154,7 @@ impl CarbonEngine {
                                                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                                                         color: Color::rgba(0.0, 0.0, 1.0, 1.0)
                                                                     },
-                                                                    size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                                    size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                                 }
                                                             )),
                                                             //green
@@ -275,7 +169,7 @@ impl CarbonEngine {
                                                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                                                         color: Color::rgba(0.0, 1.0, 1.0, 1.0)
                                                                     },
-                                                                    size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                                    size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                                 }
                                                             )),
                                                             //off-center blue
@@ -290,7 +184,7 @@ impl CarbonEngine {
                                                                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                                                         color: Color::rgba(1.0, 1.0, 1.0, 1.0)
                                                                     },
-                                                                    size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                                    size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                                 }
                                                             )),
                                                         ])),
@@ -461,3 +355,33 @@ impl CarbonEngine {
         Ok(())
     }
 }
+
+
+/*****************************/
+/* Codegen (macro) territory */
+
+//OR: revisit this approach, without variadics.
+
+pub struct MyManualMacroExpression<T> {
+    pub variadic_evaluator: fn(engine: &CarbonEngine) -> T,
+}
+
+//TODO:  should this hard-code the return type
+impl<T> MyManualMacroExpression<T> {
+
+}
+
+impl<T> Evaluator<T> for MyManualMacroExpression<T> {
+    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
+        //TODO:CODEGEN
+        //       pull necessary data from `ic`,
+        //       map into the variadic args of self.variadic_evaluator()
+        //       Perhaps this is a LUT of `String => (Fn(InjectionContext) -> V)` for any variadic type (injection stream) V
+        let engine = ic.engine;
+        (self.variadic_evaluator)(engine)
+    }
+}
+
+
+/* End codegen (macro) territory */
+/*********************************/

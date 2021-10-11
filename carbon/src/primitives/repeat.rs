@@ -4,24 +4,40 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Component, Evaluator, InjectionContext, PropertiesCoproduct, Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatItem, Scope, Size, StackFrame, Transform, wrap_render_node_ptr_into_list, Stroke, StrokeStyle, Rectangle, Color, Size2DFactory, PropertyExpression, RepeatInjector, Placeholder, Frame};
+use crate::{Affine, Color, Evaluator, Frame, InjectionContext, Placeholder, Property, PropertyExpression, PropertyLiteral, Rectangle, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, RepeatInjector, Size, Size2DFactory, Stroke, StrokeStyle, Transform};
+use crate::primitives::component::Component;
 use crate::rendering::Size2D;
+use crate::runtime::{PropertiesCoproduct, Scope, StackFrame};
 
+
+/// A special "control-flow" primitive, Repeat allows for nodes
+/// to be rendered dynamically per data specified in `data_list`.
+/// That is: for a `data_list` of length `n`, `Repeat` will render its
+/// template `n` times, each with an embedded component context (`RepeatItem`)
+/// with an index `i` and a pointer to that relevant datum `data_list[i]`
 pub struct Repeat {
     pub template: RenderNodePtrList,
-    pub data_list: Box<Property<Vec<Rc<PropertiesCoproduct>>>>,
+    pub data_list: Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>,
     pub transform: Rc<RefCell<Transform>>,
 
     //TODO: any way to make this legit-private along with the ..Default::default() syntax?
     pub _virtual_children: RenderNodePtrList,
 }
 
-pub struct RepeatProperties {
-
+impl Repeat {
 }
 
-
-impl Repeat {
+/// This data struture is repeated for each element in the list `data_list`
+/// (where `datum` is a pointer to that list element) and then passed into
+/// a series of `Components`, which each have PropertiesCoproduct::RepeatItem
+/// as their Properties object.
+///
+/// This means that a repeated item may define an Expression for any of
+/// its properties, which refers to `datum` (one of the elements in `data_list`)
+/// and/or to `i`, the index of the repeated item.
+pub struct RepeatItem {
+    pub i: usize,
+    pub datum: Rc<PropertiesCoproduct>
 }
 
 impl Default for Repeat {
@@ -129,27 +145,22 @@ Seems like a suitable solution.
  */
 
 
+//Can we operate on a guarantee that for `n` elements in a repeat, the consumer (expression)
+//will be invoked exactly `n` times?  If so, we could push a stackframe for each datum (in reverse)
+//so that each invocation consumes a new stack frame, in order.  The tricky piece of this is
+//a need to introduce stack frame `pop`s somewhere before the post_eval_properties_in_place lifecycle
+//method, in a way that's unique to `repeat`.
 
+//An alternative approach to this problem, which operates with the grain of "one stack frame
+//per component instance," is to add an iterator to a new RepeatPropertiesContainer, which
+//yields the next `RepeatProperties` on each invocation.  This may require simply modifying
+//the inject_and_evaluate logic.  Perhaps we can introduce a `.next` method on Evaluator, with
+//a default implementation that's a no-op, but which Repeat can override to step through
+//an iterator.
 
-
-
-
-        //Can we operate on a guarantee that for `n` elements in a repeat, the consumer (expression)
-        //will be invoked exactly `n` times?  If so, we could push a stackframe for each datum (in reverse)
-        //so that each invocation consumes a new stack frame, in order.  The tricky piece of this is
-        //a need to introduce stack frame `pop`s somewhere before the post_eval_properties_in_place lifecycle
-        //method, in a way that's unique to `repeat`.
-
-        //An alternative approach to this problem, which operates with the grain of "one stack frame
-        //per component instance," is to add an iterator to a new RepeatPropertiesContainer, which
-        //yields the next `RepeatProperties` on each invocation.  This may require simply modifying
-        //the inject_and_evaluate logic.  Perhaps we can introduce a `.next` method on Evaluator, with
-        //a default implementation that's a no-op, but which Repeat can override to step through
-        //an iterator.
-
-        // rtc.runtime.borrow_mut().push_stack_frame(
-        //     Rc::clone(&self.children),
-        //       Box::new(Scope {
-        //           properties: Rc::clone(&self.properties) as Rc<dyn Any>
-        //       })
-        // );
+// rtc.runtime.borrow_mut().push_stack_frame(
+//     Rc::clone(&self.children),
+//       Box::new(Scope {
+//           properties: Rc::clone(&self.properties) as Rc<dyn Any>
+//       })
+// );

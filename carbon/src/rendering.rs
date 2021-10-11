@@ -8,98 +8,33 @@ use kurbo::{Affine, BezPath};
 use piet::{Color, RenderContext, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{PropertiesCoproduct, Property, PropertyLiteral, RenderTreeContext, Scope, StackFrame};
+use crate::{Property, PropertyLiteral, RenderTreeContext};
+use crate::runtime::{PropertiesCoproduct, Scope, StackFrame};
 use crate::Size::Percent;
 
+/// Type aliases to make it easier to work with nested Rcs and
+/// RefCells for rendernodes.
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
 
-// Take a singleton node and wrap it into a Vec, e.g. to make a
-// single node the entire `children` of another node
-//TODO: handle this more elegantly, perhaps with some metaprogramming mojo?
-pub fn wrap_render_node_ptr_into_list(rnp: RenderNodePtr) -> RenderNodePtrList {
-    Rc::new(RefCell::new(vec![Rc::clone(&rnp)]))
-}
-
-pub fn decompose_render_node_ptr_list_into_vec(rnpl: RenderNodePtrList) -> Vec<RenderNodePtr> {
-    let mut ret_vec = Vec::new();
-    rnpl.borrow().iter().for_each(|rnp| {ret_vec.push(Rc::clone(&rnp))});
-    ret_vec
-}
-
+/// Very thin structure representing the root of a `RenderTree`. The engine
+/// receives one of these for rendering.  We may want to make use of this inside Components
+/// as well, i.e. to represent a template.
 pub struct RenderTree {
     pub root: RenderNodePtr //TODO:  maybe this should be more strictly a Rc<RefCell<Component>>, or a new type (alias) "ComponentPtr"
 }
 
 impl RenderTree {}
 
-/// `Runtime` is a container for data and logic needed by the `Engine`,
-/// explicitly aside from rendering.  For example, logic for managing
-/// scopes, stack frames, and properties should live here.
-pub struct Runtime {
-    stack: Vec<Rc<RefCell<StackFrame>>>,
-    logger: fn(&str),
-}
-
-impl Runtime {
-    pub fn new(logger: fn(&str)) -> Self {
-        Runtime {
-            stack: Vec::new(),
-            logger,
-        }
-    }
-
-    pub fn log(&self, message: &str) {
-        (&self.logger)(message);
-    }
-
-    /// Return a pointer to the top StackFrame on the stack,
-    /// without mutating the stack or consuming the value
-    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame>>> {
-        if self.stack.len() > 0 {
-            Some(Rc::clone(&self.stack[&self.stack.len() - 1]))
-        }else{
-            None
-        }
-    }
-
-    /// Remove the top element from the stack.  Currently does
-    /// nothing with the value of the popped StackFrame.
-    pub fn pop_stack_frame(&mut self){
-        self.stack.pop(); //TODO: handle value here if needed
-    }
-
-    /// Add a new frame to the stack, passing a list of adoptees
-    /// that may be handled by `Placeholder` and a scope that includes
-    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Box<Scope>) {
-
-
-        //TODO:  for all children inside `adoptees`, check whether child `should_flatten`.
-        //       If so, retrieve the `RenderNodePtrList` for its children and splice that list
-        //       into a working full `RenderNodePtrList`.  This should be done recursively until
-        //       there are no more descendents who are "contiguously flat".
-
-        let parent = self.peek_stack_frame();
-
-        self.stack.push(
-            Rc::new(RefCell::new(
-                StackFrame::new(adoptees, Rc::new(RefCell::new(*scope)), parent)
-            ))
-        );
-    }
-
-}
-
-//TODO:  do we need to refactor primitive properties (like Rectangle::width)
-//       into the same `Property` structure as Components?
-//          e.g. a `get_properties()` method
-//       this would be imporant for addressing properties e.g. through
-//       the property tree
-
-
+/// The base trait for a RenderNode, representing any node that can
+/// be rendered by the engine.
 pub trait RenderNode
 {
-
+    /// Return the list of nodes that are children of this node at render-time.
+    /// Note that "children" is somewhat overloaded, hence "rendering_children" here.
+    /// "Children" may indicate a.) a template root, b.) adoptees, c.) primitive children
+    /// Each RenderNode is responsible for determining at render-time which of these concepts
+    /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList;
 
     /// Returns the size of this node, or `None` if this node
@@ -148,27 +83,69 @@ pub trait RenderNode
         }
     }
 
+    /// Return the "sugary" transform object for this node, which
+    /// is likely buried inside a polymorphic PropertiesCoproduct object
     fn get_transform(&mut self) -> Rc<RefCell<Transform>>;
+
+    /// Very first lifecycle method during each render loop, used to compute
+    /// properties in advance of rendering.
+    /// Occurs in a pre-order traversal of the render tree.
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         //no-op default implementation
     }
+
+    /// Second lifecycle method during each render loop, occurs AFTER
+    /// properties have been computed, but BEFORE rendering or traversing descendents.
+    /// Example use-case: perform side-effects to the drawing context.
+    /// This is how [`Frame`] performs clipping, for example.
+    /// Occurs in a pre-order traversal of the render tree.
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //no-op default implementation
     }
+
+    /// Third lifecycle method during each render loop, occurs
+    /// AFTER all descendents have been rendered.
+    /// Occurs in a post-order traversal of the render tree.
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //no-op default implementation
     }
+
+    /// Fourth and final lifecycle method during each render loop, occurs
+    /// AFTER all descendents have been rendered AND the current node has been rendered.
+    /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing context
+    /// to stop clipping.
+    /// Occurs in a post-order traversal of the render tree.
     fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //no-op default implementation
     }
 }
 
+/// A sugary representation of an Affine transform+, including
+/// `origin` and `align` as layout-computed properties.
+///
+/// `translate` represents an (x,y) affine translation
+/// `scale`     represents an (x,y) non-uniform affine scale
+/// `rotate`    represents a (z) affine rotation (intuitive 2D rotation)
+/// `origin`    represents the "(0,0)" point of the render node as it relates to its own bounding box.
+///             By default that's the top-left of the element, but `origin` allows that
+///             to be offset either by a pixel or percentage-of-element-size
+///             for each of (x,y)
+/// `align`     the offset of this element's `origin` as it relates to the element's parent.
+///             By default this is the top-left corner of the parent container,
+///             but can be set to be any value [0,1] for each of (x,y), representing
+///             the percentage (between 0.0 and 1.0) multiplied by the parent container size.
+///             For example, an align of (0.5, 0.5) will center an element's `origin` point both vertically
+///             and horizontally within the parent container.  Combined with an origin of (Size::Percent(50.0), Size::Percent(50.0)),
+///             an element will appear fully centered within its parent.
+///
+/// Note that transform order is currently hard-coded.  This could be amended
+/// upon deriving a suitable API — this may look like passing a manual `Affine` object
 pub struct Transform {
     pub translate: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
     pub scale: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
     pub rotate: Box<dyn Property<f64>>, //z-axis only for 2D rendering
     //TODO: add shear? needed at least to support ungrouping after scale+rotate
-    pub origin: (Box<dyn Property<Size<f64>>>, Box<dyn Property<Size<f64>>>),
+    pub origin: (Box<dyn Property<Size>>, Box<dyn Property<Size>>),
     pub align: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
     pub cached_computed_transform: Affine,
 }
@@ -243,63 +220,36 @@ impl Transform {
 
 }
 
-
-pub struct Component {
-    pub template: RenderNodePtrList,
-    pub adoptees: RenderNodePtrList,
-    pub transform: Rc<RefCell<Transform>>,
-    pub properties: Rc<RefCell<PropertiesCoproduct>>,
-}
-
-impl RenderNode for Component {
-
-    fn get_rendering_children(&self) -> RenderNodePtrList {
-        //Perhaps counter-intuitively, `Component`s return the root
-        //of their template, rather than their `children`, for calls to get_children
-        Rc::clone(&self.template)
-    }
-    fn get_size(&self) -> Option<Size2D> { None }
-    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
-        rtc.runtime.borrow_mut().push_stack_frame(
-            Rc::clone(&self.adoptees),
-            Box::new(Scope {
-              properties: Rc::clone(&self.properties)
-          })
-        );
-    }
-
-    fn post_render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        rtc.runtime.borrow_mut().pop_stack_frame();
-    }
-}
-
+/// Represents the outer stroke of a drawable element
 pub struct Stroke {
     pub color: Color,
     pub width: f64,
     pub style: StrokeStyle,
+    //TODO: stroke alignment, inner/outer/center?
 }
 
+/// A size value that can be either a concrete pixel value
+/// or a percent of parent bounds
 #[derive(Copy, Clone)]
-pub enum Size<T> {
-    Pixel(T),
-    Percent(T),
+pub enum Size {
+    Pixel(f64),
+    Percent(f64),
 }
 
-pub struct If {
-
-}
-
+// More than just a tuble of (Size, Size),
+// Size2D wraps up Properties as well to make it easy
+// to declare expressable Size properties
 pub type Size2D = Rc<RefCell<(
-    Box<dyn Property<Size<f64>>>,
-    Box<dyn Property<Size<f64>>>,
+    Box<dyn Property<Size>>,
+    Box<dyn Property<Size>>,
 )>>;
 
+
+/// Used as an ergonomic aid for instantiating Size2Ds
 pub struct Size2DFactory {}
 
 impl Size2DFactory {
-    pub fn Literal(x: Size<f64>, y: Size<f64>) -> Size2D {
+    pub fn literal(x: Size, y: Size) -> Size2D {
         Rc::new(RefCell::new(
             (
                 Box::new(

@@ -6,12 +6,14 @@ mod rendering;
 mod expressions;
 mod components;
 mod primitives;
+mod runtime;
 
 pub use crate::engine::*;
 pub use crate::primitives::*;
 pub use crate::rendering::*;
 pub use crate::expressions::*;
 pub use crate::components::*;
+pub use crate::runtime::*;
 
 /*
 Creative development environment
@@ -77,19 +79,33 @@ TODO:
             e.g. check out the `get_size` methods for Frame and Spread
         [x] Maybe related to above:  can we DRY the default properties for a render node?
             Perhaps a macro is the answer?
+        [ ] Revisit ..Default::default() constructor pattern, field privacy, ergonomics
+            - Maybe break out all design-time properties into Properties objects,
+              where we do ..Default::default(), then do plain ol' constructors for the rest
+        [ ] Update expression/injector ergonomics; perhaps take a pass at macro-ifying injection (and/or removing variadics)
         [ ] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
             Same with `scale`
         [x] Can we do something better than `(Box<......>, Box<.......>)` for `Size`?
         [x] Rename various properties, e.g. bounding_dimens => bounds
         [x] Take a pass on references/ownership in render_render_tree — perhaps &Affine should transfer ownership instead, for example
         [ ] introduce a way to #derive `compute_in_place`
-        [ ] Better ergonomics for `wrap_render_node_ptr_into_list`
-        [ ] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
+        [x] Better ergonomics for `wrap_render_node_ptr_into_list`
+        [x] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
         [ ] literal!() macro for literal property values
             (wrap in `Box::new(PropertyLiteral{value: `)
         [ ] expression!(|engine: &CarbonEngine| -> Color {}) macro
 
 === MED
+    [ ] Dependency management for expressions
+        [ ] Declare runtime-accessible metadata around Properties
+            objects (probably a macro)
+        [ ] Automate registration of Properties objects into PropertiesCoproduct
+            (probably the same macro as above)
+        [ ] Support `descendent-properties-as-dependancies`, including
+            [ ] Piece together properties/deps as eval'd from children
+            during render tree traversal
+        [ ] Disallow circular dependencies a la Excel
+
     [ ] Ellipse
     [ ] Path
     [ ] Frames: overflow scrolling

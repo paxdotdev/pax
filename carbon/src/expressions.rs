@@ -3,8 +3,11 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::{CarbonEngine, Runtime, StackFrame, RenderTreeContext};
+use crate::{CarbonEngine, RenderTreeContext};
+use crate::runtime::{Runtime, StackFrame};
 
+/// An abstract Property that may be either Literal or
+/// a dynamic runtime Expression
 pub trait Property<T> {
     //either unwrap T
     //or provide a fn -> T
@@ -12,6 +15,7 @@ pub trait Property<T> {
     fn read(&self) -> &T;
 }
 
+/// The Literal form of a property: simply a value
 pub struct PropertyLiteral<T> {
     pub value: T,
 }
@@ -22,27 +26,26 @@ impl<T> Property<T> for PropertyLiteral<T> {
     }
 }
 
+/// Data structure used for dynamic injection of values
+/// into Expressions, maintaining a pointer e.g. to the current
+/// stack frame to enable evaluation of properties & dependencies
 pub struct InjectionContext<'a> {
     //TODO: add scope tree, etc.
     pub engine: &'a CarbonEngine,
     pub stack_frame: Rc<RefCell<StackFrame>>,
 }
 
+/// An abstract wrapper around a function (`inject_and_evaluate`) that can take an `InjectionContext`,
+/// and return a value `T` from an evaluated Expression.
 pub trait Evaluator<T> {
-    //calls (variadic) self.evaluate and returns its value
+    /// calls (variadic) self.evaluate and returns its value
     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T;
 }
 
-
-
-//TODO:  can we genericize the signature of the FnMut?
-//          1. it should always return `T`
-//          2. it should support dynamic, variadic signatures
-//       See: https://github.com/rust-lang/rfcs/issues/376
-//          If not through vanilla generics, this might be achievable through a macro?
-//       Given the lack of variadic support (at time of authoring,) YES a macro
-//       seems to be the only viable approach.  For PoC, proceeding with a "hand-unrolled"
-//       PoC with the aim to "roll" that logic into a macro
+/// The `Expression` form of a property — stores a function
+/// that evaluates the value itself, as well as a "register" of
+/// the memoized value (`cached_value`) that can be referred to
+/// via calls to `read()`
 pub struct PropertyExpression<T, E: Evaluator<T>>
 {
     pub evaluator: E,
