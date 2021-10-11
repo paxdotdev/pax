@@ -88,7 +88,6 @@ impl Spread {
         //  this is the root of Spread's own rendering, and is what should be returned
         //  by get_children.  note that it includes a pointer (Rc) to `self.component` as well.
 
-
         let component: RenderNodePtr = Rc::new(RefCell::new(
             Component {
                 template: init_and_retrieve_template(),
@@ -108,82 +107,11 @@ impl Spread {
     }
 }
 
-pub struct SpreadProperties {
-    pub size: Size2D,
-    pub transform: Rc<RefCell<Transform>>,
-    pub cell_count: Box<dyn Property<usize>>,
-    pub gutter_width: Box<dyn Property<Size<f64>>>,
-
-    //These two data structures act as "sparse maps," where
-    //the first element in the tuple is the index of the cell/gutter to
-    //override and the second is the override value.  In the absence
-    //of overrides (`vec![]`), cells and gutters will divide space
-    //evenly.
-    //TODO: these should probably be Expressable
-    pub overrides_cell_size: Vec<(usize, Size<f64>)>,
-    pub overrides_gutter_size: Vec<(usize, Size<f64>)>,
-
-    //storage for memoized layout calc
-    //TODO: any way to make this legit private while supporting `..Default::default()` ergonomics?
-    pub _cached_computed_layout_spec: Vec<Rc<SpreadCellProperties>>,
-}
-
-impl Default for SpreadProperties {
-    fn default() -> Self {
-        SpreadProperties {
-            size: Size2DFactory::default(),
-            transform: Default::default(),
-            cell_count: Box::new(PropertyLiteral{value: 0}),
-            gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(0.0)}),
-            _cached_computed_layout_spec: vec![],
-            overrides_cell_size: vec![],
-            overrides_gutter_size: vec![],
-        }
-    }
-}
-
-impl SpreadProperties {
-    pub fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
-        &self.size.borrow_mut().0.compute_in_place(rtc);
-        &self.size.borrow_mut().1.compute_in_place(rtc);
-        &self.cell_count.compute_in_place(rtc);
-        &self.gutter_width.compute_in_place(rtc);
-        &self.transform.borrow_mut().compute_in_place(rtc);
-        &self.calc_layout_spec_in_place(rtc);
-    }
-
-    pub fn calc_layout_spec_in_place(&mut self, rtc: &RenderTreeContext) {
-        let bounds = rtc.bounds;
-        let gutter_calc = match *self.gutter_width.read() {
-            Size::Pixel(px) => px,
-            Size::Percent(pct) => bounds.0 * (pct / 100.0),
-        };
-        let cell_count = *self.cell_count.read() as f64;
-
-        //hard-coding horizontal to start
-        let usable_interior_space = bounds.0 - (cell_count + 1.0) * gutter_calc;
-        let per_cell_space = usable_interior_space / cell_count;
-
-        //TODO: account for overrides
-        self._cached_computed_layout_spec = (0..(cell_count as usize)).into_iter().map(|i| {
-
-            // rtc.runtime.borrow_mut().log(&format!("Caching computed cells: {}", ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space));
-            Rc::new(SpreadCellProperties {
-                height_px: bounds.1,
-                width_px: per_cell_space,
-                x_px: ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
-                y_px: 0.0,
-            })
-        }).collect();
-
-    }
-}
 
 
 impl RenderNode for Spread {
 
     fn get_rendering_children(&self) -> RenderNodePtrList {
-
         // return the root of the internal template here — as long
         // as we capture refs to (c) and (d) below during Spread's `render` or `pre_render` fn,
         // we can happily let rendering just take its course,
@@ -228,17 +156,6 @@ impl RenderNode for Spread {
         // c: finally render the rectangle itself; return & allow recursion to keep whirring
         // i,j,d: repeat g,h,c
 
-        //return root of internal template here, instead of `self.children`
-        //(which are the adoptees provided by instantiator)
-
-
-        //THIS!!!!!!
-        //We're retuning a NEW INSTANCE of a component on every frame.
-        //Thus the fresh new instance is stuck on the cached value (maybe?)
-        //To fix, try: returning a ref to an existing, non-volatile Component and template
-        //(like the old approach that attached template to the local struct)
-
-
         Rc::clone(&self.template)
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.properties.borrow().size)) }
@@ -268,53 +185,11 @@ impl Default for SpreadCellProperties{
     }
 }
 
-
-
-
-/*
-TODO:  figure out why expressions aren't evaluating beyond the root
-
-Findings so far:
-     - Property tree traversal is working, as evidenced by "accumulated bounds" logging
-     - When we set up a simple expression for bg color of a Rectangle inside Spread,
-       we observe that the color doesn't update beyond the cached value.  Th
-
-
-
- */
-
-
-
 fn init_and_retrieve_template() -> RenderNodePtrList {
     Rc::new(RefCell::new(
         vec![
-            // Rc::new(RefCell::new(
-            // Rectangle {
-            //         transform: Rc::new(RefCell::new(Transform::default())),
-            //         fill: Box::new(
-            //             // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
-            //             PropertyExpression {
-            //                 cached_value: Color::hlc(1.0,75.0,75.0),
-            //                 evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-            //                     Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-            //                 }}
-            //             }
-            //         ),
-            //         stroke: Stroke {
-            //             width: 4.0,
-            //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-            //             color: Color::rgba(0.0, 0.5, 0.5, 1.0)
-            //         },
-            //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-            //     }
-            // )),
-
             Rc::new(RefCell::new(
                 Repeat {
-                    // data_list: Box::new(PropertyLiteral {value: vec![
-                    //     Rc::new(PropertiesCoproduct::SpreadCell(Rc::new(SpreadCellProperties{height_px: 100.0, width_px: 100.0, x_px: 0.0, y_px: 0.0}))),
-                    //     Rc::new(PropertiesCoproduct::SpreadCell(Rc::new(SpreadCellProperties{height_px: 140.0, width_px: 200.0, x_px: 150.0, y_px: 150.0}))),
-                    // ]}),
                     data_list: Box::new(PropertyExpression {
                         cached_value: vec![],
                         evaluator: SpreadPropertiesInjector {variadic_evaluator: |scope: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
@@ -329,8 +204,6 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                     Box::new(PropertyExpression {
                                         cached_value: Size::Pixel(100.0),
                                         evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size<f64> {
-                                            //TODO:  unwrap SpreadCell from the repeat-item.
-                                            //       make this part of the expression! macro
                                             match &*scope.borrow().datum {
                                                 PropertiesCoproduct::SpreadCell(sc) => {
                                                     Size::Pixel(sc.width_px)
@@ -342,8 +215,6 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                     Box::new(PropertyExpression {
                                         cached_value: Size::Pixel(100.0),
                                         evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size<f64> {
-                                            //TODO:  unwrap SpreadCell from the repeat-item.
-                                            //       make this part of the expression! macro
                                             match &*scope.borrow().datum {
                                                 PropertiesCoproduct::SpreadCell(sc) => {
                                                     Size::Pixel(sc.height_px)
@@ -359,8 +230,6 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                                 Box::new(PropertyExpression {
                                                     cached_value: 0.0,
                                                     evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
-                                                        //TODO:  unwrap SpreadCell from the repeat-item.
-                                                        //       make this part of the expression! macro
                                                         match &*scope.borrow().datum {
                                                             PropertiesCoproduct::SpreadCell(sc) => {
                                                                 sc.x_px
@@ -372,7 +241,6 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                                 Box::new(PropertyExpression {
                                                     cached_value: 0.0,
                                                     evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
-                                                        //TODO:  make this part of the expression! macro
                                                         match &*scope.borrow().datum {
                                                             PropertiesCoproduct::SpreadCell(sc) => {
                                                                 sc.y_px
@@ -386,62 +254,18 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                         },
                                 )),
                                 children: Rc::new(RefCell::new(vec![
-                                    // Rc::new(RefCell::new(
-                                    //                 Rectangle {
-                                    //                     transform: Rc::new(RefCell::new(Transform::default())),
-                                    //                     fill: Box::new(
-                                    //                         PropertyExpression {
-                                    //                             cached_value: Color::hlc(0.0,0.0,0.0),
-                                    //                             // expression!(|engine: &CarbonEngine| ->
-                                    //                             evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                    //                                 Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-                                    //                             }}
-                                    //                         }
-                                    //                     ),
-                                    //                     stroke: Stroke {
-                                    //                         width: 4.0,
-                                    //                         style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                    //                         color: Color::rgba(0.0, 0.0, 1.0, 1.0)
-                                    //                     },
-                                    //                     size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                    //                 }
-                                    //             )),
-                                    // Rc::new(RefCell::new(
-                                    // Rectangle {
-                                    //         transform: Rc::new(RefCell::new(Transform::default())),
-                                    //         fill: Box::new(
-                                    //             // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
-                                    //             PropertyExpression {
-                                    //                 cached_value: Color::hlc(1.0,75.0,75.0),
-                                    //                 evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                    //                     Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-                                    //                 }}
-                                    //             }
-                                    //         ),
-                                    //         stroke: Stroke {
-                                    //             width: 4.0,
-                                    //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                    //             color: Color::rgba(0.0, 0.5, 0.5, 1.0)
-                                    //         },
-                                    //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                    //     }
-                                    // )),
                                     Rc::new(RefCell::new(
                                         Placeholder::new(
                                             Transform::default(),
                                             Box::new(PropertyExpression {
-                                                    cached_value: 0,
-                                                    evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
-                                                        //TODO:  unwrap SpreadCell from the repeat-item.
-                                                        //       make this part of the expression! macro
-                                                        scope.borrow().i
-                                                    }}
-                                                })
+                                                cached_value: 0,
+                                                evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
+                                                    scope.borrow().i
+                                                }}
+                                            })
                                         )
                                     ))
-
                                 ])),
-
                             }
                         ))
                     ])),
@@ -451,6 +275,107 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
         ]
     ))
 }
+
+
+
+
+
+
+pub enum SpreadDirection {
+    Vertical,
+    Horizontal,
+}
+
+pub struct SpreadProperties {
+    pub size: Size2D,
+    pub transform: Rc<RefCell<Transform>>,
+    pub direction: SpreadDirection,
+    pub cell_count: Box<dyn Property<usize>>,
+    pub gutter_width: Box<dyn Property<Size<f64>>>,
+
+    //These two data structures act as "sparse maps," where
+    //the first element in the tuple is the index of the cell/gutter to
+    //override and the second is the override value.  In the absence
+    //of overrides (`vec![]`), cells and gutters will divide space
+    //evenly.
+    //TODO: these should probably be Expressable
+    pub overrides_cell_size: Vec<(usize, Size<f64>)>,
+    pub overrides_gutter_size: Vec<(usize, Size<f64>)>,
+
+    //storage for memoized layout calc
+    //TODO: any way to make this legit private while supporting `..Default::default()` ergonomics?
+    pub _cached_computed_layout_spec: Vec<Rc<SpreadCellProperties>>,
+}
+
+impl Default for SpreadProperties {
+    fn default() -> Self {
+        SpreadProperties {
+            size: Size2DFactory::default(),
+            transform: Default::default(),
+            cell_count: Box::new(PropertyLiteral{value: 0}),
+            gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(0.0)}),
+            _cached_computed_layout_spec: vec![],
+            overrides_cell_size: vec![],
+            overrides_gutter_size: vec![],
+            direction: SpreadDirection::Horizontal,
+        }
+    }
+}
+
+impl SpreadProperties {
+    pub fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
+        &self.size.borrow_mut().0.compute_in_place(rtc);
+        &self.size.borrow_mut().1.compute_in_place(rtc);
+        &self.cell_count.compute_in_place(rtc);
+        &self.gutter_width.compute_in_place(rtc);
+        &self.transform.borrow_mut().compute_in_place(rtc);
+        &self.calc_layout_spec_in_place(rtc);
+    }
+
+    pub fn calc_layout_spec_in_place(&mut self, rtc: &RenderTreeContext) {
+        let bounds = rtc.bounds;
+
+        let active_bound = match self.direction {
+            SpreadDirection::Horizontal => bounds.0,
+            SpreadDirection::Vertical => bounds.1
+        };
+
+        let gutter_calc = match *self.gutter_width.read() {
+            Size::Pixel(px) => px,
+            Size::Percent(pct) => active_bound * (pct / 100.0),
+        };
+
+        let cell_count = *self.cell_count.read() as f64;
+
+        let usable_interior_space = active_bound - (cell_count + 1.0) * gutter_calc;
+        let per_cell_space = usable_interior_space / cell_count;
+
+        //TODO: account for overrides
+        self._cached_computed_layout_spec = (0..(cell_count as usize)).into_iter().map(|i| {
+            // rtc.runtime.borrow_mut().log(&format!("Caching computed cells: {}", ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space));
+            match self.direction {
+                SpreadDirection::Horizontal =>
+                    Rc::new(SpreadCellProperties {
+                        height_px: bounds.1,
+                        width_px: per_cell_space,
+                        x_px: ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
+                        y_px: 0.0,
+                    }),
+                SpreadDirection::Vertical =>
+                    Rc::new(SpreadCellProperties {
+                        height_px: per_cell_space,
+                        width_px: bounds.0,
+                        x_px: 0.0,
+                        y_px: ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
+                    }),
+            }
+        }).collect();
+
+    }
+}
+
+
+
 
 
 

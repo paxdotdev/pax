@@ -10,7 +10,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Component, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, SpreadCellProperties, SpreadProperties, Stroke, StrokeStyle, Transform};
+use crate::{Affine, Color, Component, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, SpreadCellProperties, SpreadProperties, Stroke, StrokeStyle, Transform, SpreadDirection};
 use crate::components::Spread;
 use crate::primitives::{Frame, Group, Placeholder};
 use crate::rectangle::Rectangle;
@@ -165,17 +165,6 @@ impl CarbonEngine {
                     transform: Rc::new(RefCell::new(Transform::default())),
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(
-                            Frame {
-                                size: Size2DFactory::Literal(Size::Pixel(550.0), Size::Pixel(400.0)),
-                                transform: Rc::new(RefCell::new(Transform {
-                                    origin: (Box::new(PropertyLiteral{value: Size::Percent(50.0)}), Box::new(PropertyLiteral {value: Size::Percent(50.0)})),
-                                    align: (Box::new(PropertyLiteral { value: 0.5 }), Box::new(PropertyLiteral { value: 0.5 })),
-                                    ..Default::default()
-                                })),
-                                children: Rc::new(RefCell::new(vec![
-                                    Rc::new(RefCell::new(
-
-                                        // Our first spread:
 
                                         Spread::new(
                                             Rc::new(RefCell::new(
@@ -237,57 +226,102 @@ impl CarbonEngine {
                                                         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }
                                                 )),
+
+                                                // vertical spread
+
+                                                Rc::new(RefCell::new(
+                                                    Spread::new(
+                                                        Rc::new(RefCell::new(
+                                                            SpreadProperties {
+                                                                cell_count: Box::new(PropertyLiteral{value: 3}),
+                                                                direction: SpreadDirection::Vertical,
+                                                                gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(5.0)}),
+                                                                ..Default::default()
+                                                            }
+                                                        )),
+                                                        Rc::new(RefCell::new(vec![
+                                                            //rainbow
+                                                            Rc::new(RefCell::new(
+                                                                Rectangle {
+                                                                    transform: Rc::new(RefCell::new(Transform::default())),
+                                                                    fill: Box::new(
+                                                                        PropertyExpression {
+                                                                            cached_value: Color::hlc(0.0,0.0,0.0),
+                                                                            // expression!(|engine: &CarbonEngine| ->
+                                                                            evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                                                                Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                                                            }}
+                                                                        }
+                                                                    ),
+                                                                    stroke: Stroke {
+                                                                        width: 4.0,
+                                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                                        color: Color::rgba(0.0, 0.0, 1.0, 1.0)
+                                                                    },
+                                                                    size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                                }
+                                                            )),
+                                                            //green
+                                                            Rc::new(RefCell::new(
+                                                                Rectangle {
+                                                                    transform: Rc::new(RefCell::new(Transform::default())),
+                                                                    fill:  Box::new(
+                                                                        PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
+                                                                    ),
+                                                                    stroke: Stroke {
+                                                                        width: 4.0,
+                                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                                        color: Color::rgba(0.0, 1.0, 1.0, 1.0)
+                                                                    },
+                                                                    size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                                }
+                                                            )),
+                                                            //off-center blue
+                                                            Rc::new(RefCell::new(
+                                                                Rectangle {
+                                                                    transform: Rc::new(RefCell::new(Transform {translate: (Box::new(PropertyLiteral{value: 100.0}),Box::new(PropertyLiteral{value: 100.0})), ..Default::default() })),
+                                                                    fill:  Box::new(
+                                                                        PropertyLiteral {value: Color::rgba(0.0, 0.0, 1.0, 1.0) }
+                                                                    ),
+                                                                    stroke: Stroke {
+                                                                        width: 4.0,
+                                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                                        color: Color::rgba(1.0, 1.0, 1.0, 1.0)
+                                                                    },
+                                                                    size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                                }
+                                                            )),
+                                                        ])),
+
+
+                                                    )
+                                                ))
                                             ])),
 
 
                                         )
                                     )),
 
-                                    // Our background fill
-
-                                    Rc::new(RefCell::new(
-                                        Rectangle {
-                                            transform: Rc::new(RefCell::new(Transform::default())),
-                                            fill:  Box::new(
-                                                PropertyLiteral {value: Color::rgba(0.5, 0.5, 0.5, 0.25) }
-                                            ),
-                                            stroke: Stroke {
-                                                width: 2.0,
-                                                style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                color: Color::rgba(0.8, 0.8, 0.1, 1.0)
-                                            },
-                                            size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                        }
-                                    )),
+                                    // // Our background fill
+                                    //
+                                    // Rc::new(RefCell::new(
+                                    //     Rectangle {
+                                    //         transform: Rc::new(RefCell::new(Transform::default())),
+                                    //         fill:  Box::new(
+                                    //             PropertyLiteral {value: Color::rgba(0.5, 0.5, 0.5, 0.25) }
+                                    //         ),
+                                    //         stroke: Stroke {
+                                    //             width: 2.0,
+                                    //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                    //             color: Color::rgba(0.8, 0.8, 0.1, 1.0)
+                                    //         },
+                                    //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                    //     }
+                                    // )),
 
 
                                 ])),
-                            })),
 
-                        // bg rainbowz
-
-                        // Rc::new(RefCell::new(
-                        // Rectangle {
-                        //         transform: Rc::new(RefCell::new(Transform::default())),
-                        //         fill: Box::new(
-                        //             // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
-                        //             PropertyExpression {
-                        //                 cached_value: Color::hlc(1.0,75.0,75.0),
-                        //                 evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                        //                     Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-                        //                 }}
-                        //             }
-                        //         ),
-                        //         stroke: Stroke {
-                        //             width: 4.0,
-                        //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                        //             color: Color::rgba(0.0, 0.5, 0.5, 1.0)
-                        //         },
-                        //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                        //     }
-                        // )),
-
-                    ])),
                 })),
             })),
             viewport_size,
