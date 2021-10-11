@@ -8,7 +8,7 @@ use crate::{CarbonEngine, Runtime, StackFrame, RenderTreeContext};
 pub trait Property<T> {
     //either unwrap T
     //or provide a fn -> T
-    fn eval_in_place(&mut self, rtc: &RenderTreeContext) {}
+    fn compute_in_place(&mut self, rtc: &RenderTreeContext) {}
     fn read(&self) -> &T;
 }
 
@@ -55,7 +55,7 @@ impl<T, E: Evaluator<T>> PropertyExpression<T, E>
 }
 
 impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
-    fn eval_in_place(&mut self, rtc: &RenderTreeContext) {
+    fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
 
         let ic = InjectionContext {
             engine: rtc.engine,

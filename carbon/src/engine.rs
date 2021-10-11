@@ -10,7 +10,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Component, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RepeatItemProperties, Runtime, Size, SpreadCellProperties, SpreadProperties, Stroke, StrokeStyle, Transform};
+use crate::{Affine, Color, Component, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, Runtime, Size, SpreadCellProperties, SpreadProperties, Stroke, StrokeStyle, Transform};
 use crate::components::Spread;
 use crate::primitives::{Frame, Group, Placeholder};
 use crate::rectangle::Rectangle;
@@ -28,10 +28,11 @@ pub struct CarbonEngine {
     viewport_size: (f64, f64),
 }
 
+#[derive(Clone)]
 pub struct RenderTreeContext<'a>
 {
     pub engine: &'a CarbonEngine,
-    pub transform: &'a Affine,
+    pub transform: Affine,
     pub bounds: (f64, f64),
     pub runtime: Rc<RefCell<Runtime>>,
     pub parent: RenderNodePtr,
@@ -179,12 +180,13 @@ impl CarbonEngine {
                                         Spread::new(
                                             Rc::new(RefCell::new(
                                                 SpreadProperties {
-                                                        cell_count: Box::new(PropertyLiteral{value: 3}),
+                                                        cell_count: Box::new(PropertyLiteral{value: 4}),
                                                         gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(5.0)}),
                                                         ..Default::default()
                                                 }
                                             )),
                                             Rc::new(RefCell::new(vec![
+                                                //rainbow
                                                 Rc::new(RefCell::new(
                                                     Rectangle {
                                                         transform: Rc::new(RefCell::new(Transform::default())),
@@ -205,6 +207,7 @@ impl CarbonEngine {
                                                         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }
                                                 )),
+                                                //green
                                                 Rc::new(RefCell::new(
                                                     Rectangle {
                                                         transform: Rc::new(RefCell::new(Transform::default())),
@@ -219,6 +222,7 @@ impl CarbonEngine {
                                                         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }
                                                 )),
+                                                //off-center blue
                                                 Rc::new(RefCell::new(
                                                     Rectangle {
                                                         transform: Rc::new(RefCell::new(Transform {translate: (Box::new(PropertyLiteral{value: 100.0}),Box::new(PropertyLiteral{value: 100.0})), ..Default::default() })),
@@ -298,7 +302,7 @@ impl CarbonEngine {
 
         let mut rtc = RenderTreeContext {
             engine: &self,
-            transform: &Affine::default(),
+            transform: Affine::default(),
             bounds: self.viewport_size,
             runtime: self.runtime.clone(),
             node: Rc::clone(&self.render_tree.borrow().root),
@@ -318,10 +322,19 @@ impl CarbonEngine {
         //populate a pointer to this (current) `RenderNode` onto `rtc`
         rtc.node = Rc::clone(&node);
 
+
+        //lifecycle: init_and_calc happens before anything else and
+        //           calculates
+        //
+        node.borrow_mut().compute_properties(rtc);
         let accumulated_transform = rtc.transform;
         let accumulated_bounds = rtc.bounds;
 
-        //Note: this cloning transform-fetching logic could certainly be written more efficiently
+        //get the size of this node (calc'd or otherwise) and use
+        //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
+        //and for this node itself (e.g. for specifying the size of a Rectangle node)
+        let new_accumulated_bounds = node.borrow().get_size_calc(accumulated_bounds);
+
         let node_computed_transform = {
             let mut node_borrowed = rtc.node.borrow_mut();
             let node_size = node_borrowed.get_size_calc(accumulated_bounds);
@@ -332,33 +345,25 @@ impl CarbonEngine {
             ).clone()
         };
 
-        let new_accumulated_transform = *accumulated_transform * node_computed_transform;
+        let new_accumulated_transform = accumulated_transform * node_computed_transform;
 
-        //get the size of this node (calc'd or otherwise) and use
-        //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
-        //and for this node itself (e.g. for specifying the size of a Rectangle node)
-        let new_accumulated_bounds = node.borrow().get_size_calc(accumulated_bounds);
+        rtc.bounds = new_accumulated_bounds;
+        rtc.transform = new_accumulated_transform;
 
-        let mut new_rtc = RenderTreeContext {
-            engine: rtc.engine,
-            bounds: new_accumulated_bounds,
-            transform: &new_accumulated_transform,
-            runtime: Rc::clone(&rtc.runtime),
-            parent: Rc::clone(&node),
-            node: Rc::clone(&node),
-        };
 
         //lifecycle: pre_render happens before traversing this node's children
-        //           this is useful for pre-computation or for in-place mutations,
+        //           and AFTER computing properties (including transform & layout.)
+        //           This is useful for pre-computation or for in-place mutations,
         //           e.g. `Placeholder`'s children/adoptee-switching logic
         //           and `Spread`'s layout-computing logic
-        node.borrow_mut().pre_render(&mut new_rtc, rc );
+        node.borrow_mut().pre_render(rtc, rc);
 
         let children = node.borrow().get_rendering_children();
 
         //keep recursing through children
         children.borrow().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
+            let mut new_rtc = rtc.clone();
             &self.recurse_traverse_render_tree(&mut new_rtc, rc, Rc::clone(child));
             //TODO: for dependency management, return computed values from subtree above
         });
@@ -366,64 +371,12 @@ impl CarbonEngine {
         // `render` lifecycle event:
         // this is this node's time to do its own rendering, aside
         // from its children.  Its children have already been rendered.
-        node.borrow().render(&mut new_rtc, rc);
+        node.borrow().render(rtc, rc);
 
         //Lifecycle event: post_render can be used for cleanup, e.g. for
         //components to pop a stack frame
-        node.borrow().post_render(&mut new_rtc, rc);
+        node.borrow().post_render(rtc, rc);
     }
-    //
-    // pub fn traverse_property_tree(&self) {
-    //     // - traverse render tree
-    //     // - update cache (current, `last_known_value`) for each property
-    //     // - done
-    //
-    //     //TODO:
-    //     // - be smarter about updates, think "spreadsheet"
-    //     //      - don't update values that don't need updating
-    //     //      - traverse dependency graph, "distal"-inward
-    //     //      - disallow circular deps
-    //     // - make this and all `property` logic part of `Runtime`?
-    //     let ptc = RenderTreeContext {
-    //         engine: &self,
-    //         runtime: Rc::clone(&self.runtime),
-    //         bounds: self.viewport_size,
-    //     };
-    //
-    //     &self.recurse_traverse_property_tree(&ptc, &mut self.render_tree.borrow_mut().root);
-    // }
-    //
-    // fn recurse_traverse_property_tree(&self, rtc: &RenderTreeContext, node: &mut RenderNodePtr)  {
-    //     // Recurse:
-    //     //  - evaluate in a pre-order traversal, ensuring ancestors have been evaluated first
-    //     //  - for each property, call eval_in_place(), which updates cache (read elsewhere in rendering logic)
-    //     //  - done
-    //
-    //     let mut node_borrowed = node.borrow_mut();
-    //
-    //     let new_accumulated_bounds = node_borrowed.get_size_calc(rtc.bounds);
-    //     let new_ptc = RenderTreeContext {
-    //         engine: rtc.engine,
-    //         runtime: Rc::clone(&rtc.runtime),
-    //         bounds: new_accumulated_bounds,
-    //     };
-    //
-    //     // new_rtc.runtime.borrow_mut().log(&format!("accumulated bounds: {}, {}", new_accumulated_bounds.0, new_accumulated_bounds.1));
-    //
-    //     //Note: it's important to eval_properties_in_place before calling get_children —
-    //     //      some nodes like Yield and Repeat manipulate their children during property evaluation
-    //     node_borrowed.eval_properties_in_place(&new_ptc);
-    //
-    //     let children = node_borrowed.get_rendering_children();
-    //     let mut children_borrowed = children.borrow_mut();
-    //
-    //     //keep recursing as long as we have children
-    //     for i in 0..(children_borrowed.len()) {
-    //         &self.recurse_traverse_property_tree(&new_ptc, children_borrowed.get_mut(i).unwrap());
-    //     }
-    //
-    //     node_borrowed.post_eval_properties_in_place(&new_ptc);
-    // }
 
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
         self.viewport_size = new_viewport_size;
@@ -431,17 +384,8 @@ impl CarbonEngine {
 
     pub fn tick(&mut self, rc: &mut WebRenderContext) {
         rc.clear(Color::rgb8(0, 0, 0));
-
-        // self.traverse_property_tree();
         self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
-
-        // Logging example:
-        // self.log(format!("Frame: {}", self.frames_elapsed).as_str());
-
-        // Draw a red box around viewport:
-        // let mut outer_bounds = kurbo::Rect::new(0.0,0.0,self.viewport_size.0, self.viewport_size.1);
-        // rc.stroke(outer_bounds, &piet::Color::rgba(1.0, 0.0, 0.0, 1.0), 5.0);
     }
 
     //keeping until this can be done via scene graph

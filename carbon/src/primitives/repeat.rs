@@ -20,14 +20,6 @@ pub struct RepeatProperties {
 
 }
 
-/// Data structure for the virtually duplicated container that surrounds repeated nodes.
-/// This is attached to a Component<RepeatFrame> that `Repeat` adds to its children dynamically
-/// during property-tree traversal
-pub struct RepeatItemProperties {
-    pub i: usize,
-    pub datum: Rc<PropertiesCoproduct>,
-    pub id: String,
-}
 
 impl Repeat {
 }
@@ -44,11 +36,11 @@ impl Default for Repeat {
 }
 
 impl RenderNode for Repeat {
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         //TODO: handle each of Repeat's `Expressable` properties
 
-        self.data_list.eval_in_place(rtc);
-        self.transform.borrow_mut().eval_in_place(rtc);
+        self.data_list.compute_in_place(rtc);
+        self.transform.borrow_mut().compute_in_place(rtc);
 
         //reset children:
         //wrap data_list into repeat_items and attach "puppeteer" components that attach
@@ -62,80 +54,11 @@ impl RenderNode for Repeat {
                 let render_node : RenderNodePtr = Rc::new(RefCell::new(
                     Component {
                         adoptees: Rc::new(RefCell::new(vec![])),
-
-                        //THIS IS THE PROBLEM!  Naive Rc::clone()ing causes
-                        //  property evaluation caches to clobber each other.
-                        //  The last one calculated "wins"
                         template: Rc::clone(&self.template),
                         transform: Rc::new(RefCell::new(Transform::default())),
                         properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
                     }
                 ));
-
-                //
-                // let derefed = Rc::clone(datum);
-                // let spread_cell_properties = match &*derefed {
-                //     PropertiesCoproduct::SpreadCell(sc) => {
-                //         sc
-                //     }
-                //     &_ => {panic!("ain't a spreadcell, ain't it?")}
-                // };
-                //
-                // // let render_node : RenderNodePtr = Rc::new(RefCell::new(
-                // //                     Rectangle {
-                // //                             fill: Box::new(
-                // //                                 // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
-                // //                                 PropertyLiteral{value: Color::rgba(1.0,0.0,0.0,1.0)}
-                // //                             ),
-                // //                             stroke: Stroke {
-                // //                                 width: 4.0,
-                // //                                 style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                // //                                 color: Color::rgba(0.0, 0.5, 0.5, 1.0)
-                // //                             },
-                // //                             size: Rc::new(RefCell::new((
-                // //                                 Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.width_px)}),
-                // //                                 Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.height_px)}),
-                // //                             ))),
-                // //                 transform: Rc::new(RefCell::new(
-                // //                     Transform {
-                // //                             translate: (
-                // //                                 Box::new(PropertyLiteral {value: spread_cell_properties.x_px}),
-                // //                                 Box::new(PropertyLiteral {value: spread_cell_properties.y_px}),
-                // //                             ),
-                // //                             ..Default::default()
-                // //                         },
-                // //                 )),
-                // //                         }
-                // //                     ));
-                //
-                // //Because the following works (!) it seems the culprit
-                // //for this bug lies somewhere inside Component
-                // let render_node : RenderNodePtr = Rc::new(RefCell::new(
-                //     Frame {
-                //         size: Rc::new(RefCell::new((
-                //             Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.width_px)}),
-                //             Box::new(PropertyLiteral {value: Size::Pixel(spread_cell_properties.height_px)}),
-                //         ))),
-                //         transform: Rc::new(RefCell::new(
-                //             Transform {
-                //                     translate: (
-                //                         Box::new(PropertyLiteral {value: spread_cell_properties.x_px}),
-                //                         Box::new(PropertyLiteral {value: spread_cell_properties.y_px}),
-                //                     ),
-                //                     ..Default::default()
-                //                 },
-                //         )),
-                //         children: Rc::new(RefCell::new(vec![Rc::new(RefCell::new(
-                //             Placeholder::new(
-                //                 Transform::default(),
-                //                 Box::new(PropertyLiteral {value: i})
-                //             )
-                //         ))]))
-                //     }
-                // ));
-
-
-                // let render_node: RenderNodePtr = ;
 
                 render_node
             }).collect()

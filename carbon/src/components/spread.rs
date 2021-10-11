@@ -8,7 +8,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, CarbonEngine, Color, Component, decompose_render_node_ptr_list_into_vec, Evaluator, InjectionContext, MyManualMacroExpression, PropertiesCoproduct, Property, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Repeat, RepeatItem, RepeatItemProperties, Scope, Size, StackFrame, Stroke, StrokeStyle, Transform, wrap_render_node_ptr_into_list};
+use crate::{Affine, CarbonEngine, Color, Component, decompose_render_node_ptr_list_into_vec, Evaluator, InjectionContext, MyManualMacroExpression, PropertiesCoproduct, Property, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTree, RenderTreeContext, Repeat, RepeatItem, Scope, Size, StackFrame, Stroke, StrokeStyle, Transform, wrap_render_node_ptr_into_list};
 use crate::primitives::frame::Frame;
 use crate::primitives::placeholder::Placeholder;
 use crate::rectangle::Rectangle;
@@ -143,12 +143,12 @@ impl Default for SpreadProperties {
 }
 
 impl SpreadProperties {
-    pub fn eval_in_place(&mut self, rtc: &RenderTreeContext) {
-        &self.size.borrow_mut().0.eval_in_place(rtc);
-        &self.size.borrow_mut().1.eval_in_place(rtc);
-        &self.cell_count.eval_in_place(rtc);
-        &self.gutter_width.eval_in_place(rtc);
-        &self.transform.borrow_mut().eval_in_place(rtc);
+    pub fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
+        &self.size.borrow_mut().0.compute_in_place(rtc);
+        &self.size.borrow_mut().1.compute_in_place(rtc);
+        &self.cell_count.compute_in_place(rtc);
+        &self.gutter_width.compute_in_place(rtc);
+        &self.transform.borrow_mut().compute_in_place(rtc);
         &self.calc_layout_spec_in_place(rtc);
     }
 
@@ -245,12 +245,10 @@ impl RenderNode for Spread {
 
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.properties.borrow().transform) }
 
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        self.properties.borrow_mut().eval_in_place(rtc);
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+        self.properties.borrow_mut().compute_in_place(rtc);
     }
 }
-
-
 
 pub struct SpreadCellProperties {
     pub x_px: f64,
@@ -408,39 +406,39 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                     //                     size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
                                     //                 }
                                     //             )),
+                                    // Rc::new(RefCell::new(
+                                    // Rectangle {
+                                    //         transform: Rc::new(RefCell::new(Transform::default())),
+                                    //         fill: Box::new(
+                                    //             // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
+                                    //             PropertyExpression {
+                                    //                 cached_value: Color::hlc(1.0,75.0,75.0),
+                                    //                 evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                    //                     Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                    //                 }}
+                                    //             }
+                                    //         ),
+                                    //         stroke: Stroke {
+                                    //             width: 4.0,
+                                    //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                    //             color: Color::rgba(0.0, 0.5, 0.5, 1.0)
+                                    //         },
+                                    //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                    //     }
+                                    // )),
                                     Rc::new(RefCell::new(
-                                    Rectangle {
-                                            transform: Rc::new(RefCell::new(Transform::default())),
-                                            fill: Box::new(
-                                                // PropertyLiteral {value: Color::rgba(1.0, 0.0, 0.0, 1.0)}
-                                                PropertyExpression {
-                                                    cached_value: Color::hlc(1.0,75.0,75.0),
-                                                    evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                                        Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                        Placeholder::new(
+                                            Transform::default(),
+                                            Box::new(PropertyExpression {
+                                                    cached_value: 0,
+                                                    evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
+                                                        //TODO:  unwrap SpreadCell from the repeat-item.
+                                                        //       make this part of the expression! macro
+                                                        scope.borrow().i
                                                     }}
-                                                }
-                                            ),
-                                            stroke: Stroke {
-                                                width: 4.0,
-                                                style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                color: Color::rgba(0.0, 0.5, 0.5, 1.0)
-                                            },
-                                            size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                        }
-                                    )),
-                        //             Rc::new(RefCell::new(
-                        //                 Placeholder::new(
-                        //                     Transform::default(),
-                        //                     Box::new(PropertyExpression {
-                        //                         cached_value: 0,
-                        //                         evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
-                        //                             //TODO:  unwrap SpreadCell from the repeat-item.
-                        //                             //       make this part of the expression! macro
-                        //                             scope.borrow().i
-                        //                         }}
-                        //                     })
-                        //                 )
-                        //             ))
+                                                })
+                                        )
+                                    ))
 
                                 ])),
 

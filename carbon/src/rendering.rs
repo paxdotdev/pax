@@ -169,6 +169,9 @@ pub trait RenderNode
     }
 
     fn get_transform(&mut self) -> Rc<RefCell<Transform>>;
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+        //no-op default implementation
+    }
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //no-op default implementation
     }
@@ -205,36 +208,16 @@ impl Default for Transform {
 
 impl Transform {
 
-    pub fn eval_in_place(&mut self, rtc: &RenderTreeContext) {
-        &self.translate.0.eval_in_place(rtc);
-        &self.translate.1.eval_in_place(rtc);
-        &self.scale.0.eval_in_place(rtc);
-        &self.scale.1.eval_in_place(rtc);
-        &self.rotate.eval_in_place(rtc);
-        &self.origin.0.eval_in_place(rtc);
-        &self.origin.1.eval_in_place(rtc);
-        &self.align.0.eval_in_place(rtc);
-        &self.align.1.eval_in_place(rtc);
-
-        //Note:  the final affine transform is NOT computed here in the Property Tree
-        //       traversal, because it relies on rendering specific context, e.g. the
-        //       node size and containing bounds. [Update: we are now passing bounds through
-        //       the property tree context, so this may be worth revisiting.]
-        //
-        //       This is a somewhat awkward conceptual divide
-        //       through the middle of `Transform`, especially since we ultimately
-        //       want to cache the computed matrix for each node and only re-compute
-        //       upon changes (making a call to calculate the transfrom from the `rendering` traversal
-        //       look a LOT like a "special" eval_in_place kind-of call a la the `property` traversal.
-        //
-        //       If we revisit the design of Transform:
-        //        - Consider that transform order would be nice to specify in userland, without needing a special magical API (ideally as expressive as Affine::translate() * Affine::scale())
-        //        - See if we can better draw the boundaries between AUTHOR-TIME properties (translate/scale/rotate/origin/align)
-        //          and RENDER-TIME properties (bounds, node size, computed matrix)
-        //        - Take a closer look at the implementation of Affine in `kurbo`, e.g.
-        //          the deref + multiplication behavior.  That approach, plus
-        //          support for origin & align (and shear!) would be very nice.
-
+    pub fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
+        &self.translate.0.compute_in_place(rtc);
+        &self.translate.1.compute_in_place(rtc);
+        &self.scale.0.compute_in_place(rtc);
+        &self.scale.1.compute_in_place(rtc);
+        &self.rotate.compute_in_place(rtc);
+        &self.origin.0.compute_in_place(rtc);
+        &self.origin.1.compute_in_place(rtc);
+        &self.align.0.compute_in_place(rtc);
+        &self.align.1.compute_in_place(rtc);
     }
 
     //TODO:  if providing bounds is prohibitive or awkward for some use-case,
@@ -298,7 +281,7 @@ impl RenderNode for Component {
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         rtc.runtime.borrow_mut().push_stack_frame(
             Rc::clone(&self.adoptees),
             Box::new(Scope {

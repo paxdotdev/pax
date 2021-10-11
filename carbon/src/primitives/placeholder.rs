@@ -26,13 +26,12 @@ impl Placeholder {
 }
 
 impl RenderNode for Placeholder {
-    fn pre_render(&mut self, ctx: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        //TODO: handle each of Placeholder's `Expressable` properties
 
-        self.index.eval_in_place(ctx);
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+        self.index.compute_in_place(rtc);
         // The following sort of children-caching is done by "control flow" primitives
         // (Placeholder, Repeat, If) —
-        self.children = match ctx.runtime.borrow_mut().peek_stack_frame() {
+        self.children = match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
                 // Grab the adoptee from the current stack_frame at Placeholder's specified `index`
                 // then make it Placeholder's own child.

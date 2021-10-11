@@ -20,10 +20,10 @@ impl RenderNode for Rectangle {
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        self.size.borrow_mut().0.eval_in_place(rtc);
-        self.size.borrow_mut().1.eval_in_place(rtc);
-        self.fill.eval_in_place(rtc);
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+        self.size.borrow_mut().0.compute_in_place(rtc);
+        self.size.borrow_mut().1.compute_in_place(rtc);
+        self.fill.compute_in_place(rtc);
     }
     fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         let transform = rtc.transform;
@@ -41,7 +41,7 @@ impl RenderNode for Rectangle {
         bez_path.line_to((0.0,0.0));
         bez_path.close_path();
 
-        let transformed_bez_path = *transform * bez_path;
+        let transformed_bez_path = transform * bez_path;
         let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
         rc.fill(transformed_bez_path, fill);

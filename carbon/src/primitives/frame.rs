@@ -27,16 +27,20 @@ impl RenderNode for Frame {
 
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
 
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
-        self.size.borrow_mut().0.eval_in_place(rtc);
-        self.size.borrow_mut().1.eval_in_place(rtc);
-        self.transform.borrow_mut().eval_in_place(rtc);
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+        self.size.borrow_mut().0.compute_in_place(rtc);
+        self.size.borrow_mut().1.compute_in_place(rtc);
+        self.transform.borrow_mut().compute_in_place(rtc);
+    }
 
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         // construct a BezPath of this frame's bounds * its transform,
         // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
         //TODO:  if clipping is TURNED OFF for this Frame, don't do any of this
+
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounds;
+
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 
@@ -48,7 +52,7 @@ impl RenderNode for Frame {
         bez_path.line_to((0.0,0.0));
         bez_path.close_path();
 
-        let transformed_bez_path = *transform * bez_path;
+        let transformed_bez_path = transform * bez_path;
         rc.save(); //our "save point" before clipping — restored to in the post_render
         rc.clip(transformed_bez_path);
     }

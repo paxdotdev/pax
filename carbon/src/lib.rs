@@ -82,7 +82,7 @@ TODO:
         [ ] Can we do something better than `(Box<......>, Box<.......>)` for `Size`?
         [ ] Rename various properties, e.g. bounding_dimens => bounds
         [ ] Take a pass on references/ownership in render_render_tree — perhaps &Affine should transfer ownership instead, for example
-        [ ] introduce a way to #derive `eval_in_place`
+        [ ] introduce a way to #derive `compute_in_place`
         [ ] Better ergonomics for `wrap_render_node_ptr_into_list`
         [ ] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
         [ ] literal!() macro for literal property values
