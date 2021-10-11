@@ -9,12 +9,13 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, PropertyValueTimeline, TimelineSegment, EasingCurve, Timeline};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, PropertyValueTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform};
 use crate::components::Spread;
 use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
 use crate::rendering::Size2DFactory;
 use crate::runtime::{PropertiesCoproduct, Runtime};
+use crate::timeline::{EasingCurve, Timeline, TimelineSegment};
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {

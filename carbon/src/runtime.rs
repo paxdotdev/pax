@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{DevAppRootProperties, RenderNodePtrList, SpreadCellProperties, SpreadProperties, Timeline};
+use crate::{DevAppRootProperties, RenderNodePtrList, SpreadCellProperties, SpreadProperties};
 use crate::primitives::repeat::RepeatItem;
+use crate::timeline::Timeline;
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, this is a home

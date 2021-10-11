@@ -1,4 +1,4 @@
-use std::cell::{RefCell};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{Evaluator, InjectionContext, PropertyValue, PropertyValueExpression, PropertyValueLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Repeat, Size, Transform};
@@ -7,7 +7,7 @@ use crate::primitives::frame::Frame;
 use crate::primitives::placeholder::Placeholder;
 use crate::primitives::repeat::RepeatItem;
 use crate::rendering::{Size2D, Size2DFactory};
-use crate::runtime::{PropertiesCoproduct};
+use crate::runtime::PropertiesCoproduct;
 
 /*
 TODO:
@@ -77,13 +77,6 @@ TODO:
 pub struct Spread {
     properties: Rc<RefCell<SpreadProperties>>,
     template: RenderNodePtrList,
-}
-
-
-pub struct Timeline {
-    pub playhead_position: usize,
-    pub frame_count: usize,
-    pub is_playing: bool,
 }
 
 impl Spread {

@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{PropertiesCoproduct, RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, Transform, Timeline};
-
+use crate::{PropertiesCoproduct, RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, Transform};
+use crate::timeline::Timeline;
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `adoptees` and
