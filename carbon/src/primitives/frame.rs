@@ -62,7 +62,7 @@ impl RenderNode for Frame {
         rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
         rc.clip(transformed_bez_path);
     }
-    fn post_render(&self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn post_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
         //pop the clipping context from the stack
         rc.restore().unwrap();
     }

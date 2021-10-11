@@ -17,12 +17,17 @@ pub struct Component {
     pub adoptees: RenderNodePtrList,
     pub transform: Rc<RefCell<Transform>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
+    pub timeline_frame_count: usize,
+    //TODO: private
+    pub timeline_playhead_position: usize,
+    pub timeline_is_playing: bool,
 }
+
+//TODO:
+//  - track internal playhead for this component
 
 impl RenderNode for Component {
     fn get_rendering_children(&self) -> RenderNodePtrList {
-        //Perhaps counter-intuitively, `Component`s return the root
-        //of their template, rather than their `children`, for calls to get_children
         Rc::clone(&self.template)
     }
     fn get_size(&self) -> Option<Size2D> { None }
@@ -32,12 +37,22 @@ impl RenderNode for Component {
         rtc.runtime.borrow_mut().push_stack_frame(
             Rc::clone(&self.adoptees),
             Box::new(Scope {
-              properties: Rc::clone(&self.properties)
-          })
+                properties: Rc::clone(&self.properties)
+            }),
+            self.timeline_playhead_position,
         );
     }
 
-    fn post_render(&self, rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
+
+
+    fn post_render(&mut self, rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
         rtc.runtime.borrow_mut().pop_stack_frame();
+
+        if self.timeline_is_playing {
+            self.timeline_playhead_position += 1;
+            if self.timeline_playhead_position >= self.timeline_frame_count {
+                self.timeline_playhead_position = 0;
+            }
+        }
     }
 }

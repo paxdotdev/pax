@@ -5,7 +5,7 @@ use kurbo::{Affine};
 use piet::{Color, StrokeStyle};
 use piet_web::WebRenderContext;
 
-use crate::{Property, PropertyLiteral, RenderTreeContext};
+use crate::{PropertyValue, PropertyValueLiteral, RenderTreeContext};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.
@@ -35,6 +35,20 @@ pub trait RenderNode
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
     fn get_size(&self) -> Option<Size2D>;
+
+
+    /// TODO:  do we want to track timelines at the RenderNode level
+    ///        or at the StackFrame level?
+    ///
+    ///        for example, when evaluating compute_in_place for a ProeprtyValueTimeline,
+    ///        does the rtc.timeline_playhead_position get populated by
+    ///        recursing through RenderNodes, or by traversing StackFrames?
+    ///
+    ///        instinctively, the latter — most RenderNodes don't mess with timelines,
+    ///        and currently `having a timeline` == `having a stackframe`
+
+    /// Returns a Timeline if this render node specifies one,
+    // fn get_timeline(&self) -> Option<Timeline> {None}
 
     /// Rarely needed:  Used for exotic tree traversals, e.g. for `Spread` > `Repeat` > `Rectangle`
     /// where the repeated `Rectangle`s need to be be considered direct children of `Spread`.
@@ -110,7 +124,7 @@ pub trait RenderNode
     /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing context
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
-    fn post_render(&self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
+    fn post_render(&mut self, _rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
         //no-op default implementation
     }
 }
@@ -136,12 +150,12 @@ pub trait RenderNode
 /// Note that transform order is currently hard-coded.  This could be amended
 /// upon deriving a suitable API — this may look like passing a manual `Affine` object
 pub struct Transform {
-    pub translate: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
-    pub scale: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
-    pub rotate: Box<dyn Property<f64>>, //z-axis only for 2D rendering
+    pub translate: (Box<dyn PropertyValue<f64>>, Box<dyn PropertyValue<f64>>),
+    pub scale: (Box<dyn PropertyValue<f64>>, Box<dyn PropertyValue<f64>>),
+    pub rotate: Box<dyn PropertyValue<f64>>, //z-axis only for 2D rendering
     //TODO: add shear? needed at least to support ungrouping after scale+rotate
-    pub origin: (Box<dyn Property<Size>>, Box<dyn Property<Size>>),
-    pub align: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
+    pub origin: (Box<dyn PropertyValue<Size>>, Box<dyn PropertyValue<Size>>),
+    pub align: (Box<dyn PropertyValue<f64>>, Box<dyn PropertyValue<f64>>),
     pub cached_computed_transform: Affine,
 }
 
@@ -149,11 +163,11 @@ impl Default for Transform {
     fn default() -> Self {
         Transform{
             cached_computed_transform: Affine::default(),
-            align: (Box::new(PropertyLiteral { value: 0.0 }), Box::new(PropertyLiteral { value: 0.0 })),
-            origin: (Box::new(PropertyLiteral { value: Size::Pixel(0.0)}), Box::new(PropertyLiteral { value: Size::Pixel(0.0)})),
-            translate: (Box::new(PropertyLiteral { value: 0.0}), Box::new(PropertyLiteral { value: 0.0})),
-            scale: (Box::new(PropertyLiteral { value: 1.0}), Box::new(PropertyLiteral { value: 1.0})),
-            rotate: Box::new(PropertyLiteral { value: 0.0 }),
+            align: (Box::new(PropertyValueLiteral { value: 0.0 }), Box::new(PropertyValueLiteral { value: 0.0 })),
+            origin: (Box::new(PropertyValueLiteral { value: Size::Pixel(0.0)}), Box::new(PropertyValueLiteral { value: Size::Pixel(0.0)})),
+            translate: (Box::new(PropertyValueLiteral { value: 0.0}), Box::new(PropertyValueLiteral { value: 0.0})),
+            scale: (Box::new(PropertyValueLiteral { value: 1.0}), Box::new(PropertyValueLiteral { value: 1.0})),
+            rotate: Box::new(PropertyValueLiteral { value: 0.0 }),
         }
     }
 }
@@ -235,8 +249,8 @@ pub enum Size {
 // Size2D wraps up Properties as well to make it easy
 // to declare expressable Size properties
 pub type Size2D = Rc<RefCell<(
-    Box<dyn Property<Size>>,
-    Box<dyn Property<Size>>,
+    Box<dyn PropertyValue<Size>>,
+    Box<dyn PropertyValue<Size>>,
 )>>;
 
 
@@ -248,10 +262,10 @@ impl Size2DFactory {
         Rc::new(RefCell::new(
             (
                 Box::new(
-                    PropertyLiteral { value: x }
+                    PropertyValueLiteral { value: x }
                 ),
                 Box::new(
-                    PropertyLiteral { value: y }
+                    PropertyValueLiteral { value: y }
                 )
             )
         ))
@@ -260,10 +274,10 @@ impl Size2DFactory {
        Rc::new(RefCell::new(
             (
                 Box::new(
-                    PropertyLiteral { value: Size::Percent(100.0) }
+                    PropertyValueLiteral { value: Size::Percent(100.0) }
                 ),
                 Box::new(
-                    PropertyLiteral { value: Size::Percent(100.0) }
+                    PropertyValueLiteral { value: Size::Percent(100.0) }
                 )
             )
         ))

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Transform};
+use crate::{PropertyValue, PropertyValueLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Transform};
 use crate::primitives::component::Component;
 use crate::rendering::Size2D;
 use crate::runtime::{PropertiesCoproduct};
@@ -14,7 +14,7 @@ use crate::runtime::{PropertiesCoproduct};
 /// with an index `i` and a pointer to that relevant datum `data_list[i]`
 pub struct Repeat {
     pub template: RenderNodePtrList,
-    pub data_list: Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>,
+    pub data_list: Box<dyn PropertyValue<Vec<Rc<PropertiesCoproduct>>>>,
     pub transform: Rc<RefCell<Transform>>,
 
     //TODO: any way to make this legit-private along with the ..Default::default() syntax?
@@ -41,7 +41,7 @@ impl Default for Repeat {
     fn default() -> Self {
         Repeat {
             template: Rc::new(RefCell::new(vec![])),
-            data_list: Box::new(PropertyLiteral {value: vec![]}),
+            data_list: Box::new(PropertyValueLiteral {value: vec![]}),
             transform: Default::default(),
             _virtual_children: Rc::new(RefCell::new(vec![]))
         }
@@ -70,6 +70,11 @@ impl RenderNode for Repeat {
                         template: Rc::clone(&self.template),
                         transform: Rc::new(RefCell::new(Transform::default())),
                         properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
+                        timeline_is_playing: false,
+                        timeline_frame_count: 1,
+                        //"Flatten" this component by referring to parent playhead position
+                        //TODO: perhaps this would be more robust as a flag on Component, should_flatten: true
+                        timeline_playhead_position: rtc.runtime.borrow_mut().peek_stack_frame().unwrap().borrow().timeline_playhead_position,
                     }
                 ));
 

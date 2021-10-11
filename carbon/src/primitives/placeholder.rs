@@ -3,12 +3,12 @@ use core::option::Option;
 use core::option::Option::{None, Some};
 use std::rc::Rc;
 
-use crate::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Transform};
+use crate::{PropertyValue, RenderNode, RenderNodePtrList, RenderTreeContext, Transform};
 use crate::rendering::Size2D;
 
 pub struct Placeholder {
     pub transform: Rc<RefCell<Transform>>,
-    pub index: Box<dyn Property<usize>>,
+    pub index: Box<dyn PropertyValue<usize>>,
     children: RenderNodePtrList,
 }
 
@@ -23,7 +23,7 @@ pub struct Placeholder {
 /// that become the final rendered home of those adoptees.  This same technique
 /// is portable and applicable elsewhere via Placeholder.
 impl Placeholder {
-    pub fn new(transform: Transform, index: Box<dyn Property<usize>>) -> Self {
+    pub fn new(transform: Transform, index: Box<dyn PropertyValue<usize>>) -> Self {
         Placeholder {
             transform: Rc::new(RefCell::new(transform)),
             index,

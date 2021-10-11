@@ -42,19 +42,13 @@ impl Runtime {
 
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Placeholder` and a scope that includes
-    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Box<Scope>) {
-
-
-        //TODO:  for all children inside `adoptees`, check whether child `should_flatten`.
-        //       If so, retrieve the `RenderNodePtrList` for its children and splice that list
-        //       into a working full `RenderNodePtrList`.  This should be done recursively until
-        //       there are no more descendents who are "contiguously flat".
+    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Box<Scope>, timeline_playhead_position: usize) {
 
         let parent = self.peek_stack_frame();
 
         self.stack.push(
             Rc::new(RefCell::new(
-                StackFrame::new(adoptees, Rc::new(RefCell::new(*scope)), parent)
+                StackFrame::new(adoptees, Rc::new(RefCell::new(*scope)), parent, timeline_playhead_position)
             ))
         );
     }
@@ -100,20 +94,23 @@ pub enum PropertiesCoproduct {
 /// Data structure for a single frame of our runtime stack, including
 /// a reference to its parent frame, a list of `adoptees` for
 /// prospective [`Placeholder`] consumption, and a `Scope` for
-/// runtime evaluation, e.g. of Expressions
+/// runtime evaluation, e.g. of Expressions.  StackFrames also track
+/// timeline playhead position.
 pub struct StackFrame
 {
     adoptees: RenderNodePtrList,
     scope: Rc<RefCell<Scope>>,
     parent: Option<Rc<RefCell<StackFrame>>>,
+    pub timeline_playhead_position: usize,
 }
 
 impl StackFrame {
-    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>, parent: Option<Rc<RefCell<StackFrame>>>) -> Self {
+    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>, parent: Option<Rc<RefCell<StackFrame>>>, timeline_playhead_position: usize) -> Self {
         StackFrame {
             adoptees: Rc::clone(&adoptees),
             scope,
             parent,
+            timeline_playhead_position,
         }
     }
 
