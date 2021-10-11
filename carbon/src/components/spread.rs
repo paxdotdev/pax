@@ -41,8 +41,8 @@ TODO:
                 * Can achieve this with Expressions for now
             [x] calling "class methods" from templates, e.g. <Repeat n=5><Rect color="get_color(i)"
                 * Can achieve with expressions
-    [ ] Scopes & DI
-        [ ] Figure out dissonance between:  1. string based keys, 2. struct `Properties`
+    [x] Scopes & DI
+        [x] Figure out dissonance between:  1. string based keys, 2. struct `Properties`
             and figure out how this plays out into the property DI mechanism.  Along the way,
             figure out how to inject complex objects (ideally with a path forward to a JS runtime.)
                 - Option A:  write a macro that decorates expression definitions (or _is_ the exp. def.) and (if possible)
@@ -51,14 +51,14 @@ TODO:
                              ^ to achieve "DI," does this require a hand-rolled "monomorphization" of each expression invocation?
                              Or does a string dependency list suffice?  If the latter, we must solve a way to pass a data-type <D> through PolymorphicValue
                              Probably the answer is the _former_ — write the DI-binding logic manually alongside a string dep list (roughly how the macro unrolling will work)
-        [ ] Support getting self (or Scope) for access to Repeat Data
+        [x] Support getting self (or Scope) for access to Repeat Data
             - use-case: translate each element within a `repeat` by `i * k`
-        [ ] Quick pass on other relevant data to get from Scopes
-    [ ] Layout
-        [ ] Primary logic + repeat via expression
-        [ ] Parameterize:
+        [x] Quick pass on other relevant data to get from Scopes
+    [x] Layout
+        [x] Primary logic + repeat via expression
+        [x] Parameterize:
             - Gutter
-            - Size specs
+            - (come back later for overrides; ensure design supports visual UX)
  */
 
 

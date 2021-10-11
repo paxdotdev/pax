@@ -166,11 +166,13 @@ impl CarbonEngine {
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(
 
+                                        //top spread
+
                                         Spread::new(
                                             Rc::new(RefCell::new(
                                                 SpreadProperties {
                                                         cell_count: Box::new(PropertyLiteral{value: 4}),
-                                                        gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(5.0)}),
+                                                        gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(15.0)}),
                                                         ..Default::default()
                                                 }
                                             )),
@@ -235,7 +237,7 @@ impl CarbonEngine {
                                                             SpreadProperties {
                                                                 cell_count: Box::new(PropertyLiteral{value: 3}),
                                                                 direction: SpreadDirection::Vertical,
-                                                                gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(5.0)}),
+                                                                gutter_width: Box::new(PropertyLiteral{value: Size::Pixel(15.0)}),
                                                                 ..Default::default()
                                                             }
                                                         )),
@@ -249,7 +251,7 @@ impl CarbonEngine {
                                                                             cached_value: Color::hlc(0.0,0.0,0.0),
                                                                             // expression!(|engine: &CarbonEngine| ->
                                                                             evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                                                                Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                                                                Color::hlc(((engine.frames_elapsed + 180) % 360) as f64, 75.0, 75.0)
                                                                             }}
                                                                         }
                                                                     ),

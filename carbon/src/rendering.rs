@@ -31,9 +31,7 @@ pub struct RenderTree {
     pub root: RenderNodePtr //TODO:  maybe this should be more strictly a Rc<RefCell<Component>>, or a new type (alias) "ComponentPtr"
 }
 
-impl RenderTree {
-
-}
+impl RenderTree {}
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, logic for managing
@@ -97,24 +95,6 @@ impl Runtime {
 //          e.g. a `get_properties()` method
 //       this would be imporant for addressing properties e.g. through
 //       the property tree
-
-/*
- Node {
-    id: String
-    properties: vec![
-        (String.from("size"), PropertyLiteral {value: 500.0})
-    ]
- }
- */
-//
-// TODO:
-//  - Rename ScopeFrame to RepeatFrame
-//  - make RepeatFrame<D(atum)> a component definition instead of a primitive
-//     - this gives us a scope, stack frame, & data model for free
-//       (just need to pass `i, datum` into the component declaration via Repeat's "template")
-//  - What else do we need to do for <D> and <T> as they relate to Component?
-//    (e.g. Component<D>?  What are the implications?)
-//
 
 
 pub trait RenderNode

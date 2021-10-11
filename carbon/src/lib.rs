@@ -40,7 +40,7 @@ TODO:
         [x] summonables
             [x] built-in vars like frame count
         [x] MVP rust closures + manifest of deps
-    [ ] Spreads (née Stacks)
+    [x] Spreads (née Stacks)
         [x] Decide `primitive` vs. userland `components`
             `components`
         [x] Internal template mechanism for components
@@ -49,7 +49,7 @@ TODO:
             [x] Ensure path forward to userland `placeholders`
         [x] Clipping & Frames
         [x] Control-flow `repeat` for cells & dividers inside template
-        [ ] Gutter
+        [x] Gutter
     [ ] Split out userland code
             [ ] Add a third project to workspace, the sample project
     [ ] Timelines, transitions, t9ables
@@ -72,16 +72,16 @@ TODO:
         [ ] Code-behind & default implementations
         [ ] Helpful compiler errors, line numbers
     [ ] Refactors
-        [ ] Bundle Transform into "sugary transform," incl. origin & align; consider a separate transform_matrix property
-        [ ] Is there a way to better-DRY the shared logic across render-nodes?
+        [x] Bundle Transform into "sugary transform," incl. origin & align; consider a separate transform_matrix property
+        [x] Is there a way to better-DRY the shared logic across render-nodes?
             e.g. check out the `get_size` methods for Frame and Spread
-        [ ] Maybe related to above:  can we DRY the default properties for a render node?
+        [x] Maybe related to above:  can we DRY the default properties for a render node?
             Perhaps a macro is the answer?
         [ ] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
             Same with `scale`
-        [ ] Can we do something better than `(Box<......>, Box<.......>)` for `Size`?
-        [ ] Rename various properties, e.g. bounding_dimens => bounds
-        [ ] Take a pass on references/ownership in render_render_tree — perhaps &Affine should transfer ownership instead, for example
+        [x] Can we do something better than `(Box<......>, Box<.......>)` for `Size`?
+        [x] Rename various properties, e.g. bounding_dimens => bounds
+        [x] Take a pass on references/ownership in render_render_tree — perhaps &Affine should transfer ownership instead, for example
         [ ] introduce a way to #derive `compute_in_place`
         [ ] Better ergonomics for `wrap_render_node_ptr_into_list`
         [ ] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
