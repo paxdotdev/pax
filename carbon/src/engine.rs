@@ -115,28 +115,28 @@ impl CarbonEngine {
                                                                             cached_evaluated_value: 0.0,
                                                                             timeline_segments: vec![
                                                                                 TimelineSegment {
-                                                                                    curve_in: EasingCurve::linear(),
+                                                                                    curve_in: EasingCurve::in_out_back(),
                                                                                     ending_frame_inclusive: 74,
                                                                                     ending_value: Box::new(
                                                                                        PropertyValueLiteral {value: 500.0}
                                                                                     ),
                                                                                 },
                                                                                 TimelineSegment {
-                                                                                    curve_in: EasingCurve::linear(),
+                                                                                    curve_in: EasingCurve::in_out_back(),
                                                                                     ending_frame_inclusive: 149,
                                                                                     ending_value: Box::new(
                                                                                        PropertyValueLiteral {value: 0.0}
                                                                                     ),
                                                                                 },
                                                                                 TimelineSegment {
-                                                                                    curve_in: EasingCurve::linear(),
+                                                                                    curve_in: EasingCurve::in_out_back(),
                                                                                     ending_frame_inclusive: 224,
                                                                                     ending_value: Box::new(
                                                                                        PropertyValueLiteral {value: -500.0}
                                                                                     ),
                                                                                 },
                                                                                 TimelineSegment {
-                                                                                    curve_in: EasingCurve::linear(),
+                                                                                    curve_in: EasingCurve::in_out_back(),
                                                                                     ending_frame_inclusive: 299,
                                                                                     ending_value: Box::new(
                                                                                        PropertyValueLiteral {value: -0.0}

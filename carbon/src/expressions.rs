@@ -42,20 +42,91 @@ pub struct TimelineSegment {
 // on Easible for 'able to be eased' c.f. 'audible', 'able to be heard'
 pub trait Easible {
     /// Map the domain x [0,1] to the range y [all f64]
-    fn project(&self, x: f64) -> f64;
+    fn map(&self, x: f64) -> f64;
 }
+
+pub struct NoneEasingCurve {}
+impl Easible for NoneEasingCurve {
+    fn map(&self, _x: f64) -> f64 {
+        0.0
+    }
+}
+
 
 pub struct LinearEasingCurve {}
 impl Easible for LinearEasingCurve {
-    fn project(&self, x: f64) -> f64 {
+    fn map(&self, x: f64) -> f64 {
         x
+    }
+}
+
+pub struct InQuadEasingCurve {}
+impl Easible for InQuadEasingCurve{
+    fn map(&self, x: f64) -> f64 {
+        x * x
+    }
+}
+
+pub struct OutQuadEasingCurve {}
+impl Easible for OutQuadEasingCurve{
+    fn map(&self, x: f64) -> f64 {
+        1.0 - (1.0 - x) * (1.0 - x)
+    }
+}
+
+pub struct InBackEasingCurve {}
+impl Easible for InBackEasingCurve{
+    fn map(&self, x: f64) -> f64 {
+        const C1: f64 = 1.70159;
+        const C3: f64 = C1 + 1.00;
+        C3 * x * x * x - C1 * x * x
+    }
+}
+
+pub struct OutBackEasingCurve {}
+impl Easible for OutBackEasingCurve{
+    fn map(&self, x: f64) -> f64 {
+        const C1: f64 = 1.70159;
+        const C3: f64 = C1 + 1.00;
+        1.0 + C3 * (x - 1.0).powi(3) + C1 * (x - 1.0).powi(2)
+    }
+}
+
+pub struct InOutBackEasingCurve {}
+impl Easible for InOutBackEasingCurve{
+    fn map(&self, x: f64) -> f64 {
+        const C1: f64 = 1.70159;
+        const C2 : f64 = C1 * 1.525;
+        if x < 0.5 {
+            ((2.0 * x).powi(2) * ((C2 + 1.0) * 2.0 * x - C2)) / 2.0
+        } else {
+            ((2.0 * x - 2.0).powi(2) * ((C2 + 1.0) * (x * 2.0 - 2.0) + C2) + 2.0) / 2.0
+        }
     }
 }
 
 pub struct EasingCurve {}
 impl EasingCurve {
+    pub fn none() -> Box<dyn Easible> {
+        Box::new(NoneEasingCurve {})
+    }
     pub fn linear() -> Box<dyn Easible> {
         Box::new(LinearEasingCurve {})
+    }
+    pub fn in_quad() -> Box<dyn Easible> {
+        Box::new(InQuadEasingCurve {})
+    }
+    pub fn out_quad() -> Box<dyn Easible> {
+        Box::new(OutQuadEasingCurve {})
+    }
+    pub fn in_back() -> Box<dyn Easible> {
+        Box::new(InBackEasingCurve {})
+    }
+    pub fn out_back() -> Box<dyn Easible> {
+        Box::new(OutBackEasingCurve {})
+    }
+    pub fn in_out_back() -> Box<dyn Easible> {
+        Box::new(InOutBackEasingCurve {})
     }
 }
 
@@ -77,7 +148,7 @@ impl PropertyValue<f64> for PropertyValueTimeline {
 
         //Scan through our list of timeline segments to find our active segment
         //TODO:  this lookup could be optimized to constant-time with something like
-        //       a tree-map, or a "hashmap with ranges for keys => pointers-to-segments for values"
+        //       a tree-map, or a "'''hashmap''' with ranges-of-frames for keys => pointers-to-segments for values"
         while timeline_playhead_position > active_segment.ending_frame_inclusive
             && segments_iter.peek().is_some()
         {
@@ -95,7 +166,7 @@ impl PropertyValue<f64> for PropertyValueTimeline {
             (active_segment.ending_frame_inclusive - starting_frame) as f64
         ).min(1.0); //cap at 1.0 to satisfy domain expectations of easing functions [0,1]
 
-        let progress_eased = active_segment.curve_in.project(progress);
+        let progress_eased = active_segment.curve_in.map(progress);
 
         //the computed value is a function of the magnitude of difference
         //between val_last and val_next.  Keep in mind that progress_eased is NOT
