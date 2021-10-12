@@ -59,9 +59,9 @@ TODO:
     [x] Timelines, transitions
     [ ] Documentation & usage
     [ ] Mixed mode, Web
-        [ ] Rust -> JS data bridge
-        [ ] DOM pooling & recycling mechanism
-        [ ] Text primitives
+        [x] Rust -> JS data bridge
+        [x] DOM pooling & recycling mechanism
+        [ ] Text primitives + basic 
         [ ] Native-layer clipping (accumulate clipping path for elements above DOM elements, communicate as Path to web layer for foreignObject + SVG clipping)
         [ ] Form controls
             [ ] ButtonNative (vs. ButtonGroup/ButtonContainer/ButtonFrame?) (or vs. a click event on any ol element)

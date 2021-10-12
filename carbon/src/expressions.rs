@@ -9,18 +9,16 @@ use serde::{Serialize, Serializer};
 /// An abstract PropertyValue that may be either Literal or
 /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait PropertyValue<T> {
-    //either unwrap T
-    //or provide a fn -> T
     fn compute_in_place(&mut self, _rtc: &RenderTreeContext) {}
     fn read(&self) -> &T;
 }
 
-impl<T: Serialize> Serialize for PropertyValue<T> {
-    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
-        S: Serializer {
-        self.read().serialize(serializer)
-    }
-}
+
+// impl<'a, T: PartialEq> PartialEq for dyn PropertyValue<T> + 'a {
+//     fn eq(&self, other: &Self) -> bool {
+//         self.read() == other.read()
+//     }
+// }
 
 /// The Literal form of a Property: a bare literal value
 pub struct PropertyValueLiteral<T> {
@@ -39,7 +37,6 @@ pub struct PropertyValueTimeline {
     pub timeline_segments: Vec<TimelineSegment>,
     pub cached_evaluated_value: f64,
 }
-
 
 //TODO: create an Interpolatable trait that allows us
 //      to ease between values beyond f64 (e.g. a discrete interpolator
@@ -85,9 +82,9 @@ impl PropertyValue<f64> for PropertyValueTimeline {
         //is a function of the magnitude of the difference between val_last and val_next.
         let ending_value = active_segment.ending_value.read();
         // rtc.runtime.borrow_mut().log(&format!("interpolated value{}", ending_value));
+
         self.cached_evaluated_value = starting_value + (progress_eased * (ending_value - starting_value));
     }
-
 
     fn read(&self) -> &f64 {
         //TODO:
@@ -100,8 +97,6 @@ impl PropertyValue<f64> for PropertyValueTimeline {
         // &self.starting_value.read()
     }
 }
-
-
 
 /// Data structure used for dynamic injection of values
 /// into Expressions, maintaining a pointer e.g. to the current
@@ -141,6 +136,7 @@ impl<T, E: Evaluator<T>> PropertyValue<T> for PropertyValueExpression<T, E> {
             engine: rtc.engine,
             stack_frame: Rc::clone(&rtc.runtime.borrow_mut().peek_stack_frame().unwrap())
         };
+
         self.cached_value = self.evaluator.inject_and_evaluate(&ic);
     }
     fn read(&self) -> &T {

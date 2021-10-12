@@ -33,18 +33,18 @@ function main(wasmMod: typeof import('./dist/carbon_chassis_web')) {
 
 
     // <canvas id="canvas"></canvas>
-    let ccw = wasmMod.CarbonChassisWeb.new();
+    let chassis = wasmMod.CarbonChassisWeb.new();
 
 
-    requestAnimationFrame(renderLoop.bind(renderLoop, ccw))
+    requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
-function renderLoop (ccw: CarbonChassisWeb) {
-     let messages = ccw.tick();
+function renderLoop (chassis: CarbonChassisWeb) {
+     let messages = chassis.tick();
      processMessages(messages);
-     requestAnimationFrame(renderLoop.bind(renderLoop, ccw))
+     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
-
+let doneOnce = false;
 function processMessages(messages: any[]) {
     // console.log("Got messages", messages);
 
@@ -55,13 +55,29 @@ function processMessages(messages: any[]) {
         switch(msg.kind) {
             case "TextMessage":
                 let span = getOrCreateSpan(msg.id);
-                span.innerText = msg.content;
-                span.style.backgroundColor = "red";
-                span.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
+
+                //TODO: must dirty-check before applying updates
+                //      a.) dirty-check in engine, send updates instead of
+                //          per-frame states
+                //          - new events:
+                //              1.) upsert element by id: create if new, update properties
+                //              2.) //todo: remove element, e.g. for $if and $repeat
+
+
+                // track an "upsert frame" while updating properties, filling sparse
+                // Option<>al structs with new values.  Expose this sparse struct
+                // for message-passing (the upsert frame happens to be exactly the message struct)
+                if (!span.style.transform) {
+                    span.innerText = msg.content;
+
+                    span.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
+                    span.style.backgroundColor = "red";
+                    span.style.width = msg.bounds[0] + "px";
+                    span.style.height = msg.bounds[1] + "px";
+                }
         }
     })
 }
-
 
 /// Our 2D affine transform comes across the wire as an array of
 /// floats in column-major order, (a,b,c,d,e,f) representing the
@@ -82,25 +98,22 @@ function processMessages(messages: any[]) {
 ///
 function packAffineCoeffsIntoMatrix3DString(coeffs: number[]) : string {
     return "matrix3d(" + [
-        //column 0
+        //begin column 0
         coeffs[0],
         coeffs[1],
         0,
         0,
-
-        //column 1
+        //begin column 1
         coeffs[2],
         coeffs[3],
         0,
         0,
-
-        //column 2
+        //begin column 2
         0,
         0,
         1,
         0,
-
-        //column 3
+        //begin column 3
         coeffs[4],
         coeffs[5],
         0,
@@ -109,6 +122,7 @@ function packAffineCoeffsIntoMatrix3DString(coeffs: number[]) : string {
 }
 
 //TODO:  handle removal, recycling if needed
+//TODO:  handle updating, not thrashing DOM without changes
 let spanPool : {[id:string]:HTMLSpanElement} = {}
 function getOrCreateSpan(id: number) : HTMLSpanElement {
     return spanPool[id] || (()=>{

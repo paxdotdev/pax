@@ -174,9 +174,21 @@ impl CarbonEngine {
                                                 //text
                                                 Rc::new(RefCell::new(
                                                     Text {
-                                                        id: 1000,
-                                                        content: Box::new(PropertyValueLiteral {value: "A thing of beauty, indeed".to_string()}),
-                                                        transform: Rc::new(RefCell::new(Transform { ..Default::default() })),
+                                                        id: "a-thing-of-beauty".into(),
+                                                        content: Box::new(PropertyValueLiteral {value: "A thing of beauty...".to_string()}),
+                                                        transform: Rc::new(RefCell::new(Transform {
+                                                            // translate:
+                                                            // align: (
+                                                            //     Box::new(),
+                                                            //     Box::new(PropertyValueLiteral {value: 0.5}),
+                                                            // ),
+                                                            // origin: (                                                      Box::new(PropertyValueLiteral {value: 0.5}),
+                                                            //     Box::new(PropertyValueLiteral {value: Size::Percent(50.0)}),
+                                                            //
+                                                            //     Box::new()
+                                                            // ),
+                                                            ..Default::default()
+                                                        })),
                                                         size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }
                                                 )),
@@ -230,21 +242,16 @@ impl CarbonEngine {
                                                                     size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                                 }
                                                             )),
-                                                            //off-center blue
+                                                            //text
                                                             Rc::new(RefCell::new(
-                                                                Rectangle {
-                                                                    transform: Rc::new(RefCell::new(Transform {translate: (Box::new(PropertyValueLiteral {value: 100.0}), Box::new(PropertyValueLiteral {value: 100.0})), ..Default::default() })),
-                                                                    fill:  Box::new(
-                                                                        PropertyValueLiteral {value: Color::rgba(0.0, 0.0, 1.0, 1.0) }
-                                                                    ),
-                                                                    stroke: Stroke {
-                                                                        width: 4.0,
-                                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                                        color: Color::rgba(1.0, 1.0, 1.0, 1.0)
-                                                                    },
+                                                                Text {
+                                                                    id: "a-joy-forever".into(),
+                                                                    content: Box::new(PropertyValueLiteral {value: "...is a joy forever".to_string()}),
+                                                                    transform: Rc::new(RefCell::new(Transform { ..Default::default() })),
                                                                     size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                                 }
                                                             )),
+
                                                         ])),
 
 
