@@ -7,7 +7,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Transform};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Transform, HostPlatformContext};
 use crate::rendering::Size2D;
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
@@ -39,7 +39,7 @@ impl RenderNode for Frame {
         self.transform.borrow_mut().compute_in_place(rtc);
     }
 
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
         // construct a BezPath of this frame's bounds * its transform,
         // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
         //TODO:  if clipping is TURNED OFF for this Frame, don't do any of this
@@ -59,11 +59,11 @@ impl RenderNode for Frame {
         bez_path.close_path();
 
         let transformed_bez_path = transform * bez_path;
-        rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
-        rc.clip(transformed_bez_path);
+        hpc.drawing_context.save().unwrap(); //our "save point" before clipping — restored to in the post_render
+        hpc.drawing_context.clip(transformed_bez_path);
     }
-    fn post_render(&mut self, _rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn post_render(&mut self, _rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
         //pop the clipping context from the stack
-        rc.restore().unwrap();
+        hpc.drawing_context.restore().unwrap();
     }
 }

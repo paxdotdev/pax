@@ -5,7 +5,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Color, PropertyValue, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform};
+use crate::{Color, PropertyValue, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, HostPlatformContext};
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -28,7 +28,7 @@ impl RenderNode for Rectangle {
         self.fill.compute_in_place(rtc);
         self.transform.borrow_mut().compute_in_place(rtc);
     }
-    fn render(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext) {
+    fn render(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounds;
         let width: f64 =  bounding_dimens.0;
@@ -47,7 +47,7 @@ impl RenderNode for Rectangle {
         let transformed_bez_path = transform * bez_path;
         let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
-        rc.fill(transformed_bez_path, fill);
-        rc.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
+        hpc.drawing_context.fill(transformed_bez_path, fill);
+        hpc.drawing_context.stroke(duplicate_transformed_bez_path, &self.stroke.color, self.stroke.width);
     }
 }

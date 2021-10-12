@@ -4,6 +4,7 @@ use std::rc::Rc;
 use crate::{CarbonEngine, RenderTreeContext};
 use crate::runtime::StackFrame;
 use crate::timeline::{TimelineSegment};
+use serde::{Serialize, Serializer};
 
 /// An abstract PropertyValue that may be either Literal or
 /// a dynamic runtime Expression, or a Timeline-bound value
@@ -12,6 +13,13 @@ pub trait PropertyValue<T> {
     //or provide a fn -> T
     fn compute_in_place(&mut self, _rtc: &RenderTreeContext) {}
     fn read(&self) -> &T;
+}
+
+impl<T: Serialize> Serialize for PropertyValue<T> {
+    fn serialize<S>(&self, serializer: S) -> Result<<S as Serializer>::Ok, <S as Serializer>::Error> where
+        S: Serializer {
+        self.read().serialize(serializer)
+    }
 }
 
 /// The Literal form of a Property: a bare literal value
@@ -95,9 +103,6 @@ impl PropertyValue<f64> for PropertyValueTimeline {
 
 
 
-
-
-
 /// Data structure used for dynamic injection of values
 /// into Expressions, maintaining a pointer e.g. to the current
 /// stack frame to enable evaluation of properties & dependencies
@@ -142,3 +147,4 @@ impl<T, E: Evaluator<T>> PropertyValue<T> for PropertyValueExpression<T, E> {
         &self.cached_value
     }
 }
+

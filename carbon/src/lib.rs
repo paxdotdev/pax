@@ -56,10 +56,11 @@ TODO:
         [x] Gutter
     [ ] Split out userland code
             [ ] Add a third project to workspace, the sample project
-    [ ] Timelines, transitions, t9ables
+    [x] Timelines, transitions
     [ ] Documentation & usage
-    [ ] Mixed mode
-        [ ] Native layout
+    [ ] Mixed mode, Web
+        [ ] Rust -> JS data bridge
+        [ ] DOM pooling & recycling mechanism
         [ ] Text primitives
         [ ] Native-layer clipping (accumulate clipping path for elements above DOM elements, communicate as Path to web layer for foreignObject + SVG clipping)
         [ ] Form controls
@@ -124,6 +125,7 @@ TODO:
     [ ] Gradients
         [ ] Multiple (stacked, polymorphic) fills
     [ ] Expressions
+        [ ] manifests for properties
         [ ] dependency graph, smart traversal, circ. ref detection
         [ ] nested property access & figure out access control (descendent vs ancestor vs global+acyclic+(+private?))
         [ ] parser & syntax

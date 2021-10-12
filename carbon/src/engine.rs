@@ -9,13 +9,14 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, PropertyValueTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, PropertyValueTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, RenderMessage};
 use crate::components::Spread;
 use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
 use crate::rendering::Size2DFactory;
 use crate::runtime::{PropertiesCoproduct, Runtime};
 use crate::timeline::{EasingCurve, Timeline, TimelineSegment};
+use std::collections::VecDeque;
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
@@ -39,6 +40,14 @@ pub struct RenderTreeContext<'a>
     pub parent: RenderNodePtr,
     pub node: RenderNodePtr,
     pub timeline_playhead_position: usize,
+}
+
+
+pub struct HostPlatformContext<'a, 'b>
+{
+    pub drawing_context: &'a mut WebRenderContext<'b>,
+    pub native_render_message_queue: VecDeque<Box<dyn RenderMessage>>,
+    pub serializer: Box<dyn serde::Serializer<>>,
 }
 
 pub struct DevAppRootProperties {
@@ -293,10 +302,17 @@ impl CarbonEngine {
             parent: Rc::clone(&self.render_tree.borrow().root),//TODO: refactor to Option<> ?
             timeline_playhead_position: self.frames_elapsed,
         };
-        &self.recurse_traverse_render_tree(&mut rtc, rc, Rc::clone(&self.render_tree.borrow().root));
+
+
+        let mut hpc = HostPlatformContext {
+            drawing_context: rc,
+            native_render_message_queue: VecDeque::new(),
+        };
+
+        &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&self.render_tree.borrow().root));
     }
 
-    fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext, rc: &mut WebRenderContext, node: RenderNodePtr)  {
+    fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext, node: RenderNodePtr)  {
         // Recurse:
         //  - compute properties for this node
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
@@ -347,7 +363,7 @@ impl CarbonEngine {
         //           This is useful for pre-computation or for in-place mutations,
         //           e.g. `Placeholder`'s children/adoptee-switching logic
         //           and `Spread`'s layout-computing logic
-        node.borrow_mut().pre_render(rtc, rc);
+        node.borrow_mut().pre_render(rtc, hpc);
 
         let children = node.borrow().get_rendering_children();
 
@@ -355,18 +371,18 @@ impl CarbonEngine {
         children.borrow().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
-            &self.recurse_traverse_render_tree(&mut new_rtc, rc, Rc::clone(child));
+            &self.recurse_traverse_render_tree(&mut new_rtc, hpc, Rc::clone(child));
             //TODO: for dependency management, return computed values from subtree above
         });
 
         // `render` lifecycle event:
         // this is this node's time to do its own rendering, aside
         // from its children.  Its children have already been rendered.
-        node.borrow().render(rtc, rc);
+        node.borrow().render(rtc, hpc);
 
         //Lifecycle event: post_render can be used for cleanup, e.g. for
         //components to pop a stack frame
-        node.borrow_mut().post_render(rtc, rc);
+        node.borrow_mut().post_render(rtc, hpc);
     }
 
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {

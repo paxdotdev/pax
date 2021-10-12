@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use piet_web::WebRenderContext;
 
-use crate::{PropertiesCoproduct, RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, Transform};
+use crate::{PropertiesCoproduct, RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, Transform, HostPlatformContext};
 use crate::timeline::Timeline;
 
 /// A render node with its own runtime context.  Will push a frame
@@ -41,7 +41,7 @@ impl RenderNode for Component {
         );
     }
 
-    fn post_render(&mut self, rtc: &mut RenderTreeContext, _rc: &mut WebRenderContext) {
+    fn post_render(&mut self, rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
         rtc.runtime.borrow_mut().pop_stack_frame();
         match &self.timeline {
             Some(timeline_rc) => {
