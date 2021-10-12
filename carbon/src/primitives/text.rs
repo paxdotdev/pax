@@ -8,6 +8,7 @@ use piet_web::WebRenderContext;
 use serde::{Serialize};
 
 use crate::{Color, PropertyValue, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, Affine, HostPlatformContext};
+use wasm_bindgen::JsValue;
 
 
 pub struct Text {
@@ -59,7 +60,7 @@ impl RenderNode for Text {
             transform: [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],
             size: (550.0, 400.0)
         };
-        message.serialize(&hpc.serializer);
-        hpc.native_render_message_queue.push_back()
+        // message.serialize(&hpc.serializer);
+        hpc.render_message_queue.push(JsValue::from_serde(&message).unwrap())
     }
 }

@@ -122,6 +122,19 @@ pub fn run() {
     render_loop(&engine_container, piet_context);
 }
 
+
+static mut RENDER_MESSAGE_QUEUE: Vec<JsValue> = Vec::new();
+
+#[wasm_bindgen]
+pub unsafe fn get_render_message_queue() -> &Vec<JsValue> {
+    &RENDER_MESSAGE_QUEUE
+}
+
+#[wasm_bindgen]
+impl MessageBroker {
+
+}
+
 pub fn render_loop(engine_container: &Rc<RefCell<CarbonEngine>>, mut piet_context: WebRenderContext<'static>) {
     //this special Rc dance lets us kick off the initial rAF loop (`g`)
     //AND fire the subsequent rAF calls (`f`)
@@ -132,7 +145,12 @@ pub fn render_loop(engine_container: &Rc<RefCell<CarbonEngine>>, mut piet_contex
 
         let closure = Closure::wrap(Box::new(move || {
             let mut engine = engine_rc_pointer.borrow_mut();
-            engine.tick(&mut piet_context);
+            let render_message_queue = engine.tick(&mut piet_context);
+
+            //TODO:  retrieve the render_message_queue from Engine here
+            //       and process it in JS(/TS)
+
+
             request_animation_frame(f.borrow().as_ref().unwrap());
             // let _ = f.borrow_mut().take(); // clean up
         }) as Box<dyn FnMut()>);

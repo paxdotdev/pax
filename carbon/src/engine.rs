@@ -17,6 +17,7 @@ use crate::rendering::Size2DFactory;
 use crate::runtime::{PropertiesCoproduct, Runtime};
 use crate::timeline::{EasingCurve, Timeline, TimelineSegment};
 use std::collections::VecDeque;
+use wasm_bindgen::JsValue;
 
 // Public method for consumption by engine chassis, e.g. WebChassis
 pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> CarbonEngine {
@@ -46,8 +47,8 @@ pub struct RenderTreeContext<'a>
 pub struct HostPlatformContext<'a, 'b>
 {
     pub drawing_context: &'a mut WebRenderContext<'b>,
-    pub native_render_message_queue: VecDeque<Box<dyn RenderMessage>>,
-    pub serializer: Box<dyn serde::Serializer<>>,
+    pub render_message_queue: Vec<JsValue>,
+    // pub serializer: Box<dyn serde::Serializer<>>,
 }
 
 pub struct DevAppRootProperties {
@@ -287,7 +288,7 @@ impl CarbonEngine {
         }
     }
 
-    fn traverse_render_tree(&self, rc: &mut WebRenderContext) {
+    fn traverse_render_tree(&self, rc: &mut WebRenderContext) -> Vec<JsValue> {
         // Broadly:
         // 1. compute properties
         // 2. find lowest node (last child of last node), accumulating transform along the way
@@ -306,10 +307,12 @@ impl CarbonEngine {
 
         let mut hpc = HostPlatformContext {
             drawing_context: rc,
-            native_render_message_queue: VecDeque::new(),
+            render_message_queue: Vec::new(),
         };
 
         &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&self.render_tree.borrow().root));
+
+        hpc.render_message_queue
     }
 
     fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext, node: RenderNodePtr)  {
@@ -389,10 +392,11 @@ impl CarbonEngine {
         self.viewport_size = new_viewport_size;
     }
 
-    pub fn tick(&mut self, rc: &mut WebRenderContext) {
+    pub fn tick(&mut self, rc: &mut WebRenderContext) -> Vec<JsValue> {
         rc.clear(Color::rgb8(0, 0, 0));
-        self.traverse_render_tree(rc);
+        let render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
+        render_queue
     }
 
     //keeping until this can be done via scene graph
