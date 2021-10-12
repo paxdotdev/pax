@@ -132,47 +132,10 @@ impl CarbonChassisWeb {
             engine: engine_container,
             drawing_context: piet_context,
         }
-
-        // render_loop(&engine_container, piet_context);
     }
 
     //TODO: accept array of input messages, e.g. representing changes in user/input state
     pub fn tick(&mut self) -> Vec<JsValue> {
         self.engine.borrow_mut().tick(&mut self.drawing_context)
     }
-}
-
-
-#[wasm_bindgen]
-pub fn retrieve_test_data() -> JsValue {
-    JsValue::from("A thing of beauty is a joy forever")
-}
-
-pub fn render_loop(engine_container: &Rc<RefCell<CarbonEngine>>, mut piet_context: WebRenderContext<'static>) {
-    //this special Rc dance lets us kick off the initial rAF loop (`g`)
-    //AND fire the subsequent rAF calls (`f`)
-    let f = Rc::new(RefCell::new(None));
-    let g = f.clone();
-    {
-        let engine_rc_pointer = engine_container.clone();
-
-        let closure = Closure::wrap(Box::new(move || {
-            let mut engine = engine_rc_pointer.borrow_mut();
-            let render_message_queue = engine.tick(&mut piet_context);
-
-            //TODO:  retrieve the render_message_queue from Engine here
-            //       and process it in JS(/TS)
-
-
-            request_animation_frame(f.borrow().as_ref().unwrap());
-            // let _ = f.borrow_mut().take(); // clean up
-        }) as Box<dyn FnMut()>);
-
-        *g.borrow_mut() = Some(closure);
-
-    }
-
-    //kick off first rAF
-    request_animation_frame(g.borrow().as_ref().unwrap());
-
 }

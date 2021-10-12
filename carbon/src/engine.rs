@@ -9,7 +9,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, PropertyValueTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, RenderMessage, Text};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, PropertyValueTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, Text};
 use crate::components::Spread;
 use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
@@ -174,6 +174,7 @@ impl CarbonEngine {
                                                 //text
                                                 Rc::new(RefCell::new(
                                                     Text {
+                                                        id: 1000,
                                                         content: Box::new(PropertyValueLiteral {value: "A thing of beauty, indeed".to_string()}),
                                                         transform: Rc::new(RefCell::new(Transform { ..Default::default() })),
                                                         size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),

@@ -8,37 +8,30 @@ use piet_web::WebRenderContext;
 use serde::{Serialize};
 
 use crate::{Color, PropertyValue, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, Affine, HostPlatformContext};
-use wasm_bindgen::JsValue;
+use wasm_bindgen::prelude::*;
 
 
 pub struct Text {
     pub content: Box<dyn PropertyValue<String>>,
     pub transform: Rc<RefCell<Transform>>,
     pub size: Size2D,
+    pub id: usize,
 }
 
 /// Simplified data structure used to serialize data for mixed-mode rendering
 #[derive(Serialize)]
 pub struct TextMessage {
-    content: String, //TODO: skip wasm-bindgen
-    transform: [f64; 12],
+    kind: MessageKind,
+    content: String,
+    transform: [f64; 6],
     size: (f64, f64),
+    id: usize,
 }
 
-impl TextMessage {
-
+#[derive(Serialize)]
+pub enum MessageKind {
+    TextMessage,
 }
-
-/// Types that implement RenderMessage can be serialized and added to the
-/// RenderMessageQueue to communicate to the host platform how to render the native
-/// component of a RenderNode
-pub trait RenderMessage {}
-
-impl RenderMessage for TextMessage {}
-
-///TODO:  does this need to be a disc. union instead of a trait?
-///       if disc. union we also need to communicate which of the
-///       subtypes each message is, to facilitate unboxing on the other side
 
 impl RenderNode for Text {
     fn get_rendering_children(&self) -> RenderNodePtrList {
@@ -56,11 +49,13 @@ impl RenderNode for Text {
         // attach a TextMessage to the HostPlatformContext
 
         let message = TextMessage {
-            content: "A thing of beauty is a joy forever".to_string(),
-            transform: [0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0],
-            size: (550.0, 400.0)
+            content: self.content.read().clone(), //TODO: can we do better than cloning here?
+            transform: (rtc.transform * *self.transform.borrow().get_cached_computed_value()).as_coeffs(),
+            size: self.get_size_calc(rtc.bounds),
+            id: self.id,
+            kind: MessageKind::TextMessage,
         };
-        // message.serialize(&hpc.serializer);
+
         hpc.render_message_queue.push(JsValue::from_serde(&message).unwrap())
     }
 }
