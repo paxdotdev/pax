@@ -9,7 +9,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, PropertyValueTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, RenderMessage};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, PropertyValueTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, RenderMessage, Text};
 use crate::components::Spread;
 use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
@@ -171,18 +171,11 @@ impl CarbonEngine {
                                                         size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }
                                                 )),
-                                                //off-center blue
+                                                //text
                                                 Rc::new(RefCell::new(
-                                                    Rectangle {
-                                                        transform: Rc::new(RefCell::new(Transform {translate: (Box::new(PropertyValueLiteral {value: 100.0}), Box::new(PropertyValueLiteral {value: 100.0})), ..Default::default() })),
-                                                        fill:  Box::new(
-                                                            PropertyValueLiteral {value: Color::rgba(0.0, 0.0, 1.0, 1.0) }
-                                                        ),
-                                                        stroke: Stroke {
-                                                            width: 4.0,
-                                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                            color: Color::rgba(1.0, 1.0, 1.0, 1.0)
-                                                        },
+                                                    Text {
+                                                        content: Box::new(PropertyValueLiteral {value: "A thing of beauty, indeed".to_string()}),
+                                                        transform: Rc::new(RefCell::new(Transform { ..Default::default() })),
                                                         size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }
                                                 )),
@@ -311,7 +304,7 @@ impl CarbonEngine {
         };
 
         &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&self.render_tree.borrow().root));
-
+        // self.runtime.borrow_mut().log(&format!("{}",hpc.))
         hpc.render_message_queue
     }
 

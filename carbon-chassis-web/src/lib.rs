@@ -48,80 +48,105 @@ pub fn log_wrapper(msg: &str) {
 }
 
 #[wasm_bindgen]
-pub fn run() {
-    #[cfg(feature = "console_error_panic_hook")]
-    std::panic::set_hook(Box::new(console_error_panic_hook::hook));
-
-    let window = window().unwrap();
-    let canvas = window
-        .document()
-        .unwrap()
-        .get_element_by_id("canvas")
-        .unwrap()
-        .dyn_into::<HtmlCanvasElement>()
-        .unwrap();
-    let context : web_sys::CanvasRenderingContext2d = canvas
-        .get_context("2d")
-        .unwrap()
-        .unwrap()
-        .dyn_into::<web_sys::CanvasRenderingContext2d>()
-        .unwrap();
-
-    let dpr = window.device_pixel_ratio();
-    let width = canvas.offset_width() as f64 * dpr;
-    let height = canvas.offset_height() as f64 * dpr;
-    //TODO:  update these values on window resize
-    //       future:  update these values on _element_ resize
-    canvas.set_width(width as u32);
-    canvas.set_height(height as u32);
-
-    let _ = context.scale(dpr, dpr);
-
-    let piet_context  = WebRenderContext::new(context, window);
-    // piet_context.
-    let engine = carbon::get_engine(log_wrapper, (width / dpr, height / dpr));
-
-    let engine_container : Rc<RefCell<CarbonEngine>> = Rc::new(RefCell::new(engine));
-
-    //see web-sys docs for handling browser events with closures
-    //https://rustwasm.github.io/docs/wasm-bindgen/examples/closures.html
-    {
-        let engine_rc_pointer = engine_container.clone();
-        let closure = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-            let mut engine = engine_rc_pointer.borrow_mut();
-
-            //TODO:  can probably tackle this more elegantly by reusing / capturing / Rc-ing
-            //       previously declared window / canvas / context / etc.
-            let inner_window = web_sys::window().unwrap();
-            // let inner_canvas = inner_window
-            //     .document()
-            //     .unwrap()
-            //     .get_element_by_id("canvas")
-            //     .unwrap()
-            //     .dyn_into::<HtmlCanvasElement>()
-            //     .unwrap();
-            // let inner_context = inner_canvas
-            //     .get_context("2d")
-            //     .unwrap()
-            //     .unwrap()
-            //     .dyn_into::<web_sys::CanvasRenderingContext2d>()
-            //     .unwrap();
-
-            //inner_width and inner_height already account for device pixel ratio.
-            let width = inner_window.inner_width().unwrap().as_f64().unwrap();
-            let height = inner_window.inner_height().unwrap().as_f64().unwrap();
-            let _ = canvas.set_attribute("width", format!("{}",width).as_str());
-            let _ = canvas.set_attribute("height", format!("{}",height).as_str());
-            engine.set_viewport_size((width, height));
-        }) as Box<dyn FnMut(_)>);
-        let inner_window = web_sys::window().unwrap();
-        let _ = inner_window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref());
-        closure.forget();
-    }
-
-    render_loop(&engine_container, piet_context);
+pub struct CarbonChassisWeb {
+    // #[wasm_bindgen(skip)]
+    engine: Rc<RefCell<CarbonEngine>>,
+    drawing_context: WebRenderContext<'static>,
 }
 
+#[wasm_bindgen]
+impl CarbonChassisWeb {
+    pub fn new() -> Self {
+
+        #[cfg(feature = "console_error_panic_hook")]
+        std::panic::set_hook(Box::new(console_error_panic_hook::hook));
+
+        let window = window().unwrap();
+        let canvas = window
+            .document()
+            .unwrap()
+            .get_element_by_id("canvas")
+            .unwrap()
+            .dyn_into::<HtmlCanvasElement>()
+            .unwrap();
+        let context : web_sys::CanvasRenderingContext2d = canvas
+            .get_context("2d")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            .unwrap();
+
+        let dpr = window.device_pixel_ratio();
+        let width = canvas.offset_width() as f64 * dpr;
+        let height = canvas.offset_height() as f64 * dpr;
+        //TODO:  update these values on window resize
+        //       future:  update these values on _element_ resize
+        canvas.set_width(width as u32);
+        canvas.set_height(height as u32);
+
+        let _ = context.scale(dpr, dpr);
+
+        let piet_context  = WebRenderContext::new(context, window);
+        // piet_context.
+        let engine = carbon::get_engine(log_wrapper, (width / dpr, height / dpr));
+
+        let engine_container : Rc<RefCell<CarbonEngine>> = Rc::new(RefCell::new(engine));
+
+        //see web-sys docs for handling browser events with closures
+        //https://rustwasm.github.io/docs/wasm-bindgen/examples/closures.html
+        {
+            let engine_rc_pointer = engine_container.clone();
+            let closure = Closure::wrap(Box::new(move |_event: web_sys::Event| {
+                let mut engine = engine_rc_pointer.borrow_mut();
+
+                //TODO:  can probably tackle this more elegantly by reusing / capturing / Rc-ing
+                //       previously declared window / canvas / context / etc.
+                let inner_window = web_sys::window().unwrap();
+                // let inner_canvas = inner_window
+                //     .document()
+                //     .unwrap()
+                //     .get_element_by_id("canvas")
+                //     .unwrap()
+                //     .dyn_into::<HtmlCanvasElement>()
+                //     .unwrap();
+                // let inner_context = inner_canvas
+                //     .get_context("2d")
+                //     .unwrap()
+                //     .unwrap()
+                //     .dyn_into::<web_sys::CanvasRenderingContext2d>()
+                //     .unwrap();
+
+                //inner_width and inner_height already account for device pixel ratio.
+                let width = inner_window.inner_width().unwrap().as_f64().unwrap();
+                let height = inner_window.inner_height().unwrap().as_f64().unwrap();
+                let _ = canvas.set_attribute("width", format!("{}",width).as_str());
+                let _ = canvas.set_attribute("height", format!("{}",height).as_str());
+                engine.set_viewport_size((width, height));
+            }) as Box<dyn FnMut(_)>);
+            let inner_window = web_sys::window().unwrap();
+            let _ = inner_window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref());
+            closure.forget();
+        }
+
+        CarbonChassisWeb {
+            engine: engine_container,
+            drawing_context: piet_context,
+        }
+
+        // render_loop(&engine_container, piet_context);
+    }
+
+    //TODO: accept array of input messages, e.g. representing changes in user/input state
+    pub fn tick(&mut self) -> Vec<JsValue> {
+        self.engine.borrow_mut().tick(&mut self.drawing_context)
+    }
+}
+
+
+#[wasm_bindgen]
+pub fn retrieve_test_data() -> JsValue {
+    JsValue::from("A thing of beauty is a joy forever")
+}
 
 pub fn render_loop(engine_container: &Rc<RefCell<CarbonEngine>>, mut piet_context: WebRenderContext<'static>) {
     //this special Rc dance lets us kick off the initial rAF loop (`g`)
