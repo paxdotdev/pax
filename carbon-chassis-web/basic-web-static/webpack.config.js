@@ -3,7 +3,23 @@ const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
 
 module.exports = {
-  entry: './index.js',
+  module: {
+      rules: [
+        {
+          test: /\.tsx?$/,
+          use: 'ts-loader',
+          exclude: /node_modules/
+        },
+        {
+          test: /\.wasm$/,
+          type: "webassembly/experimental"
+        }
+      ]
+    },
+  resolve: {
+    extensions: [ '.tsx', '.ts', '.js', '.wasm' ]
+  },
+  entry: './index.ts',
   output: {
     path: path.resolve(__dirname),
     filename: 'index.js',

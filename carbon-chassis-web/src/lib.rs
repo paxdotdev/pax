@@ -123,18 +123,6 @@ pub fn run() {
 }
 
 
-static mut RENDER_MESSAGE_QUEUE: Vec<JsValue> = Vec::new();
-
-#[wasm_bindgen]
-pub unsafe fn get_render_message_queue() -> &Vec<JsValue> {
-    &RENDER_MESSAGE_QUEUE
-}
-
-#[wasm_bindgen]
-impl MessageBroker {
-
-}
-
 pub fn render_loop(engine_container: &Rc<RefCell<CarbonEngine>>, mut piet_context: WebRenderContext<'static>) {
     //this special Rc dance lets us kick off the initial rAF loop (`g`)
     //AND fire the subsequent rAF calls (`f`)
