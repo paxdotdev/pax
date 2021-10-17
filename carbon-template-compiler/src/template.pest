@@ -1,2 +1,10 @@
 
-template = { "Hello World!" }
+template = { any_tag* }
+
+open_tag = {"<" ~ ASCII_ALPHANUMERIC ~ attribute_key_value* ~ ">"}
+attribute_key_value = {ASCII_ALPHANUMERIC ~ "=" ~ any_value}
+any_value = {quote_wrapped_value | expression}
+any_tag = {matched_tag | self_closing_tag}
+quote_wrapped_value = {("\"" ~ raw_value ~ "\"") | ("'" ~ raw_value ~ "'")}
+raw_value =
+expression = {"@"} //TODO: blazor-style templating, if/foreach vs. ()=>{} expressions
