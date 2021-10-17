@@ -194,8 +194,8 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                 Repeat {
                     data_list: Box::new(PropertyValueExpression {
                         cached_value: vec![],
-                        evaluator: SpreadPropertiesInjector {variadic_evaluator: |scope: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
-                            scope.borrow()._cached_computed_layout_spec.iter()
+                        evaluator: SpreadPropertiesInjector {variadic_evaluator: |properties: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
+                            properties.borrow()._cached_computed_layout_spec.iter()
                                 .map(|scp|{Rc::new(PropertiesCoproduct::SpreadCell(Rc::clone(scp)))}).collect()
                         }}
                     }),

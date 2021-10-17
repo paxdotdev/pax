@@ -61,7 +61,7 @@ TODO:
     [ ] Mixed mode, Web
         [x] Rust -> JS data bridge
         [x] DOM pooling & recycling mechanism
-        [ ] Text primitives + basic 
+        [ ] Text primitives + basic styling
         [ ] Native-layer clipping (accumulate clipping path for elements above DOM elements, communicate as Path to web layer for foreignObject + SVG clipping)
         [ ] Form controls
             [ ] ButtonNative (vs. ButtonGroup/ButtonContainer/ButtonFrame?) (or vs. a click event on any ol element)
@@ -70,12 +70,21 @@ TODO:
     [ ] Hook up all relevant properties to Property
     [ ] Template compilation
         [ ] Syntax & file design
-        [ ] File extension, FS structure decisions
-            - Non-HTML extension (so it doesn't get confusedly treated as HTML)
-              but "every Dash file is a valid HTML file"
-            - Check out Unity FS structure: components, assets, code-behind
         [ ] Code-behind & default implementations
         [ ] Helpful compiler errors, line numbers
+        [ ] Sanity-check path forward to JS runtime
+    [ ] Property compilation
+        [ ] Syntax & file design
+        [ ] Parser & semanticizer
+    [ ] Expression compilation MVP
+        [ ] Syntax & file design
+
+What's our expression language MVP?
+ - `==`, `&&`, and `||`
+ - Parenthetical grouping `(.*)`
+ - Literals for strings, bools, ints, floats
+ - Nested object references + injected context
+ - 
     [ ] Refactors
         [x] Bundle Transform into "sugary transform," incl. origin & align; consider a separate transform_matrix property
         [x] Is there a way to better-DRY the shared logic across render-nodes?

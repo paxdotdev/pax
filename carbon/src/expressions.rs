@@ -14,6 +14,8 @@ pub trait PropertyValue<T> {
 }
 
 
+
+
 // impl<'a, T: PartialEq> PartialEq for dyn PropertyValue<T> + 'a {
 //     fn eq(&self, other: &Self) -> bool {
 //         self.read() == other.read()
@@ -81,20 +83,12 @@ impl PropertyValue<f64> for PropertyValueTimeline {
         //interpolation, e.g. a standard elastic curve.  Such hyperextension, too,
         //is a function of the magnitude of the difference between val_last and val_next.
         let ending_value = active_segment.ending_value.read();
-        // rtc.runtime.borrow_mut().log(&format!("interpolated value{}", ending_value));
 
         self.cached_evaluated_value = starting_value + (progress_eased * (ending_value - starting_value));
     }
 
     fn read(&self) -> &f64 {
-        //TODO:
-        //  [x] pass in frame t
-        //  [ ] evaluate in the context of t
-
         &self.cached_evaluated_value
-        // unimplemented!()
-
-        // &self.starting_value.read()
     }
 }
 
@@ -124,10 +118,7 @@ pub struct PropertyValueExpression<T, E: Evaluator<T>>
     pub cached_value: T,
 }
 
-impl<T, E: Evaluator<T>> PropertyValueExpression<T, E>
-{
-
-}
+// impl<T, E: Evaluator<T>> PropertyValueExpression<T, E> {}
 
 impl<T, E: Evaluator<T>> PropertyValue<T> for PropertyValueExpression<T, E> {
     fn compute_in_place(&mut self, rtc: &RenderTreeContext) {

@@ -13,11 +13,11 @@ use crate::runtime::{PropertiesCoproduct};
 /// template `n` times, each with an embedded component context (`RepeatItem`)
 /// with an index `i` and a pointer to that relevant datum `data_list[i]`
 pub struct Repeat {
-    pub template: RenderNodePtrList,
+    pub template: RenderNodePtrList, //TODO: private?
     pub data_list: Box<dyn PropertyValue<Vec<Rc<PropertiesCoproduct>>>>,
     pub transform: Rc<RefCell<Transform>>,
 
-    //TODO: any way to make this legit-private along with the ..Default::default() syntax?
+    //TODO: any way to make this legit-private along with the ergonomics of the ..Default::default() syntax?
     pub _virtual_children: RenderNodePtrList,
 }
 

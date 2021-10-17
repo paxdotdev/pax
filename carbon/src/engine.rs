@@ -47,7 +47,7 @@ pub struct RenderTreeContext<'a>
 pub struct HostPlatformContext<'a, 'b>
 {
     pub drawing_context: &'a mut WebRenderContext<'b>,
-    pub render_message_queue: Vec<JsValue>,
+    pub render_message_queue: Vec<JsValue>, //TODO: platform polyfill
     // pub serializer: Box<dyn serde::Serializer<>>,
 }
 
@@ -77,14 +77,132 @@ impl CarbonEngine {
                     template: Rc::new(RefCell::new(vec![
                         Rc::new(RefCell::new(
 
-                                        //top spread
+                            //top spread
 
+                            Spread::new(
+                                Rc::new(RefCell::new(
+                                    SpreadProperties {
+                                        cell_count: Box::new(PropertyValueLiteral {value: 4}),
+                                        gutter_width: Box::new(PropertyValueLiteral {value: Size::Pixel(15.0)}),
+                                        ..Default::default()
+                                    }
+                                )),
+                                Rc::new(RefCell::new(vec![
+                                    //rainbow
+                                    Rc::new(RefCell::new(
+                                        Rectangle {
+                                            transform: Rc::new(RefCell::new(Transform::default())),
+                                            fill: Box::new(
+                                                PropertyValueExpression {
+                                                    cached_value: Color::hlc(0.0,0.0,0.0),
+                                                    // expression!(|engine: &CarbonEngine| ->
+                                                    evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                                        Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                                    }}
+                                                }
+                                            ),
+                                            stroke: Stroke {
+                                                width: 4.0,
+                                                style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                color: Color::rgba(0.0, 0.0, 1.0, 1.0)
+                                            },
+                                            size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                        }
+                                    )),
+                                    //green
+                                    Rc::new(RefCell::new(
+                                        Rectangle {
+                                            transform: Rc::new(RefCell::new(
+                                                Transform {
+                                                    translate: (
+                                                        Box::new(
+                                                           PropertyValueLiteral {value: 0.0}
+                                                        ),
+                                                        Box::new(
+                                                            PropertyValueTimeline {
+                                                                starting_value: Box::new(
+                                                                    PropertyValueLiteral {value: 0.0}
+                                                                ),
+                                                                cached_evaluated_value: 0.0,
+                                                                timeline_segments: vec![
+                                                                    TimelineSegment {
+                                                                        curve_in: EasingCurve::in_out_back(),
+                                                                        ending_frame_inclusive: 74,
+                                                                        ending_value: Box::new(
+                                                                           PropertyValueLiteral {value: 500.0}
+                                                                        ),
+                                                                    },
+                                                                    TimelineSegment {
+                                                                        curve_in: EasingCurve::in_out_back(),
+                                                                        ending_frame_inclusive: 149,
+                                                                        ending_value: Box::new(
+                                                                           PropertyValueLiteral {value: 0.0}
+                                                                        ),
+                                                                    },
+                                                                    TimelineSegment {
+                                                                        curve_in: EasingCurve::in_out_back(),
+                                                                        ending_frame_inclusive: 224,
+                                                                        ending_value: Box::new(
+                                                                           PropertyValueLiteral {value: -500.0}
+                                                                        ),
+                                                                    },
+                                                                    TimelineSegment {
+                                                                        curve_in: EasingCurve::in_out_back(),
+                                                                        ending_frame_inclusive: 299,
+                                                                        ending_value: Box::new(
+                                                                           PropertyValueLiteral {value: -0.0}
+                                                                        ),
+                                                                    },
+                                                                ],
+                                                           }
+                                                       ),
+                                                    ),
+                                                    ..Default::default()
+                                                }
+                                            )),
+                                            fill:  Box::new(
+                                                PropertyValueLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
+                                            ),
+                                            stroke: Stroke {
+                                                width: 4.0,
+                                                style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                color: Color::rgba(0.0, 1.0, 1.0, 1.0)
+                                            },
+                                            size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                        }
+                                    )),
+                                    //text
+                                    Rc::new(RefCell::new(
+                                        Text {
+                                            id: "a-thing-of-beauty".into(),
+                                            content: Box::new(PropertyValueLiteral {value: "A thing of beauty...".to_string()}),
+                                            transform: Rc::new(RefCell::new(Transform {
+                                                // translate:
+                                                // align: (
+                                                //     Box::new(),
+                                                //     Box::new(PropertyValueLiteral {value: 0.5}),
+                                                // ),
+                                                // origin: (                                                      Box::new(PropertyValueLiteral {value: 0.5}),
+                                                //     Box::new(PropertyValueLiteral {value: Size::Percent(50.0)}),
+                                                //
+                                                //     Box::new()
+                                                // ),
+                                                ..Default::default()
+                                            })),
+                                            size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                        }
+                                    )),
+
+                                    // vertical spread
+
+                                    Rc::new(RefCell::new(
                                         Spread::new(
                                             Rc::new(RefCell::new(
                                                 SpreadProperties {
-                                                        cell_count: Box::new(PropertyValueLiteral {value: 4}),
-                                                        gutter_width: Box::new(PropertyValueLiteral {value: Size::Pixel(15.0)}),
-                                                        ..Default::default()
+                                                    cell_count: Box::new(PropertyValueLiteral {value: 3}),
+                                                    direction: SpreadDirection::Vertical,
+                                                    gutter_width: Box::new(PropertyValueLiteral {value: Size::Pixel(15.0)}),
+                                                    ..Default::default()
                                                 }
                                             )),
                                             Rc::new(RefCell::new(vec![
@@ -97,7 +215,7 @@ impl CarbonEngine {
                                                                 cached_value: Color::hlc(0.0,0.0,0.0),
                                                                 // expression!(|engine: &CarbonEngine| ->
                                                                 evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                                                    Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                                                    Color::hlc(((engine.frames_elapsed + 180) % 360) as f64, 75.0, 75.0)
                                                                 }}
                                                             }
                                                         ),
@@ -112,54 +230,7 @@ impl CarbonEngine {
                                                 //green
                                                 Rc::new(RefCell::new(
                                                     Rectangle {
-                                                        transform: Rc::new(RefCell::new(
-                                                            Transform {
-                                                                translate: (
-                                                                    Box::new(
-                                                                       PropertyValueLiteral {value: 0.0}
-                                                                    ),
-                                                                    Box::new(
-                                                                        PropertyValueTimeline {
-                                                                            starting_value: Box::new(
-                                                                                PropertyValueLiteral {value: 0.0}
-                                                                            ),
-                                                                            cached_evaluated_value: 0.0,
-                                                                            timeline_segments: vec![
-                                                                                TimelineSegment {
-                                                                                    curve_in: EasingCurve::in_out_back(),
-                                                                                    ending_frame_inclusive: 74,
-                                                                                    ending_value: Box::new(
-                                                                                       PropertyValueLiteral {value: 500.0}
-                                                                                    ),
-                                                                                },
-                                                                                TimelineSegment {
-                                                                                    curve_in: EasingCurve::in_out_back(),
-                                                                                    ending_frame_inclusive: 149,
-                                                                                    ending_value: Box::new(
-                                                                                       PropertyValueLiteral {value: 0.0}
-                                                                                    ),
-                                                                                },
-                                                                                TimelineSegment {
-                                                                                    curve_in: EasingCurve::in_out_back(),
-                                                                                    ending_frame_inclusive: 224,
-                                                                                    ending_value: Box::new(
-                                                                                       PropertyValueLiteral {value: -500.0}
-                                                                                    ),
-                                                                                },
-                                                                                TimelineSegment {
-                                                                                    curve_in: EasingCurve::in_out_back(),
-                                                                                    ending_frame_inclusive: 299,
-                                                                                    ending_value: Box::new(
-                                                                                       PropertyValueLiteral {value: -0.0}
-                                                                                    ),
-                                                                                },
-                                                                            ],
-                                                                       }
-                                                                   ),
-                                                                ),
-                                                                ..Default::default()
-                                                            }
-                                                        )),
+                                                        transform: Rc::new(RefCell::new(Transform::default())),
                                                         fill:  Box::new(
                                                             PropertyValueLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
                                                         ),
@@ -174,114 +245,43 @@ impl CarbonEngine {
                                                 //text
                                                 Rc::new(RefCell::new(
                                                     Text {
-                                                        id: "a-thing-of-beauty".into(),
-                                                        content: Box::new(PropertyValueLiteral {value: "A thing of beauty...".to_string()}),
-                                                        transform: Rc::new(RefCell::new(Transform {
-                                                            // translate:
-                                                            // align: (
-                                                            //     Box::new(),
-                                                            //     Box::new(PropertyValueLiteral {value: 0.5}),
-                                                            // ),
-                                                            // origin: (                                                      Box::new(PropertyValueLiteral {value: 0.5}),
-                                                            //     Box::new(PropertyValueLiteral {value: Size::Percent(50.0)}),
-                                                            //
-                                                            //     Box::new()
-                                                            // ),
-                                                            ..Default::default()
-                                                        })),
+                                                        id: "a-joy-forever".into(),
+                                                        content: Box::new(PropertyValueLiteral {value: "...is a joy forever".to_string()}),
+                                                        transform: Rc::new(RefCell::new(Transform { ..Default::default() })),
                                                         size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }
                                                 )),
 
-                                                // vertical spread
-
-                                                Rc::new(RefCell::new(
-                                                    Spread::new(
-                                                        Rc::new(RefCell::new(
-                                                            SpreadProperties {
-                                                                cell_count: Box::new(PropertyValueLiteral {value: 3}),
-                                                                direction: SpreadDirection::Vertical,
-                                                                gutter_width: Box::new(PropertyValueLiteral {value: Size::Pixel(15.0)}),
-                                                                ..Default::default()
-                                                            }
-                                                        )),
-                                                        Rc::new(RefCell::new(vec![
-                                                            //rainbow
-                                                            Rc::new(RefCell::new(
-                                                                Rectangle {
-                                                                    transform: Rc::new(RefCell::new(Transform::default())),
-                                                                    fill: Box::new(
-                                                                        PropertyValueExpression {
-                                                                            cached_value: Color::hlc(0.0,0.0,0.0),
-                                                                            // expression!(|engine: &CarbonEngine| ->
-                                                                            evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                                                                Color::hlc(((engine.frames_elapsed + 180) % 360) as f64, 75.0, 75.0)
-                                                                            }}
-                                                                        }
-                                                                    ),
-                                                                    stroke: Stroke {
-                                                                        width: 4.0,
-                                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                                        color: Color::rgba(0.0, 0.0, 1.0, 1.0)
-                                                                    },
-                                                                    size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                                                }
-                                                            )),
-                                                            //green
-                                                            Rc::new(RefCell::new(
-                                                                Rectangle {
-                                                                    transform: Rc::new(RefCell::new(Transform::default())),
-                                                                    fill:  Box::new(
-                                                                        PropertyValueLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
-                                                                    ),
-                                                                    stroke: Stroke {
-                                                                        width: 4.0,
-                                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                                        color: Color::rgba(0.0, 1.0, 1.0, 1.0)
-                                                                    },
-                                                                    size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                                                }
-                                                            )),
-                                                            //text
-                                                            Rc::new(RefCell::new(
-                                                                Text {
-                                                                    id: "a-joy-forever".into(),
-                                                                    content: Box::new(PropertyValueLiteral {value: "...is a joy forever".to_string()}),
-                                                                    transform: Rc::new(RefCell::new(Transform { ..Default::default() })),
-                                                                    size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                                                }
-                                                            )),
-
-                                                        ])),
-
-
-                                                    )
-                                                ))
                                             ])),
 
 
                                         )
-                                    )),
-
-                                    // // Our background fill
-                                    //
-                                    // Rc::new(RefCell::new(
-                                    //     Rectangle {
-                                    //         transform: Rc::new(RefCell::new(Transform::default())),
-                                    //         fill:  Box::new(
-                                    //             PropertyLiteral {value: Color::rgba(0.5, 0.5, 0.5, 0.25) }
-                                    //         ),
-                                    //         stroke: Stroke {
-                                    //             width: 2.0,
-                                    //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                    //             color: Color::rgba(0.8, 0.8, 0.1, 1.0)
-                                    //         },
-                                    //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                    //     }
-                                    // )),
-
-
+                                    ))
                                 ])),
+
+
+                            )
+                        )),
+
+                        // // Our background fill
+                        //
+                        // Rc::new(RefCell::new(
+                        //     Rectangle {
+                        //         transform: Rc::new(RefCell::new(Transform::default())),
+                        //         fill:  Box::new(
+                        //             PropertyLiteral {value: Color::rgba(0.5, 0.5, 0.5, 0.25) }
+                        //         ),
+                        //         stroke: Stroke {
+                        //             width: 2.0,
+                        //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                        //             color: Color::rgba(0.8, 0.8, 0.1, 1.0)
+                        //         },
+                        //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                        //     }
+                        // )),
+
+
+                    ])),
 
                 })),
             })),
