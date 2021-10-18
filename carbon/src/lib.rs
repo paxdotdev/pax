@@ -67,17 +67,22 @@ TODO:
             [ ] ButtonNative (vs. ButtonGroup/ButtonContainer/ButtonFrame?) (or vs. a click event on any ol element)
             [ ] Text input
             [ ] Dropdown
+    [ ] Add an id to placeholders so they can be addressed via selectors?
+        (e.g. to enable a component deep in a tree to expose a global/externally accessible placeholder
+    [ ] Compiler
+        [ ] Template compilation
+            [ ] Syntax & file design
+            [ ] Code-behind & default implementations
+            [ ] Helpful compiler errors, line numbers
+            [ ] Sanity-check path forward to JS runtime
+        [ ] Property compilation
+            [ ] Syntax & file design
+            [ ] Parser & semanticizer
+        [ ] Should we
+        [ ] Expression compilation MVP
+            [ ] Syntax & file design
+
     [ ] Hook up all relevant properties to Property
-    [ ] Template compilation
-        [ ] Syntax & file design
-        [ ] Code-behind & default implementations
-        [ ] Helpful compiler errors, line numbers
-        [ ] Sanity-check path forward to JS runtime
-    [ ] Property compilation
-        [ ] Syntax & file design
-        [ ] Parser & semanticizer
-    [ ] Expression compilation MVP
-        [ ] Syntax & file design
 
 What's our expression language MVP?
  - `==`, `&&`, and `||`

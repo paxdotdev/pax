@@ -1,10 +1,93 @@
+/*
+This grammar describes a `template`:
+an XML-like document with support for @{}-style templating (embedding expressions)
 
-template = { any_tag* }
+PEG Parsing Expression Grammar
 
-open_tag = {"<" ~ ASCII_ALPHANUMERIC ~ attribute_key_value* ~ ">"}
-attribute_key_value = {ASCII_ALPHANUMERIC ~ "=" ~ any_value}
+*/
+
+template = { SOI ~ any_tag ~ properties_declaration? ~ EOI }
+sub_template = { any_tag* }
+
+open_tag = {"<" ~ PUSH(ASCII_ALPHANUMERIC+) ~ attribute_key_value_pair* ~ ">"}
+closing_tag = {"</" ~ POP ~ ">"}
+
+attribute_key_value_pair = {ASCII_ALPHANUMERIC+ ~ "=" ~ any_value}
 any_value = {quote_wrapped_value | expression}
 any_tag = {matched_tag | self_closing_tag}
-quote_wrapped_value = {("\"" ~ raw_value ~ "\"") | ("'" ~ raw_value ~ "'")}
-raw_value =
-expression = {"@"} //TODO: blazor-style templating, if/foreach vs. ()=>{} expressions
+
+matched_tag = {open_tag ~ template ~ closing_tag}
+self_closing_tag = {"<" ~ ASCII_ALPHANUMERIC+ ~ attribute_key_value_pair* ~ "/>"}
+
+quote_wrapped_value = @{("\"" ~ raw_value ~ "\"") | ("'" ~ raw_value ~ "'")}
+raw_value = { (ASCII_ALPHANUMERIC | WHITE_SPACE)* } // TODO:  maybe we want to support more here?
+identifier = { (ASCII_ALPHANUMERIC | "_" | "-")+ }
+
+properties_declaration = {"@properties" ~ "{" ~ selector_block* ~ "}"}
+selector_block = {selector ~ "{" ~ properties_key_value_pair* ~ "}"}
+
+//Note: only id and class selector supported for now; could be extended
+selector = @{("." | "#") ~ identifier}
+
+properties_key_value_pair = {properties_key ~ properties_value}
+properties_key = @{identifier ~ ":"}
+properties_value = {literal_value | enum_value}
+literal_value = {number_literal_with_unit | number_literal | array_literal | string_literal}
+number_literal_with_unit = @{number_literal ~ number_literal_unit}
+number_literal = {ASCII_DIGIT* ~ (".")? ~ ASCII_DIGIT+}
+number_literal_unit = {("%" | "px")}
+array_literal = {("[") ~ literal_value ~ ("," ~ literal_value)* ~ ("]")}
+enum_value = {ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC)* ~ "::" ~ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC)* ~ ("a")?}
+
+//Strings require some special handling, esp. to handle escapes — v0 of this was largely adapted from https://pest.rs/book/examples/rust/literals.html
+string_literal = @{("\"" ~ (string_raw | string_escape) ~ "\"") | ("'" ~ (string_raw | string_escape) ~ "'")}
+string_raw = { (!("\\" | "\"") ~ ANY)+ }
+string_escape = { "\\" ~ (string_escape_predefined | string_escape_byte | string_escape_unicode) }
+string_escape_predefined = { "n" | "r" | "t" | "\\" | "0" | "\"" | "'" }
+string_escape_byte       = { "x" ~ hex{2} }
+string_escape_unicode    = { "u" ~ "{" ~ string_escape_unicode_hex ~ "}" }
+string_escape_unicode_hex = { hex{1, 6} }
+hex = _{ '0'..'9' | 'a'..'f' | 'A'..'F' }
+
+
+//Expressions can be:
+// a.) symbolic bindings to properties, e.g. `@num_clicks`
+// b.) lambdas, where types will be enforced by semantizer
+// c.) control-flow statements: if/repeat/placeholder
+expression = @{"@" ~ (expression_symbolic_binding | expression_lambda | expression_control_flow)} //TODO: blazor-style templating, if/foreach vs. ()=>{} expressions
+expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
+expression_lambda = {"{"~expression_body~"}"}
+expression_body = {ASCII_ALPHANUMERIC*} //TODO: figure out how to make this more robust... might need to include the expression grammar itself for {}-matching, or may be able to hack a combo of look-ahead and PUSH/POP for {}
+expression_control_flow = {statement_if | statement_foreach | statement_placeholder}
+
+statement_if = {"if" ~ "(" ~ expression_body ~ ")" ~ "{" ~ sub_template ~ "}"} //TODO: else
+statement_foreach = {"foreach" ~ "(" ~ expression_body ~ ")" ~ "{" ~ sub_template ~ "}"}
+statement_placeholder = {"placeholder"}
+
+/*
+Methodology:
+ - follow tutorial, start compiling .pest file
+ - debug and inspect tokens manually, align with expectations
+ - tweak and repeat
+*/
+
+
+
+
+
+
+/*
+document = { SOI ~ meow_attempt* ~ EOI }
+meow_attempt = {(meow | not_meow) ~ WHITE_SPACE}
+meow = {"mew" ~ ASCII_ALPHANUMERIC+ }
+not_meow = {ASCII_ALPHANUMERIC+}
+
+
+
+art
+attempt
+mrow
+mewo
+mewa
+
+*/

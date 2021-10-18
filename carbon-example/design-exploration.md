@@ -197,7 +197,7 @@ It's important to have auto-complete here.  We'll want to parse
 ```rust
 #template!(
     <Spread id="outer-spread">
-        <Rectangle id="rect-0" />
+        <Rectangle id="rect-0" width=@{num_clicks * 20} />
         <Rectangle id="rect-1" />
         <Rectangle id="rect-2" />
     </Spread>

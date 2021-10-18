@@ -1,0 +1,37 @@
+<Spread id="main-spread">
+    <Rectangle id="rect-1" onclick=@handle_click />
+    <Rectangle id="rect-2" />
+    <Group>
+        @if (num_clicks % 2 == 0) {
+            <Text id="label" />
+        }
+        <Rectangle id="rect-3" />
+    </Group>
+</Spread>
+
+@properties {
+    #main-spread {
+        cell_count: 3
+        orientation: Orientation::Vertical
+        gutter_width: 5px
+    }
+
+    #rect-1 {
+        fill: Color::rgba(255, 255, 255, 1)
+        stroke: {
+            color: Color::Rgba(255, 0, 0, 1)
+            width: 5px
+            style: {
+                line_join: none
+                line_cap: LineCap::Butt
+                dash: [5,0,5,0]
+            }
+        }
+    }
+
+    #rect-2 {
+        fill: @{
+            Color::hsla(Engine.frames_elapsed % 360, 75, 75, 1)
+        }
+    }
+}
