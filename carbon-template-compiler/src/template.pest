@@ -4,19 +4,21 @@ an XML-like document with support for @{}-style templating (embedding expression
 */
 
 WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
+COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!NEWLINE ~ ANY) ~ NEWLINE) }
 
 //A template has exactly one root tag
-template = _{ SOI ~ any_tag ~ properties_declaration? ~ EOI }
-//While a sub_template (e.g. the child-contents of an element) may have multiple
-//top-level siblings
+template = { SOI ~ any_tag ~ properties_declaration? ~ EOI }
+
+//On the other hand, a sub_template (e.g. the child-contents of an element)
+//may have multiple top-level siblings
 sub_template = { any_tag* }
 
 open_tag = {"<" ~ PUSH(pascal_identifier) ~ attribute_key_value_pair* ~ ">"}
 closing_tag = {"</" ~ POP ~ ">"}
 
-attribute_key_value_pair = {identifier ~ "=" ~ any_template_value}
+attribute_key_value_pair = _{identifier ~ "=" ~ any_template_value}
 any_template_value = {string | expression}
-any_tag = {matched_tag | self_closing_tag}
+any_tag = _{matched_tag | self_closing_tag}
 
 matched_tag = {open_tag ~ sub_template ~ closing_tag}
 self_closing_tag = {"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/>"}
@@ -35,19 +37,20 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_" | "-")*}
 properties_declaration = {"@properties" ~ "{" ~ selector_block* ~ "}"}
 selector_block = {selector ~ properties_block}
 properties_block = { "{" ~ properties_key_value_pair* ~ "}" }
+
 //Note: only id and class selector supported for now; could be extended
 selector = @{("." | "#") ~ identifier}
 
-properties_key_value_pair = {properties_key ~ properties_value}
+properties_key_value_pair = {properties_key ~ properties_value ~ ","?}
 properties_key = @{identifier ~ ":"}
 properties_value = {literal_value | enum_value | expression | properties_block}
-literal_value = {number_literal_with_unit | number_literal | array_literal | string}
-number_literal_with_unit = @{number_literal ~ number_literal_unit}
-number_literal = {number_literal_integer | number_literal_float}
-number_literal_integer = {(!(".") ~ ASCII_DIGIT)+ }
-number_literal_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT}
-number_literal_unit = {("%" | "px")}
-array_literal = {("[") ~ literal_value ~ ("," ~ literal_value)* ~ ("]")}
+literal_value = {literal_number_with_unit | literal_number | literal_array | string}
+literal_number_with_unit = @{literal_number ~ literal_number_unit}
+literal_number = {literal_number_float | literal_number_integer}
+literal_number_integer = {(!(".") ~ ASCII_DIGIT)+ }
+literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
+literal_number_unit = {("%" | "px")}
+literal_array = {("[") ~ literal_value ~ ("," ~ literal_value)* ~ ("]")}
 enum_value = @{pascal_identifier ~ ("::" ~ pascal_identifier ~ ("("~enum_args_list~")")?)?}
 enum_args_list = !{properties_value ~ ("," ~ properties_value)*}
 

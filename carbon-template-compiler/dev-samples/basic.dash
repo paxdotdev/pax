@@ -1,5 +1,5 @@
 <Spread id="main-spread">
-    <Rectangle id="rect-1" some_binding=@some_binding some_expression=@{EXP_TODO} />
+    <Rectangle id="rect-1" some_binding=@some_binding some_expression=@{ EXP_TODO } />
     <Rectangle id="rect-2" />
     <Rectangle id="rect-3" />
 </Spread>
@@ -12,9 +12,14 @@
     }
 
     #rect-1 {
-        fill: Color::Rgba(255, 255, 255, 1)
+        fill: {
+            r: 1.0
+            g: 0.0
+            b: 0.0
+            a: 1.0
+        },
         stroke: {
-            color: Color::Rgba(255, 0, 0, 1)
+            color: { h: 360.0, s: 1.0, l: 1.0, a: 1.0 }
             width: 5px
             style: {
                 line_join: None

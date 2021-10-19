@@ -74,6 +74,8 @@ fn main() {
     let file = TemplateParser::parse(Rule::template, &unparsed_file)
         .expect("unsuccessful parse") // unwrap the parse result
         .next().unwrap(); // get and unwrap the `file` rule; never fails
+
+    print!("{:#?}", file)
     //
     //
     // let unparsed_file = fs::read_to_string("dev-samples/data.json").expect("cannot read file");
