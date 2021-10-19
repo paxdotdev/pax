@@ -1,8 +1,10 @@
 <Spread id="main-spread">
     <Rectangle id="rect-1" some_binding=@some_binding some_expression=@{ EXP_TODO } />
     <Rectangle id="rect-2" />
+    <Rectangle id="rect-5" />
     <Rectangle id="rect-3" />
 </Spread>
+
 
 @properties {
     #main-spread {

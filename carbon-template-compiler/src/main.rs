@@ -71,7 +71,7 @@ fn main() {
 
     let unparsed_file = fs::read_to_string("dev-samples/basic.dash").expect("cannot read file");
 
-    let file = TemplateParser::parse(Rule::template, &unparsed_file)
+    let file = TemplateParser::parse(Rule::dash_file, &unparsed_file)
         .expect("unsuccessful parse") // unwrap the parse result
         .next().unwrap(); // get and unwrap the `file` rule; never fails
 
