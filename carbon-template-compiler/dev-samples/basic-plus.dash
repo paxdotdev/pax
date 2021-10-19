@@ -1,8 +1,14 @@
 <Spread id="main-spread">
-    <Rectangle id="rect-1" some_binding=@some_binding some_expression=@{EXP_TODO} />
+    <Rectangle id="rect-1" onclick=@handle_click />
     <Rectangle id="rect-2" />
-    <Rectangle id="rect-3" />
+    <Group>
+        @if (num_clicks % 2 == 0) {
+            <Text id="label" />
+        }
+        <Rectangle id="rect-3" />
+    </Group>
 </Spread>
+
 
 @properties {
     #main-spread {
@@ -12,12 +18,12 @@
     }
 
     #rect-1 {
-        fill: Color::Rgba(255, 255, 255, 1)
+        fill: Color::rgba(255, 255, 255, 1)
         stroke: {
             color: Color::Rgba(255, 0, 0, 1)
             width: 5px
             style: {
-                line_join: None
+                line_join: none
                 line_cap: LineCap::Butt
                 dash: [5,0,5,0]
             }
@@ -26,7 +32,7 @@
 
     #rect-2 {
         fill: @{
-            EXP_TODO
+            Color::hsla(Engine.frames_elapsed % 360, 75, 75, 1)
         }
     }
 }
