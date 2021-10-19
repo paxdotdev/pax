@@ -1,0 +1,5 @@
+{
+    "nesting": { "inner object": {} },
+    "an array": [1.5, true, null, 1e-6],
+    "string with escaped double quotes" : "\"quick brown foxes\""
+}

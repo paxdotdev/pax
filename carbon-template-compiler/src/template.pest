@@ -1,10 +1,10 @@
 /*
 This grammar describes a `template`:
 an XML-like document with support for @{}-style templating (embedding expressions)
-
-PEG Parsing Expression Grammar
-
 */
+
+
+WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
 
 template = { SOI ~ any_tag ~ properties_declaration? ~ EOI }
 sub_template = { any_tag* }
@@ -12,7 +12,7 @@ sub_template = { any_tag* }
 open_tag = {"<" ~ PUSH(ASCII_ALPHANUMERIC+) ~ attribute_key_value_pair* ~ ">"}
 closing_tag = {"</" ~ POP ~ ">"}
 
-attribute_key_value_pair = {ASCII_ALPHANUMERIC+ ~ "=" ~ any_value}
+attribute_key_value_pair = {identifier ~ "=" ~ any_value}
 any_value = {quote_wrapped_value | expression}
 any_tag = {matched_tag | self_closing_tag}
 
