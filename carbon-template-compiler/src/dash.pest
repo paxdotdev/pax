@@ -74,7 +74,7 @@ literal_value = { literal_number_with_unit | literal_number | literal_array | st
 literal_number_with_unit = @{ literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
 literal_number_integer = {(!(".") ~ ASCII_DIGIT)+ }
-literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
+literal_number_float = {ASCII_DIGIT ~ "." ~ ASCII_DIGIT+}
 literal_number_unit = {("%" | "px")}
 literal_array = {("[") ~ literal_value ~ ("," ~ literal_value)* ~ ("]")}
 
@@ -97,18 +97,22 @@ expression = @{
 
 expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
 expression_lambda = !{"{"~expression_body~"}"}
-expression_body = {
-    xo_prefix_unary? ~
-    (
-        (xo_group_open ~ expression_body ~ xo_group_close) |
-        (expression_body ~ xo_infix_binary ~ expression_body) |
-        xo_symbol |
-        xo_literal
-    )
+
+//Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
+//or a bare returned value like `Color { ... }`
+expression_body = { expression_binary | expression_operand }
+expression_binary = {
+    //left side
+    xo_prefix_unary? ~ expression_operand ~
+    //operator
+    xo_infix_binary ~
+    //right side
+    xo_prefix_unary? ~ expression_operand
 }
 
-
-sub_expression = {xo_symbol | xo_literal | expression_body }
+//terminal, or recurse into `(...)`
+expression_operand = { expression_grouped | xo_literal | xo_symbol }
+expression_grouped = { "(" ~ expression_body ~ ")" }
 
 /*
 Some examples of valid expressions:

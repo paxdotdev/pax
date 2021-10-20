@@ -4,7 +4,7 @@
     <Rectangle id="rect-1" onclick=@handle_click />
     <Rectangle id="rect-2" /> /* inline comments work anywhere whitespace does */
     <Group>
-        @if (EXP_TODO) { //num_clicks % 2 == 0
+        @if ((num_clicks % 2) == 0) {
             <Text id="label" />
         }
         <Rectangle id="rect-3" />
