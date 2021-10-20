@@ -1,6 +1,6 @@
 
 WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
-COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!NEWLINE ~ ANY)? ~ NEWLINE) }
+COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
 
 //////
 /// BEGIN TEMPLATE
@@ -14,7 +14,7 @@ dash_file = { SOI ~ any_tag ~ properties_declaration? ~ EOI }
 
 //On the other hand, a sub_template (e.g. the child-contents of an element)
 //may have multiple top-level siblings
-sub_template = { any_tag* }
+sub_template = { (any_tag | statement_control_flow )* }
 
 //This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>
@@ -56,8 +56,8 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_" | "-")*}
 /// BEGIN PROPERTIES
 //////
 properties_declaration = {"@properties" ~ "{" ~ selector_block* ~ "}"}
-selector_block = {selector ~ properties_block}
-properties_block = { "{" ~ properties_key_value_pair* ~ "}" }
+selector_block = {selector ~ literal_object}
+literal_object = { identifier? ~ "{" ~ properties_key_value_pair* ~ "}" }
 
 //Describes a CSS-style selector, used for joining properties to elements
 //Note: only basic `id` and `class` syntax supported for now; could be extended
@@ -68,7 +68,7 @@ selector = @{("." | "#") ~ identifier}
 //included recursive nesting via `property_block`
 properties_key_value_pair = { properties_key ~ properties_value ~ ","? }
 properties_key = @{ identifier ~ ":" }
-properties_value = { literal_value | enum_value | expression | properties_block }
+properties_value = { literal_value | enum_value | expression | literal_object }
 
 literal_value = { literal_number_with_unit | literal_number | literal_array | string }
 literal_number_with_unit = @{ literal_number ~ literal_number_unit }
@@ -91,15 +91,99 @@ enum_args_list = !{properties_value ~ ("," ~ properties_value)*}
 //Expressions can be:
 // a.) symbolic bindings to properties, e.g. `@num_clicks`
 // b.) lambdas, where types will be enforced by semantizer
-// c.) control-flow statements: if/repeat/placeholder
 expression = @{
-    "@" ~ (expression_symbolic_binding | expression_lambda | expression_control_flow)
+    "@" ~ (expression_symbolic_binding | expression_lambda)
 }
 
 expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
 expression_lambda = !{"{"~expression_body~"}"}
-expression_body = {"EXP_TODO"} //TODO: figure out how to make this more robust... might need to include the expression grammar itself for {}-matching, or may be able to hack a combo of look-ahead and PUSH/POP for {}
-expression_control_flow = {statement_if | statement_foreach | statement_placeholder}
+expression_body = {
+    xo_prefix_unary? ~
+    (
+        (xo_group_open ~ expression_body ~ xo_group_close) |
+        (expression_body ~ xo_infix_binary ~ expression_body) |
+        xo_symbol |
+        xo_literal
+    )
+}
+
+
+sub_expression = {xo_symbol | xo_literal | expression_body }
+
+/*
+Some examples of valid expressions:
+
+[Object construction]
+Color {h: 360, s: 1, l: 1, a: 1}
+
+[Object construction with implicit type (type enforced by semantizer)
+{h: 360, s: 1, l: 1, a: 1}
+
+[Boolean statements]
+num_clicks % 2 == 0
+
+[Complex statements including ternaries, grouping, logical operators, and object construction]
+(num_clicks % 2 == 0 && is_selected) ?
+    {r: 255 * color_intensity, g: 0, b: 0, a: 1} :
+    {r: 0, g: 255 * color_intensity, b: 0, a: 1}
+
+[String literals + operations]
+"Is " + (is_selected ? "" : "not ") + "selected."
+*/
+
+//`xo` is short for both "expression operator" and "expression operand", collectively all symbols
+//that can be expressed inside expressions
+xo_infix_binary = {
+    xo_bool_or | xo_bool_and |
+    xo_addition | xo_subtraction |
+    xo_multiplication | xo_division |
+    xo_modulus | xo_exponent
+}
+
+//Our only unary operators are both prefix:
+//`-` for numeric negation and `!` for boolean negation
+xo_prefix_unary = {
+    xo_bool_not | xo_subtraction
+}
+
+xo_literal = {literal_number | string | literal_array | literal_object} //TODO: consolidate literal_object with the recursive properties_block impl for properties
+xo_symbol = @{identifier ~ (("." ~ identifier) | ("::" ~ identifier))*}
+
+xo_group_open = {"("}
+xo_group_close = {")"}
+xo_obj_open = {"{"}
+xo_obj_close = {"{"}
+xo_obj_separator = {","}
+xo_bool_or = {"||"}
+xo_bool_and = {"&&"}
+xo_addition = {"+"}
+xo_subtraction = {"-"}
+xo_multiplication = {"*"}
+xo_division = {"/"}
+xo_modulus = {"%"}
+xo_exponent = {"^"}
+xo_bool_not = {"!"}
+xo_tern_then = {"?"}
+xo_tern_else = {":"}
+xo_rel_lt = {"<"}
+xo_rel_gt = {">"}
+xo_rel_lte = {"<="}
+xo_rel_gte = {">="}
+xo_rel_eq = {"=="}
+xo_rel_neq = {"!="}
+
+
+
+//////
+/// BEGIN CONTROL FLOW
+//////
+
+//Control flow statements, while sharing the `@` syntax of expressions
+//and using expressions for their statement syntax (`@if (some_value == 2)`)
+//are NOT embeddable all places that expressions are.  That is, control-flow statements
+//can only sit alongside elements in a template and cannot be bound to properties.  As a result,
+//and to foster clarity of nomenclature, we call these `statements` rather than `expressions`.
+statement_control_flow = {"@" ~ (statement_if | statement_foreach | statement_placeholder)}
 
 statement_if = {"if" ~ "(" ~ expression_body ~ ")" ~ "{" ~ sub_template ~ "}"} //TODO: else
 statement_foreach = {"foreach" ~ "(" ~ expression_body ~ ")" ~ "{" ~ sub_template ~ "}"}

@@ -210,3 +210,21 @@ It's important to have auto-complete here.  We'll want to parse
 )
 
 ```
+
+
+
+
+## Expressions — should be CEL-like
+
+Snippet from: https://github.com/google/cel-spec/blob/7972b9076513e6a4bbd184f9d073db949ea53c65/README.md
+```
+// Condition
+account.balance >= transaction.withdrawal
+    || (account.overdraftProtection
+    && account.overdraftLimit >= transaction.withdrawal  - account.balance)
+
+// Object construction
+common.GeoPoint{ latitude: 10.0, longitude: -5.5 }
+```
+
+

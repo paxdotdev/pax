@@ -13,12 +13,8 @@ use pest::prec_climber::PrecClimber;
 use pest::error::Error;
 
 #[derive(Parser)]
-#[grammar = "template.pest"]
+#[grammar = "dash.pest"]
 pub struct TemplateParser;
-
-// #[derive(Parser)]
-// #[grammar = "json.pest"]
-// pub struct JSONParser;
 
 
 /*
@@ -69,13 +65,13 @@ COMPILATION STAGES
 
 fn main() {
 
-    let unparsed_file = fs::read_to_string("dev-samples/basic.dash").expect("cannot read file");
+    let unparsed_file = fs::read_to_string("dev-samples/basic-plus.dash").expect("cannot read file");
 
     let file = TemplateParser::parse(Rule::dash_file, &unparsed_file)
         .expect("unsuccessful parse") // unwrap the parse result
         .next().unwrap(); // get and unwrap the `file` rule; never fails
 
-    print!("{:#?}", file)
+    print!("{:#?}", file);
     //
     //
     // let unparsed_file = fs::read_to_string("dev-samples/data.json").expect("cannot read file");
@@ -84,6 +80,8 @@ fn main() {
     //
     // println!("{}", serialize_jsonvalue(&json));
 
+    //start semantizing
+    let render_tree = unimplemented!();
 
 }
 
