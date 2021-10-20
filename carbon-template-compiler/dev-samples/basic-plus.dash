@@ -4,10 +4,10 @@
     <Rectangle id="rect-1" onclick=@handle_click />
     <Rectangle id="rect-2" /> /* inline comments work anywhere whitespace does */
     <Group>
-        @if ((num_clicks % 2) == 0) {
+        @if ( num_clicks % 2 == 0 ) {
             <Text id="label" />
         }
-        <Rectangle id="rect-3" />
+        <Rectangle id="rect-3" fill=@{ x == 5 } />
     </Group>
 </Spread>
 
@@ -36,7 +36,7 @@ but valid place */ {
 
     #rect-2 {
         fill: @{
-            EXP_TODO // Color {h:Engine.frames_elapsed % 360, s: 75, l:  75, a: 1)
+            Color {h: (Engine.frames_elapsed / 100) % 360, s: 75, l: 75, a: 1}
         }
     }
 }

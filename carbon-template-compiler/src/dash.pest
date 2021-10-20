@@ -100,15 +100,18 @@ expression_lambda = !{"{"~expression_body~"}"}
 
 //Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
 //or a bare returned value like `Color { ... }`
-expression_body = { expression_binary | expression_operand }
-expression_binary = {
-    //left side
-    xo_prefix_unary? ~ expression_operand ~
-    //operator
-    xo_infix_binary ~
-    //right side
-    xo_prefix_unary? ~ expression_operand
-}
+// exp = {primary ~ (expression_binary ~ primary)*}
+
+
+expression_body = { expression_operand ~ (xo_infix_binary ~ expression_operand)* }
+// expression_binary = {
+//     //left side
+//     xo_prefix_unary? ~ expression_operand ~
+//     //operator
+//     xo_infix_binary ~
+//     //right side
+//     xo_prefix_unary? ~ expression_operand
+// }
 
 //terminal, or recurse into `(...)`
 expression_operand = { expression_grouped | xo_literal | xo_symbol }
@@ -139,6 +142,7 @@ num_clicks % 2 == 0
 //that can be expressed inside expressions
 xo_infix_binary = {
     xo_bool_or | xo_bool_and |
+    xo_rel_eq | xo_rel_neq | xo_rel_lte | xo_rel_gte | xo_rel_gt | xo_rel_lt |
     xo_addition | xo_subtraction |
     xo_multiplication | xo_division |
     xo_modulus | xo_exponent
@@ -150,7 +154,17 @@ xo_prefix_unary = {
     xo_bool_not | xo_subtraction
 }
 
-xo_literal = {literal_number | string | literal_array | literal_object} //TODO: consolidate literal_object with the recursive properties_block impl for properties
+xo_literal = {literal_number | string | literal_array | xo_literal_object}
+
+//Note that `xo_literal_object` differs from `properties` literal_object because it accepts
+//expressions and symbolic ids for property values
+xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_properties_key_value_pair* ~ "}" }
+
+
+
+xo_literal_object_properties_key_value_pair = { properties_key ~ expression_body ~ ","? }
+
+
 xo_symbol = @{identifier ~ (("." ~ identifier) | ("::" ~ identifier))*}
 
 xo_group_open = {"("}
