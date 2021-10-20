@@ -74,7 +74,7 @@ literal_value = { literal_number_with_unit | literal_number | literal_array | st
 literal_number_with_unit = @{ literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
 literal_number_integer = {(!(".") ~ ASCII_DIGIT)+ }
-literal_number_float = {ASCII_DIGIT ~ "." ~ ASCII_DIGIT+}
+literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
 literal_number_unit = {("%" | "px")}
 literal_array = {("[") ~ literal_value ~ ("," ~ literal_value)* ~ ("]")}
 
@@ -157,13 +157,10 @@ xo_prefix_unary = {
 xo_literal = {literal_number | string | literal_array | xo_literal_object}
 
 //Note that `xo_literal_object` differs from `properties` literal_object because it accepts
-//expressions and symbolic ids for property values
+//expressions for property values without having to enter a @{} context (because these
+//are already evaluated inside an `@{}` context
 xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_properties_key_value_pair* ~ "}" }
-
-
-
 xo_literal_object_properties_key_value_pair = { properties_key ~ expression_body ~ ","? }
-
 
 xo_symbol = @{identifier ~ (("." ~ identifier) | ("::" ~ identifier))*}
 

@@ -48,7 +48,7 @@ COMPILATION STAGES
 0. Process template
     - build render tree by parsing template file
         - unroll @{} into a vanilla tree (e.g. `<repeat>` instead of `foreach`)
-        - defer inlined properties & expressions to `process properties` step
+        - defer inlined properties & expressions to `process properties` step, except for `id`s
     - semantize: map node keys to known rendernode types
     - fails upon malformed tree or unknown node types
 1. Process properties

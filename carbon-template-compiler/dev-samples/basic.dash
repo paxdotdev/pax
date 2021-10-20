@@ -1,3 +1,4 @@
+
 <Spread id="main-spread">
     <Rectangle id="rect-1" some_binding=@some_binding some_expression=@{ num_clicks % 2 == 0 } />
     <Rectangle id="rect-2" />
@@ -33,7 +34,7 @@
 
     #rect-2 {
         fill: @{
-            EXP_TODO
+            { h: 360.0, s: 1.0, l: 1.0, a: 1.0 }
         }
     }
 }
