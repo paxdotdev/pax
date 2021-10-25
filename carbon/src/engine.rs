@@ -264,7 +264,7 @@ impl CarbonEngine {
                         )),
 
                         // // Our background fill
-                        //
+                        //i
                         // Rc::new(RefCell::new(
                         //     Rectangle {
                         //         transform: Rc::new(RefCell::new(Transform::default())),
@@ -362,11 +362,7 @@ impl CarbonEngine {
         rtc.bounds = new_accumulated_bounds;
         rtc.transform = new_accumulated_transform;
 
-        //lifecycle: pre_render happens before traversing this node's children
-        //           and AFTER computing properties (including transform & layout.)
-        //           This is useful for pre-computation or for in-place mutations,
-        //           e.g. `Placeholder`'s children/adoptee-switching logic
-        //           and `Spread`'s layout-computing logic
+        //lifecycle: pre_render
         node.borrow_mut().pre_render(rtc, hpc);
 
         let children = node.borrow().get_rendering_children();
@@ -379,13 +375,12 @@ impl CarbonEngine {
             //TODO: for dependency management, return computed values from subtree above
         });
 
-        // `render` lifecycle event:
+        // lifecycle: `render`
         // this is this node's time to do its own rendering, aside
         // from its children.  Its children have already been rendered.
         node.borrow().render(rtc, hpc);
 
-        //Lifecycle event: post_render can be used for cleanup, e.g. for
-        //components to pop a stack frame
+        // lifecycle: post_render
         node.borrow_mut().post_render(rtc, hpc);
     }
 

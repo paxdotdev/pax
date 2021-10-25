@@ -54,8 +54,9 @@ TODO:
         [x] Clipping & Frames
         [x] Control-flow `repeat` for cells & dividers inside template
         [x] Gutter
-    [ ] Split out userland code
-            [ ] Add a third project to workspace, the sample project
+    [x] Split out userland code
+        [x] Add a third project to workspace, the sample project
+        [x] (Further work to be done via compiler task)
     [x] Timelines, transitions
     [ ] Documentation & usage
     [ ] Mixed mode, Web
@@ -67,18 +68,20 @@ TODO:
             [ ] ButtonNative (vs. ButtonGroup/ButtonContainer/ButtonFrame?) (or vs. a click event on any ol element)
             [ ] Text input
             [ ] Dropdown
-    [ ] Add an id to placeholders so they can be addressed via selectors?
-        (e.g. to enable a component deep in a tree to expose a global/externally accessible placeholder
-    [ ] Compiler
+    [ ] Compiler & Render Tree Manager
+        [ ] Patching & refactor
+            [ ] Patchable trait
+            [ ] Design: RectangleProperties, RectanglePropertiesPatch, update API, etc.
+            [ ]
         [ ] Template compilation
-            [ ] Syntax & file design
+            [x] Syntax & file design
             [ ] Code-behind & default implementations
             [ ] Helpful compiler errors, line numbers
-            [ ] Sanity-check path forward to JS runtime
+            [x] Sanity-check path forward to JS runtime
         [ ] Property compilation
-            [ ] Syntax & file design
-            [ ] Parser & semanticizer
-        [ ] Should we
+            [x] Syntax & file design
+            [x] Parser
+
         [ ] Expression compilation MVP
             [ ] Syntax & file design
 
@@ -108,11 +111,11 @@ What's our expression language MVP?
         [ ] introduce a way to #derive `compute_in_place`
         [x] Better ergonomics for `wrap_render_node_ptr_into_list`
         [x] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
-        [ ] literal!() macro for literal property values
-            (wrap in `Box::new(PropertyLiteral{value: `)
-        [ ] expression!(|engine: &CarbonEngine| -> Color {}) macro
+
 
 === MED
+    [ ] Add an id to placeholders so they can be addressed via selectors?
+        (e.g. to enable a component deep in a tree to expose a global/externally accessible placeholder
     [ ] Dependency management for expressions
         [ ] Declare runtime-accessible metadata around Properties
             objects (probably a macro)
@@ -130,7 +133,6 @@ What's our expression language MVP?
     [ ] Ellipse
     [ ] Path
     [ ] Frames: overflow scrolling
-    [ ] Macros for magical expression declaration
     [ ] PoC on macOS, iOS, Android
         [ ] Extricate Engine's dependency on WebRenderContext
     [ ] Image primitive
@@ -146,9 +148,9 @@ What's our expression language MVP?
         [ ] control flow ($repeat, $if)
         [ ] dependency graph + caching
     [ ] Tests
-    [ ] State + Actions
-        [ ] track and update custom states/variables
-        [ ] expose API for manipulating state via Actions
+    [ ] Actions
+        [ ] expose API for manipulating Properties via Actions
+        [ ] Handle de/serialization with
     [ ] Authoring tool
         [ ] De/serialization to BESTful (HTML-ish, template) format
         [ ] Drawing tools

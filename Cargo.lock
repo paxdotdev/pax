@@ -81,6 +81,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "carbon-metaruntime"
+version = "0.1.0"
+dependencies = [
+ "carbon",
+]
+
+[[package]]
 name = "carbon-template-compiler"
 version = "0.1.0"
 dependencies = [

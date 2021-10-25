@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{DevAppRootProperties, RenderNodePtrList, SpreadCellProperties, SpreadProperties};
+use crate::{DevAppRootProperties, RenderNodePtrList, SpreadCellProperties, SpreadProperties, Rectangle, Group, Placeholder, Repeat, Text};
 use crate::primitives::repeat::RepeatItem;
 use crate::timeline::Timeline;
 
@@ -89,6 +89,11 @@ pub enum PropertiesCoproduct {
     RepeatItem(Rc<RefCell<RepeatItem>>),
     Spread(Rc<RefCell<SpreadProperties>>),
     SpreadCell(Rc<SpreadCellProperties>),
+    Rectangle(Rc<Rectangle>),
+    Group(Rc<Group>),
+    Placeholder(Rc<Placeholder>),
+    Repeat(Rc<Repeat>),
+    Text(Rc<Text>),
     Empty,
 }
 

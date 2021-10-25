@@ -22,7 +22,7 @@ open_tag = {"<" ~ PUSH(pascal_identifier) ~ attribute_key_value_pair* ~ ">"}
 closing_tag = {"</" ~ POP ~ ">"} //TODO: don't accept whitespace like < / SomeElement > ?
 
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
-attribute_key_value_pair = _{identifier ~ "=" ~ any_template_value}
+attribute_key_value_pair = {identifier ~ "=" ~ any_template_value}
 any_template_value = {string | expression}
 any_tag = _{matched_tag | self_closing_tag}
 
@@ -99,19 +99,8 @@ expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
 expression_lambda = !{"{"~expression_body~"}"}
 
 //Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
-//or a bare returned value like `Color { ... }`
-// exp = {primary ~ (expression_binary ~ primary)*}
-
-
+//or a literal returned value like `Color { ... }` or `5`
 expression_body = { expression_operand ~ (xo_infix_binary ~ expression_operand)* }
-// expression_binary = {
-//     //left side
-//     xo_prefix_unary? ~ expression_operand ~
-//     //operator
-//     xo_infix_binary ~
-//     //right side
-//     xo_prefix_unary? ~ expression_operand
-// }
 
 //terminal, or recurse into `(...)`
 expression_operand = { expression_grouped | xo_literal | xo_symbol }
@@ -143,22 +132,22 @@ num_clicks % 2 == 0
 xo_infix_binary = {
     xo_bool_or | xo_bool_and |
     xo_rel_eq | xo_rel_neq | xo_rel_lte | xo_rel_gte | xo_rel_gt | xo_rel_lt |
-    xo_addition | xo_subtraction |
-    xo_multiplication | xo_division |
-    xo_modulus | xo_exponent
+    xo_add | xo_sub |
+    xo_mul | xo_div |
+    xo_mod | xo_exp
 }
 
 //Our only unary operators are both prefix:
 //`-` for numeric negation and `!` for boolean negation
 xo_prefix_unary = {
-    xo_bool_not | xo_subtraction
+    xo_bool_not | xo_sub
 }
 
 xo_literal = {literal_number | string | literal_array | xo_literal_object}
 
 //Note that `xo_literal_object` differs from `properties` literal_object because it accepts
 //expressions for property values without having to enter a @{} context (because these
-//are already evaluated inside an `@{}` context
+//are already evaluated inside an `@{}` context)
 xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_properties_key_value_pair* ~ "}" }
 xo_literal_object_properties_key_value_pair = { properties_key ~ expression_body ~ ","? }
 
@@ -171,12 +160,12 @@ xo_obj_close = {"{"}
 xo_obj_separator = {","}
 xo_bool_or = {"||"}
 xo_bool_and = {"&&"}
-xo_addition = {"+"}
-xo_subtraction = {"-"}
-xo_multiplication = {"*"}
-xo_division = {"/"}
-xo_modulus = {"%"}
-xo_exponent = {"^"}
+xo_add = {"+"}
+xo_sub = {"-"}
+xo_mul = {"*"}
+xo_div = {"/"}
+xo_mod = {"%"}
+xo_exp = {"^"}
 xo_bool_not = {"!"}
 xo_tern_then = {"?"}
 xo_tern_else = {":"}

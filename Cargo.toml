@@ -5,6 +5,7 @@ members = [
     "carbon-chassis-web",
     "carbon-macro-expression",
     "carbon-template-compiler",
+    "carbon-metaruntime",
 ]
 
 default-members = [
@@ -12,6 +13,7 @@ default-members = [
     "carbon-chassis-web",
     "carbon-macro-expression",
     "carbon-template-compiler",
+    "carbon-metaruntime",
 ]
 
 
