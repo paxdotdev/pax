@@ -12,9 +12,12 @@
 </Spread>
 
 
-@properties /* multi-line inline comment
-in an awkward
-but valid place */ {
+@properties {
+
+    num_clicks: Number = 0,
+    label: String = "namaste",
+    some_obj: {a: 1, b:2, c: "I'm a string!"}
+
     #main-spread {
         cell_count: 3
         orientation: Orientation::Vertical

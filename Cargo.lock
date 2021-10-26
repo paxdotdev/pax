@@ -85,6 +85,7 @@ name = "carbon-metaruntime"
 version = "0.1.0"
 dependencies = [
  "carbon",
+ "lazy_static",
 ]
 
 [[package]]

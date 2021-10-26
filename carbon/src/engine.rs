@@ -9,7 +9,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, PropertyValueTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, Text};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, PropertyValueTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, Text, RectangleProperties};
 use crate::components::Spread;
 use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
@@ -91,27 +91,30 @@ impl CarbonEngine {
                                     //rainbow
                                     Rc::new(RefCell::new(
                                         Rectangle {
-                                            transform: Rc::new(RefCell::new(Transform::default())),
-                                            fill: Box::new(
-                                                PropertyValueExpression {
-                                                    cached_value: Color::hlc(0.0,0.0,0.0),
-                                                    // expression!(|engine: &CarbonEngine| ->
-                                                    evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
-                                                        Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-                                                    }}
-                                                }
-                                            ),
-                                            stroke: Stroke {
-                                                width: 4.0,
-                                                style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                color: Color::rgba(0.0, 0.0, 1.0, 1.0)
-                                            },
-                                            size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                            properties: Rc::new(RefCell::new(RectangleProperties {
+                                                transform: Rc::new(RefCell::new(Transform::default())),
+                                                fill: Box::new(
+                                                    PropertyValueExpression {
+                                                        cached_value: Color::hlc(0.0,0.0,0.0),
+                                                        // expression!(|engine: &CarbonEngine| ->
+                                                        evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
+                                                            Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                                        }}
+                                                    }
+                                                ),
+                                                stroke: Stroke {
+                                                    width: 4.0,
+                                                    style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                    color: Color::rgba(0.0, 0.0, 1.0, 1.0)
+                                                },
+                                                size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                            })),
                                         }
                                     )),
                                     //green
                                     Rc::new(RefCell::new(
                                         Rectangle {
+                                        properties: Rc::new(RefCell::new(RectangleProperties {
                                             transform: Rc::new(RefCell::new(
                                                 Transform {
                                                     translate: (
@@ -169,6 +172,7 @@ impl CarbonEngine {
                                                 color: Color::rgba(0.0, 1.0, 1.0, 1.0)
                                             },
                                             size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                        })),
                                         }
                                     )),
                                     //text
@@ -209,6 +213,7 @@ impl CarbonEngine {
                                                 //rainbow
                                                 Rc::new(RefCell::new(
                                                     Rectangle {
+                                                    properties: Rc::new(RefCell::new(RectangleProperties {
                                                         transform: Rc::new(RefCell::new(Transform::default())),
                                                         fill: Box::new(
                                                             PropertyValueExpression {
@@ -225,11 +230,13 @@ impl CarbonEngine {
                                                             color: Color::rgba(0.0, 0.0, 1.0, 1.0)
                                                         },
                                                         size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                    })),
                                                     }
                                                 )),
                                                 //green
                                                 Rc::new(RefCell::new(
                                                     Rectangle {
+                                                    properties: Rc::new(RefCell::new(RectangleProperties {
                                                         transform: Rc::new(RefCell::new(Transform::default())),
                                                         fill:  Box::new(
                                                             PropertyValueLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
@@ -240,6 +247,7 @@ impl CarbonEngine {
                                                             color: Color::rgba(0.0, 1.0, 1.0, 1.0)
                                                         },
                                                         size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                    })),
                                                     }
                                                 )),
                                                 //text
