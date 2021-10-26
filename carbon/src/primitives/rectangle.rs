@@ -62,7 +62,6 @@ impl RenderNode for Rectangle {
     }
 }
 
-
 #[cfg(feature="metaruntime")]
 lazy_static! {
     static ref RECTANGLE_PROPERTIES_MANIFEST: Vec<(&'static str, &'static str)> = {
@@ -77,6 +76,9 @@ lazy_static! {
 
 #[cfg(feature="metaruntime")]
 impl Manifestable for RectangleProperties {
+    fn get_type_identifier() -> &'static str {
+        &"Rectangle"
+    }
     fn get_manifest() -> &'static Vec<(&'static str, &'static str)> {
         RECTANGLE_PROPERTIES_MANIFEST.as_ref()
     }
