@@ -1,3 +1,5 @@
+
+
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -5,7 +7,10 @@ use kurbo::BezPath;
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
+
 use crate::{Color, PropertyValue, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, HostPlatformContext};
+use std::str::FromStr;
+use crate::metaruntime::{Manifestable, Patchable};
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -58,4 +63,69 @@ impl RenderNode for Rectangle {
 }
 
 
+#[cfg(feature="metaruntime")]
+lazy_static! {
+    static ref RECTANGLE_PROPERTIES_MANIFEST: Vec<(&'static str, &'static str)> = {
+        vec![
+            ("transform", "Transform"),
+            ("size", "Size2D"),
+            ("stroke", "Stroke"),
+            ("fill", "Color"),
+        ]
+    };
+}
+
+#[cfg(feature="metaruntime")]
+impl Manifestable for RectangleProperties {
+    fn get_manifest() -> &'static Vec<(&'static str, &'static str)> {
+        RECTANGLE_PROPERTIES_MANIFEST.as_ref()
+    }
+}
+
+#[cfg(feature="metaruntime")]
+impl Patchable<RectanglePropertiesPatch> for RectangleProperties {
+    fn patch(&mut self, patch: RectanglePropertiesPatch) {
+        if let Some(p) = patch.transform {
+            self.transform = Rc::clone(&p);
+        }
+        if let Some(p) = patch.size {
+            self.size = Rc::clone(&p);
+        }
+        if let Some(p) = patch.stroke {
+            self.stroke = p;
+        }
+        if let Some(p) = patch.fill {
+            self.fill = p;
+        }
+    }
+}
+
+#[cfg(feature="metaruntime")]
+pub struct RectanglePropertiesPatch {
+    pub size: Option<Size2D>,
+    pub transform: Option<Rc<RefCell<Transform>>>,
+    pub stroke: Option<Stroke>,
+    pub fill: Option<Box<dyn PropertyValue<Color>>>,
+}
+
+#[cfg(feature="metaruntime")]
+impl Default for RectanglePropertiesPatch {
+    fn default() -> Self {
+        RectanglePropertiesPatch {
+            transform: None,
+            fill: None,
+            size: None,
+            stroke: None,
+        }
+    }
+}
+
+#[cfg(feature="metaruntime")]
+impl FromStr for RectanglePropertiesPatch {
+    type Err = ();
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        todo!()
+    }
+}
 

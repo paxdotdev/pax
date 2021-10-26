@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate lazy_static;
+
 pub use kurbo::{Affine};
 pub use piet::{Color, StrokeStyle, Error};
 
@@ -8,6 +11,7 @@ mod components;
 mod primitives;
 mod runtime;
 mod timeline;
+mod metaruntime;
 
 pub use crate::engine::*;
 pub use crate::primitives::*;

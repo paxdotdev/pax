@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate lazy_static;
-
 
 
 /******
@@ -40,41 +37,24 @@ Walk through the
 
  */
 
-use carbon::{Component, PropertiesCoproduct, Size2D, Transform, Stroke, PropertyValue, Color};
-use std::str::FromStr;
-use std::rc::Rc;
-use std::cell::RefCell;
-
-
-//TODO:
-// - see if we can refactor Rc<RefCell<Transform>> -> Transform + &mut refs
-// -
-
-
-pub fn operate_on_rp(mut rp: RectangleProperties) {
-
-
-    let new_patch = RectanglePropertiesPatch {
-        transform: None,
-        fill: None,
-        size: None,
-        stroke: None,
-    };
-    rp.patch(new_patch);
-
-
-    let brand_new_patch = RectanglePropertiesPatch::default();
-
-
-    // let patch_from_str = "".
-}
-
-pub struct RectangleProperties {
-    pub size: Size2D,
-    pub transform: Rc<RefCell<Transform>>,
-    pub stroke: Stroke,
-    pub fill: Box<dyn PropertyValue<Color>>,
-}
+//
+// pub fn operate_on_rp(mut rp: RectangleProperties) {
+//
+//
+//     let new_patch = RectanglePropertiesPatch {
+//         transform: None,
+//         fill: None,
+//         size: None,
+//         stroke: None,
+//     };
+//     rp.patch(new_patch);
+//
+//
+//     let brand_new_patch = RectanglePropertiesPatch::default();
+//
+//
+//     // let patch_from_str = "".
+// }
 
 
 // Convert something like:
@@ -112,91 +92,6 @@ pub struct RectangleProperties {
 // #2 as a future feature, when further resources are available.
 
 
-impl Patchable<RectanglePropertiesPatch> for RectangleProperties {
-    fn patch(&mut self, patch: RectanglePropertiesPatch) {
-        if let Some(p) = patch.transform {
-            self.transform = Rc::clone(&p);
-        }
-        if let Some(p) = patch.size {
-            self.size = Rc::clone(&p);
-        }
-        if let Some(p) = patch.stroke {
-            self.stroke = p;
-        }
-        if let Some(p) = patch.fill {
-            self.fill = p;
-        }
-    }
-}
-
-
-lazy_static! {
-    static ref RECTANGLE_PROPERTIES_MANIFEST: Vec<(&'static str, &'static str)> = {
-        vec![
-            ("transform", "Transform"),
-            ("size", "Size2D"),
-            ("stroke", "Stroke"),
-            ("fill", "Color"),
-        ]
-    };
-}
-
-
-//A manifest for a Properties object is a list of
-//key-type pairs (like `("name_label", "String")`), describing each Property in the object
-//in a runtime-accessible way.  This is used e.g. for parsing and for design-tooling.
-pub trait Manifestable {
-    fn get_manifest() -> &'static Vec<(&'static str, &'static str)>;
-}
-
-
-impl Manifestable for RectangleProperties {
-    fn get_manifest() -> &'static Vec<(&'static str, &'static str)> {
-        RECTANGLE_PROPERTIES_MANIFEST.as_ref()
-    }
-}
-
-pub trait Patchable<P> {
-    fn patch(&mut self, patch: P);
-}
-
-pub struct RectanglePropertiesPatch {
-    pub size: Option<Size2D>,
-    pub transform: Option<Rc<RefCell<Transform>>>,
-    pub stroke: Option<Stroke>,
-    pub fill: Option<Box<dyn PropertyValue<Color>>>,
-}
-
-impl Default for RectanglePropertiesPatch {
-    fn default() -> Self {
-        RectanglePropertiesPatch {
-            transform: None,
-            fill: None,
-            size: None,
-            stroke: None,
-        }
-    }
-}
-
-
-
-
-impl FromStr for RectanglePropertiesPatch {
-    type Err = ();
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(RectanglePropertiesPatch::default())
-    }
-}
-
-//
-// impl FromStr for RectanglePropertiesPatch {
-//     type Err = ();
-//
-//     fn from_str(s: &str) -> Result<Self, Self::Err> {
-//         todo!()
-//     }
-// }
 
 
 
@@ -246,19 +141,19 @@ pub struct Vtable {
 }
 
 
-
-pub struct Metaruntime {
-    components: Vec<Component>,
-}
-
-impl Metaruntime {
-
-    fn new() -> Self {
-        Metaruntime { components: vec![] }
-    }
-
-    fn seriealize() {
-        unimplemented!()
-    }
-
-}
+//
+// pub struct Metaruntime {
+//     components: Vec<Component>,
+// }
+//
+// impl Metaruntime {
+//
+//     fn new() -> Self {
+//         Metaruntime { components: vec![] }
+//     }
+//
+//     fn seriealize() {
+//         unimplemented!()
+//     }
+//
+// }

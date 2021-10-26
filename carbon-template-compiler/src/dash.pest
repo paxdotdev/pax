@@ -55,6 +55,9 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_" | "-")*}
 //////
 /// BEGIN PROPERTIES
 //////
+
+//TODO: support property "input" declarations, separate block before selector-properties-blocks
+
 properties_declaration = {"@properties" ~ "{" ~ selector_block* ~ "}"}
 selector_block = {selector ~ literal_object}
 literal_object = { identifier? ~ "{" ~ properties_key_value_pair* ~ "}" }

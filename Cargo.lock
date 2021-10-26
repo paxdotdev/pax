@@ -53,6 +53,7 @@ version = "0.1.0"
 dependencies = [
  "carbon-macro-expression",
  "kurbo",
+ "lazy_static",
  "piet",
  "piet-web",
  "serde",
@@ -85,7 +86,6 @@ name = "carbon-metaruntime"
 version = "0.1.0"
 dependencies = [
  "carbon",
- "lazy_static",
 ]
 
 [[package]]
