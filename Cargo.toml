@@ -4,14 +4,14 @@ members = [
     "carbon",
     "carbon-chassis-web",
     "carbon-macro-expression",
-    "carbon-template-compiler",
+    "carbon-compiler",
 ]
 
 default-members = [
     "carbon",
     "carbon-chassis-web",
     "carbon-macro-expression",
-    "carbon-template-compiler",
+    "carbon-compiler",
 ]
 
 

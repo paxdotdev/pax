@@ -1,8 +1,8 @@
-use crate::PropertyValue;
+use crate::Property;
 
 pub struct TimelineSegment {
     pub curve_in: Box<dyn Easible>,
-    pub ending_value: Box<dyn PropertyValue<f64>>,
+    pub ending_value: Box<dyn Property<f64>>,
     pub ending_frame_inclusive: usize,
 }
 

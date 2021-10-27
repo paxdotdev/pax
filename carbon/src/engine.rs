@@ -9,7 +9,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyValueExpression, PropertyValueLiteral, PropertyValueTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, Text, RectangleProperties};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, PropertyTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, Text, RectangleProperties};
 use crate::components::Spread;
 use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
@@ -82,8 +82,8 @@ impl CarbonEngine {
                             Spread::new(
                                 Rc::new(RefCell::new(
                                     SpreadProperties {
-                                        cell_count: Box::new(PropertyValueLiteral {value: 4}),
-                                        gutter_width: Box::new(PropertyValueLiteral {value: Size::Pixel(15.0)}),
+                                        cell_count: Box::new(PropertyLiteral {value: 4}),
+                                        gutter_width: Box::new(PropertyLiteral {value: Size::Pixel(15.0)}),
                                         ..Default::default()
                                     }
                                 )),
@@ -94,7 +94,7 @@ impl CarbonEngine {
                                             properties: Rc::new(RefCell::new(RectangleProperties {
                                                 transform: Rc::new(RefCell::new(Transform::default())),
                                                 fill: Box::new(
-                                                    PropertyValueExpression {
+                                                    PropertyExpression {
                                                         cached_value: Color::hlc(0.0,0.0,0.0),
                                                         // expression!(|engine: &CarbonEngine| ->
                                                         evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
@@ -119,12 +119,12 @@ impl CarbonEngine {
                                                 Transform {
                                                     translate: (
                                                         Box::new(
-                                                           PropertyValueLiteral {value: 0.0}
+                                                           PropertyLiteral {value: 0.0}
                                                         ),
                                                         Box::new(
-                                                            PropertyValueTimeline {
+                                                            PropertyTimeline {
                                                                 starting_value: Box::new(
-                                                                    PropertyValueLiteral {value: 0.0}
+                                                                    PropertyLiteral {value: 0.0}
                                                                 ),
                                                                 cached_evaluated_value: 0.0,
                                                                 timeline_segments: vec![
@@ -132,28 +132,28 @@ impl CarbonEngine {
                                                                         curve_in: EasingCurve::in_out_back(),
                                                                         ending_frame_inclusive: 74,
                                                                         ending_value: Box::new(
-                                                                           PropertyValueLiteral {value: 500.0}
+                                                                           PropertyLiteral {value: 500.0}
                                                                         ),
                                                                     },
                                                                     TimelineSegment {
                                                                         curve_in: EasingCurve::in_out_back(),
                                                                         ending_frame_inclusive: 149,
                                                                         ending_value: Box::new(
-                                                                           PropertyValueLiteral {value: 0.0}
+                                                                           PropertyLiteral {value: 0.0}
                                                                         ),
                                                                     },
                                                                     TimelineSegment {
                                                                         curve_in: EasingCurve::in_out_back(),
                                                                         ending_frame_inclusive: 224,
                                                                         ending_value: Box::new(
-                                                                           PropertyValueLiteral {value: -500.0}
+                                                                           PropertyLiteral {value: -500.0}
                                                                         ),
                                                                     },
                                                                     TimelineSegment {
                                                                         curve_in: EasingCurve::in_out_back(),
                                                                         ending_frame_inclusive: 299,
                                                                         ending_value: Box::new(
-                                                                           PropertyValueLiteral {value: -0.0}
+                                                                           PropertyLiteral {value: -0.0}
                                                                         ),
                                                                     },
                                                                 ],
@@ -164,7 +164,7 @@ impl CarbonEngine {
                                                 }
                                             )),
                                             fill:  Box::new(
-                                                PropertyValueLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
+                                                PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
                                             ),
                                             stroke: Stroke {
                                                 width: 4.0,
@@ -179,15 +179,15 @@ impl CarbonEngine {
                                     Rc::new(RefCell::new(
                                         Text {
                                             id: "a-thing-of-beauty".into(),
-                                            content: Box::new(PropertyValueLiteral {value: "A thing of beauty...".to_string()}),
+                                            content: Box::new(PropertyLiteral {value: "A thing of beauty...".to_string()}),
                                             transform: Rc::new(RefCell::new(Transform {
                                                 // translate:
                                                 // align: (
                                                 //     Box::new(),
-                                                //     Box::new(PropertyValueLiteral {value: 0.5}),
+                                                //     Box::new(PropertyLiteral {value: 0.5}),
                                                 // ),
-                                                // origin: (                                                      Box::new(PropertyValueLiteral {value: 0.5}),
-                                                //     Box::new(PropertyValueLiteral {value: Size::Percent(50.0)}),
+                                                // origin: (                                                      Box::new(PropertyLiteral {value: 0.5}),
+                                                //     Box::new(PropertyLiteral {value: Size::Percent(50.0)}),
                                                 //
                                                 //     Box::new()
                                                 // ),
@@ -203,9 +203,9 @@ impl CarbonEngine {
                                         Spread::new(
                                             Rc::new(RefCell::new(
                                                 SpreadProperties {
-                                                    cell_count: Box::new(PropertyValueLiteral {value: 3}),
+                                                    cell_count: Box::new(PropertyLiteral {value: 3}),
                                                     direction: SpreadDirection::Vertical,
-                                                    gutter_width: Box::new(PropertyValueLiteral {value: Size::Pixel(15.0)}),
+                                                    gutter_width: Box::new(PropertyLiteral {value: Size::Pixel(15.0)}),
                                                     ..Default::default()
                                                 }
                                             )),
@@ -216,7 +216,7 @@ impl CarbonEngine {
                                                     properties: Rc::new(RefCell::new(RectangleProperties {
                                                         transform: Rc::new(RefCell::new(Transform::default())),
                                                         fill: Box::new(
-                                                            PropertyValueExpression {
+                                                            PropertyExpression {
                                                                 cached_value: Color::hlc(0.0,0.0,0.0),
                                                                 // expression!(|engine: &CarbonEngine| ->
                                                                 evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &CarbonEngine| -> Color {
@@ -239,7 +239,7 @@ impl CarbonEngine {
                                                     properties: Rc::new(RefCell::new(RectangleProperties {
                                                         transform: Rc::new(RefCell::new(Transform::default())),
                                                         fill:  Box::new(
-                                                            PropertyValueLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
+                                                            PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
                                                         ),
                                                         stroke: Stroke {
                                                             width: 4.0,
@@ -254,7 +254,7 @@ impl CarbonEngine {
                                                 Rc::new(RefCell::new(
                                                     Text {
                                                         id: "a-joy-forever".into(),
-                                                        content: Box::new(PropertyValueLiteral {value: "...is a joy forever".to_string()}),
+                                                        content: Box::new(PropertyLiteral {value: "...is a joy forever".to_string()}),
                                                         transform: Rc::new(RefCell::new(Transform { ..Default::default() })),
                                                         size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                                     }

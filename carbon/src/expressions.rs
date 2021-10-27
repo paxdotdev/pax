@@ -6,9 +6,9 @@ use crate::runtime::StackFrame;
 use crate::timeline::{TimelineSegment};
 use serde::{Serialize, Serializer};
 
-/// An abstract PropertyValue that may be either Literal or
+/// An abstract Property that may be either Literal or
 /// a dynamic runtime Expression, or a Timeline-bound value
-pub trait PropertyValue<T> {
+pub trait Property<T> {
     fn compute_in_place(&mut self, _rtc: &RenderTreeContext) {}
     fn read(&self) -> &T;
 }
@@ -16,26 +16,44 @@ pub trait PropertyValue<T> {
 
 
 
-// impl<'a, T: PartialEq> PartialEq for dyn PropertyValue<T> + 'a {
+
+
+
+
+// impl<'a, T: PartialEq> PartialEq for dyn Property<T> + 'a {
 //     fn eq(&self, other: &Self) -> bool {
 //         self.read() == other.read()
 //     }
 // }
 
+
+
+
+
+
+
+
+
 /// The Literal form of a Property: a bare literal value
-pub struct PropertyValueLiteral<T> {
+pub struct PropertyLiteral<T> {
     pub value: T,
 }
 
-impl<T> PropertyValue<T> for PropertyValueLiteral<T> {
+impl<T> Property<T> for PropertyLiteral<T> {
     fn read(&self) -> &T {
         &self.value
     }
 }
 
-/// The Timeline form of a PropertyValue
-pub struct PropertyValueTimeline {
-    pub starting_value: Box<dyn PropertyValue<f64>>,
+/// The Timeline form of a Property
+
+trait Tweenable {
+
+}
+
+
+pub struct PropertyTimeline<T: Tweenable> {
+    pub starting_value: Box<dyn Property<f64>>,
     pub timeline_segments: Vec<TimelineSegment>,
     pub cached_evaluated_value: f64,
 }
@@ -43,7 +61,7 @@ pub struct PropertyValueTimeline {
 //TODO: create an Interpolatable trait that allows us
 //      to ease between values beyond f64 (e.g. a discrete interpolator
 //      for ints or vecs; an interpolator for Colors)
-impl PropertyValue<f64> for PropertyValueTimeline {
+impl Property<f64> for PropertyTimeline {
 
     fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
         let timeline_playhead_position = rtc.timeline_playhead_position;
@@ -112,15 +130,15 @@ pub trait Evaluator<T> {
 /// that evaluates the value itself, as well as a "register" of
 /// the memoized value (`cached_value`) that can be referred to
 /// via calls to `read()`
-pub struct PropertyValueExpression<T, E: Evaluator<T>>
+pub struct PropertyExpression<T, E: Evaluator<T>>
 {
     pub evaluator: E,
     pub cached_value: T,
 }
 
-// impl<T, E: Evaluator<T>> PropertyValueExpression<T, E> {}
+// impl<T, E: Evaluator<T>> PropertyExpression<T, E> {}
 
-impl<T, E: Evaluator<T>> PropertyValue<T> for PropertyValueExpression<T, E> {
+impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
     fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
 
         let ic = InjectionContext {

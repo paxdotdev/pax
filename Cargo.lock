@@ -74,15 +74,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "carbon-macro-expression"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn",
-]
-
-[[package]]
-name = "carbon-template-compiler"
+name = "carbon-compiler"
 version = "0.1.0"
 dependencies = [
  "carbon",
@@ -92,6 +84,14 @@ dependencies = [
  "pest_derive",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "carbon-macro-expression"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]

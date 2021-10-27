@@ -1,5 +1,5 @@
 [package]
-name = "carbon-template-compiler"
+name = "carbon-compiler"
 version = "0.1.0"
 authors = ["Zack Brown <zack@zpad.io>"]
 edition = "2018"

@@ -1,36 +1,36 @@
 
-
-
+//TODO: do stand-alone structs require defaults declarations?
+//      it seems like "no," since all properties in the properties tree
+//      will be specified via Components, which must specify properties
+#[expressable]
 struct DeeperStruct {
     a: i64,
     b: String,
 }
 
-#[properties] //everything that's `pub` in here becomes a component-scoped property
+#[component = {
+    num_clicks: 0,
+    deeper_struct: {
+        a: 42,
+        b: "Profundo!"
+    }
+}]
 pub struct Main {
-
-    #[property(0)] //default value is provided to macro in expression language syntax
     pub num_clicks : i64,
-
-    #[property(DeeperStruct {a: 6, b: "hello"})] //explicit `DeeperStruct` is optional; could be {a:6,b:"hello"}
-    pub deeper_struct: DeeperStruct
+    pub deeper_struct: DeeperStruct,
 }
-
-//Alternatively, we could have a `properties` data structure
-//(which could be trait-friendly with get_ and set_)
 
 impl Main {
 
     #[method]
-    pub fn handle_click(&mut self, args: ClickArgs) {
+    pub fn increment_clicker(&mut self, args: ClickArgs) {
         self.num_clicks.set(self.num_clicks + 1)
     }
-
 
 }
 
 
-/* Approaches for dirty-handling:
+/* Approaches for dirty-handling of properties:
     - Check dataframes on each tick (brute-force)
     - inject a setter, ideally with primitive ergonomics (`self.x = self.x + 1`)
         probably done with a macro decorating the struct field
@@ -41,3 +41,11 @@ impl Main {
                        `.set(new: T)` is also not the worst, even if it could be better.
                        In TS we can have better ergonomics with `properties`
  */
+
+
+
+
+//DONE: is all descendent property access via Actions + selectors? `$('#some-desc').some_property`
+//      or do we need a way to support declaring desc. properties?
+//      We do NOT need a way to declar desc. properties here — because they are declared in the
+//      `properties` blocks of .dash

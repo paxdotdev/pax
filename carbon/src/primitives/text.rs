@@ -7,11 +7,11 @@ use piet_web::WebRenderContext;
 
 use serde::{Serialize};
 
-use crate::{Color, PropertyValue, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, Affine, HostPlatformContext};
+use crate::{Color, Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, Affine, HostPlatformContext};
 use wasm_bindgen::prelude::*;
 
 pub struct Text {
-    pub content: Box<dyn PropertyValue<String>>,
+    pub content: Box<dyn Property<String>>,
     pub transform: Rc<RefCell<Transform>>,
     pub size: Size2D,
     pub id: String,

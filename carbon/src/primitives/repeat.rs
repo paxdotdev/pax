@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{PropertyValue, PropertyValueLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Transform};
+use crate::{Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Transform};
 use crate::primitives::component::Component;
 use crate::rendering::Size2D;
 use crate::runtime::{PropertiesCoproduct};
@@ -14,7 +14,7 @@ use crate::runtime::{PropertiesCoproduct};
 /// with an index `i` and a pointer to that relevant datum `data_list[i]`
 pub struct Repeat {
     pub template: RenderNodePtrList, //TODO: private?
-    pub data_list: Box<dyn PropertyValue<Vec<Rc<PropertiesCoproduct>>>>,
+    pub data_list: Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>,
     pub transform: Rc<RefCell<Transform>>,
 
     //TODO: any way to make this legit-private along with the ergonomics of the ..Default::default() syntax?
@@ -41,7 +41,7 @@ impl Default for Repeat {
     fn default() -> Self {
         Repeat {
             template: Rc::new(RefCell::new(vec![])),
-            data_list: Box::new(PropertyValueLiteral {value: vec![]}),
+            data_list: Box::new(PropertyLiteral {value: vec![]}),
             transform: Default::default(),
             _virtual_children: Rc::new(RefCell::new(vec![]))
         }

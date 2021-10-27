@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{Evaluator, InjectionContext, PropertyValue, PropertyValueExpression, PropertyValueLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Repeat, Size, Transform};
+use crate::{Evaluator, InjectionContext, Property, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Repeat, Size, Transform};
 use crate::primitives::component::Component;
 use crate::primitives::frame::Frame;
 use crate::primitives::placeholder::Placeholder;
@@ -192,7 +192,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
         vec![
             Rc::new(RefCell::new(
                 Repeat {
-                    data_list: Box::new(PropertyValueExpression {
+                    data_list: Box::new(PropertyExpression {
                         cached_value: vec![],
                         evaluator: SpreadPropertiesInjector {variadic_evaluator: |properties: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
                             properties.borrow()._cached_computed_layout_spec.iter()
@@ -203,7 +203,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                         Rc::new(RefCell::new(
                             Frame {
                                 size: Rc::new(RefCell::new((
-                                    Box::new(PropertyValueExpression {
+                                    Box::new(PropertyExpression {
                                         cached_value: Size::Pixel(100.0),
                                         evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size {
                                             match &*scope.borrow().datum {
@@ -214,7 +214,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                             }
                                         }}
                                     }),
-                                    Box::new(PropertyValueExpression {
+                                    Box::new(PropertyExpression {
                                         cached_value: Size::Pixel(100.0),
                                         evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size {
                                             match &*scope.borrow().datum {
@@ -229,7 +229,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                 transform: Rc::new(RefCell::new(
                                     Transform {
                                             translate: (
-                                                Box::new(PropertyValueExpression {
+                                                Box::new(PropertyExpression {
                                                     cached_value: 0.0,
                                                     evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
                                                         match &*scope.borrow().datum {
@@ -240,7 +240,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                                         }
                                                     }}
                                                 }),
-                                                Box::new(PropertyValueExpression {
+                                                Box::new(PropertyExpression {
                                                     cached_value: 0.0,
                                                     evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
                                                         match &*scope.borrow().datum {
@@ -259,7 +259,7 @@ fn init_and_retrieve_template() -> RenderNodePtrList {
                                     Rc::new(RefCell::new(
                                         Placeholder::new(
                                             Transform::default(),
-                                            Box::new(PropertyValueExpression {
+                                            Box::new(PropertyExpression {
                                                 cached_value: 0,
                                                 evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
                                                     scope.borrow().i
@@ -289,8 +289,8 @@ pub struct SpreadProperties {
     pub size: Size2D,
     pub transform: Rc<RefCell<Transform>>,
     pub direction: SpreadDirection,
-    pub cell_count: Box<dyn PropertyValue<usize>>,
-    pub gutter_width: Box<dyn PropertyValue<Size>>,
+    pub cell_count: Box<dyn Property<usize>>,
+    pub gutter_width: Box<dyn Property<Size>>,
 
     //These two data structures act as "sparse maps," where
     //the first element in the tuple is the index of the cell/gutter to
@@ -311,8 +311,8 @@ impl Default for SpreadProperties {
         SpreadProperties {
             size: Size2DFactory::default(),
             transform: Default::default(),
-            cell_count: Box::new(PropertyValueLiteral {value: 0}),
-            gutter_width: Box::new(PropertyValueLiteral {value: Size::Pixel(0.0)}),
+            cell_count: Box::new(PropertyLiteral {value: 0}),
+            gutter_width: Box::new(PropertyLiteral {value: Size::Pixel(0.0)}),
             _cached_computed_layout_spec: vec![],
             overrides_cell_size: vec![],
             overrides_gutter_size: vec![],

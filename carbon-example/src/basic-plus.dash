@@ -1,8 +1,10 @@
 <Spread id="main-spread">
-    <Rectangle id="rect-1" />
+    <Rectangle id="rect-1" onclick=@handle_click />
     <Rectangle id="rect-2" />
     <Group>
-        <Text id="label" content="Hello!" />
+        @if (num_clicks % 2 == 0) {
+            <Text id="label" content="Hello!" />
+        }
         <Rectangle id="rect-3" />
     </Group>
 </Spread>
@@ -29,12 +31,7 @@
 
     #rect-2 {
         fill: @{
-            Color {
-                h: (Engine.frames_elapsed / 100) % 360,
-                s: 75,
-                l: 75,
-                a: 1,
-            }
+            Color {h: (Engine.frames_elapsed / 100) % 360, s: 75, l: 75, a: 1}
         }
     }
 }

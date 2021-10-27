@@ -8,9 +8,19 @@ use piet::RenderContext;
 use piet_web::WebRenderContext;
 
 
-use crate::{Color, PropertyValue, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, HostPlatformContext};
+use crate::{Color, Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, HostPlatformContext};
 use std::str::FromStr;
 use crate::metaruntime::{Manifestable, Patchable};
+
+
+/// Properties refactor:
+///     - expressions.rs -> properties.rs
+///     - use a coproduct-style Property super-object
+///         - TODO:  how to support `setting` values in Actions?
+///                 set_timeline() // Probably future?  Will there be a Timeline Expression Language too?  Or a timeline module added to Exp.Lang?
+///                 set_expression() // Probably future — interesting question of runtime vs. pre-compiled Expression Language
+///                 set() // T
+
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -22,7 +32,7 @@ pub struct RectangleProperties {
     pub size: Size2D,
     pub transform: Rc<RefCell<Transform>>,
     pub stroke: Stroke,
-    pub fill: Box<dyn PropertyValue<Color>>,
+    pub fill: Box<dyn Property<Color>>,
 }
 
 impl RenderNode for Rectangle {
@@ -107,7 +117,7 @@ pub struct RectanglePropertiesPatch {
     pub size: Option<Size2D>,
     pub transform: Option<Rc<RefCell<Transform>>>,
     pub stroke: Option<Stroke>,
-    pub fill: Option<Box<dyn PropertyValue<Color>>>,
+    pub fill: Option<Box<dyn Property<Color>>>,
 }
 
 #[cfg(feature="metaruntime")]
