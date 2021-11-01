@@ -6,30 +6,12 @@ use crate::runtime::StackFrame;
 use crate::timeline::{TimelineSegment};
 use serde::{Serialize, Serializer};
 
-/// An abstract Property that may be either Literal or
+/// An abstract Property that may be either: Literal,
 /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait Property<T> {
     fn compute_in_place(&mut self, _rtc: &RenderTreeContext) {}
     fn read(&self) -> &T;
 }
-
-
-
-
-
-
-
-
-// impl<'a, T: PartialEq> PartialEq for dyn Property<T> + 'a {
-//     fn eq(&self, other: &Self) -> bool {
-//         self.read() == other.read()
-//     }
-// }
-
-
-
-
-
 
 
 

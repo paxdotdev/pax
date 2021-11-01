@@ -9,12 +9,25 @@ struct DeeperStruct {
 
  */
 
+
+// Do we need to wrap the following in Property<> ?  What if DeeperStruct is already
+// wrapped in a Property in the containing component?
+// Refer to how Rectangle `fill` already does Box<dyn Property<Color>> — this suggests
+// 'no,' we don't need to wrap DeeperStruct's members in Property<>
+//
+// That said, it will be a userland responsibility to implement `Tweenable` (or better yet, make it
+// derivable! that can then be chained into the #[expressable] macro and then wholly automated away,
+// as long as all properties are Tweenable in turn.)
+//
+// If any properties aren't tweenable, the derive would
+// cause a compiler failure, which would require not using `expressable` if we're not careful
+// (perhaps we can pass flags into expressable, like `#[expressable(no-derive)]` ? )
 struct DeeperStruct {
     a: i64,
     b: String,
 }
 
-todo!("Register DeeperStruct in the properties coproduct");
+todo!("Register DeeperStruct in the propertiescoproduct & manifest");
 
 
 #[cfg(feature="metaruntime")]
@@ -96,8 +109,8 @@ pub struct Main {
 
 pub struct Main {
 
-    pub num_clicks : i64,
-    pub deeper_struct: DeeperStruct
+    pub num_clicks : Box<dyn Property<i64>>,
+    pub deeper_struct: Box<dyn Property<DeeperStruct>>,
 
 }
 
