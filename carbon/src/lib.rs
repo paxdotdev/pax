@@ -73,10 +73,14 @@ TODO:
             [ ] Text input
             [ ] Dropdown
     [ ] Compiler & Render Tree Manager
+        [ ] e2e macro hookup
+            [ ] create sample project; manually expand macros
+            [ ] write MVP macros
+                [ ] Coordinate on manifest & PropertiesCoproduct via filesystem->idempotent-side-effect trick
         [ ] Patching & refactor
+            [ ] Wait until e2e sample project hookup — chance for evolving scope
             [ ] Patchable trait
             [ ] Design: RectangleProperties, RectanglePropertiesPatch, update API, etc.
-            [ ]
         [ ] Template compilation
             [x] Syntax & file design
             [ ] Code-behind & default implementations
@@ -88,6 +92,10 @@ TODO:
 
         [ ] Expression compilation MVP
             [ ] Syntax & file design
+        [ ] Method hookups
+            [ ] Dispatcher
+            [ ] Instantiation, reference management, enum ID + addressing for method definitions &
+                invocations
 
     [ ] Hook up all relevant properties to Property
 

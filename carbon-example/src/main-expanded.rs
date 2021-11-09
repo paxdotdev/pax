@@ -9,7 +9,6 @@ struct DeeperStruct {
 
  */
 
-
 // Do we need to wrap the following in Property<> ?  What if DeeperStruct is already
 // wrapped in a Property in the containing component?
 // Refer to how Rectangle `fill` already does Box<dyn Property<Color>> — this suggests
@@ -28,7 +27,6 @@ struct DeeperStruct {
 }
 
 todo!("Register DeeperStruct in the propertiescoproduct & manifest");
-
 
 #[cfg(feature="metaruntime")]
 lazy_static! {
@@ -88,8 +86,6 @@ impl FromStr for DeeperStructPatch {
 }
 
 
-
-
 /* originally:
 #[properties]
 pub struct Main {
@@ -98,6 +94,8 @@ pub struct Main {
 }
  */
 
+
+
 pub struct MainProperties {
 
     pub num_clicks : Box<dyn Property<i64>>,
@@ -105,35 +103,10 @@ pub struct MainProperties {
 
 }
 
-
-
-
-
-
 todo!("Register Main in the properties manifest, inside #[properties] macro");
 
 
-
-
-
-//TODO: generate this.
-//TODO: how can we ensure this represents ALL properties? There's a macro
-//      sequencing puzzle here.
-//      One possibility:  compile twice (e.g. a manual rustc call from the pre-compile script.)
-//                        After the first compilation, our manifest file should be complete.
-//                        Upon the second compilation, that manifest can feed into this definition.
-//      Another possibility: static analysis (blech)
-//      Another possibility: introduce another process/server; each properties registration macro
-//                           communicates to that server
-//  *** Another possibility: idempotent, "full service" macros for each properties registration,
-//                           which side-effectfully write to the propertiescoproduct as well as the manifest.
-//                           In this scenario, we do not need to decorate the central Coproduct definition
-//                           with a macro (or if we do, only to make it discoverable for static analysis)
-//                           This approach relies on ALL macros being expanded before any deeper compilation
-//                           occurs (see the description of the macro queue here: https://rustc-dev-guide.rust-lang.org/macro-expansion.html#expansion-and-ast-integration )
-
-
-
+todo!("Move this to stand-alone file; generate via macros");
 pub enum PropertiesCoproduct {
     Main(Rc<RefCell<MainProperties>>),
     DevAppRoot(Rc<RefCell<DevAppRootProperties>>),
@@ -147,8 +120,6 @@ pub enum PropertiesCoproduct {
     Text(Rc<Text>),
     Empty,
 }
-
-
 
 
 #[cfg(feature="metaruntime")]
@@ -208,21 +179,21 @@ impl FromStr for MainPatch {
     }
 }
 
+// originally:
+//
+// #[methods]
+// impl Main {
+//
+//     pub fn increment_clicker(&mut self, args: ClickArgs) {
+//         self.num_clicks.set(self.num_clicks + 1)
+//     }
+//
+// }
+//
 
+todo!("connect methods to an event dispatcher; handle instantiating, storing,
+and triggering methods based on enum-IDs-as-addresses");
 
-
-
-
-
-
-#[methods]
-impl Main {
-
-    pub fn increment_clicker(&mut self, args: ClickArgs) {
-        self.num_clicks.set(self.num_clicks + 1)
-    }
-
-}
 
 
 /* Approaches for dirty-handling:
