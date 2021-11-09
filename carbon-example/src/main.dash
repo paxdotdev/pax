@@ -8,6 +8,14 @@
 </Spread>
 
 @properties {
+    num_clicks: 0,
+    deeper_struct: {
+        a: 42,
+        b: "Profundo!"
+    }
+}
+
+@settings {
     #main-spread {
         cell_count: 3
         orientation: Orientation::Vertical

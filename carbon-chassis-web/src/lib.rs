@@ -14,11 +14,11 @@ fn browser_window() -> web_sys::Window {
     web_sys::window().expect("no global `window` exists")
 }
 
-fn request_animation_frame(f: &Closure<dyn FnMut()>) {
-    browser_window()
-        .request_animation_frame(f.as_ref().unchecked_ref())
-        .expect("should register `requestAnimationFrame` OK");
-}
+// fn request_animation_frame(f: &Closure<dyn FnMut()>) {
+//     browser_window()
+//         .request_animation_frame(f.as_ref().unchecked_ref())
+//         .expect("should register `requestAnimationFrame` OK");
+// }
 
 // Console.log support
 #[wasm_bindgen]

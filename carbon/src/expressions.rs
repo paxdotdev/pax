@@ -4,7 +4,6 @@ use std::rc::Rc;
 use crate::{CarbonEngine, RenderTreeContext};
 use crate::runtime::StackFrame;
 use crate::timeline::{TimelineSegment};
-use serde::{Serialize, Serializer};
 
 /// An abstract Property that may be either: Literal,
 /// a dynamic runtime Expression, or a Timeline-bound value
@@ -34,7 +33,7 @@ trait Tweenable {
 }
 
 
-pub struct PropertyTimeline<T: Tweenable> {
+pub struct PropertyTimeline {
     pub starting_value: Box<dyn Property<f64>>,
     pub timeline_segments: Vec<TimelineSegment>,
     pub cached_evaluated_value: f64,

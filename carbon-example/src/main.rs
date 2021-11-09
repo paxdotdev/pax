@@ -8,13 +8,7 @@ struct DeeperStruct {
     b: String,
 }
 
-#[component = {
-    num_clicks: 0,
-    deeper_struct: {
-        a: 42,
-        b: "Profundo!"
-    }
-}]
+#[properties]
 pub struct Main {
     pub num_clicks : i64,
     pub deeper_struct: DeeperStruct,

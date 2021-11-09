@@ -9,8 +9,7 @@ use std::fs;
 
 
 use pest::Parser;
-use pest::prec_climber::PrecClimber;
-use pest::error::Error;
+// use pest::prec_climber::PrecClimber;
 
 #[derive(Parser)]
 #[grammar = "dash.pest"]
@@ -82,7 +81,7 @@ fn main() {
     // println!("{}", serialize_jsonvalue(&json));
 
     //start semantizing
-    let render_tree = unimplemented!();
+    let _render_tree = unimplemented!();
 
 }
 

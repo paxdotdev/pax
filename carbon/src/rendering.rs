@@ -3,7 +3,6 @@ use std::rc::Rc;
 
 use kurbo::{Affine};
 use piet::{Color, StrokeStyle};
-use piet_web::WebRenderContext;
 
 use crate::{Property, PropertyLiteral, RenderTreeContext, HostPlatformContext};
 

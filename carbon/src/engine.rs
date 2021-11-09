@@ -16,7 +16,6 @@ use crate::rectangle::Rectangle;
 use crate::rendering::Size2DFactory;
 use crate::runtime::{PropertiesCoproduct, Runtime};
 use crate::timeline::{EasingCurve, Timeline, TimelineSegment};
-use std::collections::VecDeque;
 use wasm_bindgen::JsValue;
 
 // Public method for consumption by engine chassis, e.g. WebChassis

@@ -91,30 +91,28 @@ impl FromStr for DeeperStructPatch {
 
 
 /* originally:
-#[component(Main {
-    num_clicks: 5,
-    deeper_struct: {
-        a: 42,
-        b: "Profundo!",
-    }
-})] //everything that's `pub` in here becomes a component-scoped property
+#[properties]
 pub struct Main {
-
     pub num_clicks : i64,
-
     pub deeper_struct: DeeperStruct,
-
 }
  */
 
-pub struct Main {
+pub struct MainProperties {
 
     pub num_clicks : Box<dyn Property<i64>>,
     pub deeper_struct: Box<dyn Property<DeeperStruct>>,
 
 }
 
-todo!("Register Main in the properties manifest");
+
+
+
+
+
+todo!("Register Main in the properties manifest, inside #[properties] macro");
+
+
 
 
 
@@ -137,6 +135,7 @@ todo!("Register Main in the properties manifest");
 
 
 pub enum PropertiesCoproduct {
+    Main(Rc<RefCell<MainProperties>>),
     DevAppRoot(Rc<RefCell<DevAppRootProperties>>),
     RepeatItem(Rc<RefCell<RepeatItem>>),
     Spread(Rc<RefCell<SpreadProperties>>),

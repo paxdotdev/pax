@@ -2,7 +2,7 @@
 WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
 COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
 
-//////
+//////  //////  //////
 /// BEGIN TEMPLATE
 //////
 
@@ -52,7 +52,7 @@ identifier = { (ASCII_ALPHANUMERIC | "_" | "-")+ }
 pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_" | "-")*}
 
 
-//////
+//////  //////  //////
 /// BEGIN PROPERTIES
 //////
 
@@ -87,7 +87,7 @@ enum_value = @{pascal_identifier ~ ("::" ~ pascal_identifier ~ ("("~enum_args_li
 enum_args_list = !{properties_value ~ ("," ~ properties_value)*}
 
 
-//////
+//////  //////  //////
 /// BEGIN EXPRESSIONS
 //////
 
@@ -181,7 +181,7 @@ xo_rel_neq = {"!="}
 
 
 
-//////
+//////  //////  //////
 /// BEGIN CONTROL FLOW
 //////
 
