@@ -76,6 +76,7 @@ TODO:
         [ ] e2e macro hookup
             [ ] create sample project; manually expand macros
             [ ] write MVP macros
+                [ ] First write a hello world with a hand-written macro-manifest-coproduct
                 [ ] Coordinate on manifest & PropertiesCoproduct via filesystem->idempotent-side-effect trick
         [ ] Patching & refactor
             [ ] Wait until e2e sample project hookup — chance for evolving scope

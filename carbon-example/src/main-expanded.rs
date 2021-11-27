@@ -26,6 +26,14 @@ struct DeeperStruct {
     b: String,
 }
 
+
+
+pub trait Property<T> {
+    fn get(&self) -> T;
+    fn set(&mut self, newVal: T);
+}
+
+
 todo!("Register DeeperStruct in the propertiescoproduct & manifest");
 
 #[cfg(feature="metaruntime")]
@@ -96,17 +104,16 @@ pub struct Main {
 
 
 
+
 pub struct MainProperties {
-
-    pub num_clicks : Box<dyn Property<i64>>,
+    pub num_clicks : Box<dyn Property<i64>>, //TODO! support .get and .set
     pub deeper_struct: Box<dyn Property<DeeperStruct>>,
-
 }
 
 todo!("Register Main in the properties manifest, inside #[properties] macro");
 
 
-todo!("Move this to stand-alone file; generate via macros");
+todo!("Move this to stand-alone file; generate via macros + dev server");
 pub enum PropertiesCoproduct {
     Main(Rc<RefCell<MainProperties>>),
     DevAppRoot(Rc<RefCell<DevAppRootProperties>>),
@@ -143,7 +150,7 @@ impl Manifestable for Main {
 }
 
 #[cfg(feature="metaruntime")]
-impl Patchable<MainPatch> for Main {
+impl Patchable<MainPatch> for MainProperties {
     fn patch(&mut self, patch: MainPatch) {
         if let Some(p) = patch.num_clicks {
             self.num_clicks = p;
@@ -194,6 +201,9 @@ impl FromStr for MainPatch {
 todo!("connect methods to an event dispatcher; handle instantiating, storing,
 and triggering methods based on enum-IDs-as-addresses");
 
+
+
+impl RenderNode for MainProperties
 
 
 /* Approaches for dirty-handling:
