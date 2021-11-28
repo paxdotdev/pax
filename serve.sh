@@ -8,7 +8,7 @@ set -ex
 # cargo build --manifest-path=piet/Cargo.toml --all-targets --all-features
 
 #cargo build --manifest-path=../../../piet/Cargo.toml --all-targets --all-features
-cd carbon-chassis-web
+cd pax-chassis-web
 
 # before adding serde: 92.94kb
 wasm-pack build --release -d basic-web-static/dist

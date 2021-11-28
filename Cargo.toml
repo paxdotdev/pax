@@ -1,17 +1,19 @@
 [workspace]
 
 members = [
-    "carbon",
-    "carbon-chassis-web",
-    "carbon-macro-expression",
-    "carbon-compiler",
+    "pax",
+    "pax-chassis-web",
+    "pax-macro-expression",
+    "pax-compiler",
+    "pax-dev-server",
 ]
 
 default-members = [
-    "carbon",
-    "carbon-chassis-web",
-    "carbon-macro-expression",
-    "carbon-compiler",
+    "pax",
+    "pax-chassis-web",
+    "pax-macro-expression",
+    "pax-compiler",
+    "pax-dev-server",
 ]
 
 
