@@ -2,18 +2,19 @@
 //TODO: do stand-alone structs require defaults declarations?
 //      it seems like "no," since all properties in the properties tree
 //      will be specified via Components, which must specify properties
-#[properties]
+#[pax]
 struct DeeperStruct {
     a: i64,
     b: String,
 }
 
-#[component]
+#[pax]
 pub struct Main {
     pub num_clicks : i64,
     pub deeper_struct: DeeperStruct,
 }
 
+#[pax]
 impl Main {
 
     pub fn increment_clicker(&mut self, args: ClickArgs) {

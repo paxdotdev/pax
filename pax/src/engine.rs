@@ -9,7 +9,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, PropertyTimeline, RenderNodePtr, RenderTree, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, Text, RectangleProperties};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, PropertyTimeline, RenderNodePtr, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, Text, RectangleProperties};
 use crate::components::Spread;
 use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
@@ -25,7 +25,7 @@ pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> PaxEngine {
 
 pub struct PaxEngine {
     pub frames_elapsed: usize,
-    pub render_tree: Rc<RefCell<RenderTree>>,
+    pub root_component: Rc<RefCell<Component>>, //NOTE: to support multiple concurrent "root components," e.g. for multi-stage authoring, this could simply be made an array of `root_components`
     pub runtime: Rc<RefCell<Runtime>>,
     viewport_size: (f64, f64),
 }
@@ -59,241 +59,251 @@ impl PaxEngine {
         PaxEngine {
             frames_elapsed: 0,
             runtime: Rc::new(RefCell::new(Runtime::new(logger))),
-            render_tree: Rc::new(RefCell::new(RenderTree {
-                root: Rc::new(RefCell::new(Component {
-                    adoptees: Rc::new(RefCell::new(vec![])),//TODO: accept from outside application, e.g. from a React app or iOS app
-                    properties: Rc::new(RefCell::new(
-                        PropertiesCoproduct::DevAppRoot(Rc::new(RefCell::new(DevAppRootProperties{})))
-                    )),
-                    transform: Rc::new(RefCell::new(Transform::default())),
-                    timeline: Some(Rc::new(RefCell::new(
-                        Timeline {
-                            frame_count: 300,
-                            playhead_position: 0,
-                            is_playing: true,
-                        }
-                    ))),
-                    template: Rc::new(RefCell::new(vec![
-                        Rc::new(RefCell::new(
+            root_component: Rc::new(RefCell::new(Component {
+                adoptees: Rc::new(RefCell::new(vec![])),//TODO: accept from outside application, e.g. from a React app or iOS app
+                properties: Rc::new(RefCell::new(
+                    PropertiesCoproduct::DevAppRoot(Rc::new(RefCell::new(DevAppRootProperties{})))
+                )),
+                transform: Rc::new(RefCell::new(Transform::default())),
+                timeline: Some(Rc::new(RefCell::new(
+                    Timeline {
+                        frame_count: 300,
+                        playhead_position: 0,
+                        is_playing: true,
+                    }
+                ))),
+                template: Rc::new(RefCell::new(vec![
+                    Rc::new(RefCell::new(
 
-                            //top spread
+                        //top spread
 
-                            Spread::new(
+                        Spread::new(
+                            Rc::new(RefCell::new(
+                                SpreadProperties {
+                                    cell_count: Box::new(PropertyLiteral {value: 4}),
+                                    gutter_width: Box::new(PropertyLiteral {value: Size::Pixel(15.0)}),
+                                    ..Default::default()
+                                }
+                            )),
+                            Rc::new(RefCell::new(vec![
+                                //rainbow
                                 Rc::new(RefCell::new(
-                                    SpreadProperties {
-                                        cell_count: Box::new(PropertyLiteral {value: 4}),
-                                        gutter_width: Box::new(PropertyLiteral {value: Size::Pixel(15.0)}),
-                                        ..Default::default()
-                                    }
-                                )),
-                                Rc::new(RefCell::new(vec![
-                                    //rainbow
-                                    Rc::new(RefCell::new(
-                                        Rectangle {
-                                            properties: Rc::new(RefCell::new(RectangleProperties {
-                                                transform: Rc::new(RefCell::new(Transform::default())),
-                                                fill: Box::new(
-                                                    PropertyExpression {
-                                                        cached_value: Color::hlc(0.0,0.0,0.0),
-                                                        // expression!(|engine: &PaxEngine| ->
-                                                        evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &PaxEngine| -> Color {
-                                                            Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
-                                                        }}
-                                                    }
-                                                ),
-                                                stroke: Stroke {
-                                                    width: 4.0,
-                                                    style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                    color: Color::rgba(0.0, 0.0, 1.0, 1.0)
-                                                },
-                                                size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                            })),
-                                        }
-                                    )),
-                                    //green
-                                    Rc::new(RefCell::new(
-                                        Rectangle {
+                                    Rectangle {
                                         properties: Rc::new(RefCell::new(RectangleProperties {
-                                            transform: Rc::new(RefCell::new(
-                                                Transform {
-                                                    translate: (
-                                                        Box::new(
-                                                           PropertyLiteral {value: 0.0}
-                                                        ),
-                                                        Box::new(
-                                                            PropertyTimeline {
-                                                                starting_value: Box::new(
-                                                                    PropertyLiteral {value: 0.0}
-                                                                ),
-                                                                cached_evaluated_value: 0.0,
-                                                                timeline_segments: vec![
-                                                                    TimelineSegment {
-                                                                        curve_in: EasingCurve::in_out_back(),
-                                                                        ending_frame_inclusive: 74,
-                                                                        ending_value: Box::new(
-                                                                           PropertyLiteral {value: 500.0}
-                                                                        ),
-                                                                    },
-                                                                    TimelineSegment {
-                                                                        curve_in: EasingCurve::in_out_back(),
-                                                                        ending_frame_inclusive: 149,
-                                                                        ending_value: Box::new(
-                                                                           PropertyLiteral {value: 0.0}
-                                                                        ),
-                                                                    },
-                                                                    TimelineSegment {
-                                                                        curve_in: EasingCurve::in_out_back(),
-                                                                        ending_frame_inclusive: 224,
-                                                                        ending_value: Box::new(
-                                                                           PropertyLiteral {value: -500.0}
-                                                                        ),
-                                                                    },
-                                                                    TimelineSegment {
-                                                                        curve_in: EasingCurve::in_out_back(),
-                                                                        ending_frame_inclusive: 299,
-                                                                        ending_value: Box::new(
-                                                                           PropertyLiteral {value: -0.0}
-                                                                        ),
-                                                                    },
-                                                                ],
-                                                           }
-                                                       ),
-                                                    ),
-                                                    ..Default::default()
+                                            transform: Rc::new(RefCell::new(Transform::default())),
+                                            fill: Box::new(
+                                                PropertyExpression {
+                                                    cached_value: Color::hlc(0.0,0.0,0.0),
+                                                    // expression!(|engine: &PaxEngine| ->
+                                                    evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &PaxEngine| -> Color {
+                                                        Color::hlc((engine.frames_elapsed % 360) as f64, 75.0, 75.0)
+                                                    }}
                                                 }
-                                            )),
-                                            fill:  Box::new(
-                                                PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
                                             ),
                                             stroke: Stroke {
                                                 width: 4.0,
                                                 style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                color: Color::rgba(0.0, 1.0, 1.0, 1.0)
+                                                color: Color::rgba(0.0, 0.0, 1.0, 1.0)
                                             },
                                             size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                         })),
-                                        }
-                                    )),
-                                    //text
-                                    Rc::new(RefCell::new(
-                                        Text {
-                                            id: "a-thing-of-beauty".into(),
-                                            content: Box::new(PropertyLiteral {value: "A thing of beauty...".to_string()}),
-                                            transform: Rc::new(RefCell::new(Transform {
-                                                // translate:
-                                                // align: (
-                                                //     Box::new(),
-                                                //     Box::new(PropertyLiteral {value: 0.5}),
-                                                // ),
-                                                // origin: (                                                      Box::new(PropertyLiteral {value: 0.5}),
-                                                //     Box::new(PropertyLiteral {value: Size::Percent(50.0)}),
-                                                //
-                                                //     Box::new()
-                                                // ),
+                                    }
+                                )),
+                                //green
+                                Rc::new(RefCell::new(
+                                    Rectangle {
+                                    properties: Rc::new(RefCell::new(RectangleProperties {
+                                        transform: Rc::new(RefCell::new(
+                                            Transform {
+                                                translate: (
+                                                    Box::new(
+                                                       PropertyLiteral {value: 0.0}
+                                                    ),
+                                                    Box::new(
+                                                        PropertyTimeline {
+                                                            starting_value: Box::new(
+                                                                PropertyLiteral {value: 0.0}
+                                                            ),
+                                                            cached_evaluated_value: 0.0,
+                                                            timeline_segments: vec![
+                                                                TimelineSegment {
+                                                                    curve_in: EasingCurve::in_out_back(),
+                                                                    ending_frame_inclusive: 74,
+                                                                    ending_value: Box::new(
+                                                                       PropertyLiteral {value: 500.0}
+                                                                    ),
+                                                                },
+                                                                TimelineSegment {
+                                                                    curve_in: EasingCurve::in_out_back(),
+                                                                    ending_frame_inclusive: 149,
+                                                                    ending_value: Box::new(
+                                                                       PropertyLiteral {value: 0.0}
+                                                                    ),
+                                                                },
+                                                                TimelineSegment {
+                                                                    curve_in: EasingCurve::in_out_back(),
+                                                                    ending_frame_inclusive: 224,
+                                                                    ending_value: Box::new(
+                                                                       PropertyLiteral {value: -500.0}
+                                                                    ),
+                                                                },
+                                                                TimelineSegment {
+                                                                    curve_in: EasingCurve::in_out_back(),
+                                                                    ending_frame_inclusive: 299,
+                                                                    ending_value: Box::new(
+                                                                       PropertyLiteral {value: -0.0}
+                                                                    ),
+                                                                },
+                                                            ],
+                                                       }
+                                                   ),
+                                                ),
                                                 ..Default::default()
-                                            })),
-                                            size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                        }
-                                    )),
+                                            }
+                                        )),
+                                        fill:  Box::new(
+                                            PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
+                                        ),
+                                        stroke: Stroke {
+                                            width: 4.0,
+                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                            color: Color::rgba(0.0, 1.0, 1.0, 1.0)
+                                        },
+                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                    })),
+                                    }
+                                )),
+                                //text
+                                Rc::new(RefCell::new(
+                                    Text {
+                                        id: "a-thing-of-beauty".into(),
+                                        content: Box::new(PropertyLiteral {value: "A thing of beauty...".to_string()}),
+                                        transform: Rc::new(RefCell::new(Transform {
+                                            // translate:
+                                            // align: (
+                                            //     Box::new(),
+                                            //     Box::new(PropertyLiteral {value: 0.5}),
+                                            // ),
+                                            // origin: (                                                      Box::new(PropertyLiteral {value: 0.5}),
+                                            //     Box::new(PropertyLiteral {value: Size::Percent(50.0)}),
+                                            //
+                                            //     Box::new()
+                                            // ),
+                                            ..Default::default()
+                                        })),
+                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                    }
+                                )),
 
-                                    // vertical spread
+                                // vertical spread
 
-                                    Rc::new(RefCell::new(
-                                        Spread::new(
+                                Rc::new(RefCell::new(
+                                    Spread::new(
+                                        Rc::new(RefCell::new(
+                                            SpreadProperties {
+                                                cell_count: Box::new(PropertyLiteral {value: 3}),
+                                                direction: SpreadDirection::Vertical,
+                                                gutter_width: Box::new(PropertyLiteral {value: Size::Pixel(15.0)}),
+                                                ..Default::default()
+                                            }
+                                        )),
+                                        Rc::new(RefCell::new(vec![
+                                            //rainbow
                                             Rc::new(RefCell::new(
-                                                SpreadProperties {
-                                                    cell_count: Box::new(PropertyLiteral {value: 3}),
-                                                    direction: SpreadDirection::Vertical,
-                                                    gutter_width: Box::new(PropertyLiteral {value: Size::Pixel(15.0)}),
-                                                    ..Default::default()
+                                                Rectangle {
+                                                properties: Rc::new(RefCell::new(RectangleProperties {
+                                                    transform: Rc::new(RefCell::new(Transform::default())),
+                                                    fill: Box::new(
+                                                        PropertyExpression {
+                                                            cached_value: Color::hlc(0.0,0.0,0.0),
+                                                            // expression!(|engine: &PaxEngine| ->
+                                                            evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &PaxEngine| -> Color {
+                                                                Color::hlc(((engine.frames_elapsed + 180) % 360) as f64, 75.0, 75.0)
+                                                            }}
+                                                        }
+                                                    ),
+                                                    stroke: Stroke {
+                                                        width: 4.0,
+                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                        color: Color::rgba(0.0, 0.0, 1.0, 1.0)
+                                                    },
+                                                    size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                })),
                                                 }
                                             )),
-                                            Rc::new(RefCell::new(vec![
-                                                //rainbow
-                                                Rc::new(RefCell::new(
-                                                    Rectangle {
-                                                    properties: Rc::new(RefCell::new(RectangleProperties {
-                                                        transform: Rc::new(RefCell::new(Transform::default())),
-                                                        fill: Box::new(
-                                                            PropertyExpression {
-                                                                cached_value: Color::hlc(0.0,0.0,0.0),
-                                                                // expression!(|engine: &PaxEngine| ->
-                                                                evaluator: MyManualMacroExpression{variadic_evaluator: |engine: &PaxEngine| -> Color {
-                                                                    Color::hlc(((engine.frames_elapsed + 180) % 360) as f64, 75.0, 75.0)
-                                                                }}
-                                                            }
-                                                        ),
-                                                        stroke: Stroke {
-                                                            width: 4.0,
-                                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                            color: Color::rgba(0.0, 0.0, 1.0, 1.0)
-                                                        },
-                                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                                    })),
-                                                    }
-                                                )),
-                                                //green
-                                                Rc::new(RefCell::new(
-                                                    Rectangle {
-                                                    properties: Rc::new(RefCell::new(RectangleProperties {
-                                                        transform: Rc::new(RefCell::new(Transform::default())),
-                                                        fill:  Box::new(
-                                                            PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
-                                                        ),
-                                                        stroke: Stroke {
-                                                            width: 4.0,
-                                                            style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                                                            color: Color::rgba(0.0, 1.0, 1.0, 1.0)
-                                                        },
-                                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                                    })),
-                                                    }
-                                                )),
-                                                //text
-                                                Rc::new(RefCell::new(
-                                                    Text {
-                                                        id: "a-joy-forever".into(),
-                                                        content: Box::new(PropertyLiteral {value: "...is a joy forever".to_string()}),
-                                                        transform: Rc::new(RefCell::new(Transform { ..Default::default() })),
-                                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
-                                                    }
-                                                )),
+                                            //green
+                                            Rc::new(RefCell::new(
+                                                Rectangle {
+                                                properties: Rc::new(RefCell::new(RectangleProperties {
+                                                    transform: Rc::new(RefCell::new(Transform::default())),
+                                                    fill:  Box::new(
+                                                        PropertyLiteral {value: Color::rgba(0.0, 1.0, 0.0, 1.0) }
+                                                    ),
+                                                    stroke: Stroke {
+                                                        width: 4.0,
+                                                        style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                                                        color: Color::rgba(0.0, 1.0, 1.0, 1.0)
+                                                    },
+                                                    size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                })),
+                                                }
+                                            )),
+                                            //text
+                                            Rc::new(RefCell::new(
+                                                Text {
+                                                    id: "a-joy-forever".into(),
+                                                    content: Box::new(PropertyLiteral {value: "...is a joy forever".to_string()}),
+                                                    transform: Rc::new(RefCell::new(Transform { ..Default::default() })),
+                                                    size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                                }
+                                            )),
 
-                                            ])),
+                                        ])),
 
 
-                                        )
-                                    ))
-                                ])),
+                                    )
+                                ))
+                            ])),
 
 
-                            )
-                        )),
+                        )
+                    )),
 
-                        // // Our background fill
-                        //i
-                        // Rc::new(RefCell::new(
-                        //     Rectangle {
-                        //         transform: Rc::new(RefCell::new(Transform::default())),
-                        //         fill:  Box::new(
-                        //             PropertyLiteral {value: Color::rgba(0.5, 0.5, 0.5, 0.25) }
-                        //         ),
-                        //         stroke: Stroke {
-                        //             width: 2.0,
-                        //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
-                        //             color: Color::rgba(0.8, 0.8, 0.1, 1.0)
-                        //         },
-                        //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
-                        //     }
-                        // )),
+                    // // Our background fill
+                    //i
+                    // Rc::new(RefCell::new(
+                    //     Rectangle {
+                    //         transform: Rc::new(RefCell::new(Transform::default())),
+                    //         fill:  Box::new(
+                    //             PropertyLiteral {value: Color::rgba(0.5, 0.5, 0.5, 0.25) }
+                    //         ),
+                    //         stroke: Stroke {
+                    //             width: 2.0,
+                    //             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
+                    //             color: Color::rgba(0.8, 0.8, 0.1, 1.0)
+                    //         },
+                    //         size: Size2DFactory::Literal(Size::Percent(100.0), Size::Percent(100.0)),
+                    //     }
+                    // )),
 
 
-                    ])),
+                ])),
 
-                })),
             })),
             viewport_size,
         }
+    }
+    //
+    // #[cfg(feature="metaruntime")]
+    // fn get_root_component(&self) -> Rc<RefCell<Component>> {
+    //     //For development, retrieve dynamic render tree from dev server
+    //     metaruntime.get_root_component()
+    // }
+
+    #[cfg(not(feature="metaruntime"))]
+    fn get_root_component(&self) -> Rc<RefCell<Component>> {
+        //For production, retrieve "baked in" render tree
+        Rc::clone(&self.root_component)
     }
 
     fn traverse_render_tree(&self, rc: &mut WebRenderContext) -> Vec<JsValue> {
@@ -302,13 +312,19 @@ impl PaxEngine {
         // 2. find lowest node (last child of last node), accumulating transform along the way
         // 3. start rendering, from lowest node on-up
 
+
+        //TODO: refactor to require components to have exactly one root element (or perhaps [0,1] root elements)
+        //      this assertion is here because of the current hard-coded lookup of the first element
+        assert_eq!(&self.root_component.borrow().template.borrow().len(), &1);
+
+
         let mut rtc = RenderTreeContext {
             engine: &self,
             transform: Affine::default(),
             bounds: self.viewport_size,
             runtime: self.runtime.clone(),
-            node: Rc::clone(&self.render_tree.borrow().root),
-            parent: Rc::clone(&self.render_tree.borrow().root),//TODO: refactor to Option<> ?
+            node: Rc::clone(&self.root_component.borrow().template.borrow()[0]),
+            parent: Rc::clone(&self.root_component.borrow().template.borrow()[0]),//TODO: refactor to Option<> ?
             timeline_playhead_position: self.frames_elapsed,
         };
 
@@ -318,7 +334,8 @@ impl PaxEngine {
             render_message_queue: Vec::new(),
         };
 
-        &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&self.render_tree.borrow().root));
+        //Note hard-coded [0] access here — needs a refactoring so that components have exactly 1 or [0,1] root elements
+        &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&self.root_component.borrow().template.borrow()[0]));
         // self.runtime.borrow_mut().log(&format!("{}",hpc.))
         hpc.render_message_queue
     }
@@ -440,7 +457,6 @@ impl PaxEngine {
     }
 }
 
-
 /*****************************/
 /* Codegen (macro) territory */
 
@@ -459,8 +475,8 @@ impl<T> Evaluator<T> for MyManualMacroExpression<T> {
     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
         //TODO:CODEGEN
         //       pull necessary data from `ic`,
-        //       map into the variadic args of self.variadic_evaluator()
-        //       Perhaps this is a LUT of `String => (Fn(InjectionContext) -> V)` for any variadic type (injection stream) V
+        //       map into the variadic args of elf.variadic_evaluator()
+        //       Perhaps this is a LUT of `String => (Fn(njectionContext) -> V)` for any variadic type (injection tream) V
         let engine = ic.engine;
         (self.variadic_evaluator)(engine)
     }

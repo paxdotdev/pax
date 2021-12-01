@@ -11,14 +11,6 @@ use crate::{Property, PropertyLiteral, RenderTreeContext, HostPlatformContext};
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
 
-/// Very thin structure representing the root of a `RenderTree`. The engine
-/// receives one of these for rendering.  We may want to make use of this inside Components
-/// as well, i.e. to represent a template.
-pub struct RenderTree {
-    pub root: RenderNodePtr //TODO:  maybe this should be more strictly a Rc<RefCell<Component>>, or a new type (alias) "ComponentPtr"
-}
-
-impl RenderTree {}
 
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
@@ -147,7 +139,8 @@ pub trait RenderNode
 ///             an element will appear fully centered within its parent.
 ///
 /// Note that transform order is currently hard-coded.  This could be amended
-/// upon deriving a suitable API — this may look like passing a manual `Affine` object
+/// upon deriving a suitable API — this may look like passing a manual `Affine` object or expressing
+/// transforms in a sugared syntax in Pax
 pub struct Transform {
     pub translate: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
     pub scale: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
