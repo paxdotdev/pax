@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -313,30 +314,31 @@ impl PaxEngine {
         // 3. start rendering, from lowest node on-up
 
 
-        //TODO: refactor to require components to have exactly one root element (or perhaps [0,1] root elements)
-        //      this assertion is here because of the current hard-coded lookup of the first element
-        assert_eq!(&self.root_component.borrow().template.borrow().len(), &1);
-
-
-        let mut rtc = RenderTreeContext {
-            engine: &self,
-            transform: Affine::default(),
-            bounds: self.viewport_size,
-            runtime: self.runtime.clone(),
-            node: Rc::clone(&self.root_component.borrow().template.borrow()[0]),
-            parent: Rc::clone(&self.root_component.borrow().template.borrow()[0]),//TODO: refactor to Option<> ?
-            timeline_playhead_position: self.frames_elapsed,
-        };
-
-
         let mut hpc = HostPlatformContext {
             drawing_context: rc,
             render_message_queue: Vec::new(),
         };
 
-        //Note hard-coded [0] access here — needs a refactoring so that components have exactly 1 or [0,1] root elements
-        &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&self.root_component.borrow().template.borrow()[0]));
-        // self.runtime.borrow_mut().log(&format!("{}",hpc.))
+
+        for elem in self.root_component.borrow_mut().template.borrow_mut().iter() {
+
+            let mut rtc = RenderTreeContext {
+                engine: &self,
+                transform: Affine::default(),
+                bounds: self.viewport_size,
+                runtime: self.runtime.clone(),
+                node: Rc::clone(&elem),
+                parent: Rc::clone(&elem),//TODO: refactor to Option<> ?
+                timeline_playhead_position: self.frames_elapsed,
+            };
+
+
+
+            //Note hard-coded [0] access here — needs a refactoring so that components have exactly 1 or [0,1] root elements
+            &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&elem));
+            // self.runtime.borrow_mut().log(&format!("{}",hpc.))
+
+        }
         hpc.render_message_queue
     }
 
@@ -354,7 +356,7 @@ impl PaxEngine {
         //peek at the current stack frame and set a scoped playhead position as needed
         match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
-                rtc.timeline_playhead_position = stack_frame.borrow().get_timeline_playhead_position();
+                rtc.timeline_playhead_position = stack_frame.borrow_mut().get_timeline_playhead_position();
             },
             None => ()
         }
@@ -369,7 +371,7 @@ impl PaxEngine {
         //get the size of this node (calc'd or otherwise) and use
         //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
         //and for this node itself (e.g. for specifying the size of a Rectangle node)
-        let new_accumulated_bounds = node.borrow().get_size_calc(accumulated_bounds);
+        let new_accumulated_bounds = node.borrow_mut().get_size_calc(accumulated_bounds);
 
         let node_computed_transform = {
             let mut node_borrowed = rtc.node.borrow_mut();
@@ -389,10 +391,10 @@ impl PaxEngine {
         //lifecycle: pre_render
         node.borrow_mut().pre_render(rtc, hpc);
 
-        let children = node.borrow().get_rendering_children();
+        let children = node.borrow_mut().get_rendering_children();
 
         //keep recursing through children
-        children.borrow().iter().rev().for_each(|child| {
+        children.borrow_mut().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
             &self.recurse_traverse_render_tree(&mut new_rtc, hpc, Rc::clone(child));
@@ -402,7 +404,7 @@ impl PaxEngine {
         // lifecycle: `render`
         // this is this node's time to do its own rendering, aside
         // from its children.  Its children have already been rendered.
-        node.borrow().render(rtc, hpc);
+        node.borrow_mut().render(rtc, hpc);
 
         // lifecycle: post_render
         node.borrow_mut().post_render(rtc, hpc);
