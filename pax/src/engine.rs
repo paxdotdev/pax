@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -168,7 +169,7 @@ impl PaxEngine {
                                             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                             color: Color::rgba(0.0, 1.0, 1.0, 1.0)
                                         },
-                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
+                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(50.0)),
                                     })),
                                     }
                                 )),
@@ -318,7 +319,7 @@ impl PaxEngine {
         };
 
 
-        for elem in self.root_component.borrow_mut().template.borrow_mut().iter() {
+        self.root_component.borrow_mut().template.borrow_mut().iter().rev().for_each(|elem| {
 
             let mut rtc = RenderTreeContext {
                 engine: &self,
@@ -335,7 +336,7 @@ impl PaxEngine {
             &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&elem));
             // self.runtime.borrow_mut().log(&format!("{}",hpc.))
 
-        }
+        });
         hpc.render_message_queue
     }
 
