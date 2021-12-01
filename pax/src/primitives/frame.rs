@@ -5,7 +5,6 @@ use std::rc::Rc;
 
 use kurbo::BezPath;
 use piet::RenderContext;
-use piet_web::WebRenderContext;
 
 use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Transform, HostPlatformContext};
 use crate::rendering::Size2D;

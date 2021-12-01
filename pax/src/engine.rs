@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -38,7 +37,6 @@ pub struct RenderTreeContext<'a>
     pub transform: Affine,
     pub bounds: (f64, f64),
     pub runtime: Rc<RefCell<Runtime>>,
-    pub parent: RenderNodePtr,
     pub node: RenderNodePtr,
     pub timeline_playhead_position: usize,
 }
@@ -328,7 +326,6 @@ impl PaxEngine {
                 bounds: self.viewport_size,
                 runtime: self.runtime.clone(),
                 node: Rc::clone(&elem),
-                parent: Rc::clone(&elem),//TODO: refactor to Option<> ?
                 timeline_playhead_position: self.frames_elapsed,
             };
 

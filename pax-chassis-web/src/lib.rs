@@ -10,9 +10,9 @@ use piet_web::WebRenderContext;
 
 use pax::PaxEngine;
 
-fn browser_window() -> web_sys::Window {
-    web_sys::window().expect("no global `window` exists")
-}
+// fn browser_window() -> web_sys::Window {
+//     web_sys::window().expect("no global `window` exists")
+// }
 
 // fn request_animation_frame(f: &Closure<dyn FnMut()>) {
 //     browser_window()

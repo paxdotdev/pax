@@ -1,13 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use kurbo::BezPath;
-use piet::RenderContext;
-use piet_web::WebRenderContext;
-
 use serde::{Serialize};
 
-use crate::{Color, Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, Affine, HostPlatformContext};
+use crate::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform, HostPlatformContext};
 use wasm_bindgen::prelude::*;
 
 pub struct Text {
@@ -51,7 +47,7 @@ impl RenderNode for Text {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
-        let update_message = TextMessage::empty(MessageKind::TextMessage, self.id.clone());
+        let _update_message = TextMessage::empty(MessageKind::TextMessage, self.id.clone());
         self.size.borrow_mut().0.compute_in_place(rtc);
         self.size.borrow_mut().1.compute_in_place(rtc);
         self.transform.borrow_mut().compute_in_place(rtc);
