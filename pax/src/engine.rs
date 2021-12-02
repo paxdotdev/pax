@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -10,7 +9,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, PropertyTimeline, RenderNodePtr, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, Text, RectangleProperties};
+use crate::{Affine, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, PropertyTimeline, RenderNodePtr, Size, SpreadDirection, SpreadProperties, Stroke, StrokeStyle, Transform, Text, RectangleProperties, RenderNode};
 use crate::components::Spread;
 use crate::primitives::component::Component;
 use crate::rectangle::Rectangle;
@@ -169,7 +168,7 @@ impl PaxEngine {
                                             style: StrokeStyle { line_cap: None, dash: None, line_join: None, miter_limit: None },
                                             color: Color::rgba(0.0, 1.0, 1.0, 1.0)
                                         },
-                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(50.0)),
+                                        size: Size2DFactory::literal(Size::Percent(100.0), Size::Percent(100.0)),
                                     })),
                                     }
                                 )),
@@ -318,25 +317,19 @@ impl PaxEngine {
             render_message_queue: Vec::new(),
         };
 
+        let cast_component_rc : Rc<RefCell<dyn RenderNode>> = self.root_component.clone();
 
-        self.root_component.borrow_mut().template.borrow_mut().iter().rev().for_each(|elem| {
+        let mut rtc = RenderTreeContext {
+            engine: &self,
+            transform: Affine::default(),
+            bounds: self.viewport_size,
+            runtime: self.runtime.clone(),
+            node: Rc::clone(&cast_component_rc),
+            timeline_playhead_position: self.frames_elapsed,
+        };
 
-            let mut rtc = RenderTreeContext {
-                engine: &self,
-                transform: Affine::default(),
-                bounds: self.viewport_size,
-                runtime: self.runtime.clone(),
-                node: Rc::clone(&elem),
-                timeline_playhead_position: self.frames_elapsed,
-            };
+        &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&cast_component_rc));
 
-
-
-            //Note hard-coded [0] access here — needs a refactoring so that components have exactly 1 or [0,1] root elements
-            &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&elem));
-            // self.runtime.borrow_mut().log(&format!("{}",hpc.))
-
-        });
         hpc.render_message_queue
     }
 
