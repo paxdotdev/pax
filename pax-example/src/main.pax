@@ -7,14 +7,6 @@
     </Group>
 </Spread>
 
-@defaults {
-    num_clicks: 0,
-    deeper_struct: {
-        a: 42,
-        b: "Profundo!"
-    }
-}
-
 @settings {
     #main-spread {
         cell_count: 3
@@ -33,15 +25,18 @@
                 dash: [5,0,5,0]
             }
         }
+        transform: {
+            rotation: `current_rotation`
+        }
     }
 
     #rect-2 {
         fill: @{
             Color {
-                h: (Engine.frames_elapsed / 100) % 360,
+                h: `(Engine.frames_elapsed / 100) % 360`,
                 s: 75,
                 l: 75,
-                a: 1,
+                a: 1.0,
             }
         }
     }

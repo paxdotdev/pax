@@ -11,14 +11,32 @@ struct DeeperStruct {
 #[pax]
 pub struct Main {
     pub num_clicks : i64,
+    pub current_rotation: f64,
     pub deeper_struct: DeeperStruct,
 }
 
 #[pax]
 impl Main {
 
+    pub fn new() -> Self {
+        Self {
+            //Default values
+            num_clicks: 0,
+            current_rotation: 0.0,
+            deeper_struct: DeeperStruct {
+                a: 100,
+                b: "Profundo!",
+            }
+        }
+    }
+
+    //On click, increment num_clicks and update the rotation
     pub fn increment_clicker(&mut self, args: ClickArgs) {
-        self.num_clicks.set(self.num_clicks + 1)
+        self.num_clicks.set(self.num_clicks + 1);
+        self.current_rotation.setTween( //also: setTweenLater, to enqueue a tween after the current (if any) is done
+            self.num_clicks.get() * 3.14159 / 4,
+            Tween {duration: 1000, curve: Tween::Ease}
+        );
     }
 
 }
