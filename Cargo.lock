@@ -1093,23 +1093,13 @@ dependencies = [
 [[package]]
 name = "pax"
 version = "0.1.0"
-dependencies = [
- "kurbo",
- "lazy_static",
- "pax-macro-expression",
- "piet",
- "piet-web",
- "serde",
- "serde-wasm-bindgen",
- "wasm-bindgen",
-]
 
 [[package]]
 name = "pax-chassis-web"
 version = "0.0.1"
 dependencies = [
  "console_error_panic_hook",
- "pax",
+ "pax-core",
  "piet",
  "piet-web",
  "wasm-bindgen",
@@ -1122,11 +1112,25 @@ version = "0.1.0"
 dependencies = [
  "console_error_panic_hook",
  "lazy_static",
- "pax",
+ "pax-core",
  "pest",
  "pest_derive",
  "wasm-bindgen",
  "web-sys",
+]
+
+[[package]]
+name = "pax-core"
+version = "0.1.0"
+dependencies = [
+ "kurbo",
+ "lazy_static",
+ "pax-macro-expression",
+ "piet",
+ "piet-web",
+ "serde",
+ "serde-wasm-bindgen",
+ "wasm-bindgen",
 ]
 
 [[package]]

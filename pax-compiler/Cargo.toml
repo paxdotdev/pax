@@ -14,7 +14,7 @@ edition = "2018"
 default = ["console_error_panic_hook"]
 
 [dependencies]
-pax = { path = "../pax-core" }
+pax-core = { path = "../pax-core" }
 pest = "2.1.3"
 pest_derive = "2.1.0"
 lazy_static = "1.4.0"

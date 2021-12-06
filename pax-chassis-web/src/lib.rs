@@ -8,7 +8,7 @@ use std::cell::RefCell;
 
 use piet_web::WebRenderContext;
 
-use pax::PaxEngine;
+use pax_core::PaxEngine;
 
 // fn browser_window() -> web_sys::Window {
 //     web_sys::window().expect("no global `window` exists")
@@ -88,7 +88,7 @@ impl PaxChassisWeb {
 
         let piet_context  = WebRenderContext::new(context, window);
         // piet_context.
-        let engine = pax::get_engine(log_wrapper, (width / dpr, height / dpr));
+        let engine = pax_core::get_engine(log_wrapper, (width / dpr, height / dpr));
 
         let engine_container : Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 
