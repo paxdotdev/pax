@@ -64,7 +64,7 @@ COMPILATION STAGES
 
 fn main() {
 
-    let unparsed_file = fs::read_to_string("dev-samples/basic-plus.pax").expect("cannot read file");
+    let unparsed_file = fs::read_to_string("dev-samples/basic-plus.pax-core").expect("cannot read file");
 
     let file /*: pest::iterators::Pair<>*/ = TemplateParser::parse(Rule::pax_file, &unparsed_file)
         .expect("unsuccessful parse") // unwrap the parse result

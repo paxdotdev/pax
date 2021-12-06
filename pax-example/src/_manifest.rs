@@ -1,5 +1,5 @@
 //TODO: code-gen this file via macros — refer to this trick from Pest, which
-// enables one-line `#[grammar = "pax.pest"]` linking:
+// enables one-line `#[grammar = "pax-core.pest"]` linking:
 /*
 From: https://github.com/pest-parser/pest/blob/master/generator/src/generator.rs
 ```

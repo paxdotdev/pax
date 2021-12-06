@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
-    "pax",
+    "pax-core",
     "pax-chassis-web",
     "pax-macro-expression",
     "pax-compiler",
@@ -9,7 +9,7 @@ members = [
 ]
 
 default-members = [
-    "pax",
+    "pax-core",
     "pax-chassis-web",
     "pax-macro-expression",
     "pax-compiler",
