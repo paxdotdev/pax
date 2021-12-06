@@ -8,12 +8,16 @@ struct DeeperStruct {
     b: String,
 }
 
-#[pax]
+#[derive(PaxProperties)] //rewrite to pub `num_clicks : Property<i64>` etc. AND register metadata with dev server
 pub struct Main {
     pub num_clicks : i64,
     pub current_rotation: f64,
     pub deeper_struct: DeeperStruct,
 }
+
+
+
+
 
 #[pax]
 impl Main {
@@ -31,6 +35,14 @@ impl Main {
     }
 
     //On click, increment num_clicks and update the rotation
+
+    //Note the userland ergonomics here, using .get() and .set()
+    //vs. the constructor and struct definition of bare types (e.g. i64, which doesn't have a .get() or .set() method)
+    //Approaches:
+    // - rewrite the struct at macro time; also rewrite the constructor
+    // - inject something other than self into increment_clicker, including a .gettable and .settable wrapper
+    //   around (note that this injected struct, if it's going to have the pattern struct.num_clicks.set, will
+    //   still require some codegen; can't be achieved with generics alone
     pub fn increment_clicker(&mut self, args: ClickArgs) {
         self.num_clicks.set(self.num_clicks + 1);
         self.current_rotation.setTween( //also: setTweenLater, to enqueue a tween after the current (if any) is done
