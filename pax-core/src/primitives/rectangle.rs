@@ -9,7 +9,7 @@ use piet::RenderContext;
 
 use crate::{Color, Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, HostPlatformContext};
 use std::str::FromStr;
-use crate::metaruntime::{Manifestable, Patchable};
+use crate::designer::{Manifestable, Patchable};
 
 
 /// Properties refactor:
@@ -71,7 +71,7 @@ impl RenderNode for Rectangle {
     }
 }
 
-#[cfg(feature="metaruntime")]
+#[cfg(feature="designer")]
 lazy_static! {
     static ref RECTANGLE_PROPERTIES_MANIFEST: Vec<(&'static str, &'static str)> = {
         vec![
@@ -83,7 +83,7 @@ lazy_static! {
     };
 }
 
-#[cfg(feature="metaruntime")]
+#[cfg(feature="designer")]
 impl Manifestable for RectangleProperties {
     fn get_type_identifier() -> &'static str {
         &"Rectangle"
@@ -93,7 +93,7 @@ impl Manifestable for RectangleProperties {
     }
 }
 
-#[cfg(feature="metaruntime")]
+#[cfg(feature="designer")]
 impl Patchable<RectanglePropertiesPatch> for RectangleProperties {
     fn patch(&mut self, patch: RectanglePropertiesPatch) {
         if let Some(p) = patch.transform {
@@ -111,7 +111,7 @@ impl Patchable<RectanglePropertiesPatch> for RectangleProperties {
     }
 }
 
-#[cfg(feature="metaruntime")]
+#[cfg(feature="designer")]
 pub struct RectanglePropertiesPatch {
     pub size: Option<Size2D>,
     pub transform: Option<Rc<RefCell<Transform>>>,
@@ -119,7 +119,7 @@ pub struct RectanglePropertiesPatch {
     pub fill: Option<Box<dyn Property<Color>>>,
 }
 
-#[cfg(feature="metaruntime")]
+#[cfg(feature="designer")]
 impl Default for RectanglePropertiesPatch {
     fn default() -> Self {
         RectanglePropertiesPatch {
@@ -131,7 +131,7 @@ impl Default for RectanglePropertiesPatch {
     }
 }
 
-#[cfg(feature="metaruntime")]
+#[cfg(feature="designer")]
 impl FromStr for RectanglePropertiesPatch {
     type Err = ();
 

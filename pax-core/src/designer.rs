@@ -29,7 +29,7 @@ pub trait Patchable<P> {
 
 
 /******
-The metaruntime tracks the following:
+The designer tracks the following:
     - Component definitions, esp. a main component
         - a unique string `ID` (name) for the component, which becomes its fs location
           and the way it's imported/referenced.  Forward slashes may be supportable for
@@ -48,17 +48,17 @@ The metaruntime tracks the following:
               with pointers to the Expression LUT as needed
         - `Actions` for that component (or just a string representing the contents of the code-behind file)
         - An `Expression` table, really just a hashmap of `unique-id` => `function` (or just a Vec<fn>)
-            - Double-check:  does this table belong in the runtime or metaruntime?  Is it needed
+            - Double-check:  does this table belong in the runtime or designer?  Is it needed
               in stand-alone runtime?
 
 How do we compile our actions and code-behind files?
     - Generate into a temp directory?
     - pipe the content into rustc?
-    - perhaps these don't get fired by the metaruntime (akin to Flash/HA's edit vs. preview modes) —
-        that is, don't deal with actions at all in the metaruntime until compiling to RIL
-    - perhaps the whole project is recompiled, and the metaruntime re-attaches itself
+    - perhaps these don't get fired by the designer (akin to Flash/HA's edit vs. preview modes) —
+        that is, don't deal with actions at all in the designer until compiling to RIL
+    - perhaps the whole project is recompiled, and the designer re-attaches itself
 
-How does the metaruntime bolt onto an engine instance (+ chassis) to enable it to
+How does the designer bolt onto an engine instance (+ chassis) to enable it to
 "take over" the render tree definition?
 
 Walk through the
@@ -104,11 +104,11 @@ Walk through the
 //Before we get our K/V pairs, we expect the expression to be simplified/evaluated, e.g.
 //  { color: {r: 100 + 1, g: (num_clicks * 10) % 360, b: 100, a: 100}}
 
-//The above is not true!  We do NOT want the expression evaluted in the metaruntime context; instead we want to track the raw
+//The above is not true!  We do NOT want the expression evaluted in the designer context; instead we want to track the raw
 //string value.  Only upon serialization to RIL do we need to evaluate the expressions further.
 
 //Is there nuance here re: recursive property definitions?  How much do we need to evaluate them
-//in the metaruntime?
+//in the designer?
 
 //In the design tool we'll want to see an as-live-as-possible preview; this requires some intelligence (or, simply default values?)
 //Three approaches:

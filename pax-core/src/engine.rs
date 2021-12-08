@@ -293,13 +293,13 @@ impl PaxEngine {
         }
     }
     //
-    // #[cfg(feature="metaruntime")]
+    // #[cfg(feature="designer")]
     // fn get_root_component(&self) -> Rc<RefCell<Component>> {
     //     //For development, retrieve dynamic render tree from dev server
-    //     metaruntime.get_root_component()
+    //     designer.get_root_component()
     // }
 
-    #[cfg(not(feature="metaruntime"))]
+    #[cfg(not(feature="designer"))]
     fn get_root_component(&self) -> Rc<RefCell<Component>> {
         //For production, retrieve "baked in" render tree
         Rc::clone(&self.root_component)
