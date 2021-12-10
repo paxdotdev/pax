@@ -11,7 +11,7 @@ mod components;
 mod primitives;
 mod runtime;
 mod timeline;
-mod designer;
+mod designtime;
 
 pub use crate::engine::*;
 pub use crate::primitives::*;

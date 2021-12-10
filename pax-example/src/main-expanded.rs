@@ -36,7 +36,7 @@ pub trait Property<T> {
 
 todo!("Register DeeperStruct in the propertiescoproduct & manifest");
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 lazy_static! {
     static ref DEEPER_STRUCT_MANIFEST: Vec<(&'static str, &'static str)> = {
         vec![
@@ -46,7 +46,7 @@ lazy_static! {
     };
 }
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 impl Manifestable for DeeperStruct {
     fn get_type_identifier() -> &'static str {
         &"DeeperStruct"
@@ -56,7 +56,7 @@ impl Manifestable for DeeperStruct {
     }
 }
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 impl Patchable<DeeperStructPatch> for DeeperStruct {
     fn patch(&mut self, patch: DeeperStructPatch) {
         if let Some(p) = patch.a {
@@ -68,13 +68,13 @@ impl Patchable<DeeperStructPatch> for DeeperStruct {
     }
 }
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 pub struct DeeperStructPatch {
     pub a: Option<i64>,
     pub b: Option<String>,
 }
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 impl Default for DeeperStructPatch {
     fn default() -> Self {
         DeeperStructPatch {
@@ -84,7 +84,7 @@ impl Default for DeeperStructPatch {
     }
 }
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 impl FromStr for DeeperStructPatch {
     type Err = ();
 
@@ -129,7 +129,7 @@ pub enum PropertiesCoproduct {
 }
 
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 lazy_static! {
     static ref MAIN_MANIFEST: Vec<(&'static str, &'static str)> = {
         vec![
@@ -139,7 +139,7 @@ lazy_static! {
     };
 }
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 impl Manifestable for Main {
     fn get_type_identifier() -> &'static str {
         &"Main"
@@ -149,7 +149,7 @@ impl Manifestable for Main {
     }
 }
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 impl Patchable<MainPatch> for MainProperties {
     fn patch(&mut self, patch: MainPatch) {
         if let Some(p) = patch.num_clicks {
@@ -161,13 +161,13 @@ impl Patchable<MainPatch> for MainProperties {
     }
 }
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 pub struct MainPatch {
     pub num_clicks: Option<i64>,
     pub deeper_struct: Option<DeeperStruct>,
 }
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 impl Default for MainPatch {
     fn default() -> Self {
         MainPatch {
@@ -177,7 +177,7 @@ impl Default for MainPatch {
     }
 }
 
-#[cfg(feature="designer")]
+#[cfg(feature="designtime")]
 impl FromStr for MainPatch {
     type Err = ();
 
