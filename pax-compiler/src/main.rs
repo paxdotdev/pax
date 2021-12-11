@@ -48,7 +48,7 @@ fn main() {
             //  [ ]
             //2. `patch` cartridge into chassis and build native lib (e.g. .wasm file — starting with Web in this pass)
             //3. Start websocket server
-            start_ws_server();
+            server::start_ws_server();
             //4. Mount the compiled cartridge+chassis+designtime into a "demo app," e.g. for web an index.html + js mount of the wasm file (see pax-chassis-web for model)
             //5. From running sample app: phone home from wasm to compiler — via chassis, since ws client connection method is a platform-specific concern — to establish duplex connection (+ auth token, keep-alive mechanism)
             //6. From compiler [this] process: parse token pairs from .pax, feed them to .wasm process (accept token pairs over websockets and call wasm-local ORM CRUD methods)
@@ -59,48 +59,6 @@ fn main() {
     }
 }
 
-
-fn start_ws_server() {
-    std::env::set_var("RUST_LOG", "actix_web=info,actix_server=trace");
-    // env_logger::init();
-
-    let (tx, rx) = mpsc::channel();
-
-    println!("START SERVER");
-    thread::spawn(move || {
-        let _ = start_ws_threaded(tx);
-    });
-
-    let srv = rx.recv().unwrap();
-
-    println!("WAITING 10 SECONDS");
-    thread::sleep(time::Duration::from_secs(10));
-
-    println!("STOPPING SERVER");
-    // init stop server and wait until server gracefully exit
-    rt::System::new("").block_on(srv.stop(true));
-}
-
-fn start_ws_threaded(tx: mpsc::Sender<Server>) -> std::io::Result<()> {
-    let mut sys = rt::System::new("test");
-
-    // srv is server controller type, `dev::Server`
-    let srv = HttpServer::new(|| {
-        ActixWebApp::new()
-            // enable logger
-            .wrap(middleware::Logger::default())
-            .service(web::resource("/index.html").to(|| async { "Hello world!" }))
-            // .service(web::resource("/").to(index))
-    })
-        .bind("127.0.0.1:8080")?
-        .run();
-
-    // send server controller to main thread
-    let _ = tx.send(srv.clone());
-
-    // run future
-    sys.block_on(srv)
-}
 
 
 // Appendix

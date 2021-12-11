@@ -10,18 +10,17 @@ use std::time::{Duration, Instant};
 
 use actix::*;
 use actix_files as fs;
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder};
+use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, rt, middleware};
 use actix_web_actors::ws;
 
 use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 
-use std::sync::{
-    atomic::{AtomicUsize, Ordering},
-    Arc,
-};
+use std::sync::{atomic::{AtomicUsize, Ordering}, Arc, mpsc};
 
 use std::collections::{HashMap, HashSet};
+use std::{thread, time};
+use actix_web::dev::Server;
 
 
 /// How often heartbeat pings are sent
@@ -203,8 +202,32 @@ impl WsChatSession {
     }
 }
 
-#[actix_web::main]
-async fn main() -> std::io::Result<()> {
+
+
+
+pub fn start_ws_server() {
+    std::env::set_var("RUST_LOG", "actix_web=info,actix_server=trace");
+    // env_logger::init();
+
+    let (tx, rx) = mpsc::channel();
+
+    println!("START SERVER");
+    thread::spawn(move || {
+        let _ = start_ws_threaded(tx);
+    });
+
+    let srv = rx.recv().unwrap();
+
+    println!("WAITING 10 SECONDS");
+    thread::sleep(time::Duration::from_secs(30));
+
+    println!("STOPPING SERVER");
+    // init stop server and wait until server gracefully exit
+    rt::System::new("").block_on(srv.stop(true));
+}
+
+fn start_ws_threaded(tx: mpsc::Sender<Server>) -> std::io::Result<()> {
+    let mut sys = rt::System::new("test");
 
     // App state
     // We are keeping a count of the number of visitors
@@ -214,7 +237,7 @@ async fn main() -> std::io::Result<()> {
     let server = CompilerServer::new(app_state.clone()).start();
 
     // Create Http server with websocket support
-    HttpServer::new(move || {
+    let srv = HttpServer::new(move || {
         App::new()
             .data(app_state.clone())
             .data(server.clone())
@@ -231,9 +254,16 @@ async fn main() -> std::io::Result<()> {
             .service(fs::Files::new("/static/", "static/"))
     })
         .bind("127.0.0.1:8080")?
-        .run()
-        .await
+        .run();
+
+    // send server controller to main thread
+    let _ = tx.send(srv.clone());
+
+    // run future
+    sys.block_on(srv)
 }
+
+
 
 
 
