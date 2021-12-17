@@ -5,20 +5,18 @@
 ///   - Fundamentally, parsing .pax source code is no different than receiving data from a server.  This constraint enforces Pax's "designability"
 ///   -
 
-
 use std::time::{Duration, Instant};
 
 use actix::*;
 use actix_files as fs;
-use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, rt, middleware};
+use actix_web::{web, App, Error, HttpRequest, HttpResponse, HttpServer, Responder, rt};
 use actix_web_actors::ws;
 
-use actix::prelude::*;
 use rand::{self, rngs::ThreadRng, Rng};
 
 use std::sync::{atomic::{AtomicUsize, Ordering}, Arc, mpsc};
 
-use std::collections::{HashMap, HashSet};
+use std::collections::{HashMap};
 use std::{thread, time};
 use actix_web::dev::Server;
 
@@ -202,9 +200,6 @@ impl WsChatSession {
     }
 }
 
-
-
-
 pub fn start_ws_server() {
     std::env::set_var("RUST_LOG", "actix_web=info,actix_server=trace");
     // env_logger::init();
@@ -219,7 +214,7 @@ pub fn start_ws_server() {
     let srv = rx.recv().unwrap();
 
     println!("WAITING 10 SECONDS");
-    thread::sleep(time::Duration::from_secs(30));
+    thread::sleep(time::Duration::from_secs(10));
 
     println!("STOPPING SERVER");
     // init stop server and wait until server gracefully exit
@@ -265,16 +260,9 @@ fn start_ws_threaded(tx: mpsc::Sender<Server>) -> std::io::Result<()> {
 
 
 
-
-
-
-
-
 /// `CompilerServer` is an actor. It maintains list of connection client session.
 /// And manages available rooms. Peers send messages to other peers in same
 /// room through `CompilerServer`.
-
-
 
 /// Compiler server sends this messages to session
 #[derive(Message)]
@@ -306,7 +294,6 @@ pub struct ClientMessage {
     /// Data
     pub msg: String,
 }
-
 
 
 /// `CompilerServer` manages compiler rooms and responsible for coordinating compiler
