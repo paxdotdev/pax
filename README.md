@@ -1,20 +1,56 @@
 # Pax 
 
-Pax is a tool for creating high-performance, expressive, and portable user interfaces.  
+Pax is a toolkit for creating high-performance, expressive, and portable user interfaces.  
+
+Pax is designed to support any platform via extensible rendering engines, either 2D or 3D, across Web, iOS, Android, Desktop (macOS, Linux, Windows), Embedded devices, and more.
 
 
-It's part programming language,
-part markup language & data exchange format, and part runtime with several platform-specific rendering engines.
+## How does it work?
 
-One way to think of Pax is as a v2 proposal of the Web — an open interchange format, a hackable scripting format, and a low-overhead runtime that can run anywhere (in part by being backwards compatible with modern web browsers)
+Pax UIs are defined as `.pax` files alongside 'host language' files, either Rust or JavaScript/TypeScript.
+
+Pax UIs and basic behaviors are expressed in the declarative Pax format, while complex, host-specific, and turing-complete logic is handled by the host language.
+
+//TODO: explainer image showing pax & host files alongside each other
+_Read more about the individual pieces of Pax in [Pax at a glance]_
+
+When compiled, Pax files become low-level assembly code -- WASM or LLVM depending on the target platform.
+
+This "cartridge" of binary code is then loaded into a platform-native chassis, which is loaded by a host application, e.g. by a Web app or an iOS app. 
+
+//TODO: explainer image of NES cartridge & console
+
+
+
+
+
+## Pax at a glance
+
+Properties & settings (Pax)
+Expressions (Pax)
+Event handlers (host language)
+
+
+Pax GUIs are intended to run anywhere, as stand-alone applications or embedded as components inside other applications.
 
 
 This project is the first implementation of the Pax User Interface Language.  This includes:
   - Language parser, compiler, and debugging tools
   - Rendering engines for macOS, iOS, Android, Windows, and Web
 
-## What is Pax?
-Pax is a way to create user interfaces.  Some of Pax's design goals:
+## Pax's goals
+
+Portable
+Performant
+Professional (license, stability)
+
+All-purpose
+Approachable
+Accessible (as in accessibility)
+
+eXtensible
+eXpressive
+eXhaustive (redundant with all-purpose?)
 
 **P**ortable
 - run everywhere
@@ -68,8 +104,7 @@ What can be built with Pax?
 ## Some nerdier goals
 
   - Deterministic state system, enabling reproducible UIs (e.g. for screenshot/regression testing) 
-
-
+  
   - Designable
      
   - Hackable
