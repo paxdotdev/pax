@@ -24,7 +24,7 @@ impl Main {
 
     pub fn new() -> Self {
         Self {
-            //Default values
+            //Default values.  Could shorthand this into a macro via PAXEL
             num_clicks: 0,
             current_rotation: 0.0,
             deeper_struct: DeeperStruct {

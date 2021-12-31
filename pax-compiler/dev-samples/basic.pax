@@ -7,7 +7,7 @@
 </Spread>
 
 
-@properties {
+@settings {
     #main-spread {
         cell_count: 3
         orientation: Orientation::Vertical

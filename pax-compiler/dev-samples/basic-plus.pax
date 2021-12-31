@@ -12,7 +12,7 @@
 </Spread>
 
 
-@properties {
+@settings {
 
     //TBD: should the following property definitions be in Rust or here?
     //     similarly, should imports rely on Rust's imports or should we have them in .dash?
