@@ -99,12 +99,12 @@ Perhaps a macro is the answer?
 ## Backlog
 
 [ ] Margin & padding?
-[ ] Decide whether to support, e.g. is there a simpler alternative w/ existing pieces?
-[ ] Decide whether to support ONE or BOTH
+    [ ] Decide whether to support, e.g. is there a simpler alternative w/ existing pieces?
+    [ ] Decide whether to support ONE or BOTH
 [ ] Ellipse
 [ ] Path
 [ ] Frames: overflow scrolling
-[ ] PoC on macOS, iOS, Android
+[ ] PoC on macOS, iOS, Android, Windows
 [ ] Image primitive
     [ ] Hook into `piet`s image rendering
     [ ] Asset management
