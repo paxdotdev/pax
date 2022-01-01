@@ -1,5 +1,52 @@
 # TODO
 
+
+## Milestone: proof of concept
+
+[x] Rendering 
+[x] Components 
+[x] Logging
+[x] Stroke, color, fill
+[x] Sizing
+    [x] Browser resize support
+    [x] None-sizing
+    [x] Transform.align
+    [x] Transform.origin
+[x] Expression engine
+    [x] variables, declaration & storage
+    [x] node IDs
+    [x] summonables
+    [x] built-in vars like frame count
+    [x] MVP rust closures + manifest of deps
+[x] Spreads (née Stacks)
+    [x] Decide `primitive` vs. userland `components`
+    `components`
+    [x] Internal template mechanism for components
+    [x] Make `root` into a component definition
+    [x] Control-flow `placeholder` (`placeholder`) for inputs/children
+    [x] Ensure path forward to userland `placeholders`
+    [x] Clipping & Frames
+    [x] Control-flow `repeat` for cells & dividers inside template
+    [x] Gutter
+[x] Split out userland code
+    [x] Add a third project to workspace, the sample project
+    [x] (Further work to be done via compiler task)
+[x] Timelines, transitions
+[x] Refactors
+    [x] Bundle Transform into "sugary transform," incl. origin & align; consider a separate transform_matrix property
+    [x] Is there a way to better-DRY the shared logic across render-nodes?
+e.g. check out the `get_size` methods for Frame and Spread
+    [x] Maybe related to above:  can we DRY the default properties for a render node?
+Perhaps a macro is the answer?
+    [ ] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
+    Same with `scale`
+    [x] Can we do something better than `(Box<......>, Box<.......>)` for `Size`?
+    [x] Rename various properties, e.g. bounding_dimens => bounds
+    [x] Take a pass on references/ownership in render_render_tree — perhaps &Affine should transfer ownership instead, for example
+    [x] Better ergonomics for `wrap_render_node_ptr_into_list`
+    [x] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
+
+
 ## Milestone: "hello world" from .pax
 
 [ ] Compile base cartridge
@@ -24,24 +71,77 @@
 [ ] render Hello World
     [ ] Manage mounting of Engine and e2e 
 
+## Milestone: clickable square
 
+[ ] Action API
+    [ ] state management (.get/.set/etc.)
+    [ ] Instantiation, reference management, enum ID + addressing for method definitions &
+        invocations
+    [ ] tween/dynamic timeline API
 
-## Milestone: vNext
+> What's our expression language MVP?
+> - `==`, `&&`, and `||`
+> - Parenthetical grouping `(.*)`
+> - Literals for strings, bools, ints, floats
+> - Nested object references + injected context
 
-[ ] Production compilation
 [ ] Expressions
-    [ ] Transpile expressions to Rust (or choose another strategy)
+    [ ] Transpile expressions to Rust (or choose another compilation strategy)
     [ ] Write ExpressionTable harness, incl. mechanisms for:
+        [ ] vtable storage & lookup
         [ ] Dependency tracking & dirty-watching
         [ ] Return value passing & caching
-        [ ] Sketch out design for parallelized expression computation (e.g. in WebWorkers)
-    [ ] Patch ExpressionTable into cartridge a la PropertyCoproduct
-[ ] Packaging & imports
-    [ ] Ensure that 3rd party components can be loaded via vanilla import mechanism
+    [ ] Sketch out design for parallelized expression computation (e.g. in WebWorkers)
+    [ ] Patch ExpressionTable into cartridge à la PropertyCoproduct
 
 
 
 ## Backlog
 
+[ ] Margin & padding?
+[ ] Decide whether to support, e.g. is there a simpler alternative w/ existing pieces?
+[ ] Decide whether to support ONE or BOTH
+[ ] Ellipse
+[ ] Path
+[ ] Frames: overflow scrolling
+[ ] PoC on macOS, iOS, Android
+[ ] Image primitive
+    [ ] Hook into `piet`s image rendering
+    [ ] Asset management
+[ ] Gradients
+    [ ] Multiple (stacked, polymorphic) fills
+[ ] Production compilation
+    [  ] Generation of RIL, feature-gating `designtime`
+[ ] Packaging & imports
+    [ ] Ensure that 3rd party components can be loaded via vanilla import mechanism
+[ ] Mixed mode, Web
+    [x] Rust -> JS data bridge
+    [x] DOM pooling & recycling mechanism
+    [ ] Text primitives + basic styling
+    [ ] Native-layer clipping (accumulate clipping path for elements above DOM elements, communicate as Path to web layer for foreignObject + SVG clipping)
+    [ ] Form controls
+    [ ] ButtonNative (vs. ButtonGroup/ButtonContainer/ButtonFrame?) (or vs. a click event on any ol element)
+    [ ] Text input
+    [ ] Dropdown
 [ ] JavaScript runtime
     [ ] First-class TypeScript support
+    [ ] API design
+        [ ] code-behind & decorator syntax
+    [ ] Bindings to `runtime` API, plus IPC mechanism for triggering
+[ ] Language server, syntax highlighting, IDE errors (VSCode, JetBrains)
+[ ] Transform.shear
+[ ] Audio/video components
+    [ ] "headless" components
+[ ] Expression pre-compiler
+    [ ] Enforce uniqueness and valid node/var naming, e.g. for `my_node.var.name`
+    [ ] Parser for custom expression lang
+[ ] Debugging chassis
+[ ] Perf-optimize Rectangle (assuming BezPath is inefficient)
+
+
+
+```
+Creative development environment
+for makers of
+graphical user interfaces
+```
