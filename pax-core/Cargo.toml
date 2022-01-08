@@ -11,6 +11,7 @@ piet = "0.3.1"
 piet-web = "0.3.1"
 kurbo = "0.7.1"
 pax-macro-expression = { path = "../pax-macro-expression"}
+pax-properties-coproduct = { path = "../pax-properties-coproduct"}
 lazy_static = "1.4.0"
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 serde = {version = "1.0", features=["derive"]}

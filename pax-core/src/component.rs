@@ -1,7 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{PropertiesCoproduct, RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, Transform, HostPlatformContext};
+use pax_properties_coproduct::{PropertiesCoproduct};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, Transform, HostPlatformContext};
 use crate::timeline::Timeline;
 
 /// A render node with its own runtime context.  Will push a frame

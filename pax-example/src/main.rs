@@ -9,6 +9,10 @@ struct DeeperStruct {
 }
 
 #[derive(PaxProperties)] //rewrite to pub `num_clicks : Property<i64>` etc. AND register metadata with dev server
+//Note re: dependencies —
+//  - The central PropertiesCoproduct _depends on_ this definition, in order to wrap it into the PropertiesCoproduct
+//  - This means that this file cannot directly rely on pax-properties-coproduct.  To do so would introduce a cyclic dep.
+//    In particular, be mindful of this when designing macro expansion
 pub struct Main {
     pub num_clicks : i64,
     pub current_rotation: f64,

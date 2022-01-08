@@ -47,11 +47,12 @@ Perhaps a macro is the answer?
     [x] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
 
 
+
 ## Milestone: "hello world" from .pax
 
 [ ] Compile base cartridge
-    [ ] Refactor PropertiesCoproduct to its own module
-    [ ] Sanity check "patch" ability for "blanks" (Properties, Expressions)
+    [x] Refactor PropertiesCoproduct to its own module
+    [x] Sanity check "patch" ability for "blanks" (Properties, Expressions)
     [ ] Demo app chassis (`pax run web`)
 [ ] `pax` macros and compiler
     [ ] threaded chassis for jobs, e.g. server & shell `cargo`
@@ -78,6 +79,12 @@ Perhaps a macro is the answer?
     [ ] Instantiation, reference management, enum ID + addressing for method definitions &
         invocations
     [ ] tween/dynamic timeline API
+[ ] Event capture and transmission
+    [ ] Map inputs through chassis, native events (mouse, touch)
+        [ ] PoC with Web
+    [ ] Message queue in runtime
+    [ ] Ray-casting? probably
+    [ ] Message bubbling/capture or similar solution
 
 > What's our expression language MVP?
 > - `==`, `&&`, and `||`

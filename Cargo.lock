@@ -1312,6 +1312,7 @@ dependencies = [
  "kurbo",
  "lazy_static",
  "pax-macro-expression",
+ "pax-properties-coproduct",
  "piet",
  "piet-web",
  "serde",

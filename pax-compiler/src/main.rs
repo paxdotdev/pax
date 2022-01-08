@@ -1,12 +1,5 @@
-#[macro_use]
+!#[macro_use]
 extern crate pest_derive;
-
-
-
-
-
-
-
 
 mod parser;
 mod server;
@@ -26,7 +19,13 @@ fn main() {
         // Only a few of its arguments are implemented below.
         .subcommand(
             App::new("run")
-                .about("Run the Pax project in the current working directory")
+                .about("Run the Pax project from the current working directory in a demo harness")
+                .arg(
+                    Arg::with_name("path")
+                        .takes_value(true)
+                        .default_value(".")
+                        .index(1)
+                )
                 .arg(
                     Arg::with_name("target")
                         .short("t")
@@ -43,12 +42,18 @@ fn main() {
                 unimplemented!("Target currently hard-coded for web")
             }
 
-            println!("Run logic here");
+
+            let path = args.value_of("path").unwrap();
+
+
+            println!("Run logic here {}", path);
             //1. compile project with Cargo — yields a lib ("cartridge") plus `designtime` extensions — note: no Pax yet
             //  [ ]
             //2. `patch` cartridge into chassis and build native lib (e.g. .wasm file — starting with Web in this pass)
             //3. Start websocket server
             server::start_ws_server();
+
+
             //4. Mount the compiled cartridge+chassis+designtime into a "demo app," e.g. for web an index.html + js mount of the wasm file (see pax-chassis-web for model)
             //5. From running sample app: phone home from wasm to compiler — via chassis, since ws client connection method is a platform-specific concern — to establish duplex connection (+ auth token, keep-alive mechanism)
             //6. From compiler [this] process: parse token pairs from .pax, feed them to .wasm process (accept token pairs over websockets and call wasm-local ORM CRUD methods)
