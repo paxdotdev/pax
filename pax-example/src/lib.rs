@@ -1,26 +1,29 @@
+// #[macro_use]
+// extern crate pax_macro;
+
+
+use pax::pax;
 
 //TODO: do stand-alone structs require defaults declarations?
 //      it seems like "no," since all properties in the properties tree
 //      will be specified via Components, which must specify properties
 #[pax]
-struct DeeperStruct {
+pub struct DeeperStruct {
     a: i64,
-    b: String,
+    b: &'static str,
 }
 
-#[derive(PaxProperties)] //rewrite to pub `num_clicks : Property<i64>` etc. AND register metadata with dev server
+//rewrite to pub `num_clicks : Property<i64>` etc. AND register metadata with dev server
 //Note re: dependencies —
 //  - The central PropertiesCoproduct _depends on_ this definition, in order to wrap it into the PropertiesCoproduct
 //  - This means that this file cannot directly rely on pax-properties-coproduct.  To do so would introduce a cyclic dep.
 //    In particular, be mindful of this when designing macro expansion
+#[pax]
 pub struct Main {
     pub num_clicks : i64,
     pub current_rotation: f64,
     pub deeper_struct: DeeperStruct,
 }
-
-
-
 
 
 #[pax]
@@ -47,13 +50,15 @@ impl Main {
     // - inject something other than self into increment_clicker, including a .gettable and .settable wrapper
     //   around (note that this injected struct, if it's going to have the pattern struct.num_clicks.set, will
     //   still require some codegen; can't be achieved with generics alone
-    pub fn increment_clicker(&mut self, args: ClickArgs) {
-        self.num_clicks.set(self.num_clicks + 1);
-        self.current_rotation.setTween( //also: setTweenLater, to enqueue a tween after the current (if any) is done
-            self.num_clicks.get() * 3.14159 / 4,
-            Tween {duration: 1000, curve: Tween::Ease}
-        );
-    }
+    
+    
+    // pub fn increment_clicker(&mut self, args: ClickArgs) {
+    //     self.num_clicks.set(self.num_clicks + 1);
+    //     self.current_rotation.setTween( //also: setTweenLater, to enqueue a tween after the current (if any) is done
+    //         self.num_clicks.get() * 3.14159 / 4,
+    //         Tween {duration: 1000, curve: Tween::Ease}
+    //     );
+    // }
 
 }
 

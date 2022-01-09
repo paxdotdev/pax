@@ -1273,6 +1273,9 @@ dependencies = [
 [[package]]
 name = "pax"
 version = "0.1.0"
+dependencies = [
+ "pax-macro",
+]
 
 [[package]]
 name = "pax-chassis-web"
@@ -1280,6 +1283,7 @@ version = "0.0.1"
 dependencies = [
  "console_error_panic_hook",
  "pax-core",
+ "pax-macro",
  "piet",
  "piet-web",
  "wasm-bindgen",
@@ -1311,7 +1315,7 @@ version = "0.1.0"
 dependencies = [
  "kurbo",
  "lazy_static",
- "pax-macro-expression",
+ "pax-macro",
  "pax-properties-coproduct",
  "piet",
  "piet-web",
@@ -1328,12 +1332,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "pax-macro-expression"
+name = "pax-macro"
 version = "0.1.0"
 dependencies = [
  "quote",
  "syn",
 ]
+
+[[package]]
+name = "pax-macro-coordination-server"
+version = "0.1.0"
 
 [[package]]
 name = "pax-properties-coproduct"

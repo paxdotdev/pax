@@ -1,5 +1,5 @@
 [package]
-name = "pax-macro-expression"
+name = "pax-macro"
 version = "0.1.0"
 authors = ["Zack Brown <zack@inclination.co>"]
 edition = "2018"
