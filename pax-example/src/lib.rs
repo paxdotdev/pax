@@ -1,8 +1,4 @@
-// #[macro_use]
-// extern crate pax_macro;
-
-
-use pax::pax;
+use pax::*;
 
 //TODO: do stand-alone structs require defaults declarations?
 //      it seems like "no," since all properties in the properties tree

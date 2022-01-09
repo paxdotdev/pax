@@ -7,5 +7,17 @@ pub fn pax(args: TokenStream, input: TokenStream) -> TokenStream {
     let _ = args;
     let _ = input;
 
+
+    
+
+
+    //TODO: idempotent pax-macro-coordination startup
+
     input
+}
+
+
+
+fn start_ws_server() {
+    
 }

@@ -42,11 +42,10 @@ fn main() {
                 unimplemented!("Target currently hard-coded for web")
             }
 
-
             let path = args.value_of("path").unwrap();
 
 
-            println!("Run logic here {}", path);
+            println!("Run logic here: {}", path);
             //1. compile project with Cargo — yields a lib ("cartridge") plus `designtime` extensions — note: no Pax yet
             //  [ ]
             //2. `patch` cartridge into chassis and build native lib (e.g. .wasm file — starting with Web in this pass)

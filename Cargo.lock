@@ -1340,7 +1340,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pax-macro-coordination-server"
+name = "pax-macro-coordination"
 version = "0.1.0"
 
 [[package]]
