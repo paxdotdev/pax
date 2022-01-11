@@ -50,17 +50,31 @@ Perhaps a macro is the answer?
 
 ## Milestone: "hello world" from .pax
 
-[ ] Compile base cartridge
+
+[x] Compile base cartridge
     [x] Refactor PropertiesCoproduct to its own module
     [x] Sanity check "patch" ability for "blanks" (Properties, Expressions)
-    [ ] Demo app chassis (`pax run web`)
-[ ] `pax` macros and compiler
-    [ ] threaded chassis for jobs, e.g. server & shell `cargo`
+    [x] Demo app chassis running example project (`./serve.sh`)
+        [x] Add stub macro for `pax`, derives
+[ ] `pax-compiler`
+    [ ] thread & coordination chassis, architecture 
     [ ] cleanup for threaded chassis, e.g. ctrl+c and error handling
-    [ ] Idempotent server process startup from macros
-    [ ] Phone home to server to register Components/Properties    
+    [ ] thread for wrapping `cargo build`
+    [ ] websocket "forwarding server" + message queue
+[ ] `pax-message`
+    [ ] design structs (central enum in own package?) for representing messages
+    [ ] de/serialization of messages with Serde
+[ ] macros
+    [ ] write manual expanded form
+    [ ] write automated expanded form
     [ ] mechanism to ensure every macro is invoked each compilation (or otherwise deterministically cached)
-    [ ] Dump manifest to PropertiesCoproduct, patch, recompile (or hot reload)
+    [ ] Phone home to macro communication server to register Components/Properties   
+        - component names/paths and pax file paths 
+        - property schemas assoc. with components
+[ ] macro communication server
+    [ ] startup mechanism
+    [ ] listening/recording mechanism
+    [ ] shutdown + dump mechanism)
 [ ] legwork for `Definitions` and `Instances`
     [ ] Write `Definition` structs and refactor existing entities to `Instance` structs
     [ ] Write ORM methods for `Definitions`
@@ -69,6 +83,9 @@ Perhaps a macro is the answer?
     [ ] Map parser logic (Pest token pairs) to CRUD API calls for `designtime` server
     [ ] traverse in-mem manifest of Component defs: parse files, pass to server
     [ ] figure out recompilation loop or hot-reloading of Properties and Expressions
+[ ] baseline primitive(s) for hello world
+    [ ] import/package management
+    [ ] RIL -> PAX compatibility, or rewrite primitives
 [ ] render Hello World
     [ ] Manage mounting of Engine and e2e 
 
