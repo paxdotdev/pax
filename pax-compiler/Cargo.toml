@@ -24,6 +24,8 @@ actix-web = "3"
 actix-files = "0.5.0"
 actix-web-actors = "3"
 rand = "0.8.4"
+tokio = { version = "1", features = ["full"] }
+portpicker = "0.1.1"
 
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 #++serde = {version = "1.0", features=["derive"]}

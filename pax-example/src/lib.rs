@@ -1,9 +1,6 @@
 use pax::*;
 
-//TODO: do stand-alone structs require defaults declarations?
-//      it seems like "no," since all properties in the properties tree
-//      will be specified via Components, which must specify properties
-#[pax]
+//Can support #[pax] in order to offer granular value-setting
 pub struct DeeperStruct {
     a: i64,
     b: &'static str,
@@ -14,16 +11,15 @@ pub struct DeeperStruct {
 //  - The central PropertiesCoproduct _depends on_ this definition, in order to wrap it into the PropertiesCoproduct
 //  - This means that this file cannot directly rely on pax-properties-coproduct.  To do so would introduce a cyclic dep.
 //    In particular, be mindful of this when designing macro expansion
-#[pax]
-pub struct Main {
+#[pax(file="root.pax")]
+pub struct Root {
     pub num_clicks : i64,
     pub current_rotation: f64,
     pub deeper_struct: DeeperStruct,
 }
 
 
-#[pax]
-impl Main {
+impl Root {
 
     pub fn new() -> Self {
         Self {

@@ -38,7 +38,6 @@
 e.g. check out the `get_size` methods for Frame and Spread
     [x] Maybe related to above:  can we DRY the default properties for a render node?
 Perhaps a macro is the answer?
-    [ ] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
     Same with `scale`
     [x] Can we do something better than `(Box<......>, Box<.......>)` for `Size`?
     [x] Rename various properties, e.g. bounding_dimens => bounds
@@ -128,6 +127,7 @@ Perhaps a macro is the answer?
 [ ] Ellipse
 [ ] Path
 [ ] Frames: overflow scrolling
+[ ] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
 [ ] PoC on macOS, iOS, Android, Windows
 [ ] Image primitive
     [ ] Hook into `piet`s image rendering
