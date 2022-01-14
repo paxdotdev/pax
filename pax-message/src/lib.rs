@@ -14,12 +14,12 @@ mod tests {
 
 
 
-
 pub enum Action {
     Create,
     Read,
     Update,
-    Delete
+    Delete,
+    Command,
 }
 
 
@@ -32,6 +32,7 @@ pub struct PaxMessage {
 pub enum Entity {
     ComponentDefinition(ComponentDefinition),
     TemplateNodeDefinition(TemplateNodeDefinition),
+    CommandDefinitionTODO,
 }
 
 #[allow(dead_code)]

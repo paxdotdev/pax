@@ -24,8 +24,9 @@ use futures::prelude::*;
 
 
 
-
+use pax_message::PaxMessage;
 use serde_json::Value;
+use tokio::sync::oneshot;
 use tokio_serde::SymmetricallyFramed;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 
@@ -154,12 +155,10 @@ struct RunContext {
     path: String,
     handle: Handle,
     // ThreadMacroCoordination: Option<ThreadWrapper<MessageMacroCoordination>>,
-    
 }
 
 
-async fn run_macro_coordination_server(red_phone: Receiver<bool>) -> Result<(), Error> {
-    
+async fn run_macro_coordination_server(mut red_phone: Receiver<PaxMessage>) -> Result<(), Error> {
 
     let macro_coordination_tcp_port= get_open_tcp_port();
     println!("Found open port: {}", macro_coordination_tcp_port);
@@ -168,26 +167,62 @@ async fn run_macro_coordination_server(red_phone: Receiver<bool>) -> Result<(), 
 
     // Bind a server socket
     let listener = TcpListener::bind(format!("127.0.0.1:{}",macro_coordination_tcp_port)).await.unwrap();
+
+
+
     loop {
-        let (socket, _) = listener.accept().await.unwrap();
-
-        // Delimit frames using a length header
-        let length_delimited = FramedRead::new(socket, LengthDelimitedCodec::new());
-
-        // Deserialize frames
-        let mut deserialized = tokio_serde::SymmetricallyFramed::new(
-            length_delimited,
-            SymmetricalJson::<Value>::default(),
-        );
-
-        // Spawn a task that prints all received messages to STDOUT
-        tokio::spawn(async move {
-            while let Some(msg) = deserialized.try_next().await.unwrap() {
-                println!("GOT: {:?}", msg);
+        tokio::select! {
+            _ = red_phone.recv() => {
+                println!("Red phone message received");
             }
-        });
-    }
+            _ = listener.accept() => {
+                println!("TCP message received");
+            }
+        }
+            //
+            // match listener.poll_accept(&mut cx) {
+            //     Poll::Ready(result) => {
+            //         //process incoming data
+            //         // result.unwrap().0
+            //         print!("received TCP data");
+            //     },
+            //     _ => {},
+            // }
+            //
+            // match red_phone.poll_recv(&mut cx) {
+            //     Poll::Ready(msg) => {
+            //         //for now, any message from parent is the shutdown message
+            //         break;
+            //     },
+            //     Poll::Pending => {},
+            // }
 
+
+        //
+        //
+        //
+        // let (socket, _) = future::select(red_phone.blocking_recv().await, listener.accept().await).unwrap();
+        // // let (socket, _) = listener.accept().await.unwrap();
+        //
+        // // Delimit frames using a length header
+        // let length_delimited = FramedRead::new(socket, LengthDelimitedCodec::new());
+        //
+        // // Deserialize frames
+        // let mut deserialized = tokio_serde::SymmetricallyFramed::new(
+        //     length_delimited,
+        //     SymmetricalJson::<Value>::default(),
+        // );
+        //
+        // // Spawn a task that prints all received messages to STDOUT
+        // tokio::spawn(async move {
+        //     while let Some(msg) = deserialized.try_next().await.unwrap() {
+        //         println!("GOT: {:?}", msg);
+        //     }
+        // });
+
+
+
+    }
 
 
     // let listener = TcpListener::bind(
@@ -226,7 +261,9 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     let (tx, rx) = tokio::sync::mpsc::channel(65535); //65535 is arbitrary
 
-    let handle = task::spawn(run_macro_coordination_server(rx));
+    let handle = task::spawn(
+        run_macro_coordination_server(rx)
+    );
     handle.await?;
 
     

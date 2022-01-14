@@ -1401,6 +1401,7 @@ dependencies = [
  "futures",
  "lazy_static",
  "pax-core",
+ "pax-message",
  "pest",
  "pest_derive",
  "portpicker",
