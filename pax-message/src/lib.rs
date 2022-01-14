@@ -25,8 +25,8 @@ pub enum Action {
 
 #[allow(dead_code)]
 pub struct PaxMessage {
-    action: Option<Action>,
-    payload: Entity 
+    pub action: Action,
+    pub payload: Entity,
 }
 
 pub enum Entity {

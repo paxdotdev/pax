@@ -4,9 +4,9 @@ extern crate pest_derive;
 use tokio::net::{TcpListener, TcpStream};
 
 use tokio::task::yield_now;
-use tokio::task;
+use tokio::{select, task};
 use tokio::runtime::Handle;
-use tokio::sync::mpsc::{Sender, Receiver};
+use tokio::sync::mpsc::{Sender, Receiver, UnboundedReceiver};
 use tokio_stream::wrappers::{ReceiverStream};
 
 
@@ -16,7 +16,10 @@ mod server;
 
 use std::io::Error;
 use std::task::{Poll, Context};
-use std::{thread::{Thread, self}, time::Duration, process::{Command, Stdio}};
+use std::{thread::{Thread, self}, time::Duration};
+use std::borrow::{Borrow, BorrowMut};
+use std::cell::RefCell;
+use std::sync::Arc;
 
 use clap::{App, AppSettings, Arg};
 
@@ -26,6 +29,7 @@ use futures::prelude::*;
 
 use pax_message::PaxMessage;
 use serde_json::Value;
+use tokio::process::Command;
 use tokio::sync::oneshot;
 use tokio_serde::SymmetricallyFramed;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
@@ -158,44 +162,30 @@ struct RunContext {
 }
 
 
-async fn run_macro_coordination_server(mut red_phone: Receiver<PaxMessage>) -> Result<(), Error> {
+#[derive(Debug)]
+struct ComponentManifest {
+    pax_file_path: String,
+}
 
-    let macro_coordination_tcp_port= get_open_tcp_port();
-    println!("Found open port: {}", macro_coordination_tcp_port);
-
-
+async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, return_data_channel : tokio::sync::oneshot::Sender<Vec<ComponentManifest>>, macro_coordination_tcp_port: u16) -> Result<(), Error> {
 
     // Bind a server socket
     let listener = TcpListener::bind(format!("127.0.0.1:{}",macro_coordination_tcp_port)).await.unwrap();
-
-
+    let mut manifests: Vec<ComponentManifest> = vec![];
 
     loop {
         tokio::select! {
             _ = red_phone.recv() => {
+                //for now, any message from parent is the shutdown message
                 println!("Red phone message received");
+                &return_data_channel.send(manifests);
+                break;
             }
             _ = listener.accept() => {
                 println!("TCP message received");
+                &manifests.push(ComponentManifest{pax_file_path: "TODO: get from TCP frame".into()});
             }
         }
-            //
-            // match listener.poll_accept(&mut cx) {
-            //     Poll::Ready(result) => {
-            //         //process incoming data
-            //         // result.unwrap().0
-            //         print!("received TCP data");
-            //     },
-            //     _ => {},
-            // }
-            //
-            // match red_phone.poll_recv(&mut cx) {
-            //     Poll::Ready(msg) => {
-            //         //for now, any message from parent is the shutdown message
-            //         break;
-            //     },
-            //     Poll::Pending => {},
-            // }
 
 
         //
@@ -259,12 +249,41 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     
     //see pax-compiler-sequence-diagram.png
 
-    let (tx, rx) = tokio::sync::mpsc::channel(65535); //65535 is arbitrary
+
+    let macro_coordination_tcp_port= get_open_tcp_port();
+    println!("Listening for macro communication on open TCP port: {}", macro_coordination_tcp_port);
+
+    let (red_phone_tx, red_phone_rx) = tokio::sync::mpsc::unbounded_channel();
+    let (payload_tx, payload_rx) = tokio::sync::oneshot::channel();
 
     let handle = task::spawn(
-        run_macro_coordination_server(rx)
+        run_macro_coordination_server(red_phone_rx, payload_tx, macro_coordination_tcp_port)
     );
-    handle.await?;
+
+    let cargo_future = Command::new("cargo").current_dir(ctx.path).arg("build")
+        .spawn().expect("failed to execute cargo build").wait_with_output();
+
+    let mut cargo_exit_code : i32 = -1;
+
+    select! {
+        _ = handle => {
+            panic!("macro coordination server failed"); //this should not return before cargo does; should require manual shutdown
+        }
+        exit_code = cargo_future => {
+            cargo_exit_code = exit_code.expect("failed to capture exit code").status.code().unwrap();
+        }
+    }
+
+    println!("Waiting 15 seconds for messages...");
+    thread::sleep(Duration::from_secs(15));
+
+    println!("Sending shutdown signal");
+    red_phone_tx.send(true); //send shutdown signal
+
+    let component_manifest = payload_rx.await.expect("failed to retrieve component_manifest from macro coordination thread");
+
+    println!("received component manifest: {:?}",component_manifest);
+    // handle.await?;
 
     
 
