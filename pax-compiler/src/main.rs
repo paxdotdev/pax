@@ -3,16 +3,39 @@ extern crate pest_derive;
 
 use tokio::net::{TcpListener, TcpStream};
 
+use tokio::task::yield_now;
+use tokio::task;
+use tokio::runtime::Handle;
+use tokio::sync::mpsc::{Sender, Receiver};
+use tokio_stream::wrappers::{ReceiverStream};
+
+
+
 mod parser;
 mod server;
 
-use std::{thread::{Thread, self}, sync::mpsc::{self, Receiver, Sender}, time::Duration, process::{Command, Stdio}};
+use std::io::Error;
+use std::task::{Poll, Context};
+use std::{thread::{Thread, self}, time::Duration, process::{Command, Stdio}};
 
 use clap::{App, AppSettings, Arg};
 
+use futures::prelude::*;
+
+
+
+
+use serde_json::Value;
+use tokio_serde::SymmetricallyFramed;
+use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
+
+// use serde_json::Value;
+use tokio_serde::formats::*;
+// use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
+
 
 #[tokio::main]
-async fn main() -> Result<(), ()> {
+async fn main() -> Result<(), Error> {
     let matches = App::new("pax")
         .name("pax")
         .bin_name("pax")
@@ -49,9 +72,12 @@ async fn main() -> Result<(), ()> {
 
             let path = args.value_of("path").unwrap();
 
-            perform_run(target, path);
+            perform_run(RunContext{
+                target: target.into(), 
+                path: path.into(), 
+                handle: Handle::current(),
+            }).await?;
 
-            println!("Run logic here: {}", path);
 
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
@@ -65,20 +91,6 @@ async fn main() -> Result<(), ()> {
 
 
 
-#[derive(Default)]
-struct ThreadWrapper<T> {
-    handle: Option<thread::JoinHandle<u8>>,
-    sender: Option<Sender<T>>,
-    receiver: Option<Receiver<T>>,
-    red_phone: Option<Sender<T>>,
-}
-
-struct ProcessWrapper<T> {
-    handle: Option<thread::JoinHandle<u8>>,
-    sender: Option<Sender<T>>,
-    receiver: Option<Receiver<T>>,
-    red_phone: Option<Sender<T>>,
-}
 
 // fn start_thread_macro_coordination() -> ThreadWrapper<MessageMacroCoordination> {
 
@@ -117,9 +129,14 @@ struct ProcessWrapper<T> {
 // }
 
 
+
 fn get_open_tcp_port() -> u16 {
+    //TODO: mitigate races within this process where 
+    //      get_open_tcp_port is called in quick succession.
+    //      Could keep a simple hashmap "burn list", ensuring that not only
+    //      is a port open per the OS, but it's also not in the burn list.
     const RANGE_START : u16 = 4242;
-    let current = RANGE_START;
+    let mut current = RANGE_START;
     while !portpicker::is_free_tcp(current) {
         current = current + 1;
     }
@@ -132,118 +149,195 @@ fn get_open_tcp_port() -> u16 {
 struct MessageCargo {}
 struct MessageForwarder {}
 
-#[derive(Default)]
 struct RunContext {
+    target: String,
+    path: String,
+    handle: Handle,
     // ThreadMacroCoordination: Option<ThreadWrapper<MessageMacroCoordination>>,
-    ProcessCargo: Option<ProcessWrapper<MessageCargo>>,
-    ThreadForwarder: Option<ThreadWrapper<MessageForwarder>>,
+    
 }
 
-/// Run the project at the specified path inside the demo chassis
-/// for the specified target platform
-fn perform_run(target: &str, path: &str) {
-    let mut ctx = RunContext::default();
-    //see pax-compiler-sequence-diagram.png
 
-
-    // ctx.ThreadMacroCoordination = Some(start_thread_macro_coordination());
-
-
-    // Instead of the full macro coordination server, try a simpler approach:
-    // "every macro writes to a file", waiting for the file to be ready as long as necessary to write.
-    //  Note that the file lock management becomes a little tricky.
-
-    // What about OS pipes?  the message passing is very simple — no risk of
-    // deadlocks as long as the message-passing is one-way
+async fn run_macro_coordination_server(red_phone: Receiver<bool>) -> Result<(), Error> {
     
+
     let macro_coordination_tcp_port= get_open_tcp_port();
+    println!("Found open port: {}", macro_coordination_tcp_port);
 
-    ctx.ProcessCargo = Some(start_cargo_process(macro_coordination_tcp_port));
 
 
-    let thread_join_handle = thread::spawn(move || {
-        // some work here
-    });
+    // Bind a server socket
+    let listener = TcpListener::bind(format!("127.0.0.1:{}",macro_coordination_tcp_port)).await.unwrap();
+    loop {
+        let (socket, _) = listener.accept().await.unwrap();
 
-    let (tx, rx) = mpsc::channel();
+        // Delimit frames using a length header
+        let length_delimited = FramedRead::new(socket, LengthDelimitedCodec::new());
 
-    let tx1 = tx.clone();
-    thread::spawn(move || {
-        let vals = vec![
-            String::from("hi"),
-            String::from("from"),
-            String::from("the"),
-            String::from("thread"),
-        ];
+        // Deserialize frames
+        let mut deserialized = tokio_serde::SymmetricallyFramed::new(
+            length_delimited,
+            SymmetricalJson::<Value>::default(),
+        );
 
-        for val in vals {
-            tx1.send(val).unwrap();
-            thread::sleep(Duration::from_secs(1));
-        }
-    });
-
-    thread::spawn(move || {
-        let vals = vec![
-            String::from("more"),
-            String::from("messages"),
-            String::from("for"),
-            String::from("you"),
-        ];
-
-        for val in vals {
-            tx.send(val).unwrap();
-            thread::sleep(Duration::from_secs(1));
-        }
-    });
-
-    for received in rx {
-        println!("Got: {}", received);
+        // Spawn a task that prints all received messages to STDOUT
+        tokio::spawn(async move {
+            while let Some(msg) = deserialized.try_next().await.unwrap() {
+                println!("GOT: {:?}", msg);
+            }
+        });
     }
 
 
 
-    //TODO: start macro coordination server
-    ctx.MacroCoordinationThread = Some(macro_coordination::start_server());
-    /*
-    Option A: dump to an append-only file; load that file after compilation
-    Option B: open a simple HTTP server 
-    */
+    // let listener = TcpListener::bind(
+    //     format!("127.0.0.1:{}", macro_coordination_tcp_port.to_string())
+    // ).await?;
 
+    // let mut empty_context = Context::from(_)
+    // loop {
+    //     match listener.poll_accept(&mut empty_context) {
+    //         Poll::Ready(result) => {
+    //             //process incoming data
+    //             // result.unwrap().0
+    //             print!("received TCP data");
 
-    ctx.MacroCoordinationThread.unwrap().attach_listener("finish", |data| {
-        //use the dumped data gathered by macros:
-        // - location of all pax files to create a work queue for parsing
-        // - paths to import for PropertiesCoproduct members, to code-gen PropertiesCoproduct and its Cargo.toml
-    });
+    //         },
+    //         _ => {},
+    //     }
 
+    //     match red_phone.poll_recv(&mut empty_context) {
+    //         Poll::Ready(msg) => {
+    //             //for now, any message from parent is the shutdown message
+    //             break;
+    //         },
+    //         Poll::Pending => {},
+    //     }        
+    // }
 
-    //TODO: start cargo build
-    // ctx.CargoBuildThread = Some(start_cargo_build_thread())    
+    Ok(())
+}
 
-
-    //Await completion of both threads
+/// Run the project at the specified path inside the demo chassis
+/// for the specified target platform
+async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     
-    //TODO: perform any necessary codegen, incl. patched Cargo.toml, into temp dir
-    //TODO: run cargo build again; generate .wasm (or other platform-native lib)
-    //TODO: start websocket server
-    //TODO: start demo harness, load cartridge
-    //TODO: establish duplex connection to WS server from cartridge
-    //TODO: start parsing Pax files
+    //see pax-compiler-sequence-diagram.png
+
+    let (tx, rx) = tokio::sync::mpsc::channel(65535); //65535 is arbitrary
+
+    let handle = task::spawn(run_macro_coordination_server(rx));
+    handle.await?;
+
+    
+
+    // listener.
+
+    // let server = listener.incoming().for_each(move |socket| {
+    //     // TODO: Process socket
+    //     Ok(())
+    // })
+    // .map_err(|err| {
+    //     // Handle error by printing to STDOUT.
+    //     println!("accept error = {:?}", err);
+    // });
 
 
+
+    // // Instead of the full macro coordination server, try a simpler approach:
+    // // "every macro writes to a file", waiting for the file to be ready as long as necessary to write.
+    // //  Note that the file lock management becomes a little tricky.
+
+    // // What about OS pipes?  the message passing is very simple — no risk of
+    // // deadlocks as long as the message-passing is one-way
+    
+
+    // ctx.ProcessCargo = Some(start_cargo_process(macro_coordination_tcp_port));
+
+
+    // let thread_join_handle = thread::spawn(move || {
+    //     // some work here
+    // });
+
+    // let (tx, rx) = mpsc::channel();
+
+    // let tx1 = tx.clone();
+    // thread::spawn(move || {
+    //     let vals = vec![
+    //         String::from("hi"),
+    //         String::from("from"),
+    //         String::from("the"),
+    //         String::from("thread"),
+    //     ];
+
+    //     for val in vals {
+    //         tx1.send(val).unwrap();
+    //         thread::sleep(Duration::from_secs(1));
+    //     }
+    // });
+
+    // thread::spawn(move || {
+    //     let vals = vec![
+    //         String::from("more"),
+    //         String::from("messages"),
+    //         String::from("for"),
+    //         String::from("you"),
+    //     ];
+
+    //     for val in vals {
+    //         tx.send(val).unwrap();
+    //         thread::sleep(Duration::from_secs(1));
+    //     }
+    // });
+
+    // for received in rx {
+    //     println!("Got: {}", received);
+    // }
+
+
+
+    // //TODO: start macro coordination server
+    // ctx.MacroCoordinationThread = Some(macro_coordination::start_server());
+    // /*
+    // Option A: dump to an append-only file; load that file after compilation
+    // Option B: open a simple HTTP server 
+    // */
+
+
+    // ctx.MacroCoordinationThread.unwrap().attach_listener("finish", |data| {
+    //     //use the dumped data gathered by macros:
+    //     // - location of all pax files to create a work queue for parsing
+    //     // - paths to import for PropertiesCoproduct members, to code-gen PropertiesCoproduct and its Cargo.toml
+    // });
+
+
+    // //TODO: start cargo build
+    // // ctx.CargoBuildThread = Some(start_cargo_build_thread())    
+
+
+    // //Await completion of both threads
+    
+    // //TODO: perform any necessary codegen, incl. patched Cargo.toml, into temp dir
+    // //TODO: run cargo build again; generate .wasm (or other platform-native lib)
+    // //TODO: start websocket server
+    // //TODO: start demo harness, load cartridge
+    // //TODO: establish duplex connection to WS server from cartridge
+    // //TODO: start parsing Pax files
+
+    Ok(())
 }
 
 
 
-fn start_cargo_process(macro_coordination_tcp_port: u16) -> ProcessWrapper<MessageCargo> {
+fn start_cargo_process(macro_coordination_tcp_port: u16) -> () {
     
-    let process = match Command::new("wc")
-                                .stdin(Stdio::piped())
-                                .stdout(Stdio::piped())
-                                .spawn() {
-        Err(why) => panic!("couldn't spawn wc: {}", why),
-        Ok(process) => process,
-    };
+    // let process = match Command::new("wc")
+    //                             .stdin(Stdio::piped())
+    //                             .stdout(Stdio::piped())
+    //                             .spawn() {
+    //     Err(why) => panic!("couldn't spawn wc: {}", why),
+    //     Ok(process) => process,
+    // };
 
     unimplemented!()
 }
