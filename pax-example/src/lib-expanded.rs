@@ -33,39 +33,13 @@ pub struct Root {
 
 
 #[cfg(feature="derive-manifest")]
-use std::{env, fs};
+use std::{fs,env};
+#[cfg(feature="derive-manifest")]
+use pax::compiletime;
 
 #[cfg(feature="derive-manifest")]
 pub fn main() {
-    //this file will be copied to lib-expanded.rs (or .pax.manifest.rs, specified via [[bin]] directive in gen'd Cargo.toml)
-    //which means this will be the entry-point of the gen'd bin.
-    //Our goal here is to traverse the pax component dependency chain and gather metadata, e.g. file/module path
-    //This data will be used to codegen PropertiesCoproduct and possibly ExpressionTable, among others
-
-
-    //Look for a same-named .pax file, e.g. lib.pax alongside lib.rs
-    let current_rust_file_path = file!();
-
-    env::set_current_dir(current_rust_file_path);
-
-    // let full_path = fs::canonicalize(
-    //get everything between the last "/" and the ".rs"
-
-    let mut absolute_current_rust_file_path = fs::canonicalize(current_rust_file_path).unwrap();
-    absolute_current_rust_file_path.set_extension("pax");
-
-    //TODO: check if this file exists; load its contents as a string; pass to parser
-    println!("Current file: {:?}", absolute_current_rust_file_path);
-
-
-    // env
-    //
-    // let probe_pax_file_path = current_rust_file_path.clone().replace()
-    //
-    // let file_path = unimplemented!();
-    // let module_path =
-    // let root_deps = get_template_children();
-
+    compiletime::process_file(file!());
 }
 #[cfg(feature="derive-manifest")]
 impl Root {

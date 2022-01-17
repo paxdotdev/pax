@@ -7,15 +7,19 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 
-
+### GENERATE
 [[bin]]
 name = "debug-derive-manifest"
 path = "src/lib-expanded.rs"
 required-features = ["derive-manifest"]
+### END GENERATE
 
 [features]
+### GENERATE
 derive-manifest = []
+### END GENERATE
 
 [dependencies]
 pax = { path = "../pax" }
 lazy_static = "*"
+

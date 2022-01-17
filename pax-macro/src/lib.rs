@@ -14,9 +14,19 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
     input
 }
 
+// Needed because Cargo wouldn't otherwise watch for changes in pax files.
+// By include_str!ing the file contents,
+// (Trick borrowed from Pest: github.com/pest-parser/pest)
+fn generate_include(name: &Ident, path: &str) -> TokenStream {
+    let const_name = Ident::new(&format!("_PAX_FILE_{}", name), Span::call_site());
+    quote! {
+        #[allow(non_upper_case_globals)]
+        const #const_name: &'static str = include_str!(#path);
+    }
+}
 
 
-//TODO:!!
+//zb lab journal:
 //   This file including trick does NOT force the compiler to visit every macro.
 //   Instead, it (arguably more elegantly) forces Cargo to dirty-detect changes
 //   in the linked pax file by inlining that pax file into the .rs file.
@@ -26,7 +36,6 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
 //   how do entries get removed from the registry?
 
 //   Another possibility is static analysis
-
 
 //   Another possibility is a static registry — instead of phoning home over TCP,
 //   each macro generates a snippet that registers the pax parsing task via code.
@@ -42,7 +51,6 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
 //   Alternatively:  is there a way to fundamentally clean this up?
 
 //   Another possibility: keep a manifest manually, e.g. in JSON or XML or YAML
-//   - when it comes time to
 
 // v0? ----
 // Keep a .manifest.json alongside each pax file — the #[pax] macro can write to the companion file
@@ -82,7 +90,6 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
 //          - pass file path for .pax file
 //          - pass struct path (& module? TBD but probably std::module_path) for properties coproduct generation
 
-
 // 1. compile cartridge with `derive-manifest` feature
 //  - each #[pax] macro
 //  ? how do files get into the tree?  Can we rely on the root file & its imports?
@@ -97,14 +104,3 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
 // a separate manifest-generating step after all?  (Except we still need to generate the PropertiesCoproduct).
 
 
-
-// Needed because Cargo wouldn't otherwise watch for changes in pax files.
-// By include_str!ing the file contents,
-// (Trick borrowed from Pest: github.com/pest-parser/pest)
-fn generate_include(name: &Ident, path: &str) -> TokenStream {
-    let const_name = Ident::new(&format!("_PAX_FILE_{}", name), Span::call_site());
-    quote! {
-        #[allow(non_upper_case_globals)]
-        const #const_name: &'static str = include_str!(#path);
-    }
-}
