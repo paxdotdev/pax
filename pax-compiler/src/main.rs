@@ -274,6 +274,10 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
         }
     }
 
+    //TODO: cp lib.rs to .pax.manifest.rs
+
+    //TODO: clean up .pax.manifest.rs
+
     println!("Waiting 15 seconds for messages...");
     thread::sleep(Duration::from_secs(15));
 

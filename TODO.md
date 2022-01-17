@@ -56,10 +56,23 @@ Perhaps a macro is the answer?
     [x] Demo app chassis running example project (`./serve.sh`)
         [x] Add stub macro for `pax`, derives
 [ ] `pax-compiler`
-    [ ] thread & coordination chassis, architecture 
-    [ ] cleanup for threaded chassis, e.g. ctrl+c and error handling
-    [ ] thread for wrapping `cargo build`
-    [ ] websocket "forwarding server" + message queue
+    [x] architecture, seq. diagram
+    [ ] two-stage compilation process
+        [x] thread/process/IPC chassis
+        [ ] derive-manifest cargo feature
+        [ ] bin-running harness to execute derive-manifest (see https://stackoverflow.com/questions/62180215/renaming-main-rs-and-using-with-cargo)
+        [ ] mechanism for passing data back to pax-compiler (TCP)
+        [ ] parse and load .pax files
+            [ ] traverse manifest of Component defs: parse .pax files, store in mem
+            [ ] (start with templates only)
+    [x] thread for wrapping `cargo build`
+    [x] sketch out .pax folder design
+    [ ] codegen PropertiesCoproduct
+    [ ] codegen Cargo.toml + solution for patching
+        [ ] Maybe need to "deep patch" pax-properties-coproduct within core, dep. on how Cargo resolves `patch`
+    [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
+    [ ] maybe codegen RIL INSTEAD OF designtime coordination;
+        as a path to quicker PoC
 [ ] `pax-message`
     [ ] design structs (central enum in own package?) for representing messages
     [ ] de/serialization of messages with Serde
@@ -70,18 +83,14 @@ Perhaps a macro is the answer?
     [ ] Phone home to macro communication server to register Components/Properties   
         - component names/paths and pax file paths 
         - property schemas assoc. with components
-[ ] macro communication server
-    [ ] startup mechanism
-    [ ] listening/recording mechanism
-    [ ] shutdown + dump mechanism)
-[ ] legwork for `Definitions` and `Instances`
-    [ ] Write `Definition` structs and refactor existing entities to `Instance` structs
-    [ ] Write ORM methods for `Definitions`
-    [ ] Attach CRUD API endpoints to `Definition` ORM methods via `designtime` server
-[ ] parse and load .pax files
-    [ ] Map parser logic (Pest token pairs) to CRUD API calls for `designtime` server
-    [ ] traverse in-mem manifest of Component defs: parse files, pass to server
+[ ] designtime
+    [ ] legwork for `Definitions` and `Instances`
+        [ ] Write `Definition` structs and refactor existing entities to `Instance` structs
+        [ ] Write ORM methods for `Definitions`
+        [ ] Attach CRUD API endpoints to `Definition` ORM methods via `designtime` server
     [ ] figure out recompilation loop or hot-reloading of Properties and Expressions
+
+
 [ ] baseline primitive(s) for hello world
     [ ] import/package management
     [ ] RIL -> PAX compatibility, or rewrite primitives

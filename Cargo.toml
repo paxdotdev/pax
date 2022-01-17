@@ -5,7 +5,6 @@ members = [
     "pax-core",
     "pax-chassis-web",
     "pax-macro",
-    "pax-macro-coordination",
     "pax-message",
     "pax-compiler",
     "pax-dev-server",
