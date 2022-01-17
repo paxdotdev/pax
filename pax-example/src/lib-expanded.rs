@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate lazy_static;
+
 use pax::*;
 
 pub struct DeeperStruct {
@@ -10,9 +13,16 @@ pub struct DeeperStruct {
 //  - This means that this file cannot directly rely on pax-properties-coproduct.  To do so would introduce a cyclic dep.
 //    In particular, be mindful of this when designing macro expansion
 
-#[pax] //could make file ref. explicit: #[pax(file="lib.pax")]
+//could make file ref. explicit: #[pax(file="lib.pax")]
 //in absence, .pax file path is inferred by source name (and `is_present(inline_pax)`)
 //e.g. lib.rs -> try to load lib.pax.  don't try to load .pax if inline_pax is present
+
+//#[pax] was here
+
+lazy_static! {
+    //TODO: retrieve this from TokenStream and retire lazy_static!
+    static ref this : String = String::from("Root");
+}
 
 pub struct Root {
     //rewrite to pub `num_clicks : Property<i64>` etc. AND register metadata with dev server
@@ -23,11 +33,39 @@ pub struct Root {
 
 
 #[cfg(feature="derive-manifest")]
+use std::{env, fs};
+
+#[cfg(feature="derive-manifest")]
 pub fn main() {
-    //this file will be copied to main.rs (or .pax.manifest.rs, specified via [[bin]] directive in gen'd Cargo.toml)
+    //this file will be copied to lib-expanded.rs (or .pax.manifest.rs, specified via [[bin]] directive in gen'd Cargo.toml)
     //which means this will be the entry-point of the gen'd bin.
     //Our goal here is to traverse the pax component dependency chain and gather metadata, e.g. file/module path
     //This data will be used to codegen PropertiesCoproduct and possibly ExpressionTable, among others
+
+
+    //Look for a same-named .pax file, e.g. lib.pax alongside lib.rs
+    let current_rust_file_path = file!();
+
+    env::set_current_dir(current_rust_file_path);
+
+    // let full_path = fs::canonicalize(
+    //get everything between the last "/" and the ".rs"
+
+    let mut absolute_current_rust_file_path = fs::canonicalize(current_rust_file_path).unwrap();
+    absolute_current_rust_file_path.set_extension("pax");
+
+    //TODO: check if this file exists; load its contents as a string; pass to parser
+    println!("Current file: {:?}", absolute_current_rust_file_path);
+
+
+    // env
+    //
+    // let probe_pax_file_path = current_rust_file_path.clone().replace()
+    //
+    // let file_path = unimplemented!();
+    // let module_path =
+    // let root_deps = get_template_children();
+
 }
 #[cfg(feature="derive-manifest")]
 impl Root {
