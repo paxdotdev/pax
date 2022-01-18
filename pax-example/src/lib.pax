@@ -26,18 +26,16 @@
             }
         }
         transform: {
-            rotation: `current_rotation`
+            rotation: @{ current_rotation }
         }
     }
 
     #rect-2 {
         fill: {
-            Color {
-                h: `(Engine.frames_elapsed / 100) % 360`,
+                h: @{ (Engine.frames_elapsed / 100) % 360 },
                 s: 75,
                 l: 75,
                 a: 1,
-            }
         }
     }
 }

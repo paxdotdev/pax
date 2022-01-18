@@ -1,5 +1,4 @@
 
-
 extern crate pest;
 
 
@@ -62,6 +61,15 @@ COMPILATION STAGES
     - return primitive types
     - fails upon return type mismatch, malformed expression
  */
+
+pub fn parse_pax(pax: &str) {
+    //TODO: return Definition data structures
+    let file = TemplateParser::parse(Rule::pax_file, pax)
+        .expect("unsuccessful parse") // unwrap the parse result
+        .next().unwrap(); // get and unwrap the `file` rule; never fails
+
+    print!("{:#?}", file);
+}
 
 fn main() {
 

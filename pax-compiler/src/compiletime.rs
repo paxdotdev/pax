@@ -1,26 +1,57 @@
+#[macro_use]
+extern crate pest_derive;
 /// logic used e.g. within macros during the parsing/compilation processes
 
 use std::{env, fs};
 use std::path::PathBuf;
 
-pub fn process_file(path: &str) {
-    //Look for a same-named .pax file, e.g. lib.pax alongside lib.rs
-    env::set_current_dir(path);
-    let mut absolute_current_rust_file_path = fs::canonicalize(path).unwrap();
+mod parser;
 
-    absolute_current_rust_file_path.set_extension("pax");
+pub fn process_root_file(file_path: &str, module_path: &str) {
+
+    let mut dir_path = PathBuf::from(file_path);
+    dir_path.pop();
+
+    let mut lib_path = PathBuf::from(dir_path);
+    lib_path.push("lib.rs");
+
+    //Look for a same-named .pax file, e.g. lib.pax alongside lib.rs
+    env::set_current_dir(file_path);
+    let mut absolute_lib_path = fs::canonicalize(&lib_path).unwrap();
+    absolute_lib_path.set_extension("pax");
 
     //TODO: check if this .pax file exists; load its contents as a string; pass to parser
-    println!("Probing for file: {:?}", absolute_current_rust_file_path);
+    println!("Probing for file: {:?}", absolute_lib_path);
 
     //TODO: since we're already parsing .pax on this pass... we might as well generate full RIL.
     //      No more pax parsing would be needed on second compilation pass; however:
     //      if we use RIL as the "data dump" format to hand off the parsed data between processes,
-    //      then we'll ALSO need to be able to parse RIL back into Definition structs... not necessary!
-    //
-    //      So: we can parse all of .pax here, gather into Definition objects, pass back to main process,
+    //      then we'll ALSO need to be able to parse RIL back into Definition structs... not worth it!
+    //      So: we can parse all of .pax here, gather into Definition objects, pass back to main process via TCP,
     //          and call it a day
-    
+    let pax = fs::read_to_string(absolute_lib_path).unwrap(); //TODO: def. need error handling
+    println!("found pax: {}", pax);
 
+    parser::parse_pax(pax.as_str());
+
+    println!("parsing successful");
 
 }
+
+//
+//
+//
+// pub fn process_file(file_path: &str, module_path: &str) {
+//     //Look for a same-named .pax file, e.g. lib.pax alongside lib.rs
+//     env::set_current_dir(file_path);
+//     let mut absolute_file_path = fs::canonicalize(file_path).unwrap();
+//
+//     absolute_file_path.set_extension("pax");
+//
+//     println!("Probing for file: {:?}", absolute_file_path);
+//
+//     let pax = fs::read_to_string(absolute_file_path).unwrap();
+//     println!("found pax: {}", pax);
+//
+//
+// }

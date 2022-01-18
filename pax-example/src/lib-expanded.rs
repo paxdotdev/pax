@@ -33,13 +33,14 @@ pub struct Root {
 
 
 #[cfg(feature="derive-manifest")]
-use std::{fs,env};
+use std::env::current_dir;
+
 #[cfg(feature="derive-manifest")]
 use pax::compiletime;
 
 #[cfg(feature="derive-manifest")]
 pub fn main() {
-    compiletime::process_file(file!());
+    compiletime::process_root_file(file!(), module_path!());
 }
 #[cfg(feature="derive-manifest")]
 impl Root {
