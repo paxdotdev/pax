@@ -5,40 +5,23 @@ extern crate pest;
 // #[macro_use]
 // extern crate lazy_static;
 
+use std::borrow::Borrow;
 use std::fs;
+use std::hint::unreachable_unchecked;
+use std::intrinsics::unreachable;
+use pest::iterators::Pair;
+
+use uuid::Uuid;
 
 
 use pest::Parser;
+use pax_message::{ComponentDefinition, PaxManifest, SettingsDefinition, TemplateNodeDefinition};
 // use pest::prec_climber::PrecClimber;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
-pub struct TemplateParser;
+pub struct PaxParser;
 
-
-/*
-
-TODO:
-    [ ] CLI + args parsing
-        [ ] Pass path to HTML file or multiple files, or to a .json config
-    [ ] Template parser
-    [ ] Properties parser
-    [ ] Expression parser
-
-*/
-//
-// lazy_static! {
-//     static ref PREC_CLIMBER: PrecClimber<Rule> = {
-//         use Rule::*;
-//         use Assoc::*;
-//
-//         PrecClimber::new(vec![
-//             Operator::new(add, Left) | Operator::new(subtract, Left),
-//             Operator::new(multiply, Left) | Operator::new(divide, Left),
-//             Operator::new(power, Right)
-//         ])
-//     };
-// }
 
 
 /*
@@ -61,36 +44,146 @@ COMPILATION STAGES
     - return primitive types
     - fails upon return type mismatch, malformed expression
  */
+//
+//
+// pub struct PaxParser<'a> {
+//     inner_str: &'a str,
+// }
+//
+// impl<'a> PaxParser<'a> {
+//     pub fn new(pax: &str) -> Self {
+//         PaxParser {
+//             inner_str: pax
+//         }
+//     }
+//     ///Parses `template` of the encapsulated Pax string, returning
+//     ///the root node as a Definition entity
+//     pub fn parse_template(&self) -> TemplateNodeDefinition {
+//         self.inner_str
+//     }
+// }
 
-pub fn parse_pax(pax: &str) {
-    //TODO: return Definition data structures
-    let file = TemplateParser::parse(Rule::pax_file, pax)
-        .expect("unsuccessful parse") // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `file` rule; never fails
 
-    print!("{:#?}", file);
+fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
+    //TODO: determine if matched or self-closing
+    //      extract
+    // match pair.as_rule() {
+    //     Rule::matched_tag => {
+    //
+    //         pair.into_inner().for_each(|matched_tag_pair| {
+    //
+    //             match matched_tag_pair.as_rule() {
+    //                 Rule::open_tag => {
+    //                     //register this tag in manifest
+    //                 },
+    //                 Rule::sub_tag_pairs => {
+    //                     //recursively visit template tag pair, passing/returning manifest
+    //                     visit_template_tag_pair(matched_tag_pair);
+    //                 },
+    //                 Rule::statement_control_flow => {
+    //                     //will need to support expressions (-> bool, -> iter)
+    //                     unimplemented!("control flow support not yet implemented in parser");
+    //                 },
+    //                 _ => {},
+    //             }
+    //         })
+    //     },
+    //     Rule::self_closing_tag => {
+    //         pair.into_inner()
+    //
+    //     },
+    //     _ => {
+    //         unreachable!();
+    //     }
+    // }
 }
 
-fn main() {
 
-    let unparsed_file = fs::read_to_string("dev-samples/basic-plus.pax-core").expect("cannot read file");
+//TODO: should we process in chunks of `files` or `components`?
+//      for now they're enforced to be the same thing (at least due to
+//      the magic resolution of foo.pax from foo.rs, which admittedly could be changed.)
+//
+//
+// pub fn parse_pax_for_template(pax: &str) {//-> TemplateNodeDefinition {
+//
+//     let pax_file = PaxParser::parse(Rule::pax_file, pax)
+//         .expect("unsuccessful parse") // unwrap the parse result
+//         .next().unwrap(); // get and unwrap the `file` rule; never fails
+//
+//     let x = pax_file.into_inner();
+//     x.for_each(|pair|{
+//         match pair.as_rule() {
+//             Rule::root_tag_pair => {
+//                 println!("root tag inner: {:?}", pair.into_inner());
+//             }
+//             _ => {}
+//         }
+//     });
+//
+//
+//
+//
+//     // parsed.
+//
+//     // unimplemented!()
+//     // TemplateNodeDefinition {
+//     //     id:
+//     // }
+// }
+//
 
-    let file /*: pest::iterators::Pair<>*/ = TemplateParser::parse(Rule::pax_file, &unparsed_file)
+fn parse_template_from_pax_file(pax: &str, symbol_name: &str) -> Vec<TemplateNodeDefinition> {
+
+
+    vec![]
+}
+
+
+fn parse_settings_from_pax_file(pax: &str) -> Option<Vec<SettingsDefinition>> {
+
+    None
+}
+
+
+struct ManifestContext {
+    //keep track of which components have been loaded already
+}
+
+//TODO: support fragments of pax that ARE NOT pax_file (e.g. inline expressions)
+pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool) -> ComponentDefinition {
+
+    let ast = PaxParser::parse(Rule::pax_file, pax)
         .expect("unsuccessful parse") // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `file` rule; never fails
+        .next().unwrap(); // get and unwrap the `pax_file` rule
+
+    let new_id = Uuid::new_v4().to_string();
+
+    if(is_root){
+        todo!(pack this ID into the manifest as root_component_id)
+    }
+
+    let mut ret = ComponentDefinition {
+        id: new_id,
+        name: symbol_name.to_string(),
+        template: parse_template_from_pax_file(pax, symbol_name),
+        settings: parse_settings_from_pax_file(pax),
+    };
+
+    // TODO:
+    //     from pax-compiler, start process: `TCP_CALLBACK_PORT=22520 cargo run derive-manifest --features="derive-manifest"`
+    //     THEN from inside the derive-manifest binary: parse entire project starting with "lib.pax"
+    //     THEN phone home the manifest to pax-compiler via the provided TCP port
+
+    //TODO:
+    //     how do we latch onto in-file dependencies?
+    //     one approach (the only non-static-analysis approach?) is to code-gen the expected dep (RIL)
+    //     e.g. for `<Repeat>` => `Repeat {}`
+    //   SO, in the case where we're code-genning the
+    //
 
 
-    print!("{:#?}", file);
-    //
-    //
-    // let unparsed_file = fs::read_to_string("dev-samples/data.json").expect("cannot read file");
-    //
-    // let json: JSONValue = parse_json_file(&unparsed_file).expect("unsuccessful parse");
-    //
-    // println!("{}", serialize_jsonvalue(&json));
-
-    //start semantizing
-    let _render_tree = unimplemented!();
+    //recommended piping into `less` or similar
+    print!("{:#?}", ast);
 
 }
 

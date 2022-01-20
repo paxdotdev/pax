@@ -9,12 +9,13 @@ COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 //A template is expressed as an XML-like document with support for
 //@property binding and @{}-style templating (embedding expressions)
 
-//A template has exactly one root tag
-pax_file = { SOI ~ any_tag ~ settings_declaration? ~ EOI }
+//A template has exactly one root tag, which cannot be control-flow
+pax_file = { SOI ~ root_tag_pair ~ settings_declaration? ~ EOI }
+root_tag_pair = { any_tag_pair }
 
-//On the other hand, a sub_template (e.g. the child-contents of an element)
+//On the other hand, a sub_tag (e.g. the child-contents of an element)
 //may have multiple top-level siblings
-sub_template = { (any_tag | statement_control_flow )* }
+sub_tag_pairs = { (any_tag_pair | statement_control_flow )* }
 
 //This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>
@@ -24,11 +25,11 @@ closing_tag = {"</" ~ POP ~ ">"} //TODO: don't accept whitespace like < / SomeEl
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
 attribute_key_value_pair = {identifier ~ "=" ~ any_template_value}
 any_template_value = {string | expression}
-any_tag = _{matched_tag | self_closing_tag}
+any_tag_pair = _{matched_tag | self_closing_tag}
 
 //Describes an XML subtree surrounded by a pair of matching tags, like
 //<SomeElement>...</SomeElement>
-matched_tag = {open_tag ~ sub_template ~ closing_tag}
+matched_tag = {open_tag ~ sub_tag_pairs ~ closing_tag}
 
 //Describes a (leaf-node) self-closing element, like <SomeElement />
 self_closing_tag = {"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/>"}
@@ -47,7 +48,8 @@ identifier = { (ASCII_ALPHANUMERIC | "_" | "-")+ }
 
 //Describes a symbolic identifier with an Uppercase first letter, a la PascalCase
 //Does not enforce the presence of any other uppercase letters.
-//Intended as convention for symbolic ids in expressions, e.g. `Engine`, and
+//Intended as convention for symbolic ids in expressions, e.g. `Engine`, specification
+//of explicit types in polymorphic/enum contexts (e.g. `fill: Color {...}`), and
 //for namespaced access of symbolic ids, like `Orientation::Vertical`
 pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_" | "-")*}
 
@@ -60,7 +62,7 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_" | "-")*}
 
 settings_declaration = {"@settings" ~ "{" ~ selector_block* ~ "}"}
 selector_block = {selector ~ literal_object}
-literal_object = { identifier? ~ "{" ~ settings_key_value_pair* ~ "}" }
+literal_object = { pascal_identifier? ~ "{" ~ settings_key_value_pair* ~ "}" }
 
 //Describes a CSS-style selector, used for joining settings to elements
 //Note: only basic `id` and `class` syntax supported for now; could be extended
@@ -71,7 +73,7 @@ selector = @{("." | "#") ~ identifier}
 //included recursive nesting via `property_block`
 settings_key_value_pair = { settings_key ~ settings_value ~ ","? }
 settings_key = @{ identifier ~ ":" }
-settings_value = { literal_value | enum_value | expression | literal_object }
+settings_value = { literal_value | literal_object | enum_value | expression }
 
 literal_value = { literal_number_with_unit | literal_number | literal_array | string }
 literal_number_with_unit = @{ literal_number ~ literal_number_unit }
@@ -115,7 +117,7 @@ Some examples of valid expressions:
 [Object construction]
 Color {h: 360, s: 1, l: 1, a: 1}
 
-[Object construction with implicit type (type enforced by semantizer)
+[Object construction with implicit type (type enforced by downstream compiler)
 {h: 360, s: 1, l: 1, a: 1}
 
 [Boolean statements]
@@ -148,7 +150,7 @@ xo_prefix_unary = {
 
 xo_literal = {literal_number | string | literal_array | xo_literal_object}
 
-//Note that `xo_literal_object` differs from `properties` literal_object because it accepts
+//Note that `xo_literal_object` differs from `settings` literal_object because it accepts
 //expressions for property values without having to enter a @{} context (because these
 //are already evaluated inside an `@{}` context)
 xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_settings_key_value_pair* ~ "}" }
@@ -192,7 +194,7 @@ xo_rel_neq = {"!="}
 //and to foster clarity of nomenclature, we call these `statements` rather than `expressions`.
 statement_control_flow = {"@" ~ (statement_if | statement_foreach | statement_placeholder)}
 
-statement_if = {"if" ~ "(" ~ expression_body ~ ")" ~ "{" ~ sub_template ~ "}"} //TODO: else
-statement_foreach = {"foreach" ~ "(" ~ expression_body ~ ")" ~ "{" ~ sub_template ~ "}"}
+statement_if = {"if" ~ "(" ~ expression_body ~ ")" ~ "{" ~ sub_tag_pairs ~ "}"} //TODO: else
+statement_foreach = {"foreach" ~ "(" ~ expression_body ~ ")" ~ "{" ~ sub_tag_pairs ~ "}"}
 statement_placeholder = {"placeholder"}
 

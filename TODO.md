@@ -59,10 +59,11 @@ Perhaps a macro is the answer?
     [x] architecture, seq. diagram
     [ ] two-stage compilation process
         [x] thread/process/IPC chassis
-        [ ] derive-manifest cargo feature
-        [ ] bin-running harness to execute derive-manifest (see https://stackoverflow.com/questions/62180215/renaming-main-rs-and-using-with-cargo)
+        [x] derive-manifest cargo feature
+        [x] bin-running harness to execute derive-manifest (see https://stackoverflow.com/questions/62180215/renaming-main-rs-and-using-with-cargo)
         [ ] mechanism for passing data back to pax-compiler (TCP)
         [ ] parse and load .pax files
+            [x] load file via macro
             [ ] traverse manifest of Component defs: parse .pax files, store in mem
             [ ] (start with templates only)
     [x] thread for wrapping `cargo build`

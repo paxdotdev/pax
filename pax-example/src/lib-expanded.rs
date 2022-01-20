@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate lazy_static;
 
+
 use pax::*;
 
 pub struct DeeperStruct {
@@ -19,6 +20,7 @@ pub struct DeeperStruct {
 
 //#[pax] was here
 
+#[cfg(feature="derive-manifest")]
 lazy_static! {
     //TODO: retrieve this from TokenStream and retire lazy_static!
     static ref this : String = String::from("Root");
@@ -33,18 +35,83 @@ pub struct Root {
 
 
 #[cfg(feature="derive-manifest")]
-use std::env::current_dir;
-
+use pax::message::ComponentDefinition;
 #[cfg(feature="derive-manifest")]
 use pax::compiletime;
+#[cfg(feature="derive-manifest")]
+use std::collections::HashSet;
+#[cfg(feature="derive-manifest")]
+use pax::compiletime::ManifestContext;
+
+
+
+
+#[cfg(feature="derive-manifest")]
+lazy_static! {
+    static ref source_id : String = compiletime::get_uuid();
+}
+#[cfg(feature="derive-manifest")]
+lazy_static! {
+    static ref this : String = String::from("Root");
+}
 
 #[cfg(feature="derive-manifest")]
 pub fn main() {
-    compiletime::process_root_file(file!(), module_path!());
+    let mut ctx = ManifestContext{
+        visited_source_ids: HashSet::new(),
+        component_definitions: vec![],
+    };
+    ctx = Root::get_manifest(ctx);
+
+
 }
 #[cfg(feature="derive-manifest")]
 impl Root {
-    pub fn get_manifest() {
+    pub fn parse_to_manifest(mut ctx: ManifestContext) -> ManifestContext {
+
+        match ctx.visited_source_ids.get(&file_id) {
+            None => {
+                //First time visiting this file/source — parse the relevant contents
+                //then recurse through child nodes, unrolled here in the macro as
+                //parsed from the template
+                ctx.visited_source_ids.insert(file_id.clone());
+
+                ctx.component_definitions.push(
+                    compiletime::process_file_for_component_definition(&this,file!(), module_path!());
+                );
+
+                //******** dynamic macro logic here
+                ctx = Spread::get_manifest(ctx);
+                ctx = Rectangle::get_manifest(ctx);
+                ctx = Group::get_manifest(ctx);
+                ctx = Text::get_manifest(ctx);
+                //******** end dynamic macro logic
+
+                ctx
+            },
+            _ => {ctx} //early return; this file has already been parsed
+        }
+
+
+        /*
+        <Spread id="main-spread">
+            <Rectangle id="rect-1" />
+            <Rectangle id="rect-2" />
+            <Group>
+                <Text id="label" content="Hello!" />
+                <Rectangle id="rect-3" />
+            </Group>
+        </Spread>
+         */
+        //code-gen manifest recursion
+
+
+        //note: duplicates are managed by
+        //      the file_id hack — can keep a registry in
+        //      o
+
+
+
         // file!
         // module!
         // find children; recurse get_manifest()

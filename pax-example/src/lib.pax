@@ -31,7 +31,7 @@
     }
 
     #rect-2 {
-        fill: {
+        fill: Color {
                 h: @{ (Engine.frames_elapsed / 100) % 360 },
                 s: 75,
                 l: 75,

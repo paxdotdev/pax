@@ -3,11 +3,26 @@ extern crate pest_derive;
 /// logic used e.g. within macros during the parsing/compilation processes
 
 use std::{env, fs};
+use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
+use uuid::Uuid;
+use pax_message::ComponentDefinition;
 
 mod parser;
 
-pub fn process_root_file(file_path: &str, module_path: &str) {
+pub fn get_uuid() -> String {
+    Uuid::new_v4().to_string();
+}
+
+
+
+pub struct ManifestContext {
+    pub visited_source_ids: HashSet<String>,
+    pub component_definitions: Vec<ComponentDefinitio>,
+
+}
+
+pub fn process_file_for_component_definition(symbol_name: &str, file_path: &str, module_path: &str) {
 
     let mut dir_path = PathBuf::from(file_path);
     dir_path.pop();
@@ -19,6 +34,7 @@ pub fn process_root_file(file_path: &str, module_path: &str) {
     env::set_current_dir(file_path);
     let mut absolute_lib_path = fs::canonicalize(&lib_path).unwrap();
     absolute_lib_path.set_extension("pax");
+    
 
     //TODO: check if this .pax file exists; load its contents as a string; pass to parser
     println!("Probing for file: {:?}", absolute_lib_path);
@@ -32,11 +48,11 @@ pub fn process_root_file(file_path: &str, module_path: &str) {
     let pax = fs::read_to_string(absolute_lib_path).unwrap(); //TODO: def. need error handling
     println!("found pax: {}", pax);
 
-    parser::parse_pax(pax.as_str());
+    parser::parse_component_from_pax_file(pax.as_str(), symbol_name);
 
     println!("parsing successful");
-
 }
+
 
 //
 //

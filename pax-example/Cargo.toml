@@ -9,7 +9,7 @@ edition = "2018"
 
 ### GENERATE
 [[bin]]
-name = "debug-derive-manifest"
+name = "derive-manifest"
 path = "src/lib-expanded.rs"
 required-features = ["derive-manifest"]
 ### END GENERATE

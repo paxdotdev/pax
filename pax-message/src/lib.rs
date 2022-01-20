@@ -1,4 +1,4 @@
-
+use std::path::Component;
 
 #[cfg(test)]
 mod tests {
@@ -11,8 +11,11 @@ mod tests {
 
 
 
-
-
+//definition container for an entire Pax cartridge
+pub struct PaxManifest {
+    pub components: Vec<ComponentDefinition>,
+    pub root_component_id: String,
+}
 
 pub enum Action {
     Create,
@@ -21,7 +24,6 @@ pub enum Action {
     Delete,
     Command,
 }
-
 
 #[allow(dead_code)]
 pub struct PaxMessage {
@@ -37,16 +39,18 @@ pub enum Entity {
 
 #[allow(dead_code)]
 pub struct ComponentDefinition {
-    id: String,
-    name: String,
-    template: TemplateNodeDefinition,
-    settings: Option<Vec<SettingsDefinition>>,
+    pub id: String,
+    pub name: String,
+    pub template: Vec<TemplateNodeDefinition>, //can be hydrated as a tree via child_ids/parent_id
+    pub settings: Option<Vec<SettingsDefinition>>,
 }
 #[allow(dead_code)]
 pub struct TemplateNodeDefinition {
     id: String,
     component_type: String,
     inline_attributes: Option<Vec<(String, AttributeValue)>>,
+    parent_id: String, //maybe only one of parent/children id is necessary.
+    children_ids: Vec<String>,
 }
 #[allow(dead_code)]
 pub enum AttributeValue {
