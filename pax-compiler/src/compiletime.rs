@@ -11,18 +11,20 @@ use pax_message::ComponentDefinition;
 mod parser;
 
 pub fn get_uuid() -> String {
-    Uuid::new_v4().to_string();
+    Uuid::new_v4().to_string()
 }
 
 
 
 pub struct ManifestContext {
     pub visited_source_ids: HashSet<String>,
-    pub component_definitions: Vec<ComponentDefinitio>,
+    pub component_definitions: Vec<ComponentDefinition>,
 
 }
 
-pub fn process_file_for_component_definition(symbol_name: &str, file_path: &str, module_path: &str) {
+
+
+pub fn process_pax_file_for_symbol_list(file_path: &str) -> Vec<String> {
 
     let mut dir_path = PathBuf::from(file_path);
     dir_path.pop();
@@ -34,7 +36,29 @@ pub fn process_file_for_component_definition(symbol_name: &str, file_path: &str,
     env::set_current_dir(file_path);
     let mut absolute_lib_path = fs::canonicalize(&lib_path).unwrap();
     absolute_lib_path.set_extension("pax");
-    
+
+    println!("Probing for file: {:?}", absolute_lib_path);
+
+    let pax = fs::read_to_string(absolute_lib_path).unwrap(); //TODO: def. need error handling
+    println!("found pax (macro generation phase) -  {}", pax);
+    let symbols = parser::parse_file_for_symbols_in_template(&pax);
+    println!("{:?}", symbols);
+    symbols
+}
+
+pub fn process_pax_file_for_component_definition(symbol_name: &str, file_path: &str, module_path: &str) -> ComponentDefinition {
+
+    let mut dir_path = PathBuf::from(file_path);
+    dir_path.pop();
+
+    let mut lib_path = PathBuf::from(dir_path);
+    lib_path.push("lib.rs");
+
+    //Look for a same-named .pax file, e.g. lib.pax alongside lib.rs
+    env::set_current_dir(file_path);
+    let mut absolute_lib_path = fs::canonicalize(&lib_path).unwrap();
+    absolute_lib_path.set_extension("pax");
+
 
     //TODO: check if this .pax file exists; load its contents as a string; pass to parser
     println!("Probing for file: {:?}", absolute_lib_path);
@@ -48,9 +72,10 @@ pub fn process_file_for_component_definition(symbol_name: &str, file_path: &str,
     let pax = fs::read_to_string(absolute_lib_path).unwrap(); //TODO: def. need error handling
     println!("found pax: {}", pax);
 
-    parser::parse_component_from_pax_file(pax.as_str(), symbol_name);
+    parser::parse_component_from_pax_file(pax.as_str(), symbol_name, false);
 
     println!("parsing successful");
+    unimplemented!()
 }
 
 

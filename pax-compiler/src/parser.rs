@@ -6,9 +6,9 @@ extern crate pest;
 // extern crate lazy_static;
 
 use std::borrow::Borrow;
+use std::collections::HashSet;
 use std::fs;
 use std::hint::unreachable_unchecked;
-use std::intrinsics::unreachable;
 use pest::iterators::Pair;
 
 use uuid::Uuid;
@@ -132,6 +132,35 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
 // }
 //
 
+
+pub fn parse_file_for_symbols_in_template(pax: &str) -> Vec<String> {
+    // let mut ret = vec![];
+
+    let pax_file = PaxParser::parse(Rule::pax_file, pax)
+        .expect("unsuccessful parse") // unwrap the parse result
+        .next().unwrap(); // get and unwrap the `pax_file` rule
+
+    println!("parsed pax: {:?}", pax_file);
+
+    let symbols : HashSet<String> = HashSet::new();
+
+    pax_file.into_inner().for_each(|pair|{
+        match pair.as_rule() {
+            Rule::root_tag_pair => {
+                println!("root tag inner: {:?}", pair.into_inner());
+            }
+            _ => {}
+        }
+    });
+
+    vec![]
+
+}
+
+fn recurse_visit_tag_pairs_for_symbols(any_tag_pair: Pair<Rule>) -> HashSet<String> {
+    unimplemented!()
+}
+
 fn parse_template_from_pax_file(pax: &str, symbol_name: &str) -> Vec<TemplateNodeDefinition> {
 
 
@@ -157,10 +186,10 @@ pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool
         .next().unwrap(); // get and unwrap the `pax_file` rule
 
     let new_id = Uuid::new_v4().to_string();
-
-    if(is_root){
-        todo!(pack this ID into the manifest as root_component_id)
-    }
+    //
+    // if is_root {
+    //     todo!(pack this ID into the manifest as root_component_id)
+    // }
 
     let mut ret = ComponentDefinition {
         id: new_id,
@@ -184,6 +213,8 @@ pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool
 
     //recommended piping into `less` or similar
     print!("{:#?}", ast);
+
+    unimplemented!();
 
 }
 
