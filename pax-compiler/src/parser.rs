@@ -78,7 +78,7 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
     //                 Rule::open_tag => {
     //                     //register this tag in manifest
     //                 },
-    //                 Rule::sub_tag_pairs => {
+    //                 Rule::tag_contents => {
     //                     //recursively visit template tag pair, passing/returning manifest
     //                     visit_template_tag_pair(matched_tag_pair);
     //                 },
@@ -142,9 +142,10 @@ pub fn parse_file_for_symbols_in_template(pax: &str) -> Vec<String> {
         .expect("unsuccessful parse") // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_file` rule
 
+    println!("{:?}", pax_file);
 
 
-    let mut pascal_identifiers : Rc::new(RefCell::new(HashSet::new()));
+    let mut pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
 
     pax_file.into_inner().for_each(|pair|{
         match pair.as_rule() {
@@ -157,9 +158,8 @@ pub fn parse_file_for_symbols_in_template(pax: &str) -> Vec<String> {
             _ => {}
         }
     });
-
-    vec![]
-
+    let unwrapped_hashmap = Rc::try_unwrap(pascal_identifiers).unwrap().into_inner();
+    unwrapped_hashmap.into_iter().collect()
 }
 
 fn recurse_visit_tag_pairs_for_symbols(any_tag_pair: Pair<Rule>, pascal_identifiers: Rc<RefCell<HashSet<String>>>)  {
@@ -168,23 +168,26 @@ fn recurse_visit_tag_pairs_for_symbols(any_tag_pair: Pair<Rule>, pascal_identifi
             //matched_tag => open_tag > pascal_identifier
             let matched_tag = any_tag_pair;
             let open_tag = matched_tag.clone().into_inner().next().unwrap();
-            let pascal_identifier = open_tag.into_inner().next().unwrap().to_string();
-            pascal_identifiers.borrow_mut().insert(pascal_identifier);
+            let pascal_identifier = open_tag.into_inner().next().unwrap().as_str();
+            println!("Found matched_tag symbol: {}", pascal_identifier);
+            pascal_identifiers.borrow_mut().insert(pascal_identifier.to_string());
 
-            //recurse into sub_tag_pairs
-            let prospective_sub_tag_pairs = matched_tag.clone().into_inner().nth(1).unwrap();
-            match  prospective_sub_tag_pairs.as_rule() {
-                Rule::sub_tag_pairs => {
-                    prospective_sub_tag_pairs.into_inner()
+            //recurse into tag_contents
+            let prospective_tag_contents = matched_tag.into_inner().nth(1).unwrap();
+            match prospective_tag_contents.as_rule() {
+                Rule::tag_contents => {
+                    let tag_contents = prospective_tag_contents;
+                    tag_contents.into_inner()
                         .for_each(|sub_tag_pair|{
                             match sub_tag_pair.as_rule() {
-                                Rule::any_tag_pair => {
+                                Rule::matched_tag | Rule::self_closing_tag => {
                                     //it's another tag — time to recurse
                                     recurse_visit_tag_pairs_for_symbols(sub_tag_pair, Rc::clone(&pascal_identifiers));
                                 },
                                 Rule::statement_control_flow => {
                                     unimplemented!("Control flow not yet supported");
-                                }
+                                },
+                                _ => {unreachable!()},
                             }
                         }
                     )
@@ -195,9 +198,9 @@ fn recurse_visit_tag_pairs_for_symbols(any_tag_pair: Pair<Rule>, pascal_identifi
         },
         Rule::self_closing_tag => {
             //pascal_identifier
-            let pascal_identifier = any_tag_pair.into_inner().next().unwrap().to_string();
+            let pascal_identifier = any_tag_pair.into_inner().next().unwrap().as_str();
             println!("Found self_closing_tag symbol: {}", pascal_identifier);
-            pascal_identifiers.borrow_mut().insert(pascal_identifier);
+            pascal_identifiers.borrow_mut().insert(pascal_identifier.to_string());
         },
         _ => {unreachable!()}
     }

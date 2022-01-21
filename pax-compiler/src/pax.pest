@@ -15,7 +15,7 @@ root_tag_pair = { any_tag_pair }
 
 //On the other hand, a sub_tag (e.g. the child-contents of an element)
 //may have multiple top-level siblings
-sub_tag_pairs = { (any_tag_pair | statement_control_flow )* }
+tag_contents = { (any_tag_pair | statement_control_flow )* }
 
 //This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>
@@ -29,7 +29,7 @@ any_tag_pair = _{matched_tag | self_closing_tag}
 
 //Describes an XML subtree surrounded by a pair of matching tags, like
 //<SomeElement>...</SomeElement>
-matched_tag = {open_tag ~ sub_tag_pairs ~ closing_tag}
+matched_tag = {open_tag ~ tag_contents ~ closing_tag}
 
 //Describes a (leaf-node) self-closing element, like <SomeElement />
 self_closing_tag = {"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/>"}
@@ -194,7 +194,7 @@ xo_rel_neq = {"!="}
 //and to foster clarity of nomenclature, we call these `statements` rather than `expressions`.
 statement_control_flow = {"@" ~ (statement_if | statement_foreach | statement_placeholder)}
 
-statement_if = {"if" ~ "(" ~ expression_body ~ ")" ~ "{" ~ sub_tag_pairs ~ "}"} //TODO: else
-statement_foreach = {"foreach" ~ "(" ~ expression_body ~ ")" ~ "{" ~ sub_tag_pairs ~ "}"}
+statement_if = {"if" ~ "(" ~ expression_body ~ ")" ~ "{" ~ tag_contents ~ "}"} //TODO: else
+statement_foreach = {"foreach" ~ "(" ~ expression_body ~ ")" ~ "{" ~ tag_contents ~ "}"}
 statement_placeholder = {"placeholder"}
 
