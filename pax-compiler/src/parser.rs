@@ -1,6 +1,8 @@
+#[macro_use]
+extern crate pest_derive;
+
 
 extern crate pest;
-
 
 // #[macro_use]
 // extern crate lazy_static;
@@ -135,7 +137,7 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
 //
 
 
-pub fn parse_file_for_symbols_in_template(pax: &str) -> Vec<String> {
+pub fn parse_pascal_identifiers_from_pax_file(pax: &str) -> Vec<String> {
     // let mut ret = vec![];
 
     let pax_file = PaxParser::parse(Rule::pax_file, pax)
@@ -144,13 +146,12 @@ pub fn parse_file_for_symbols_in_template(pax: &str) -> Vec<String> {
 
     println!("{:?}", pax_file);
 
-
     let mut pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
 
     pax_file.into_inner().for_each(|pair|{
         match pair.as_rule() {
             Rule::root_tag_pair => {
-                recurse_visit_tag_pairs_for_symbols(
+                recurse_visit_tag_pairs_for_pascal_identifiers(
                     pair.into_inner().next().unwrap(),
                     Rc::clone(&pascal_identifiers)
                 );
@@ -162,14 +163,13 @@ pub fn parse_file_for_symbols_in_template(pax: &str) -> Vec<String> {
     unwrapped_hashmap.into_iter().collect()
 }
 
-fn recurse_visit_tag_pairs_for_symbols(any_tag_pair: Pair<Rule>, pascal_identifiers: Rc<RefCell<HashSet<String>>>)  {
+fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pascal_identifiers: Rc<RefCell<HashSet<String>>>)  {
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
             //matched_tag => open_tag > pascal_identifier
             let matched_tag = any_tag_pair;
             let open_tag = matched_tag.clone().into_inner().next().unwrap();
             let pascal_identifier = open_tag.into_inner().next().unwrap().as_str();
-            println!("Found matched_tag symbol: {}", pascal_identifier);
             pascal_identifiers.borrow_mut().insert(pascal_identifier.to_string());
 
             //recurse into inner_nodes
@@ -182,7 +182,7 @@ fn recurse_visit_tag_pairs_for_symbols(any_tag_pair: Pair<Rule>, pascal_identifi
                             match sub_tag_pair.as_rule() {
                                 Rule::matched_tag | Rule::self_closing_tag => {
                                     //it's another tag — time to recurse
-                                    recurse_visit_tag_pairs_for_symbols(sub_tag_pair, Rc::clone(&pascal_identifiers));
+                                    recurse_visit_tag_pairs_for_pascal_identifiers(sub_tag_pair, Rc::clone(&pascal_identifiers));
                                 },
                                 Rule::statement_control_flow => {
                                     unimplemented!("Control flow not yet supported");
@@ -199,7 +199,6 @@ fn recurse_visit_tag_pairs_for_symbols(any_tag_pair: Pair<Rule>, pascal_identifi
         Rule::self_closing_tag => {
             //pascal_identifier
             let pascal_identifier = any_tag_pair.into_inner().next().unwrap().as_str();
-            println!("Found self_closing_tag symbol: {}", pascal_identifier);
             pascal_identifiers.borrow_mut().insert(pascal_identifier.to_string());
         },
         _ => {unreachable!()}
@@ -218,10 +217,20 @@ fn parse_settings_from_pax_file(pax: &str) -> Option<Vec<SettingsDefinition>> {
     None
 }
 
-
-struct ManifestContext {
-    //keep track of which components have been loaded already
+pub fn get_uuid() -> String {
+    Uuid::new_v4().to_string()
 }
+
+
+
+pub struct ManifestContext {
+    /// Used to track which files/sources have been visited during parsing,
+    /// to prevent duplicate parsing
+    pub visited_source_ids: HashSet<String>,
+    pub component_definitions: Vec<ComponentDefinition>,
+
+}
+
 
 //TODO: support fragments of pax that ARE NOT pax_file (e.g. inline expressions)
 pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool) -> ComponentDefinition {

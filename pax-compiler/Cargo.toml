@@ -8,8 +8,8 @@ edition = "2018"
 
 #
 [lib]
-name = "compiletime"
-path = "src/compiletime.rs"
+name = "parser"
+path = "src/parser.rs"
 
 
 [features]

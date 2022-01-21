@@ -32,30 +32,23 @@ pub struct Root {
 #[cfg(feature="parser")]
 use pax::message::ComponentDefinition;
 #[cfg(feature="parser")]
-use pax::compiletime;
+use pax::parser;
 #[cfg(feature="parser")]
 use std::collections::HashSet;
+#[cfg(feature="parser")]
 use std::{env, fs};
+#[cfg(feature="parser")]
 use std::path::{Path, PathBuf};
 #[cfg(feature="parser")]
-use pax::compiletime::ManifestContext;
-
-
-
-
+use pax::parser::ManifestContext;
 #[cfg(feature="parser")]
 lazy_static! {
-    static ref source_id : String = compiletime::get_uuid();
+    static ref source_id : String = parser::get_uuid();
 }
 #[cfg(feature="parser")]
 lazy_static! {
     static ref this : String = String::from("Root");
 }
-
-
-
-
-
 //generated if lib.rs
 #[cfg(feature="parser")]
 pub fn main() {
@@ -65,15 +58,6 @@ pub fn main() {
     };
     ctx = Root::parse_to_manifest(ctx);
 }
-
-
-
-
-
-
-//architectural convention?  do FS access here, then interface
-//    directly with parser?  (instead of compiletime)
-
 #[cfg(feature="parser")]
 impl Root {
     pub fn parse_to_manifest(mut ctx: ManifestContext) -> ManifestContext {
@@ -85,13 +69,13 @@ impl Root {
                 //parsed from the template
                 ctx.visited_source_ids.insert(source_id.clone());
 
-                //TODO: support passing explicit path to paxfile
+                //TODO: support inline pax as an alternative to file
+
                 let explicit_path : Option<String> = Some("lib.pax".to_string());
-                // env::set_current_dir(file!());
                 let path =
                     match explicit_path {
                         None => {
-                            //infer path by current filename
+                            //infer path by current filename, e.g. lib.rs => lib.pax
                             let mut inferred_path = PathBuf::from(file!());
                             inferred_path.set_extension("pax");
 
@@ -105,11 +89,12 @@ impl Root {
                             path.into_os_string()
                         },
                         Some(provided_path) => {
+                            //explicit path (relative to src/) was provided
                             let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
                             let path = Path::new(&root).join("src/").join(&provided_path);
                             let file_name = match path.file_name() {
                                 Some(file_name) => file_name,
-                                None => panic!("pax file not found at specified path"), //TODO: make error message more helpful, e.g. by suggesting where to create a pax file
+                                None => panic!("pax file not found at specified path"), //TODO: make error message more helpful, e.g. by suggesting the use of `src/`-relative paths
                             };
 
                             path.into_os_string()
@@ -118,14 +103,10 @@ impl Root {
 
                 println!("path: {:?}", path);
                 let pax = fs::read_to_string(path).unwrap();
+                ctx.component_definitions.push(
+                parser::parse_component_from_pax_file(&pax, &this ,true)
+                );
 
-                println!("NEW PARSE, WHO DIS: {:?}", pax);
-
-                //
-                // ctx.component_definitions.push(
-                //     compiletime::process_pax_file_for_component_definition(&this,file!(), module_path!())
-                // );
-                //
                 // //Note:  the file!() here will be substitutable for the #[pax file={}] attribute, fixing
                 // //       the apparent problem of using file!() at this phase of the macro lifecycle
                 // println!("macro needs to unroll: {:?}", compiletime::process_pax_file_for_pascal_identifiers(file!()));

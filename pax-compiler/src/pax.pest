@@ -58,8 +58,6 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_" | "-")*}
 /// BEGIN SETTINGS
 //////
 
-//TODO: support property "input" declarations, separate block before selector-settings-blocks
-
 settings_declaration = {"@settings" ~ "{" ~ selector_block* ~ "}"}
 selector_block = {selector ~ literal_object}
 literal_object = { pascal_identifier? ~ "{" ~ settings_key_value_pair* ~ "}" }

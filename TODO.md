@@ -64,8 +64,10 @@ Perhaps a macro is the answer?
         [ ] mechanism for passing data back to pax-compiler (TCP)
         [ ] parse and load .pax files
             [x] load file via macro
+            [ ] generate the necessary bits via macro
+            [ ] port minimal set of std entities (Rectangle, Group) to support manifest-gen 
             [ ] traverse manifest of Component defs: parse .pax files, store in mem
-            [ ] (start with templates only)
+            [x] (start with templates only)
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
     [ ] codegen PropertiesCoproduct
