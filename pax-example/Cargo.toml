@@ -9,14 +9,14 @@ edition = "2018"
 
 ### GENERATE
 [[bin]]
-name = "derive-manifest"
+name = "parser"
 path = "src/lib-expanded.rs"
-required-features = ["derive-manifest"]
+required-features = ["parser"]
 ### END GENERATE
 
 [features]
 ### GENERATE
-derive-manifest = []
+parser = []
 ### END GENERATE
 
 [dependencies]

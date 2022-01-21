@@ -78,7 +78,7 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
     //                 Rule::open_tag => {
     //                     //register this tag in manifest
     //                 },
-    //                 Rule::tag_contents => {
+    //                 Rule::inner_nodes => {
     //                     //recursively visit template tag pair, passing/returning manifest
     //                     visit_template_tag_pair(matched_tag_pair);
     //                 },
@@ -172,12 +172,12 @@ fn recurse_visit_tag_pairs_for_symbols(any_tag_pair: Pair<Rule>, pascal_identifi
             println!("Found matched_tag symbol: {}", pascal_identifier);
             pascal_identifiers.borrow_mut().insert(pascal_identifier.to_string());
 
-            //recurse into tag_contents
-            let prospective_tag_contents = matched_tag.into_inner().nth(1).unwrap();
-            match prospective_tag_contents.as_rule() {
-                Rule::tag_contents => {
-                    let tag_contents = prospective_tag_contents;
-                    tag_contents.into_inner()
+            //recurse into inner_nodes
+            let prospective_inner_nodes = matched_tag.into_inner().nth(1).unwrap();
+            match prospective_inner_nodes.as_rule() {
+                Rule::inner_nodes => {
+                    let inner_nodes = prospective_inner_nodes;
+                    inner_nodes.into_inner()
                         .for_each(|sub_tag_pair|{
                             match sub_tag_pair.as_rule() {
                                 Rule::matched_tag | Rule::self_closing_tag => {
@@ -244,8 +244,8 @@ pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool
     };
 
     // TODO:
-    //     from pax-compiler, start process: `TCP_CALLBACK_PORT=22520 cargo run derive-manifest --features="derive-manifest"`
-    //     THEN from inside the derive-manifest binary: parse entire project starting with "lib.pax"
+    //     from pax-compiler, start process: `TCP_CALLBACK_PORT=22520 cargo run parser --features="parser"`
+    //     THEN from inside the parser binary: parse entire project starting with "lib.pax"
     //     THEN phone home the manifest to pax-compiler via the provided TCP port
 
     //TODO:

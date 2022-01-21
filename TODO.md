@@ -59,8 +59,8 @@ Perhaps a macro is the answer?
     [x] architecture, seq. diagram
     [ ] two-stage compilation process
         [x] thread/process/IPC chassis
-        [x] derive-manifest cargo feature
-        [x] bin-running harness to execute derive-manifest (see https://stackoverflow.com/questions/62180215/renaming-main-rs-and-using-with-cargo)
+        [x] parser cargo feature
+        [x] bin-running harness to execute parser (see https://stackoverflow.com/questions/62180215/renaming-main-rs-and-using-with-cargo)
         [ ] mechanism for passing data back to pax-compiler (TCP)
         [ ] parse and load .pax files
             [x] load file via macro

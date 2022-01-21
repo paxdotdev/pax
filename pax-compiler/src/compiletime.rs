@@ -17,6 +17,8 @@ pub fn get_uuid() -> String {
 
 
 pub struct ManifestContext {
+    /// Used to track which files/sources have been visited during parsing,
+    /// to prevent duplicate parsing
     pub visited_source_ids: HashSet<String>,
     pub component_definitions: Vec<ComponentDefinition>,
 
@@ -24,7 +26,7 @@ pub struct ManifestContext {
 
 
 
-pub fn process_pax_file_for_symbol_list(file_path: &str) -> Vec<String> {
+pub fn process_pax_file_for_pascal_identifiers(file_path: &str) -> Vec<String> {
 
     let mut dir_path = PathBuf::from(file_path);
     dir_path.pop();

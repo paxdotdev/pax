@@ -90,11 +90,11 @@ fn generate_include(name: &Ident, path: &str) -> TokenStream {
 //          - pass file path for .pax file
 //          - pass struct path (& module? TBD but probably std::module_path) for properties coproduct generation
 
-// 1. compile cartridge with `derive-manifest` feature
+// 1. compile cartridge with `parser` feature
 //  - each #[pax] macro
 //  ? how do files get into the tree?  Can we rely on the root file & its imports?
 //    note that resolving our deps requires traversing Component templates — this probably means
-//    we need to parse the templates *at this phase* so that each macro can 'phone home' for `derive-manifest`
+//    we need to parse the templates *at this phase* so that each macro can 'phone home' for `parser`
 //    i.e. unroll dependencies from Pax into Rust so that the compiler can visit all the necessary files
 //  - THEN - either by evaling logic as a side-effect of importing (is this possible?) or by
 //    conventionally importing a certain-named entity that abides by a certain impl (and calling a known method)
