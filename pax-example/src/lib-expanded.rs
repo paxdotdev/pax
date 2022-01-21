@@ -60,6 +60,11 @@ pub fn main() {
 
 
 }
+
+
+//architectural convention?  do FS access here, then interface
+//    directly with parser?  (instead of compiletime)
+
 #[cfg(feature="derive-manifest")]
 impl Root {
     pub fn parse_to_manifest(mut ctx: ManifestContext) -> ManifestContext {
@@ -70,10 +75,10 @@ impl Root {
                 //then recurse through child nodes, unrolled here in the macro as
                 //parsed from the template
                 ctx.visited_source_ids.insert(source_id.clone());
-
-                ctx.component_definitions.push(
-                    compiletime::process_pax_file_for_component_definition(&this,file!(), module_path!())
-                );
+                //
+                // ctx.component_definitions.push(
+                //     compiletime::process_pax_file_for_component_definition(&this,file!(), module_path!())
+                // );
 
                 //Note:  the file!() here will be substitutable for the #[pax file={}] attribute, fixing
                 //       the apparent problem of using file!() at this phase of the macro lifecycle

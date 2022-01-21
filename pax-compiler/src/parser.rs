@@ -6,9 +6,11 @@ extern crate pest;
 // extern crate lazy_static;
 
 use std::borrow::Borrow;
+use std::cell::RefCell;
 use std::collections::HashSet;
 use std::fs;
 use std::hint::unreachable_unchecked;
+use std::rc::Rc;
 use pest::iterators::Pair;
 
 use uuid::Uuid;
@@ -140,14 +142,17 @@ pub fn parse_file_for_symbols_in_template(pax: &str) -> Vec<String> {
         .expect("unsuccessful parse") // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_file` rule
 
-    println!("parsed pax: {:?}", pax_file);
 
-    let symbols : HashSet<String> = HashSet::new();
+
+    let mut pascal_identifiers : Rc::new(RefCell::new(HashSet::new()));
 
     pax_file.into_inner().for_each(|pair|{
         match pair.as_rule() {
             Rule::root_tag_pair => {
-                println!("root tag inner: {:?}", pair.into_inner());
+                recurse_visit_tag_pairs_for_symbols(
+                    pair.into_inner().next().unwrap(),
+                    Rc::clone(&pascal_identifiers)
+                );
             }
             _ => {}
         }
@@ -157,8 +162,45 @@ pub fn parse_file_for_symbols_in_template(pax: &str) -> Vec<String> {
 
 }
 
-fn recurse_visit_tag_pairs_for_symbols(any_tag_pair: Pair<Rule>) -> HashSet<String> {
-    unimplemented!()
+fn recurse_visit_tag_pairs_for_symbols(any_tag_pair: Pair<Rule>, pascal_identifiers: Rc<RefCell<HashSet<String>>>)  {
+    match any_tag_pair.as_rule() {
+        Rule::matched_tag => {
+            //matched_tag => open_tag > pascal_identifier
+            let matched_tag = any_tag_pair;
+            let open_tag = matched_tag.clone().into_inner().next().unwrap();
+            let pascal_identifier = open_tag.into_inner().next().unwrap().to_string();
+            pascal_identifiers.borrow_mut().insert(pascal_identifier);
+
+            //recurse into sub_tag_pairs
+            let prospective_sub_tag_pairs = matched_tag.clone().into_inner().nth(1).unwrap();
+            match  prospective_sub_tag_pairs.as_rule() {
+                Rule::sub_tag_pairs => {
+                    prospective_sub_tag_pairs.into_inner()
+                        .for_each(|sub_tag_pair|{
+                            match sub_tag_pair.as_rule() {
+                                Rule::any_tag_pair => {
+                                    //it's another tag — time to recurse
+                                    recurse_visit_tag_pairs_for_symbols(sub_tag_pair, Rc::clone(&pascal_identifiers));
+                                },
+                                Rule::statement_control_flow => {
+                                    unimplemented!("Control flow not yet supported");
+                                }
+                            }
+                        }
+                    )
+                },
+                Rule::closing_tag => {},
+                _ => {panic!("wrong .nth")}
+            }
+        },
+        Rule::self_closing_tag => {
+            //pascal_identifier
+            let pascal_identifier = any_tag_pair.into_inner().next().unwrap().to_string();
+            println!("Found self_closing_tag symbol: {}", pascal_identifier);
+            pascal_identifiers.borrow_mut().insert(pascal_identifier);
+        },
+        _ => {unreachable!()}
+    }
 }
 
 fn parse_template_from_pax_file(pax: &str, symbol_name: &str) -> Vec<TemplateNodeDefinition> {
