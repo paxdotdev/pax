@@ -9,18 +9,7 @@ pub struct DeeperStruct {
     b: &'static str,
 }
 
-//Note re: dependencies —
-//  - The central PropertiesCoproduct _depends on_ this definition, in order to wrap it into the PropertiesCoproduct
-//  - This means that this file cannot directly rely on pax-properties-coproduct.  To do so would introduce a cyclic dep.
-//    In particular, be mindful of this when designing macro expansion
-
-//could make file ref. explicit: #[pax(file="lib.pax")]
-//in absence, .pax file path is inferred by source name (and `is_present(inline_pax)`)
-//e.g. lib.rs -> try to load lib.pax.  don't try to load .pax if inline_pax is present
-
 //#[pax] was here
-
-
 pub struct Root {
     //rewrite to pub `num_clicks : Property<i64>` etc. AND register metadata with dev server
     pub num_clicks : i64,
@@ -69,43 +58,14 @@ impl Root {
                 //parsed from the template
                 ctx.visited_source_ids.insert(source_id.clone());
 
-                //TODO: support inline pax as an alternative to file
-
+                //GENERATE: gen explict_path value with macro
                 let explicit_path : Option<String> = Some("lib.pax".to_string());
-                let path =
-                    match explicit_path {
-                        None => {
-                            //infer path by current filename, e.g. lib.rs => lib.pax
-                            let mut inferred_path = PathBuf::from(file!());
-                            inferred_path.set_extension("pax");
+                //TODO: support inline pax as an alternative to file
+                //GENERATE: inject pascal_identifier
+                let PASCAL_IDENTIFIER = "Root";
+                let component_definition_for_this_file = parser::handle_file(file!(), explicit_path, PASCAL_IDENTIFIER);
+                ctx.component_definitions.push(component_definition_for_this_file);
 
-                            let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
-                            let path = Path::new(&root).join("src/").join(&inferred_path);
-                            let file_name = match path.file_name() {
-                                Some(file_name) => file_name,
-                                None => panic!("no pax file found"), //TODO: make error message more helpful, e.g. by suggesting where to create a pax file
-                            };
-
-                            path.into_os_string()
-                        },
-                        Some(provided_path) => {
-                            //explicit path (relative to src/) was provided
-                            let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
-                            let path = Path::new(&root).join("src/").join(&provided_path);
-                            let file_name = match path.file_name() {
-                                Some(file_name) => file_name,
-                                None => panic!("pax file not found at specified path"), //TODO: make error message more helpful, e.g. by suggesting the use of `src/`-relative paths
-                            };
-
-                            path.into_os_string()
-                        }
-                    };
-
-                println!("path: {:?}", path);
-                let pax = fs::read_to_string(path).unwrap();
-                ctx.component_definitions.push(
-                parser::parse_component_from_pax_file(&pax, &this ,true)
-                );
 
                 // //Note:  the file!() here will be substitutable for the #[pax file={}] attribute, fixing
                 // //       the apparent problem of using file!() at this phase of the macro lifecycle
@@ -116,7 +76,9 @@ impl Root {
                 // //in this scope (e.g. via `use`)
                 // //TODO: reasonable userland error message for missing imports
                 // //******** dynamic macro logic here
-                // ctx = Spread::parse_to_manifest(ctx);
+
+                //GENERATE:
+                // // ctx = Spread::parse_to_manifest(ctx);
                 // ctx = Rectangle::parse_to_manifest(ctx);
                 // ctx = Group::parse_to_manifest(ctx);
                 // ctx = Text::parse_to_manifest(ctx);

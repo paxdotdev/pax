@@ -1,20 +1,10 @@
-<Spread id="main-spread">
-    <Rectangle id="rect-1" />
-    <Rectangle id="rect-2" />
-    <Group>
-        <Text id="label" content="Hello!" />
-        <Rectangle id="rect-3" />
-    </Group>
-</Spread>
+<Group>
+    <Rectangle id="rect-a" />
+    <Rectangle id="rect-b" />
+</Group>
 
 @settings {
-    #main-spread {
-        cell_count: 3
-        orientation: Orientation::Vertical
-        gutter_width: 5px
-    }
-
-    #rect-1 {
+    #rect-a {
         fill: {r: 255, g: 255, b: 255, a: 1}
         stroke: {
             color: {r: 255, g: 0, b: 0, a: 1}
@@ -26,16 +16,17 @@
             }
         }
         transform: {
-            rotation: @{ current_rotation }
+            rotation: @{ current_rotation },
+
         }
     }
 
-    #rect-2 {
+    #rect-b {
         fill: Color {
-                h: @{ (Engine.frames_elapsed / 100) % 360 },
-                s: 75,
-                l: 75,
-                a: 1,
+            h: @{ (Engine.frames_elapsed / 100) % 360 },
+            s: 75,
+            l: 75,
+            a: 1,
         }
     }
 }
