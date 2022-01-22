@@ -61,10 +61,10 @@ impl Rectangle {
                 //TODO: support inline pax as an alternative to file
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Rectangle";
-                let component_definition_for_this_file = parser::handle_primitive(PASCAL_IDENTIFIER, &source_id as &str);
+                let component_definition_for_this_file = parser::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id as &str);
                 ctx.component_definitions.push(component_definition_for_this_file);
                 //GENERATE:
-                //Lead node; no template, no pax file, no children to generate
+                //Leaf node; no template, no pax file, no children to generate
 
                 (ctx, source_id.to_string())
             },

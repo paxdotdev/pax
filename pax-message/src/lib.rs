@@ -41,7 +41,8 @@ pub enum Entity {
 #[derive(Debug)]
 pub struct ComponentDefinition {
     pub id: String,
-    pub name: String,
+    pub pascal_identifier: String,
+    pub module_path: String,
     pub template: Option<Vec<TemplateNodeDefinition>>, //can be hydrated as a tree via child_ids/parent_id
     pub settings: Option<Vec<SettingsDefinition>>,
 }
@@ -51,7 +52,7 @@ pub struct ComponentDefinition {
 pub struct TemplateNodeDefinition {
     id: String,
     is_root: bool,
-    component_identifier: String,
+    component_pascal_identifier: String,
     component_id: String,
     inline_attributes: Option<Vec<(String, AttributeValue)>>,
     parent_id: String, //maybe only one of parent/children id is necessary.
@@ -89,32 +90,3 @@ pub struct SettingsValueBlock {
 
 
 
-
-
-
-pub struct DefinitionOfProperty {
-    property_name: String,
-    type_name: String,
-}
-
-pub struct DefinitionOfComponent {
-    component_id: String,
-    component_name: String,
-    component_tree: DefinitionOfComponentTemplateInstance,
-    component_properties: Vec<DefinitionOfProperty>,
-    descendant_settings: Vec<DefinitionOfSettings>,
-}
-
-pub struct DefinitionOfComponentTemplateInstance {
-    component_id: String,
-    instance_id: String,
-    instance_class: String,
-    children: Vec<DefinitionOfComponentTemplateInstance>,
-}
-
-pub struct DefinitionOfSettings {
-    selector: String,
-    property_pairs: PropertyCoproduct,
-}
-
-pub struct PropertyCoproduct {} //TODO: patch this with codegen

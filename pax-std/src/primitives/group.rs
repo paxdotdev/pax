@@ -49,7 +49,7 @@ impl Group {
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Group";
                 //GENERATE: handle_file vs. handle_primitive
-                let component_definition_for_this_file = parser::handle_primitive(PASCAL_IDENTIFIER,&source_id as &str);
+                let component_definition_for_this_file = parser::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id as &str);
                 ctx.component_definitions.push(component_definition_for_this_file);
                 //GENERATE:
                 //Lead node; no template, no pax file, no children to generate

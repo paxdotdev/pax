@@ -43,6 +43,7 @@ pub fn main() {
     };
     let (ctx, _) = Root::parse_to_manifest(ctx);
 }
+
 #[cfg(feature="parser")]
 //GENERATE pascal_identifier
 impl Root {
@@ -68,7 +69,8 @@ impl Root {
 
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Root";
-                let component_definition_for_this_file = parser::handle_file(file!(), explicit_path, PASCAL_IDENTIFIER, template_map, &source_id as &str);
+
+                let component_definition_for_this_file = parser::handle_file(file!(), module_path!(), explicit_path, PASCAL_IDENTIFIER, template_map, &source_id as &str);
                 ctx.component_definitions.push(component_definition_for_this_file);
 
                 //TODO: need to associate component IDs with template nodes, so that
