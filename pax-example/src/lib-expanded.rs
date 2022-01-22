@@ -25,6 +25,7 @@ use pax::parser;
 use std::collections::HashSet;
 #[cfg(feature="parser")]
 use std::{env, fs};
+use std::collections::HashMap;
 #[cfg(feature="parser")]
 use std::path::{Path, PathBuf};
 #[cfg(feature="parser")]
@@ -40,12 +41,12 @@ pub fn main() {
         visited_source_ids: HashSet::new(),
         component_definitions: vec![],
     };
-    ctx = Root::parse_to_manifest(ctx);
+    let (ctx, _) = Root::parse_to_manifest(ctx);
 }
 #[cfg(feature="parser")]
 //GENERATE pascal_identifier
 impl Root {
-    pub fn parse_to_manifest(mut ctx: ManifestContext) -> ManifestContext {
+    pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
 
         match ctx.visited_source_ids.get(&source_id as &str) {
             None => {
@@ -57,19 +58,35 @@ impl Root {
                 //GENERATE: gen explict_path value with macro
                 let explicit_path : Option<String> = Some("lib.pax".to_string());
                 //TODO: support inline pax as an alternative to file
+                let mut template_map : HashMap<String, String> = HashMap::new();
+
+                //GENERATE:
+                let (mut ctx, component_id) = Rectangle::parse_to_manifest(ctx);
+                template_map.insert("Rectangle".into(), component_id);
+                let (mut ctx, component_id) = Group::parse_to_manifest(ctx);
+                template_map.insert("Group".into(), component_id);
+
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Root";
-                let component_definition_for_this_file = parser::handle_file(file!(), explicit_path, PASCAL_IDENTIFIER);
+                let component_definition_for_this_file = parser::handle_file(file!(), explicit_path, PASCAL_IDENTIFIER, template_map, &source_id as &str);
                 ctx.component_definitions.push(component_definition_for_this_file);
-                //GENERATE:
-                ctx = Rectangle::parse_to_manifest(ctx);
-                ctx = Group::parse_to_manifest(ctx);
+
+                //TODO: need to associate component IDs with template nodes, so that
+                //      component tree can be renormalized.
+                //      - should source_id and component_id be de-duped?
+                //        Note that this would further-separate us from multiple-
+                //        components-per-source-file support
+                //      - where should the linking occur? will require tangling the ID generation
+                //        logic a bit
+                //can create a map per-file (here) of pascal_identifier => uuid,
+                //which can be passed to template parsing to resolve pascal_identifier => component_id in order to track a tree of
+                //component instances (via component_id)
 
                 println!("Generated context {:?}", ctx);
 
-                ctx
+                (ctx,source_id.to_string())
             },
-            _ => {ctx} //early return; this file has already been parsed
+            _ => {(ctx, source_id.to_string())} //early return; this file has already been parsed
         }
 
     }

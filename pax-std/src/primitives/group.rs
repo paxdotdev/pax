@@ -34,7 +34,7 @@ lazy_static! {
 #[cfg(feature="parser")]
 //GENERATE pascal_identifier
 impl Group {
-    pub fn parse_to_manifest(mut ctx: ManifestContext) -> ManifestContext {
+    pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
 
         match ctx.visited_source_ids.get(&source_id as &str) {
             None => {
@@ -49,14 +49,14 @@ impl Group {
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Group";
                 //GENERATE: handle_file vs. handle_primitive
-                let component_definition_for_this_file = parser::handle_primitive(PASCAL_IDENTIFIER);
+                let component_definition_for_this_file = parser::handle_primitive(PASCAL_IDENTIFIER,&source_id as &str);
                 ctx.component_definitions.push(component_definition_for_this_file);
                 //GENERATE:
                 //Lead node; no template, no pax file, no children to generate
 
-                ctx
+                (ctx, source_id.to_string())
             },
-            _ => {ctx} //early return; this file has already been parsed
+            _ => {(ctx, source_id.to_string())} //early return; this file has already been parsed
         }
 
     }

@@ -47,9 +47,12 @@ pub struct ComponentDefinition {
 }
 #[allow(dead_code)]
 #[derive(Debug)]
+//Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 pub struct TemplateNodeDefinition {
     id: String,
-    component_type: String,
+    is_root: bool,
+    component_identifier: String,
+    component_id: String,
     inline_attributes: Option<Vec<(String, AttributeValue)>>,
     parent_id: String, //maybe only one of parent/children id is necessary.
     children_ids: Vec<String>,

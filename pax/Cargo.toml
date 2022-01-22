@@ -10,8 +10,8 @@ pax-macro = {path="../pax-macro"}
 pax-compiler = {path="../pax-compiler"}
 pax-message = {path="../pax-message"}
 pax-core = {path="../pax-core"}
-pax-std = {path="../pax-std", features=["parser"]}
+pax-std = {path="../pax-std"}
 
 
 [features]
-parser = []
+parser = ["pax-std/parser"]

@@ -9,7 +9,7 @@ extern crate pest;
 
 use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::{env, fs};
 use std::hint::unreachable_unchecked;
 use std::path::{Path, PathBuf};
@@ -139,16 +139,16 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
 
 
 
-pub fn handle_primitive(pascal_identifier: &str) -> ComponentDefinition {
+pub fn handle_primitive(pascal_identifier: &str, source_id: &str) -> ComponentDefinition {
     ComponentDefinition {
-        id: uuid::Uuid::new_v4().to_string(),
+        id: source_id.to_string(),
         name: pascal_identifier.to_string(),
         template: None,
         settings: None,
     }
 }
 
-pub fn handle_file(file: &str, explicit_path: Option<String>, pascal_identifier: &str) -> ComponentDefinition {
+pub fn handle_file(file: &str, explicit_path: Option<String>, pascal_identifier: &str, template_map: HashMap<String, String>, source_id: &str) -> ComponentDefinition {
 
     let path =
         match explicit_path {
@@ -182,7 +182,7 @@ pub fn handle_file(file: &str, explicit_path: Option<String>, pascal_identifier:
     println!("path: {:?}", path);
     let pax = fs::read_to_string(path).unwrap();
 
-    parse_component_from_pax_file(&pax, pascal_identifier ,true)
+    parse_component_from_pax_file(&pax, pascal_identifier ,true, template_map, source_id)
 }
 
 
@@ -254,7 +254,7 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
     }
 }
 
-fn parse_template_from_pax_file(pax: &str, symbol_name: &str) -> Option<Vec<TemplateNodeDefinition>> {
+fn parse_template_from_pax_file(pax: &str, symbol_name: &str, template_map: HashMap<String, String>) -> Option<Vec<TemplateNodeDefinition>> {
 
 
     None
@@ -283,7 +283,7 @@ pub struct ManifestContext {
 
 
 //TODO: support fragments of pax that ARE NOT pax_file (e.g. inline expressions)
-pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool) -> ComponentDefinition {
+pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str) -> ComponentDefinition {
 
 
     println!("TODO: parse component to manifest for {}", symbol_name);
@@ -292,16 +292,15 @@ pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool
         .expect("unsuccessful parse") // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_file` rule
 
-    let new_id = Uuid::new_v4().to_string();
     //
     // if is_root {
     //     todo!(pack this ID into the manifest as root_component_id)
     // }
 
     let mut ret = ComponentDefinition {
-        id: new_id,
+        id: source_id.into(),
         name: symbol_name.to_string(),
-        template: parse_template_from_pax_file(pax, symbol_name),
+        template: parse_template_from_pax_file(pax, symbol_name, template_map),
         settings: parse_settings_from_pax_file(pax),
     };
 

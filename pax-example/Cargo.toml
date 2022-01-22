@@ -16,10 +16,10 @@ required-features = ["parser"]
 
 [features]
 ### GENERATE
-parser = []
+parser = ["pax/parser"]
 ### END GENERATE
 
 [dependencies]
-pax = { path = "../pax", features=["parser"] }
+pax = { path = "../pax" }
 lazy_static = "*"
 
