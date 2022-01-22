@@ -1,7 +1,7 @@
 use pax::*;
 
-// use pax::std::{Rectangle, Group, Text};
-// use pax::runtime::{ClickEvent}
+// use pax::std::{Rectangle, Group};
+
 
 pub struct DeeperStruct {
     a: i64,
@@ -27,7 +27,4 @@ impl Root {
         }
     }
 
-    // pub fn handle_click(evt: ClickEvent) {
-    //
-    // }
 }

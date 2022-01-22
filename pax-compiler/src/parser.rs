@@ -138,6 +138,16 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
 //
 
 
+
+pub fn handle_primitive(pascal_identifier: &str) -> ComponentDefinition {
+    ComponentDefinition {
+        id: uuid::Uuid::new_v4().to_string(),
+        name: pascal_identifier.to_string(),
+        template: None,
+        settings: None,
+    }
+}
+
 pub fn handle_file(file: &str, explicit_path: Option<String>, pascal_identifier: &str) -> ComponentDefinition {
 
     let path =
@@ -185,7 +195,7 @@ pub fn parse_pascal_identifiers_from_pax_file(pax: &str) -> Vec<String> {
 
     println!("{:?}", pax_file);
 
-    let mut pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
+    let pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
 
     pax_file.into_inner().for_each(|pair|{
         match pair.as_rule() {
@@ -244,10 +254,10 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
     }
 }
 
-fn parse_template_from_pax_file(pax: &str, symbol_name: &str) -> Vec<TemplateNodeDefinition> {
+fn parse_template_from_pax_file(pax: &str, symbol_name: &str) -> Option<Vec<TemplateNodeDefinition>> {
 
 
-    vec![]
+    None
 }
 
 
@@ -262,6 +272,7 @@ pub fn get_uuid() -> String {
 
 
 
+#[derive(Debug)]
 pub struct ManifestContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
@@ -308,9 +319,9 @@ pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool
 
 
     //recommended piping into `less` or similar
-    print!("{:#?}", ast);
+    // print!("{:#?}", ast);
 
-    unimplemented!();
+    ret
 
 }
 

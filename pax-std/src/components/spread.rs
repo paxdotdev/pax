@@ -1,13 +1,13 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{Evaluator, InjectionContext, Property, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Repeat, Size, Transform};
-use crate::primitives::component::Component;
+use pax_core::{Evaluator, InjectionContext, Property, PropertyExpression, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Size, Transform};
+use pax_core::component::Component;
 use crate::primitives::frame::Frame;
 use crate::primitives::placeholder::Placeholder;
-use crate::primitives::repeat::RepeatItem;
-use crate::rendering::{Size2D, Size2DFactory};
-use crate::runtime::PropertiesCoproduct;
+use crate::primitives::repeat::{Repeat, RepeatItem};
+use pax_core::rendering::{Size2D, Size2DFactory};
+use pax_core::runtime::PropertiesCoproduct;
 
 /*
 TODO:

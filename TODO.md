@@ -61,7 +61,9 @@ Perhaps a macro is the answer?
         [x] thread/process/IPC chassis
         [x] parser cargo feature
         [x] bin-running harness to execute parser (see https://stackoverflow.com/questions/62180215/renaming-main-rs-and-using-with-cargo)
-        [ ] mechanism for passing data back to pax-compiler (TCP)
+        [ ] TCP message passing
+            [ ] de/serialization for manifest
+            [ ] coordination of TCP components from compiler main thread
         [ ] parse and load .pax files
             [x] load file via macro
             [ ] generate the necessary bits via macro
@@ -181,3 +183,10 @@ Creative development environment
 for makers of
 graphical user interfaces
 ```
+
+
+
+
+Lab journal:
+
+

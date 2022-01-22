@@ -1,0 +1,18 @@
+
+[package]
+name = "pax-std"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+piet = "0.3.1"
+kurbo = "0.7.1"
+pax-core = {path = "../pax-core"}
+pax-compiler = {path = "../pax-compiler"}
+pax-message = {path = "../pax-message"}
+lazy_static = "*"
+
+[features]
+parser = []

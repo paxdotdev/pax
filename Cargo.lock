@@ -1373,8 +1373,10 @@ name = "pax"
 version = "0.1.0"
 dependencies = [
  "pax-compiler",
+ "pax-core",
  "pax-macro",
  "pax-message",
+ "pax-std",
 ]
 
 [[package]]
@@ -1457,6 +1459,18 @@ version = "0.1.0"
 [[package]]
 name = "pax-properties-coproduct"
 version = "0.1.0"
+
+[[package]]
+name = "pax-std"
+version = "0.1.0"
+dependencies = [
+ "kurbo",
+ "lazy_static",
+ "pax-compiler",
+ "pax-core",
+ "pax-message",
+ "piet",
+]
 
 [[package]]
 name = "percent-encoding"

@@ -38,13 +38,15 @@ pub enum Entity {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct ComponentDefinition {
     pub id: String,
     pub name: String,
-    pub template: Vec<TemplateNodeDefinition>, //can be hydrated as a tree via child_ids/parent_id
+    pub template: Option<Vec<TemplateNodeDefinition>>, //can be hydrated as a tree via child_ids/parent_id
     pub settings: Option<Vec<SettingsDefinition>>,
 }
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct TemplateNodeDefinition {
     id: String,
     component_type: String,
@@ -53,17 +55,20 @@ pub struct TemplateNodeDefinition {
     children_ids: Vec<String>,
 }
 #[allow(dead_code)]
+#[derive(Debug)]
 pub enum AttributeValue {
     String,
     Expression(String),
 }
 
+#[derive(Debug)]
 pub enum SettingsValue {
     Literal(String),
     Block(SettingsValueBlock),
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct SettingsDefinition {
     id: String,
     selector: String,
@@ -71,6 +76,7 @@ pub struct SettingsDefinition {
 }
 
 #[allow(dead_code)]
+#[derive(Debug)]
 pub struct SettingsValueBlock {
     pairs: Option<Vec<(String, SettingsValue)>>,
 }

@@ -20,6 +20,6 @@ parser = []
 ### END GENERATE
 
 [dependencies]
-pax = { path = "../pax" }
+pax = { path = "../pax", features=["parser"] }
 lazy_static = "*"
 
