@@ -73,6 +73,7 @@ Perhaps a macro is the answer?
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
     [ ] codegen PropertiesCoproduct
+    [ ] codegen DefinitionToInstance traverser (at least `match` block)
     [ ] codegen Cargo.toml + solution for patching
         [ ] Maybe need to "deep patch" pax-properties-coproduct within core, dep. on how Cargo resolves `patch`
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)

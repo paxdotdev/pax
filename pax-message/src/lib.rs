@@ -43,6 +43,10 @@ pub struct ComponentDefinition {
     pub id: String,
     pub pascal_identifier: String,
     pub module_path: String,
+    //optional not because it cannot exist, but because
+    //there are times in this data structure's lifecycle when it
+    //is not yet known
+    pub root_template_node_id: Option<String>,
     pub template: Option<Vec<TemplateNodeDefinition>>, //can be hydrated as a tree via child_ids/parent_id
     pub settings: Option<Vec<SettingsDefinition>>,
 }
@@ -50,13 +54,10 @@ pub struct ComponentDefinition {
 #[derive(Debug)]
 //Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 pub struct TemplateNodeDefinition {
-    id: String,
-    is_root: bool,
-    component_pascal_identifier: String,
-    component_id: String,
-    inline_attributes: Option<Vec<(String, AttributeValue)>>,
-    parent_id: String, //maybe only one of parent/children id is necessary.
-    children_ids: Vec<String>,
+    pub id: String,
+    pub component_id: String,
+    pub inline_attributes: Option<Vec<(String, AttributeValue)>>,
+    pub children_ids: Vec<String>,
 }
 #[allow(dead_code)]
 #[derive(Debug)]

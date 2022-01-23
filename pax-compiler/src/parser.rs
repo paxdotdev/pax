@@ -138,18 +138,18 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
 //
 
 
-
 pub fn handle_primitive(pascal_identifier: &str, module_path: &str, source_id: &str) -> ComponentDefinition {
     ComponentDefinition {
         id: source_id.to_string(),
         pascal_identifier: pascal_identifier.to_string(),
         template: None,
         settings: None,
+        root_template_node_id: None,
         module_path: module_path.to_string(),
     }
 }
 
-pub fn handle_file(file: &str, module_path: &str, explicit_path: Option<String>, pascal_identifier: &str, template_map: HashMap<String, String>, source_id: &str) -> ComponentDefinition {
+pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, explicit_path: Option<String>, pascal_identifier: &str, template_map: HashMap<String, String>, source_id: &str) -> (ManifestContext, ComponentDefinition) {
 
     let path =
         match explicit_path {
@@ -165,7 +165,7 @@ pub fn handle_file(file: &str, module_path: &str, explicit_path: Option<String>,
                     None => panic!("no pax file found"), //TODO: make error message more helpful, e.g. by suggesting where to create a pax file
                 };
 
-                path.into_os_string()
+                path
             },
             Some(provided_path) => {
                 //explicit path (relative to src/) was provided
@@ -176,14 +176,15 @@ pub fn handle_file(file: &str, module_path: &str, explicit_path: Option<String>,
                     None => panic!("pax file not found at specified path"), //TODO: make error message more helpful, e.g. by suggesting the use of `src/`-relative paths
                 };
 
-                path.into_os_string()
+                path
             }
         };
 
     println!("path: {:?}", path);
     let pax = fs::read_to_string(path).unwrap();
 
-    parse_component_from_pax_file(&pax, pascal_identifier ,true, template_map, source_id, module_path)
+    let (ctx, comp_def) = parse_component_from_pax_file(ctx,&pax, pascal_identifier ,true, template_map, source_id, module_path);
+    (ctx, comp_def)
 }
 
 
@@ -203,7 +204,7 @@ pub fn parse_pascal_identifiers_from_pax_file(pax: &str) -> Vec<String> {
             Rule::root_tag_pair => {
                 recurse_visit_tag_pairs_for_pascal_identifiers(
                     pair.into_inner().next().unwrap(),
-                    Rc::clone(&pascal_identifiers)
+                    Rc::clone(&pascal_identifiers),
                 );
             }
             _ => {}
@@ -255,15 +256,122 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
     }
 }
 
-fn parse_template_from_pax_file(pax: &str, symbol_name: &str, template_map: HashMap<String, String>) -> Option<Vec<TemplateNodeDefinition>> {
+fn parse_template_from_pax_file(ctx: &mut TemplateParseContext,pax: &str)  {
+    let pax_file = PaxParser::parse(Rule::pax_file, pax)
+        .expect("unsuccessful parse") // unwrap the parse result
+        .next().unwrap(); // get and unwrap the `pax_file` rule
+
+    pax_file.into_inner().for_each(|pair|{
+        match pair.as_rule() {
+            Rule::root_tag_pair => {
+                ctx.children_id_tracking_stack.push(vec![]);
+                recurse_visit_tag_pairs_for_template(
+                    ctx,
+                    pair.into_inner().next().unwrap(),
+
+                );
+            }
+            _ => {}
+        }
+    });
+
+}
+
+struct TemplateParseContext {
+    pub template_node_definitions: Vec<TemplateNodeDefinition>,
+    pub is_root: bool,
+    pub pascal_identifier_to_component_id_map: HashMap<String, String>,
+    pub root_template_node_id: Option<String>,
+    //each frame of the outer vec represents a list of
+    //children for a given node;
+    //a new frame is added when descending the tree
+    //but not when iterating over siblings
+    pub children_id_tracking_stack: Vec<Vec<String>>,
+}
+
+fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_pair: Pair<Rule>)  {
+    match any_tag_pair.as_rule() {
+        Rule::matched_tag => {
+            //matched_tag => open_tag > pascal_identifier
+            let matched_tag = any_tag_pair;
+            let open_tag = matched_tag.clone().into_inner().next().unwrap();
+            let pascal_identifier = open_tag.into_inner().next().unwrap().as_str();
 
 
-    None
+            let new_id = get_uuid();
+            if ctx.is_root {
+                ctx.root_template_node_id = Some(new_id.clone());
+            }
+            ctx.is_root = false;
+
+            //add self to parent's children_id_list
+            let mut parents_children_id_list = ctx.children_id_tracking_stack.pop().unwrap();
+            parents_children_id_list.push(new_id.clone());
+            ctx.children_id_tracking_stack.push(parents_children_id_list);
+
+            //push the frame for this node's children
+            ctx.children_id_tracking_stack.push(vec![]);
+
+            //recurse into inner_nodes
+            let prospective_inner_nodes = matched_tag.into_inner().nth(1).unwrap();
+            match prospective_inner_nodes.as_rule() {
+                Rule::inner_nodes => {
+                    let inner_nodes = prospective_inner_nodes;
+                    inner_nodes.into_inner()
+                        .for_each(|sub_tag_pair|{
+                            match sub_tag_pair.as_rule() {
+                                Rule::matched_tag | Rule::self_closing_tag => {
+                                    //it's another tag — time to recurse
+                                    recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                                },
+                                Rule::statement_control_flow => {
+                                    unimplemented!("Control flow not yet supported");
+                                },
+                                _ => {unreachable!()},
+                            }
+                        }
+                        )
+                },
+                Rule::closing_tag => {},
+                _ => {panic!("wrong .nth")}
+            }
+
+            let template_node = TemplateNodeDefinition {
+                id: new_id,
+                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect("Template key not found").to_string(),
+                inline_attributes: None,
+                children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+            };
+            ctx.template_node_definitions.push(template_node);
+
+        },
+        Rule::self_closing_tag => {
+            let pascal_identifier = any_tag_pair.into_inner().next().unwrap().as_str();
+            let new_id = get_uuid();
+            if ctx.is_root {
+                ctx.root_template_node_id = Some(new_id.clone());
+            }
+            ctx.is_root = false;
+
+            //add self to parent's children_id_list
+            let mut parents_children_id_list = ctx.children_id_tracking_stack.pop().unwrap();
+            parents_children_id_list.push(new_id.clone());
+            ctx.children_id_tracking_stack.push(parents_children_id_list);
+
+            let template_node = TemplateNodeDefinition {
+                id: new_id,
+                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect("Template key not found").to_string(),
+                inline_attributes: None,
+                children_ids: vec![]
+            };
+            ctx.template_node_definitions.push(template_node);
+        },
+        _ => {unreachable!()}
+    }
 }
 
 
 fn parse_settings_from_pax_file(pax: &str) -> Option<Vec<SettingsDefinition>> {
-
     None
 }
 
@@ -272,38 +380,48 @@ pub fn get_uuid() -> String {
 }
 
 
-
 #[derive(Debug)]
 pub struct ManifestContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
+    pub root_component_id: String,
     pub visited_source_ids: HashSet<String>,
     pub component_definitions: Vec<ComponentDefinition>,
 
 }
 
-
 //TODO: support fragments of pax that ARE NOT pax_file (e.g. inline expressions)
-pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> ComponentDefinition {
-
-
-    println!("TODO: parse component to manifest for {}", symbol_name);
+pub fn parse_component_from_pax_file(mut ctx: ManifestContext, pax: &str, symbol_name: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ManifestContext, ComponentDefinition) {
 
     let ast = PaxParser::parse(Rule::pax_file, pax)
         .expect("unsuccessful parse") // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_file` rule
 
-    //
-    // if is_root {
-    //     todo!(pack this ID into the manifest as root_component_id)
-    // }
+    if is_root {
+        ctx.root_component_id = source_id.to_string();
+    }
 
-    let mut ret = ComponentDefinition {
+    let mut tpc = TemplateParseContext {
+        pascal_identifier_to_component_id_map: template_map,
+        template_node_definitions: vec![],
+        root_template_node_id: None,
+        is_root: true,
+        //each frame of the outer vec represents a list of
+        //children for a given node;
+        //a new frame is added when descending the tree
+        //but not when iterating over siblings
+        children_id_tracking_stack: vec![],
+    };
+
+    parse_template_from_pax_file(&mut tpc, pax);
+
+    let mut new_def = ComponentDefinition {
         id: source_id.into(),
         pascal_identifier: symbol_name.to_string(),
-        template: parse_template_from_pax_file(pax, symbol_name, template_map),
+        template: Some(tpc.template_node_definitions),
         settings: parse_settings_from_pax_file(pax),
         module_path: module_path.to_string(),
+        root_template_node_id: tpc.root_template_node_id,
     };
 
     // TODO:
@@ -311,18 +429,10 @@ pub fn parse_component_from_pax_file(pax: &str, symbol_name: &str, is_root: bool
     //     THEN from inside the parser binary: parse entire project starting with "lib.pax"
     //     THEN phone home the manifest to pax-compiler via the provided TCP port
 
-    //TODO:
-    //     how do we latch onto in-file dependencies?
-    //     one approach (the only non-static-analysis approach?) is to code-gen the expected dep (RIL)
-    //     e.g. for `<Repeat>` => `Repeat {}`
-    //   SO, in the case where we're code-genning the
-    //
-
-
     //recommended piping into `less` or similar
     // print!("{:#?}", ast);
 
-    ret
+    (ctx, new_def)
 
 }
 
