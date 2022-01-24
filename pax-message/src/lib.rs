@@ -37,7 +37,6 @@ pub enum Entity {
     CommandDefinitionTODO,
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
 pub struct ComponentDefinition {
     pub id: String,
@@ -48,43 +47,66 @@ pub struct ComponentDefinition {
     //is not yet known
     pub root_template_node_id: Option<String>,
     pub template: Option<Vec<TemplateNodeDefinition>>, //can be hydrated as a tree via child_ids/parent_id
-    pub settings: Option<Vec<SettingsDefinition>>,
+    pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
 }
-#[allow(dead_code)]
+
 #[derive(Debug)]
 //Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 pub struct TemplateNodeDefinition {
     pub id: String,
     pub component_id: String,
-    pub inline_attributes: Option<Vec<(String, AttributeValue)>>,
+    pub inline_attributes: Option<Vec<(String, AttributeValueDefinition)>>,
     pub children_ids: Vec<String>,
 }
+
 #[allow(dead_code)]
 #[derive(Debug)]
-pub enum AttributeValue {
+pub enum AttributeValueDefinition {
     String,
     Expression(String),
 }
 
 #[derive(Debug)]
-pub enum SettingsValue {
+pub struct SettingsSelectorBlockDefinition {
+    pub selector: String,
+    pub value_block: SettingsLiteralBlockDefinition,
+}
+
+#[derive(Debug)]
+pub struct SettingsLiteralBlockDefinition {
+    pub explicit_type_pascal_identifier: Option<String>,
+    pub settings_key_value_pairs: Vec<(String, SettingsValueDefinition)>,
+}
+
+#[derive(Debug)]
+pub enum SettingsValueDefinition {
     Literal(String),
-    Block(SettingsValueBlock),
+    Expression(String),
+    Enum(String),
+    Block(SettingsLiteralBlockDefinition),
 }
 
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct SettingsDefinition {
-    id: String,
-    selector: String,
-    value: SettingsValueBlock,
-}
-
-#[allow(dead_code)]
-#[derive(Debug)]
-pub struct SettingsValueBlock {
-    pairs: Option<Vec<(String, SettingsValue)>>,
-}
+//
+//
+// #[derive(Debug)]
+// pub enum SettingsValue {
+//     Literal(String),
+//     Block(SettingsValueBlock),
+// }
+//
+// #[allow(dead_code)]
+// #[derive(Debug)]
+// pub struct SettingsDefinition {
+//     id: String,
+//     selector: String,
+//     value: SettingsValueBlock,
+// }
+//
+// #[allow(dead_code)]
+// #[derive(Debug)]
+// pub struct SettingsValueBlock {
+//     pairs: Option<Vec<(String, SettingsValue)>>,
+// }
 
 
 

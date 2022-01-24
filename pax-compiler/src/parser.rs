@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 
 use pest::Parser;
-use pax_message::{ComponentDefinition, PaxManifest, SettingsDefinition, TemplateNodeDefinition};
+use pax_message::{ComponentDefinition, PaxManifest, SettingsLiteralBlockDefinition, SettingsSelectorBlockDefinition, SettingsValueDefinition, TemplateNodeDefinition};
 // use pest::prec_climber::PrecClimber;
 
 #[derive(Parser)]
@@ -339,7 +339,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
             let template_node = TemplateNodeDefinition {
                 id: new_id,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect("Template key not found").to_string(),
-                inline_attributes: None,
+                inline_attributes: None, //TODO
                 children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
             };
             ctx.template_node_definitions.push(template_node);
@@ -361,7 +361,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
             let template_node = TemplateNodeDefinition {
                 id: new_id,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect("Template key not found").to_string(),
-                inline_attributes: None,
+                inline_attributes: None, //TODO
                 children_ids: vec![]
             };
             ctx.template_node_definitions.push(template_node);
@@ -370,9 +370,72 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
     }
 }
 
+fn derive_settings_value_definition_from_literal_object_pair(mut literal_object: Pair<Rule>) -> SettingsLiteralBlockDefinition {
+    let mut literal_object_pairs = literal_object.into_inner();
 
-fn parse_settings_from_pax_file(pax: &str) -> Option<Vec<SettingsDefinition>> {
-    None
+    SettingsLiteralBlockDefinition {
+        explicit_type_pascal_identifier: match literal_object_pairs.peek().unwrap().as_rule() {
+            Rule::pascal_identifier => {
+                Some(literal_object_pairs.next().unwrap().to_string())
+            },
+            _ => { None }
+        } ,
+        settings_key_value_pairs: literal_object_pairs.next().unwrap().into_inner().map(|settings_key_value_pair| {
+            let mut pairs = settings_key_value_pair.into_inner();
+            let key = pairs.nth(0).unwrap().to_string();
+            let raw_value = pairs.nth(1).unwrap();
+            let value = match raw_value.as_rule() {
+                Rule::literal_value => { SettingsValueDefinition::Literal(raw_value.to_string())},
+                Rule::literal_object => { SettingsValueDefinition::Block(
+                    //Recurse
+                    derive_settings_value_definition_from_literal_object_pair(raw_value)
+                )},
+                Rule::enum_value => {SettingsValueDefinition::Enum(raw_value.to_string())},
+                Rule::expression => { SettingsValueDefinition::Expression(raw_value.to_string())},
+                _ => {unreachable!()}
+            };
+            (key, value)
+
+        }).collect()
+    }
+}
+
+fn parse_settings_from_pax_file(pax: &str) -> Option<Vec<SettingsSelectorBlockDefinition>> {
+
+    let pax_file = PaxParser::parse(Rule::pax_file, pax)
+        .expect("unsuccessful parse") // unwrap the parse result
+        .next().unwrap(); // get and unwrap the `pax_file` rule
+
+    let mut ret : Vec<SettingsSelectorBlockDefinition> = vec![];
+
+    pax_file.into_inner().for_each(|top_level_pair|{
+        match top_level_pair.as_rule() {
+            Rule::settings_declaration => {
+
+
+                let mut selector_block_definitions: Vec<SettingsSelectorBlockDefinition> = top_level_pair.into_inner().map(|selector_block| {
+                    //selector_block => settings_key_value_pair where v is a SettingsValueDefinition
+                    let mut selector_block_pairs = selector_block.into_inner();
+                    //first pair is the selector itself
+                    let selector = selector_block_pairs.next().unwrap().to_string();
+                    let mut literal_object = selector_block_pairs.next().unwrap();
+
+                    SettingsSelectorBlockDefinition {
+                        selector,
+                        value_block: derive_settings_value_definition_from_literal_object_pair(literal_object),
+                    }
+
+                }).collect();
+
+                ret.extend(selector_block_definitions);
+
+            }
+            _ => {}
+        }
+
+    });
+    Some(ret)
+
 }
 
 pub fn get_uuid() -> String {
@@ -407,7 +470,7 @@ pub fn parse_component_from_pax_file(mut ctx: ManifestContext, pax: &str, symbol
         root_template_node_id: None,
         is_root: true,
         //each frame of the outer vec represents a list of
-        //children for a given node;
+        //children for a given node; child order matters because of z-index defaults;
         //a new frame is added when descending the tree
         //but not when iterating over siblings
         children_id_tracking_stack: vec![],
