@@ -195,8 +195,6 @@ pub fn parse_pascal_identifiers_from_pax_file(pax: &str) -> Vec<String> {
         .expect("unsuccessful parse") // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_file` rule
 
-    println!("{:?}", pax_file);
-
     let pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
 
     pax_file.into_inner().for_each(|pair|{
@@ -373,17 +371,19 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
 fn derive_settings_value_definition_from_literal_object_pair(mut literal_object: Pair<Rule>) -> SettingsLiteralBlockDefinition {
     let mut literal_object_pairs = literal_object.into_inner();
 
+    let explicit_type_pascal_identifier = match literal_object_pairs.peek().unwrap().as_rule() {
+        Rule::pascal_identifier => {
+            Some(literal_object_pairs.next().unwrap().to_string())
+        },
+        _ => { None }
+    };
+
     SettingsLiteralBlockDefinition {
-        explicit_type_pascal_identifier: match literal_object_pairs.peek().unwrap().as_rule() {
-            Rule::pascal_identifier => {
-                Some(literal_object_pairs.next().unwrap().to_string())
-            },
-            _ => { None }
-        } ,
-        settings_key_value_pairs: literal_object_pairs.next().unwrap().into_inner().map(|settings_key_value_pair| {
+        explicit_type_pascal_identifier,
+        settings_key_value_pairs: literal_object_pairs.map(|settings_key_value_pair| {
             let mut pairs = settings_key_value_pair.into_inner();
-            let key = pairs.nth(0).unwrap().to_string();
-            let raw_value = pairs.nth(1).unwrap();
+            let key = pairs.next().unwrap().to_string();
+            let raw_value = pairs.next().unwrap().into_inner().next().unwrap();
             let value = match raw_value.as_rule() {
                 Rule::literal_value => { SettingsValueDefinition::Literal(raw_value.to_string())},
                 Rule::literal_object => { SettingsValueDefinition::Block(

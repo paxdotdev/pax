@@ -70,6 +70,11 @@ pub enum AttributeValueDefinition {
 pub struct SettingsSelectorBlockDefinition {
     pub selector: String,
     pub value_block: SettingsLiteralBlockDefinition,
+    //TODO: think through this recursive data structure and de/serialization.
+    //      might need to normalize it, keeping a tree of `SettingsLiteralBlockDefinition`s
+    //      where nodes are flattened into a list.
+    //     First: DO we need to normalize it?  Will something like Serde magically fix this?
+    //     It's possible that it will.  Revisit only if we have trouble serializing this data.
 }
 
 #[derive(Debug)]

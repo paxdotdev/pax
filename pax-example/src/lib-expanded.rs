@@ -93,7 +93,7 @@ impl Root {
                 //which can be passed to template parsing to resolve pascal_identifier => component_id in order to track a tree of
                 //component instances (via component_id)
 
-                println!("Generated context {:?}", ctx);
+                println!("{:?}", ctx);
 
                 (ctx, source_id.to_string())
             }

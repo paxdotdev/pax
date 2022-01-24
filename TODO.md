@@ -63,6 +63,7 @@ Perhaps a macro is the answer?
         [x] bin-running harness to execute parser (see https://stackoverflow.com/questions/62180215/renaming-main-rs-and-using-with-cargo)
         [ ] TCP message passing
             [ ] de/serialization for manifest
+                [ ] maybe normalize SelectorLiteralBlockDefinitions, if Serde can't elegantly de/serialize it
             [ ] coordination of TCP components from compiler main thread
         [ ] parse and load .pax files
             [x] load file via macro
@@ -79,9 +80,6 @@ Perhaps a macro is the answer?
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
     [ ] maybe codegen RIL INSTEAD OF designtime coordination;
         as a path to quicker PoC
-[ ] `pax-message`
-    [ ] design structs (central enum in own package?) for representing messages
-    [ ] de/serialization of messages with Serde
 [ ] macros
     [ ] write manual expanded form
     [ ] write automated expanded form
