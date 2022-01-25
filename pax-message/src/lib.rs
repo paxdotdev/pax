@@ -62,7 +62,7 @@ pub struct TemplateNodeDefinition {
 #[allow(dead_code)]
 #[derive(Debug)]
 pub enum AttributeValueDefinition {
-    String,
+    String(String),
     Expression(String),
 }
 
@@ -85,10 +85,27 @@ pub struct SettingsLiteralBlockDefinition {
 
 #[derive(Debug)]
 pub enum SettingsValueDefinition {
-    Literal(String),
+    Literal(SettingsValueLiteral),
     Expression(String),
     Enum(String),
     Block(SettingsLiteralBlockDefinition),
+}
+#[derive(Debug)]
+pub enum SettingsValueLiteral {
+    LiteralNumberWithUnit(Number, Unit),
+    LiteralNumber(Number),
+    LiteralArray(Vec<SettingsValueLiteral>),
+    String(String),
+}
+#[derive(Debug)]
+pub enum Number {
+    Float(f64),
+    Int(i64)
+}
+#[derive(Debug)]
+pub enum Unit {
+    Pixels,
+    Percent
 }
 
 //

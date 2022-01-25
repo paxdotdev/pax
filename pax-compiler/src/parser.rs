@@ -14,13 +14,13 @@ use std::{env, fs};
 use std::hint::unreachable_unchecked;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
-use pest::iterators::Pair;
+use pest::iterators::{Pair, Pairs};
 
 use uuid::Uuid;
 
 
 use pest::Parser;
-use pax_message::{ComponentDefinition, PaxManifest, SettingsLiteralBlockDefinition, SettingsSelectorBlockDefinition, SettingsValueDefinition, TemplateNodeDefinition};
+use pax_message::{AttributeValueDefinition, ComponentDefinition, Number, PaxManifest, SettingsLiteralBlockDefinition, SettingsSelectorBlockDefinition, SettingsValueDefinition, SettingsValueLiteral, TemplateNodeDefinition, Unit};
 // use pest::prec_climber::PrecClimber;
 
 #[derive(Parser)]
@@ -292,8 +292,8 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
         Rule::matched_tag => {
             //matched_tag => open_tag > pascal_identifier
             let matched_tag = any_tag_pair;
-            let open_tag = matched_tag.clone().into_inner().next().unwrap();
-            let pascal_identifier = open_tag.into_inner().next().unwrap().as_str();
+            let mut open_tag = matched_tag.clone().into_inner().next().unwrap().into_inner();
+            let pascal_identifier = open_tag.next().unwrap().as_str();
 
 
             let new_id = get_uuid();
@@ -337,14 +337,15 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
             let template_node = TemplateNodeDefinition {
                 id: new_id,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect("Template key not found").to_string(),
-                inline_attributes: None, //TODO
+                inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
             };
             ctx.template_node_definitions.push(template_node);
 
         },
         Rule::self_closing_tag => {
-            let pascal_identifier = any_tag_pair.into_inner().next().unwrap().as_str();
+            let mut tag_pairs = any_tag_pair.into_inner();
+            let pascal_identifier = tag_pairs.next().unwrap().as_str();
             let new_id = get_uuid();
             if ctx.is_root {
                 ctx.root_template_node_id = Some(new_id.clone());
@@ -359,7 +360,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
             let template_node = TemplateNodeDefinition {
                 id: new_id,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect("Template key not found").to_string(),
-                inline_attributes: None, //TODO
+                inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 children_ids: vec![]
             };
             ctx.template_node_definitions.push(template_node);
@@ -368,12 +369,77 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
     }
 }
 
+
+fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Rule>) -> Option<Vec<(String, AttributeValueDefinition)>> {
+    let vec : Vec<(String, AttributeValueDefinition)> = final_pairs_of_tag.map(|attribute_key_value_pair|{
+        let mut kv = attribute_key_value_pair.into_inner();
+        //TODO: handle expression
+        let key = kv.next().unwrap().as_str().to_string();
+        let mut raw_value = kv.next().unwrap().into_inner().next().unwrap();
+        let value = match raw_value.as_rule() {
+            Rule::string => {AttributeValueDefinition::String(raw_value.as_str().to_string())},
+            Rule::expression => {AttributeValueDefinition::Expression(raw_value.as_str().to_string())},
+            _ => {unreachable!(raw_value.as_str())}
+        };
+        (key, value)
+    }).collect();
+
+    if vec.len() > 0 {
+        Some(vec)
+    }else{
+        None
+    }
+}
+
+fn handle_number_string(num_string: &str) -> Number {
+    //for now, maybe naively, treat as float IFF there's a `.` in its string representation
+    if num_string.contains(".") {
+        Number::Float(num_string.parse::<f64>().unwrap())
+    } else {
+        Number::Int(num_string.parse::<i64>().unwrap())
+    }
+}
+
+fn handle_unit_string(unit_string: &str) -> Unit {
+    match unit_string {
+        "px" => Unit::Pixels,
+        "%" => Unit::Percent,
+        _ => {unimplemented!("Only px or % are currently supported as units")}
+    }
+}
+
+fn derive_literal_value_from_pair(literal_value_pair: Pair<Rule>) -> SettingsValueLiteral {
+    //literal_value = { literal_number_with_unit | literal_number | literal_array | string }
+    let inner_literal = literal_value_pair.into_inner().next().unwrap();
+    match inner_literal.as_rule() {
+        Rule::literal_number_with_unit => {
+            let mut tokens = inner_literal.into_inner();
+            let num_str = tokens.next().unwrap().as_str();
+            let unit_str = tokens.next().unwrap().as_str();
+            SettingsValueLiteral::LiteralNumberWithUnit(handle_number_string(num_str),handle_unit_string(unit_str))
+        },
+        Rule::literal_number => {
+            let num_str = inner_literal.as_str();
+            SettingsValueLiteral::LiteralNumber(handle_number_string(num_str))
+        },
+        Rule::literal_array => {
+            unimplemented!("literal arrays aren't supported but should be. fix me!")
+            //in particular, need to handle heterogenous types (i.e. not allow them)
+            //might just be able to rely on rustc to enforce
+        },
+        Rule::string => {
+            SettingsValueLiteral::String(inner_literal.as_str().to_string())
+        },
+        _ => {unimplemented!()}
+    }
+}
+
 fn derive_settings_value_definition_from_literal_object_pair(mut literal_object: Pair<Rule>) -> SettingsLiteralBlockDefinition {
     let mut literal_object_pairs = literal_object.into_inner();
 
     let explicit_type_pascal_identifier = match literal_object_pairs.peek().unwrap().as_rule() {
         Rule::pascal_identifier => {
-            Some(literal_object_pairs.next().unwrap().to_string())
+            Some(literal_object_pairs.next().unwrap().as_str().to_string())
         },
         _ => { None }
     };
@@ -382,19 +448,20 @@ fn derive_settings_value_definition_from_literal_object_pair(mut literal_object:
         explicit_type_pascal_identifier,
         settings_key_value_pairs: literal_object_pairs.map(|settings_key_value_pair| {
             let mut pairs = settings_key_value_pair.into_inner();
-            let key = pairs.next().unwrap().to_string();
+            let setting_key = pairs.next().unwrap().as_str().to_string();
             let raw_value = pairs.next().unwrap().into_inner().next().unwrap();
-            let value = match raw_value.as_rule() {
-                Rule::literal_value => { SettingsValueDefinition::Literal(raw_value.to_string())},
+            let setting_value = match raw_value.as_rule() {
+                Rule::literal_value => { SettingsValueDefinition::Literal(derive_literal_value_from_pair(raw_value))},
                 Rule::literal_object => { SettingsValueDefinition::Block(
                     //Recurse
                     derive_settings_value_definition_from_literal_object_pair(raw_value)
                 )},
-                Rule::enum_value => {SettingsValueDefinition::Enum(raw_value.to_string())},
-                Rule::expression => { SettingsValueDefinition::Expression(raw_value.to_string())},
+                Rule::enum_value => {SettingsValueDefinition::Enum(raw_value.as_str().to_string())},
+                Rule::expression => { SettingsValueDefinition::Expression(raw_value.as_str().to_string())},
                 _ => {unreachable!()}
             };
-            (key, value)
+
+            (setting_key, setting_value)
 
         }).collect()
     }

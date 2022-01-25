@@ -1,6 +1,6 @@
 <Group>
     <Rectangle id="rect-a" />
-    <Rectangle id="rect-b" />
+    <Rectangle id="rect-b"  />
 </Group>
 
 @settings {
@@ -12,7 +12,7 @@
             style: {
                 line_join: None
                 line_cap: LineCap::Butt
-                dash: [5,0,5,0]
+                // dash: [5,0,5,0]
             }
         }
         transform: {

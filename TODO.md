@@ -75,6 +75,7 @@ Perhaps a macro is the answer?
     [x] sketch out .pax folder design
     [ ] codegen PropertiesCoproduct
     [ ] codegen DefinitionToInstance traverser (at least `match` block)
+        [ ] figure out codegen + type unpacking — use JSON or similar Derive-able ?
     [ ] codegen Cargo.toml + solution for patching
         [ ] Maybe need to "deep patch" pax-properties-coproduct within core, dep. on how Cargo resolves `patch`
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)

@@ -74,7 +74,7 @@ settings_key = @{ identifier ~ ":" }
 settings_value = { literal_value | literal_object | enum_value | expression }
 
 literal_value = { literal_number_with_unit | literal_number | literal_array | string }
-literal_number_with_unit = @{ literal_number ~ literal_number_unit }
+literal_number_with_unit = { literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
 literal_number_integer = {(!(".") ~ ASCII_DIGIT)+ }
 literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
