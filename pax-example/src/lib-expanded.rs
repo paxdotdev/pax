@@ -31,6 +31,9 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "parser")]
 use std::{env, fs};
 #[cfg(feature = "parser")]
+use pax::message::PaxManifest;
+
+#[cfg(feature = "parser")]
 lazy_static! {
     static ref source_id: String = parser::get_uuid();
 }
@@ -42,7 +45,15 @@ pub fn main() {
         visited_source_ids: HashSet::new(),
         component_definitions: vec![],
     };
-    let _ = Root::parse_to_manifest(ctx);
+    let (ctx, _) = Root::parse_to_manifest(ctx);
+
+    //TODO: should be able to de-dupe PaxManifest and ManifestContext data structures
+    let manifest = PaxManifest {
+        components: ctx.component_definitions,
+        root_component_id: ctx.root_component_id,
+    };
+
+    println!("serialized bytes: {:?}", manifest.serialize());
 }
 
 #[cfg(feature = "parser")]

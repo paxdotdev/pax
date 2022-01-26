@@ -1,7 +1,7 @@
 # TODO
 
 
-## Milestone: proof of concept
+## Milestone: proof of concept engine
 
 [x] Rendering 
 [x] Components 
@@ -49,12 +49,14 @@ Perhaps a macro is the answer?
 
 ## Milestone: "hello world" from .pax
 
-
 [x] Compile base cartridge
     [x] Refactor PropertiesCoproduct to its own module
     [x] Sanity check "patch" ability for "blanks" (Properties, Expressions)
     [x] Demo app chassis running example project (`./serve.sh`)
         [x] Add stub macro for `pax`, derives
+[x] baseline primitive(s) for hello world
+    [x] import/package management
+    [x] RIL -> PAX compatibility, or rewrite primitives
 [ ] `pax-compiler`
     [x] architecture, seq. diagram
     [ ] two-stage compilation process
@@ -62,43 +64,36 @@ Perhaps a macro is the answer?
         [x] parser cargo feature
         [x] bin-running harness to execute parser (see https://stackoverflow.com/questions/62180215/renaming-main-rs-and-using-with-cargo)
         [ ] TCP message passing
-            [ ] de/serialization for manifest
-                [ ] maybe normalize SelectorLiteralBlockDefinitions, if Serde can't elegantly de/serialize it
+            [x] de/serialization for manifest
+                [x] maybe normalize SelectorLiteralBlockDefinitions, if Serde can't elegantly de/serialize it
+                [x] or de-normalize TemplateNodeDefinition!
             [ ] coordination of TCP components from compiler main thread
         [ ] parse and load .pax files
             [x] load file via macro
             [ ] generate the necessary bits via macro
-            [ ] port minimal set of std entities (Rectangle, Group) to support manifest-gen 
-            [ ] traverse manifest of Component defs: parse .pax files, store in mem
+            [x] port minimal set of std entities (Rectangle, Group) to support manifest-gen 
+            [x] traverse manifest of Component defs: parse .pax files, store in mem
             [x] (start with templates only)
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
-    [ ] codegen PropertiesCoproduct
-    [ ] codegen DefinitionToInstance traverser (at least `match` block)
-        [ ] figure out codegen + type unpacking — use JSON or similar Derive-able ?
     [ ] codegen Cargo.toml + solution for patching
         [ ] Maybe need to "deep patch" pax-properties-coproduct within core, dep. on how Cargo resolves `patch`
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
     [ ] maybe codegen RIL INSTEAD OF designtime coordination;
         as a path to quicker PoC
-[ ] macros
-    [ ] write manual expanded form
-    [ ] write automated expanded form
-    [ ] mechanism to ensure every macro is invoked each compilation (or otherwise deterministically cached)
-    [ ] Phone home to macro communication server to register Components/Properties   
-        - component names/paths and pax file paths 
-        - property schemas assoc. with components
 [ ] designtime
-    [ ] legwork for `Definitions` and `Instances`
-        [ ] Write `Definition` structs and refactor existing entities to `Instance` structs
-        [ ] Write ORM methods for `Definitions`
+    [ ] codegen PropertiesCoproduct
+        [ ] manual
+        [ ] macro
+    [ ] codegen DefinitionToInstance traverser
+        [ ] codegen in `#[pax]`: From<SettingsLiteralBlockDefinition>
+            [ ] manual
+            [ ] macro
+        [ ] instantiator/traverser logic (codegen or library-coded)
+    [ ] duplex websocket connection + handlers
+        [ ] Write ORM (and maybe caching) methods for `Definitions`
         [ ] Attach CRUD API endpoints to `Definition` ORM methods via `designtime` server
     [ ] figure out recompilation loop or hot-reloading of Properties and Expressions
-
-
-[ ] baseline primitive(s) for hello world
-    [ ] import/package management
-    [ ] RIL -> PAX compatibility, or rewrite primitives
 [ ] render Hello World
     [ ] Manage mounting of Engine and e2e 
 
@@ -177,16 +172,8 @@ Perhaps a macro is the answer?
 [ ] Perf-optimize Rectangle (assuming BezPath is inefficient)
 
 
-
 ```
 Creative development environment
 for makers of
 graphical user interfaces
 ```
-
-
-
-
-Lab journal:
-
-

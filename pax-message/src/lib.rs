@@ -1,4 +1,6 @@
 use std::path::Component;
+use serde::{Serialize, Deserialize};
+use bincode::{serialize, deserialize};
 
 #[cfg(test)]
 mod tests {
@@ -9,35 +11,45 @@ mod tests {
     }
 }
 
-
-
 //definition container for an entire Pax cartridge
+#[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct PaxManifest {
     pub components: Vec<ComponentDefinition>,
     pub root_component_id: String,
 }
 
-pub enum Action {
-    Create,
-    Read,
-    Update,
-    Delete,
-    Command,
+//this method is exposed to encapsulate the serialization method/version (at time of writing: bincode 1.3.3)
+//though that particular version isn't important, this prevents consuming libraries from having to
+//coordinate versions/strategies for serialization
+impl PaxManifest {
+    pub fn serialize(&self) -> Vec<u8> {
+        serialize(&self).unwrap()
+    }
 }
-
-#[allow(dead_code)]
-pub struct PaxMessage {
-    pub action: Action,
-    pub payload: Entity,
-}
-
-pub enum Entity {
-    ComponentDefinition(ComponentDefinition),
-    TemplateNodeDefinition(TemplateNodeDefinition),
-    CommandDefinitionTODO,
-}
+//
+// pub enum Action {
+//     Create,
+//     Read,
+//     Update,
+//     Delete,
+//     Command,
+// }
+//
+// #[allow(dead_code)]
+// pub struct PaxMessage {
+//     pub action: Action,
+//     pub payload: Entity,
+// }
+//
+// pub enum Entity {
+//     ComponentDefinition(ComponentDefinition),
+//     TemplateNodeDefinition(TemplateNodeDefinition),
+//     CommandDefinitionTODO,
+// }
 
 #[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct ComponentDefinition {
     pub id: String,
     pub pascal_identifier: String,
@@ -51,6 +63,7 @@ pub struct ComponentDefinition {
 }
 
 #[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 //Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 pub struct TemplateNodeDefinition {
     pub id: String,
@@ -59,14 +72,15 @@ pub struct TemplateNodeDefinition {
     pub children_ids: Vec<String>,
 }
 
-#[allow(dead_code)]
 #[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 pub enum AttributeValueDefinition {
     String(String),
     Expression(String),
 }
 
 #[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct SettingsSelectorBlockDefinition {
     pub selector: String,
     pub value_block: SettingsLiteralBlockDefinition,
@@ -78,30 +92,38 @@ pub struct SettingsSelectorBlockDefinition {
 }
 
 #[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 pub struct SettingsLiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<String>,
     pub settings_key_value_pairs: Vec<(String, SettingsValueDefinition)>,
 }
 
 #[derive(Debug)]
+#[derive(Serialize, Deserialize)]
 pub enum SettingsValueDefinition {
-    Literal(SettingsValueLiteral),
+    Literal(SettingsLiteralValue),
     Expression(String),
     Enum(String),
     Block(SettingsLiteralBlockDefinition),
 }
+
 #[derive(Debug)]
-pub enum SettingsValueLiteral {
+#[derive(Serialize, Deserialize)]
+pub enum SettingsLiteralValue {
     LiteralNumberWithUnit(Number, Unit),
     LiteralNumber(Number),
-    LiteralArray(Vec<SettingsValueLiteral>),
+    LiteralArray(Vec<SettingsLiteralValue>),
     String(String),
 }
+
+#[derive(Serialize, Deserialize)]
 #[derive(Debug)]
 pub enum Number {
     Float(f64),
     Int(i64)
 }
+
+#[derive(Serialize, Deserialize)]
 #[derive(Debug)]
 pub enum Unit {
     Pixels,

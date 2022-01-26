@@ -20,7 +20,7 @@ use uuid::Uuid;
 
 
 use pest::Parser;
-use pax_message::{AttributeValueDefinition, ComponentDefinition, Number, PaxManifest, SettingsLiteralBlockDefinition, SettingsSelectorBlockDefinition, SettingsValueDefinition, SettingsValueLiteral, TemplateNodeDefinition, Unit};
+use pax_message::{AttributeValueDefinition, ComponentDefinition, Number, PaxManifest, SettingsLiteralBlockDefinition, SettingsSelectorBlockDefinition, SettingsValueDefinition, SettingsLiteralValue, TemplateNodeDefinition, Unit};
 // use pest::prec_climber::PrecClimber;
 
 #[derive(Parser)]
@@ -408,7 +408,7 @@ fn handle_unit_string(unit_string: &str) -> Unit {
     }
 }
 
-fn derive_literal_value_from_pair(literal_value_pair: Pair<Rule>) -> SettingsValueLiteral {
+fn derive_literal_value_from_pair(literal_value_pair: Pair<Rule>) -> SettingsLiteralValue {
     //literal_value = { literal_number_with_unit | literal_number | literal_array | string }
     let inner_literal = literal_value_pair.into_inner().next().unwrap();
     match inner_literal.as_rule() {
@@ -416,11 +416,11 @@ fn derive_literal_value_from_pair(literal_value_pair: Pair<Rule>) -> SettingsVal
             let mut tokens = inner_literal.into_inner();
             let num_str = tokens.next().unwrap().as_str();
             let unit_str = tokens.next().unwrap().as_str();
-            SettingsValueLiteral::LiteralNumberWithUnit(handle_number_string(num_str),handle_unit_string(unit_str))
+            SettingsLiteralValue::LiteralNumberWithUnit(handle_number_string(num_str), handle_unit_string(unit_str))
         },
         Rule::literal_number => {
             let num_str = inner_literal.as_str();
-            SettingsValueLiteral::LiteralNumber(handle_number_string(num_str))
+            SettingsLiteralValue::LiteralNumber(handle_number_string(num_str))
         },
         Rule::literal_array => {
             unimplemented!("literal arrays aren't supported but should be. fix me!")
@@ -428,7 +428,7 @@ fn derive_literal_value_from_pair(literal_value_pair: Pair<Rule>) -> SettingsVal
             //might just be able to rely on rustc to enforce
         },
         Rule::string => {
-            SettingsValueLiteral::String(inner_literal.as_str().to_string())
+            SettingsLiteralValue::String(inner_literal.as_str().to_string())
         },
         _ => {unimplemented!()}
     }
