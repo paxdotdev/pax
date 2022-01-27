@@ -26,7 +26,7 @@ use futures::prelude::*;
 
 
 
-use pax_message::PaxMessage;
+use pax_message::*;
 use serde_json::Value;
 use tokio::process::Command;
 use tokio::sync::oneshot;
@@ -161,16 +161,9 @@ struct RunContext {
 }
 
 
-#[derive(Debug)]
-struct ComponentManifest {
-    pax_file_path: String,
-}
+async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, return_data_channel : tokio::sync::oneshot::Sender<PaxManifest>, macro_coordination_tcp_port: u16) -> Result<(), Error> {
 
-async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, return_data_channel : tokio::sync::oneshot::Sender<Vec<ComponentManifest>>, macro_coordination_tcp_port: u16) -> Result<(), Error> {
-
-    // Bind a server socket
     let listener = TcpListener::bind(format!("127.0.0.1:{}",macro_coordination_tcp_port)).await.unwrap();
-    let mut manifests: Vec<ComponentManifest> = vec![];
 
     loop {
         tokio::select! {
@@ -182,7 +175,10 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
             }
             _ = listener.accept() => {
                 println!("TCP message received");
-                &manifests.push(ComponentManifest{pax_file_path: "TODO: get from TCP frame".into()});
+
+                let tcp_msg = "TODO".as_bytes();
+
+                return_data_channel.send(PaxManifest::deserialize(tcp_msg));
             }
         }
 
@@ -253,25 +249,33 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     println!("Listening for macro communication on open TCP port: {}", macro_coordination_tcp_port);
 
     let (red_phone_tx, red_phone_rx) = tokio::sync::mpsc::unbounded_channel();
-    let (payload_tx, payload_rx) = tokio::sync::oneshot::channel();
+    let (payload_tx, mut payload_rx) = tokio::sync::oneshot::channel();
 
-    let handle = task::spawn(
+    let macro_coordination_handle = task::spawn(
         run_macro_coordination_server(red_phone_rx, payload_tx, macro_coordination_tcp_port)
     );
 
-    let cargo_future = Command::new("cargo").current_dir(ctx.path).arg("build")
+    let cargo_parser_future = Command::new("cargo").current_dir(ctx.path).arg("build")
         .spawn().expect("failed to execute cargo build").wait_with_output();
 
     let mut cargo_exit_code : i32 = -1;
 
+
     select! {
-        _ = handle => {
-            panic!("macro coordination server failed"); //this should not return before cargo does; should require manual shutdown
+        _ = macro_coordination_handle => {
+            panic!("Macro coordination thread failed or crashed before receiving data.")
         }
-        exit_code = cargo_future => {
+        exit_code = cargo_parser_future => {
             cargo_exit_code = exit_code.expect("failed to capture exit code").status.code().unwrap();
         }
     }
+
+    let manifest = payload_rx.await.expect("failed to receive message from macro coordination server");
+
+    println!("Received deserialized manifest in compiler thread! {:?}", manifest);
+
+    //shut down macro coordination thread
+    red_phone_tx.send(true);
 
     //TODO: cp lib.rs to .pax.manifest.rs
 
@@ -286,7 +290,10 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     let component_manifest = payload_rx.await.expect("failed to retrieve component_manifest from macro coordination thread");
 
     println!("received component manifest: {:?}",component_manifest);
-    // handle.await?;
+
+    //TODO: codegen PropertiesCoproduct
+    //TODO: codegen DefinitionToInstanceTraverser (note: probably hand-roll this for v0, like macros)
+
 
     
 

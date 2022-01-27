@@ -1,12 +1,34 @@
 #[macro_use]
 extern crate lazy_static;
 
-use pax::std::{Group, Rectangle};
+use pax::*;
+use pax_std::{Group, Rectangle};
 
 pub struct DeeperStruct {
     a: i64,
     b: &'static str,
 }
+
+
+
+pub mod exports {
+    pub mod pax_std {
+        pub mod primitives {
+            pub use pax_std::primitives::rectangle;
+            pub use pax_std::primitives::group;
+        }
+    }
+
+    pub use crate::Root;
+
+
+    //pub use <project_name> hopefully not necessary; it's implicit via the exports in the root file
+}
+
+
+
+
+
 
 //#[pax] was here
 pub struct Root {
@@ -53,7 +75,11 @@ pub fn main() {
         root_component_id: ctx.root_component_id,
     };
 
+
+
     println!("serialized bytes: {:?}", manifest.serialize());
+
+    let tcp_port = std::env::var("PAX_TCP_CALLBACK_PORT").expect("TCP callback port not provided");
 }
 
 #[cfg(feature = "parser")]

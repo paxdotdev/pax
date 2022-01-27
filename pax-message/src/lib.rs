@@ -19,12 +19,16 @@ pub struct PaxManifest {
     pub root_component_id: String,
 }
 
-//this method is exposed to encapsulate the serialization method/version (at time of writing: bincode 1.3.3)
+//these methods are exposed to encapsulate the serialization method/version (at time of writing: bincode 1.3.3)
 //though that particular version isn't important, this prevents consuming libraries from having to
 //coordinate versions/strategies for serialization
 impl PaxManifest {
     pub fn serialize(&self) -> Vec<u8> {
         serialize(&self).unwrap()
+    }
+
+    pub fn deserialize(bytes: &[u8]) -> Self {
+        deserialize(bytes).unwrap()
     }
 }
 //

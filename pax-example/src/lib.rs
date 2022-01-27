@@ -1,7 +1,5 @@
 use pax::*;
-
-// use pax::std::{Rectangle, Group};
-
+use pax_std::{Group, Rectangle};
 
 pub struct DeeperStruct {
     a: i64,

@@ -7,6 +7,11 @@ edition = "2018"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 
+#TODO: delete this section once lib.rs is expanded by macro
+[lib]
+name="pax_example"
+path = "src/lib-expanded.rs"
+
 ### GENERATE
 [[bin]]
 name = "parser"
@@ -16,11 +21,14 @@ required-features = ["parser"]
 
 [features]
 ### GENERATE
-parser = ["pax/parser"]
+parser = ["pax-std/parser"]
 ### END GENERATE
 
 [dependencies]
-pax = { path = "../pax" }
+pax = {path = "../pax"}
+pax-std = {path = "../pax-std"}
 ### REMOVE once lazy_static pascal_identifier hack is removed from manually expanded prototype macros
 lazy_static = "*"
+
+
 

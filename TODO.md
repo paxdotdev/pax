@@ -71,6 +71,8 @@ Perhaps a macro is the answer?
         [ ] parse and load .pax files
             [x] load file via macro
             [ ] generate the necessary bits via macro
+                [ ] manual
+                [ ] macro
             [x] port minimal set of std entities (Rectangle, Group) to support manifest-gen 
             [x] traverse manifest of Component defs: parse .pax files, store in mem
             [x] (start with templates only)
