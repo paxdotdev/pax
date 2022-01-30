@@ -1,4 +1,4 @@
-use pax_example::exports::pax_std::primitives::rectangle::Rectangle;
+use pax_example::pax_types::pax_std::primitives::rectangle::Rectangle;
 
 /// ∐
 /// This data structure represents all of the Component Properties that
@@ -19,8 +19,14 @@ use pax_example::exports::pax_std::primitives::rectangle::Rectangle;
 ///
 pub enum PropertiesCoproduct {
     //pascal_identifier + "(" + cartridge project name + "::exports::" + module_path + "::" + pascal_identifier}
-    Rectangle(pax_example::exports::pax_std::primitives::rectangle::Rectangle),
-    Group(pax_example::exports::pax_std::primitives::group::Group),
+    Rectangle(pax_example::pax_types::pax_std::primitives::rectangle::Rectangle),
+    Group(pax_example::pax_types::pax_std::primitives::group::Group),
     Root(pax_example::Root),
 }
 
+pub enum PatchCoproduct {
+
+    // Rectangle(pax_example::exports::pax_std::primitives::rectangle::Rectangle),
+    // Group(pax_example::exports::pax_std::primitives::group::Group),
+    RootPatch(pax_example::RootPatch),
+}

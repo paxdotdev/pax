@@ -9,7 +9,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, Component, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, PropertyTimeline, RenderNodePtr, Size, Stroke, StrokeStyle, Transform, RenderNode};
+use crate::{Affine, ComponentInstance, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, PropertyTimeline, RenderNodePtr, Size, Stroke, StrokeStyle, Transform, RenderNode};
 use crate::rendering::Size2DFactory;
 use crate::runtime::{Runtime};
 use crate::timeline::{EasingCurve, Timeline, TimelineSegment};
@@ -22,7 +22,7 @@ pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> PaxEngine {
 
 pub struct PaxEngine {
     pub frames_elapsed: usize,
-    pub root_component: Rc<RefCell<Component>>, //NOTE: to support multiple concurrent "root components," e.g. for multi-stage authoring, this could simply be made an array of `root_components`
+    pub root_component: Rc<RefCell<ComponentInstance>>, //NOTE: to support multiple concurrent "root components," e.g. for multi-stage authoring, this could simply be made an array of `root_components`
     pub runtime: Rc<RefCell<Runtime>>,
     viewport_size: (f64, f64),
 }
@@ -67,7 +67,7 @@ impl PaxEngine {
     // }
 
     #[cfg(not(feature="designtime"))]
-    fn get_root_component(&self) -> Rc<RefCell<Component>> {
+    fn get_root_component(&self) -> Rc<RefCell<ComponentInstance>> {
         //For production, retrieve "baked in" render tree
         Rc::clone(&self.root_component)
     }
@@ -237,8 +237,15 @@ impl<T> Evaluator<T> for MyManualMacroExpression<T> {
         //       pull necessary data from `ic`,
         //       map into the variadic args of elf.variadic_evaluator()
         //       Perhaps this is a LUT of `String => (Fn(njectionContext) -> V)` for any variadic type (injection tream) V
+
+        let x = ||{};
+        let y = |x: i64| x + 6;
+
+
         let engine = ic.engine;
         (self.variadic_evaluator)(engine)
+
+
     }
 }
 

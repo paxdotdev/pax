@@ -68,41 +68,57 @@ Perhaps a macro is the answer?
                 [x] maybe normalize SelectorLiteralBlockDefinitions, if Serde can't elegantly de/serialize it
                 [x] or de-normalize TemplateNodeDefinition!
             [ ] coordination of TCP components from compiler main thread
-        [ ] parse and load .pax files
+        [x] parse and load .pax files
             [x] load file via macro
-            [ ] generate the necessary bits via macro
-                [ ] manual
-                [ ] macro
+            [x] generate the parser bin logic via macro
+                [x] manual
             [x] port minimal set of std entities (Rectangle, Group) to support manifest-gen 
             [x] traverse manifest of Component defs: parse .pax files, store in mem
             [x] (start with templates only)
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
-    [ ] codegen Cargo.toml + solution for patching
-        [ ] Maybe need to "deep patch" pax-properties-coproduct within core, dep. on how Cargo resolves `patch`
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
-    [ ] maybe codegen RIL INSTEAD OF designtime coordination;
-        as a path to quicker PoC
-[ ] designtime
-    [ ] codegen PropertiesCoproduct
-        [ ] manual
+    
+[ ] compiler codegen
+    [ ] codegen Cargo.toml + solution for patching
+        [x] manual
+        [ ] automated + file generation
+    [ ] parser bin logic finish-line
         [ ] macro
-    [ ] codegen DefinitionToInstance traverser
-        [ ] codegen in `#[pax]`: From<SettingsLiteralBlockDefinition>
-            [ ] manual
-            [ ] macro
-        [ ] instantiator/traverser logic (codegen or library-coded)
-    [ ] duplex websocket connection + handlers
-        [ ] Write ORM (and maybe caching) methods for `Definitions`
-        [ ] Attach CRUD API endpoints to `Definition` ORM methods via `designtime` server
-    [ ] figure out recompilation loop or hot-reloading of Properties and Expressions
+    [ ] codegen PropertiesCoproduct
+        [x] manual
+        [ ] macro
+        [ ] hook into compiler lifecycle
+    [ ] serialize to RIL
+        [ ] hand-write RIL first!
+        [ ] normalize manifest, or efficient JIT traversal
+            [ ] stack Settings fragments (settings-selector-blocks and inline properties on top of defaults)
+            [ ] might need to codegen traverser!
+                [ ] or might be able to be "dumb" (purely static) with codegen, relying on rustc to complain
+        [ ] probably need to store property k/v/types in Manifest (and maybe fully qualified type paths)
+        [ ] codegen RIL into source via `#[pax]` macro, to enable vanilla run-via-cargo (well, pax-compiler, but maybe there's still a path to bare cargo!)
+        [ ] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
+    [ ] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
+
 [ ] render Hello World
     [ ] Manage mounting of Engine and e2e 
 
 ## Milestone: clickable square
 
+[ ] Designtime
+    [ ] codegen DefinitionToInstance traverser
+        [ ] codegen in `#[pax]`: From<SettingsLiteralBlockDefinition>
+            [ ] manual
+            [ ] macro
+    [ ] instantiator/traverser logic (codegen or library-coded)
+    [ ] duplex websocket connection + handlers
+        [ ] Write ORM (and maybe caching) methods for `Definitions`
+        [ ] Attach CRUD API endpoints to `Definition` ORM methods via `designtime` server
+    [ ] figure out recompilation loop or hot-reloading of Properties and Expressions
+        [ ] incl. state transfer
 [ ] Action API
     [ ] state management (.get/.set/etc.)
+    [ ] hooks into dirty-update system
     [ ] Instantiation, reference management, enum ID + addressing for method definitions &
         invocations
     [ ] tween/dynamic timeline API
@@ -178,4 +194,128 @@ Perhaps a macro is the answer?
 Creative development environment
 for makers of
 graphical user interfaces
+```
+
+
+
+## zb lab journal
+
+### untangling Definitions, Values, and Patches
+2022/01/27
+
+We need "patches" to support stacking of sparse
+definitions, e.g.  {foo: "bar"} + {baz: "qux"} => {foo: "bar", baz: "qux"}
+
+How do these patches come to bear between .pax and the runtime?
+Where do Expressions (and the exptable) fit in?
+`Patch`ing also requires Default fallbacks — where do _those_ slot in?
+
+Perhaps Patches can be combined (a la overriding `+`), and can
+be distilled into values.  Perhaps a component, e.g., `Root` supports
+`apply_patch(&mut self, patch: RootPatch)`
+
+Where does this logic live (which feature/lifecycle stage?)
+Seems like `designtime` is the key.  Not needed for runtime
+(action value setting can be a different concern with a lighter footprint)
+
+Two flavors of instantiating Definitions:
+ - transpiling into RIL (hard-coded N/PIT; once & done)
+ - dynamic traversal into N/PIT for designtime
+    - accept changes in definitions
+      - special handling for Expressions/exptable
+    - separate definitions from values (e.g. maybe `patch`es for each?)
+       Note: e.g. `Root` vs. `RootPatch` already does this; Root is a "value" container (can rep. patch)
+       Perhaps start with use-case:  we need to `Patch`-stack in order to assemble sparse property
+       DEFINITIONS from pax, e.g.
+    - Do we really need to worry about values at all?  Those are already handled well by the runtime.
+       when a user changes
+
+One wrinkle re: managing the patch-stacking logic in the designtime:
+this would require dynamic evaluation in order to generate RIL.
+Which shouldn't strictly be necessary.  RIL SHOULD be
+generatable directly from a PaxManifest. (Is this true?
+is this some sort of purity-for-purity's-sake situation?)
+
+Perhaps it isn't so bad for the compiler to load the cartridge + designtime in order
+to traverse the manifest => 
+
+1. normalize PaxManifest (into a single traversable tree with inline property values as frames of the bare structs, ready for RIL
+   1. This requires collapsing stacked values, probably in a way that's distinct from the way the designtime does it (designtime deals in stacks of patches, vs RIL transpiler dealing with a normalized tree)
+   2. This also requires transpiling + "blank"ing in an Expression table
+   3. This also requires knowing property schema in the Manifest!  Thus far this hasn't been a thing.
+      1. Need a way to universally qualify types, a la module_path!() [this might be tricky!]
+      2. Alternatively, could do another bin-conversion trick a la parser, and rely on macros to make sense of property types on-the-fly
+         1. (Note: it will be important to know property schema eventually, not least to expose to design tool)
+
+Conclusion: further dynamic evaluation is unideal; requires more compilation loops
+
+### expressions
+2022-01-28
+
+transpile @ {x + 5} into |&properties| -> { &properties.x + 5 } along with glue/injection logic,
+dirty-handling logic, and vtable-like logic for storing & retrieving function (references)
+
+handle type resolution as much as necessary; let rustc complain about type mismatches/etc. 
+
+Expressions need to be dealt with in a few ways:
+- parsed from 1. a template attribute, 2. a settings value (recursively within settings tree)
+- looked up by ID, in RIL and in the DefinitionToInstance traverser
+- hooked into with dirty-watching system, along with dependency DAG (choose which expressions to re-eval, when)
+- future: hot-updated, via server message + recompiled binary/state-pass, when running the cartridge (compiler run mode, design tool)
+
+
+- originally was thinking of a central vtable a la propertiescoproduct
+  - this would make hot reloading easier (just replace the expressions sub-cartridge) — but it makes referencing difficult
+    - maybe referencing isn't difficult with implicit return types!!
+- am now thinking that each file generates its own expanded macros (via #[pax])
+  - during compiler codegen phase, expressions are transpiled, surrounded by glue, and tagged/ID'd
+  - for RIL, weave a code-genned pointer between a property instance and function (known from manifest)
+    - e.g. `background_color: PropertyExpression(&expression_table.ae25534efc)`
+  - for dynamic resolution, e.g. in designtime -
+    - First of all, what does dynamic resolution mean?
+      - It starts with a compiled cartridge + `designtime` feature, (already including RIL binary?) — which must already have an expression table compiled! (or capable of having it async loaded, FFI/etc.)
+      - Then, a user changes the value of a property from a literal to an expression, or changes the definition of a current expression
+      - Now, we must: 1. transpile the expression values to RIL, 
+- if it yet becomes the case that we need to deal with explicitly stated return types on the expression lambdas:
+  - expose fully qualified types in `pax_exports`, then track fully qualified import paths (e.g. pax_std::exports::foo) in manifest
+  - expose naked functions at the root of codegenned `expression_table`, like  
+```
+pub fn x(input: i64) -> i64 {
+    input + 6
+}
+```
+- (cont.)
+  - where the return type of the codegenned function is fully qualified via the nested-mod re-exports trick
+  - (and where primitive types are enumerated & special-cased)
+  - This likely also requires registering `DeeperStruct`s, e.g. via `#[pax struct]`
+
+
+### helpers, injectables
+2022-01-28
+
+e.g. Engine.frames_elapsed, or a userland helper function hue_shift()
+
+API thought: can continue the `#[pax ...]` convention, decorating a function declaration like so:
+```
+#[pax helper]
+pub fn hue_shift() {
+    //gather an entropic hue value from the world
+}
+```
+
+### timelines, syntax in .pax
+2022-01-29
+implemented in core, but not yet sketched in the pax language / parser, is timeline support.
+
+Timeline specs for a given property<T> are: 1. starting value: T, 2. Vec<{curve_in, ending_frame, ending_value: T}>
+
+A jot of how the API may look in a paxy way:
+```
+background_color: Timeline {
+    starting_value: Color::hsla()
+    segments: [
+        {}
+    ],
+    tween_strategy: ColorTweenStrategy::Hue,
+}
 ```

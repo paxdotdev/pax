@@ -11,7 +11,7 @@ use crate::timeline::Timeline;
 /// applications, at the root of reusable components like `Spread`, and
 /// in special applications like `Repeat` where it houses the `RepeatItem`
 /// properties attached to each of Repeat's virtual nodes.
-pub struct Component {
+pub struct ComponentInstance {
     pub template: RenderNodePtrList,
     pub adoptees: RenderNodePtrList,
     pub transform: Rc<RefCell<Transform>>,
@@ -23,7 +23,7 @@ pub struct Component {
 //TODO:
 //  - track internal playhead for this component
 
-impl RenderNode for Component {
+impl RenderNode for ComponentInstance {
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.template)
     }

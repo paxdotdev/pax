@@ -1,0 +1,14 @@
+//TODO: explore this API further
+//...
+
+background_color: Timeline {
+    starting_value: Color::hsla(1, 1, 1, 1)
+    segments: [
+        {until_frame: 24, final_value: Color::hsla(24, 24, 24, 24), curve: EasingCurve::in_out_back() }
+        {until_frame: 48, final_value: Color::hsla(1, 1, 1, 1), curve: EasingCurve::in_out_back() }
+    ],
+    tween_strategy: ColorTweenStrategy::Hue,
+    loop: true,
+}
+
+//
