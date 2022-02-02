@@ -1454,6 +1454,7 @@ version = "0.1.0"
 dependencies = [
  "lazy_static",
  "pax",
+ "pax-compiler",
  "pax-std",
 ]
 
@@ -1493,6 +1494,7 @@ dependencies = [
  "lazy_static",
  "pax",
  "pax-compiler",
+ "pax-message",
  "piet",
 ]
 

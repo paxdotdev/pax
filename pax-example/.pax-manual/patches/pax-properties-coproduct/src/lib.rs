@@ -1,5 +1,3 @@
-use pax_example::pax_types::pax_std::primitives::rectangle::RectangleInstance;
-
 /// ∐
 /// This data structure represents all of the Component Properties that
 /// exist in an application.
@@ -19,8 +17,8 @@ use pax_example::pax_types::pax_std::primitives::rectangle::RectangleInstance;
 ///
 pub enum PropertiesCoproduct {
     //pascal_identifier + "(" + cartridge project name + "::exports::" + module_path + "::" + pascal_identifier}
-    Rectangle(pax_example::pax_types::pax_std::primitives::rectangle::RectangleInstance),
-    Group(pax_example::pax_types::pax_std::primitives::group::Group),
+    Rectangle(pax_example::pax_types::pax_std::primitives::RectangleProperties),
+    Group(pax_example::pax_types::pax_std::primitives::GroupProperties),
     Root(pax_example::Root),
 }
 

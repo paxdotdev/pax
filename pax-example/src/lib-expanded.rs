@@ -222,9 +222,9 @@ pub struct Root {
 #[cfg(feature = "parser")]
 use pax::message::ComponentDefinition;
 #[cfg(feature = "parser")]
-use pax::parser;
+use parser;
 #[cfg(feature = "parser")]
-use pax::parser::ManifestContext;
+use parser::ManifestContext;
 #[cfg(feature = "parser")]
 use std::collections::HashMap;
 #[cfg(feature = "parser")]
@@ -281,7 +281,7 @@ impl Root {
                 let mut template_map: HashMap<String, String> = HashMap::new();
 
                 //GENERATE:
-                let (mut ctx, component_id) = RectangleInstance::parse_to_manifest(ctx);
+                let (mut ctx, component_id) = Rectangle::parse_to_manifest(ctx);
                 template_map.insert("Rectangle".into(), component_id);
                 let (mut ctx, component_id) = Group::parse_to_manifest(ctx);
                 template_map.insert("Group".into(), component_id);

@@ -27,7 +27,7 @@ pub mod primitives {
     #[cfg(feature = "parser")]
     use std::{env, fs};
     #[cfg(feature = "parser")]
-    use pax_message::{ComponentDefinition, SettingsValueDefinition, PaxManifest, SettingsLiteralBlockDefinition};
+    use pax::message::{ComponentDefinition, SettingsValueDefinition, PaxManifest, SettingsLiteralBlockDefinition};
     #[cfg(feature = "parser")]
     lazy_static! {
         static ref source_id: String = parser::get_uuid();
@@ -87,7 +87,7 @@ pub mod primitives {
     //     static ref source_id: String = parser::get_uuid();
     // }
     #[cfg(feature = "parser")]
-    impl Group {
+    impl Rectangle {
         pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
             match ctx.visited_source_ids.get(&source_id as &str) {
                 None => {

@@ -28,6 +28,7 @@ parser = ["pax-std/parser"]
 [dependencies]
 pax = {path = "../pax"}
 pax-std = {path = "../pax-std"}
+pax-compiler = {path = "../pax-compiler"}
 ### REMOVE once lazy_static pascal_identifier hack is removed from manually expanded prototype macros
 lazy_static = "*"
 #
