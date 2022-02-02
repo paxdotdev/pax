@@ -4,6 +4,16 @@ extern crate proc_macro2;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
+
+
+#[proc_macro]
+pub fn pax_primitive(args: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    //args are (pascal_identifier, path to crate root) e.g. pax-std-primitives
+    //codegen a module tree with wrapper types, e.g. Group, which can
+    //be imported and used in templates, thus appropriately parsed
+    proc_macro::TokenStream::new()
+}
+
 #[proc_macro_attribute]
 pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let _ = args;

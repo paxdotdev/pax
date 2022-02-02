@@ -1381,8 +1381,6 @@ dependencies = [
 name = "pax"
 version = "0.1.0"
 dependencies = [
- "pax-compiler",
- "pax-core",
  "pax-macro",
  "pax-message",
 ]
@@ -1412,7 +1410,6 @@ dependencies = [
  "console_error_panic_hook",
  "futures",
  "lazy_static",
- "pax-core",
  "pax-message",
  "pest",
  "pest_derive",
@@ -1436,7 +1433,7 @@ dependencies = [
  "kurbo",
  "lazy_static",
  "pax-macro",
- "pax-properties-coproduct",
+ "pax-properties-coproduct 0.2.0",
  "piet",
  "piet-web",
  "serde",
@@ -1449,6 +1446,15 @@ name = "pax-dev-server"
 version = "0.1.0"
 dependencies = [
  "actix-web",
+]
+
+[[package]]
+name = "pax-example"
+version = "0.1.0"
+dependencies = [
+ "lazy_static",
+ "pax",
+ "pax-std",
 ]
 
 [[package]]
@@ -1471,6 +1477,24 @@ dependencies = [
 [[package]]
 name = "pax-properties-coproduct"
 version = "0.1.0"
+
+[[package]]
+name = "pax-properties-coproduct"
+version = "0.2.0"
+dependencies = [
+ "pax-example",
+]
+
+[[package]]
+name = "pax-std"
+version = "0.1.0"
+dependencies = [
+ "kurbo",
+ "lazy_static",
+ "pax",
+ "pax-compiler",
+ "piet",
+]
 
 [[package]]
 name = "percent-encoding"

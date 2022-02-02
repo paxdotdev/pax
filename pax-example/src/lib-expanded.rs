@@ -2,10 +2,10 @@
 extern crate lazy_static;
 
 use pax::*;
-use pax_std::{Group, RectangleInstance};
-use pax::core::{ComponentInstance, HostPlatformContext, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform};
-use std::cell::RefCell;
-use std::rc::Rc;
+use pax_std::primitives::{Group, Rectangle};
+// use pax::core::{ComponentInstance, HostPlatformContext, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform};
+// use std::cell::RefCell;
+// use std::rc::Rc;
 
 #[derive(Copy, Clone)]
 pub struct DeeperStruct {
@@ -17,8 +17,8 @@ pub struct DeeperStruct {
 pub mod pax_types {
     pub mod pax_std {
         pub mod primitives {
-            pub use pax_std::primitives::rectangle;
-            pub use pax_std::primitives::group;
+            pub use pax_std::primitives::Rectangle;
+            pub use pax_std::primitives::Group;
         }
     }
 
@@ -48,22 +48,20 @@ pub struct Root {
 // }
 
 
-use pax::core::pax_properties_coproduct::PropertiesCoproduct;
-
-
-impl Root {
-    pub fn create_instance() -> Rc<RefCell<ComponentInstance>> {
-        let ret = ComponentInstance {
-            template: Rc::new(RefCell::new(vec![])),
-            adoptees: Rc::new(RefCell::new(vec![])),
-            transform: Rc::new(RefCell::new(Default::default())),
-            properties: Rc::new(RefCell::new(PropertiesCoproduct::Root)),
-            timeline: None
-        };
-
-        Rc::new(RefCell::new(ret))
-    }
-}
+//
+// impl Root {
+//     pub fn create_instance() -> Rc<RefCell<ComponentInstance>> {
+//         let ret = ComponentInstance {
+//             template: Rc::new(RefCell::new(vec![])),
+//             adoptees: Rc::new(RefCell::new(vec![])),
+//             transform: Rc::new(RefCell::new(Default::default())),
+//             properties: Rc::new(RefCell::new(PropertiesCoproduct::Root)),
+//             timeline: None
+//         };
+//
+//         Rc::new(RefCell::new(ret))
+//     }
+// }
 
 //Probably don't need to do the whole impl RenderNode chunk!
 //can just inflate a ComponentInstance and pass it to PaxEngine
@@ -78,50 +76,50 @@ impl Root {
 //     //     timeline: Option<Rc<RefCell<Timeline>>>,
 //     // })
 // }
-
-pub struct RootInstance {
-    pub size: Size2D,
-    pub transform: Rc<RefCell<Transform>>,
-    pub properties: Rc<Refcell<RootProperties>>,
-}
-
-impl RenderNode for RootInstance {
-    fn get_rendering_children(&self) -> RenderNodePtrList {
-        todo!()
-    }
-
-    fn get_size(&self) -> Option<Size2D> {
-        todo!()
-    }
-
-    fn should_flatten(&self) -> bool {
-        todo!()
-    }
-
-    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
-        todo!()
-    }
-
-    fn get_transform(&mut self) -> Rc<RefCell<Transform>> {
-        todo!()
-    }
-
-    fn compute_properties(&mut self, _rtc: &mut RenderTreeContext) {
-        todo!()
-    }
-
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
-        todo!()
-    }
-
-    fn render(&self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
-        todo!()
-    }
-
-    fn post_render(&mut self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
-        todo!()
-    }
-}
+// Don't need to do the following for standard userland component -- return a ComponentInstance instead
+// pub struct RootInstance {
+//     pub size: Size2D,
+//     pub transform: Rc<RefCell<Transform>>,
+//     pub properties: Rc<Refcell<RootProperties>>,
+// }
+//
+// impl RenderNode for RootInstance {
+//     fn get_rendering_children(&self) -> RenderNodePtrList {
+//         todo!()
+//     }
+//
+//     fn get_size(&self) -> Option<Size2D> {
+//         todo!()
+//     }
+//
+//     fn should_flatten(&self) -> bool {
+//         todo!()
+//     }
+//
+//     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
+//         todo!()
+//     }
+//
+//     fn get_transform(&mut self) -> Rc<RefCell<Transform>> {
+//         todo!()
+//     }
+//
+//     fn compute_properties(&mut self, _rtc: &mut RenderTreeContext) {
+//         todo!()
+//     }
+//
+//     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
+//         todo!()
+//     }
+//
+//     fn render(&self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
+//         todo!()
+//     }
+//
+//     fn post_render(&mut self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
+//         todo!()
+//     }
+// }
 
 //
 // pub struct Whatever {
@@ -235,7 +233,6 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "parser")]
 use std::{env, fs};
-use std::path::Component;
 #[cfg(feature = "parser")]
 use pax::message::{SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
 

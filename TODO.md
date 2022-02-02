@@ -362,6 +362,13 @@ Ideas for mitigation:
    - Main drawback: this requires "ghosting" every type, annotating each subtype (or globally unique type name manifest)
    - Note also: the codegenned logic will depend on `runtime`, via `timeline` (at least) (`timeline` -> `Property` -> `RenderTreeContext` -> `Runtime` -> `Stack` -> `StackFrame` -> `PropertiesCoproduct`)
      - Could separate Timeline from Property, maybe — or revisit `compute_in_place` to see if something other than `RenderTreeContext` could be injected
- - Slight variation: generate a separate cartridge/blank project 
+ - Slight variation: generate a separate cartridge/blank project `pax-cartridge`
  - Split common dependencies from `core` & `cartridge` into `runtime` — it can be a leaf-node dependency of both, allowing common data structures/exchange
    - Some """driver""" logic may even need to jump over to cartridge, e.g. `Scope` and its dependants
+ - If all of `runtime.rs` logic is moved into PropertiesCoproduct — this might be fixed!
+   - (plus Timeline, plus Property... plus RenderTreeContext?)
+   - (plus ComponentInstance...)
+
+As a broader strategy, could step back and look at the architecture of Engine,
+more carefully drawing boundaries between Runtime, Property, Timeline, Core, and PropertiesCoproduct
+

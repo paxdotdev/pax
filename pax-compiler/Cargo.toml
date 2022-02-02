@@ -20,7 +20,6 @@ messagepack = ["serde"]
 cbor = ["serde"]
 
 [dependencies]
-pax-core = { path = "../pax-core" }
 pax-message = { path = "../pax-message" } 
 pest = "2.1.3"
 pest_derive = "2.1.0"

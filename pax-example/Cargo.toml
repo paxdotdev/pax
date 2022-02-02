@@ -30,14 +30,14 @@ pax = {path = "../pax"}
 pax-std = {path = "../pax-std"}
 ### REMOVE once lazy_static pascal_identifier hack is removed from manually expanded prototype macros
 lazy_static = "*"
-
-#[patch]
-[patch.'file://../pax-properties-coproduct']
-#TODO: is this the right place to patch this?  pax-properties-coproduct isn't a dep of a cartridge!
-#      - we want to patch pax itself!  a naive approach would be to patch pax to a local clone of the source
-#        (e.g. inside .pax) — and to modify the Cargo.toml in there.  This would be a "deep patch", but
-#        is getting mighty hacky.
-pax-properties-coproduct = { path = "./.pax-manual/patches/pax-properties-coproduct"}
+#
+##[patch]
+#[patch.'file://../pax-properties-coproduct']
+##TODO: is this the right place to patch this?  pax-properties-coproduct isn't a dep of a cartridge!
+##      - we want to patch pax itself!  a naive approach would be to patch pax to a local clone of the source
+##        (e.g. inside .pax) — and to modify the Cargo.toml in there.  This would be a "deep patch", but
+##        is getting mighty hacky.
+#pax-properties-coproduct = { path = "./.pax-manual/patches/pax-properties-coproduct"}
 
 #can also try, even though it's deprecated:
 #[replace]
