@@ -23,13 +23,17 @@ use std::rc::Rc;
 /// by `size`, transformed by `transform`
 ///
 /// maybe #[pax primitive]
-pub struct Rectangle {
+pub struct RectangleInstance {
     pub size: Size2D,
     pub transform: Rc<RefCell<Transform>>,
-    pub stroke: Stroke,
-    pub fill: Box<dyn Property<Color>>,
+    pub properties: Rc<RefCell<PropertiesCoproduct>>,
 }
 
+
+pub struct RectangleProperties {
+    pub stroke: Stroke,
+    pub fill: Color,
+}
 //Generate via #[pax]
 
 
@@ -46,13 +50,14 @@ use std::{env, fs};
 use std::path::{Path, PathBuf};
 #[cfg(feature="parser")]
 use parser::ManifestContext;
+use pax_core::pax_properties_coproduct::PropertiesCoproduct;
 #[cfg(feature="parser")]
 lazy_static! {
     static ref source_id : String = parser::get_uuid();
 }
 #[cfg(feature="parser")]
 //GENERATE pascal_identifier
-impl Rectangle {
+impl RectangleInstance {
     pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
 
         match ctx.visited_source_ids.get(&source_id as &str) {
@@ -84,7 +89,7 @@ impl Rectangle {
 
 
 
-impl RenderNode for Rectangle {
+impl RenderNode for RectangleInstance {
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
     }

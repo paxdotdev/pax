@@ -319,3 +319,49 @@ background_color: Timeline {
     tween_strategy: ColorTweenStrategy::Hue,
 }
 ```
+
+
+### on RIL generation, consumption
+2022-01-31
+
+How is the generated RIL consumed?
+ - Chassis reaches into cartridge and calls a method to get root component instance(s)
+ - Chassis then passes instance to the Engine to start rendering
+
+
+Is this the right time to rethink instance management? Could fix the
+mess of Rc<RefCell<>> going on in core.
+
+Broadly, instances could be stored centrally in some Vec<dyn RenderNode> (or hash)
+This instance pool allows for safe passing of &mut throughout core
+
+Finally, RIL can instantiate via this instance pool 
+
+...
+
+Update, after spending a day on revamping instance management (progress on branch zack/valiant-rc-refactor-jan-2022), it's not currently tenable.
+The lifetime tangle through core/runtime/stackframes/properties/RenderNode is beyond my current skill to fix.
+Rc<RefCell<>> is not a bottleneck problem, aside from aesthetics and a minor runtime penalty (noting that
+an equivalent lifetime-based solution would still effectively reinvent RefCell via the InstancePool)
+
+
+SO: for RIL, proceed with on-the-fly Rc<RefCell<>> instantiations, just like PoC renderer code
+
+
+### on circular dependencies, PropertiesCoproduct
+2022-02-02
+
+Despite moderately careful planning, we've ended up with a circular dependency between:
+ - userland cartridge
+ - core
+ - properties-coproduct
+ - userland cartridge (to wrap properties types)
+
+Ideas for mitigation:
+ - codegen RootProperties _into_ pax-properties-coproduct instead of inline to the source file
+   - Main drawback: this requires "ghosting" every type, annotating each subtype (or globally unique type name manifest)
+   - Note also: the codegenned logic will depend on `runtime`, via `timeline` (at least) (`timeline` -> `Property` -> `RenderTreeContext` -> `Runtime` -> `Stack` -> `StackFrame` -> `PropertiesCoproduct`)
+     - Could separate Timeline from Property, maybe — or revisit `compute_in_place` to see if something other than `RenderTreeContext` could be injected
+ - Slight variation: generate a separate cartridge/blank project 
+ - Split common dependencies from `core` & `cartridge` into `runtime` — it can be a leaf-node dependency of both, allowing common data structures/exchange
+   - Some """driver""" logic may even need to jump over to cartridge, e.g. `Scope` and its dependants

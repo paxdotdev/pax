@@ -7,6 +7,5 @@ edition = "2018"
 
 [dependencies]
 pax-macro = {path="../pax-macro"}
-pax-compiler = {path="../pax-compiler"}
 pax-message = {path="../pax-message"}
 pax-core = {path="../pax-core"}

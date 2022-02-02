@@ -31,6 +31,11 @@ pax-std = {path = "../pax-std"}
 lazy_static = "*"
 
 
-
+[patch.'file://../pax-properties-coproduct']
+#TODO: is this the right place to patch this?  pax-properties-coproduct isn't a dep of a cartridge!
+#      - we want to patch pax itself!  a naive approach would be to patch pax to a local clone of the source
+#        (e.g. inside .pax) — and to modify the Cargo.toml in there.  This would be a "deep patch", but
+#        is getting mighty hacky.
+pax-properties-coproduct = { path = "./.pax-manual/patches/pax-properties-coproduct"}
 
 

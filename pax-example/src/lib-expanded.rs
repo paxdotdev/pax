@@ -2,7 +2,7 @@
 extern crate lazy_static;
 
 use pax::*;
-use pax_std::{Group, Rectangle};
+use pax_std::{Group, RectangleInstance};
 use pax::core::{ComponentInstance, HostPlatformContext, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform};
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -38,33 +38,51 @@ pub struct Root {
 //How is this consumed?
 // - Chassis reaches into cartridge and calls this method (might need to dyn+impl)
 // - Chassis then passes the returned instance to the Engine to start rendering
+//
+// fn get_root_component_instance() -> Rc<RefCell<ComponentInstance>> {
+//     //TODO: spell out literal RIL tree here, accepting data either by env or by TCP
+//     //This string is generated to this sourcefile via macro, and the definition tree is traversed at compiletime (macro generation time) to output the following.
+//     Rc::new(RefCell::new(ComponentInstance{
+//
+//     }))
+// }
 
-fn get_root_component_instance() -> Rc<RefCell<ComponentInstance>> {
-    //TODO: spell out literal RIL tree here, accepting data either by env or by TCP
-    //This string is generated to this sourcefile via macro, and the definition tree is traversed at compiletime (macro generation time) to output the following.
-    Rc::new(RefCell::new(ComponentInstance{
 
-    }))
+use pax::core::pax_properties_coproduct::PropertiesCoproduct;
+
+
+impl Root {
+    pub fn create_instance() -> Rc<RefCell<ComponentInstance>> {
+        let ret = ComponentInstance {
+            template: Rc::new(RefCell::new(vec![])),
+            adoptees: Rc::new(RefCell::new(vec![])),
+            transform: Rc::new(RefCell::new(Default::default())),
+            properties: Rc::new(RefCell::new(PropertiesCoproduct::Root)),
+            timeline: None
+        };
+
+        Rc::new(RefCell::new(ret))
+    }
 }
 
 //Probably don't need to do the whole impl RenderNode chunk!
 //can just inflate a ComponentInstance and pass it to PaxEngine
 //In Root's case: set as root_component
-
-fn get_instance() -> Rc<RefCell<ComponentInstance>> {
-    // Rc::new(RefCell::new(ComponentInstance {
-    //     template: RenderNodePtrList,
-    //     adoptees: RenderNodePtrList,
-    //     transform: Rc<RefCell<Transform>>,
-    //     properties: Rc<RefCell<PropertiesCoproduct>>,
-    //     timeline: Option<Rc<RefCell<Timeline>>>,
-    // })
-}
+//
+// fn get_instance() -> Rc<RefCell<ComponentInstance>> {
+//     // Rc::new(RefCell::new(ComponentInstance {
+//     //     template: RenderNodePtrList,
+//     //     adoptees: RenderNodePtrList,
+//     //     transform: Rc<RefCell<Transform>>,
+//     //     properties: Rc<RefCell<PropertiesCoproduct>>,
+//     //     timeline: Option<Rc<RefCell<Timeline>>>,
+//     // })
+// }
 
 pub struct RootInstance {
     pub size: Size2D,
     pub transform: Rc<RefCell<Transform>>,
-
+    pub properties: Rc<Refcell<RootProperties>>,
 }
 
 impl RenderNode for RootInstance {
@@ -109,7 +127,6 @@ impl RenderNode for RootInstance {
 // pub struct Whatever {
 //     pub x: |in: i64|{in + 6},
 // }
-
 //
 // pub struct PropertyX<T>(T);
 // impl<T: Copy> PropertyX<T> {
@@ -139,39 +156,38 @@ impl RenderNode for RootInstance {
 //     pub current_rotation: PropertyX<f64>,
 //     pub deeper_struct: PropertyX<DeeperStruct>,
 // }
-
-#[derive(Default)]
-pub struct RootPatch {
-    pub num_clicks: ExpressionOption<i64>,
-    pub current_rotation: ExpressionOption<f64>,
-    pub deeper_struct: ExpressionOption<DeeperStruct>,
-}
-
-impl Root {
-    fn apply_patch(patch: RootPatch) {
-        //convert patch to values, incl. handling of expressions/routing through exptable
-    }
-}
-
-impl RootPatch {
-    fn stack_and_override_with(&mut self, other_patch: RootPatch) {
-
-    }
-}
-
-
-pub enum ExpressionOption<T> {
-    None,
-    Some(T),
-    Expression(String) //TODO: should be a pointer to exptable
-}
-
-impl<T> Default for ExpressionOption<T> {
-    fn default() -> Self {
-        ExpressionOption::None
-    }
-}
 //
+// #[derive(Default)]
+// pub struct RootPatch {
+//     pub num_clicks: ExpressionOption<i64>,
+//     pub current_rotation: ExpressionOption<f64>,
+//     pub deeper_struct: ExpressionOption<DeeperStruct>,
+// }
+//
+// impl Root {
+//     fn apply_patch(patch: RootPatch) {
+//         //convert patch to values, incl. handling of expressions/routing through exptable
+//     }
+// }
+//
+// impl RootPatch {
+//     fn stack_and_override_with(&mut self, other_patch: RootPatch) {
+//
+//     }
+// }
+
+// pub enum ExpressionOption<T> {
+//     None,
+//     Some(T),
+//     Expression(String) //TODO: should be a pointer to exptable
+// }
+//
+// impl<T> Default for ExpressionOption<T> {
+//     fn default() -> Self {
+//         ExpressionOption::None
+//     }
+// }
+// //
 // impl From<SettingsLiteralBlockDefinition> for RootPatch {
 //     fn from(cd: SettingsLiteralBlockDefinition) -> Self {
 //         let mut ret = RootPatch::default();
@@ -268,7 +284,7 @@ impl Root {
                 let mut template_map: HashMap<String, String> = HashMap::new();
 
                 //GENERATE:
-                let (mut ctx, component_id) = Rectangle::parse_to_manifest(ctx);
+                let (mut ctx, component_id) = RectangleInstance::parse_to_manifest(ctx);
                 template_map.insert("Rectangle".into(), component_id);
                 let (mut ctx, component_id) = Group::parse_to_manifest(ctx);
                 template_map.insert("Group".into(), component_id);
