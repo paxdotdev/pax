@@ -4,6 +4,8 @@ use std::rc::Rc;
 use kurbo::{Affine};
 use piet::{Color, StrokeStyle};
 
+use pax_runtime_api::Size;
+
 use crate::{Property, PropertyLiteral, RenderTreeContext, HostPlatformContext};
 
 /// Type aliases to make it easier to work with nested Rcs and
@@ -223,20 +225,14 @@ impl Transform {
 }
 
 /// Represents the outer stroke of a drawable element
-pub struct Stroke {
+pub struct StrokeInstance {
     pub color: Color,
     pub width: f64,
     pub style: StrokeStyle,
     //TODO: stroke alignment, inner/outer/center?
 }
 
-/// A size value that can be either a concrete pixel value
-/// or a percent of parent bounds
-#[derive(Copy, Clone)]
-pub enum Size {
-    Pixel(f64),
-    Percent(f64),
-}
+
 
 // More than just a tuble of (Size, Size),
 // Size2D wraps up Properties as well to make it easy

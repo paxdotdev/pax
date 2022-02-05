@@ -10,6 +10,15 @@ use piet_web::WebRenderContext;
 
 use pax_core::PaxEngine;
 
+
+
+
+
+
+
+
+
+
 // fn browser_window() -> web_sys::Window {
 //     web_sys::window().expect("no global `window` exists")
 // }
@@ -56,6 +65,7 @@ pub struct PaxChassisWeb {
 
 #[wasm_bindgen]
 impl PaxChassisWeb {
+    //called from JS, this is essentially `main`
     pub fn new() -> Self {
 
         #[cfg(feature = "console_error_panic_hook")]
@@ -87,8 +97,10 @@ impl PaxChassisWeb {
         let _ = context.scale(dpr, dpr);
 
         let piet_context  = WebRenderContext::new(context, window);
-        // piet_context.
-        let engine = pax_core::get_engine(log_wrapper, (width / dpr, height / dpr));
+
+
+        let root_component_instance = pax_cartridge_runtime::instantiate_root();
+        let engine = pax_core::get_engine(root_component_instance, log_wrapper, (width / dpr, height / dpr));
 
         let engine_container : Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 
@@ -128,7 +140,7 @@ impl PaxChassisWeb {
             closure.forget();
         }
 
-        PaxChassisWeb {
+        Self {
             engine: engine_container,
             drawing_context: piet_context,
         }

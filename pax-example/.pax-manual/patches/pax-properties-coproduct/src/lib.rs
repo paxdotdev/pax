@@ -17,14 +17,14 @@
 ///
 pub enum PropertiesCoproduct {
     //pascal_identifier + "(" + cartridge project name + "::exports::" + module_path + "::" + pascal_identifier}
-    Rectangle(pax_example::pax_types::pax_std::primitives::RectangleProperties),
-    Group(pax_example::pax_types::pax_std::primitives::GroupProperties),
+    Rectangle(pax_example::pax_types::pax_std::primitives::Rectangle),
+    Group(pax_example::pax_types::pax_std::primitives::Group),
     Root(pax_example::Root),
 }
-
-pub enum PatchCoproduct {
-
-    // Rectangle(pax_example::exports::pax_std::primitives::rectangle::Rectangle),
-    // Group(pax_example::exports::pax_std::primitives::group::Group),
-    RootPatch(pax_example::RootPatch),
-}
+//
+// pub enum PatchCoproduct {
+//
+//     // Rectangle(pax_example::exports::pax_std::primitives::rectangle::Rectangle),
+//     // Group(pax_example::exports::pax_std::primitives::group::Group),
+//     RootPatch(pax_example::RootPatch),
+// }

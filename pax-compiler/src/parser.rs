@@ -1,8 +1,6 @@
-#[macro_use]
-extern crate pest_derive;
-
 
 extern crate pest;
+use pest_derive::Parser;
 
 // #[macro_use]
 // extern crate lazy_static;
@@ -296,7 +294,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
             let pascal_identifier = open_tag.next().unwrap().as_str();
 
 
-            let new_id = get_uuid();
+            let new_id = create_uuid();
             if ctx.is_root {
                 ctx.root_template_node_id = Some(new_id.clone());
             }
@@ -346,7 +344,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
         Rule::self_closing_tag => {
             let mut tag_pairs = any_tag_pair.into_inner();
             let pascal_identifier = tag_pairs.next().unwrap().as_str();
-            let new_id = get_uuid();
+            let new_id = create_uuid();
             if ctx.is_root {
                 ctx.root_template_node_id = Some(new_id.clone());
             }
@@ -505,7 +503,7 @@ fn parse_settings_from_pax_file(pax: &str) -> Option<Vec<SettingsSelectorBlockDe
 
 }
 
-pub fn get_uuid() -> String {
+pub fn create_uuid() -> String {
     Uuid::new_v4().to_string()
 }
 

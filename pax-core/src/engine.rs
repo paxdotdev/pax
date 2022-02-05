@@ -9,15 +9,16 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, ComponentInstance, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, PropertyTimeline, RenderNodePtr, Size, Stroke, StrokeStyle, Transform, RenderNode};
+use crate::{Affine, ComponentInstance, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, PropertyTimeline, RenderNodePtr, StrokeInstance, StrokeStyle, Transform, RenderNode};
 use crate::rendering::Size2DFactory;
 use crate::runtime::{Runtime};
 use crate::timeline::{EasingCurve, Timeline, TimelineSegment};
 use wasm_bindgen::JsValue;
 
+
 // Public method for consumption by engine chassis, e.g. WebChassis
-pub fn get_engine(logger: fn(&str), viewport_size: (f64, f64)) -> PaxEngine {
-    PaxEngine::new(logger, viewport_size)
+pub fn get_engine(root_component_instance: Rc<RefCell<ComponentInstance>>,logger: fn(&str), viewport_size: (f64, f64)) -> PaxEngine {
+    PaxEngine::new(root_component_instance, logger,viewport_size)
 }
 
 pub struct PaxEngine {
@@ -51,11 +52,11 @@ pub struct DevAppRootProperties {
 }
 
 impl PaxEngine {
-    fn new(logger: fn(&str), viewport_size: (f64, f64)) -> Self {
+    fn new(root_component_instance: Rc<RefCell<ComponentInstance>>, logger: fn(&str), viewport_size: (f64, f64)) -> Self {
         PaxEngine {
             frames_elapsed: 0,
             runtime: Rc::new(RefCell::new(Runtime::new(logger))),
-            root_component: unimplemented!(),
+            root_component: root_component_instance,
             viewport_size,
         }
     }

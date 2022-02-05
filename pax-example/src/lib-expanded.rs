@@ -2,12 +2,13 @@
 extern crate lazy_static;
 
 use pax::*;
+
 use pax_std::primitives::{Group, Rectangle};
 // use pax::core::{ComponentInstance, HostPlatformContext, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform};
 // use std::cell::RefCell;
 // use std::rc::Rc;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Default)]
 pub struct DeeperStruct {
     a: i64,
     b: &'static str,
@@ -19,6 +20,12 @@ pub mod pax_types {
         pub mod primitives {
             pub use pax_std::primitives::Rectangle;
             pub use pax_std::primitives::Group;
+        }
+        pub mod types {
+            pub use pax_std::types::Transform;
+            pub use pax_std::types::Color;
+            pub use pax_std::types::Stroke;
+            pub use pax_std::types::Size;
         }
     }
 
@@ -33,6 +40,12 @@ pub struct Root {
     pub num_clicks: i64,
     pub current_rotation: f64,
     pub deeper_struct: DeeperStruct,
+}
+
+pub struct RootProperties {
+    pub num_clicks: pax::api::Property<i64>,
+    pub current_rotation: pax::api::Property<f64>,
+    pub deeper_struct: pax::api::Property<DeeperStruct>,
 }
 
 //How is this consumed?
@@ -220,7 +233,7 @@ pub struct Root {
 // }
 
 #[cfg(feature = "parser")]
-use pax::message::ComponentDefinition;
+use pax::internal::message::ComponentDefinition;
 #[cfg(feature = "parser")]
 use parser;
 #[cfg(feature = "parser")]
@@ -234,7 +247,7 @@ use std::path::{Path, PathBuf};
 #[cfg(feature = "parser")]
 use std::{env, fs};
 #[cfg(feature = "parser")]
-use pax::message::{SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
+use pax::internal::message::{SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
 
 
 #[cfg(feature = "parser")]
@@ -326,7 +339,7 @@ impl Root {
         Self {
             //Default values.  Could shorthand this into a macro via PAXEL
             num_clicks: 0,
-            current_rotation: 0.0,
+            current_rotation:0.0,
             deeper_struct: DeeperStruct {
                 a: 100,
                 b: "Profundo!",

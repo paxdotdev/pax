@@ -5,15 +5,19 @@ extern crate lazy_static;
 use pax::*;
 
 pub mod components;
+pub mod types;
 
 pub use components::*;
 
 pub mod primitives {
     use pax::pax_primitive;
 
-    pax_primitive!(Group, "./pax-std-primitives");
-    ///GENERATES THE FOLLOWING:
-    pub struct Group {}
+
+    #[pax_primitive("./pax-std-primitives", crate::GroupInstance)]
+    pub struct Group {
+        pub transform: types::Transform
+    }
+
     #[cfg(feature = "parser")]
     use parser;
     #[cfg(feature = "parser")]
@@ -27,10 +31,11 @@ pub mod primitives {
     #[cfg(feature = "parser")]
     use std::{env, fs};
     #[cfg(feature = "parser")]
-    use pax::message::{ComponentDefinition, SettingsValueDefinition, PaxManifest, SettingsLiteralBlockDefinition};
+    use pax::internal::message::{ComponentDefinition, SettingsValueDefinition, PaxManifest, SettingsLiteralBlockDefinition};
+    use crate::types;
     #[cfg(feature = "parser")]
     lazy_static! {
-        static ref source_id: String = parser::get_uuid();
+        static ref source_id: String = parser::create_uuid();
     }
     #[cfg(feature = "parser")]
     impl Group {
@@ -62,9 +67,13 @@ pub mod primitives {
 
 
 
-    pax_primitive!(Rectangle, "./pax-std-primitives");
-    ///GENERATES THE FOLLOWING:
-    pub struct Rectangle {}
+    #[pax_primitive("./pax-std-primitives", crate::RectangleInstance)]
+    pub struct Rectangle {
+        pub stroke: types::Stroke,
+        pub fill: types::Color,
+        pub size: [pax::api::Size; 2],
+    }
+
     //
     //TODO: figure out how to de-dupe the imports here vs. the previous pax_primitive!()
     //

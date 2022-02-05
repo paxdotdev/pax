@@ -7,13 +7,17 @@ members = [
     "pax-macro",
     "pax-message",
     "pax-compiler",
-    "pax-dev-server",
     "pax-properties-coproduct",
+    "pax-runtime-api",
+    "pax-cartridge-runtime",
 ]
 
 exclude = [
     "pax-example",
     "pax-std",
+    "pax-example/.pax-manual/patches/pax-cartridge-runtime",
+    "pax-example/.pax-manual/patches/pax-properties-coproduct",
+    "pax-example/.pax-manual/patches/pax-expression-table",
 ]
 
 

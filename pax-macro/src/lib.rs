@@ -6,12 +6,25 @@ use quote::quote;
 
 
 
-#[proc_macro]
-pub fn pax_primitive(args: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    //args are (pascal_identifier, path to crate root) e.g. pax-std-primitives
-    //codegen a module tree with wrapper types, e.g. Group, which can
-    //be imported and used in templates, thus appropriately parsed
-    proc_macro::TokenStream::new()
+
+
+
+#[proc_macro_attribute]
+pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    //decorate a userland cartridge struct to connect it
+    //with a corresponding runtime cartridge struct (which handles, e.g. rendering)
+    //the macro-decorated struct is used, e.g. for PropertiesCoproduct generation and
+    //runtime API object generation (.get/.set wrappers & hooks)
+    input
+}
+
+#[proc_macro_attribute]
+pub fn pax_primitive_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    //similar to pax_primitive: registers annotated type with PropertiesCoproduct
+    //and generates instantiation code from a PropertiesCoproduct —
+    //unlike pax_primitive, does not expect implementation of RenderNode
+    //(maybe this isn't unlike pax_primitive after all?
+    input
 }
 
 #[proc_macro_attribute]

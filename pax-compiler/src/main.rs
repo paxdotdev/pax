@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate pest_derive;
+
 
 
 use tokio::net::{TcpListener, TcpStream};
@@ -166,21 +169,20 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
     let listener = TcpListener::bind(format!("127.0.0.1:{}",macro_coordination_tcp_port)).await.unwrap();
 
     loop {
-        tokio::select! {
-            _ = red_phone.recv() => {
-                //for now, any message from parent is the shutdown message
-                println!("Red phone message received");
-                &return_data_channel.send(manifests);
-                break;
-            }
-            _ = listener.accept() => {
-                println!("TCP message received");
-
-                let tcp_msg = "TODO".as_bytes();
-
-                return_data_channel.send(PaxManifest::deserialize(tcp_msg));
-            }
-        }
+        // tokio::select! {
+        //     _ = red_phone.recv() => {
+        //         //for now, any message from parent is the shutdown message
+        //         println!("Red phone message received; shutting down thread");
+        //         break;
+        //     }
+        //     _ = listener.accept() => {
+        //         println!("TCP message received");
+        //
+        //         let tcp_msg = "TODO".as_bytes();
+        //
+        //         return_data_channel.send(PaxManifest::deserialize(tcp_msg));
+        //     }
+        // }
 
 
         //
@@ -270,13 +272,6 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
         }
     }
 
-    let manifest = payload_rx.await.expect("failed to receive message from macro coordination server");
-
-    println!("Received deserialized manifest in compiler thread! {:?}", manifest);
-
-    //shut down macro coordination thread
-    red_phone_tx.send(true);
-
     //TODO: cp lib.rs to .pax.manifest.rs
 
     //TODO: clean up .pax.manifest.rs
@@ -294,9 +289,6 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     //TODO: codegen PropertiesCoproduct
     //TODO: codegen DefinitionToInstanceTraverser (note: probably hand-roll this for v0, like macros)
 
-
-    
-
     // listener.
 
     // let server = listener.incoming().for_each(move |socket| {
@@ -307,8 +299,6 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     //     // Handle error by printing to STDOUT.
     //     println!("accept error = {:?}", err);
     // });
-
-
 
     // // Instead of the full macro coordination server, try a simpler approach:
     // // "every macro writes to a file", waiting for the file to be ready as long as necessary to write.

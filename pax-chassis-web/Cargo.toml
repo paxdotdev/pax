@@ -2,7 +2,7 @@
 name = "pax-chassis-web"
 version = "0.0.1"
 authors = ["Zack Brown <zack@inclination.co>"]
-edition = "2018"
+edition = "2021"
 
 [lib]
 crate-type = ["cdylib"]
@@ -13,8 +13,12 @@ default = ["console_error_panic_hook"]
 [dependencies]
 piet = "0.3.1"
 piet-web = "0.3.1"
+
+
+#pax-core is sufficient to break wasmpack.  try binary-removing its dependencies for trial & error?
 pax-core = { path = "../pax-core" }
-pax-macro = { path = "../pax-macro" }
+pax-properties-coproduct = {path = "../pax-properties-coproduct"}
+pax-cartridge-runtime = {path = "../pax-cartridge-runtime"}
 
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 #++serde = {version = "1.0", features=["derive"]}

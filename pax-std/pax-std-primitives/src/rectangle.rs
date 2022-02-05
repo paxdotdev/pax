@@ -1,23 +1,11 @@
 
 use kurbo::{BezPath, Rect};
-use piet::RenderContext;
+use piet::{RenderContext, StrokeStyle};
 
-use pax_core::{Color, Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Stroke, Transform, HostPlatformContext};
+use pax_core::{Color, Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform, HostPlatformContext, Size2DFactory, PropertyLiteral, StrokeInstance};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
-
-// use crate::designtime::{Manifestable, Patchable};
-
-
-/// Properties refactor:
-///     - expressions.rs -> properties.rs
-///     - use a coproduct-style Property super-object
-///         - TODO:  how to support `setting` values in Actions?
-///                 set_timeline() // Probably future?  Will there be a Timeline Expression Language too?  Or a timeline module added to Exp.Lang?
-///                 set_expression() // Probably future — interesting question of runtime vs. pre-compiled Expression Language
-///                 set() // T
-
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -25,15 +13,40 @@ use std::rc::Rc;
 /// maybe #[pax primitive]
 pub struct RectangleInstance {
     pub size: Size2D,
+    pub fill: Box<dyn Property<Color>>,
+    pub stroke: Box<dyn Property<StrokeInstance>>,
     pub transform: Rc<RefCell<Transform>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
 }
 
-
-pub struct RectangleProperties {
-    pub stroke: Stroke,
-    pub fill: Color,
+impl RectangleInstance {
+    pub fn instantiate(properties: PropertiesCoproduct) -> Rc<RefCell<dyn RenderNode>> {
+        match &properties {
+            PropertiesCoproduct::Rectangle(cast_properties) => {
+                Rc::new(RefCell::new(RectangleInstance {
+                    size: Size2DFactory::literal(cast_properties.size[0], cast_properties.size[1]),
+                    transform: Rc::new(RefCell::new(Transform::default())),
+                    properties: Rc::new(RefCell::new(properties)),
+                    fill: Box::new(PropertyLiteral { value: Color::rgb(20.0, 50.0, 100.0)}),
+                    stroke: Box::new((PropertyLiteral { value: StrokeInstance{
+                        color:Color::rgb(50.0, 50.0, 50.0),
+                        width: 3.0,
+                        style: StrokeStyle::new(),
+                    }})),
+                }))
+            },
+            _ => {
+                panic!("Wrong properties type received while instantiating Rectangle");
+            }
+        }
+    }
 }
+
+
+
+
+
+
 //Generate via #[pax]
 
 
@@ -121,7 +134,7 @@ impl RenderNode for RectangleInstance {
         let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
         hpc.drawing_context.fill(transformed_bez_path, fill);
-        hpc.drawing_context.stroke(duplicate_transformed_bez_path, &self.stroke.color, *&self.stroke.width);
+        hpc.drawing_context.stroke(duplicate_transformed_bez_path, &self.stroke.read().color, *&self.stroke.read().width);
     }
 }
 //
