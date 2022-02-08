@@ -19,10 +19,11 @@ pub mod pax_types {
     pub mod pax_std {
         pub mod primitives {
             pub use pax_std::primitives::Rectangle;
+            pub use pax_std::primitives::RectangleProperties;
             pub use pax_std::primitives::Group;
+            pub use pax_std::primitives::GroupProperties;
         }
         pub mod types {
-            pub use pax_std::types::Transform;
             pub use pax_std::types::Color;
             pub use pax_std::types::Stroke;
             pub use pax_std::types::Size;
@@ -33,7 +34,6 @@ pub mod pax_types {
     //plus other relevant.
 }
 
-
 //#[pax] was here
 pub struct Root {
     //rewrite to pub `num_clicks : Property<i64>` etc. AND register metadata with dev server
@@ -43,9 +43,9 @@ pub struct Root {
 }
 
 pub struct RootProperties {
-    pub num_clicks: pax::api::Property<i64>,
-    pub current_rotation: pax::api::Property<f64>,
-    pub deeper_struct: pax::api::Property<DeeperStruct>,
+    pub num_clicks: Box<dyn pax::api::Property<i64>>,
+    pub current_rotation: Box<dyn pax::api::Property<f64>>,
+    pub deeper_struct: Box<dyn pax::api::Property<DeeperStruct>>,
 }
 
 //How is this consumed?

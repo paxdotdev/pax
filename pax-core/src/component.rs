@@ -2,8 +2,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_properties_coproduct::{PropertiesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, Transform, HostPlatformContext};
-use crate::timeline::Timeline;
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, HostPlatformContext};
+
+use pax_runtime_api::{Timeline, Transform};
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `adoptees` and

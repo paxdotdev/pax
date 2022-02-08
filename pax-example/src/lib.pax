@@ -5,27 +5,21 @@
 
 @settings {
     #rect-a {
-        fill: {r: 255, g: 255, b: 255, a: 1}
+        fill: Color::rgba(255, 0, 0, 1)
         stroke: {
-            color: {r: 255, g: 0, b: 0, a: 1}
+            color: Color::rgba(0, 0, 0, 1)
             width: 5px
-            style: {
-                line_join: None
-                line_cap: LineCap::Butt
-                // dash: [5,0,5,0]
-            }
         }
-        transform: {
-            rotation: @{ current_rotation },
-        }
+        size: [200px,300px]
+        transform: translate(100.0, 400.0)
     }
 
     #rect-b {
-        fill: Color {
-            h: @{ (Engine.frames_elapsed / 100) % 360 },
-            s: 75,
-            l: 75,
-            a: 1,
+        fill: Color::rgba(0, 255, 0, 1)
+        stroke: {
+            color: Color::rgba(0,0,0,1)
         }
+        size: [300px, 300px]
+        transform: scale(1.5, 1.5)
     }
 }

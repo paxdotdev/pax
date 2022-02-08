@@ -17,8 +17,8 @@
 ///
 pub enum PropertiesCoproduct {
     //pascal_identifier + "(" + cartridge project name + "::exports::" + module_path + "::" + pascal_identifier}
-    Rectangle(pax_example::pax_types::pax_std::primitives::Rectangle),
-    Group(pax_example::pax_types::pax_std::primitives::Group),
+    Rectangle(pax_example::pax_types::pax_std::primitives::RectangleProperties),
+    Group(pax_example::pax_types::pax_std::primitives::GroupProperties),
     Root(pax_example::Root),
 }
 //

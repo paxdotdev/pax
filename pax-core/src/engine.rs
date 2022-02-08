@@ -9,10 +9,11 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, ComponentInstance, Color, Error, Evaluator, InjectionContext, PropertyExpression, PropertyLiteral, PropertyTimeline, RenderNodePtr, StrokeInstance, StrokeStyle, Transform, RenderNode};
+use crate::{Affine, ComponentInstance, Color, Error, ComputableTransform, InjectionContext,  RenderNodePtr, StrokeInstance, StrokeStyle, RenderNode};
 use crate::rendering::Size2DFactory;
 use crate::runtime::{Runtime};
-use crate::timeline::{EasingCurve, Timeline, TimelineSegment};
+//TODO: make the JsValue render_message_queue platform agnostic and remove this dep —
+//      (probably translate to JsValue at the pax-chassis-web layer instead of here.)
 use wasm_bindgen::JsValue;
 
 
@@ -222,33 +223,33 @@ impl PaxEngine {
 /* Codegen (macro) territory */
 
 //OR: revisit this approach, without variadics.
-
-pub struct MyManualMacroExpression<T> {
-    pub variadic_evaluator: fn(engine: &PaxEngine) -> T,
-}
-
-//TODO:  should this hard-code the return type
-impl<T> MyManualMacroExpression<T> {
-
-}
-
-impl<T> Evaluator<T> for MyManualMacroExpression<T> {
-    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
-        //TODO:CODEGEN
-        //       pull necessary data from `ic`,
-        //       map into the variadic args of elf.variadic_evaluator()
-        //       Perhaps this is a LUT of `String => (Fn(njectionContext) -> V)` for any variadic type (injection tream) V
-
-        let x = ||{};
-        let y = |x: i64| x + 6;
-
-
-        let engine = ic.engine;
-        (self.variadic_evaluator)(engine)
-
-
-    }
-}
+//
+// pub struct MyManualMacroExpression<T> {
+//     pub variadic_evaluator: fn(engine: &PaxEngine) -> T,
+// }
+//
+// //TODO:  should this hard-code the return type
+// impl<T> MyManualMacroExpression<T> {
+//
+// }
+//
+// impl<T> Evaluator<T> for MyManualMacroExpression<T> {
+//     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
+//         //TODO:CODEGEN
+//         //       pull necessary data from `ic`,
+//         //       map into the variadic args of elf.variadic_evaluator()
+//         //       Perhaps this is a LUT of `String => (Fn(njectionContext) -> V)` for any variadic type (injection tream) V
+//
+//         let x = ||{};
+//         let y = |x: i64| x + 6;
+//
+//
+//         let engine = ic.engine;
+//         (self.variadic_evaluator)(engine)
+//
+//
+//     }
+// }
 
 
 /* End codegen (macro) territory */

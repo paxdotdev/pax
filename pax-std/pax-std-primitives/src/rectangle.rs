@@ -2,37 +2,38 @@
 use kurbo::{BezPath, Rect};
 use piet::{RenderContext, StrokeStyle};
 
-use pax_core::{Color, Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform, HostPlatformContext, Size2DFactory, PropertyLiteral, StrokeInstance};
+use pax_core::{Color, RenderNode, ComputableTransform, RenderNodePtrList, RenderTreeContext, Size2D, HostPlatformContext, Size2DFactory, StrokeInstance, ComputableProperty};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
+use pax_core::pax_properties_coproduct::PropertiesCoproduct;
+use pax_runtime_api::{Property, PropertyLiteral, Size, Transform};
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
 ///
 /// maybe #[pax primitive]
 pub struct RectangleInstance {
-    pub size: Size2D,
-    pub fill: Box<dyn Property<Color>>,
-    pub stroke: Box<dyn Property<StrokeInstance>>,
     pub transform: Rc<RefCell<Transform>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
+    pub size: Rc<RefCell<[Box<dyn Property<Size>>; 2]>>,
 }
 
+
+pub struct RectangleProperties {
+    pub stroke: Box<dyn Property<pax_std::types::Stroke>>,
+    pub fill: Box<dyn Property<pax_std::types::Color>>,
+}
+
+
 impl RectangleInstance {
-    pub fn instantiate(properties: PropertiesCoproduct) -> Rc<RefCell<dyn RenderNode>> {
+    pub fn instantiate(properties: PropertiesCoproduct, transform: Transform, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
         match &properties {
             PropertiesCoproduct::Rectangle(cast_properties) => {
                 Rc::new(RefCell::new(RectangleInstance {
-                    size: Size2DFactory::literal(cast_properties.size[0], cast_properties.size[1]),
-                    transform: Rc::new(RefCell::new(Transform::default())),
+                    transform: Rc::new(RefCell::new(transform)),
                     properties: Rc::new(RefCell::new(properties)),
-                    fill: Box::new(PropertyLiteral { value: Color::rgb(20.0, 50.0, 100.0)}),
-                    stroke: Box::new((PropertyLiteral { value: StrokeInstance{
-                        color:Color::rgb(50.0, 50.0, 50.0),
-                        width: 3.0,
-                        style: StrokeStyle::new(),
-                    }})),
+                    size: Rc::new(RefCell::new(size))
                 }))
             },
             _ => {
@@ -59,11 +60,12 @@ use parser;
 use std::collections::HashSet;
 #[cfg(feature="parser")]
 use std::{env, fs};
+use std::intrinsics::unreachable;
 #[cfg(feature="parser")]
 use std::path::{Path, PathBuf};
 #[cfg(feature="parser")]
 use parser::ManifestContext;
-use pax_core::pax_properties_coproduct::PropertiesCoproduct;
+
 #[cfg(feature="parser")]
 lazy_static! {
     static ref source_id : String = parser::get_uuid();
@@ -99,9 +101,6 @@ impl RectangleInstance {
 }
 
 
-
-
-
 impl RenderNode for RectangleInstance {
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
@@ -109,10 +108,14 @@ impl RenderNode for RectangleInstance {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
-        self.size.borrow_mut().0.compute_in_place(rtc);
-        self.size.borrow_mut().1.compute_in_place(rtc);
-        self.fill.compute_in_place(rtc);
-        self.transform.borrow_mut().compute_in_place(rtc);
+        let mut properties = self.properties.borrow_mut();
+        if let PropertiesCoproduct::Rectangle(mut properties_cast) = properties
+        {
+            properties_cast.size.0.compute_in_place(rtc);
+            properties_cast.size.1.compute_in_place(rtc);
+            properties_cast.fill.compute_in_place(rtc);
+            self.transform.borrow_mut().compute_in_place(rtc);
+        } else { unreachable!() }
     }
     fn render(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
         let transform = rtc.transform;
@@ -120,7 +123,7 @@ impl RenderNode for RectangleInstance {
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 
-        let fill: &Color = self.fill.read();
+        let fill: &Color = self.fill.get();
 
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
@@ -134,7 +137,7 @@ impl RenderNode for RectangleInstance {
         let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
         hpc.drawing_context.fill(transformed_bez_path, fill);
-        hpc.drawing_context.stroke(duplicate_transformed_bez_path, &self.stroke.read().color, *&self.stroke.read().width);
+        hpc.drawing_context.stroke(duplicate_transformed_bez_path, &self.stroke.get().color, *&self.stroke.get().width);
     }
 }
 //

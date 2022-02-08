@@ -9,3 +9,4 @@ edition = "2021"
 pax-core = {path = "../pax-core"}
 pax-example = {path = "../pax-example"}
 pax-std-primitives = {path = "../pax-std/pax-std-primitives"}
+pax-runtime-api = {path = "../pax-runtime-api"}

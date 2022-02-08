@@ -339,12 +339,12 @@ impl SpreadProperties {
             SpreadDirection::Vertical => bounds.1
         };
 
-        let gutter_calc = match *self.gutter_width.read() {
+        let gutter_calc = match *self.gutter_width.get() {
             Size::Pixel(px) => px,
             Size::Percent(pct) => active_bound * (pct / 100.0),
         };
 
-        let cell_count = *self.cell_count.read() as f64;
+        let cell_count = *self.cell_count.get() as f64;
 
         let usable_interior_space = active_bound - (cell_count + 1.0) * gutter_calc;
         let per_cell_space = usable_interior_space / cell_count;

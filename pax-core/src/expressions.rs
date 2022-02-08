@@ -3,28 +3,35 @@ use std::rc::Rc;
 
 use crate::{PaxEngine, RenderTreeContext};
 use crate::runtime::StackFrame;
-use crate::timeline::{TimelineSegment};
+
+
+use pax_runtime_api::{Property, PropertyLiteral, PropertyTimeline};
 
 /// An abstract Property that may be either: Literal,
 /// a dynamic runtime Expression, or a Timeline-bound value
-pub trait Property<T> {
+pub trait ComputableProperty {
     fn compute_in_place(&mut self, _rtc: &RenderTreeContext) {}
-    fn read(&self) -> &T;
 }
 
-
-
-
-/// The Literal form of a Property: a bare literal value
-pub struct PropertyLiteral<T> {
-    pub value: T,
-}
-
-impl<T> Property<T> for PropertyLiteral<T> {
-    fn read(&self) -> &T {
-        &self.value
+impl<T> ComputableProperty for PropertyLiteral<T> {
+    fn compute_in_place(&mut self, _rtc: &RenderTreeContext) {
+        //no-op for literal values
     }
 }
+
+
+
+//
+// /// The Literal form of a Property: a bare literal value
+// pub struct PropertyLiteral<T> {
+//     pub value: T,
+// }
+//
+// impl<T> Property<T> for PropertyLiteral<T> {
+//     fn read(&self) -> &T {
+//         &self.value
+//     }
+// }
 
 /// The Timeline form of a Property
 
@@ -32,22 +39,22 @@ trait Tweenable {
 
 }
 
-
-pub struct PropertyTimeline {
-    pub starting_value: Box<dyn Property<f64>>,
-    pub timeline_segments: Vec<TimelineSegment>,
-    pub cached_evaluated_value: f64,
-}
+//
+// pub struct PropertyTimeline {
+//     pub starting_value: Box<dyn Property<f64>>,
+//     pub timeline_segments: Vec<TimelineSegment>,
+//     pub cached_evaluated_value: f64,
+// }
 
 //TODO: create an Interpolatable trait that allows us
 //      to ease between values beyond f64 (e.g. a discrete interpolator
 //      for ints or vecs; an interpolator for Colors)
-impl Property<f64> for PropertyTimeline {
+impl ComputableProperty for PropertyTimeline {
 
     fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
         let timeline_playhead_position = rtc.timeline_playhead_position;
         let mut starting_frame : usize = 0;
-        let mut starting_value = self.starting_value.read();
+        let mut starting_value = self.starting_value.get();
         let mut segments_iter = self.timeline_segments.iter().peekable();
         let mut active_segment = match segments_iter.next() {
             Some(seg) => seg,
@@ -61,7 +68,7 @@ impl Property<f64> for PropertyTimeline {
             && segments_iter.peek().is_some()
         {
             starting_frame = active_segment.ending_frame_inclusive;
-            starting_value = active_segment.ending_value.read();
+            starting_value = active_segment.ending_value.get();
             active_segment = segments_iter.next().unwrap();
         };
 
@@ -81,14 +88,12 @@ impl Property<f64> for PropertyTimeline {
         //bound to [0,1], because some easing curves can "hyperextend" their
         //interpolation, e.g. a standard elastic curve.  Such hyperextension, too,
         //is a function of the magnitude of the difference between val_last and val_next.
-        let ending_value = active_segment.ending_value.read();
+        let ending_value = active_segment.ending_value.get();
 
         self.cached_evaluated_value = starting_value + (progress_eased * (ending_value - starting_value));
     }
 
-    fn read(&self) -> &f64 {
-        &self.cached_evaluated_value
-    }
+
 }
 
 /// Data structure used for dynamic injection of values
@@ -100,37 +105,39 @@ pub struct InjectionContext<'a> {
     pub stack_frame: Rc<RefCell<StackFrame>>,
 }
 
-/// An abstract wrapper around a function (`inject_and_evaluate`) that can take an `InjectionContext`,
-/// and return a value `T` from an evaluated Expression.
-pub trait Evaluator<T> {
-    /// calls (variadic) self.evaluate and returns its value
-    fn inject_and_evaluate(&self, ic: &InjectionContext) -> T;
-}
 
-/// The `Expression` form of a property — stores a function
-/// that evaluates the value itself, as well as a "register" of
-/// the memoized value (`cached_value`) that can be referred to
-/// via calls to `read()`
-pub struct PropertyExpression<T, E: Evaluator<T>>
-{
-    pub evaluator: E,
-    pub cached_value: T,
-}
+//TODO: come back & figure out implementation of expressions with the Property dependency graph split
+// An abstract wrapper around a function (`inject_and_evaluate`) that can take an `InjectionContext`,
+// and return a value `T` from an evaluated Expression.
+// pub trait Evaluator<T> {
+//     /// calls (variadic) self.evaluate and returns its value
+//     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T;
+// }
 
-// impl<T, E: Evaluator<T>> PropertyExpression<T, E> {}
-
-impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
-    fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
-
-        let ic = InjectionContext {
-            engine: rtc.engine,
-            stack_frame: Rc::clone(&rtc.runtime.borrow_mut().peek_stack_frame().unwrap())
-        };
-
-        self.cached_value = self.evaluator.inject_and_evaluate(&ic);
-    }
-    fn read(&self) -> &T {
-        &self.cached_value
-    }
-}
+// The `Expression` form of a property — stores a function
+// that evaluates the value itself, as well as a "register" of
+// the memoized value (`cached_value`) that can be referred to
+// via calls to `read()`
+// pub struct PropertyExpression<T, E: Evaluator<T>>
+// {
+//     pub evaluator: E,
+//     pub cached_value: T,
+// }
+//
+// // impl<T, E: Evaluator<T>> PropertyExpression<T, E> {}
+//
+// impl<T, E: Evaluator<T>> Property<T> for PropertyExpression<T, E> {
+//     fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
+//
+//         let ic = InjectionContext {
+//             engine: rtc.engine,
+//             stack_frame: Rc::clone(&rtc.runtime.borrow_mut().peek_stack_frame().unwrap())
+//         };
+//
+//         self.cached_value = self.evaluator.inject_and_evaluate(&ic);
+//     }
+//     fn read(&self) -> &T {
+//         &self.cached_value
+//     }
+// }
 

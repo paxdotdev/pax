@@ -372,3 +372,188 @@ Ideas for mitigation:
 As a broader strategy, could step back and look at the architecture of Engine,
 more carefully drawing boundaries between Runtime, Property, Timeline, Core, and PropertiesCoproduct
 
+### on properties
+2022-02-06
+
+In userland, e.g. an Action, properties:
+ - can read properties programmatically with .get()
+ - can set properties programmatically with .set()
+    - not v0, but would be nice to have a path to someday setting values other than literal values, e.g.
+      to create Expressions and Timelines at runtime
+In engine, properties:
+ - need to `compute_in_place` (whether literal, timeline, or expression)
+ - need to represent whether a property is literal, timeline, or expression
+ - need to `read` the current (cached) value
+ - need to instantiate with a starting value
+ - need to support runtime mutations via userland `.set()`, plus accurate up-to-the-frame value retrieval via `.get()`
+ - have dependencies on engine, via InjectionContext and `compute_in_place` parameters
+
+Further: PropertiesCoproduct frames need to encapsulate Properties *instances* (the engine variant, if there are two variants)
+        which suggests a dependency on Engine wherever {}Properties are generated
+
+Are these Properties data structures the same or different?  The rubber meets the road in RIL —
+are the macro-generated RootProperties/RectangleProperties and PropertiesCoproduct entities the same?
+
+Note it's easier to generate RectangleProperties alongside Rectangle in cartridge-userland, but 
+with an engine dependency they seem to need to exist in fully code-genned cartridge-runtime...
+
+One possible tool to share the core Property definition is to split Property, PropertyLiteral,
+PropertyExpression, and PropertyTimeline into pax_runtime_api (importable by both Engine & userland) — 
+then to write traits/impls that allow engine to `compute_in_place` and `read`
+
+*^ proceeding with this strategy*
+
+#### Re: Transform as a Property —
+ - Transform has a special method in the rendering lifecycle, `compute_matrix_in_place`.
+ - This is called in a subtly different context than `compute_in_place` for computableproperties — namely, it's called with the context of calculated hierarchical bounds (container size, etc.)
+ - Further, every RenderNode is expected to manage Transform, via get_transform
+ - Ergonomically, it would be ideal to treat any of the sub-properties of Transform as a plain Property,
+ - e.g. so that rotation.z can be an expression while scale[x,y] are literal values
+ - (Further, there seems to be no reason this can't continue recursively, with the `operations` API)
+
+Question: given the above, should `transform` be expected as a member of `{}Properties`, or should we hoist it to be a top-level property of `{}Instance`?
+ - In the world where it's hoisted to be an `Instance` property:
+   - We can still `compute_in_place` by special-casing `.transform` whenever we handle `compute_in_place` for properties — 
+   - that is, `.properties.compute_in_place()` and `.transform.compute_in_place()`.  To spell out further: `transform` is treated as a `ComputableProperty` in the engine
+   - in every way except for being part of the PropertiesCoproduct.
+ - This also suggests an opaque-to-user special-handling of Transform during compilation.  Namely,
+   - the user addresses Transform just as they would any Property, e.g. through Settings and through
+   - runtime .get/.set APIs.  However — in RIL and engine (.transform.set), Transform is special cased
+
+
+### Transform API
+2022-02-07
+
+What's a reasonable & ergonomic API for transforms, which:
+ - is terse & expressive in PAXEL
+ - is terse & expressive in the action API
+ - is thorough and enables specifying arbitrary transform order 
+ - 
+Some ideas —
+
+#### Array for operation sequence, enums for declaring operations
+```
+<Rectangle id="meow">
+
+@settings {
+    #meow {
+        transforms: [Transform::Rotate(Angle::Degrees(27.8))]
+    }
+}
+```
+Pros: highly expressive
+Cons: verbose (esp. enums)
+
+#### More CSS-like?
+```
+<Rectangle id="meow">
+
+@settings {
+    #meow {
+        transform: rotate(32) scale(1.2)
+    }
+}
+```
+pros: expressive & terse
+cons: new DSL
+
+
+#### Recursive?
+```
+<Rectangle id="meow">
+
+@settings {
+    #meow {
+        transform: {
+            operations: [
+                Transform {
+                    scale: [1.2, 2.2]
+                },
+                Transform {
+                    translate: [400.0px, 300.0px]
+                }
+            ]
+        }
+    }
+}
+```
+Pros: expressive and aligned with RIL
+Cons: verbose, esp. nesting `operations` and reincantation of `Transform`
+
+
+#### fusion of operation sequence + recursive?
+either accept polymorphic Transform values (array or Transform) —
+or surface monomorphic top-level properties (`transform-sequence : []Transform` and `transform: Transform`)
+```
+<Rectangle id="meow">
+
+@settings {
+    #meow {
+        transform-sequence:[
+            {
+                scale: [1.2, 2.2]
+            },
+            {
+                translate: [400.0px, 300.0px]
+            }
+        ]
+    }
+}
+```
+
+
+
+#### Require transform sequences to be handled with expressions?
+con: runtime penalty (maybe?  maybe it's equivalent given expression caching!)
+
+
+```
+<Rectangle id="meow">
+
+@settings {
+    #meow {
+        transform: @{
+            Transform::scale(1.4, 2.2) * Transform::rotate(120deg) * Transform::translate(200px, 100px)
+        }
+    }
+}
+```
+
+The above is quite nice.  The single-transform case is easily handled as a literal, as is the "manually expand matrix" case,
+and the "combine transform" case is easily & elegantly handled with an expression.
+
+Can also expose a matrix2d method on Transform for manual computation:
+```
+Transform::matrix2d(a,b,c,d,e,f)
+
+representing:
+| a c e |
+| b d f |
+| 0 0 1 |
+```
+
+Another note: Kurbo's `Affine` (used for pax's 2d backends) currently handles all of this with similar
+ergonomics.  Would it make sense to (selectively) expose these APIs directly (e.g. impl'ing local
+traits as necessary to inject behavior) — or should there be a stand-alone glue layer between
+the user-facing Transform API and the rendering Transform API?
+^ decision: yes expose new middle object
+
+Finally:  it's not so crazy to introduce a special "transform list" syntax and
+supporting it with the parser, e.g.:
+`transform: scale(1.5, 1.5) * translate(100.0, 100.0)`
+instead of wrapping in an expression.
+But it's a tiny readability difference, ultimately `@{}` vs not.
+
+Decision:
+`Size` lives alongside `Properties` and `Children` as a top-level member of an `instance`.
+Design GUI can special-case these built-ins
+In the (unusual) case where a size is explicitly not desired (e.g. Group), then
+it must be handled as a primitive (i.e. one that defines `fn get_size() { None }`)
+
+one more decision:
+Add `position` as a property? (essentially `.x` and `.y` — but consistent with ergonomics of giving `transform` and `size` their own buckets)
+This would act as an affine translation, after origin and align calculation but before remaining transform calculation
+Currently it's not necessary because `translate` is effectively equivalent.
+
+If `position` were added, given that it's purely ergonomic (approachability), consider
+whether to add aliases like `.x`, `.y`, 

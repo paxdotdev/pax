@@ -6,33 +6,26 @@ use pax::*;
 #[pax_primitive_type("../pax-std-primitives", crate::StrokeInstance)]
 pub struct Stroke {}
 
-#[pax_primitive_type("../pax-std-primitives", crate::TransformInstance)]
-#[derive(Default)]
-pub struct Transform {
-    operations: Option<Vec<Transform>>, ///when provided, take aggregate product of provided Transforms and prepend to
-                                        /// any other self-contained Transforms.  This enables precise expression of transform order,
-                                        /// as a (hierarchical & recursive) sequence of affine operations
-    rotate: Option<f64>, ///over z axis
-    translate: Option<[f64; 2]>,
-    scale: Option<[f64; 2]>,
-    origin: Option<[f64; 2]>,
-    align: Option<[f64; 2]>,
-}
+
 
 #[pax_primitive_type("../pax-std-primitives", crate::ColorInstance)]
-pub struct Color {
-    h: f64,
-    s: f64,
-    l: f64,
-    a: f64,
+pub struct Color{
+    color_variant: ColorVariant,
+}
+
+pub enum ColorVariant {
+    Hlca([f64; 4]),
+    Rgba([f64; 4]),
 }
 
 impl Color {
-    pub fn hsla(h:f64, s:f64, l:f64, a:f64) -> Self {
-        Self { h,s,l,a, }
+    pub fn hlca(h:f64, l:f64, c:f64, a:f64) -> Self {
+        Self {color_variant: ColorVariant::Hlca([h,l,c,a])}
+    }
+    pub fn rgba(r:f64, g:f64, b:f64, a:f64) -> Self {
+        Self {color_variant: ColorVariant::Rgba([r,g,b,a])}
     }
 }
-
 
 #[pax_primitive_type("../pax-std-primitives", crate::Size)]
 pub use pax::api::Size;

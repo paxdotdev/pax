@@ -9,14 +9,21 @@ pub mod types;
 
 pub use components::*;
 
+use pax::api::Property;
+
 pub mod primitives {
     use pax::pax_primitive;
 
 
     #[pax_primitive("./pax-std-primitives", crate::GroupInstance)]
     pub struct Group {
-        pub transform: types::Transform
+        pub transform: pax::api::Transform
     }
+
+    pub struct GroupProperties {
+    }
+
+
 
     #[cfg(feature = "parser")]
     use parser;
@@ -71,7 +78,11 @@ pub mod primitives {
     pub struct Rectangle {
         pub stroke: types::Stroke,
         pub fill: types::Color,
-        pub size: [pax::api::Size; 2],
+    }
+
+    pub struct RectangleProperties {
+        pub stroke: Box<dyn pax::api::Property<types::Stroke>>,
+        pub fill: Box<dyn pax::api::Property<types::Color>>,
     }
 
     //

@@ -4,9 +4,12 @@ use std::rc::Rc;
 use kurbo::{Affine};
 use piet::{Color, StrokeStyle};
 
-use pax_runtime_api::Size;
+use pax_runtime_api::{Size, Size2D};
 
-use crate::{Property, PropertyLiteral, RenderTreeContext, HostPlatformContext};
+use crate::{ RenderTreeContext, HostPlatformContext};
+
+use pax_runtime_api::{Property, PropertyLiteral};
+use crate::ComputableProperty;
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.
@@ -64,7 +67,7 @@ pub trait RenderNode
             None => bounds,
             Some(size_raw) => {
                 (
-                    match size_raw.borrow().0.read() {
+                    match size_raw.borrow().0.get() {
                         Size::Pixel(width) => {
                             *width
                         },
@@ -72,7 +75,7 @@ pub trait RenderNode
                             bounds.0 * (*width / 100.0)
                         }
                     },
-                    match size_raw.borrow().1.read() {
+                    match size_raw.borrow().1.get() {
                         Size::Pixel(height) => {
                             *height
                         },
@@ -143,86 +146,150 @@ pub trait RenderNode
 /// Note that transform order is currently hard-coded.  This could be amended
 /// upon deriving a suitable API — this may look like passing a manual `Affine` object or expressing
 /// transforms in a sugared syntax in Pax
-pub struct Transform {
-    pub translate: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
-    pub scale: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
-    pub rotate: Box<dyn Property<f64>>, //z-axis only for 2D rendering
-    //TODO: add shear? needed at least to support ungrouping after scale+rotate
-    pub origin: (Box<dyn Property<Size>>, Box<dyn Property<Size>>),
-    pub align: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
-    pub cached_computed_transform: Affine,
-}
+// pub struct Transform {
+//     pub translate: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
+//     pub scale: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
+//     pub rotate: Box<dyn Property<f64>>, //z-axis only for 2D rendering
+//     //TODO: add shear? needed at least to support ungrouping after scale+rotate
+//     pub origin: (Box<dyn Property<Size>>, Box<dyn Property<Size>>),
+//     pub align: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
+//     pub cached_computed_transform: Affine,
+// }
+//
+//
+// impl Default for Transform {
+//     fn default() -> Self {
+//         Transform{
+//             cached_computed_transform: Affine::default(),
+//             align: (Box::new(PropertyLiteral { value: 0.0 }), Box::new(PropertyLiteral { value: 0.0 })),
+//             origin: (Box::new(PropertyLiteral { value: Size::Pixel(0.0)}), Box::new(PropertyLiteral { value: Size::Pixel(0.0)})),
+//             translate: (Box::new(PropertyLiteral { value: 0.0}), Box::new(PropertyLiteral { value: 0.0})),
+//             scale: (Box::new(PropertyLiteral { value: 1.0}), Box::new(PropertyLiteral { value: 1.0})),
+//             rotate: Box::new(PropertyLiteral { value: 0.0 }),
+//         }
+//     }
+// }
 
 
-impl Default for Transform {
-    fn default() -> Self {
-        Transform{
-            cached_computed_transform: Affine::default(),
-            align: (Box::new(PropertyLiteral { value: 0.0 }), Box::new(PropertyLiteral { value: 0.0 })),
-            origin: (Box::new(PropertyLiteral { value: Size::Pixel(0.0)}), Box::new(PropertyLiteral { value: Size::Pixel(0.0)})),
-            translate: (Box::new(PropertyLiteral { value: 0.0}), Box::new(PropertyLiteral { value: 0.0})),
-            scale: (Box::new(PropertyLiteral { value: 1.0}), Box::new(PropertyLiteral { value: 1.0})),
-            rotate: Box::new(PropertyLiteral { value: 0.0 }),
+use pax_runtime_api::Transform;
+
+impl<T> ComputableProperty for dyn Property<T> {}
+
+impl ComputableProperty for Transform {
+
+    fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
+        match &mut self.translate {
+            Some(slice) => {
+                slice[0].compute_in_place(rtc);
+                slice[1].compute_in_place(rtc);
+            },
+            _ => {},
         }
-    }
-}
-
-impl Transform {
-
-    pub fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
-        &self.translate.0.compute_in_place(rtc);
-        &self.translate.1.compute_in_place(rtc);
-        &self.scale.0.compute_in_place(rtc);
-        &self.scale.1.compute_in_place(rtc);
-        &self.rotate.compute_in_place(rtc);
-        &self.origin.0.compute_in_place(rtc);
-        &self.origin.1.compute_in_place(rtc);
-        &self.align.0.compute_in_place(rtc);
-        &self.align.1.compute_in_place(rtc);
+        match &mut self.scale {
+            Some(slice) => {
+                slice[0].compute_in_place(rtc);
+                slice[1].compute_in_place(rtc);
+            },
+            _ => {},
+        }
+        match &mut self.origin {
+            Some(slice) => {
+                slice[0].compute_in_place(rtc);
+                slice[1].compute_in_place(rtc);
+            },
+            _ => {},
+        }
+        match &mut self.align {
+            Some(slice) => {
+                slice[0].compute_in_place(rtc);
+                slice[1].compute_in_place(rtc);
+            },
+            _ => {},
+        }
+        match &mut self.rotate {
+            Some(prop) => {
+                prop.compute_in_place(rtc);
+            },
+            _ => {},
+        }
     }
 
     //TODO:  if providing bounds is prohibitive or awkward for some use-case,
     //       we can make `bounds` and `align` BOTH TOGETHER optional — align requires `bounds`
     //       but it's the only thing that requires `bounds`
 
+
+
+}
+
+
+pub trait ComputableTransform {
+    fn compute_matrix_in_place(&mut self, node_size: (f64, f64), container_bounds: (f64, f64)) -> &Affine;
+    fn get_cached_computed_value(&self) -> &Affine;
+}
+
+impl ComputableTransform for Transform {
     //Distinction of note: scale, translate, rotate, origin, and align are all AUTHOR-TIME properties
     //                     node_size and container_bounds are (computed) RUNTIME properties
-    pub fn compute_matrix_in_place(&mut self, node_size: (f64, f64), container_bounds: (f64, f64)) -> &Affine {
-        let origin_transform = Affine::translate(
-        (
-                match self.origin.0.read() {
-                    Size::Pixel(x) => { -x },
-                    Size::Percent(x) => {
-                        -node_size.0 * (x / 100.0)
-                    },
-                },
-                match self.origin.1.read() {
-                    Size::Pixel(y) => { -y },
-                    Size::Percent(y) => {
-                        -node_size.1 * (y / 100.0)
-                    },
-                }
-            )
-        );
+    fn compute_matrix_in_place(&mut self, node_size: (f64, f64), container_bounds: (f64, f64)) -> &Affine {
+        let origin_transform = match &self.origin {
+            Some(origin) => {
+                Affine::translate(
+                    (
+                        match origin[0].get() {
+                            Size::Pixel(x) => {
+                                -x
+                            },
+                            Size::Percent(x) => {
+                                -node_size.0 * (x / 100.0)
+                            },
+                        },
+                        match origin[1].get() {
+                            Size::Pixel(y) => {
+                                -y
+                            },
+                            Size::Percent(y) => {
+                                -node_size.1 * (y / 100.0)
+                            },
+                        }
+                    )
+                )
+            },
+            //No origin applied: treat as 0,0; identity matrix
+            None => {Affine::default()}
+        };
 
         //TODO: support custom user-specified transform order?
         // Is the only use-case for this or is grouping sufficient to achieve "rotation about an axis"?
         // If so, grouping/framing is likely sufficient
-        let base_transform =
-            Affine::rotate(*self.rotate.read()) *
-            Affine::scale_non_uniform(*self.scale.0.read(), *self.scale.1.read()) *
-            Affine::translate((*self.translate.0.read(), *self.translate.1.read()));
+        // let base_transform =
+        //     Affine::rotate(*self.rotate.get()) *
+        //         Affine::scale_non_uniform(*self.scale.0.get(), *self.scale.1.get()) *
+        //         Affine::translate((*self.translate.0.get(), *self.translate.1.get()));
+        let mut transform = Affine::default();
+        if let Some(rotate) = &self.rotate {
+            transform = transform * Affine::rotate(*rotate.get());
+        }
+        if let Some(scale) = &self.scale {
+            transform = transform * Affine::scale_non_uniform(*scale[0].get(), *scale[1].get());
+        }
+        if let Some(translate) = &self.translate {
+            transform = transform * Affine::translate((*translate[0].get(), *translate[1].get()));
+        }
 
-        let align_transform = Affine::translate((self.align.0.read() * container_bounds.0, self.align.1.read() * container_bounds.1));
-        self.cached_computed_transform = align_transform * origin_transform * base_transform;
+        let align_transform = match &self.align {
+            Some(align) => {Affine::translate((*align[0].get() * container_bounds.0, *align[1].get() * container_bounds.1))},
+            _ => {Affine::default()}
+        };
+        self.cached_computed_transform = align_transform * origin_transform * transform;
         &self.cached_computed_transform
     }
 
-    pub fn get_cached_computed_value(&self) -> &Affine {
+    fn get_cached_computed_value(&self) -> &Affine {
         &self.cached_computed_transform
     }
-
 }
+
 
 /// Represents the outer stroke of a drawable element
 pub struct StrokeInstance {
@@ -234,13 +301,6 @@ pub struct StrokeInstance {
 
 
 
-// More than just a tuble of (Size, Size),
-// Size2D wraps up Properties as well to make it easy
-// to declare expressable Size properties
-pub type Size2D = Rc<RefCell<(
-    Box<dyn Property<Size>>,
-    Box<dyn Property<Size>>,
-)>>;
 
 
 /// Used as an ergonomic aid for instantiating Size2Ds
@@ -249,26 +309,26 @@ pub struct Size2DFactory {}
 impl Size2DFactory {
     pub fn literal(x: Size, y: Size) -> Size2D {
         Rc::new(RefCell::new(
-            (
+            [
                 Box::new(
                     PropertyLiteral { value: x }
                 ),
                 Box::new(
                     PropertyLiteral { value: y }
                 )
-            )
+            ]
         ))
     }
     pub fn default() -> Size2D {
        Rc::new(RefCell::new(
-            (
+            [
                 Box::new(
                     PropertyLiteral { value: Size::Percent(100.0) }
                 ),
                 Box::new(
                     PropertyLiteral { value: Size::Percent(100.0) }
                 )
-            )
+            ]
         ))
     }
 }

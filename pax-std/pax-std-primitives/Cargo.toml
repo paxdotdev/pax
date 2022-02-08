@@ -7,6 +7,8 @@ edition = "2021"
 
 [dependencies]
 pax-core = {path = "../../pax-core"}
+pax-std = {path = "../"}
+pax-runtime-api = {path = "../../pax-runtime-api"}
 piet = "0.3.1"
 piet-web = "0.3.1"
 kurbo = "0.7.1"

@@ -57,7 +57,7 @@ impl RenderNode for Text {
         let message = TextMessage {
             kind: MessageKind::TextMessage,
             id: self.id.clone(), //TODO: can we do better than cloning here?
-            content: Some(self.content.read()), //TODO: can we do better than cloning here?
+            content: Some(self.content.get()), //TODO: can we do better than cloning here?
             transform: Some((rtc.transform * *self.transform.borrow().get_cached_computed_value()).as_coeffs()),
             bounds: Some(self.get_size_calc(rtc.bounds)),
         };

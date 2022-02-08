@@ -59,7 +59,7 @@ impl RenderNode for Repeat {
         //wrap data_list into repeat_items and attach "puppeteer" components that attach
         //the necessary data as stack frame context
         self._virtual_children = Rc::new(RefCell::new(
-            self.data_list.read().iter().enumerate().map(|(i, datum)| {
+            self.data_list.get().iter().enumerate().map(|(i, datum)| {
                 let properties = Rc::new(RefCell::new(
                     RepeatItem { i, datum: Rc::clone(datum)}
                 ));
