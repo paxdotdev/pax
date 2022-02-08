@@ -2,6 +2,7 @@
 extern crate lazy_static;
 
 use pax::*;
+use pax::api::Property;
 
 use pax_std::primitives::{Group, Rectangle};
 // use pax::core::{ComponentInstance, HostPlatformContext, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform};
@@ -31,6 +32,7 @@ pub mod pax_types {
     }
 
     pub use crate::Root;
+    pub use crate::RootProperties;
     //plus other relevant.
 }
 
@@ -47,6 +49,7 @@ pub struct RootProperties {
     pub current_rotation: Box<dyn pax::api::Property<f64>>,
     pub deeper_struct: Box<dyn pax::api::Property<DeeperStruct>>,
 }
+
 
 //How is this consumed?
 // - Chassis reaches into cartridge and calls this method (might need to dyn+impl)
@@ -246,8 +249,10 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "parser")]
 use std::{env, fs};
+
 #[cfg(feature = "parser")]
 use pax::internal::message::{SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
+
 
 
 #[cfg(feature = "parser")]

@@ -67,7 +67,7 @@ pub trait RenderNode
             None => bounds,
             Some(size_raw) => {
                 (
-                    match size_raw.borrow().0.get() {
+                    match size_raw.borrow()[0].get() {
                         Size::Pixel(width) => {
                             *width
                         },
@@ -75,7 +75,7 @@ pub trait RenderNode
                             bounds.0 * (*width / 100.0)
                         }
                     },
-                    match size_raw.borrow().1.get() {
+                    match size_raw.borrow()[1].get() {
                         Size::Pixel(height) => {
                             *height
                         },
@@ -173,7 +173,11 @@ pub trait RenderNode
 
 use pax_runtime_api::Transform;
 
-impl<T> ComputableProperty for dyn Property<T> {}
+impl<T> ComputableProperty for dyn Property<T> {
+    fn compute_in_place(&mut self, _rtc: &RenderTreeContext) {
+        //no-op default implementation (due to Rust constraint)
+    }
+}
 
 impl ComputableProperty for Transform {
 
@@ -290,46 +294,11 @@ impl ComputableTransform for Transform {
     }
 }
 
-
 /// Represents the outer stroke of a drawable element
 pub struct StrokeInstance {
     pub color: Color,
     pub width: f64,
     pub style: StrokeStyle,
     //TODO: stroke alignment, inner/outer/center?
-}
-
-
-
-
-
-/// Used as an ergonomic aid for instantiating Size2Ds
-pub struct Size2DFactory {}
-
-impl Size2DFactory {
-    pub fn literal(x: Size, y: Size) -> Size2D {
-        Rc::new(RefCell::new(
-            [
-                Box::new(
-                    PropertyLiteral { value: x }
-                ),
-                Box::new(
-                    PropertyLiteral { value: y }
-                )
-            ]
-        ))
-    }
-    pub fn default() -> Size2D {
-       Rc::new(RefCell::new(
-            [
-                Box::new(
-                    PropertyLiteral { value: Size::Percent(100.0) }
-                ),
-                Box::new(
-                    PropertyLiteral { value: Size::Percent(100.0) }
-                )
-            ]
-        ))
-    }
 }
 

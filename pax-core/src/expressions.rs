@@ -10,7 +10,7 @@ use pax_runtime_api::{Property, PropertyLiteral, PropertyTimeline};
 /// An abstract Property that may be either: Literal,
 /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait ComputableProperty {
-    fn compute_in_place(&mut self, _rtc: &RenderTreeContext) {}
+    fn compute_in_place(&mut self, _rtc: &RenderTreeContext);
 }
 
 impl<T> ComputableProperty for PropertyLiteral<T> {

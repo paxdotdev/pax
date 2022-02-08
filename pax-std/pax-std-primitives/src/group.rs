@@ -3,9 +3,8 @@ use std::rc::Rc;
 
 use pax_core::{RenderNode, RenderNodePtr, RenderNodePtrList};
 use pax_core::pax_properties_coproduct::PropertiesCoproduct;
-use pax_core::rendering::Size2D;
 
-use pax_runtime_api::{Transform};
+use pax_runtime_api::{Transform, Size2D};
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.

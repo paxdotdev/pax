@@ -2,12 +2,12 @@
 use kurbo::{BezPath, Rect};
 use piet::{RenderContext, StrokeStyle};
 
-use pax_core::{Color, RenderNode, ComputableTransform, RenderNodePtrList, RenderTreeContext, Size2D, HostPlatformContext, Size2DFactory, StrokeInstance, ComputableProperty};
+use pax_core::{Color, RenderNode, ComputableTransform, RenderNodePtrList, RenderTreeContext, HostPlatformContext, StrokeInstance, ComputableProperty};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
 use pax_core::pax_properties_coproduct::PropertiesCoproduct;
-use pax_runtime_api::{Property, PropertyLiteral, Size, Transform};
+use pax_runtime_api::{Property, PropertyLiteral, Size, Transform, Size2D};
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -60,9 +60,11 @@ use parser;
 use std::collections::HashSet;
 #[cfg(feature="parser")]
 use std::{env, fs};
-use std::intrinsics::unreachable;
+use std::borrow::BorrowMut;
+use std::ops::Deref;
 #[cfg(feature="parser")]
 use std::path::{Path, PathBuf};
+use pax_std::types::ColorVariant;
 #[cfg(feature="parser")]
 use parser::ManifestContext;
 
@@ -108,14 +110,22 @@ impl RenderNode for RectangleInstance {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
-        let mut properties = self.properties.borrow_mut();
-        if let PropertiesCoproduct::Rectangle(mut properties_cast) = properties
-        {
-            properties_cast.size.0.compute_in_place(rtc);
-            properties_cast.size.1.compute_in_place(rtc);
-            properties_cast.fill.compute_in_place(rtc);
-            self.transform.borrow_mut().compute_in_place(rtc);
-        } else { unreachable!() }
+        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        match properties {
+            PropertiesCoproduct::Rectangle(properties_cast) => {
+                properties_cast.stroke.compute_in_place(rtc);
+                properties_cast.fill.compute_in_place(rtc);
+            },
+            _=>{},
+        }
+        let mut transform_borrowed = (**self.transform.borrow_mut()).borrow_mut();
+        transform_borrowed.compute_in_place(rtc);
+
+        let mut size_borrowed = (**self.size.borrow_mut()).borrow_mut();
+
+        size_borrowed[0].compute_in_place(rtc);
+        size_borrowed[1].compute_in_place(rtc);
+
     }
     fn render(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
         let transform = rtc.transform;
@@ -123,21 +133,37 @@ impl RenderNode for RectangleInstance {
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 
-        let fill: &Color = self.fill.get();
+        match self.properties.borrow().deref() {
+            PropertiesCoproduct::Rectangle(properties) => {
+                let properties_color = properties.fill.get();
+                let color = match properties_color.color_variant {
+                    ColorVariant::Hlca(slice) => {
+                        Color::hlca(slice[0], slice[1], slice[2], slice[3])
+                    }
+                    ColorVariant::Rgba(slice) => {
+                        Color::rgba(slice[0], slice[1], slice[2], slice[3])
+                    }
+                };
 
-        let mut bez_path = BezPath::new();
-        bez_path.move_to((0.0, 0.0));
-        bez_path.line_to((width , 0.0));
-        bez_path.line_to((width , height ));
-        bez_path.line_to((0.0, height));
-        bez_path.line_to((0.0,0.0));
-        bez_path.close_path();
 
-        let transformed_bez_path = transform * bez_path;
-        let duplicate_transformed_bez_path = transformed_bez_path.clone();
+                let mut bez_path = BezPath::new();
+                bez_path.move_to((0.0, 0.0));
+                bez_path.line_to((width , 0.0));
+                bez_path.line_to((width , height ));
+                bez_path.line_to((0.0, height));
+                bez_path.line_to((0.0,0.0));
+                bez_path.close_path();
 
-        hpc.drawing_context.fill(transformed_bez_path, fill);
-        hpc.drawing_context.stroke(duplicate_transformed_bez_path, &self.stroke.get().color, *&self.stroke.get().width);
+                let transformed_bez_path = transform * bez_path;
+                let duplicate_transformed_bez_path = transformed_bez_path.clone();
+
+                let color = properties.fill.get().to_piet_color();
+                hpc.drawing_context.fill(transformed_bez_path, &color);
+                hpc.drawing_context.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.to_piet_color(), *&properties.stroke.get().width);
+            },
+            _=>{unreachable!()}
+        };
+
     }
 }
 //

@@ -10,7 +10,6 @@ use piet::RenderContext;
 use piet_web::WebRenderContext;
 
 use crate::{Affine, ComponentInstance, Color, Error, ComputableTransform, InjectionContext,  RenderNodePtr, StrokeInstance, StrokeStyle, RenderNode};
-use crate::rendering::Size2DFactory;
 use crate::runtime::{Runtime};
 //TODO: make the JsValue render_message_queue platform agnostic and remove this dep —
 //      (probably translate to JsValue at the pax-chassis-web layer instead of here.)

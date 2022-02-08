@@ -557,3 +557,55 @@ Currently it's not necessary because `translate` is effectively equivalent.
 
 If `position` were added, given that it's purely ergonomic (approachability), consider
 whether to add aliases like `.x`, `.y`, 
+
+
+
+### On `compute_in_place` for generated userland components
+2022-02-08
+
+Using `Spread` as a reference, `compute_in_place` manually iterates over
+properties and calls `compute_in_place`.
+
+We don't want users to worry about this; we want to autogenerate the `compute_in_place` code for
+properties.  Problematically, we can only call `compute_in_place` in the cartridge runtime context
+(due to dependency on engine,) but we don't currently have metadata knowledge of properties
+in that context.
+
+One possibility:  expose an iterator that returns a sequence of Box<dyn Property> (`Property<WHAT>` though)...
+
+Another possibility: separate the `rtc` across a trait boundary, allowing a similar maneuver
+as `dyn ComputableProperty` in Engine
+
+Note also: `Spread` created its own RenderNode as its subtree root, with a single child `Component`
+Should this be the general approach?  Is there a benefit to doing this?
+(beyond the necessary ability to write `compute_in_place` logic for arbitrary properties,
+though note that this could be generalized by exposing an iterator over
+
+two options:
+    - expose RenderTreeContext via pax_runtime_api, untangle as needed, e.g. through traits or closure-passing
+    - codegen `compute_properties_fn` closures in RIL, cartridge-runtime; add properties intelligence to parser
+
+For the former, conceptually it's a tough split.  the RenderTreeContext is squarely conceptually attached to the runtime.
+The reason for the attachment is fundamentally to access StackFrame & Scope, which are used for runtime calculations (e.g. of Expressions)
+Thus, and given that property schemas will need to be understood by the parser eventually:
+*Decision: codegen `compute_properties_fn` closures in RIL, cartridge-runtime; add properties intelligence to parser*
+
+We need a fn:
+```
+compute_properties_fn: |mut properties: PropertiesCoproduct, rtc: &RenderTreeContext|{
+    if let PropertiesCoproduct::Root(mut properties_cast) = properties {
+        //Note: this is code-genned based on parsed knowlege of the properties
+        //      of `Root`
+        properties_cast.deeper_struct.compute_in_place(rtc);
+        properties_cast.current_rotation.compute_in_place(rtc);
+        properties_cast.num_clicks.compute_in_place(rtc);
+    }
+},
+```
+
+This requires only knowing property names, not even types/import paths (extra easy)
+
+Update: achieved apparently functional `compute_in_place` 
+Next steps: pencil in second rectangle
+— then bite of expressions with manually written harness code, because there's a potential design dead end
+here if we hit a wall with wiring up Expressions, Properties, Scopes, etc.

@@ -2,9 +2,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_properties_coproduct::{PropertiesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, Size2D, HostPlatformContext};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext};
 
-use pax_runtime_api::{Timeline, Transform};
+use pax_runtime_api::{Timeline, Transform, Size2D};
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `adoptees` and
@@ -18,7 +18,7 @@ pub struct ComponentInstance {
     pub transform: Rc<RefCell<Transform>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-
+    pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext)>,
 }
 
 //TODO:
@@ -32,6 +32,7 @@ impl RenderNode for ComponentInstance {
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+        (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
         rtc.runtime.borrow_mut().push_stack_frame(
             Rc::clone(&self.adoptees),
             Box::new(Scope {

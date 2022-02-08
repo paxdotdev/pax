@@ -309,7 +309,7 @@ pub struct SpreadProperties {
 impl Default for SpreadProperties {
     fn default() -> Self {
         SpreadProperties {
-            size: Size2DFactory::default(),
+            size:  Size2DFactory::default(),
             transform: Default::default(),
             cell_count: Box::new(PropertyLiteral {value: 0}),
             gutter_width: Box::new(PropertyLiteral {value: Size::Pixel(0.0)}),

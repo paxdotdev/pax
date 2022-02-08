@@ -4,13 +4,29 @@ use pax::*;
 //generate unwrapping code in cartridge-runtime (if let/match&panic)
 //(will be wrapped up as a PropertyCoproduct)
 #[pax_primitive_type("../pax-std-primitives", crate::StrokeInstance)]
-pub struct Stroke {}
+pub struct Stroke {
+    pub color: Color,
+    pub width: f64,
+}
 
 
 
 #[pax_primitive_type("../pax-std-primitives", crate::ColorInstance)]
 pub struct Color{
-    color_variant: ColorVariant,
+    pub color_variant: ColorVariant,
+}
+
+impl  Color {
+    pub fn to_piet_color(&self) -> piet::Color {
+        match self.color_variant {
+            ColorVariant::Hlca(slice) => {
+                piet::Color::hlca(slice[0], slice[1], slice[2], slice[3])
+            },
+            ColorVariant::Rgba(slice) => {
+                piet::Color::rgba(slice[0], slice[1], slice[2], slice[3])
+            }
+        }
+    }
 }
 
 pub enum ColorVariant {
