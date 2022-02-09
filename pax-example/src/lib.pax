@@ -17,9 +17,9 @@
     #rect-b {
         fill: Color::rgba(0, 255, 0, 1)
         stroke: {
-            color: Color::rgba(0,0,0,1)
+            color: Color::rgba(255,255,0,1)
         }
         size: [300px, 300px]
-        transform: scale(1.5, 1.5)
+        transform: rotate(75deg)
     }
 }

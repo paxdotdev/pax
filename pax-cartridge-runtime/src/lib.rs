@@ -39,13 +39,24 @@ pub fn instantiate_root() -> Rc<RefCell<ComponentInstance>> {
                                     width: 5.0,
                                 }),
                                 fill: PropertyLiteral::new(Color::hlca(180.0, 20.0, 20.0, 20.0)),
-
                             }
                         ),
                         Transform::translate(100.0, 400.0),
                         [PropertyLiteral::new(Size::Pixel(100.0)), PropertyLiteral::new(Size::Pixel(200.0))]
                     ),
-
+                    RectangleInstance::instantiate(
+                        PropertiesCoproduct::Rectangle(
+                            RectangleProperties {
+                                stroke: PropertyLiteral::new( Stroke {
+                                    color: Color::rgba(1.0, 1.0, 0.0, 1.0),
+                                    width: 5.0,
+                                }),
+                                fill: PropertyLiteral::new(Color::rgba(0.0, 1.0, 0.0, 1.0)),
+                            }
+                        ),
+                        Transform::rotate(0.75),
+                        [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
+                    ),
                 ])),
             ),
             // Rc::new(RefCell::new()),
