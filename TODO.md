@@ -609,3 +609,58 @@ Update: achieved apparently functional `compute_in_place`
 Next steps: pencil in second rectangle
 — then bite of expressions with manually written harness code, because there's a potential design dead end
 here if we hit a wall with wiring up Expressions, Properties, Scopes, etc.
+
+
+
+### on expressions
+expressions will be transpiled to Rust — so some semantics will likely
+carry over, e.g. symbol names, :: for namespace access or associated functions, etc.
+
+dependency graph: via expressions, properties may depend on other properties
+Expressions may also depend on globals/constants like @frames_elapsed 
+future/theoretical: expressions may depend on descendents' values, via selector (`@('#abc').num_clicks
+Expressions may depend on other 'helper' expressions, or perhaps vanilla 
+functions that handle their own dirty-notifications
+Expressions may have no dependencies, e.g. @{ 1+1 } 
+
+Numeric literals need special handling re: float & ints
+Should cast implicitly between int/float when necessary
+Perhaps study JS/AS as model
+
+#### Symbol resolution
+Symbols in scope may be:
+1. properties on `self`
+2. "helpers" (methods, or special macro-decorated expressions) on `self`
+3. imported symbols, in scope in the context of `whatever.rs` — alternatively, maybe can capture in closure??
+4. maybe "special" imported symbols, essentially a pre-imported expression `std`
+
+
+
+Some example transpilations:
+
+```
+@{1 + 1}
+1 + 1
+```
+
+```
+@{
+Color::rgba(
+    Math::abs(
+        Math::sin(num_clicks / 10.0)
+    ),
+    1.0,
+    0.0,
+    1.0
+)}
+
+Color::rgba(
+    Math::abs(
+        Math::sin(num_clicks / 10.0)
+    ),
+    1.0,
+    0.0,
+    1.0
+)}
+
+```

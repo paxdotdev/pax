@@ -11,7 +11,7 @@
             width: 5px
         }
         size: [200px,300px]
-        transform: translate(100.0, 400.0)
+        transform: @{ rotate(0.24) * translate(500.0, 200.0) }
     }
 
     #rect-b {
@@ -20,6 +20,6 @@
             color: Color::rgba(255,255,0,1)
         }
         size: [300px, 300px]
-        transform: rotate(75deg)
+        transform: @{ rotate(0.025 * $frames_elapsed) }
     }
 }

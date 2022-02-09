@@ -14,7 +14,7 @@ use pax_runtime_api::{Property, PropertyLiteral, Size, Transform, Size2D};
 ///
 /// maybe #[pax primitive]
 pub struct RectangleInstance {
-    pub transform: Rc<RefCell<Transform>>,
+    pub transform: Rc<RefCell<Box<dyn Property<Transform>>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub size: Rc<RefCell<[Box<dyn Property<Size>>; 2]>>,
 }
@@ -27,7 +27,7 @@ pub struct RectangleProperties {
 
 
 impl RectangleInstance {
-    pub fn instantiate(properties: PropertiesCoproduct, transform: Transform, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
+    pub fn instantiate(properties: PropertiesCoproduct, transform: Box<dyn Property<Transform>>, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
         match &properties {
             PropertiesCoproduct::Rectangle(cast_properties) => {
                 Rc::new(RefCell::new(RectangleInstance {

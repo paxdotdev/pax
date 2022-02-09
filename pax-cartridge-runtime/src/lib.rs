@@ -41,7 +41,7 @@ pub fn instantiate_root() -> Rc<RefCell<ComponentInstance>> {
                                 fill: PropertyLiteral::new(Color::hlca(180.0, 20.0, 20.0, 20.0)),
                             }
                         ),
-                        Transform::translate(100.0, 400.0),
+                        Box::new(PropertyLiteral {value: Transform::translate(100.0, 400.0)}),
                         [PropertyLiteral::new(Size::Pixel(100.0)), PropertyLiteral::new(Size::Pixel(200.0))]
                     ),
                     RectangleInstance::instantiate(
@@ -54,7 +54,7 @@ pub fn instantiate_root() -> Rc<RefCell<ComponentInstance>> {
                                 fill: PropertyLiteral::new(Color::rgba(0.0, 1.0, 0.0, 1.0)),
                             }
                         ),
-                        Transform::rotate(0.75),
+                        Box::new(PropertyLiteral {value: Transform::rotate(std::f64::consts::FRAC_1_SQRT_2)}),
                         [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
                     ),
                 ])),

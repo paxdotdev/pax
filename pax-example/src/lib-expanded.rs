@@ -5,16 +5,12 @@ use pax::*;
 use pax::api::Property;
 
 use pax_std::primitives::{Group, Rectangle};
-// use pax::core::{ComponentInstance, HostPlatformContext, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform};
-// use std::cell::RefCell;
-// use std::rc::Rc;
 
 #[derive(Copy, Clone, Default)]
 pub struct DeeperStruct {
     a: i64,
     b: &'static str,
 }
-
 
 pub mod pax_types {
     pub mod pax_std {
@@ -50,191 +46,6 @@ pub struct RootProperties {
     pub deeper_struct: Box<dyn pax::api::Property<DeeperStruct>>,
 }
 
-
-//How is this consumed?
-// - Chassis reaches into cartridge and calls this method (might need to dyn+impl)
-// - Chassis then passes the returned instance to the Engine to start rendering
-//
-// fn get_root_component_instance() -> Rc<RefCell<ComponentInstance>> {
-//     //TODO: spell out literal RIL tree here, accepting data either by env or by TCP
-//     //This string is generated to this sourcefile via macro, and the definition tree is traversed at compiletime (macro generation time) to output the following.
-//     Rc::new(RefCell::new(ComponentInstance{
-//
-//     }))
-// }
-
-
-//
-// impl Root {
-//     pub fn create_instance() -> Rc<RefCell<ComponentInstance>> {
-//         let ret = ComponentInstance {
-//             template: Rc::new(RefCell::new(vec![])),
-//             adoptees: Rc::new(RefCell::new(vec![])),
-//             transform: Rc::new(RefCell::new(Default::default())),
-//             properties: Rc::new(RefCell::new(PropertiesCoproduct::Root)),
-//             timeline: None
-//         };
-//
-//         Rc::new(RefCell::new(ret))
-//     }
-// }
-
-//Probably don't need to do the whole impl RenderNode chunk!
-//can just inflate a ComponentInstance and pass it to PaxEngine
-//In Root's case: set as root_component
-//
-// fn get_instance() -> Rc<RefCell<ComponentInstance>> {
-//     // Rc::new(RefCell::new(ComponentInstance {
-//     //     template: RenderNodePtrList,
-//     //     adoptees: RenderNodePtrList,
-//     //     transform: Rc<RefCell<Transform>>,
-//     //     properties: Rc<RefCell<PropertiesCoproduct>>,
-//     //     timeline: Option<Rc<RefCell<Timeline>>>,
-//     // })
-// }
-// Don't need to do the following for standard userland component -- return a ComponentInstance instead
-// pub struct RootInstance {
-//     pub size: Size2D,
-//     pub transform: Rc<RefCell<Transform>>,
-//     pub properties: Rc<Refcell<RootProperties>>,
-// }
-//
-// impl RenderNode for RootInstance {
-//     fn get_rendering_children(&self) -> RenderNodePtrList {
-//         todo!()
-//     }
-//
-//     fn get_size(&self) -> Option<Size2D> {
-//         todo!()
-//     }
-//
-//     fn should_flatten(&self) -> bool {
-//         todo!()
-//     }
-//
-//     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
-//         todo!()
-//     }
-//
-//     fn get_transform(&mut self) -> Rc<RefCell<Transform>> {
-//         todo!()
-//     }
-//
-//     fn compute_properties(&mut self, _rtc: &mut RenderTreeContext) {
-//         todo!()
-//     }
-//
-//     fn pre_render(&mut self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
-//         todo!()
-//     }
-//
-//     fn render(&self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
-//         todo!()
-//     }
-//
-//     fn post_render(&mut self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
-//         todo!()
-//     }
-// }
-
-//
-// pub struct Whatever {
-//     pub x: |in: i64|{in + 6},
-// }
-//
-// pub struct PropertyX<T>(T);
-// impl<T: Copy> PropertyX<T> {
-//     fn get (&self) -> T {
-//        self.0
-//     }
-//     fn set (mut self, val: T) {
-//         self = Self(val);
-//     }
-// }
-//
-// fn test () {
-//     let rp = RootProperties{
-//         num_clicks: PropertyX(5),
-//         current_rotation: PropertyX(24.0),
-//         deeper_struct: PropertyX(DeeperStruct{a: 5, b: "meow"})
-//     };
-//
-//     rp.current_rotation.set(456.0);
-//     rp.deeper_struct.get();
-// }
-//  OR -- perhaps invert RootProperties & Root, rewriting Root
-//        to wrap .set and .get (thus making it more ergonomic to mutate values in vanilla userland codebase)
-//        while generating RootProperties for use in the engine in the bare struct role that Root currently serves
-// pub struct RootProperties {
-//     pub num_clicks: PropertyX<i64>,
-//     pub current_rotation: PropertyX<f64>,
-//     pub deeper_struct: PropertyX<DeeperStruct>,
-// }
-//
-// #[derive(Default)]
-// pub struct RootPatch {
-//     pub num_clicks: ExpressionOption<i64>,
-//     pub current_rotation: ExpressionOption<f64>,
-//     pub deeper_struct: ExpressionOption<DeeperStruct>,
-// }
-//
-// impl Root {
-//     fn apply_patch(patch: RootPatch) {
-//         //convert patch to values, incl. handling of expressions/routing through exptable
-//     }
-// }
-//
-// impl RootPatch {
-//     fn stack_and_override_with(&mut self, other_patch: RootPatch) {
-//
-//     }
-// }
-
-// pub enum ExpressionOption<T> {
-//     None,
-//     Some(T),
-//     Expression(String) //TODO: should be a pointer to exptable
-// }
-//
-// impl<T> Default for ExpressionOption<T> {
-//     fn default() -> Self {
-//         ExpressionOption::None
-//     }
-// }
-// //
-// impl From<SettingsLiteralBlockDefinition> for RootPatch {
-//     fn from(cd: SettingsLiteralBlockDefinition) -> Self {
-//         let mut ret = RootPatch::default();
-//         cd.settings_key_value_pairs.iter().for_each(|kvp| {
-//             match kvp.0.as_str() {
-//                 "num_clicks" => {
-//                     ret.num_clicks = match &kvp.1 {
-//                         SettingsValueDefinition::Literal(val) => {
-//                             ExpressionOption::Some(val)
-//                         }
-//                         SettingsValueDefinition::Expression(_) => {
-//                             //TODO: parse expression, register in exptable,
-//                             //and store a pointer here
-//                             ExpressionOption::Expression("TODO-ADDRESS".to_string())
-//                         }
-//                         _ => {panic!("Type mismatch")}
-//                     };
-//                 },
-//                 "current_rotation" => {
-//
-//                 },
-//                 "deeper_struct" => {
-//
-//                 },
-//                 _ => {
-//                     panic!("Unexpected property applied to Root: {}", kvp.0);
-//                 }
-//             }
-//         });
-//         ret
-//     }
-// }
-
 #[cfg(feature = "parser")]
 use pax::internal::message::ComponentDefinition;
 #[cfg(feature = "parser")]
@@ -249,11 +60,8 @@ use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 #[cfg(feature = "parser")]
 use std::{env, fs};
-
 #[cfg(feature = "parser")]
 use pax::internal::message::{SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
-
-
 
 #[cfg(feature = "parser")]
 lazy_static! {
@@ -274,8 +82,6 @@ pub fn main() {
         components: ctx.component_definitions,
         root_component_id: ctx.root_component_id,
     };
-
-
 
     println!("serialized bytes: {:?}", manifest.serialize());
 
@@ -353,7 +159,3 @@ impl Root {
     }
 }
 
-//DONE: is all descendent property access via Actions + selectors? `$('#some-desc').some_property`
-//      or do we need a way to support declaring desc. properties?
-//      We do NOT need a way to declar desc. properties here — because they are declared in the
-//      `properties` blocks of .dash
