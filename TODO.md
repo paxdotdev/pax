@@ -664,3 +664,13 @@ Color::rgba(
 )}
 
 ```
+
+### Journey of an expression
+2022-02-09 
+
+1. authored in .pax
+2. parsed by parser; lives as string in Definition object, passed from parser binary to compiler
+3. transpiled by compiler —> String (of Rust code, ready for cartridge runtime)
+4. codegenned into cartridge runtime, as closure?
+
+In RIl (cartridge runtime), 

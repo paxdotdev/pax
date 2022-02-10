@@ -88,9 +88,7 @@ pub trait RenderNode
         }
     }
 
-    /// Return the "sugary" transform object for this node, which
-    /// is likely buried inside a polymorphic PropertiesCoproduct object
-    fn get_transform(&mut self) -> Rc<RefCell<Transform>>;
+    fn get_transform(&mut self) -> Rc<RefCell<Box<dyn Property<Transform>>>>;
 
     /// Very first lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.
@@ -228,14 +226,13 @@ impl ComputableProperty for Transform {
 
 
 pub trait ComputableTransform {
-    fn compute_matrix_in_place(&mut self, node_size: (f64, f64), container_bounds: (f64, f64)) -> &Affine;
-    fn get_cached_computed_value(&self) -> &Affine;
+    fn compute_transform_matrix(&self, node_size: (f64, f64), container_bounds: (f64, f64)) -> Affine;
 }
 
 impl ComputableTransform for Transform {
     //Distinction of note: scale, translate, rotate, origin, and align are all AUTHOR-TIME properties
     //                     node_size and container_bounds are (computed) RUNTIME properties
-    fn compute_matrix_in_place(&mut self, node_size: (f64, f64), container_bounds: (f64, f64)) -> &Affine {
+    fn compute_transform_matrix(&self, node_size: (f64, f64), container_bounds: (f64, f64)) -> Affine {
         let origin_transform = match &self.origin {
             Some(origin) => {
                 Affine::translate(
@@ -263,13 +260,6 @@ impl ComputableTransform for Transform {
             None => {Affine::default()}
         };
 
-        //TODO: support custom user-specified transform order?
-        // Is the only use-case for this or is grouping sufficient to achieve "rotation about an axis"?
-        // If so, grouping/framing is likely sufficient
-        // let base_transform =
-        //     Affine::rotate(*self.rotate.get()) *
-        //         Affine::scale_non_uniform(*self.scale.0.get(), *self.scale.1.get()) *
-        //         Affine::translate((*self.translate.0.get(), *self.translate.1.get()));
         let mut transform = Affine::default();
         if let Some(rotate) = &self.rotate {
             transform = transform * Affine::rotate(*rotate.get());
@@ -285,13 +275,9 @@ impl ComputableTransform for Transform {
             Some(align) => {Affine::translate((*align[0].get() * container_bounds.0, *align[1].get() * container_bounds.1))},
             _ => {Affine::default()}
         };
-        self.cached_computed_transform = align_transform * origin_transform * transform;
-        &self.cached_computed_transform
+        align_transform * origin_transform * transform
     }
 
-    fn get_cached_computed_value(&self) -> &Affine {
-        &self.cached_computed_transform
-    }
 }
 
 /// Represents the outer stroke of a drawable element

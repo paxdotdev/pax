@@ -1,8 +1,8 @@
 
-use kurbo::{BezPath, Rect};
-use piet::{RenderContext, StrokeStyle};
+use kurbo::{BezPath};
+use piet::{RenderContext};
 
-use pax_core::{Color, RenderNode, ComputableTransform, RenderNodePtrList, RenderTreeContext, HostPlatformContext, StrokeInstance, ComputableProperty};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ComputableProperty};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -108,7 +108,7 @@ impl RenderNode for RectangleInstance {
         Rc::new(RefCell::new(vec![]))
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
-    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<Box<dyn Property<Transform>>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         match properties {

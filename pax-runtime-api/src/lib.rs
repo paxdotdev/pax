@@ -41,7 +41,6 @@ pub type Size2D = Rc<RefCell<[Box<dyn Property<Size>>; 2]>>;
 #[derive(Default)]
 //TODO: support multiplication, expressions
 pub struct Transform { //Literal
-    pub cached_computed_transform: Affine,
     pub rotate: Option<Box<dyn Property<f64>>>, ///over z axis
     pub translate: Option<[Box<dyn Property<f64>>; 2]>,
     pub origin: Option<[Box<dyn Property<Size>>; 2]>,

@@ -39,16 +39,10 @@ pub struct RenderTreeContext<'a>
     pub timeline_playhead_position: usize,
 }
 
-
 pub struct HostPlatformContext<'a, 'b>
 {
     pub drawing_context: &'a mut WebRenderContext<'b>,
     pub render_message_queue: Vec<JsValue>, //TODO: platform polyfill
-    // pub serializer: Box<dyn serde::Serializer<>>,
-}
-
-pub struct DevAppRootProperties {
-    //Here are the root app/component's "inputs" and properties
 }
 
 impl PaxEngine {
@@ -60,18 +54,17 @@ impl PaxEngine {
             viewport_size,
         }
     }
-    //
+
     // #[cfg(feature="designtime")]
     // fn get_root_component(&self) -> Rc<RefCell<Component>> {
     //     //For development, retrieve dynamic render tree from dev server
     //     designtime.get_root_component()
     // }
-
-    #[cfg(not(feature="designtime"))]
-    fn get_root_component(&self) -> Rc<RefCell<ComponentInstance>> {
-        //For production, retrieve "baked in" render tree
-        Rc::clone(&self.root_component)
-    }
+    // #[cfg(not(feature="designtime"))]
+    // fn get_root_component(&self) -> Rc<RefCell<ComponentInstance>> {
+    //     //For production, retrieve "baked in" render tree
+    //     Rc::clone(&self.root_component)
+    // }
 
     fn traverse_render_tree(&self, rc: &mut WebRenderContext) -> Vec<JsValue> {
         // Broadly:
@@ -135,11 +128,11 @@ impl PaxEngine {
         let node_computed_transform = {
             let mut node_borrowed = rtc.node.borrow_mut();
             let node_size = node_borrowed.get_size_calc(accumulated_bounds);
-            node_borrowed.get_transform().borrow_mut()
-            .compute_matrix_in_place(
+            node_borrowed.get_transform().borrow_mut().get()
+            .compute_transform_matrix(
                 node_size,
                 accumulated_bounds,
-            ).clone()
+            )
         };
 
         let new_accumulated_transform = accumulated_transform * node_computed_transform;

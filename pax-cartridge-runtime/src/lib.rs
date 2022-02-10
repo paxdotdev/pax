@@ -29,7 +29,7 @@ pub fn instantiate_root() -> Rc<RefCell<ComponentInstance>> {
         Rc::new(RefCell::new(vec![
             GroupInstance::instantiate(
                 PropertiesCoproduct::Group(GroupProperties {}),
-                Transform::default(),
+                Box::new(PropertyLiteral {value: Transform::default()}),
                 Rc::new(RefCell::new(vec![
                     RectangleInstance::instantiate(
                         PropertiesCoproduct::Rectangle(
@@ -71,7 +71,7 @@ impl RootInstance {
         Rc::new(RefCell::new(ComponentInstance {
             template: children,
             adoptees: Rc::new(RefCell::new(vec![])),
-            transform: Rc::new(RefCell::new(Default::default())),
+            transform: Rc::new(RefCell::new(Box::new(PropertyLiteral{ value: Default::default()}))),
             properties: Rc::new(RefCell::new(properties)),
             compute_properties_fn: Box::new(|mut properties: Rc<RefCell<PropertiesCoproduct>>, rtc: &mut RenderTreeContext|{
 
