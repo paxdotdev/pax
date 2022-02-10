@@ -26,6 +26,9 @@ pub mod pax_types {
             pub use pax_std::types::Size;
         }
     }
+    pub use pax::api::Transform;
+
+
 
     pub use crate::Root;
     pub use crate::RootProperties;

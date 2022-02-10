@@ -6,7 +6,7 @@ use kurbo::Affine;
 // /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait Property<T> {
     fn get(&self) -> &T;
-    fn register_id(&mut self, _rtc: &mut Box<dyn StringReceiver>);
+    fn register_id(&mut self, receiver: Rc<RefCell<dyn StringReceiver>>);
     fn cache_value(&mut self, value: T);
 }
 
@@ -20,6 +20,7 @@ pub enum Size {
 
 pub trait StringReceiver {
     fn receive(&mut self, value: String);
+    fn read(&self) -> Option<String>;
 }
 
 /// TODO: revisit if 100% is the most ergonomic default size (remember Dreamweaver)
@@ -96,8 +97,12 @@ impl<T> Property<T> for PropertyLiteral<T> {
         &self.value
     }
 
-    fn register_id(&mut self, _rtc: &mut Box<dyn StringReceiver>) {
+    fn register_id(&mut self, receiver: Rc<RefCell<dyn StringReceiver>>) {
         //no-op for Literal
+    }
+
+    fn cache_value(&mut self, value: T) {
+        self.value = value;
     }
 }
 
@@ -118,13 +123,16 @@ pub struct PropertyTimeline {
 }
 
 impl Property<f64> for PropertyTimeline {
-
     fn get(&self) -> &f64 {
         &self.cached_evaluated_value
     }
 
-    fn register_id(&mut self, rtc: &mut Box<dyn StringReceiver>) {
-        (*rtc).receive(self.id.clone());
+    fn register_id(&mut self, receiver: Rc<RefCell<dyn StringReceiver>>) {
+        (*receiver).borrow_mut().receive(self.id.clone());
+    }
+
+    fn cache_value(&mut self, value: f64) {
+        self.cached_evaluated_value = value;
     }
 }
 

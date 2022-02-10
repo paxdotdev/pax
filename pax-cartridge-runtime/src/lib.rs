@@ -2,7 +2,7 @@ use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
-use pax_core::{ComponentInstance, RenderNode, PropertyExpression, RenderNodePtrList, ComputableProperty, RenderTreeContext, ExpressionContext, PaxEngine};
+use pax_core::{ComponentInstance, RenderNode, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine};
 use pax_core::pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{Property, PropertyLiteral, Transform};
@@ -55,7 +55,7 @@ pub fn instantiate_root() -> Rc<RefCell<ComponentInstance>> {
                             }
                         ),
                         Rc::new(RefCell::new(
-                            PropertyExpression { evaluator: |ec: ExpressionContext|{
+                            PropertyExpression { id: "aef132".to_string(), evaluator: |ec: ExpressionContext|{
                                 //deps need to be typed.  perhaps something like:
                                 //for @frames_elapsed
                                 let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
@@ -85,6 +85,13 @@ pub fn instantiate_root() -> Rc<RefCell<ComponentInstance>> {
     )
 }
 
+
+//how to register an expression with global hash?
+//where to store global hash? (on engine?  if so, how do we code-gen these types, which rely on ExpressionContext (Engine)
+//Alternatively —can package the ExpressionsCoproduct into a TypesCoproduct, available in the same
+//scope as PropertiesCoproduct (no engine dep.  Engine can store a HashMap<String, Fn(ExpressionContext) -> TypesCoproduct>
+
+
 pub struct RootInstance {}
 impl RootInstance {
     pub fn instantiate(properties: PropertiesCoproduct, transform: Transform, children: RenderNodePtrList /*, adoptees*/) -> Rc<RefCell<ComponentInstance>> {
@@ -99,9 +106,10 @@ impl RootInstance {
                 if let PropertiesCoproduct::Root(properties_cast) =  properties_unwrapped {
                     //Note: this is code-genned based on parsed knowledge of the properties
                     //      of `Root`
-                    properties_cast.deeper_struct.compute_in_place(rtc);
-                    properties_cast.current_rotation.compute_in_place(rtc);
-                    properties_cast.num_clicks.compute_in_place(rtc);
+                    //TODO: unwrap into register_id and expression/timeline lookup mechanism
+                    // properties_cast.deeper_struct.compute_in_place(rtc);
+                    // properties_cast.current_rotation.compute_in_place(rtc);
+                    // properties_cast.num_clicks.compute_in_place(rtc);
                 } else {unreachable!()}
             }),
             timeline: None

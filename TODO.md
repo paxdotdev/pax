@@ -716,3 +716,21 @@ when evaluating compute_in_place
 - `Receiver` (probably Engine) pops from this stack
 (or removes from singular register) of string ID, uses that string ID to route `rtc`
 to the right table & Fn for evaluation (Expression, Timeline)
+
+
+
+Re: storing the ExpressionTable — there's a wrinkle in that each return type for `||{}` makes for a unique
+type signature.  Either we can give a PropertiesCoproduct treatment to return types — or MAYBE we can give a PropertiesCoproduct treatment to the `Fn`s themselves.
+
+static HashMap<String, ExpressionLambdaCoproduct> {
+    "aef132": ExpressionLambdaCoproduct::
+}
+
+```
+
+
+
+get_expression_evaluator_by_id(id: &str) {
+    
+}
+```

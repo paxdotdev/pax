@@ -37,8 +37,12 @@ impl<T, E: Fn(ExpressionContext) -> T> Property<T> for PropertyExpression<T,E> {
         &self.cached_value
     }
 
-    fn register_id(&mut self, rtc: &mut Box<dyn StringReceiver>) {
-        (*rtc).receive(self.id.clone())
+    fn register_id(&mut self, receiver: Rc<RefCell<dyn StringReceiver>>) {
+        (*receiver).borrow_mut().receive(self.id.clone());
+    }
+
+    fn cache_value(&mut self, value: T) {
+        self.cached_value = value;
     }
 }
 

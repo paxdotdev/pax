@@ -7,7 +7,7 @@ use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
 use pax_core::pax_properties_coproduct::PropertiesCoproduct;
-use pax_runtime_api::{Property, PropertyLiteral, Size, Transform, Size2D};
+use pax_runtime_api::{Property, PropertyLiteral, Size, Transform, Size2D, StringReceiver};
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -122,12 +122,20 @@ impl RenderNode for RectangleInstance {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+        let mut receiver : Rc<RefCell<dyn StringReceiver>> = Rc::new(RefCell::new(pax_core::PropertyIdReceiver { property_id_register: None }));
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         match properties {
             PropertiesCoproduct::Rectangle(properties_cast) => {
-                properties_cast.stroke.register_id(rtc);
-                properties_cast.stroke.cache_value(compute_property_by_id(rtc.property_id_register, rtc));
-                properties_cast.fill.register_id(rtc);
+                properties_cast.stroke.register_id(Rc::clone(&receiver));
+
+                if let Some(id) = (*receiver).borrow().read() {
+                    // properties_cast.stroke.cache_value(
+                    //     if let Stroke(eval) = get_expression_evaluator_by_id(id.as_str()) {
+                    //         eval(rtc)
+                    //     }
+                    // );
+                }
+                properties_cast.fill.register_id(Rc::clone(&receiver));
                 //now that IDs are registered, need to dispatch
                 //appropriate evaluators, passing value
                 //back to property for storage
@@ -135,15 +143,13 @@ impl RenderNode for RectangleInstance {
             _=>{},
         }
 
-
-
         let mut transform_borrowed = (*self.transform).borrow_mut();
-        transform_borrowed.compute_in_place(rtc);
+        transform_borrowed.register_id(Rc::clone(&receiver));
 
         let mut size_borrowed = (*self.size).borrow_mut();
 
-        size_borrowed[0].compute_in_place(rtc);
-        size_borrowed[1].compute_in_place(rtc);
+        size_borrowed[0].register_id(Rc::clone(&receiver));;
+        size_borrowed[1].register_id(Rc::clone(&receiver));;
 
     }
     fn render(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {

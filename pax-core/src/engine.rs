@@ -9,13 +9,13 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, ComponentInstance, Color, Error, ComputableTransform,  RenderNodePtr, StrokeInstance, StrokeStyle, RenderNode};
+use crate::{Affine, ComponentInstance, Color, Error, ComputableTransform, RenderNodePtr, StrokeInstance, StrokeStyle, RenderNode, ExpressionContext};
 use crate::runtime::{Runtime};
 //TODO: make the JsValue render_message_queue platform agnostic and remove this dep —
 //      (probably translate to JsValue at the pax-chassis-web layer instead of here.)
 use wasm_bindgen::JsValue;
 
-use pax_runtime_api::StringReceiver;
+use pax_runtime_api::{Property, StringReceiver};
 
 
 // Public method for consumption by engine chassis, e.g. WebChassis
@@ -24,11 +24,12 @@ pub fn get_engine(root_component_instance: Rc<RefCell<ComponentInstance>>,logger
 }
 
 
+
+
 pub struct PaxEngine {
     pub frames_elapsed: usize,
     //used to communicate between cartridge & runtime,
     //namely which property ID to calculate next
-
     pub root_component: Rc<RefCell<ComponentInstance>>, //NOTE: to support multiple concurrent "root components," e.g. for multi-stage authoring, this could simply be made an array of `root_components`
     pub runtime: Rc<RefCell<Runtime>>,
     viewport_size: (f64, f64),
@@ -43,14 +44,21 @@ pub struct RenderTreeContext<'a>
     pub runtime: Rc<RefCell<Runtime>>,
     pub node: RenderNodePtr,
     pub timeline_playhead_position: usize,
-    pub property_id_register: Option<String>,
 
 }
 
 
-impl<'a> StringReceiver for RenderTreeContext<'a> {
+
+pub struct PropertyIdReceiver {
+    pub property_id_register: Option<String>
+}
+
+impl StringReceiver for PropertyIdReceiver {
     fn receive(&mut self, value: String) {
         self.property_id_register = Some(value);
+    }
+    fn read(&self) -> Option<String> {
+        self.property_id_register.clone()
     }
 }
 
@@ -102,7 +110,6 @@ impl PaxEngine {
             runtime: self.runtime.clone(),
             node: Rc::clone(&cast_component_rc),
             timeline_playhead_position: self.frames_elapsed,
-            property_id_register: None,
         };
 
         &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&cast_component_rc));

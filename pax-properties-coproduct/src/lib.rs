@@ -22,6 +22,15 @@ pub enum PropertiesCoproduct {
     Root(pax_example::RootProperties),
 }
 
+
+//used namely for return types of expressions — may have other purposes
+pub enum TypesCoproduct {
+    Transform(pax_example::pax_types::Transform),
+    // Size(Box<dyn Fn(ExpressionContext) -> pax_runtime_api::Size>),
+    // Stroke(Box<dyn Fn(ExpressionContext) -> pax_example::pax_types::pax_std::types::Stroke>),
+}
+
+
 //
 // pub enum PatchCoproduct {
 //
