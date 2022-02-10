@@ -671,6 +671,48 @@ Color::rgba(
 1. authored in .pax
 2. parsed by parser; lives as string in Definition object, passed from parser binary to compiler
 3. transpiled by compiler —> String (of Rust code, ready for cartridge runtime)
-4. codegenned into cartridge runtime, as closure?
+4. codegenned into cartridge runtime, as closure in ExpressionTable
 
 In RIl (cartridge runtime), 
+
+
+
+### More dependency graph untangling
+2022-02-10
+
+*Property can't depend on Engine*, due to 
+the inverted dependency relationship between
+cartridge and engine.  This is not news, but is worth pointing out
+as the crux of this issue.
+
+Previously we tried "sideloading" behavior
+via a trait, which didn't work (is there yet a way
+to make this work? one possibility is to declare
+`Properties` objects (like `RectangleProperties`) in
+a scope that has access to the necessary bits of `rtc`
+
+Probably solid approach A:
+- remove `compute_in_place`
+- give every Property a UUID — register
+    uuid -> &property (maybe ComputedProperty!) in a global hashmap
+    instead of compute_in_place, look up
+    a given property in each of 
+    `expression` global map and `timeline`
+    global map.  if present, evaluate.
+    What does evaluate mean here?  It means
+    storing a cached computed value 
+- instead of `compute_in_place`...
+(this might run into the same problem with dep. graph, trait side-loading)
+
+
+**Probably solid approach B:**
+
+- keep `compute_in_place`, but pass it a `dyn`
+object, e.g. of a simple `Receiver` object (probably `impl Receiver for CarbonEngine`)
+
+- pass the property's string ID to that receiver object
+when evaluating compute_in_place
+
+- `Receiver` (probably Engine) pops from this stack
+(or removes from singular register) of string ID, uses that string ID to route `rtc`
+to the right table & Fn for evaluation (Expression, Timeline)

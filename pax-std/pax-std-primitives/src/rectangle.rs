@@ -2,7 +2,7 @@
 use kurbo::{BezPath};
 use piet::{RenderContext};
 
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ComputableProperty};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -14,7 +14,7 @@ use pax_runtime_api::{Property, PropertyLiteral, Size, Transform, Size2D};
 ///
 /// maybe #[pax primitive]
 pub struct RectangleInstance {
-    pub transform: Rc<RefCell<Box<dyn Property<Transform>>>>,
+    pub transform: Rc<RefCell<dyn Property<Transform>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub size: Rc<RefCell<[Box<dyn Property<Size>>; 2]>>,
 }
@@ -27,11 +27,11 @@ pub struct RectangleProperties {
 
 
 impl RectangleInstance {
-    pub fn instantiate(properties: PropertiesCoproduct, transform: Box<dyn Property<Transform>>, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
+    pub fn instantiate(properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
         match &properties {
             PropertiesCoproduct::Rectangle(cast_properties) => {
                 Rc::new(RefCell::new(RectangleInstance {
-                    transform: Rc::new(RefCell::new(transform)),
+                    transform,
                     properties: Rc::new(RefCell::new(properties)),
                     size: Rc::new(RefCell::new(size))
                 }))
@@ -103,25 +103,44 @@ impl RectangleInstance {
 }
 
 
+//what if PropertyLiteral/PropertyExpression were stored as an enum Property::Literal(literal value) or
+//Property::Expression() instead of as traits — would this resolve the issue of
+//can't call compute_in_place on property
+//because it's only implemented for ComputedProperty
+//even though we _know_ we will have a ComputedProperty,
+//the compiler doesn't know this.
+//`unsafe` may be one way out!
+//
+
+
+
+
 impl RenderNode for RectangleInstance {
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
-    fn get_transform(&mut self) -> Rc<RefCell<Box<dyn Property<Transform>>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         match properties {
             PropertiesCoproduct::Rectangle(properties_cast) => {
-                properties_cast.stroke.compute_in_place(rtc);
-                properties_cast.fill.compute_in_place(rtc);
+                properties_cast.stroke.register_id(rtc);
+                properties_cast.stroke.cache_value(compute_property_by_id(rtc.property_id_register, rtc));
+                properties_cast.fill.register_id(rtc);
+                //now that IDs are registered, need to dispatch
+                //appropriate evaluators, passing value
+                //back to property for storage
             },
             _=>{},
         }
-        let mut transform_borrowed = (**self.transform.borrow_mut()).borrow_mut();
+
+
+
+        let mut transform_borrowed = (*self.transform).borrow_mut();
         transform_borrowed.compute_in_place(rtc);
 
-        let mut size_borrowed = (**self.size.borrow_mut()).borrow_mut();
+        let mut size_borrowed = (*self.size).borrow_mut();
 
         size_borrowed[0].compute_in_place(rtc);
         size_borrowed[1].compute_in_place(rtc);

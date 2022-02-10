@@ -9,7 +9,6 @@ use pax_runtime_api::{Size, Size2D};
 use crate::{ RenderTreeContext, HostPlatformContext};
 
 use pax_runtime_api::{Property, PropertyLiteral};
-use crate::ComputableProperty;
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.
@@ -88,7 +87,7 @@ pub trait RenderNode
         }
     }
 
-    fn get_transform(&mut self) -> Rc<RefCell<Box<dyn Property<Transform>>>>;
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>>;
 
     /// Very first lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.
@@ -171,58 +170,6 @@ pub trait RenderNode
 
 use pax_runtime_api::Transform;
 
-impl<T> ComputableProperty for dyn Property<T> {
-    fn compute_in_place(&mut self, _rtc: &RenderTreeContext) {
-        //no-op default implementation (due to Rust constraint)
-    }
-}
-
-impl ComputableProperty for Transform {
-
-    fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
-        match &mut self.translate {
-            Some(slice) => {
-                slice[0].compute_in_place(rtc);
-                slice[1].compute_in_place(rtc);
-            },
-            _ => {},
-        }
-        match &mut self.scale {
-            Some(slice) => {
-                slice[0].compute_in_place(rtc);
-                slice[1].compute_in_place(rtc);
-            },
-            _ => {},
-        }
-        match &mut self.origin {
-            Some(slice) => {
-                slice[0].compute_in_place(rtc);
-                slice[1].compute_in_place(rtc);
-            },
-            _ => {},
-        }
-        match &mut self.align {
-            Some(slice) => {
-                slice[0].compute_in_place(rtc);
-                slice[1].compute_in_place(rtc);
-            },
-            _ => {},
-        }
-        match &mut self.rotate {
-            Some(prop) => {
-                prop.compute_in_place(rtc);
-            },
-            _ => {},
-        }
-    }
-
-    //TODO:  if providing bounds is prohibitive or awkward for some use-case,
-    //       we can make `bounds` and `align` BOTH TOGETHER optional — align requires `bounds`
-    //       but it's the only thing that requires `bounds`
-
-
-
-}
 
 
 pub trait ComputableTransform {

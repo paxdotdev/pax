@@ -15,7 +15,7 @@ use pax_runtime_api::{Timeline, Transform, Size2D, Property};
 pub struct ComponentInstance {
     pub template: RenderNodePtrList,
     pub adoptees: RenderNodePtrList,
-    pub transform: Rc<RefCell<Box<dyn Property<Transform>>>>,
+    pub transform: Rc<RefCell<dyn Property<Transform>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext)>,
@@ -30,7 +30,7 @@ impl RenderNode for ComponentInstance {
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform(&mut self) -> Rc<RefCell<Box<dyn Property<Transform>>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
         rtc.runtime.borrow_mut().push_stack_frame(

@@ -11,15 +11,15 @@ use pax_runtime_api::{Transform, Size2D, Property};
 pub struct GroupInstance {
     pub children: RenderNodePtrList,
     pub id: String,
-    pub transform: Rc<RefCell<Box<dyn Property<Transform>>>>,
+    pub transform: Rc<RefCell<dyn Property<Transform>>>,
 }
 
 impl GroupInstance {
-    pub fn instantiate(properties: PropertiesCoproduct, transform: Box<dyn Property<Transform>>, children: RenderNodePtrList) -> Rc<RefCell<Self>> {
+    pub fn instantiate(properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList) -> Rc<RefCell<Self>> {
         Rc::new(RefCell::new(Self {
             children,
             id: "".to_string(),
-            transform: Rc::new(RefCell::new(transform))
+            transform,
         }))
     }
 }
@@ -30,5 +30,5 @@ impl RenderNode for GroupInstance {
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform(&mut self) -> Rc<RefCell<Box<dyn Property<Transform>>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
 }

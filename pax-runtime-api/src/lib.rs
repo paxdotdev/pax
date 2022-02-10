@@ -5,9 +5,9 @@ use kurbo::Affine;
 // /// An abstract Property that may be either: Literal,
 // /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait Property<T> {
-    fn new(value: T) -> Box<Self> where Self: Sized;
     fn get(&self) -> &T;
-    fn set(&mut self, new: T);
+    fn register_id(&mut self, _rtc: &mut Box<dyn StringReceiver>);
+    fn cache_value(&mut self, value: T);
 }
 
 /// A size value that can be either a concrete pixel value
@@ -16,6 +16,10 @@ pub trait Property<T> {
 pub enum Size {
     Pixel(f64),
     Percent(f64),
+}
+
+pub trait StringReceiver {
+    fn receive(&mut self, value: String);
 }
 
 /// TODO: revisit if 100% is the most ergonomic default size (remember Dreamweaver)
@@ -88,38 +92,39 @@ pub struct PropertyLiteral<T> {
 }
 
 impl<T> Property<T> for PropertyLiteral<T> {
-    fn new(value: T) -> Box<Self> {
+    fn get(&self) -> &T {
+        &self.value
+    }
+
+    fn register_id(&mut self, _rtc: &mut Box<dyn StringReceiver>) {
+        //no-op for Literal
+    }
+}
+
+impl<T> PropertyLiteral<T> {
+    pub fn new(value: T) -> Box<Self> {
         Box::new(Self {
             value,
         })
     }
 
-    fn get(&self) -> &T {
-        &self.value
-    }
-
-    fn set(&mut self, new: T) {
-        self.value = new;
-    }
 }
 
 pub struct PropertyTimeline {
+    pub id: String,
     pub starting_value: Box<dyn Property<f64>>,
     pub timeline_segments: Vec<TimelineSegment>,
     pub cached_evaluated_value: f64,
 }
 
 impl Property<f64> for PropertyTimeline {
-    fn new(value: f64) -> Box<Self> {
-        todo!()
-    }
 
     fn get(&self) -> &f64 {
         &self.cached_evaluated_value
     }
 
-    fn set(&mut self, new: f64) {
-        todo!()
+    fn register_id(&mut self, rtc: &mut Box<dyn StringReceiver>) {
+        (*rtc).receive(self.id.clone());
     }
 }
 

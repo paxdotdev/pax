@@ -4,12 +4,11 @@ use std::rc::Rc;
 use pax_properties_coproduct::{PropertiesCoproduct};
 use crate::{RenderNodePtrList};
 
-
 use pax_runtime_api::Timeline;
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, this is a home
-/// for logic that manages scopes, stack frames, and properties.
+/// for logic that manages scopes and stack frames.
 pub struct Runtime {
     stack: Vec<Rc<RefCell<StackFrame>>>,
     logger: fn(&str),
