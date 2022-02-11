@@ -223,7 +223,12 @@ impl ComputableTransform for Transform {
             _ => {Affine::default()}
         };
 
-        align_transform * origin_transform * transform
+        let previous_transform = match &self.previous {
+            Some(previous) => {(*previous).compute_transform_matrix(node_size, container_bounds)},
+            None => {Affine::default()},
+        };
+
+        previous_transform * align_transform * origin_transform * transform
     }
 
 }

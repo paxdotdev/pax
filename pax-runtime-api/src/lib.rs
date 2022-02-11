@@ -80,6 +80,7 @@ pub type Size2D = Rc<RefCell<[Box<dyn Property<Size>>; 2]>>;
 #[derive(Default, Clone)]
 //TODO: support multiplication, expressions
 pub struct Transform { //Literal
+    pub previous: Option<Box<Transform>>,
     pub rotate: Option<f64>, ///over z axis
     pub translate: Option<[f64; 2]>,
     pub origin: Option<[Size; 2]>,
@@ -91,60 +92,8 @@ impl Mul for Transform {
     type Output = Transform;
 
     fn mul(self, rhs: Self) -> Self::Output {
-        let mut ret = self.clone();
-
-        if let Some(rhs_rotate) = rhs.rotate {
-            match self.rotate {
-                None => {ret.rotate = rhs.rotate},
-                Some(self_rotate) => {ret.rotate = Some(self_rotate + rhs_rotate)},
-            }
-        } else {
-            ret.rotate = self.rotate;
-        }
-
-        if let Some(rhs_translate) = rhs.translate {
-            match self.translate {
-                None => {ret.translate = rhs.translate},
-                Some(self_translate) => {ret.translate = Some([
-                    self_translate[0] + rhs_translate[0],
-                    self_translate[1] + rhs_translate[1],
-                ])}
-            }
-        } else {
-            ret.translate = self.translate;
-        }
-
-        if let Some(rhs_origin) = rhs.origin {
-            match self.origin {
-                None => {ret.origin = rhs.origin},
-                Some(self_origin) => {ret.origin = Some([
-                    self_origin[0] * rhs_origin[0],
-                    self_origin[1] * rhs_origin[1],
-                ])}
-            }
-        } else {
-            ret.origin = self.origin;
-        }
-
-        if let Some(rhs_scale) = rhs.scale {
-            match self.scale {
-                None => {ret.scale = rhs.scale},
-                Some(self_scale) => {ret.scale = Some([
-                    self_scale[0] * rhs_scale[0],
-                    self_scale[1] * rhs_scale[1],
-                ])}
-            }
-        } else {
-            ret.scale = self.scale;
-        }
-
-        if let Some(rhs_align) = rhs.align {
-            //simply override align; only one align value per (RenderNode, frame)
-            ret.align = rhs.align
-        } else {
-            ret.align = self.align;
-        }
-
+        let mut ret = rhs.clone();
+        ret.previous = Some(Box::new(self));
         ret
     }
 }

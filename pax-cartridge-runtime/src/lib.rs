@@ -33,9 +33,9 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         //(compiler can keep a dict of operand types)
 
         TypesCoproduct::Transform(
-            Transform::origin(Size::Percent(50.0), Size::Percent(50.0)) *
             Transform::align(0.5, 0.5) *
-            Transform::rotate(0.025 * (__AT__frames_elapsed+45.0))
+            Transform::rotate(0.025 * (__AT__frames_elapsed+45.0)) *
+            Transform::origin(Size::Percent(50.0), Size::Percent(50.0))
         )
     }));
 
