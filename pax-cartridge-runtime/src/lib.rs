@@ -1,15 +1,15 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::Rc;
-use pax_core::{ComponentInstance, RenderNode, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine};
-use pax_core::pax_properties_coproduct::PropertiesCoproduct;
+use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext};
+use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{Property, PropertyLiteral, Transform};
 
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
-use pax_example::pax_types::{Root, RootProperties};
-use pax_example::pax_types::pax_std::primitives::{Group, GroupProperties, Rectangle, RectangleProperties};
+use pax_example::pax_types::{RootProperties};
+use pax_example::pax_types::pax_std::primitives::{GroupProperties, RectangleProperties};
 use pax_example::pax_types::pax_std::types::{Color, Stroke, Size};
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
@@ -17,15 +17,39 @@ use pax_std_primitives::{RectangleInstance, GroupInstance };
 
 
 
+pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct>> {
+    let mut map : HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct>> = HashMap::new();
 
-pub fn instantiate_root() -> Rc<RefCell<ComponentInstance>> {
+    map.insert("a".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
+        //deps need to be typed.  perhaps something like:
+        //for @frames_elapsed
+        #[allow(non_snake_case)]
+        let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
+
+        // ec.engine.runtime.borrow().log(&format!("on frame {} ",__AT__frames_elapsed ));
+
+        //note that type coercion should happen here, too:
+        //(must know symbol name as well as source & destination types)
+        //(compiler can keep a dict of operand types)
+
+        TypesCoproduct::Transform(
+            Transform::origin(Size::Percent(50.0), Size::Percent(50.0)) *
+            Transform::align(0.5, 0.5) *
+            Transform::rotate(0.025 * (__AT__frames_elapsed+45.0))
+        )
+    }));
+
+    map
+}
+
+pub fn instantiate_root_component() -> Rc<RefCell<ComponentInstance>> {
     RootInstance::instantiate(
         PropertiesCoproduct::Root(RootProperties {
             num_clicks: Box::new(PropertyLiteral {value: 0} ),
             current_rotation: Box::new(PropertyLiteral {value: 0.0}),
             deeper_struct: Box::new(PropertyLiteral {value: Default::default()})
         }),
-        Transform::default(),
+        Rc::new(RefCell::new(PropertyLiteral{value: Transform::default()})),
         Rc::new(RefCell::new(vec![
             GroupInstance::instantiate(
                 PropertiesCoproduct::Group(GroupProperties {}),
@@ -55,26 +79,7 @@ pub fn instantiate_root() -> Rc<RefCell<ComponentInstance>> {
                             }
                         ),
                         Rc::new(RefCell::new(
-                            PropertyExpression { id: "aef132".to_string(), evaluator: |ec: ExpressionContext|{
-                                //deps need to be typed.  perhaps something like:
-                                //for @frames_elapsed
-                                let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
-
-                                ec.engine.runtime.borrow().log(&format!("on frame {} ",__AT__frames_elapsed ));
-
-                                //note that type coercion should happen here, too:
-                                //(must know symbol name as well as source & destination types)
-                                //(compiler can keep a dict of operand types)
-
-                                // let scope = Rc::clone(&(*ec.stack_frame).borrow_mut().get_scope());
-                                // let properties = Rc::clone(&scope.borrow().properties);
-                                // let mut properties_unwrapped = &mut *properties.deref().borrow_mut();
-                                // if let PropertiesCoproduct::Root(properties_cast) =  properties_unwrapped {
-                                //
-                                // }
-                                Transform::rotate(0.025 * (__AT__frames_elapsed+45.0))
-
-                            }, cached_value: Transform::default() })),
+                            PropertyExpression { id: "a".to_string(), cached_value: Default::default()})),
                         [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
                     ),
                 ])),
@@ -94,15 +99,15 @@ pub fn instantiate_root() -> Rc<RefCell<ComponentInstance>> {
 
 pub struct RootInstance {}
 impl RootInstance {
-    pub fn instantiate(properties: PropertiesCoproduct, transform: Transform, children: RenderNodePtrList /*, adoptees*/) -> Rc<RefCell<ComponentInstance>> {
+    pub fn instantiate(properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList /*, adoptees*/) -> Rc<RefCell<ComponentInstance>> {
         Rc::new(RefCell::new(ComponentInstance {
             template: children,
             adoptees: Rc::new(RefCell::new(vec![])),
-            transform: Rc::new(RefCell::new(PropertyLiteral{ value: Default::default()})),
+            transform,
             properties: Rc::new(RefCell::new(properties)),
-            compute_properties_fn: Box::new(|mut properties: Rc<RefCell<PropertiesCoproduct>>, rtc: &mut RenderTreeContext|{
+            compute_properties_fn: Box::new(|properties: Rc<RefCell<PropertiesCoproduct>>, rtc: &mut RenderTreeContext|{
 
-                let mut properties_unwrapped = &mut *properties.deref().borrow_mut();
+                let properties_unwrapped = &mut *properties.deref().borrow_mut();
                 if let PropertiesCoproduct::Root(properties_cast) =  properties_unwrapped {
                     //Note: this is code-genned based on parsed knowledge of the properties
                     //      of `Root`

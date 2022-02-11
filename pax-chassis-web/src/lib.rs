@@ -58,7 +58,6 @@ pub fn log_wrapper(msg: &str) {
 
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
-    // #[wasm_bindgen(skip)]
     engine: Rc<RefCell<PaxEngine>>,
     drawing_context: WebRenderContext<'static>,
 }
@@ -98,18 +97,18 @@ impl PaxChassisWeb {
 
         let piet_context  = WebRenderContext::new(context, window);
 
-
-        let root_component_instance = pax_cartridge_runtime::instantiate_root();
-        let engine = pax_core::get_engine(root_component_instance, log_wrapper, (width / dpr, height / dpr));
+        let root_component_instance = pax_cartridge_runtime::instantiate_root_component();
+        let expression_table = pax_cartridge_runtime::instantiate_expression_table();
+        let engine = pax_core::instantiate_engine(root_component_instance, expression_table, log_wrapper, (width / dpr, height / dpr));
 
         let engine_container : Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 
+        let engine_cloned = Rc::clone(&engine_container);
         //see web-sys docs for handling browser events with closures
         //https://rustwasm.github.io/docs/wasm-bindgen/examples/closures.html
         {
-            let engine_rc_pointer = engine_container.clone();
             let closure = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-                let mut engine = engine_rc_pointer.borrow_mut();
+                let mut engine = engine_cloned.borrow_mut();
 
                 //TODO:  can probably tackle this more elegantly by reusing / capturing / Rc-ing
                 //       previously declared window / canvas / context / etc.

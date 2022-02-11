@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use kurbo::{
@@ -14,13 +15,18 @@ use crate::runtime::{Runtime};
 //TODO: make the JsValue render_message_queue platform agnostic and remove this dep —
 //      (probably translate to JsValue at the pax-chassis-web layer instead of here.)
 use wasm_bindgen::JsValue;
+use pax_properties_coproduct::TypesCoproduct;
 
 use pax_runtime_api::{Property, StringReceiver};
 
 
 // Public method for consumption by engine chassis, e.g. WebChassis
-pub fn get_engine(root_component_instance: Rc<RefCell<ComponentInstance>>,logger: fn(&str), viewport_size: (f64, f64)) -> PaxEngine {
-    PaxEngine::new(root_component_instance, logger,viewport_size)
+pub fn instantiate_engine(
+    root_component_instance: Rc<RefCell<ComponentInstance>>,
+    expression_table: HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct>>,
+    logger: fn(&str), viewport_size: (f64, f64),
+) -> PaxEngine {
+    PaxEngine::new(root_component_instance, expression_table, logger,viewport_size)
 }
 
 
@@ -30,6 +36,7 @@ pub struct PaxEngine {
     pub frames_elapsed: usize,
     //used to communicate between cartridge & runtime,
     //namely which property ID to calculate next
+    pub expression_table: HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct> >,
     pub root_component: Rc<RefCell<ComponentInstance>>, //NOTE: to support multiple concurrent "root components," e.g. for multi-stage authoring, this could simply be made an array of `root_components`
     pub runtime: Rc<RefCell<Runtime>>,
     viewport_size: (f64, f64),
@@ -69,9 +76,10 @@ pub struct HostPlatformContext<'a, 'b>
 }
 
 impl PaxEngine {
-    fn new(root_component_instance: Rc<RefCell<ComponentInstance>>, logger: fn(&str), viewport_size: (f64, f64)) -> Self {
+    fn new(root_component_instance: Rc<RefCell<ComponentInstance>>, expression_table: HashMap<String, Box<dyn Fn(ExpressionContext)->TypesCoproduct>> , logger: fn(&str), viewport_size: (f64, f64)) -> Self {
         PaxEngine {
             frames_elapsed: 0,
+            expression_table,
             runtime: Rc::new(RefCell::new(Runtime::new(logger))),
             root_component: root_component_instance,
             viewport_size,

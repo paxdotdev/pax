@@ -13,10 +13,9 @@ use pax_runtime_api::{Property, PropertyLiteral, PropertyTimeline, StringReceive
 // that evaluates the value itself, as well as a "register" of
 // the memoized value (`cached_value`) that can be referred to
 // via calls to `read()`
-pub struct PropertyExpression<T, E: Fn(ExpressionContext) -> T>
+pub struct PropertyExpression<T>
 {
     pub id: String,
-    pub evaluator: E,
     pub cached_value: T,
 }
 //
@@ -32,13 +31,13 @@ pub struct PropertyExpression<T, E: Fn(ExpressionContext) -> T>
 //     }
 // }
 
-impl<T, E: Fn(ExpressionContext) -> T> Property<T> for PropertyExpression<T,E> {
+impl<T> Property<T> for PropertyExpression<T> {
     fn get(&self) -> &T {
         &self.cached_value
     }
 
-    fn register_id(&mut self, receiver: Rc<RefCell<dyn StringReceiver>>) {
-        (*receiver).borrow_mut().receive(self.id.clone());
+    fn get_id(&self) -> Option<&str> {
+        Some(self.id.as_str())
     }
 
     fn cache_value(&mut self, value: T) {

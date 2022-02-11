@@ -2,11 +2,11 @@
 use kurbo::{BezPath};
 use piet::{RenderContext};
 
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ExpressionContext};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
-use pax_core::pax_properties_coproduct::PropertiesCoproduct;
+use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{Property, PropertyLiteral, Size, Transform, Size2D, StringReceiver};
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
@@ -60,7 +60,7 @@ use parser;
 use std::collections::HashSet;
 #[cfg(feature="parser")]
 use std::{env, fs};
-use std::borrow::BorrowMut;
+use std::borrow::{Borrow, BorrowMut};
 use std::ops::Deref;
 #[cfg(feature="parser")]
 use std::path::{Path, PathBuf};
@@ -115,6 +115,11 @@ impl RectangleInstance {
 
 
 
+pub fn handle_properties_computation(id: &str, rtc: &mut RenderTreeContext) {
+    //for each of Timelines and Expressions:
+    //look up ID to see if present in hash
+}
+
 impl RenderNode for RectangleInstance {
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
@@ -126,16 +131,24 @@ impl RenderNode for RectangleInstance {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         match properties {
             PropertiesCoproduct::Rectangle(properties_cast) => {
-                properties_cast.stroke.register_id(Rc::clone(&receiver));
+                let id = properties_cast.stroke.get_id();
+                // if let Some(id) = id {
+                //     if let Some(evaluator) = rtc.engine.expression_table.borrow().get(id) {
+                //         let ec = ExpressionContext {
+                //             engine: rtc.engine,
+                //             stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())
+                //         };
+                //         let new_value = (**evaluator)(ec);
+                //         if let TypesCoproduct::Transform(cast_new_value) = new_value {
+                //             properties_cast.stroke.cache_value(cast_new_value)
+                //         }
+                //     }
+                // }
+                //
+                // if let Some(id) = id { handle_properties_computation(id, rtc); }
 
-                if let Some(id) = (*receiver).borrow().read() {
-                    // properties_cast.stroke.cache_value(
-                    //     if let Stroke(eval) = get_expression_evaluator_by_id(id.as_str()) {
-                    //         eval(rtc)
-                    //     }
-                    // );
-                }
-                properties_cast.fill.register_id(Rc::clone(&receiver));
+                let id = properties_cast.fill.get_id();
+                // if let Some(id) = id { handle_properties_computation(id, rtc); }
                 //now that IDs are registered, need to dispatch
                 //appropriate evaluators, passing value
                 //back to property for storage
@@ -144,12 +157,24 @@ impl RenderNode for RectangleInstance {
         }
 
         let mut transform_borrowed = (*self.transform).borrow_mut();
-        transform_borrowed.register_id(Rc::clone(&receiver));
+        let id = transform_borrowed.get_id();
+        if let Some(id) = id {
+            if let Some(evaluator) = rtc.engine.expression_table.borrow().get(id) {
+                let ec = ExpressionContext {
+                    engine: rtc.engine,
+                    stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())
+                };
+                let new_value = (**evaluator)(ec);
+                if let TypesCoproduct::Transform(cast_new_value) = new_value {
+                    transform_borrowed.cache_value(cast_new_value)
+                }
+            }
+        }
 
         let mut size_borrowed = (*self.size).borrow_mut();
 
-        size_borrowed[0].register_id(Rc::clone(&receiver));;
-        size_borrowed[1].register_id(Rc::clone(&receiver));;
+        size_borrowed[0].get_id();;
+        size_borrowed[1].get_id();;
 
     }
     fn render(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
@@ -158,7 +183,7 @@ impl RenderNode for RectangleInstance {
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 
-        match self.properties.borrow().deref() {
+        match (*self.properties).borrow().deref() {
             PropertiesCoproduct::Rectangle(properties) => {
                 let properties_color = properties.fill.get();
                 let color = match properties_color.color_variant {

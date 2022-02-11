@@ -184,7 +184,7 @@ impl ComputableTransform for Transform {
             Some(origin) => {
                 Affine::translate(
                     (
-                        match origin[0].get() {
+                        match origin[0] {
                             Size::Pixel(x) => {
                                 -x
                             },
@@ -192,7 +192,7 @@ impl ComputableTransform for Transform {
                                 -node_size.0 * (x / 100.0)
                             },
                         },
-                        match origin[1].get() {
+                        match origin[1] {
                             Size::Pixel(y) => {
                                 -y
                             },
@@ -209,19 +209,20 @@ impl ComputableTransform for Transform {
 
         let mut transform = Affine::default();
         if let Some(rotate) = &self.rotate {
-            transform = transform * Affine::rotate(*rotate.get());
+            transform = transform * Affine::rotate(*rotate);
         }
         if let Some(scale) = &self.scale {
-            transform = transform * Affine::scale_non_uniform(*scale[0].get(), *scale[1].get());
+            transform = transform * Affine::scale_non_uniform(scale[0], scale[1]);
         }
         if let Some(translate) = &self.translate {
-            transform = transform * Affine::translate((*translate[0].get(), *translate[1].get()));
+            transform = transform * Affine::translate((translate[0], translate[1]));
         }
 
         let align_transform = match &self.align {
-            Some(align) => {Affine::translate((*align[0].get() * container_bounds.0, *align[1].get() * container_bounds.1))},
+            Some(align) => {Affine::translate((align[0] * container_bounds.0, align[1] * container_bounds.1))},
             _ => {Affine::default()}
         };
+
         align_transform * origin_transform * transform
     }
 
