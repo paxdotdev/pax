@@ -159,11 +159,13 @@ impl PaxEngine {
         let node_computed_transform = {
             let mut node_borrowed = rtc.node.borrow_mut();
             let node_size = node_borrowed.get_size_calc(accumulated_bounds);
-            node_borrowed.get_transform().borrow_mut().get()
+            let components = node_borrowed.get_transform().borrow_mut().get()
             .compute_transform_matrix(
                 node_size,
                 accumulated_bounds,
-            )
+            );
+            //combine align transformation exactly once per element per frame
+            components.1 * components.0
         };
 
         let new_accumulated_transform = accumulated_transform * node_computed_transform;

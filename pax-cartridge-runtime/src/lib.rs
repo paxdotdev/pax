@@ -21,21 +21,24 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
     let mut map : HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct>> = HashMap::new();
 
     map.insert("a".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
-        //deps need to be typed.  perhaps something like:
-        //for @frames_elapsed
-        #[allow(non_snake_case)]
-        let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
-
-        // ec.engine.runtime.borrow().log(&format!("on frame {} ",__AT__frames_elapsed ));
-
         //note that type coercion should happen here, too:
         //(must know symbol name as well as source & destination types)
         //(compiler can keep a dict of operand types)
 
+        //for @frames_elapsed
+        #[allow(non_snake_case)]
+        let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
+
+
         TypesCoproduct::Transform(
-            Transform::align(0.5, 0.5) *
-            Transform::rotate(0.025 * (__AT__frames_elapsed+45.0)) *
-            Transform::origin(Size::Percent(50.0), Size::Percent(50.0))
+
+            Transform::origin(Size::Percent(50.0), Size::Percent(50.0)) *
+            Transform::rotate((f64::sin(__AT__frames_elapsed / 100.0) * 0.005) * (__AT__frames_elapsed+45.0)) *
+                Transform::align(0.75, 0.75) *
+            Transform::origin(Size::Percent(f64::sin(__AT__frames_elapsed / 1000.0) * 100.0), Size::Percent(100.0)) *
+            Transform::rotate((f64::cos(__AT__frames_elapsed / 100.0) * 0.005) * (__AT__frames_elapsed+45.0)) *
+            Transform::align(1.0, 1.0) *
+                Transform::align(0.5, 0.5)
         )
     }));
 

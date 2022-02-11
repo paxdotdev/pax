@@ -734,3 +734,16 @@ get_expression_evaluator_by_id(id: &str) {
     
 }
 ```
+
+
+
+### on API for align
+
+when combining transformations, align should be thought of a bit differently.
+1. it's 'global' for the scope of a sequence of transformations.  In other words, there's at most one global value of alignment per RenderNode per frame.
+2. it should be applied only once, at the end of a coalesced Transform sequence.
+
+
+compute_transform_matrix can return two values: an Affine for Align, and an Affine for "everything else."
+remove multiplication of align @ compute_transform_matrix
+add multiplication of align at the caller of compute_transform_matrix()

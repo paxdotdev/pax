@@ -167,19 +167,17 @@ pub trait RenderNode
 //     }
 // }
 
-
 use pax_runtime_api::Transform;
 
-
-
 pub trait ComputableTransform {
-    fn compute_transform_matrix(&self, node_size: (f64, f64), container_bounds: (f64, f64)) -> Affine;
+    fn compute_transform_matrix(&self, node_size: (f64, f64), container_bounds: (f64, f64)) -> (Affine,Affine);
 }
 
 impl ComputableTransform for Transform {
     //Distinction of note: scale, translate, rotate, origin, and align are all AUTHOR-TIME properties
     //                     node_size and container_bounds are (computed) RUNTIME properties
-    fn compute_transform_matrix(&self, node_size: (f64, f64), container_bounds: (f64, f64)) -> Affine {
+    //Returns (Base affine transform, align component)
+    fn compute_transform_matrix(&self, node_size: (f64, f64), container_bounds: (f64, f64)) -> (Affine,Affine)  {
         let origin_transform = match &self.origin {
             Some(origin) => {
                 Affine::translate(
@@ -218,17 +216,24 @@ impl ComputableTransform for Transform {
             transform = transform * Affine::translate((translate[0], translate[1]));
         }
 
-        let align_transform = match &self.align {
-            Some(align) => {Affine::translate((align[0] * container_bounds.0, align[1] * container_bounds.1))},
-            _ => {Affine::default()}
-        };
+        //if this has an align component, return it.else {if previous has an align component, return it }
 
-        let previous_transform = match &self.previous {
+
+
+        let (previous_transform, previous_align_component) = match &self.previous {
             Some(previous) => {(*previous).compute_transform_matrix(node_size, container_bounds)},
-            None => {Affine::default()},
+            None => {(Affine::default(), Affine::default())},
         };
 
-        previous_transform * align_transform * origin_transform * transform
+        let align_component = match &self.align {
+            Some(align) => {Affine::translate((align[0] * container_bounds.0, align[1] * container_bounds.1))},
+            None => {
+                previous_align_component //which defaults to identity
+            }
+        };
+
+        //counter-intuitively, previous_transform (describing its position in userland) here goes at the end
+        (origin_transform * transform * previous_transform, align_component)
     }
 
 }
