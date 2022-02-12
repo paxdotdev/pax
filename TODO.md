@@ -58,7 +58,11 @@ Perhaps a macro is the answer?
     [x] import/package management
     [x] RIL -> PAX compatibility, or rewrite primitives
 [ ] `pax-compiler`
-    [x] architecture, seq. diagram
+    [x] architecture
+        [x] compiler seq. diagram 
+<img src="pax-compiler/pax-compiler-sequence-diagram.png" />
+        [x] dependency diagram
+<img src="pax-dependency-graph.png" />
     [ ] two-stage compilation process
         [x] thread/process/IPC chassis
         [x] parser cargo feature
@@ -90,32 +94,24 @@ Perhaps a macro is the answer?
         [ ] macro
         [ ] hook into compiler lifecycle
     [ ] serialize to RIL
-        [ ] hand-write RIL first!
+        [X] hand-write RIL first!
+            [x] rendering hello world
+            [x] proof of concept (RIL) for expressions
+            [ ] proof of concept (RIL) for timelines
         [ ] normalize manifest, or efficient JIT traversal
             [ ] stack Settings fragments (settings-selector-blocks and inline properties on top of defaults)
             [ ] might need to codegen traverser!
                 [ ] or might be able to be "dumb" (purely static) with codegen, relying on rustc to complain
         [ ] probably need to store property k/v/types in Manifest (and maybe fully qualified type paths)
         [ ] codegen RIL into source via `#[pax]` macro, to enable vanilla run-via-cargo (well, pax-compiler, but maybe there's still a path to bare cargo!)
-        [ ] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
-    [ ] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
+        [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
+    [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
 
 [ ] render Hello World
     [ ] Manage mounting of Engine and e2e 
 
 ## Milestone: clickable square
 
-[ ] Designtime
-    [ ] codegen DefinitionToInstance traverser
-        [ ] codegen in `#[pax]`: From<SettingsLiteralBlockDefinition>
-            [ ] manual
-            [ ] macro
-    [ ] instantiator/traverser logic (codegen or library-coded)
-    [ ] duplex websocket connection + handlers
-        [ ] Write ORM (and maybe caching) methods for `Definitions`
-        [ ] Attach CRUD API endpoints to `Definition` ORM methods via `designtime` server
-    [ ] figure out recompilation loop or hot-reloading of Properties and Expressions
-        [ ] incl. state transfer
 [ ] Action API
     [ ] state management (.get/.set/etc.)
     [ ] hooks into dirty-update system
@@ -137,16 +133,28 @@ Perhaps a macro is the answer?
 
 [ ] Expressions
     [ ] Transpile expressions to Rust (or choose another compilation strategy)
-    [ ] Write ExpressionTable harness, incl. mechanisms for:
-        [ ] vtable storage & lookup
+    [x] Write ExpressionTable harness, incl. mechanisms for:
+        [x] vtable storage & lookup
         [ ] Dependency tracking & dirty-watching
-        [ ] Return value passing & caching
+        [x] Return value passing & caching
     [ ] Sketch out design for parallelized expression computation (e.g. in WebWorkers)
-    [ ] Patch ExpressionTable into cartridge à la PropertyCoproduct
-
+    [-] Patch ExpressionTable into cartridge à la PropertyCoproduct
 
 
 ## Backlog
+
+[ ] Designtime
+    [ ] codegen DefinitionToInstance traverser
+        [ ] codegen in `#[pax]`: From<SettingsLiteralBlockDefinition>
+            [ ] manual
+            [ ] macro
+    [ ] instantiator/traverser logic (codegen or library-coded)
+    [ ] duplex websocket connection + handlers
+        [ ] Write ORM (and maybe caching) methods for `Definitions`
+        [ ] Attach CRUD API endpoints to `Definition` ORM methods via `designtime` server
+    [ ] figure out recompilation loop or hot-reloading of Properties and Expressions
+        [ ] incl. state transfer
+
 
 [ ] Margin & padding?
     [ ] Decide whether to support, e.g. is there a simpler alternative w/ existing pieces?
@@ -739,9 +747,10 @@ get_expression_evaluator_by_id(id: &str) {
 
 ### on API for align
 
-when combining transformations, align should be thought of a bit differently.
+when combining transformations, align should be thought of a bit differently vs other properties.
 1. it's 'global' for the scope of a sequence of transformations.  In other words, there's at most one global value of alignment per RenderNode per frame.
 2. it should be applied only once, at the end of a coalesced Transform sequence.
+3. the latest align in a sequence (if more than one is specified) takes precedence, replacing previous settings
 
 
 compute_transform_matrix can return two values: an Affine for Align, and an Affine for "everything else."

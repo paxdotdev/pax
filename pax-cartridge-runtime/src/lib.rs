@@ -15,8 +15,6 @@ use pax_example::pax_types::pax_std::types::{Color, Stroke, Size};
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
 use pax_std_primitives::{RectangleInstance, GroupInstance };
 
-
-
 pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct>> {
     let mut map : HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct>> = HashMap::new();
 
@@ -29,19 +27,14 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         #[allow(non_snake_case)]
         let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
 
-
         TypesCoproduct::Transform(
-
             Transform::origin(Size::Percent(50.0), Size::Percent(50.0)) *
-            Transform::rotate((f64::sin(__AT__frames_elapsed / 100.0) * 0.005) * (__AT__frames_elapsed+45.0)) *
-                Transform::align(0.75, 0.75) *
-            Transform::origin(Size::Percent(f64::sin(__AT__frames_elapsed / 1000.0) * 100.0), Size::Percent(100.0)) *
-            Transform::rotate((f64::cos(__AT__frames_elapsed / 100.0) * 0.005) * (__AT__frames_elapsed+45.0)) *
-            Transform::align(1.0, 1.0) *
-                Transform::align(0.5, 0.5)
+            Transform::rotate((f64::sin(__AT__frames_elapsed / 100.0) * 0.020) * (__AT__frames_elapsed)) *
+            Transform::origin(Size::Percent(f64::sin(__AT__frames_elapsed / 1000.0) * 100.0), Size::Percent(f64::cos(__AT__frames_elapsed / 1000.0) * 100.0)) *
+            Transform::rotate((f64::cos(__AT__frames_elapsed / 100.0) * 0.010) * (__AT__frames_elapsed)) *
+            Transform::align(0.5, 0.5)
         )
     }));
-
     map
 }
 
