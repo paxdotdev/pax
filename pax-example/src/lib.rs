@@ -24,4 +24,8 @@ impl Root {
             }
         }
     }
+
+    pub fn handle_tick(evt: EventTick) {
+        //continued in lib-expanded.rs
+    }
 }

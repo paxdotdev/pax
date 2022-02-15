@@ -91,13 +91,19 @@ Perhaps a macro is the answer?
         [ ] macro
     [ ] codegen PropertiesCoproduct
         [x] manual
+        [ ] if necessary, supporting type parsing & inference work for TypesCoproduct
         [ ] macro
         [ ] hook into compiler lifecycle
     [ ] serialize to RIL
-        [X] hand-write RIL first!
+        [ ] Handle control-flow
+            [ ] support with parser & manifest
+            [ ] support with manual RIL, port old primitives
+        [ ] hand-write RIL first!
             [x] rendering hello world
             [x] proof of concept (RIL) for expressions
+            [ ] handle expressable + nestable, e.g. Stroke (should be able to set root as Expression, or any individual sub-properties)
             [ ] proof of concept (RIL) for timelines
+            [ ] proof of concept (RIL) for actions
         [ ] normalize manifest, or efficient JIT traversal
             [ ] stack Settings fragments (settings-selector-blocks and inline properties on top of defaults)
             [ ] might need to codegen traverser!
@@ -227,7 +233,7 @@ Seems like `designtime` is the key.  Not needed for runtime
 (action value setting can be a different concern with a lighter footprint)
 
 Two flavors of instantiating Definitions:
- - transpiling into RIL (hard-coded N/PIT; once & done)
+ - transpiling into RIL (hard-coded N/PIT; once & done) (where "N/PIT" means the "Node/Property Instance Tree")
  - dynamic traversal into N/PIT for designtime
     - accept changes in definitions
       - special handling for Expressions/exptable
@@ -756,3 +762,175 @@ when combining transformations, align should be thought of a bit differently vs 
 compute_transform_matrix can return two values: an Affine for Align, and an Affine for "everything else."
 remove multiplication of align @ compute_transform_matrix
 add multiplication of align at the caller of compute_transform_matrix()
+
+
+
+
+
+### on nestable Properties, TypesCoproduct, Types in general
+2022-02-12
+
+1. TypesCoproduct vs. PropertiesProduct — is the distinction worthwhile?
+
+generally speaking, PropertiesCoproduct is for larger aggregate types (the set of all properties for a given component)
+while the TypesCoproduct, at advent, is intended for more atomic types, specifically anything
+that can be returned by an Expression.  At least, there is an expected perf benefit
+(at least memory footprint, possibly also wrapping/unwrapping overhead) of breaking out
+a separate coproduct for "return types"
+
+That said — do they converge, in theory, on the same idea?  There's no provision or need for
+"all properties of a component" to be expressed as a single Expression, but certainly each
+individual property can be.  
+
+Further, for compound property types like Stroke, there's a need to
+express the "aggregate type" as an individual expressible Property in addition (as a mutaully exclusive option)
+to addressing its subtypes as individual Properties.  In practice that probably looks like
+```
+PropertyLiteral > 
+    PropertyLiteral
+    PropertyExpression
+```
+for
+```
+stroke: {
+    color: Color::rgba(255, 255, 255, 255);
+    width: @{ $frames_elapsed * 0.001}
+}
+```
+
+So in short, the PropertiesCoproduct and the TypesCoproduct are categorically the same thing,
+and _could_ be shimmed into the same object if necessary.  That said, there's a likely
+performance benefit to keeping them separate (allows TypesCoproduct operations to be
+smaller in memory footprint + bandwidth, possibly also in computational wrapping/upwrapping, weight
+in CPU cache)
+
+As an important use-case, consider the Path (i.e. arbitrary bezier/segment/gap sequence)
+ — it can be represented either as: a series of nodes and segment-type specifiers, or a series of "drawing commands" (a la SVG)
+In design-tool land, it would be nice to be able to "direct select" a path point and express any of its properties individually — additionally,
+it would be nice to support "shape tweening" between two arbitrary `Path` values
+
+```
+<Path id="my-path" />
+@settings {
+    @my-path {
+        points: [
+            {x: ,y: ,handles: [{x:y:},{x:y:}]},
+            {x: ,y: ,handles: [{x:y:},{x:y:}]},
+            {x: ,y: ,handles: [{x:y:},{x:y:}]},
+            {x: ,y: ,handles: [{x:y:},{x:y:}]},
+        ]
+    }
+}
+```
+
+This verbose (if as minimal as possible) description of points feels ergonomically similar to Timeline.  Consider this similarity when 
+locking in API design...
+
+
+### on Actions and event handling
+2022-02-12
+
+need to nail down:
+ - syntax in pax
+ - userland API, ease of getting/setting values (rename Property::cache_value to `set`?)
+
+built-in lifecycle events: onclick, ontap, ontick
+
+are there user-extensible lifecycle events? perhaps a component can trigger events,
+allowing binding of events (classic BEST-style) -- e.g.:
+
+```
+<MyElement onclick=@handle_click />
+```
+
+
+Types: function will be expected to accept the correct types, e.g. ClickArgs for onclick
+This isn't an Expression and won't be evaluated through the lense of PAXEL
+The @ syntax is both conceptually correctly _different_ than `@{}` — and is a nod to the "magic splice"
+nature of the decorated symbol (i.e. that @handle_click will magically (via codegen) be spliced with its
+args into a complete statement in RIL)
+
+What about binding to methods on descendents?  Perhaps `@('#some-id').some_fn` (with a hat-tip to jQuery) allows
+for nested access.  Note that this extends to referring to desc. properties as well! 
+
+
+#### Journey of an Action
+
+1. defined as a `pub fn` in code-behind
+2. bound to an element a la a property, e.g.: `<Group onclick=@handle_click>` or `@settings{#some-group : { onclick=@handle_click }}`
+3. parsed, pulled into manifest: templatenodedefinition `x` binds event `y` to function (handler) `z`
+4. generated into RIL to handle this runtime story:
+   1. user clicks on screen
+   2. hits either:
+      1. native element (e.g. in PLaceholders or mixed mode content) 
+      2. or virtual element (canvas)
+   3. for virtual elements, ray-cast location of click, find top element
+   4. dispatch click event (add to message queue for relevant element(s))
+      1. DECIDE: capture/bubble or something better? Might be able to avoid needing a `capture` phase if parents can add (essentially) `pointer-events: none` to children, deferring within-hitbox events to themselves (parents)
+      2. What other events may be dispatched?  Tick, tap, mouseover, etc. — but what about custom events?
+      3. This probably is a responsibility of RenderNode, and might offer a robust default impl. for common events.
+   5. each tick, process message queue for each element.  Take a look at the lifecycle/event order here, e.g. which of `tick` vs. `click` etc. happen first (intuitively, a click's handler should fire BEFORE the next click)
+   
+
+Generated RIL needs to accept a polymorphic arg, e.g. EventClick or EventTick (args coproduct?), unwrap it,
+and bind its values to a method call on the instance itself (`pub fn handle_click(&mut self, args: ArgsClick)`)
+
+Could keep `n` different queues per node, for `n` different types of args
+(requires writing queue management logic when adding new event types)
+
+Or could keep one queue with genned glue logic for unwrapping coproduct
+into args
+
+(cont. 2022-02-14)
+
+Probably `impl Handler<EventClick> for RenderNode`, as well as
+all other built-in event handlers.  `EventCustom` might be centrally
+implementable in the same way, allowing userland to deal with named
+`EventCustom`s
+
+
+Engine has coordinates & a RenderNode — must fire userland declared
+method with correctly injected args
+
+The method itself exists on the instance (`Rc<RefCell<dyn RenderNode>>`)
+
+The execution of the method can be done with a closure (which can be
+code-genned, and which can also be attached at runtime!)
+
+
+
+Pass `fn` pointer — note that even for methods, the `fn` is global.
+Must be resolved by global import, and probably (almost certainly)
+must be passed through parser+codegen.
+
+This fn pointer, then, can be evaluated by calling:
+
+```
+
+fn dispatch_event_click(args) {
+    //args are passed by engine
+    //probably unwrap args coproduct here
+    let some_fn_pointer: fn(&mut self: RootProperties, evt: EventClick) = pax_example::handlers::some_onclick
+    let mut instance = (*some_rc).borrow_mut();
+    some_fn_pointer(&mut instance, args);
+}
+```
+
+
+
+Each tick, the message queue will be exhausted, even if there are no
+handlers bound to relevant events (e.g. `EventClick`s will propagate
+in message queue but will be unhandled.)
+
+Should handlers support being attached at runtime?  Probably.
+This is reasonably straightforward, probably —  Update: probably not, at least
+while Rust is only supported language.
+
+Click -> Chassis -> Engine queue (with known element id) 
+Every tick, process queue — if the ASSOCIATED ELEMENT (via id from engine queue)
+has a REGISTERED HANDLER (via .pax, or perhaps added at runtime)
+then TRIGGER the registered handler with chassis-generated args
+
+Chassis: set up native listener, instantiate relevant eng struct with data, enqueue in engine
+Engine: each tick, before rendering, process event queue; dispatch events on RenderNodes
+RenderNode: default impl dispatch: unwrap (match) arg/event type, check for any local registered handlers (&fn), fire if present (in order registered)

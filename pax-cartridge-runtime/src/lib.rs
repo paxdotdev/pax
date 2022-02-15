@@ -10,7 +10,7 @@ use pax_runtime_api::{Property, PropertyLiteral, Transform};
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
 use pax_example::pax_types::{RootProperties};
 use pax_example::pax_types::pax_std::primitives::{GroupProperties, RectangleProperties};
-use pax_example::pax_types::pax_std::types::{Color, Stroke, Size};
+use pax_example::pax_types::pax_std::types::{Color, StrokeProperties, Size};
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
 use pax_std_primitives::{RectangleInstance, GroupInstance };
@@ -29,12 +29,28 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
         TypesCoproduct::Transform(
             Transform::origin(Size::Percent(50.0), Size::Percent(50.0)) *
-            Transform::rotate((f64::sin(__AT__frames_elapsed / 100.0) * 0.020) * (__AT__frames_elapsed)) *
+            Transform::scale(2.3, 2.3) *
+            Transform::rotate( __AT__frames_elapsed / 270.0) *
             Transform::origin(Size::Percent(f64::sin(__AT__frames_elapsed / 1000.0) * 100.0), Size::Percent(f64::cos(__AT__frames_elapsed / 1000.0) * 100.0)) *
-            Transform::rotate((f64::cos(__AT__frames_elapsed / 100.0) * 0.010) * (__AT__frames_elapsed)) *
+            Transform::rotate((f64::cos(__AT__frames_elapsed / 100.0) * 0.0010 + 1.0) * (__AT__frames_elapsed) / 100.0) *
             Transform::align(0.5, 0.5)
         )
     }));
+
+    map.insert("b".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
+        #[allow(non_snake_case)]
+        let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
+
+        TypesCoproduct::Transform(
+            Transform::origin(Size::Percent(50.0), Size::Percent(50.0)) *
+            Transform::scale(1.8, 1.8) *
+            Transform::rotate(__AT__frames_elapsed / 100.0) *
+            Transform::origin(Size::Percent(f64::sin(__AT__frames_elapsed / 1000.0) * 150.0), Size::Percent(f64::cos(__AT__frames_elapsed / 1000.0) * 150.0)) *
+            Transform::rotate((f64::cos(__AT__frames_elapsed / 100.0) * 0.0010 + 1.0) * (__AT__frames_elapsed) / 100.0) *
+            Transform::align(0.5, 0.5)
+        )
+    }));
+
     map
 }
 
@@ -54,28 +70,29 @@ pub fn instantiate_root_component() -> Rc<RefCell<ComponentInstance>> {
                     RectangleInstance::instantiate(
                         PropertiesCoproduct::Rectangle(
                             RectangleProperties {
-                                stroke: PropertyLiteral::new( Stroke {
-                                    color: Color::rgba(1.0, 0.0, 0.0, 1.0),
-                                    width: 5.0,
-                                }),
-                                fill: PropertyLiteral::new(Color::hlca(180.0, 20.0, 20.0, 20.0)),
-                            }
-                        ),
-                        Rc::new(RefCell::new(PropertyLiteral {value: Transform::translate(100.0, 400.0)})),
-                        [PropertyLiteral::new(Size::Pixel(100.0)), PropertyLiteral::new(Size::Pixel(200.0))]
-                    ),
-                    RectangleInstance::instantiate(
-                        PropertiesCoproduct::Rectangle(
-                            RectangleProperties {
-                                stroke: PropertyLiteral::new( Stroke {
-                                    color: Color::rgba(1.0, 1.0, 0.0, 1.0),
-                                    width: 5.0,
-                                }),
-                                fill: PropertyLiteral::new(Color::rgba(0.0, 1.0, 0.0, 1.0)),
+                                stroke: Box::new(PropertyLiteral { value: StrokeProperties {
+                                    color: Box::new(PropertyLiteral {value: Color::rgba(1.0, 1.0, 0.0, 1.0)}),
+                                    width: Box::new(PropertyLiteral{value: 7.0}),
+                                }}),
+                                fill: PropertyLiteral::new(Color::rgba(0.0, 1.0, 0.0, 0.25)),
                             }
                         ),
                         Rc::new(RefCell::new(
                             PropertyExpression { id: "a".to_string(), cached_value: Default::default()})),
+                        [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
+                    ),
+                    RectangleInstance::instantiate(
+                        PropertiesCoproduct::Rectangle(
+                            RectangleProperties {
+                                stroke: Box::new(PropertyLiteral { value: StrokeProperties {
+                                    color: Box::new(PropertyLiteral {value: Color::rgba(0.0, 1.0, 1.0, 1.0)}),
+                                    width: Box::new(PropertyLiteral{value: 7.0}),
+                                }}),
+                                fill: PropertyLiteral::new(Color::rgba(1.0, 0.0, 1.0, 1.0)),
+                            }
+                        ),
+                        Rc::new(RefCell::new(
+                            PropertyExpression { id: "b".to_string(), cached_value: Default::default()})),
                         [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
                     ),
                 ])),
@@ -85,13 +102,6 @@ pub fn instantiate_root_component() -> Rc<RefCell<ComponentInstance>> {
         ]))
     )
 }
-
-
-//how to register an expression with global hash?
-//where to store global hash? (on engine?  if so, how do we code-gen these types, which rely on ExpressionContext (Engine)
-//Alternatively —can package the ExpressionsCoproduct into a TypesCoproduct, available in the same
-//scope as PropertiesCoproduct (no engine dep.  Engine can store a HashMap<String, Fn(ExpressionContext) -> TypesCoproduct>
-
 
 pub struct RootInstance {}
 impl RootInstance {

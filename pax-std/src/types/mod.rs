@@ -1,14 +1,30 @@
 use pax::*;
+use pax::api::{Property, PropertyLiteral};
 
 //register in coproduct;
 //generate unwrapping code in cartridge-runtime (if let/match&panic)
 //(will be wrapped up as a PropertyCoproduct)
-#[pax_primitive_type("../pax-std-primitives", crate::StrokeInstance)]
+// #[pax_type]
 pub struct Stroke {
     pub color: Color,
     pub width: f64,
 }
 
+//this allows StrokeProperties to be set at runtime with an ergonomic Stroke object
+impl Into<StrokeProperties> for Stroke {
+    fn into(self) -> StrokeProperties {
+        StrokeProperties {
+            color: Box::new(PropertyLiteral {value: self.color}),
+            width: Box::new(PropertyLiteral {value: self.width}),
+        }
+    }
+}
+
+#[pax_type]
+pub struct StrokeProperties {
+    pub color: Box<dyn Property<Color>>,
+    pub width: Box<dyn Property<f64>>,
+}
 
 
 #[pax_primitive_type("../pax-std-primitives", crate::ColorInstance)]
@@ -16,7 +32,7 @@ pub struct Color{
     pub color_variant: ColorVariant,
 }
 
-impl  Color {
+impl Color {
     pub fn to_piet_color(&self) -> piet::Color {
         match self.color_variant {
             ColorVariant::Hlca(slice) => {

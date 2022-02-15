@@ -22,31 +22,27 @@ pub mod pax_types {
         }
         pub mod types {
             pub use pax_std::types::Color;
-            pub use pax_std::types::Stroke;
+            pub use pax_std::types::StrokeProperties;
             pub use pax_std::types::Size;
         }
     }
     pub use pax::api::Transform;
 
-
-
-    pub use crate::Root;
     pub use crate::RootProperties;
     //plus other relevant.
 }
 
 //#[pax] was here
-pub struct Root {
-    //rewrite to pub `num_clicks : Property<i64>` etc. AND register metadata with dev server
-    pub num_clicks: i64,
-    pub current_rotation: f64,
-    pub deeper_struct: DeeperStruct,
-}
-
 pub struct RootProperties {
     pub num_clicks: Box<dyn pax::api::Property<i64>>,
     pub current_rotation: Box<dyn pax::api::Property<f64>>,
     pub deeper_struct: Box<dyn pax::api::Property<DeeperStruct>>,
+}
+
+impl RootProperties {
+    pub fn handle_tick(&mut self, args: ArgsTick) {
+        pax::log(format!("on frame {}", args.frame));
+    }
 }
 
 #[cfg(feature = "parser")]
@@ -148,17 +144,19 @@ impl Root {
     }
 }
 
-impl Root {
-    pub fn new() -> Self {
-        Self {
-            //Default values.  Could shorthand this into a macro via PAXEL
-            num_clicks: 0,
-            current_rotation:0.0,
-            deeper_struct: DeeperStruct {
-                a: 100,
-                b: "Profundo!",
-            },
-        }
+impl RootProperties {
+
+    //ideally, this would accept &mut self
+    pub fn handle_tick(&mut self, evt: pax::api::EventTick) {
+
+        &self.num_clicks.set(*self.num_clicks.get() + 1);
+        // let mut num_clicks = (*props).num_clicks;
+        // num_clicks.set(num_clicks.get() + 1);
+
     }
+    // pub fn handle_tick(&mut props: RootProperties , evt: pax::api::EventTick) {
+    //     let mut num_clicks = (*props).num_clicks;
+    //     num_clicks.set(num_clicks.get() + 1)
+    // }
 }
 

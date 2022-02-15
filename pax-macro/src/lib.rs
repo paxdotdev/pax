@@ -27,6 +27,16 @@ pub fn pax_primitive_type(args: proc_macro::TokenStream, input: proc_macro::Toke
     input
 }
 
+
+#[proc_macro_attribute]
+pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    //similar to pax_primitive: registers annotated type with PropertiesCoproduct
+    //and generates instantiation code from a PropertiesCoproduct —
+    //unlike pax_primitive, does not expect implementation of RenderNode
+    //(maybe this isn't unlike pax_primitive after all?
+    input
+}
+
 #[proc_macro_attribute]
 pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let _ = args;

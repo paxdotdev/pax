@@ -8,7 +8,13 @@ use kurbo::Affine;
 pub trait Property<T> {
     fn get(&self) -> &T;
     fn get_id(&self) -> Option<&str>;
-    fn cache_value(&mut self, value: T);
+    fn set(&mut self, value: T);
+}
+
+
+
+pub struct EventTick {
+    frame: i64,
 }
 
 /// A size value that can be either a concrete pixel value
@@ -146,7 +152,7 @@ impl<T> Property<T> for PropertyLiteral<T> {
         None
     }
 
-    fn cache_value(&mut self, value: T) {
+    fn set(&mut self, value: T) {
         self.value = value;
     }
 }
@@ -176,7 +182,7 @@ impl Property<f64> for PropertyTimeline {
         Some(self.id.as_str())
     }
 
-    fn cache_value(&mut self, value: f64) {
+    fn set(&mut self, value: f64) {
         self.cached_evaluated_value = value;
     }
 }

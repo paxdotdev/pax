@@ -21,7 +21,7 @@ pub struct RectangleInstance {
 
 
 pub struct RectangleProperties {
-    pub stroke: Box<dyn Property<pax_std::types::Stroke>>,
+    pub stroke: Box<dyn Property<pax_std::types::StrokeProperties>>,
     pub fill: Box<dyn Property<pax_std::types::Color>>,
 }
 
@@ -166,7 +166,7 @@ impl RenderNode for RectangleInstance {
                 };
                 let new_value = (**evaluator)(ec);
                 if let TypesCoproduct::Transform(cast_new_value) = new_value {
-                    transform_borrowed.cache_value(cast_new_value)
+                    transform_borrowed.set(cast_new_value)
                 }
             }
         }
@@ -209,7 +209,7 @@ impl RenderNode for RectangleInstance {
 
                 let color = properties.fill.get().to_piet_color();
                 hpc.drawing_context.fill(transformed_bez_path, &color);
-                hpc.drawing_context.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.to_piet_color(), *&properties.stroke.get().width);
+                hpc.drawing_context.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), **&properties.stroke.get().width.get());
             },
             _=>{unreachable!()}
         };

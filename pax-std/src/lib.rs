@@ -81,7 +81,7 @@ pub mod primitives {
     }
 
     pub struct RectangleProperties {
-        pub stroke: Box<dyn pax::api::Property<types::Stroke>>,
+        pub stroke: Box<dyn pax::api::Property<types::StrokeProperties>>,
         pub fill: Box<dyn pax::api::Property<types::Color>>,
     }
 

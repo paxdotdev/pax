@@ -75,6 +75,25 @@ pub struct HostPlatformContext<'a, 'b>
     pub render_message_queue: Vec<JsValue>, //TODO: platform polyfill
 }
 
+pub enum ArgsCoproduct {
+    Click(ArgsClick),
+    Tick(ArgsTick),
+}
+
+pub struct ArgsClick {
+
+}
+
+pub struct ArgsTick {
+
+}
+
+pub struct HandlerRegistry<T> {
+    pub handlers: Vec<fn(&mut T, &mut ArgsCoproduct, i32)>,
+//does each RenderNode need to maintain its own HandlerRegistry? probably.
+}
+
+
 impl PaxEngine {
     fn new(root_component_instance: Rc<RefCell<ComponentInstance>>, expression_table: HashMap<String, Box<dyn Fn(ExpressionContext)->TypesCoproduct>> , logger: fn(&str), viewport_size: (f64, f64)) -> Self {
         PaxEngine {
@@ -200,6 +219,9 @@ impl PaxEngine {
     }
 
     pub fn tick(&mut self, rc: &mut WebRenderContext) -> Vec<JsValue> {
+
+        //process event queue
+
         rc.clear(Color::rgb8(0, 0, 0));
         let render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;

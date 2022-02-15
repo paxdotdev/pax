@@ -40,7 +40,7 @@ impl<T> Property<T> for PropertyExpression<T> {
         Some(self.id.as_str())
     }
 
-    fn cache_value(&mut self, value: T) {
+    fn set(&mut self, value: T) {
         self.cached_value = value;
     }
 }
