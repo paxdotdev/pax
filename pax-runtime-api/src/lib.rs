@@ -1,8 +1,15 @@
+use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
-use std::ops::Mul;
+use std::ops::{Deref, Mul};
 use std::rc::Rc;
 use kurbo::Affine;
 use uuid::Uuid;
+
+#[macro_use]
+extern crate lazy_static;
+extern crate mut_static;
+
+use mut_static::MutStatic;
 
 // /// An abstract Property that may be either: Literal,
 // /// a dynamic runtime Expression, or a Timeline-bound value
@@ -34,6 +41,23 @@ pub struct ArgsClick {
 pub enum Size {
     Pixel(f64),
     Percent(f64),
+}
+
+pub struct Logger(fn(&str));
+
+lazy_static! {
+    static ref LOGGER: MutStatic<Logger> = MutStatic::new();
+}
+
+pub fn register_logger(logger: fn(&str)) {
+    LOGGER.borrow().set(Logger(logger));
+}
+
+pub fn log(msg: &str) {
+    //TODO: instead of unwrap, handle case where logger isn't registered
+    unsafe {
+        (LOGGER.borrow().read().unwrap().0)(msg);
+    }
 }
 
 impl Mul for Size {

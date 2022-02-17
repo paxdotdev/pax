@@ -77,9 +77,11 @@ impl PaxEngine {
     pub fn new(
         root_component: Rc<RefCell<ComponentInstance>>,
         expression_table: HashMap<String, Box<dyn Fn(ExpressionContext)->TypesCoproduct>> ,
-        logger: fn(&str), viewport_size: (f64, f64),
+        logger: fn(&str),
+        viewport_size: (f64, f64),
         instance_map: Rc<RefCell<InstanceMap>>,
     ) -> Self {
+        pax_runtime_api::register_logger(logger);
         PaxEngine {
             frames_elapsed: 0,
             instance_map,

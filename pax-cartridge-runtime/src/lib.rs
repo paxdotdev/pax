@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::Rc;
-use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap};
+use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap, HandlerRegistry};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{Property, PropertyLiteral, Transform};
@@ -54,6 +54,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
 pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<RefCell<ComponentInstance>> {
     RootInstance::instantiate(
+        HandlerRegistry {click_handlers: vec![], tick_handlers: vec![]},
         Rc::clone(&instance_map),
         //TODO: pass handler declarations
         PropertiesCoproduct::Root(RootProperties {
@@ -103,7 +104,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
 
 pub struct RootInstance {}
 impl RootInstance {
-    pub fn instantiate(instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList /*, adoptees*/) -> Rc<RefCell<ComponentInstance>> {
+    pub fn instantiate(handler_registry:  HandlerRegistry<RootProperties>, instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList /*, adoptees*/) -> Rc<RefCell<ComponentInstance>> {
         let new_id = pax_runtime_api::generate_unique_id();
 
         let ret = Rc::new(RefCell::new(ComponentInstance {
