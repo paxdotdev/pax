@@ -2,9 +2,43 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_properties_coproduct::{PropertiesCoproduct};
-use crate::{RenderNodePtrList};
+use crate::{HandlerRegistry, RenderNodePtrList};
 
-use pax_runtime_api::Timeline;
+use pax_runtime_api::{ArgsCoproduct, Timeline};
+
+
+
+pub trait Dispatcher<'a, T> {
+    fn get_handler_registry(&self) -> &'a HandlerRegistry<T>;
+
+    fn dispatch_event(&mut self, args: ArgsCoproduct) {
+        //first: what kind of event is this?  does this element have registered handlers for that event?
+        //only if so, then unwrap `&self.properties` into cast_properties, invoke handler(s)
+        match args {
+            ArgsCoproduct::Tick(mut args_cast) => {
+                //are there tick handlers registered?
+                if self.get_handler_registry().tick_handlers.len() > 0 {
+                    for handler in self.get_handler_registry().tick_handlers.iter() {
+                        handler(&self.unwrap_properties(), args_cast.clone())
+                    }
+                }
+            },
+            ArgsCoproduct::Click(args_cast) => {
+                //are there click handlers registered?
+                if self.get_handler_registry().click_handlers.len() > 0 {
+                    for handler in self.get_handler_registry().click_handlers.iter() {
+                        handler(&self.unwrap_properties(), args_cast.clone())
+                    }
+                }
+            },
+            //TODO: Support additional handlers by adding them here.
+        }
+    }
+
+    //to be written manually for primitives, codegenned for pax components
+    fn unwrap_properties(&mut self) -> T;
+}
+
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, this is a home

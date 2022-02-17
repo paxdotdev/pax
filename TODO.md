@@ -46,7 +46,6 @@ Perhaps a macro is the answer?
     [x] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
 
 
-
 ## Milestone: "hello world" from .pax
 
 [x] Compile base cartridge
@@ -82,7 +81,6 @@ Perhaps a macro is the answer?
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
-    
 [ ] compiler codegen
     [ ] codegen Cargo.toml + solution for patching
         [x] manual
@@ -104,7 +102,7 @@ Perhaps a macro is the answer?
             [x] handle expressable + nestable, e.g. Stroke (should be able to set root as Expression, or any individual sub-properties)
             [ ] proof of concept (RIL) for timelines
             [ ] proof of concept (RIL) for actions
-                [ ] pax::log
+                [x] pax::log
                 [ ] `Tick` support (wired up)
                 [ ] pencil in `Click`, but don't worry about raycasting yet
                 [x] sanity-check Repeat
@@ -116,7 +114,6 @@ Perhaps a macro is the answer?
         [ ] codegen RIL into source via `#[pax]` macro, to enable vanilla run-via-cargo (well, pax-compiler, but maybe there's still a path to bare cargo!)
         [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
-
 [ ] render Hello World
     [ ] Manage mounting of Engine and e2e 
 
@@ -134,15 +131,12 @@ Perhaps a macro is the answer?
     [ ] Message queue in runtime
     [ ] Ray-casting? probably
     [ ] Message bubbling/capture or similar solution
-
-> What's our expression language MVP?
-> - `==`, `&&`, and `||`
-> - Parenthetical grouping `(.*)`
-> - Literals for strings, bools, ints, floats
-> - Nested object references + injected context
-
 [ ] Expressions
     [ ] Transpile expressions to Rust (or choose another compilation strategy)
+        [ ] boolean ops: `==`, `&&`, and `||`
+        [ ] parenthetical grouping  `(.*)`
+        [ ] Literals for strings, bools, ints, floats
+        [ ] Nested object references + injected context
     [x] Write ExpressionTable harness, incl. mechanisms for:
         [x] vtable storage & lookup
         [ ] Dependency tracking & dirty-watching
@@ -955,4 +949,43 @@ Thus it follows that we want to associate handlers with INSTANCE IDs rather than
 
 
 
-"design and code together; ship UIs to every device."
+#### design and code together; ship UIs to every device.
+
+
+
+### on instance IDs, handlers, and control flow
+
+1. inline, compiler-generated literal ids will add to cartridge footprint
+2. handlers need to be able to look up element by ID (instance_map)
+3. either: a.) IDs are inlined during compilation (e.g. by the mechanism used to join expressions + properties), or b.) generated at runtime
+   1. Expression IDs have to be managed at compile-time, to solve vtable functionality within Rust constraints
+   2. instance_map (instance) IDs should probably be managed at runtime, because:
+      1. literal inlining takes toll on footprint
+      2. dynamic primitives like if/repeat, which may dynamically instantiate children with methods/handlers, _must_ do this at runtime
+
+HandlerRegistry<T> must be associated with e.g. RectangleProperties (<T>),
+because that type T will need to be injected as `&mut self` when calling
+a method/handler.
+
+Either: bundle all HandlerRegistry<T> Ts into PropertiesCoproduct,
+or store a distinct HandlerRegistry<RectangleProperties> (e.g.) per dyn RenderNode
+
+Engine has an intent to dispatch an event,
+an element ID,
+and event-specific args (ArgsTick, for example.)
+
+Look up element by id, get `dyn RenderNode`
+
+could expose `dispatch_event()` on `RenderNode` —
+challenge is passing the right `&mut self` into the registered method call.
+
+Maybe we don't want to resolve RenderNodes with the instance_map at all?
+Can we resolve to the instance of `RootProperties`?
+The answer is probably yes, because properties are stored in an Rc<RefCell<>>, which we can clone into the instance_map
+
+So: Engine has an id and an event, looks up id in instance_map,
+gets an Rc<RefCell<PropertiesCoproduct>>
+
+That PropertiesCoproduct needs to be unwrapped so the right
+type of &self can be passed to our stored fn.
+

@@ -1,8 +1,9 @@
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_properties_coproduct::{PropertiesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext, HandlerRegistry, Dispatcher};
 
 use pax_runtime_api::{Timeline, Transform, Size2D, Property};
 
@@ -20,6 +21,19 @@ pub struct ComponentInstance {
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext)>,
 }
+
+
+
+impl<'a, T> Dispatcher<'a, T> for ComponentInstance {
+    fn get_handler_registry(&self) -> &'a HandlerRegistry<T> {
+
+    }
+
+    fn unwrap_properties(&mut self) ->  {
+
+    }
+}
+
 
 //TODO:
 //  - track internal playhead for this component

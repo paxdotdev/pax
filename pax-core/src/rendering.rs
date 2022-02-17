@@ -3,10 +3,11 @@ use std::rc::Rc;
 
 use kurbo::{Affine};
 use piet::{Color, StrokeStyle};
+use pax_properties_coproduct::PropertiesCoproduct;
 
-use pax_runtime_api::{Size, Size2D};
+use pax_runtime_api::{ArgsCoproduct, Size, Size2D};
 
-use crate::{ RenderTreeContext, HostPlatformContext};
+use crate::{RenderTreeContext, HostPlatformContext, HandlerRegistry};
 
 use pax_runtime_api::{Property, PropertyLiteral};
 
@@ -15,9 +16,10 @@ use pax_runtime_api::{Property, PropertyLiteral};
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
 
-
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
+/// T: a member of PropertiesCoproduct, representing the type of the set of properites
+/// associated with this node.
 pub trait RenderNode
 {
     /// Return the list of nodes that are children of this node at render-time.
@@ -120,6 +122,7 @@ pub trait RenderNode
     fn post_render(&mut self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
         //no-op default implementation
     }
+
 }
 
 /// A sugary representation of an Affine transform+, including

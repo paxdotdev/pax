@@ -66,8 +66,8 @@ pub struct HostPlatformContext<'a, 'b>
 
 #[derive(Default)]
 pub struct HandlerRegistry<T> {
-    pub click_handlers: Vec<fn(&mut T, &mut ArgsClick)>,
-    pub tick_handlers: Vec<fn(&mut T, &mut ArgsTick)>,
+    pub click_handlers: Vec<fn(&mut T, ArgsClick)>,
+    pub tick_handlers: Vec<fn(&mut T, ArgsTick)>,
 //does each RenderNode need to maintain its own HandlerRegistry? probably.
 }
 

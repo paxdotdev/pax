@@ -26,10 +26,17 @@ pub fn generate_unique_id() -> String {
     Uuid::new_v4().to_string()
 }
 
+pub enum ArgsCoproduct {
+    Tick(ArgsTick),
+    Click(ArgsClick),
+}
+
+#[derive(Clone)]
 pub struct ArgsTick {
     frame: i64,
 }
 
+#[derive(Clone)]
 pub struct ArgsClick {
     x: f64,
     y: f64,

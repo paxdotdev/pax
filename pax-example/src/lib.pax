@@ -1,5 +1,5 @@
 <Group>
-    <Rectangle id="rect-a" />
+    <Rectangle ontick=@handle_tick id="rect-a" />
     <Rectangle id="rect-b"  />
 </Group>
 
