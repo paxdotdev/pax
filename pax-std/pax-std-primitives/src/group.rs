@@ -1,10 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pax_core::{InstanceMap, RenderNode, RenderNodePtr, RenderNodePtrList};
+use pax_core::{HostPlatformContext, InstanceMap, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::PropertiesCoproduct;
 
-use pax_runtime_api::{Transform, Size2D, Property};
+use pax_runtime_api::{Transform, Size2D, Property, ArgsCoproduct};
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
@@ -29,6 +29,9 @@ impl GroupInstance {
 }
 
 impl RenderNode for GroupInstance {
+    fn dispatch_event(&mut self, args: ArgsCoproduct) {
+        todo!()
+    }
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
     }

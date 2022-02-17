@@ -128,6 +128,9 @@ pub fn handle_properties_computation(id: &str, rtc: &mut RenderTreeContext) {
 }
 
 impl RenderNode for RectangleInstance {
+    fn dispatch_event(&mut self, args: ArgsCoproduct) {
+        todo!()
+    }
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
     }

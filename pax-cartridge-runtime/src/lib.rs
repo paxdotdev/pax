@@ -2,10 +2,10 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::Rc;
-use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap, HandlerRegistry, Dispatcher};
+use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap, HandlerRegistry};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{Property, PropertyLiteral, Transform};
+use pax_runtime_api::{ArgsCoproduct, Property, PropertyLiteral, Transform};
 
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
 use pax_example::pax_types::{RootProperties};
@@ -120,7 +120,7 @@ impl RootFactory {
             properties: Rc::new(RefCell::new(properties)),
             compute_properties_fn: Box::new(|properties: Rc<RefCell<PropertiesCoproduct>>, rtc: &mut RenderTreeContext|{
 
-                let properties_unwrapped = &mut *properties.deref().borrow_mut();
+                let properties_unwrapped = &*(*properties).borrow_mut();
                 if let PropertiesCoproduct::Root(properties_cast) =  properties_unwrapped {
                     //Note: this is code-genned based on parsed knowledge of the properties
                     //      of `Root`
@@ -129,6 +129,29 @@ impl RootFactory {
                     // properties_cast.current_rotation.compute_in_place(rtc);
                     // properties_cast.num_clicks.compute_in_place(rtc);
                 } else {unreachable!()}
+            }),
+            dispatch_event_fn: Box::new(|properties: Rc<RefCell<PropertiesCoproduct>>, args: ArgsCoproduct| {
+               if let properties_unwrapped = &mut *(*properties).borrow_mut() {
+                   if let PropertiesCoproduct::Root(properties_cast) = properties_unwrapped {
+
+                       //TODO: replace hard-coded empty HandlerRegistry
+                       //      with a static lookup (aided by codegen, a la ExpressionTable id gen)
+                       let handler_registry : HandlerRegistry<RootProperties> = HandlerRegistry {click_handlers: vec![], tick_handlers: vec![]};//(static_lookup)
+                       match args {
+                           ArgsCoproduct::Tick(args_cast) => {
+                               for handler in handler_registry.tick_handlers.iter() {
+                                   handler(properties_cast, args_cast.clone());
+                               }
+                           }
+                           ArgsCoproduct::Click(args_cast) => {
+                               for handler in handler_registry.click_handlers.iter() {
+                                   handler(properties_cast, args_cast.clone());
+                               }
+                           }
+                       }
+                   }
+               }
+
             }),
             timeline: None
         }));

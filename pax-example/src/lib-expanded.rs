@@ -2,7 +2,7 @@
 extern crate lazy_static;
 
 use pax::*;
-use pax::api::{ArgsTick, Property};
+use pax::api::{ArgsCoproduct, ArgsTick, Property};
 
 use pax_std::primitives::{Group, Rectangle};
 
@@ -41,8 +41,10 @@ pub struct RootProperties {
 
 impl RootProperties {
     pub fn handle_tick(&mut self, args: ArgsTick) {
-        // pax::log(format!("on frame {}", args.frame));
+        pax::log(&format!("pax::log from frame {}", args.frame));
     }
+
+    // pub fn _dispatch(&mut self, args: ArgsCoproduct)
 }
 
 #[cfg(feature = "parser")]

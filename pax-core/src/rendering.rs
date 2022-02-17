@@ -29,6 +29,14 @@ pub trait RenderNode
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList;
 
+
+    /// Handle an event dispatched by the engine.  RenderNode is expected
+    /// to unwrap the ArgsCoproduct, determine if the node has any registered
+    /// handlers of the specified type, then dispatch those handlers with an
+    /// injected reference of `&mut self` (which enables userland ergonomics of
+    /// binding component methods to events.)
+    fn dispatch_event(&mut self, args: ArgsCoproduct);
+
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
     fn get_size(&self) -> Option<Size2D>;

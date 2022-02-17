@@ -33,7 +33,7 @@ pub enum ArgsCoproduct {
 
 #[derive(Clone)]
 pub struct ArgsTick {
-    frame: i64,
+    pub frame: i64,
 }
 
 #[derive(Clone)]
