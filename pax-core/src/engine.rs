@@ -2,6 +2,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+
+
 use kurbo::{
     BezPath,
     Point,
@@ -17,30 +19,27 @@ use crate::runtime::{Runtime};
 use wasm_bindgen::JsValue;
 use pax_properties_coproduct::TypesCoproduct;
 
-use pax_runtime_api::{Property, StringReceiver};
+use pax_runtime_api::{ArgsClick, ArgsTick, Property};
 
 
-// Public method for consumption by engine chassis, e.g. WebChassis
-pub fn instantiate_engine(
-    root_component_instance: Rc<RefCell<ComponentInstance>>,
-    expression_table: HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct>>,
-    logger: fn(&str), viewport_size: (f64, f64),
-) -> PaxEngine {
-    PaxEngine::new(root_component_instance, expression_table, logger,viewport_size)
+
+pub enum EventMessage {
+    Tick(ArgsTick),
+    Click(ArgsClick),
 }
-
-
-
 
 pub struct PaxEngine {
     pub frames_elapsed: usize,
-    //used to communicate between cartridge & runtime,
-    //namely which property ID to calculate next
+    pub instance_map: Rc<RefCell<InstanceMap>>, //If the Rc<RefCell<>> is problematic for perf, could revisit this.  Is only a Rc<RefCell<>> to ease the mutability constraints of passing of the instance_map during RIL node instantiation
+    pub event_message_queue: Vec<(String, EventMessage)>, //(element id, args)
     pub expression_table: HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct> >,
-    pub root_component: Rc<RefCell<ComponentInstance>>, //NOTE: to support multiple concurrent "root components," e.g. for multi-stage authoring, this could simply be made an array of `root_components`
+    pub root_component: Rc<RefCell<ComponentInstance>>,
+    //NOTE: root_component is optional because: 1. engine must be instantiatable without a root_component, so that 2. instantiate_root_component() can receive a mutable reference to engine, so that 3. `instantiate` calls can receive a mutable reference to engine, so that 4. RenderNode instances may register themselves in the engine's id->instance map (used, e.g. for method dispatch)
+    //NOTE: to support multiple concurrent "root components," e.g. for multi-stage authoring, this could simply be made an array of `root_components`
     pub runtime: Rc<RefCell<Runtime>>,
     viewport_size: (f64, f64),
 }
+
 
 #[derive(Clone)]
 pub struct RenderTreeContext<'a>
@@ -54,19 +53,8 @@ pub struct RenderTreeContext<'a>
 
 }
 
-
-
 pub struct PropertyIdReceiver {
     pub property_id_register: Option<String>
-}
-
-impl StringReceiver for PropertyIdReceiver {
-    fn receive(&mut self, value: String) {
-        self.property_id_register = Some(value);
-    }
-    fn read(&self) -> Option<String> {
-        self.property_id_register.clone()
-    }
 }
 
 pub struct HostPlatformContext<'a, 'b>
@@ -75,32 +63,30 @@ pub struct HostPlatformContext<'a, 'b>
     pub render_message_queue: Vec<JsValue>, //TODO: platform polyfill
 }
 
-pub enum ArgsCoproduct {
-    Click(ArgsClick),
-    Tick(ArgsTick),
-}
 
-pub struct ArgsClick {
-
-}
-
-pub struct ArgsTick {
-
-}
-
+#[derive(Default)]
 pub struct HandlerRegistry<T> {
-    pub handlers: Vec<fn(&mut T, &mut ArgsCoproduct, i32)>,
+    pub click_handlers: Vec<fn(&mut T, &mut ArgsClick)>,
+    pub tick_handlers: Vec<fn(&mut T, &mut ArgsTick)>,
 //does each RenderNode need to maintain its own HandlerRegistry? probably.
 }
 
+pub type InstanceMap = HashMap<String, Rc<RefCell<dyn RenderNode>>>;
 
 impl PaxEngine {
-    fn new(root_component_instance: Rc<RefCell<ComponentInstance>>, expression_table: HashMap<String, Box<dyn Fn(ExpressionContext)->TypesCoproduct>> , logger: fn(&str), viewport_size: (f64, f64)) -> Self {
+    pub fn new(
+        root_component: Rc<RefCell<ComponentInstance>>,
+        expression_table: HashMap<String, Box<dyn Fn(ExpressionContext)->TypesCoproduct>> ,
+        logger: fn(&str), viewport_size: (f64, f64),
+        instance_map: Rc<RefCell<InstanceMap>>,
+    ) -> Self {
         PaxEngine {
             frames_elapsed: 0,
+            instance_map,
+            event_message_queue: vec![],
             expression_table,
             runtime: Rc::new(RefCell::new(Runtime::new(logger))),
-            root_component: root_component_instance,
+            root_component,
             viewport_size,
         }
     }
@@ -116,6 +102,7 @@ impl PaxEngine {
     //     Rc::clone(&self.root_component)
     // }
 
+    //TODO: use piet-common and `dyn`-ize WebRenderContext
     fn traverse_render_tree(&self, rc: &mut WebRenderContext) -> Vec<JsValue> {
         // Broadly:
         // 1. compute properties

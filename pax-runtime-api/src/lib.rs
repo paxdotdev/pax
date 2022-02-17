@@ -2,6 +2,7 @@ use std::cell::RefCell;
 use std::ops::Mul;
 use std::rc::Rc;
 use kurbo::Affine;
+use uuid::Uuid;
 
 // /// An abstract Property that may be either: Literal,
 // /// a dynamic runtime Expression, or a Timeline-bound value
@@ -11,10 +12,20 @@ pub trait Property<T> {
     fn set(&mut self, value: T);
 }
 
+//keep an eye on perf. here — might be more sensible to use something like
+//a monotonically increasing counter of i32 instead of String UUIDs.  Might require coordinating between
+//code-genned IDs in code-gen and dynamically generated IDs here to avoid dupes.
+pub fn generate_unique_id() -> String {
+    Uuid::new_v4().to_string()
+}
 
-
-pub struct EventTick {
+pub struct ArgsTick {
     frame: i64,
+}
+
+pub struct ArgsClick {
+    x: f64,
+    y: f64,
 }
 
 /// A size value that can be either a concrete pixel value
@@ -58,10 +69,6 @@ impl Mul for Size {
     }
 }
 
-pub trait StringReceiver {
-    fn receive(&mut self, value: String);
-    fn read(&self) -> Option<String>;
-}
 
 /// TODO: revisit if 100% is the most ergonomic default size (remember Dreamweaver)
 impl Default for Size {
@@ -69,9 +76,6 @@ impl Default for Size {
         Self::Percent(100.0)
     }
 }
-
-
-
 
 pub struct TransformInstance {
     rotate: Option<Box<dyn Property<f64>>>
@@ -84,7 +88,6 @@ pub type Size2D = Rc<RefCell<[Box<dyn Property<Size>>; 2]>>;
 
 
 #[derive(Default, Clone)]
-//TODO: support multiplication, expressions
 pub struct Transform { //Literal
     pub previous: Option<Box<Transform>>,
     pub rotate: Option<f64>, ///over z axis

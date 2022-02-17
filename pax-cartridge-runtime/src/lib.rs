@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::Rc;
-use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext};
+use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{Property, PropertyLiteral, Transform};
@@ -26,7 +26,6 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         //for @frames_elapsed
         #[allow(non_snake_case)]
         let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
-
         TypesCoproduct::Transform(
             Transform::origin(Size::Percent(50.0), Size::Percent(50.0)) *
             Transform::scale(2.3, 2.3) *
@@ -40,7 +39,6 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
     map.insert("b".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         #[allow(non_snake_case)]
         let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
-
         TypesCoproduct::Transform(
             Transform::origin(Size::Percent(50.0), Size::Percent(50.0)) *
             Transform::scale(1.8, 1.8) *
@@ -54,8 +52,10 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
     map
 }
 
-pub fn instantiate_root_component() -> Rc<RefCell<ComponentInstance>> {
+pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<RefCell<ComponentInstance>> {
     RootInstance::instantiate(
+        Rc::clone(&instance_map),
+        //TODO: pass handler declarations
         PropertiesCoproduct::Root(RootProperties {
             num_clicks: Box::new(PropertyLiteral {value: 0} ),
             current_rotation: Box::new(PropertyLiteral {value: 0.0}),
@@ -63,11 +63,11 @@ pub fn instantiate_root_component() -> Rc<RefCell<ComponentInstance>> {
         }),
         Rc::new(RefCell::new(PropertyLiteral{value: Transform::default()})),
         Rc::new(RefCell::new(vec![
-            GroupInstance::instantiate(
+            GroupInstance::instantiate(Rc::clone(&instance_map),
                 PropertiesCoproduct::Group(GroupProperties {}),
                 Rc::new(RefCell::new(PropertyLiteral {value: Transform::default()})),
                 Rc::new(RefCell::new(vec![
-                    RectangleInstance::instantiate(
+                    RectangleInstance::instantiate(Rc::clone(&instance_map),
                         PropertiesCoproduct::Rectangle(
                             RectangleProperties {
                                 stroke: Box::new(PropertyLiteral { value: StrokeProperties {
@@ -81,7 +81,7 @@ pub fn instantiate_root_component() -> Rc<RefCell<ComponentInstance>> {
                             PropertyExpression { id: "a".to_string(), cached_value: Default::default()})),
                         [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
                     ),
-                    RectangleInstance::instantiate(
+                    RectangleInstance::instantiate(Rc::clone(&instance_map),
                         PropertiesCoproduct::Rectangle(
                             RectangleProperties {
                                 stroke: Box::new(PropertyLiteral { value: StrokeProperties {
@@ -97,16 +97,16 @@ pub fn instantiate_root_component() -> Rc<RefCell<ComponentInstance>> {
                     ),
                 ])),
             ),
-            // Rc::new(RefCell::new()),
-            // Rc::new(RefCell::new()),
         ]))
     )
 }
 
 pub struct RootInstance {}
 impl RootInstance {
-    pub fn instantiate(properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList /*, adoptees*/) -> Rc<RefCell<ComponentInstance>> {
-        Rc::new(RefCell::new(ComponentInstance {
+    pub fn instantiate(instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList /*, adoptees*/) -> Rc<RefCell<ComponentInstance>> {
+        let new_id = pax_runtime_api::generate_unique_id();
+
+        let ret = Rc::new(RefCell::new(ComponentInstance {
             template: children,
             adoptees: Rc::new(RefCell::new(vec![])),
             transform,
@@ -124,7 +124,10 @@ impl RootInstance {
                 } else {unreachable!()}
             }),
             timeline: None
-        }))
+        }));
+
+        (*instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        ret
     }
 
 }

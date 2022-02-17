@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pax_core::{RenderNode, RenderNodePtr, RenderNodePtrList};
+use pax_core::{InstanceMap, RenderNode, RenderNodePtr, RenderNodePtrList};
 use pax_core::pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{Transform, Size2D, Property};
@@ -15,12 +15,16 @@ pub struct GroupInstance {
 }
 
 impl GroupInstance {
-    pub fn instantiate(properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList) -> Rc<RefCell<Self>> {
-        Rc::new(RefCell::new(Self {
+    pub fn instantiate(instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList) -> Rc<RefCell<Self>> {
+        let new_id = pax_runtime_api::generate_unique_id();
+        let ret = Rc::new(RefCell::new(Self {
             children,
             id: "".to_string(),
             transform,
-        }))
+        }));
+
+        instance_map.borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        ret
     }
 }
 

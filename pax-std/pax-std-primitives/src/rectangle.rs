@@ -2,12 +2,12 @@
 use kurbo::{BezPath};
 use piet::{RenderContext};
 
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ExpressionContext};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ExpressionContext, InstanceMap};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{Property, PropertyLiteral, Size, Transform, Size2D, StringReceiver};
+use pax_runtime_api::{Property, PropertyLiteral, Size, Transform, Size2D};
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
@@ -27,14 +27,19 @@ pub struct RectangleProperties {
 
 
 impl RectangleInstance {
-    pub fn instantiate(properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
+    pub fn instantiate(instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
+
         match &properties {
             PropertiesCoproduct::Rectangle(cast_properties) => {
-                Rc::new(RefCell::new(RectangleInstance {
+                let new_id = pax_runtime_api::generate_unique_id();
+                let ret = Rc::new(RefCell::new(RectangleInstance {
                     transform,
                     properties: Rc::new(RefCell::new(properties)),
                     size: Rc::new(RefCell::new(size))
-                }))
+                }));
+
+                (*instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+                ret
             },
             _ => {
                 panic!("Wrong properties type received while instantiating Rectangle");
@@ -127,7 +132,6 @@ impl RenderNode for RectangleInstance {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
-        let mut receiver : Rc<RefCell<dyn StringReceiver>> = Rc::new(RefCell::new(pax_core::PropertyIdReceiver { property_id_register: None }));
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         match properties {
             PropertiesCoproduct::Rectangle(properties_cast) => {

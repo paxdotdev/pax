@@ -6,7 +6,7 @@ use crate::{PaxEngine, RenderTreeContext};
 use crate::runtime::StackFrame;
 
 
-use pax_runtime_api::{Property, PropertyLiteral, PropertyTimeline, StringReceiver};
+use pax_runtime_api::{Property, PropertyLiteral, PropertyTimeline};
 
 
 // The `Expression` form of a property — stores a function

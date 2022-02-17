@@ -101,9 +101,13 @@ Perhaps a macro is the answer?
         [ ] hand-write RIL first!
             [x] rendering hello world
             [x] proof of concept (RIL) for expressions
-            [ ] handle expressable + nestable, e.g. Stroke (should be able to set root as Expression, or any individual sub-properties)
+            [x] handle expressable + nestable, e.g. Stroke (should be able to set root as Expression, or any individual sub-properties)
             [ ] proof of concept (RIL) for timelines
             [ ] proof of concept (RIL) for actions
+                [ ] pax::log
+                [ ] `Tick` support (wired up)
+                [ ] pencil in `Click`, but don't worry about raycasting yet
+                [x] sanity-check Repeat
         [ ] normalize manifest, or efficient JIT traversal
             [ ] stack Settings fragments (settings-selector-blocks and inline properties on top of defaults)
             [ ] might need to codegen traverser!
@@ -120,7 +124,7 @@ Perhaps a macro is the answer?
 
 [ ] Action API
     [ ] state management (.get/.set/etc.)
-    [ ] hooks into dirty-update system
+    [ ] hooks into dirty-update system, for efficient expressions
     [ ] Instantiation, reference management, enum ID + addressing for method definitions &
         invocations
     [ ] tween/dynamic timeline API
@@ -899,6 +903,7 @@ code-genned, and which can also be attached at runtime!)
 
 
 
+
 Pass `fn` pointer — note that even for methods, the `fn` is global.
 Must be resolved by global import, and probably (almost certainly)
 must be passed through parser+codegen.
@@ -919,18 +924,35 @@ fn dispatch_event_click(args) {
 
 
 Each tick, the message queue will be exhausted, even if there are no
-handlers bound to relevant events (e.g. `EventClick`s will propagate
+handlers bound to relevant events (i.e. `EventClick`s will propagate
 in message queue but will be unhandled.)
 
-Should handlers support being attached at runtime?  Probably.
-This is reasonably straightforward, probably —  Update: probably not, at least
-while Rust is only supported language.
+Should handlers support being attached at runtime?  probably not, at least
+while Rust is only supported language. (how to add without recompilation?)
 
 Click -> Chassis -> Engine queue (with known element id) 
 Every tick, process queue — if the ASSOCIATED ELEMENT (via id from engine queue)
-has a REGISTERED HANDLER (via .pax, or perhaps added at runtime)
+has a REGISTERED HANDLER (via .pax, or in the future perhaps added at runtime)
 then TRIGGER the registered handler with chassis-generated args
 
-Chassis: set up native listener, instantiate relevant eng struct with data, enqueue in engine
+Chassis: set up native listener, instantiate relevant engine struct with data, enqueue in engine
 Engine: each tick, before rendering, process event queue; dispatch events on RenderNodes
-RenderNode: default impl dispatch: unwrap (match) arg/event type, check for any local registered handlers (&fn), fire if present (in order registered)
+RenderNode: default impl dispatch: unwrap (match) arg/event type, 
+check for any local registered handlers (&fn), fire if present (in order registered)
+
+What about tick handlers?  tick is a little "special" because of how voluminous the events are
+(60-120/s * n elements) — there's likely a bandwidth/computation overhead to processing so many
+events spuriously.
+
+Perhaps `tick` can be special-handled, checking for handlers on each element during rendering (or properties comp.) recursion
+and then dispatching
+
+
+
+Handlers: attach to instances or to definitions?
+To instances.  Ex. if there are two Rectangles, each should have a separate handler for Click
+Thus it follows that we want to associate handlers with INSTANCE IDs rather than component/def. IDs
+
+
+
+"design and code together; ship UIs to every device."

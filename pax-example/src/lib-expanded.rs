@@ -2,7 +2,7 @@
 extern crate lazy_static;
 
 use pax::*;
-use pax::api::Property;
+use pax::api::{ArgsTick, Property};
 
 use pax_std::primitives::{Group, Rectangle};
 
@@ -41,7 +41,7 @@ pub struct RootProperties {
 
 impl RootProperties {
     pub fn handle_tick(&mut self, args: ArgsTick) {
-        pax::log(format!("on frame {}", args.frame));
+        // pax::log(format!("on frame {}", args.frame));
     }
 }
 
@@ -143,20 +143,20 @@ impl Root {
         }
     }
 }
-
-impl RootProperties {
-
-    //ideally, this would accept &mut self
-    pub fn handle_tick(&mut self, evt: pax::api::EventTick) {
-
-        &self.num_clicks.set(*self.num_clicks.get() + 1);
-        // let mut num_clicks = (*props).num_clicks;
-        // num_clicks.set(num_clicks.get() + 1);
-
-    }
-    // pub fn handle_tick(&mut props: RootProperties , evt: pax::api::EventTick) {
-    //     let mut num_clicks = (*props).num_clicks;
-    //     num_clicks.set(num_clicks.get() + 1)
-    // }
-}
-
+//
+// impl RootProperties {
+//
+//     //ideally, this would accept &mut self
+//     pub fn handle_tick(&mut self, evt: pax::api::ArgsTick) {
+//
+//         &self.num_clicks.set(*self.num_clicks.get() + 1);
+//         // let mut num_clicks = (*props).num_clicks;
+//         // num_clicks.set(num_clicks.get() + 1);
+//
+//     }
+//     // pub fn handle_tick(&mut props: RootProperties , evt: pax::api::EventTick) {
+//     //     let mut num_clicks = (*props).num_clicks;
+//     //     num_clicks.set(num_clicks.get() + 1)
+//     // }
+// }
+//

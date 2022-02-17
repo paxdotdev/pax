@@ -8,7 +8,7 @@ use std::cell::RefCell;
 
 use piet_web::WebRenderContext;
 
-use pax_core::PaxEngine;
+use pax_core::{InstanceMap, PaxEngine};
 
 
 
@@ -97,9 +97,11 @@ impl PaxChassisWeb {
 
         let piet_context  = WebRenderContext::new(context, window);
 
-        let root_component_instance = pax_cartridge_runtime::instantiate_root_component();
+
+        let mut instance_map : Rc<RefCell<InstanceMap>> = Rc::new(RefCell::new(std::collections::HashMap::new()));
+        let root_component_instance = pax_cartridge_runtime::instantiate_root_component(Rc::clone(&instance_map));
         let expression_table = pax_cartridge_runtime::instantiate_expression_table();
-        let engine = pax_core::instantiate_engine(root_component_instance, expression_table, log_wrapper, (width / dpr, height / dpr));
+        let engine = pax_core::PaxEngine::new(root_component_instance, expression_table, log_wrapper, (width / dpr, height / dpr), instance_map);
 
         let engine_container : Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
 

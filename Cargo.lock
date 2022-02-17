@@ -937,8 +937,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "418d37c8b1d42553c93648be529cb70f920d3baf8ef469b74b9638df426e0b4c"
 dependencies = [
  "cfg-if 1.0.0",
+ "js-sys",
  "libc",
  "wasi 0.10.2+wasi-snapshot-preview1",
+ "wasm-bindgen",
 ]
 
 [[package]]
@@ -1500,6 +1502,7 @@ name = "pax-runtime-api"
 version = "0.1.0"
 dependencies = [
  "kurbo",
+ "uuid",
 ]
 
 [[package]]
