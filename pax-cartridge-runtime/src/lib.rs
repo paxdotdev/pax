@@ -55,7 +55,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
 pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<RefCell<ComponentInstance>> {
     RootFactory::instantiate(
-        HandlerRegistry {click_handlers: vec![], tick_handlers: vec![]},
+        None,
         Rc::clone(&instance_map),
         //TODO: pass handler declarations
         PropertiesCoproduct::Root(RootProperties {
@@ -65,11 +65,11 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
         }),
         Rc::new(RefCell::new(PropertyLiteral{value: Transform::default()})),
         Rc::new(RefCell::new(vec![
-            GroupInstance::instantiate(Rc::clone(&instance_map),
+            GroupInstance::instantiate(None, Rc::clone(&instance_map),
                 PropertiesCoproduct::Group(GroupProperties {}),
                 Rc::new(RefCell::new(PropertyLiteral {value: Transform::default()})),
                 Rc::new(RefCell::new(vec![
-                    RectangleInstance::instantiate(Rc::clone(&instance_map),
+                    RectangleInstance::instantiate(None, Rc::clone(&instance_map),
                         PropertiesCoproduct::Rectangle(
                             RectangleProperties {
                                 stroke: Box::new(PropertyLiteral { value: StrokeProperties {
@@ -83,7 +83,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             PropertyExpression { id: "a".to_string(), cached_value: Default::default()})),
                         [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
                     ),
-                    RectangleInstance::instantiate(Rc::clone(&instance_map),
+                    RectangleInstance::instantiate(None, Rc::clone(&instance_map),
                         PropertiesCoproduct::Rectangle(
                             RectangleProperties {
                                 stroke: Box::new(PropertyLiteral { value: StrokeProperties {
@@ -109,7 +109,7 @@ pub struct RootFactory {}
 
 
 impl RootFactory {
-    pub fn instantiate(handler_registry:  HandlerRegistry<RootProperties>, instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList /*, adoptees*/) -> Rc<RefCell<ComponentInstance>> {
+    pub fn instantiate(handler_registry:  Option<Rc<RefCell<HandlerRegistry>>>, instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList /*, adoptees*/) -> Rc<RefCell<ComponentInstance>> {
         let new_id = pax_runtime_api::generate_unique_id();
 
         let ret = Rc::new(RefCell::new(ComponentInstance {
@@ -130,30 +130,8 @@ impl RootFactory {
                     // properties_cast.num_clicks.compute_in_place(rtc);
                 } else {unreachable!()}
             }),
-            dispatch_event_fn: Box::new(|properties: Rc<RefCell<PropertiesCoproduct>>, args: ArgsCoproduct| {
-               if let properties_unwrapped = &mut *(*properties).borrow_mut() {
-                   if let PropertiesCoproduct::Root(properties_cast) = properties_unwrapped {
-
-                       //TODO: replace hard-coded empty HandlerRegistry
-                       //      with a static lookup (aided by codegen, a la ExpressionTable id gen)
-                       let handler_registry : HandlerRegistry<RootProperties> = HandlerRegistry {click_handlers: vec![], tick_handlers: vec![]};//(static_lookup)
-                       match args {
-                           ArgsCoproduct::Tick(args_cast) => {
-                               for handler in handler_registry.tick_handlers.iter() {
-                                   handler(properties_cast, args_cast.clone());
-                               }
-                           }
-                           ArgsCoproduct::Click(args_cast) => {
-                               for handler in handler_registry.click_handlers.iter() {
-                                   handler(properties_cast, args_cast.clone());
-                               }
-                           }
-                       }
-                   }
-               }
-
-            }),
-            timeline: None
+            timeline: None,
+            handler_registry,
         }));
 
         (*instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);

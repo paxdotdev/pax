@@ -17,7 +17,7 @@ use crate::runtime::{Runtime};
 //TODO: make the JsValue render_message_queue platform agnostic and remove this dep —
 //      (probably translate to JsValue at the pax-chassis-web layer instead of here.)
 use wasm_bindgen::JsValue;
-use pax_properties_coproduct::TypesCoproduct;
+use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{ArgsClick, ArgsTick, Property};
 
@@ -65,10 +65,9 @@ pub struct HostPlatformContext<'a, 'b>
 
 
 #[derive(Default)]
-pub struct HandlerRegistry<T> {
-    pub click_handlers: Vec<fn(&mut T, ArgsClick)>,
-    pub tick_handlers: Vec<fn(&mut T, ArgsTick)>,
-//does each RenderNode need to maintain its own HandlerRegistry? probably.
+pub struct HandlerRegistry {
+    pub click_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsClick)>,
+    pub tick_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsTick)>,
 }
 
 pub type InstanceMap = HashMap<String, Rc<RefCell<dyn RenderNode>>>;

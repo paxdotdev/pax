@@ -16,11 +16,11 @@ use pax_runtime_api::{Timeline, Transform, Size2D, Property, ArgsCoproduct};
 pub struct ComponentInstance {
     pub template: RenderNodePtrList,
     pub adoptees: RenderNodePtrList,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub transform: Rc<RefCell<dyn Property<Transform>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext)>,
-    pub dispatch_event_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>, ArgsCoproduct)>,
 }
 
 
@@ -35,9 +35,15 @@ impl RenderNode for ComponentInstance {
         Rc::clone(&self.template)
     }
 
-    fn dispatch_event(&mut self, args: ArgsCoproduct) {
-        (*self.dispatch_event_fn)(Rc::clone(&self.properties), args);
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
+        match &self.handler_registry {
+            Some(registry) => {
+                Some(Rc::clone(&registry))
+            },
+            _ => {None}
+        }
     }
+
 
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }

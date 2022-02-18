@@ -2,7 +2,7 @@
 use kurbo::{BezPath};
 use piet::{RenderContext};
 
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ExpressionContext, InstanceMap};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ExpressionContext, InstanceMap, HandlerRegistry};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -17,6 +17,7 @@ pub struct RectangleInstance {
     pub transform: Rc<RefCell<dyn Property<Transform>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub size: Rc<RefCell<[Box<dyn Property<Size>>; 2]>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 }
 
 
@@ -27,7 +28,7 @@ pub struct RectangleProperties {
 
 
 impl RectangleInstance {
-    pub fn instantiate(instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
+    pub fn instantiate(handler_registry: Option<Rc<RefCell<HandlerRegistry>>>, instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
 
         match &properties {
             PropertiesCoproduct::Rectangle(cast_properties) => {
@@ -35,7 +36,8 @@ impl RectangleInstance {
                 let ret = Rc::new(RefCell::new(RectangleInstance {
                     transform,
                     properties: Rc::new(RefCell::new(properties)),
-                    size: Rc::new(RefCell::new(size))
+                    size: Rc::new(RefCell::new(size)),
+                    handler_registry,
                 }));
 
                 (*instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
@@ -128,8 +130,13 @@ pub fn handle_properties_computation(id: &str, rtc: &mut RenderTreeContext) {
 }
 
 impl RenderNode for RectangleInstance {
-    fn dispatch_event(&mut self, args: ArgsCoproduct) {
-        todo!()
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
+        match &self.handler_registry {
+            Some(registry) => {
+                Some(Rc::clone(&registry))
+            },
+            _ => {None}
+        }
     }
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
