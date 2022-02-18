@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -32,7 +33,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
             Transform::scale(2.3, 2.3) *
             Transform::rotate( __AT__frames_elapsed / 270.0) *
             Transform::origin(Size::Percent(f64::sin(__AT__frames_elapsed / 1000.0) * 100.0), Size::Percent(f64::cos(__AT__frames_elapsed / 1000.0) * 100.0)) *
-            Transform::rotate((f64::cos(__AT__frames_elapsed / 100.0) * 0.0010 + 1.0) * (__AT__frames_elapsed) / 100.0) *
+            Transform::rotate((f64::cos(__AT__frames_elapsed / 100.0) * 0.010 + 1.0) * (__AT__frames_elapsed) / 37.0) *
             Transform::align(0.5, 0.5)
         )
     }));
@@ -40,13 +41,14 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
     map.insert("b".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         #[allow(non_snake_case)]
         let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
+        #[allow(non_snake_case)]
+        let self__DOT__rotation = if let PropertiesCoproduct::Root(p) = &*(*ec.stack_frame).borrow().get_scope().borrow().properties.borrow() {
+            *p.current_rotation.get()
+        } else { unreachable!() };
+
         TypesCoproduct::Transform(
-            Transform::origin(Size::Percent(50.0), Size::Percent(50.0)) *
-            Transform::scale(1.8, 1.8) *
-            Transform::rotate(__AT__frames_elapsed / 100.0) *
-            Transform::origin(Size::Percent(f64::sin(__AT__frames_elapsed / 1000.0) * 150.0), Size::Percent(f64::cos(__AT__frames_elapsed / 1000.0) * 150.0)) *
-            Transform::rotate((f64::cos(__AT__frames_elapsed / 100.0) * 0.0010 + 1.0) * (__AT__frames_elapsed) / 100.0) *
-            Transform::align(0.5, 0.5)
+            Transform::align(0.5, 0.5) *
+            Transform::rotate(self__DOT__rotation)
         )
     }));
 
@@ -69,7 +71,20 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                 PropertiesCoproduct::Group(GroupProperties {}),
                 Rc::new(RefCell::new(PropertyLiteral {value: Transform::default()})),
                 Rc::new(RefCell::new(vec![
-                    RectangleInstance::instantiate(None, Rc::clone(&instance_map),
+                    RectangleInstance::instantiate(
+                        Some(Rc::new(RefCell::new(
+                            HandlerRegistry {
+                                tick_handlers: vec![|properties, args |{
+                                    let mut properties_unwrapped = &mut *((*properties).borrow_mut());
+                                    if let PropertiesCoproduct::Root(properties_cast) =  &mut *properties_unwrapped {
+                                        //code-gen this via Manifest data
+                                        pax_example::RootProperties::handle_tick( properties_cast, args)
+                                    } else {unreachable!()}
+                                }],
+                                click_handlers: vec![],
+                            }
+                        ))),
+                        Rc::clone(&instance_map),
                         PropertiesCoproduct::Rectangle(
                             RectangleProperties {
                                 stroke: Box::new(PropertyLiteral { value: StrokeProperties {

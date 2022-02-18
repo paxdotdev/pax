@@ -24,9 +24,6 @@ pub struct ComponentInstance {
 }
 
 
-
-
-
 //TODO:
 //  - track internal playhead for this component
 
@@ -43,7 +40,6 @@ impl RenderNode for ComponentInstance {
             _ => {None}
         }
     }
-
 
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }

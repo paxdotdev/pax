@@ -1,3 +1,4 @@
+use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -140,6 +141,25 @@ impl PaxEngine {
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done with this frame
 
+        //handle tick event dispatch for this element
+        let registry = (*node).borrow().get_handler_registry();
+        if let Some(registry) = registry {
+            //grab Rc of properties from stack frame; pass to type-specific handler
+            //on instance in order to dispatch cartridge method
+            match rtc.runtime.borrow_mut().peek_stack_frame() {
+                Some(stack_frame) => {
+                    let props = Rc::clone(&stack_frame.borrow_mut().get_scope().borrow_mut().properties);
+                    for handler in (*registry).borrow().tick_handlers.iter() {
+                        let args = ArgsTick { frame: rtc.engine.frames_elapsed };
+                        handler(Rc::clone(&props), args);
+                    }
+                },
+                None => {
+                    unreachable!("can't bind events without a component")
+                },
+            }
+        }
+
         //populate a pointer to this (current) `RenderNode` onto `rtc`
         rtc.node = Rc::clone(&node);
 
@@ -207,13 +227,10 @@ impl PaxEngine {
     }
 
     pub fn tick(&mut self, rc: &mut WebRenderContext) -> Vec<JsValue> {
-
-        //process event queue
-
         rc.clear(Color::rgb8(0, 0, 0));
-        let render_queue = self.traverse_render_tree(rc);
+        let native_render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
-        render_queue
+        native_render_queue
     }
 
     //keeping until this can be done via scene graph

@@ -1006,7 +1006,10 @@ with the right type during that inlining process.
 We only care about handlers in the context of Components!
 
 
-#### plan 
+
+### plan for event dispatch
+2022-02-18
+
 From RIL, we can:
 wrap each dispatch definition (the raw userland method call) with a closure
 that takes generic (coproduct) parameters and uses

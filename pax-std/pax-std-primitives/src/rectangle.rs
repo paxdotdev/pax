@@ -130,16 +130,16 @@ pub fn handle_properties_computation(id: &str, rtc: &mut RenderTreeContext) {
 }
 
 impl RenderNode for RectangleInstance {
+    fn get_rendering_children(&self) -> RenderNodePtrList {
+        Rc::new(RefCell::new(vec![]))
+    }
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         match &self.handler_registry {
             Some(registry) => {
-                Some(Rc::clone(&registry))
+                Some(Rc::clone(registry))
             },
             _ => {None}
         }
-    }
-    fn get_rendering_children(&self) -> RenderNodePtrList {
-        Rc::new(RefCell::new(vec![]))
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
