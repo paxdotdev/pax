@@ -924,10 +924,10 @@ in message queue but will be unhandled.)
 Should handlers support being attached at runtime?  probably not, at least
 while Rust is only supported language. (how to add without recompilation?)
 
-Click -> Chassis -> Engine queue (with known element id) 
+**Click -> Chassis -> Engine queue (with known element id) 
 Every tick, process queue — if the ASSOCIATED ELEMENT (via id from engine queue)
 has a REGISTERED HANDLER (via .pax, or in the future perhaps added at runtime)
-then TRIGGER the registered handler with chassis-generated args
+then TRIGGER the registered handler with chassis-generated args**
 
 Chassis: set up native listener, instantiate relevant engine struct with data, enqueue in engine
 Engine: each tick, before rendering, process event queue; dispatch events on RenderNodes
@@ -940,8 +940,6 @@ events spuriously.
 
 Perhaps `tick` can be special-handled, checking for handlers on each element during rendering (or properties comp.) recursion
 and then dispatching
-
-
 
 Handlers: attach to instances or to definitions?
 To instances.  Ex. if there are two Rectangles, each should have a separate handler for Click
@@ -988,4 +986,42 @@ gets an Rc<RefCell<PropertiesCoproduct>>
 
 That PropertiesCoproduct needs to be unwrapped so the right
 type of &self can be passed to our stored fn.
+
+
+
+
+*Important distinction:* event handlers (methods) do NOT
+acept a `&self` for the element attached to the method —they accept a `&self` for
+the component (or `repeat`/etc.) owning the relevant stack frame.
+
+One possibility: generate a `HandlersCoproduct`, akin to `PropertiesCoproduct`, that generates
+all of the necessary method/handler signatures (`fn(&mut RootProperties, ArgsClick)`, etc.)
+
+Ideally, though, these pointers don't need to be stored centrally.
+
+During code-gen, we know the context (component) to which any instance
+belongs.  So it's straight-forward enough to inline a `fn` declaration, type, or container
+with the right type during that inlining process.
+
+We only care about handlers in the context of Components!
+
+
+#### plan 
+From RIL, we can:
+wrap each dispatch definition (the raw userland method call) with a closure
+that takes generic (coproduct) parameters and uses
+codegen to map/unwrap those parameters into the invocation.
+
+codegen a reference to the StackFrame owner's Properties
+(namely Component/RepeatItem properties)
+
+Then:
+ - de-genericize HandlerRegistry; populate with the wrapped/codegenned closures described above
+ - add `get_handler_registry() -> &HandlerRegistry` to `trait RenderNode`
+ - now, engine can ask a RenderNode for its HandlerRegistry, check if a given event type is registered, and dispatch the handlers if so
+
+Re: tick, the same check can be made during properties comp (pre-`compute_in_place`, perhaps, so that any side-effects will be accounted for in the immediate next render)
+in other words, `tick` is really `pre`-`tick`, esp. notable if `pre`/`post` tick handlers are later introduced.
+
+
 
