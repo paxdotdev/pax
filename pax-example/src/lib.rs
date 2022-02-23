@@ -25,7 +25,8 @@ impl Root {
         }
     }
 
-    pub fn handle_tick(evt: EventTick) {
-        //continued in lib-expanded.rs
+    pub fn handle_tick(&mut self, args: ArgsTick) {
+        pax::log(&format!("pax::log from frame {}", args.frame));
+        self.current_rotation.set(self.current_rotation.get() + 0.10)
     }
 }

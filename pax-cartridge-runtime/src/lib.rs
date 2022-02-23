@@ -38,6 +38,11 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         )
     }));
 
+    let my_range = (0..=10);
+    my_range.into_iter().for_each(|i| {
+
+    });
+
     map.insert("b".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         #[allow(non_snake_case)]
         let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;

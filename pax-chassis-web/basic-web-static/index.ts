@@ -14,6 +14,15 @@ import {PaxChassisWeb} from './dist/pax_chassis_web';
 const MIXED_MODE_LAYER_ID = "mixed-mode-layer";
 const MIXED_MODE_ELEMENT_CLASS = "mixed-mode-element";
 
+//handle {click, mouseover, ...} on {canvas element, native elements}
+//for both virtual and native events, pass:
+//  - global (screen) coordinates
+//  - local (canvas) coordinates
+//  - element offset (where within element, top-left-0,0)
+//for native events, pass also an ID for the native element (e.g. DOM node) that
+//can be used by engine to resolve virtual element
+//This ID mechanism will also likely knock out most of the work for DOM element pooling/recycling
+
 function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     console.log("All modules loaded");
 
@@ -31,10 +40,8 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     mount?.appendChild(canvas);
     mount?.appendChild(mixedModeLayer);
 
-
     // <canvas id="canvas"></canvas>
     let chassis = wasmMod.PaxChassisWeb.new();
-
 
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }

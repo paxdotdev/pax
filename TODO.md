@@ -70,7 +70,7 @@ Perhaps a macro is the answer?
             [x] de/serialization for manifest
                 [x] maybe normalize SelectorLiteralBlockDefinitions, if Serde can't elegantly de/serialize it
                 [x] or de-normalize TemplateNodeDefinition!
-            [ ] coordination of TCP components from compiler main thread
+            [ ] coordination of TCP client/server from compiler main thread
         [x] parse and load .pax files
             [x] load file via macro
             [x] generate the parser bin logic via macro
@@ -81,6 +81,9 @@ Perhaps a macro is the answer?
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
+[ ] API cleanup pass
+    [ ] make consistent Size, Percent, Origin, Align
+    [ ] spend some cycles on timeline API design
 [ ] compiler codegen
     [ ] codegen Cargo.toml + solution for patching
         [x] manual
@@ -90,10 +93,13 @@ Perhaps a macro is the answer?
     [ ] codegen PropertiesCoproduct
         [x] manual
         [ ] if necessary, supporting type parsing & inference work for TypesCoproduct
-        [ ] macro
         [ ] hook into compiler lifecycle
     [ ] serialize to RIL
-        [ ] Handle control-flow
+        [ ] Handle control-flow with codegen
+            [*] @for syntax:
+                [ ] with/out enumeration (`i`)
+                [ ] figure out scoping, e.g. addition of symbols to namespace, collision management
+            [ ] RepeatItem: manage scope, properties
             [ ] support with parser & manifest
             [ ] support with manual RIL, port old primitives
         [ ] hand-write RIL first!
@@ -101,21 +107,33 @@ Perhaps a macro is the answer?
             [x] proof of concept (RIL) for expressions
             [x] handle expressable + nestable, e.g. Stroke (should be able to set root as Expression, or any individual sub-properties)
             [ ] proof of concept (RIL) for timelines
-            [ ] proof of concept (RIL) for actions
+            [x] proof of concept (RIL) for actions
                 [x] pax::log
-                [ ] `Tick` support (wired up)
-                [ ] pencil in `Click`, but don't worry about raycasting yet
+                [x] `Tick` support (wired up)
+                [x] pencil in `Click`, but don't worry about raycasting yet (or do naive raycasting?? easy to PoC!)
                 [x] sanity-check Repeat
+            [ ] port Repeat, Spread, etc. to latest RIL
         [ ] normalize manifest, or efficient JIT traversal
             [ ] stack Settings fragments (settings-selector-blocks and inline properties on top of defaults)
-            [ ] might need to codegen traverser!
-                [ ] or might be able to be "dumb" (purely static) with codegen, relying on rustc to complain
-        [ ] probably need to store property k/v/types in Manifest (and maybe fully qualified type paths)
         [ ] codegen RIL into source via `#[pax]` macro, to enable vanilla run-via-cargo (well, pax-compiler, but maybe there's still a path to bare cargo!)
         [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
-[ ] render Hello World
-    [ ] Manage mounting of Engine and e2e 
+ 
+
+
+Worth revisiting requirements list for a `demo` milestone?
+might already have enough (without e2e `pax run`)
+
+
+
+
+## Milestone: automated compilation
+
+[ ] expression compilation
+    [ ] expression string => RIL generation
+    [ ] symbol resolution & code-gen, incl. shadowing with `@for`
+[ ] e2e `pax run`
+
 
 ## Milestone: clickable square
 
@@ -125,10 +143,15 @@ Perhaps a macro is the answer?
     [ ] Instantiation, reference management, enum ID + addressing for method definitions &
         invocations
     [ ] tween/dynamic timeline API
+[ ] revisit chassis architecture
+    [ ] rust/JS divide
+        [ ] Sandwich TS and rust (as current,) or
+        [ ] handle all cartridge work from rust, incl. generation of public API
+    [ ] concrete userland API (`mount`)
 [ ] Event capture and transmission
     [ ] Map inputs through chassis, native events (mouse, touch)
         [ ] PoC with Web
-    [ ] Message queue in runtime
+    [x] Message queue in runtime
     [ ] Ray-casting? probably
     [ ] Message bubbling/capture or similar solution
 [ ] Expressions
@@ -147,6 +170,12 @@ Perhaps a macro is the answer?
 
 ## Backlog
 
+[ ] Reinvestigate Any as an alternative to Coproduct generation
+    [ ] would dramatically simplify compiler, code-gen process
+    [ ] would make build process less brittle
+    [ ] roughly: `dyn RenderNode` -> `Box<Any>`, downcast blocks instead of `match ... unreachable!()` blocks
+        [ ] sanity check that we can downcast from a given `Any` both to: 1. `dyn RenderNode` (to call methods), and 2. `WhateverProperties` (to access properties)
+        [ ] sanity check that `Any + 'static` will work with needs of `dyn RenderNode` and individual properties
 [ ] Designtime
     [ ] codegen DefinitionToInstance traverser
         [ ] codegen in `#[pax]`: From<SettingsLiteralBlockDefinition>
@@ -1028,3 +1057,80 @@ in other words, `tick` is really `pre`-`tick`, esp. notable if `pre`/`post` tick
 
 
 
+
+### on scoping, @foreach
+2022-02-22
+consider the template fragment:
+
+```
+<Group>
+    <Rectangle ontick=@handle_tick id="rect-a" />
+    @for rect in rects {
+        <Rectangle fill=@rect.fill />
+    }
+</Group>
+```
+
+
+
+when creating new scopes for @for, we have two major options:
+    - Angular-style: replace scope.  would require kludgy re-passing of data into repeatable structs, far from ideal
+    - more robust: additive scopes (req. dupe management and dynamic resolution up stack frame)
+        specifically, `for` adds to scope, vs. component definitions resetting scope (cannot access ancestors' scopes, certainly not implicitly)
+        duplicate symbol management: check at compile-time whether symbol names are available in shadowing scopes
+
+
+logic to resolve symbol (e.g. `rect.fill`) to backing value:
+    - determine whether `rect` is in current scope:
+        - look at `rtc`, 
+
+
+For enumeration:
+```
+@for (i, rect) in rects {
+    <Rectangle fill=@rect.fill />
+}
+```
+
+Note that this still requires the creation of `PropertiesCoproduct` entries for shadowing scopes,
+which contain just 1 or two members: `rect` and `i` in the case above. (corresponding to RepeatItem's `datum` and `i`)
+
+
+
+#### What about dynamic IDs?
+```
+@foreach (rect, i) in rects {
+    <Rectangle id=@{"rect-" + i} />
+}
+```
+This would require dynamic application of SettingsLiteralBlock, which is currently only done at compile-time
+Can this use-case be handled otherwise? Introduction of `class` would run into the same problem
+
+Could destructure and pass a reference to a `RectangleProperties`. (`<Rectangle ...rect>` where `rect : RectangleProperties`)  Gets a bit unergonomic around optional/null
+
+Winner:
+*Can natively handle indexing at the `@settings` level, e.g. with pseudo-class like syntax:*
+
+```
+#rect:nth(0) {
+
+}
+```
+
+This comes with a decision: *all declared IDs must be known at compile-time.*
+
+Quick sidebar: this brings us to commit to `id` as non-unique (or to supporting `class`)
+
+Is runtime application of SettingsLiteralBlock going to be important regardless? It's solved for the `Repeat` case.  Will we someday want
+to support imperative node addition, with the expectation that new nodes matching existing selectors will be applied the 
+relevant settings block?  This requires adding selector-matching logic in the runtime, as well as storing SettingsLiteralBlocks 
+separately in runtime (as opposed to current flattening/inlining)
+
+Since all known use-cases are currently handled by pre-authoring (declarative) tree permutations, this question and
+refactor can be revisited at a future time where we contemplate an imperative userland scene graph mutation API
+
+
+
+
+`@foreach(rect, i) in `
+`@loop over 

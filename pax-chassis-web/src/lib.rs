@@ -113,8 +113,6 @@ impl PaxChassisWeb {
             let closure = Closure::wrap(Box::new(move |_event: web_sys::Event| {
                 let mut engine = engine_cloned.borrow_mut();
 
-                //TODO:  can probably tackle this more elegantly by reusing / capturing / Rc-ing
-                //       previously declared window / canvas / context / etc.
                 let inner_window = web_sys::window().unwrap();
                 // let inner_canvas = inner_window
                 //     .document()

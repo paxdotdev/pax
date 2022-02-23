@@ -1,6 +1,10 @@
 <Group>
-    <Rectangle ontick=@handle_tick id="rect-a" />
-    <Rectangle id="rect-b"  />
+    <Rectangle on_tick=@handle_tick id="rect-a" />
+    @foreach i in (0..10) {
+        <Rectangle id=repeated_rect transform=@{
+            translate(i * 100.0, i * 100.0)
+        }/>
+    }
 </Group>
 
 @settings {
@@ -11,23 +15,15 @@
             width: 5px
         }
         size: [200px,300px]
-        transform: @{ rotate(0.24) * translate(500.0, 200.0) }
+        transform: @{ rotate(current_rotation) }
     }
 
-    #rect-b {
+    #repeated-rect {
         fill: Color::rgba(0, 255, 0, 1)
         stroke: {
             color: Color::rgba(255,255,0,1)
         }
         size: [300px, 300px]
-        transform: @{
-            origin(50%, 50%) *
-            rotate(sin($frames_elapsed / 100.0) * 0.020 * $frames_elapsed) *
-            origin(
-                (sin(frames_elapsed/1000.0) * 100.0)%,
-                (cos(frames_elapsed/1000.0) * 100.0)%
-            ) *
-            rotate(cos($frames_elapsed / 100.0) * 0.010) * $frames_elapsed)
-        }
+
     }
 }
