@@ -30,7 +30,9 @@ pub trait RenderNode
     fn get_rendering_children(&self) -> RenderNodePtrList;
 
 
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>>;
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
+        None //default no-op
+    }
 
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)

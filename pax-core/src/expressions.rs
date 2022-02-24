@@ -13,7 +13,7 @@ use pax_runtime_api::{Property, PropertyLiteral, PropertyTimeline};
 // that evaluates the value itself, as well as a "register" of
 // the memoized value (`cached_value`) that can be referred to
 // via calls to `read()`
-pub struct PropertyExpression<T>
+pub struct PropertyExpression<T: Default>
 {
     pub id: String,
     pub cached_value: T,
@@ -31,12 +31,12 @@ pub struct PropertyExpression<T>
 //     }
 // }
 
-impl<T> Property<T> for PropertyExpression<T> {
+impl<T: Default> Property<T> for PropertyExpression<T> {
     fn get(&self) -> &T {
         &self.cached_value
     }
 
-    fn get_id(&self) -> Option<&str> {
+    fn _get_vtable_id(&self) -> Option<&str> {
         Some(self.id.as_str())
     }
 

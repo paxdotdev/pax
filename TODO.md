@@ -1082,7 +1082,8 @@ when creating new scopes for @for, we have two major options:
 
 logic to resolve symbol (e.g. `rect.fill`) to backing value:
     - determine whether `rect` is in current scope:
-        - look at `rtc`, 
+        - resolve value via `rtc` with statically baked lookup logic (code-genned)
+        -
 
 
 For enumeration:
@@ -1094,6 +1095,7 @@ For enumeration:
 
 Note that this still requires the creation of `PropertiesCoproduct` entries for shadowing scopes,
 which contain just 1 or two members: `rect` and `i` in the case above. (corresponding to RepeatItem's `datum` and `i`)
+-- in fact, maybe not!  Perhaps just RepeatItem needs to be added, which is recursive and handles everything we need
 
 
 
@@ -1130,7 +1132,14 @@ Since all known use-cases are currently handled by pre-authoring (declarative) t
 refactor can be revisited at a future time where we contemplate an imperative userland scene graph mutation API
 
 
+One other sidebar — since IDs are guaranteed to be static, they may as well be plain ol' `snake_identifiers` rather than `"string values"`, right?
 
 
-`@foreach(rect, i) in `
-`@loop over 
+
+`@foreach i in (0..10) ` 
+
+
+Support literal ranges, both exclusive and inclusive `(0..=10)`
+
+Could technically enumerate also, `@foreach (val, i) in (0..10)` but only useful (maybe useful?) in cases where the range is not (0..n)
+

@@ -1,3 +1,6 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
 /// ∐
 /// This data structure represents all of the Component Properties that
 /// exist in an application.
@@ -16,7 +19,9 @@
 /// structs (e.g. be wary of binary assets like images/multimedia!)
 ///
 pub enum PropertiesCoproduct {
-    //pascal_identifier + "(" + cartridge project name + "::exports::" + module_path + "::" + pascal_identifier}
+    //core
+    RepeatItem(Rc<PropertiesCoproduct>, usize),
+    //generated
     Rectangle(pax_example::pax_types::pax_std::primitives::RectangleProperties),
     Group(pax_example::pax_types::pax_std::primitives::GroupProperties),
     Root(pax_example::RootProperties),
@@ -25,9 +30,10 @@ pub enum PropertiesCoproduct {
 
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
+    //core (?)
     Transform(pax_example::pax_types::Transform),
-    // Size(Box<dyn Fn(ExpressionContext) -> pax_runtime_api::Size>),
-    // Stroke(Box<dyn Fn(ExpressionContext) -> pax_example::pax_types::pax_std::types::Stroke>),
+    //generated
+    Stroke(pax_example::pax_types::pax_std::types::StrokeProperties),
 }
 
 

@@ -21,6 +21,7 @@ impl Into<StrokeProperties> for Stroke {
 }
 
 #[pax_type]
+#[derive(Default)]
 pub struct StrokeProperties {
     pub color: Box<dyn Property<Color>>,
     pub width: Box<dyn Property<f64>>,
@@ -30,6 +31,14 @@ pub struct StrokeProperties {
 #[pax_primitive_type("../pax-std-primitives", crate::ColorInstance)]
 pub struct Color{
     pub color_variant: ColorVariant,
+}
+
+impl Default for Color {
+    fn default() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgba([1.0, 0.0, 0.0, 1.0])
+        }
+    }
 }
 
 impl Color {

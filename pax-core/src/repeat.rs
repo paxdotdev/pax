@@ -1,10 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{Property, PropertyLiteral, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, Transform};
-use crate::primitives::component::Component;
-use crate::rendering::Size2D;
-use crate::runtime::{PropertiesCoproduct};
+
+use crate::{HandlerRegistry, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use pax_runtime_api::{Property, PropertyLiteral, Size2D, Transform};
+use pax_properties_coproduct::PropertiesCoproduct;
 
 
 /// A special "control-flow" primitive, Repeat allows for nodes
@@ -15,16 +15,13 @@ use crate::runtime::{PropertiesCoproduct};
 pub struct Repeat {
     pub template: RenderNodePtrList, //TODO: private?
     pub data_list: Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>,
-    pub transform: Rc<RefCell<Transform>>,
-
-    //TODO: any way to make this legit-private along with the ergonomics of the ..Default::default() syntax?
-    pub _virtual_children: RenderNodePtrList,
+    pub transform: Rc<RefCell<dyn Property<Transform>>>,
+    pub virtual_children: RenderNodePtrList,
 }
 
-impl Repeat {
-}
+impl Repeat {}
 
-/// This data struture is repeated for each element in the list `data_list`
+/// This data structure is repeated for each element in the list `data_list`
 /// (where `datum` is a pointer to that list element) and then passed into
 /// a series of `Components`, which each have PropertiesCoproduct::RepeatItem
 /// as their Properties object.
@@ -42,8 +39,8 @@ impl Default for Repeat {
         Repeat {
             template: Rc::new(RefCell::new(vec![])),
             data_list: Box::new(PropertyLiteral {value: vec![]}),
-            transform: Default::default(),
-            _virtual_children: Rc::new(RefCell::new(vec![]))
+            transform: Rc::new(RefCell::new(PropertyLiteral {value: Default::default()})),
+            virtual_children: Rc::new(RefCell::new(vec![]))
         }
     }
 }
@@ -52,25 +49,29 @@ impl RenderNode for Repeat {
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         //TODO: handle each of Repeat's `Expressable` properties
 
-        self.data_list.compute_in_place(rtc);
-        self.transform.borrow_mut().compute_in_place(rtc);
+        // (*self.data_list).compute_in_place(rtc);
+        // self.transform.borrow_mut().compute_in_place(rtc);
 
         //reset children:
         //wrap data_list into repeat_items and attach "puppeteer" components that attach
         //the necessary data as stack frame context
-        self._virtual_children = Rc::new(RefCell::new(
+        self.virtual_children = Rc::new(RefCell::new(
             self.data_list.get().iter().enumerate().map(|(i, datum)| {
-                let properties = Rc::new(RefCell::new(
-                    RepeatItem { i, datum: Rc::clone(datum)}
-                ));
+                // let properties = Rc::new(RefCell::new(
+                //     RepeatItem { i, datum: Rc::clone(datum)}
+                // ));
 
                 let render_node : RenderNodePtr = Rc::new(RefCell::new(
-                    Component {
+                    ComponentInstance {
                         adoptees: Rc::new(RefCell::new(vec![])),
                         template: Rc::clone(&self.template),
-                        transform: Rc::new(RefCell::new(Transform::default())),
-                        properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(properties))),
+                        transform: Rc::new(RefCell::new(PropertyLiteral { value:Transform::default()})),
+                        properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(datum), i))),
                         timeline: None,
+                        handler_registry: None,
+                        compute_properties_fn: Box::new(|props, rtc|{
+                            //no-op since the Repeat RenderNode handles the necessary calc (see `Repeat::compute_in_place`)
+                        })
                     }
                 ));
 
@@ -87,11 +88,12 @@ impl RenderNode for Repeat {
         true
     }
     fn get_rendering_children(&self) -> RenderNodePtrList {
-        Rc::clone(&self._virtual_children)
+        Rc::clone(&self.virtual_children)
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
+
 }
 
 

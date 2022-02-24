@@ -13,10 +13,16 @@ use mut_static::MutStatic;
 
 // /// An abstract Property that may be either: Literal,
 // /// a dynamic runtime Expression, or a Timeline-bound value
-pub trait Property<T> {
+pub trait Property<T: Default> {
     fn get(&self) -> &T;
-    fn get_id(&self) -> Option<&str>;
+    fn _get_vtable_id(&self) -> Option<&str>;
     fn set(&mut self, value: T);
+}
+
+impl<T: Default + 'static> Default for Box<dyn Property<T>> {
+    fn default() -> Box<dyn Property<T>> {
+        Box::new(PropertyLiteral{ value: Default::default()})
+    }
 }
 
 //keep an eye on perf. here — might be more sensible to use something like
@@ -177,12 +183,12 @@ pub struct PropertyLiteral<T> {
     pub value: T,
 }
 
-impl<T> Property<T> for PropertyLiteral<T> {
+impl<T: Default> Property<T> for PropertyLiteral<T> {
     fn get(&self) -> &T {
         &self.value
     }
 
-    fn get_id(&self) -> Option<&str> {
+    fn _get_vtable_id(&self) -> Option<&str> {
         None
     }
 
@@ -212,7 +218,7 @@ impl Property<f64> for PropertyTimeline {
         &self.cached_evaluated_value
     }
 
-    fn get_id(&self) -> Option<&str> {
+    fn _get_vtable_id(&self) -> Option<&str> {
         Some(self.id.as_str())
     }
 

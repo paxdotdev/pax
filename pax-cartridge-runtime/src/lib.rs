@@ -38,11 +38,6 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         )
     }));
 
-    let my_range = (0..=10);
-    my_range.into_iter().for_each(|i| {
-
-    });
-
     map.insert("b".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         #[allow(non_snake_case)]
         let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
@@ -53,7 +48,26 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
         TypesCoproduct::Transform(
             Transform::align(0.5, 0.5) *
-            Transform::rotate(self__DOT__rotation)
+            Transform::rotate(self__DOT__rotation.powf(1.001))
+        )
+    }));
+
+
+    map.insert("c".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
+        #[allow(non_snake_case)]
+            let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
+        #[allow(non_snake_case)]
+            let self__DOT__rotation = if let PropertiesCoproduct::Root(p) = &*(*ec.stack_frame).borrow().get_scope().borrow().properties.borrow() {
+            *p.current_rotation.get()
+        } else { unreachable!() };
+
+        //TODO: how to determine that StrokeProperties is compound and requires
+        //      wrapping in PropertyLiteral values?
+        TypesCoproduct::Stroke(
+            StrokeProperties {
+                color: Box::new(PropertyLiteral { value: Color::hlca((__AT__frames_elapsed as isize % 360) as f64, 100.0,100.0,1.0) }),
+                width: Box::new(PropertyLiteral {value: 15.0}),
+            }
         )
     }));
 
@@ -76,6 +90,17 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                 PropertiesCoproduct::Group(GroupProperties {}),
                 Rc::new(RefCell::new(PropertyLiteral {value: Transform::default()})),
                 Rc::new(RefCell::new(vec![
+                    RectangleInstance::instantiate(None, Rc::clone(&instance_map),
+                                                   PropertiesCoproduct::Rectangle(
+                                                       RectangleProperties {
+                                                           stroke: Box::new(PropertyExpression { id: "c".to_string(), cached_value: Default::default()}),
+                                                           fill: PropertyLiteral::new(Color::rgba(1.0, 0.0, 1.0, 1.0)),
+                                                       }
+                                                   ),
+                                                   Rc::new(RefCell::new(
+                                                       PropertyExpression { id: "b".to_string(), cached_value: Default::default()})),
+                                                   [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
+                    ),
                     RectangleInstance::instantiate(
                         Some(Rc::new(RefCell::new(
                             HandlerRegistry {
@@ -103,20 +128,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             PropertyExpression { id: "a".to_string(), cached_value: Default::default()})),
                         [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
                     ),
-                    RectangleInstance::instantiate(None, Rc::clone(&instance_map),
-                        PropertiesCoproduct::Rectangle(
-                            RectangleProperties {
-                                stroke: Box::new(PropertyLiteral { value: StrokeProperties {
-                                    color: Box::new(PropertyLiteral {value: Color::rgba(0.0, 1.0, 1.0, 1.0)}),
-                                    width: Box::new(PropertyLiteral{value: 7.0}),
-                                }}),
-                                fill: PropertyLiteral::new(Color::rgba(1.0, 0.0, 1.0, 1.0)),
-                            }
-                        ),
-                        Rc::new(RefCell::new(
-                            PropertyExpression { id: "b".to_string(), cached_value: Default::default()})),
-                        [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
-                    ),
+
                 ])),
             ),
         ]))

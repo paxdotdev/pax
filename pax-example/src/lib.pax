@@ -1,7 +1,7 @@
 <Group>
     <Rectangle on_tick=@handle_tick id="rect-a" />
     @foreach i in (0..10) {
-        <Rectangle id=repeated_rect transform=@{
+        <Rectangle id="repeated_rect" transform=@{
             translate(i * 100.0, i * 100.0)
         }/>
     }
@@ -9,21 +9,22 @@
 
 @settings {
     #rect-a {
-        fill: Color::rgba(255, 0, 0, 1)
+        fill: rgba(255, 0, 0, 1)
         stroke: {
-            color: Color::rgba(0, 0, 0, 1)
+            color: rgba(0, 0, 0, 1)
             width: 5px
         }
         size: [200px,300px]
-        transform: @{ rotate(current_rotation) }
+        transform: @{
+            rotate(current_rotation)
+        }
     }
 
     #repeated-rect {
-        fill: Color::rgba(0, 255, 0, 1)
+        fill: rgba(0, 255, 0, 1)
         stroke: {
-            color: Color::rgba(255,255,0,1)
+            color: rgba(255,255,0,1)
         }
         size: [300px, 300px]
-
     }
 }

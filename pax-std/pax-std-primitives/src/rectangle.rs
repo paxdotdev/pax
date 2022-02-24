@@ -124,11 +124,6 @@ impl RectangleInstance {
 
 
 
-pub fn handle_properties_computation(id: &str, rtc: &mut RenderTreeContext) {
-    //for each of Timelines and Expressions:
-    //look up ID to see if present in hash
-}
-
 impl RenderNode for RectangleInstance {
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
@@ -147,23 +142,24 @@ impl RenderNode for RectangleInstance {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         match properties {
             PropertiesCoproduct::Rectangle(properties_cast) => {
-                let id = properties_cast.stroke.get_id();
-                // if let Some(id) = id {
-                //     if let Some(evaluator) = rtc.engine.expression_table.borrow().get(id) {
-                //         let ec = ExpressionContext {
-                //             engine: rtc.engine,
-                //             stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())
-                //         };
-                //         let new_value = (**evaluator)(ec);
-                //         if let TypesCoproduct::Transform(cast_new_value) = new_value {
-                //             properties_cast.stroke.cache_value(cast_new_value)
-                //         }
-                //     }
-                // }
-                //
+                let maybe_id = { properties_cast.stroke._get_vtable_id().clone() };
+                if let Some(id) = maybe_id {
+                    if let Some(evaluator) = rtc.engine.expression_table.borrow().get(id) {
+                        let ec = ExpressionContext {
+                            engine: rtc.engine,
+                            stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())
+                        };
+                        let new_value = (**evaluator)(ec);
+                        if let TypesCoproduct::Stroke(cast_new_value) = new_value {
+                            properties_cast.stroke.set(cast_new_value)
+                        }
+                    }
+                }
+
                 // if let Some(id) = id { handle_properties_computation(id, rtc); }
 
-                let id = properties_cast.fill.get_id();
+                // let id = properties_cast.fill._get_vtable_id();
+
                 // if let Some(id) = id { handle_properties_computation(id, rtc); }
                 //now that IDs are registered, need to dispatch
                 //appropriate evaluators, passing value
@@ -173,7 +169,7 @@ impl RenderNode for RectangleInstance {
         }
 
         let mut transform_borrowed = (*self.transform).borrow_mut();
-        let id = transform_borrowed.get_id();
+        let id = transform_borrowed._get_vtable_id();
         if let Some(id) = id {
             if let Some(evaluator) = rtc.engine.expression_table.borrow().get(id) {
                 let ec = ExpressionContext {
@@ -189,8 +185,8 @@ impl RenderNode for RectangleInstance {
 
         let mut size_borrowed = (*self.size).borrow_mut();
 
-        size_borrowed[0].get_id();;
-        size_borrowed[1].get_id();;
+        size_borrowed[0]._get_vtable_id();;
+        size_borrowed[1]._get_vtable_id();;
 
     }
     fn render(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {

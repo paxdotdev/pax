@@ -1538,6 +1538,7 @@ version = "0.1.0"
 dependencies = [
  "kurbo",
  "pax-core",
+ "pax-properties-coproduct",
  "pax-runtime-api",
  "pax-std",
  "piet",

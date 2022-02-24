@@ -16,6 +16,7 @@ pub mod expressions;
 // mod components;
 // mod primitives;
 pub mod component;
+pub mod repeat;
 pub mod runtime;
 pub mod timeline;
 pub mod designtime;
