@@ -2,6 +2,12 @@
 use kurbo::{BezPath};
 use piet::{RenderContext};
 
+use std::borrow::{Borrow, BorrowMut};
+use std::ops::Deref;
+use pax_std::primitives::RectangleProperties;
+use pax_std::types::ColorVariant;
+
+
 use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ExpressionContext, InstanceMap, HandlerRegistry};
 use std::str::FromStr;
 use std::cell::RefCell;
@@ -15,38 +21,24 @@ use pax_runtime_api::{Property, PropertyLiteral, Size, Transform, Size2D, ArgsCo
 /// maybe #[pax primitive]
 pub struct RectangleInstance {
     pub transform: Rc<RefCell<dyn Property<Transform>>>,
-    pub properties: Rc<RefCell<PropertiesCoproduct>>,
+    pub properties: Rc<RefCell<RectangleProperties>>,
     pub size: Rc<RefCell<[Box<dyn Property<Size>>; 2]>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 }
 
 
-pub struct RectangleProperties {
-    pub stroke: Box<dyn Property<pax_std::types::StrokeProperties>>,
-    pub fill: Box<dyn Property<pax_std::types::Color>>,
-}
-
-
 impl RectangleInstance {
-    pub fn instantiate(handler_registry: Option<Rc<RefCell<HandlerRegistry>>>, instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
+    pub fn instantiate(handler_registry: Option<Rc<RefCell<HandlerRegistry>>>, instance_map: Rc<RefCell<InstanceMap>>, properties: RectangleProperties, transform: Rc<RefCell<dyn Property<Transform>>>, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
+        let new_id = pax_runtime_api::generate_unique_id();
+        let ret = Rc::new(RefCell::new(RectangleInstance {
+            transform,
+            properties: Rc::new(RefCell::new(properties)),
+            size: Rc::new(RefCell::new(size)),
+            handler_registry,
+        }));
 
-        match &properties {
-            PropertiesCoproduct::Rectangle(cast_properties) => {
-                let new_id = pax_runtime_api::generate_unique_id();
-                let ret = Rc::new(RefCell::new(RectangleInstance {
-                    transform,
-                    properties: Rc::new(RefCell::new(properties)),
-                    size: Rc::new(RefCell::new(size)),
-                    handler_registry,
-                }));
-
-                (*instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
-                ret
-            },
-            _ => {
-                panic!("Wrong properties type received while instantiating Rectangle");
-            }
-        }
+        (*instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        ret
     }
 
 
@@ -69,11 +61,9 @@ use parser;
 use std::collections::HashSet;
 #[cfg(feature="parser")]
 use std::{env, fs};
-use std::borrow::{Borrow, BorrowMut};
-use std::ops::Deref;
 #[cfg(feature="parser")]
 use std::path::{Path, PathBuf};
-use pax_std::types::ColorVariant;
+
 #[cfg(feature="parser")]
 use parser::ManifestContext;
 
@@ -140,33 +130,29 @@ impl RenderNode for RectangleInstance {
     fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
-        match properties {
-            PropertiesCoproduct::Rectangle(properties_cast) => {
-                let maybe_id = { properties_cast.stroke._get_vtable_id().clone() };
-                if let Some(id) = maybe_id {
-                    if let Some(evaluator) = rtc.engine.expression_table.borrow().get(id) {
-                        let ec = ExpressionContext {
-                            engine: rtc.engine,
-                            stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())
-                        };
-                        let new_value = (**evaluator)(ec);
-                        if let TypesCoproduct::Stroke(cast_new_value) = new_value {
-                            properties_cast.stroke.set(cast_new_value)
-                        }
-                    }
+        let maybe_id = { properties.stroke._get_vtable_id().clone() };
+        if let Some(id) = maybe_id {
+            if let Some(evaluator) = rtc.engine.expression_table.borrow().get(id) {
+                let ec = ExpressionContext {
+                    engine: rtc.engine,
+                    stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())
+                };
+                let new_value = (**evaluator)(ec);
+                if let TypesCoproduct::Stroke(cast_new_value) = new_value {
+                    properties.stroke.set(cast_new_value)
                 }
-
-                // if let Some(id) = id { handle_properties_computation(id, rtc); }
-
-                // let id = properties_cast.fill._get_vtable_id();
-
-                // if let Some(id) = id { handle_properties_computation(id, rtc); }
-                //now that IDs are registered, need to dispatch
-                //appropriate evaluators, passing value
-                //back to property for storage
-            },
-            _=>{},
+            }
         }
+
+        // if let Some(id) = id { handle_properties_computation(id, rtc); }
+
+        // let id = properties_cast.fill._get_vtable_id();
+
+        // if let Some(id) = id { handle_properties_computation(id, rtc); }
+        //now that IDs are registered, need to dispatch
+        //appropriate evaluators, passing value
+        //back to property for storage
+        // }
 
         let mut transform_borrowed = (*self.transform).borrow_mut();
         let id = transform_borrowed._get_vtable_id();
@@ -195,36 +181,34 @@ impl RenderNode for RectangleInstance {
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 
-        match (*self.properties).borrow().deref() {
-            PropertiesCoproduct::Rectangle(properties) => {
-                let properties_color = properties.fill.get();
-                let color = match properties_color.color_variant {
-                    ColorVariant::Hlca(slice) => {
-                        Color::hlca(slice[0], slice[1], slice[2], slice[3])
-                    }
-                    ColorVariant::Rgba(slice) => {
-                        Color::rgba(slice[0], slice[1], slice[2], slice[3])
-                    }
-                };
+        let properties = (*self.properties).borrow();
 
-
-                let mut bez_path = BezPath::new();
-                bez_path.move_to((0.0, 0.0));
-                bez_path.line_to((width , 0.0));
-                bez_path.line_to((width , height ));
-                bez_path.line_to((0.0, height));
-                bez_path.line_to((0.0,0.0));
-                bez_path.close_path();
-
-                let transformed_bez_path = transform * bez_path;
-                let duplicate_transformed_bez_path = transformed_bez_path.clone();
-
-                let color = properties.fill.get().to_piet_color();
-                hpc.drawing_context.fill(transformed_bez_path, &color);
-                hpc.drawing_context.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), **&properties.stroke.get().width.get());
-            },
-            _=>{unreachable!()}
+        let properties_color = properties.fill.get();
+        let color = match properties_color.color_variant {
+            ColorVariant::Hlca(slice) => {
+                Color::hlca(slice[0], slice[1], slice[2], slice[3])
+            }
+            ColorVariant::Rgba(slice) => {
+                Color::rgba(slice[0], slice[1], slice[2], slice[3])
+            }
         };
+
+
+        let mut bez_path = BezPath::new();
+        bez_path.move_to((0.0, 0.0));
+        bez_path.line_to((width , 0.0));
+        bez_path.line_to((width , height ));
+        bez_path.line_to((0.0, height));
+        bez_path.line_to((0.0,0.0));
+        bez_path.close_path();
+
+        let transformed_bez_path = transform * bez_path;
+        let duplicate_transformed_bez_path = transformed_bez_path.clone();
+
+        let color = properties.fill.get().to_piet_color();
+        hpc.drawing_context.fill(transformed_bez_path, &color);
+        hpc.drawing_context.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), **&properties.stroke.get().width.get());
+
 
     }
 }

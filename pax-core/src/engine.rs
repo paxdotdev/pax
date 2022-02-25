@@ -148,14 +148,13 @@ impl PaxEngine {
             //on instance in order to dispatch cartridge method
             match rtc.runtime.borrow_mut().peek_stack_frame() {
                 Some(stack_frame) => {
-                    let props = Rc::clone(&stack_frame.borrow_mut().get_scope().borrow_mut().properties);
                     for handler in (*registry).borrow().tick_handlers.iter() {
                         let args = ArgsTick { frame: rtc.engine.frames_elapsed };
-                        handler(Rc::clone(&props), args);
+                        handler(Rc::clone(&stack_frame.borrow_mut().get_scope().borrow_mut().properties), args);
                     }
                 },
                 None => {
-                    unreachable!("can't bind events without a component")
+                    panic!("can't bind events without a component")
                 },
             }
         }

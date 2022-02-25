@@ -40,15 +40,13 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     map.insert("b".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         #[allow(non_snake_case)]
-        let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
-        #[allow(non_snake_case)]
         let self__DOT__rotation = if let PropertiesCoproduct::Root(p) = &*(*ec.stack_frame).borrow().get_scope().borrow().properties.borrow() {
             *p.current_rotation.get()
         } else { unreachable!() };
 
         TypesCoproduct::Transform(
             Transform::align(0.5, 0.5) *
-            Transform::rotate(self__DOT__rotation.powf(1.001))
+            Transform::rotate(self__DOT__rotation)
         )
     }));
 
@@ -78,11 +76,10 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
     RootFactory::instantiate(
         None,
         Rc::clone(&instance_map),
-        //TODO: pass handler declarations
         PropertiesCoproduct::Root(RootProperties {
             num_clicks: Box::new(PropertyLiteral {value: 0} ),
             current_rotation: Box::new(PropertyLiteral {value: 0.0}),
-            deeper_struct: Box::new(PropertyLiteral {value: Default::default()})
+            deeper_struct: Default::default(),
         }),
         Rc::new(RefCell::new(PropertyLiteral{value: Transform::default()})),
         Rc::new(RefCell::new(vec![
@@ -90,16 +87,16 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                 PropertiesCoproduct::Group(GroupProperties {}),
                 Rc::new(RefCell::new(PropertyLiteral {value: Transform::default()})),
                 Rc::new(RefCell::new(vec![
+
                     RectangleInstance::instantiate(None, Rc::clone(&instance_map),
-                                                   PropertiesCoproduct::Rectangle(
-                                                       RectangleProperties {
-                                                           stroke: Box::new(PropertyExpression { id: "c".to_string(), cached_value: Default::default()}),
-                                                           fill: PropertyLiteral::new(Color::rgba(1.0, 0.0, 1.0, 1.0)),
-                                                       }
-                                                   ),
-                                                   Rc::new(RefCell::new(
-                                                       PropertyExpression { id: "b".to_string(), cached_value: Default::default()})),
-                                                   [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
+
+                        RectangleProperties {
+                           stroke: Box::new(PropertyExpression { id: "c".to_string(), cached_value: Default::default()}),
+                           fill: PropertyLiteral::new(Color::rgba(1.0, 0.0, 1.0, 1.0)),
+                        },
+                       Rc::new(RefCell::new(
+                       PropertyExpression { id: "b".to_string(), cached_value: Default::default()})),
+                       [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
                     ),
                     RectangleInstance::instantiate(
                         Some(Rc::new(RefCell::new(
@@ -115,15 +112,14 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             }
                         ))),
                         Rc::clone(&instance_map),
-                        PropertiesCoproduct::Rectangle(
-                            RectangleProperties {
-                                stroke: Box::new(PropertyLiteral { value: StrokeProperties {
-                                    color: Box::new(PropertyLiteral {value: Color::rgba(1.0, 1.0, 0.0, 1.0)}),
-                                    width: Box::new(PropertyLiteral{value: 7.0}),
-                                }}),
-                                fill: PropertyLiteral::new(Color::rgba(0.0, 1.0, 0.0, 0.25)),
-                            }
-                        ),
+
+                        RectangleProperties {
+                            stroke: Box::new(PropertyLiteral { value: StrokeProperties {
+                                color: Box::new(PropertyLiteral {value: Color::rgba(1.0, 1.0, 0.0, 1.0)}),
+                                width: Box::new(PropertyLiteral{value: 7.0}),
+                            }}),
+                            fill: PropertyLiteral::new(Color::rgba(0.0, 1.0, 0.0, 0.25)),
+                        },
                         Rc::new(RefCell::new(
                             PropertyExpression { id: "a".to_string(), cached_value: Default::default()})),
                         [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]

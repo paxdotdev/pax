@@ -7,45 +7,34 @@ use pax_runtime_api::{Property, PropertyLiteral, Size2D, Transform};
 use pax_properties_coproduct::PropertiesCoproduct;
 
 
+
+
+pub struct RepeatInstance {
+    pub template: RenderNodePtrList, //TODO: private?
+    pub transform: Rc<RefCell<dyn Property<Transform>>>,
+    pub properties: Rc<RefCell<RepeatProperties>>
+}
+
 /// A special "control-flow" primitive, Repeat allows for nodes
 /// to be rendered dynamically per data specified in `data_list`.
 /// That is: for a `data_list` of length `n`, `Repeat` will render its
 /// template `n` times, each with an embedded component context (`RepeatItem`)
 /// with an index `i` and a pointer to that relevant datum `data_list[i]`
-pub struct Repeat {
-    pub template: RenderNodePtrList, //TODO: private?
+pub struct RepeatProperties {
     pub data_list: Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>,
-    pub transform: Rc<RefCell<dyn Property<Transform>>>,
     pub virtual_children: RenderNodePtrList,
 }
 
-impl Repeat {}
-
-/// This data structure is repeated for each element in the list `data_list`
-/// (where `datum` is a pointer to that list element) and then passed into
-/// a series of `Components`, which each have PropertiesCoproduct::RepeatItem
-/// as their Properties object.
-///
-/// This means that a repeated item may define an Expression for any of
-/// its properties, which refers to `datum` (one of the elements in `data_list`)
-/// and/or to `i`, the index of the repeated item.
-pub struct RepeatItem {
-    pub i: usize,
-    pub datum: Rc<PropertiesCoproduct>
-}
-
-impl Default for Repeat {
+impl Default for RepeatProperties {
     fn default() -> Self {
-        Repeat {
-            template: Rc::new(RefCell::new(vec![])),
+        Self {
             data_list: Box::new(PropertyLiteral {value: vec![]}),
-            transform: Rc::new(RefCell::new(PropertyLiteral {value: Default::default()})),
             virtual_children: Rc::new(RefCell::new(vec![]))
         }
     }
 }
 
-impl RenderNode for Repeat {
+impl RenderNode for RepeatInstance {
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         //TODO: handle each of Repeat's `Expressable` properties
 
@@ -55,8 +44,9 @@ impl RenderNode for Repeat {
         //reset children:
         //wrap data_list into repeat_items and attach "puppeteer" components that attach
         //the necessary data as stack frame context
-        self.virtual_children = Rc::new(RefCell::new(
-            self.data_list.get().iter().enumerate().map(|(i, datum)| {
+        let mut properties_borrowed = self.properties.borrow_mut();
+        properties_borrowed.virtual_children = Rc::new(RefCell::new(
+            properties_borrowed.data_list.get().iter().enumerate().map(|(i, datum)| {
                 // let properties = Rc::new(RefCell::new(
                 //     RepeatItem { i, datum: Rc::clone(datum)}
                 // ));
@@ -70,7 +60,7 @@ impl RenderNode for Repeat {
                         timeline: None,
                         handler_registry: None,
                         compute_properties_fn: Box::new(|props, rtc|{
-                            //no-op since the Repeat RenderNode handles the necessary calc (see `Repeat::compute_in_place`)
+                            //no-op since the Repeat RenderNode handles the necessary calc (see `RepeatInstnace::compute_in_place`)
                         })
                     }
                 ));
@@ -88,7 +78,7 @@ impl RenderNode for Repeat {
         true
     }
     fn get_rendering_children(&self) -> RenderNodePtrList {
-        Rc::clone(&self.virtual_children)
+        Rc::clone(&self.properties.borrow().virtual_children)
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
