@@ -2,7 +2,7 @@ use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pax_properties_coproduct::{PropertiesCoproduct};
+use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext, HandlerRegistry, InstantiationArgs};
 
 use pax_runtime_api::{Timeline, Transform, Size2D, Property, ArgsCoproduct};
@@ -65,6 +65,11 @@ impl RenderNode for ComponentInstance {
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+        let mut transform = &mut *self.transform.as_ref().borrow_mut();
+        if let Some(new_transform) = rtc.get_computed_value(transform._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Transform(v) = new_transform { v } else { unreachable!() };
+            transform.set(new_value);
+        }
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
         (*rtc.runtime).borrow_mut().push_stack_frame(
             Rc::clone(&self.adoptees),

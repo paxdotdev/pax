@@ -127,48 +127,34 @@ impl RenderNode for RectangleInstance {
     fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
-        if let Some(id) = properties.stroke._get_vtable_id() {
-            if let Some(evaluator) = rtc.engine.expression_table.get(id) {
-                let ec = ExpressionContext {
-                    engine: rtc.engine,
-                    stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())
-                };
-                let new_value = (**evaluator)(ec);
-                if let TypesCoproduct::Stroke(cast_new_value) = new_value {
-                    properties.stroke.set(cast_new_value)
-                }
-            }
+
+        if let Some(stroke) = rtc.get_computed_value(properties.stroke._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Stroke(v) = stroke { v } else { unreachable!() };
+            properties.stroke.set(new_value);
         }
 
-        // if let Some(id) = id { handle_properties_computation(id, rtc); }
-
-        // let id = properties_cast.fill._get_vtable_id();
-
-        // if let Some(id) = id { handle_properties_computation(id, rtc); }
-        //now that IDs are registered, need to dispatch
-        //appropriate evaluators, passing value
-        //back to property for storage
-        // }
-
-        let mut transform_borrowed = (*self.transform).borrow_mut();
-        let id = transform_borrowed._get_vtable_id();
-        if let Some(id) = id {
-            if let Some(evaluator) = rtc.engine.expression_table.borrow().get(id) {
-                let ec = ExpressionContext {
-                    engine: rtc.engine,
-                    stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())
-                };
-                let new_value = (**evaluator)(ec);
-                if let TypesCoproduct::Transform(cast_new_value) = new_value {
-                    transform_borrowed.set(cast_new_value)
-                }
-            }
+        if let Some(fill) = rtc.get_computed_value(properties.fill._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Color(v) = fill { v } else { unreachable!() };
+            properties.fill.set(new_value);
         }
 
-        let mut size_borrowed = (*self.size).borrow_mut();
+        let mut size = &mut *self.size.as_ref().borrow_mut();
 
-        size_borrowed[0]._get_vtable_id();;
-        size_borrowed[1]._get_vtable_id();;
+        if let Some(new_size) = rtc.get_computed_value(size[0]._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+            size[0].set(new_value);
+        }
+
+        if let Some(new_size) = rtc.get_computed_value(size[1]._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+            size[1].set(new_value);
+        }
+
+        let mut transform = &mut *self.transform.as_ref().borrow_mut();
+        if let Some(new_transform) = rtc.get_computed_value(transform._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Transform(v) = new_transform { v } else { unreachable!() };
+            transform.set(new_value);
+        }
 
     }
     fn render(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {

@@ -27,6 +27,9 @@ pub struct InstantiationArgs {
     pub children: Option<RenderNodePtrList>,
     pub adoptees: Option<RenderNodePtrList>,
 
+    ///used by Repeat
+    pub data_list: Option<Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>>,
+
 
     ///used by Component instances, specifically to unwrap type-specific PropertiesCoproducts
     ///and recurse into descendant property computation

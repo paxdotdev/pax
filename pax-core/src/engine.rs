@@ -63,18 +63,18 @@ pub struct RenderTreeContext<'a>
 
 
 impl<'a> RenderTreeContext<'a> {
-    pub fn compute_property(&self, vtable_id: Option<&str>, mut acceptor: Box<dyn FnMut(TypesCoproduct)>) {
+    pub fn get_computed_value(&self, vtable_id: Option<&str>) -> Option<TypesCoproduct> {
         if let Some(id) = vtable_id {
             if let Some(evaluator) = self.engine.expression_table.borrow().get(id) {
                 let ec = ExpressionContext {
                     engine: self.engine,
                     stack_frame: Rc::clone(&(*self.runtime).borrow_mut().peek_stack_frame().unwrap()),
                 };
-                let new_value = (**evaluator)(ec);
-                acceptor(new_value);
+                return Some((**evaluator)(ec));
             }
         }
         //else if present in timeline table...
+        None
     }
 }
 
