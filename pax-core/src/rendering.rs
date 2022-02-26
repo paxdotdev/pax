@@ -7,7 +7,7 @@ use pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{ArgsCoproduct, Size, Size2D};
 
-use crate::{RenderTreeContext, HostPlatformContext, HandlerRegistry};
+use crate::{RenderTreeContext, HostPlatformContext, HandlerRegistry, InstanceMap};
 
 use pax_runtime_api::{Property, PropertyLiteral};
 
@@ -15,6 +15,23 @@ use pax_runtime_api::{Property, PropertyLiteral};
 /// RefCells for rendernodes.
 pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
 pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
+
+
+
+pub struct InstantiationArgs {
+    pub properties: PropertiesCoproduct,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    pub instance_map: Rc<RefCell<InstanceMap>>,
+    pub transform: Rc<RefCell<dyn Property<Transform>>>,
+    pub size: Option<[Box<dyn Property<Size>>;2]>,
+    pub children: Option<RenderNodePtrList>,
+    pub adoptees: Option<RenderNodePtrList>,
+
+
+    ///used by Component instances, specifically to unwrap type-specific PropertiesCoproducts
+    ///and recurse into descendant property computation
+    pub compute_properties_fn: Option<Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext)>>,
+}
 
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
@@ -28,6 +45,10 @@ pub trait RenderNode
     /// Each RenderNode is responsible for determining at render-time which of these concepts
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList;
+
+
+
+    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized;
 
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
@@ -176,6 +197,8 @@ pub trait RenderNode
 // }
 
 use pax_runtime_api::Transform;
+
+
 
 pub trait ComputableTransform {
     fn compute_transform_matrix(&self, node_size: (f64, f64), container_bounds: (f64, f64)) -> (Affine,Affine);

@@ -14,8 +14,8 @@ pub struct Stroke {
 impl Into<StrokeProperties> for Stroke {
     fn into(self) -> StrokeProperties {
         StrokeProperties {
-            color: Box::new(PropertyLiteral {value: self.color}),
-            width: Box::new(PropertyLiteral {value: self.width}),
+            color: Box::new(PropertyLiteral(self.color)),
+            width: Box::new(PropertyLiteral(self.width)),
         }
     }
 }

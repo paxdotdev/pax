@@ -21,7 +21,7 @@ pub trait Property<T: Default> {
 
 impl<T: Default + 'static> Default for Box<dyn Property<T>> {
     fn default() -> Box<dyn Property<T>> {
-        Box::new(PropertyLiteral{ value: Default::default()})
+        Box::new(PropertyLiteral(Default::default()))
     }
 }
 
@@ -134,6 +134,7 @@ pub struct Transform { //Literal
     pub scale: Option<[f64; 2]>,
 }
 
+
 impl Mul for Transform {
     type Output = Transform;
 
@@ -176,16 +177,26 @@ impl Transform {
         ret.origin = Some([x, y]);
         ret
     }
+
+    pub fn default_wrapped() -> Rc<RefCell<dyn Property<Self>>> {
+        Rc::new(RefCell::new(PropertyLiteral(Transform::default())))
+    }
 }
 
 /// The Literal form of a Property: a bare literal value
-pub struct PropertyLiteral<T> {
-    pub value: T,
+pub struct PropertyLiteral<T>(pub T);
+
+
+impl<T> Into<Box<dyn Property<T>>> for PropertyLiteral<T>
+where T: Default + 'static {
+    fn into(self) -> Box<dyn Property<T>> {
+        Box::new(self)
+    }
 }
 
 impl<T: Default> Property<T> for PropertyLiteral<T> {
     fn get(&self) -> &T {
-        &self.value
+        &self.0
     }
 
     fn _get_vtable_id(&self) -> Option<&str> {
@@ -193,15 +204,13 @@ impl<T: Default> Property<T> for PropertyLiteral<T> {
     }
 
     fn set(&mut self, value: T) {
-        self.value = value;
+        self.0 = value;
     }
 }
 
 impl<T> PropertyLiteral<T> {
     pub fn new(value: T) -> Box<Self> {
-        Box::new(Self {
-            value,
-        })
+        Box::new(Self(value))
     }
 
 }

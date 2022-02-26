@@ -3,8 +3,9 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ops::Deref;
 use std::rc::Rc;
-use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap, HandlerRegistry};
+use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap, HandlerRegistry, InstantiationArgs};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use pax_core::repeat::RepeatProperties;
 
 use pax_runtime_api::{ArgsCoproduct, Property, PropertyLiteral, Transform};
 
@@ -15,6 +16,7 @@ use pax_example::pax_types::pax_std::types::{Color, StrokeProperties, Size};
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
 use pax_std_primitives::{RectangleInstance, GroupInstance };
+
 
 pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct>> {
     let mut map : HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct>> = HashMap::new();
@@ -40,13 +42,13 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     map.insert("b".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         #[allow(non_snake_case)]
-        let self__DOT__rotation = if let PropertiesCoproduct::Root(p) = &*(*ec.stack_frame).borrow().get_scope().borrow().properties.borrow() {
+        let self__DOT__current_rotation = if let PropertiesCoproduct::Root(p) = &*(*ec.stack_frame).borrow().get_scope().borrow().properties.borrow() {
             *p.current_rotation.get()
         } else { unreachable!() };
 
         TypesCoproduct::Transform(
             Transform::align(0.5, 0.5) *
-            Transform::rotate(self__DOT__rotation)
+            Transform::rotate(self__DOT__current_rotation)
         )
     }));
 
@@ -63,8 +65,8 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         //      wrapping in PropertyLiteral values?
         TypesCoproduct::Stroke(
             StrokeProperties {
-                color: Box::new(PropertyLiteral { value: Color::hlca((__AT__frames_elapsed as isize % 360) as f64, 100.0,100.0,1.0) }),
-                width: Box::new(PropertyLiteral {value: 15.0}),
+                color: Box::new(PropertyLiteral (Color::hlca((__AT__frames_elapsed as isize % 360) as f64, 100.0,100.0,1.0) )),
+                width: Box::new(PropertyLiteral (45.0)),
             }
         )
     }));
@@ -73,99 +75,98 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 }
 
 pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<RefCell<ComponentInstance>> {
-    RootFactory::instantiate(
-        None,
-        Rc::clone(&instance_map),
-        PropertiesCoproduct::Root(RootProperties {
-            num_clicks: Box::new(PropertyLiteral {value: 0} ),
-            current_rotation: Box::new(PropertyLiteral {value: 0.0}),
-            deeper_struct: Default::default(),
-        }),
-        Rc::new(RefCell::new(PropertyLiteral{value: Transform::default()})),
-        Rc::new(RefCell::new(vec![
-            GroupInstance::instantiate(None, Rc::clone(&instance_map),
-                PropertiesCoproduct::Group(GroupProperties {}),
-                Rc::new(RefCell::new(PropertyLiteral {value: Transform::default()})),
-                Rc::new(RefCell::new(vec![
-
-                    RectangleInstance::instantiate(None, Rc::clone(&instance_map),
-
-                        RectangleProperties {
-                           stroke: Box::new(PropertyExpression { id: "c".to_string(), cached_value: Default::default()}),
-                           fill: PropertyLiteral::new(Color::rgba(1.0, 0.0, 1.0, 1.0)),
-                        },
-                       Rc::new(RefCell::new(
-                       PropertyExpression { id: "b".to_string(), cached_value: Default::default()})),
-                       [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
-                    ),
-                    RectangleInstance::instantiate(
-                        Some(Rc::new(RefCell::new(
-                            HandlerRegistry {
-                                tick_handlers: vec![|properties, args |{
-                                    let mut properties_unwrapped = &mut *((*properties).borrow_mut());
-                                    if let PropertiesCoproduct::Root(properties_cast) =  &mut *properties_unwrapped {
-                                        //code-gen this via Manifest data
-                                        pax_example::RootProperties::handle_tick( properties_cast, args)
-                                    } else {unreachable!()}
-                                }],
-                                click_handlers: vec![],
-                            }
-                        ))),
-                        Rc::clone(&instance_map),
-
-                        RectangleProperties {
-                            stroke: Box::new(PropertyLiteral { value: StrokeProperties {
-                                color: Box::new(PropertyLiteral {value: Color::rgba(1.0, 1.0, 0.0, 1.0)}),
-                                width: Box::new(PropertyLiteral{value: 7.0}),
-                            }}),
-                            fill: PropertyLiteral::new(Color::rgba(0.0, 1.0, 0.0, 0.25)),
-                        },
-                        Rc::new(RefCell::new(
-                            PropertyExpression { id: "a".to_string(), cached_value: Default::default()})),
-                        [PropertyLiteral::new(Size::Pixel(300.0)), PropertyLiteral::new(Size::Pixel(300.0))]
-                    ),
-
-                ])),
-            ),
-        ]))
-    )
-}
-
-pub struct RootFactory {}
-
-
-
-
-impl RootFactory {
-    pub fn instantiate(handler_registry:  Option<Rc<RefCell<HandlerRegistry>>>, instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList /*, adoptees*/) -> Rc<RefCell<ComponentInstance>> {
-        let new_id = pax_runtime_api::generate_unique_id();
-
-        let ret = Rc::new(RefCell::new(ComponentInstance {
-
-            template: children,
-            adoptees: Rc::new(RefCell::new(vec![])),
-            transform,
-            properties: Rc::new(RefCell::new(properties)),
-            compute_properties_fn: Box::new(|properties: Rc<RefCell<PropertiesCoproduct>>, rtc: &mut RenderTreeContext|{
-
-                let properties_unwrapped = &*(*properties).borrow_mut();
-                if let PropertiesCoproduct::Root(properties_cast) =  properties_unwrapped {
-                    //Note: this is code-genned based on parsed knowledge of the properties
-                    //      of `Root`
-                    //TODO: unwrap into register_id and expression/timeline lookup mechanism
-                    // properties_cast.deeper_struct.compute_in_place(rtc);
-                    // properties_cast.current_rotation.compute_in_place(rtc);
-                    // properties_cast.num_clicks.compute_in_place(rtc);
-                } else {unreachable!()}
+    ComponentInstance::instantiate(
+        InstantiationArgs{
+            properties: PropertiesCoproduct::Root(RootProperties {
+                num_clicks: Box::new(PropertyLiteral(0) ),
+                current_rotation: Box::new(PropertyLiteral(0.0)),
+                deeper_struct: Default::default(),
             }),
-            timeline: None,
-            handler_registry,
-        }));
+            handler_registry: None,
+            instance_map: Rc::clone(&instance_map),
+            transform: Transform::default_wrapped(),
+            size: None,
+            children: Some(Rc::new(RefCell::new(vec![
+                GroupInstance::instantiate(InstantiationArgs {
+                    properties: PropertiesCoproduct::Empty,
+                    handler_registry: None,
+                    instance_map: Rc::clone(&instance_map),
+                    transform: Transform::default_wrapped(),
+                    size: None,
+                    adoptees: None,
+                    compute_properties_fn: None,
+                    children: Some(Rc::new(RefCell::new(vec![
+                        RectangleInstance::instantiate(InstantiationArgs {
+                            properties: PropertiesCoproduct::Rectangle(RectangleProperties{
+                                stroke: Box::new(PropertyExpression {id: "c".into(), cached_value: Default::default()}),
+                                fill: Box::new(PropertyLiteral (Color::rgba(1.0, 1.0, 0.0, 1.0)))
+                            }),
+                            handler_registry: None,
+                            instance_map: Rc::clone(&instance_map),
+                            transform: Transform::default_wrapped(),
+                            size: Some([PropertyLiteral(Size::Pixel(200.0)).into(),PropertyLiteral(Size::Pixel(200.0)).into()]),
+                            children: None,
+                            adoptees: None,
+                            compute_properties_fn: None
+                        })
+                    ]))),
+                })
+            ]))),
+            adoptees: None,
+            compute_properties_fn: Some(Box::new(|properties, rtc|{
+                let mut properties = &mut *properties.as_ref().borrow_mut();
+                let mut root_properties = if let PropertiesCoproduct::Root(p) = properties {p} else {unreachable!()};
+                root_properties.current_rotation._get_vtable_id();
+                //
+                //
+                // let maybe_id = { properties.stroke._get_vtable_id().clone() };
+                // if let Some(id) = maybe_id {
+                //     if let Some(evaluator) = rtc.engine.expression_table.get(id) {
+                //         let ec = ExpressionContext {
+                //             engine: rtc.engine,
+                //             stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())
+                //         };
+                //         let new_value = (**evaluator)(ec);
+                //         if let TypesCoproduct::Stroke(cast_new_value) = new_value {
+                //             properties.stroke.set(cast_new_value)
+                //         }
+                //     }
+                // }
 
-        (*instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
-        ret
-    }
+                //
+                //
+                // let mut properties_unwrapped = &*(*properties).borrow_mut();
+                // if let PropertiesCoproduct::Root(properties_cast) =  &mut properties_unwrapped {
+                //     rtc.compute_property(properties_cast.current_rotation._get_vtable_id(), Box::new(|new_value: TypesCoproduct|{
+                //         let cast = if let TypesCoproduct::f64(p) = new_value {p} else {unreachable!()};
+                //         properties_cast.borrow_mut().current_rotation.set(cast);
+                //     }));
 
+                    //
+                    // let mut properties = &mut *self.properties.as_ref().borrow_mut();
+                    // let maybe_id = { properties.stroke._get_vtable_id().clone() };
+                    // if let Some(id) = maybe_id {
+                    //     if let Some(evaluator) = rtc.engine.expression_table.borrow().get(id) {
+                    //         let ec = ExpressionContext {
+                    //             engine: rtc.engine,
+                    //             stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())
+                    //         };
+                    //         let new_value = (**evaluator)(ec);
+                    //         if let TypesCoproduct::Stroke(cast_new_value) = new_value {
+                    //             properties.stroke.set(cast_new_value)
+                    //         }
+                    //     }
+                    // }
+                // } else {unreachable!()}
+
+
+
+
+
+
+            }))
+        }
+    )
 }
 
 //Root => get_instance()

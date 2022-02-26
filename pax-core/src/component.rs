@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_properties_coproduct::{PropertiesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext, HandlerRegistry};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext, HandlerRegistry, InstantiationArgs};
 
 use pax_runtime_api::{Timeline, Transform, Size2D, Property, ArgsCoproduct};
 
@@ -39,6 +39,26 @@ impl RenderNode for ComponentInstance {
             },
             _ => {None}
         }
+    }
+
+    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> {
+        let new_id = pax_runtime_api::generate_unique_id();
+
+        let ret = Rc::new(RefCell::new(ComponentInstance {
+            template: args.children.unwrap(),
+            adoptees: match args.adoptees {
+                Some(adoptees) => unimplemented!("TODO: accept adoptees"),
+                None => Rc::new(RefCell::new(vec![])),
+            },
+            transform: args.transform,
+            properties: Rc::new(RefCell::new(args.properties)),
+            compute_properties_fn: args.compute_properties_fn.expect("must pass a compute_properties_fn to a Component instance"),
+            timeline: None,
+            handler_registry: args.handler_registry,
+        }));
+
+        (*args.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        ret
     }
 
     fn get_size(&self) -> Option<Size2D> { None }

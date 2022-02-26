@@ -41,8 +41,9 @@ pub struct RootProperties {
 
 impl RootProperties {
     pub fn handle_tick(&mut self, args: ArgsTick) {
-        pax::log(&format!("pax::log from frame {}", args.frame));
-        self.current_rotation.set(self.current_rotation.get() + 0.10);
+        // pax::log(&format!("pax::log from frame {}", args.frame));
+
+        self.current_rotation.set(self.current_rotation.get() +(args.frame as f64 / 100.0).powf(1.001));
     }
 
     // pub fn _dispatch(&mut self, args: ArgsCoproduct)

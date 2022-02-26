@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pax_core::{HandlerRegistry, HostPlatformContext, InstanceMap, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use pax_core::{HandlerRegistry, HostPlatformContext, InstanceMap, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{Transform, Size2D, Property, ArgsCoproduct};
@@ -16,24 +16,29 @@ pub struct GroupInstance {
 }
 
 impl GroupInstance {
-    pub fn instantiate(handler_registry: Option<Rc<RefCell<HandlerRegistry>>>, instance_map: Rc<RefCell<InstanceMap>>, properties: PropertiesCoproduct, transform: Rc<RefCell<dyn Property<Transform>>>, children: RenderNodePtrList) -> Rc<RefCell<Self>> {
-        let new_id = pax_runtime_api::generate_unique_id();
-        let ret = Rc::new(RefCell::new(Self {
-            children,
-            id: "".to_string(),
-            transform,
-            handler_registry,
-        }));
 
-        instance_map.borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
-        ret
-    }
 }
 
 impl RenderNode for GroupInstance {
 
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
+    }
+
+    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+        let new_id = pax_runtime_api::generate_unique_id();
+        let ret = Rc::new(RefCell::new(Self {
+            children: match args.children {
+                None => {Rc::new(RefCell::new(vec![]))}
+                Some(children) => children
+            },
+            id: "".to_string(),
+            transform: args.transform,
+            handler_registry: args.handler_registry,
+        }));
+
+        args.instance_map.borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        ret
     }
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {

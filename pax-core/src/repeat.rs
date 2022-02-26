@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 
-use crate::{HandlerRegistry, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use crate::{HandlerRegistry, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
 use pax_runtime_api::{Property, PropertyLiteral, Size2D, Transform};
 use pax_properties_coproduct::PropertiesCoproduct;
 
@@ -28,7 +28,7 @@ pub struct RepeatProperties {
 impl Default for RepeatProperties {
     fn default() -> Self {
         Self {
-            data_list: Box::new(PropertyLiteral {value: vec![]}),
+            data_list: Box::new(PropertyLiteral(vec![])),
             virtual_children: Rc::new(RefCell::new(vec![]))
         }
     }
@@ -55,7 +55,7 @@ impl RenderNode for RepeatInstance {
                     ComponentInstance {
                         adoptees: Rc::new(RefCell::new(vec![])),
                         template: Rc::clone(&self.template),
-                        transform: Rc::new(RefCell::new(PropertyLiteral { value:Transform::default()})),
+                        transform: Rc::new(RefCell::new(PropertyLiteral (Transform::default()))),
                         properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(datum), i))),
                         timeline: None,
                         handler_registry: None,
@@ -84,6 +84,9 @@ impl RenderNode for RepeatInstance {
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
 
+    fn instantiate(ctx: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+        todo!()
+    }
 }
 
 

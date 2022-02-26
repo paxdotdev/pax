@@ -1143,3 +1143,22 @@ Support literal ranges, both exclusive and inclusive `(0..=10)`
 
 Could technically enumerate also, `@foreach (val, i) in (0..10)` but only useful (maybe useful?) in cases where the range is not (0..n)
 
+
+
+
+### On instantiation in RIL
+
+1. currently using `::instantiate` associated functions, as a way to inject side effects (registering instance in instance map.)
+
+An alternative, robust solution is to instantiate more 'imperatively' -- instead of in one big recursive statement (RIL tree), 
+instantiation can occur using vanilla object constructors and manual invocation of side effects (e.g. registration in instance_map)
+
+Roughly, this requires starting from the bottom of the render tree and moving upwards.  For a given leaf node, instantiate its bottom-most sibling, then each successive sibling until all children of the shared parent are instantiated.  
+Recurse upwards until root is instantiated.
+
+Disadvantage:  RIL becomes more cumbersome to read, write.  Advantage: cleaner instantiation logic.
+
+Another option: add `instantiate` to RenderNode, thereby firming the contract of what needs to go into instantiation
+(e.g. the instance_map, the handler_registry, and properties)
+
+This makes it 

@@ -8,6 +8,7 @@ edition = "2021"
 
 [dependencies]
 piet = "0.3.1"
+wee_alloc = "0.4.5"
 piet-web = "0.3.1"
 kurbo = "0.7.1"
 pax-properties-coproduct = { path = "../pax-properties-coproduct"}

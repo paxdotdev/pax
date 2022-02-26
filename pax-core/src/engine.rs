@@ -4,6 +4,13 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 
+extern crate wee_alloc;
+
+// Use `wee_alloc` as the global allocator.
+#[global_allocator]
+static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+
+
 
 use kurbo::{
     BezPath,
@@ -13,7 +20,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, ComponentInstance, Color, Error, ComputableTransform, RenderNodePtr, StrokeInstance, StrokeStyle, RenderNode, ExpressionContext};
+use crate::{Affine, ComponentInstance, Color, Error, ComputableTransform, RenderNodePtr, StrokeInstance, StrokeStyle, RenderNode, ExpressionContext, PropertyExpression};
 use crate::runtime::{Runtime};
 //TODO: make the JsValue render_message_queue platform agnostic and remove this dep —
 //      (probably translate to JsValue at the pax-chassis-web layer instead of here.)
@@ -51,12 +58,29 @@ pub struct RenderTreeContext<'a>
     pub runtime: Rc<RefCell<Runtime>>,
     pub node: RenderNodePtr,
     pub timeline_playhead_position: usize,
-
 }
 
-pub struct PropertyIdReceiver {
-    pub property_id_register: Option<String>
+
+
+impl<'a> RenderTreeContext<'a> {
+    pub fn compute_property(&self, vtable_id: Option<&str>, mut acceptor: Box<dyn FnMut(TypesCoproduct)>) {
+        if let Some(id) = vtable_id {
+            if let Some(evaluator) = self.engine.expression_table.borrow().get(id) {
+                let ec = ExpressionContext {
+                    engine: self.engine,
+                    stack_frame: Rc::clone(&(*self.runtime).borrow_mut().peek_stack_frame().unwrap()),
+                };
+                let new_value = (**evaluator)(ec);
+                acceptor(new_value);
+            }
+        }
+        //else if present in timeline table...
+    }
 }
+
+
+
+
 
 pub struct HostPlatformContext<'a, 'b>
 {

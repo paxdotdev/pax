@@ -8,7 +8,7 @@ use pax_std::primitives::RectangleProperties;
 use pax_std::types::ColorVariant;
 
 
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ExpressionContext, InstanceMap, HandlerRegistry};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ExpressionContext, InstanceMap, HandlerRegistry, InstantiationArgs};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -24,24 +24,6 @@ pub struct RectangleInstance {
     pub properties: Rc<RefCell<RectangleProperties>>,
     pub size: Rc<RefCell<[Box<dyn Property<Size>>; 2]>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-}
-
-
-impl RectangleInstance {
-    pub fn instantiate(handler_registry: Option<Rc<RefCell<HandlerRegistry>>>, instance_map: Rc<RefCell<InstanceMap>>, properties: RectangleProperties, transform: Rc<RefCell<dyn Property<Transform>>>, size: [Box<dyn Property<Size>>;2]) -> Rc<RefCell<dyn RenderNode>> {
-        let new_id = pax_runtime_api::generate_unique_id();
-        let ret = Rc::new(RefCell::new(RectangleInstance {
-            transform,
-            properties: Rc::new(RefCell::new(properties)),
-            size: Rc::new(RefCell::new(size)),
-            handler_registry,
-        }));
-
-        (*instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
-        ret
-    }
-
-
 }
 
 
@@ -113,11 +95,26 @@ impl RectangleInstance {
 
 
 
-
 impl RenderNode for RectangleInstance {
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::new(RefCell::new(vec![]))
     }
+
+    fn instantiate(ctx: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+        let properties = if let PropertiesCoproduct::Rectangle(p) = ctx.properties { p } else {unreachable!("Wrong properties type")};
+
+        let new_id = pax_runtime_api::generate_unique_id();
+        let ret = Rc::new(RefCell::new(RectangleInstance {
+            transform: ctx.transform,
+            properties: Rc::new(RefCell::new(properties)),
+            size: Rc::new(RefCell::new(ctx.size.expect("Rectangle requires a size"))),
+            handler_registry: ctx.handler_registry,
+        }));
+
+        (*ctx.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        ret
+    }
+
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         match &self.handler_registry {
             Some(registry) => {
@@ -130,9 +127,8 @@ impl RenderNode for RectangleInstance {
     fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
-        let maybe_id = { properties.stroke._get_vtable_id().clone() };
-        if let Some(id) = maybe_id {
-            if let Some(evaluator) = rtc.engine.expression_table.borrow().get(id) {
+        if let Some(id) = properties.stroke._get_vtable_id() {
+            if let Some(evaluator) = rtc.engine.expression_table.get(id) {
                 let ec = ExpressionContext {
                     engine: rtc.engine,
                     stack_frame: Rc::clone(&(*rtc.runtime).borrow_mut().peek_stack_frame().unwrap())

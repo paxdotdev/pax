@@ -20,6 +20,7 @@ use std::rc::Rc;
 ///
 pub enum PropertiesCoproduct {
     //core
+    Empty,
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     //generated
     Rectangle(pax_example::pax_types::pax_std::primitives::RectangleProperties),
@@ -31,6 +32,7 @@ pub enum PropertiesCoproduct {
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
     //core (?)
+    f64(f64),
     Transform(pax_example::pax_types::Transform),
     //generated
     Stroke(pax_example::pax_types::pax_std::types::StrokeProperties),
