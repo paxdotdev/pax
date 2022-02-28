@@ -69,17 +69,20 @@ impl RenderNode for RepeatInstance {
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
 
-    fn instantiate(ctx: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
 
         let new_id = pax_runtime_api::generate_unique_id();
         let ret = Rc::new(RefCell::new(RepeatInstance {
-            template: Rc::new(RefCell::new(vec![])),
-            transform: ctx.transform,
-            data_list: Box::new(PropertyLiteral(Default::default())),
+            template: match args.children {
+                None => {Rc::new(RefCell::new(vec![]))}
+                Some(children) => children
+            },
+            transform: args.transform,
+            data_list: args.data_list.unwrap(),
             virtual_children: Rc::new(RefCell::new(vec![]))
         }));
 
-        (*ctx.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        (*args.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
         ret
     }
 }

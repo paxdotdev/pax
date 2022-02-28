@@ -29,13 +29,22 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     map.insert("a".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
+            let x = (*ec.engine).borrow();
+            (*x.runtime).borrow().log(&format!("expressing i: {}", i));
             (Rc::clone(datum), *i)
         } else { unreachable!() };
 
+        #[allow(non_snake_case)]
+        let __AT__frames_elapsed = ec.engine.frames_elapsed as f64;
         let i = i as f64;
 
         return TypesCoproduct::Transform(
-            Transform::translate( i * 100.0, i * 100.0)
+            Transform::align(0.5, 0.5) *
+            Transform::origin( Size::Percent(50.0), Size::Percent(50.0)) *
+            Transform::rotate(__AT__frames_elapsed * i / 100.0) *
+            Transform::translate( i * 10.0, i * 10.0) *
+            Transform::rotate(__AT__frames_elapsed / 50.0)
+
         )
         // } else {unreachable!()};
 
@@ -86,20 +95,20 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                     data_list: None,
                     compute_properties_fn: None,
                     children: Some(Rc::new(RefCell::new(vec![
-                        RectangleInstance::instantiate(InstantiationArgs {
-                            properties: PropertiesCoproduct::Rectangle(RectangleProperties{
-                                stroke: Box::new(PropertyExpression {id: "c".into(), cached_value: Default::default()}),
-                                fill: Box::new(PropertyLiteral (Color::rgba(1.0, 1.0, 0.0, 1.0)))
-                            }),
-                            handler_registry: None,
-                            instance_map: Rc::clone(&instance_map),
-                            transform: Transform::default_wrapped(),
-                            size: Some([PropertyLiteral(Size::Pixel(200.0)).into(),PropertyLiteral(Size::Pixel(200.0)).into()]),
-                            children: None,
-                            adoptees: None,
-                            data_list: None,
-                            compute_properties_fn: None
-                        }),
+                        // RectangleInstance::instantiate(InstantiationArgs {
+                        //     properties: PropertiesCoproduct::Rectangle(RectangleProperties{
+                        //         stroke: Box::new(PropertyExpression {id: "c".into(), cached_value: Default::default()}),
+                        //         fill: Box::new(PropertyLiteral (Color::rgba(1.0, 1.0, 0.0, 1.0)))
+                        //     }),
+                        //     handler_registry: None,
+                        //     instance_map: Rc::clone(&instance_map),
+                        //     transform: Transform::default_wrapped(),
+                        //     size: Some([PropertyLiteral(Size::Pixel(200.0)).into(),PropertyLiteral(Size::Pixel(200.0)).into()]),
+                        //     children: None,
+                        //     adoptees: None,
+                        //     data_list: None,
+                        //     compute_properties_fn: None
+                        // }),
                         RepeatInstance::instantiate(InstantiationArgs {
                             properties: PropertiesCoproduct::Empty,
                             handler_registry: None,
@@ -129,7 +138,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                 }),
                             ]))),
                             adoptees: None,
-                            data_list: Some(Box::new(PropertyLiteral(vec![1,2,3,4,5]))),
+                            data_list: Some(Box::new(PropertyLiteral((0..100).into_iter().map(|d|{Rc::new(PropertiesCoproduct::i64(d))}).collect() ))),
                             compute_properties_fn: None
                         }), 
                     ]))),

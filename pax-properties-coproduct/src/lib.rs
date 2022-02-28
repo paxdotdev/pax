@@ -25,6 +25,7 @@ pub enum PropertiesCoproduct {
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     //generated
+    i64(i64),
     Rectangle(pax_example::pax_types::pax_std::primitives::RectangleProperties),
     Group(pax_example::pax_types::pax_std::primitives::GroupProperties),
     Root(pax_example::RootProperties),
