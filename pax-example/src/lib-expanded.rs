@@ -8,7 +8,7 @@ use pax_std::primitives::{Group, Rectangle};
 
 #[derive(Copy, Clone, Default)]
 pub struct DeeperStruct {
-    a: i64,
+    a: isize,
     b: &'static str,
 }
 
@@ -37,7 +37,7 @@ pub mod pax_types {
 
 //#[pax] was here
 pub struct RootProperties {
-    pub num_clicks: Box<dyn pax::api::Property<i64>>,
+    pub num_clicks: Box<dyn pax::api::Property<isize>>,
     pub current_rotation: Box<dyn pax::api::Property<f64>>,
     pub deeper_struct: Box<dyn pax::api::Property<DeeperStruct>>,
 }

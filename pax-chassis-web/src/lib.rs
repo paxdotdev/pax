@@ -98,7 +98,7 @@ impl PaxChassisWeb {
         let piet_context  = WebRenderContext::new(context, window);
 
 
-        let mut instance_map : Rc<RefCell<InstanceMap>> = Rc::new(RefCell::new(std::collections::HashMap::new()));
+        let instance_map : Rc<RefCell<InstanceMap>> = Rc::new(RefCell::new(std::collections::HashMap::new()));
         let root_component_instance = pax_cartridge_runtime::instantiate_root_component(Rc::clone(&instance_map));
         let expression_table = pax_cartridge_runtime::instantiate_expression_table();
 

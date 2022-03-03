@@ -29,7 +29,7 @@ pub struct Placeholder {
 impl RenderNode for Placeholder {
 
     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
-        let new_id = pax_runtime_api::generate_unique_id();
+        let new_id = pax_runtime_api::mint_unique_id();
         Rc::new(RefCell::new(Self {
             transform: args.transform,
             index: args.placeholder_index.expect("index required for Placeholder"),

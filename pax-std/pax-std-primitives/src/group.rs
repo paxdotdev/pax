@@ -9,7 +9,7 @@ use pax_runtime_api::{Transform, Size2D, Property, ArgsCoproduct};
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
 pub struct GroupInstance {
-    pub children: RenderNodePtrList,
+    pub primitive_children: RenderNodePtrList,
     pub id: String,
     pub transform: Rc<RefCell<dyn Property<Transform>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
@@ -22,13 +22,13 @@ impl GroupInstance {
 impl RenderNode for GroupInstance {
 
     fn get_rendering_children(&self) -> RenderNodePtrList {
-        Rc::clone(&self.children)
+        Rc::clone(&self.primitive_children)
     }
 
     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
-        let new_id = pax_runtime_api::generate_unique_id();
+        let new_id = pax_runtime_api::mint_unique_id();
         let ret = Rc::new(RefCell::new(Self {
-            children: match args.component_template {
+            primitive_children: match args.primitive_children {
                 None => {Rc::new(RefCell::new(vec![]))}
                 Some(children) => children
             },

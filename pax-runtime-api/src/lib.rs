@@ -1,8 +1,7 @@
-use std::borrow::{Borrow, BorrowMut};
+use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::ops::{Deref, Mul};
+use std::ops::Mul;
 use std::rc::Rc;
-use kurbo::Affine;
 use uuid::Uuid;
 
 #[macro_use]
@@ -28,7 +27,7 @@ impl<T: Default + 'static> Default for Box<dyn Property<T>> {
 //keep an eye on perf. here — might be more sensible to use something like
 //a monotonically increasing counter of i32 instead of String UUIDs.  Might require coordinating between
 //code-genned IDs in code-gen and dynamically generated IDs here to avoid dupes.
-pub fn generate_unique_id() -> String {
+pub fn mint_unique_id() -> String {
     Uuid::new_v4().to_string()
 }
 
@@ -63,14 +62,11 @@ lazy_static! {
 }
 
 pub fn register_logger(logger: fn(&str)) {
-    LOGGER.borrow().set(Logger(logger));
+    LOGGER.borrow().set(Logger(logger)).unwrap();
 }
 
 pub fn log(msg: &str) {
-    //TODO: instead of unwrap, handle case where logger isn't registered
-    unsafe {
-        (LOGGER.borrow().read().unwrap().0)(msg);
-    }
+    (LOGGER.borrow().read().unwrap().0)(msg);
 }
 
 impl Mul for Size {

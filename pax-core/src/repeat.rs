@@ -14,7 +14,7 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 /// template `n` times, each with an embedded component context (`RepeatItem`)
 /// with an index `i` and a pointer to that relevant datum `data_list[i]`
 pub struct RepeatInstance {
-    pub children: RenderNodePtrList, //TODO: private?
+    pub primitive_children: RenderNodePtrList, //TODO: private?
     pub transform: Rc<RefCell<dyn Property<Transform>>>,
     pub data_list: Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>,
     pub virtual_children: RenderNodePtrList,
@@ -25,14 +25,14 @@ impl RenderNode for RepeatInstance {
 
     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
 
-        let new_id = pax_runtime_api::generate_unique_id();
+        let new_id = pax_runtime_api::mint_unique_id();
         let ret = Rc::new(RefCell::new(RepeatInstance {
-            children: match args.primitive_children {
+            primitive_children: match args.primitive_children {
                 None => {Rc::new(RefCell::new(vec![]))}
                 Some(children) => children
             },
             transform: args.transform,
-            data_list: args.data_list.unwrap(),
+            data_list: args.repeat_data_list.unwrap(),
             virtual_children: Rc::new(RefCell::new(vec![]))
         }));
 
@@ -60,7 +60,7 @@ impl RenderNode for RepeatInstance {
                 let render_node : RenderNodePtr = Rc::new(RefCell::new(
                     ComponentInstance {
                         adoptees: Rc::new(RefCell::new(vec![])),
-                        template: Rc::clone(&self.children),
+                        template: Rc::clone(&self.primitive_children),
                         transform: Rc::new(RefCell::new(PropertyLiteral (Transform::default()))),
                         properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(datum), i))),
                         timeline: None,

@@ -124,7 +124,7 @@ pub enum SettingsLiteralValue {
 #[derive(Debug)]
 pub enum Number {
     Float(f64),
-    Int(i64)
+    Int(isize)
 }
 
 #[derive(Serialize, Deserialize)]

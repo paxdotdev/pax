@@ -2,13 +2,13 @@ use pax::*;
 use pax_std::{Group, Rectangle};
 
 pub struct DeeperStruct {
-    a: i64,
+    a: isize,
     b: &'static str,
 }
 
 #[pax]
 pub struct Root {
-    pub num_clicks : i64,
+    pub num_clicks : isize,
     pub current_rotation: f64,
     pub deeper_struct: DeeperStruct,
 }

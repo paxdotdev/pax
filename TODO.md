@@ -126,8 +126,7 @@ Perhaps a macro is the answer?
     [x] port Repeat, etc. to latest RIL
 [ ] API cleanup pass
     [ ] make consistent Size, Percent, Origin, Align
-    [ ] spend some cycles on timeline API design, pax-side
-    [ ] finish-line @if and timelines
+    [ ] finish-line @if
     [ ] support in-.rs-file pax, as alternative choice vs. code-behind file
 
 ## Milestone: imported .pax
@@ -178,6 +177,12 @@ Perhaps a macro is the answer?
 [ ] expression compilation
     [ ] expression string => RIL generation
     [ ] symbol resolution & code-gen, incl. shadowing with `@for`
+[ ] control flow
+    [ ] @repeat
+        [ ] parse data
+        [ ] handle range literals (0..10)
+        [ ] shuttle data into RepeatInstance via Manifest
+    [ ] @if
 [ ] compiler codegen
     [ ] codegen Cargo.toml + solution for patching
         [x] manual
@@ -204,6 +209,7 @@ Perhaps a macro is the answer?
 [ ] Hook up PropertyTimeline
     [ ] refactor easing curve packaging, probably into enum
     [ ] refactor Tweenable, to support arbitrary types (dyn Tweenable) and impl for `fsize`
+[ ] ergonomic timeline API design in pax
 
 ## Milestone: clickable square
 
@@ -394,7 +400,7 @@ Expressions need to be dealt with in a few ways:
   - expose fully qualified types in `pax_exports`, then track fully qualified import paths (e.g. pax_std::exports::foo) in manifest
   - expose naked functions at the root of codegenned `expression_table`, like  
 ```
-pub fn x(input: i64) -> i64 {
+pub fn x(input: isize) -> isize {
     input + 6
 }
 ```
@@ -1338,6 +1344,23 @@ pub struct TimelineSegment {
 }
 ```
 
+
+1. needs default value (e.g. for keyframe-0 if no keyframe value is defined)
+2. needs sequence of TimelineSegment
+3. can be element-inline or in settings block
+```
+# some-rect {
+    transform: @timeline {
+        default: Transform::default(),
+        segments: [
+            (15, Transform::rotate(12.0), InOutBack)
+        ] 
+    }
+}
+
+```
+
+Note that a segment's value can be a literal (as described here with `Transform::rotate(12.0)`) or it can be an expression (e.g. `Transform::rotate(12.0) * Transform::translate(100.0, 200.0)`)
 
 
 

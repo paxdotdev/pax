@@ -32,7 +32,7 @@ pub struct InstantiationArgs {
     pub placeholder_index: Option<Box<dyn Property<usize>>>,
 
     ///used by Repeat
-    pub data_list: Option<Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>>,
+    pub repeat_data_list: Option<Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>>,
 
 
     ///used by Component instances, specifically to unwrap type-specific PropertiesCoproducts

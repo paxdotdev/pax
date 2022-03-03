@@ -3,7 +3,7 @@
 
 #[properties]
 struct DeeperStruct {
-    a: i64,
+    a: isize,
     b: String,
 }
 
@@ -22,7 +22,7 @@ struct DeeperStruct {
 // cause a compiler failure, which would require not using `properties` if we're not careful
 // (perhaps we can pass flags into properties, like `#[properties(no-derive)]` ? )
 struct DeeperStruct {
-    a: i64,
+    a: isize,
     b: String,
 }
 
@@ -70,7 +70,7 @@ impl Patchable<DeeperStructPatch> for DeeperStruct {
 
 #[cfg(feature="designtime")]
 pub struct DeeperStructPatch {
-    pub a: Option<i64>,
+    pub a: Option<isize>,
     pub b: Option<String>,
 }
 
@@ -97,7 +97,7 @@ impl FromStr for DeeperStructPatch {
 /* originally:
 #[properties]
 pub struct Main {
-    pub num_clicks : i64,
+    pub num_clicks : isize,
     pub deeper_struct: DeeperStruct,
 }
  */
@@ -106,7 +106,7 @@ pub struct Main {
 
 
 pub struct MainProperties {
-    pub num_clicks : Box<dyn Property<i64>>, //TODO! support .get and .set
+    pub num_clicks : Box<dyn Property<isize>>, //TODO! support .get and .set
     pub deeper_struct: Box<dyn Property<DeeperStruct>>,
 }
 
@@ -163,7 +163,7 @@ impl Patchable<MainPatch> for MainProperties {
 
 #[cfg(feature="designtime")]
 pub struct MainPatch {
-    pub num_clicks: Option<i64>,
+    pub num_clicks: Option<isize>,
     pub deeper_struct: Option<DeeperStruct>,
 }
 

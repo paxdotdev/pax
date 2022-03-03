@@ -2,8 +2,6 @@
 use kurbo::{BezPath};
 use piet::{RenderContext};
 
-use std::borrow::{Borrow, BorrowMut};
-use std::ops::Deref;
 use pax_std::primitives::RectangleProperties;
 use pax_std::types::ColorVariant;
 
@@ -103,7 +101,7 @@ impl RenderNode for RectangleInstance {
     fn instantiate(ctx: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
         let properties = if let PropertiesCoproduct::Rectangle(p) = ctx.properties { p } else {unreachable!("Wrong properties type")};
 
-        let new_id = pax_runtime_api::generate_unique_id();
+        let new_id = pax_runtime_api::mint_unique_id();
         let ret = Rc::new(RefCell::new(RectangleInstance {
             transform: ctx.transform,
             properties: Rc::new(RefCell::new(properties)),

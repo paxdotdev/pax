@@ -44,7 +44,7 @@ impl Evaluator<PatchCoproduct> for MyManualMacroExpression {
 
 fn test() {
     let m = MyManualMacroExpression {
-        transpiled_evaluator: |x: i64|{5},
+        transpiled_evaluator: |x: isize|{5},
     };
 }
 

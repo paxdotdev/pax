@@ -258,7 +258,7 @@ impl PaxEngine {
 
     //keeping until this can be done via scene graph
     pub fn tick_and_render_disco_taps(&mut self, rc: &mut WebRenderContext) -> Result<(), Error> {
-        let hue = (((self.frames_elapsed + 1) as f64 * 2.0) as i64 % 360) as f64;
+        let hue = (((self.frames_elapsed + 1) as f64 * 2.0) as isize % 360) as f64;
         let current_color = Color::hlc(hue, 75.0, 127.0);
         rc.clear(current_color);
 
@@ -283,7 +283,7 @@ impl PaxEngine {
 
                 let transformed_bez_path = transform * bez_path;
 
-                let phased_hue = ((hue + 180.) as i64 % 360) as f64;
+                let phased_hue = ((hue + 180.) as isize % 360) as f64;
                 let phased_color = Color::hlc(phased_hue, 75., 127.);
                 rc.fill(transformed_bez_path, &phased_color);
             }
@@ -316,7 +316,7 @@ impl PaxEngine {
 //         //       Perhaps this is a LUT of `String => (Fn(njectionContext) -> V)` for any variadic type (injection tream) V
 //
 //         let x = ||{};
-//         let y = |x: i64| x + 6;
+//         let y = |x: isize| x + 6;
 //
 //
 //         let engine = ic.engine;

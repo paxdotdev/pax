@@ -394,7 +394,7 @@ fn handle_number_string(num_string: &str) -> Number {
     if num_string.contains(".") {
         Number::Float(num_string.parse::<f64>().unwrap())
     } else {
-        Number::Int(num_string.parse::<i64>().unwrap())
+        Number::Int(num_string.parse::<isize>().unwrap())
     }
 }
 

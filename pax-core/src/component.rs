@@ -42,7 +42,7 @@ impl RenderNode for ComponentInstance {
     }
 
     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> {
-        let new_id = pax_runtime_api::generate_unique_id();
+        let new_id = pax_runtime_api::mint_unique_id();
 
         let ret = Rc::new(RefCell::new(ComponentInstance {
             template: args.component_template.unwrap(),
