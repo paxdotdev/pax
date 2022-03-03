@@ -6,6 +6,7 @@ use pax::*;
 
 pub mod components;
 pub mod types;
+pub mod spread;
 
 pub use components::*;
 
@@ -24,6 +25,47 @@ pub mod primitives {
     }
 
 
+    /// Simple way to represent whether a spread should render
+    /// vertically or horizontally
+    pub enum SpreadDirection {
+        Vertical,
+        Horizontal,
+    }
+
+    impl Default for SpreadDirection {
+        fn default() -> Self {
+            SpreadDirection::Horizontal
+        }
+    }
+
+    pub struct SpreadCellProperties {
+        pub x_px: f64,
+        pub y_px: f64,
+        pub width_px: f64,
+        pub height_px: f64,
+    }
+
+    pub struct SpreadProperties {
+
+        pub direction:  Box<dyn pax::api::Property<SpreadDirection>>,
+        pub cell_count: Box<dyn pax::api::Property<usize>>,
+        pub gutter_width: Box<dyn pax::api::Property<pax::api::Size>>,
+
+        //These two data structures act as "sparse maps," where
+        //the first element in the tuple is the index of the cell/gutter to
+        //override and the second is the override value.  In the absence
+        //of overrides (`vec![]`), cells and gutters will divide space
+        //evenly.
+        //TODO: these should probably be Expressable
+        pub overrides_cell_size: Vec<(usize, pax::api::Size)>,
+        pub overrides_gutter_size: Vec<(usize, pax::api::Size)>,
+
+        //storage for memoized layout calc
+        //TODO: any way to make this legit private while supporting `..Default::default()` ergonomics?
+        pub _cached_computed_layout_spec: Vec<Rc<SpreadCellProperties>>,
+    }
+
+
 
     #[cfg(feature = "parser")]
     use parser;
@@ -37,8 +79,9 @@ pub mod primitives {
     use std::path::{Path, PathBuf};
     #[cfg(feature = "parser")]
     use std::{env, fs};
+    use std::rc::Rc;
     #[cfg(feature = "parser")]
-    use pax::internal::message::{ComponentDefinition, SettingsValueDefinition, PaxManifest, SettingsLiteralBlockDefinition};
+    use pax::internal::message::{ComponentDefinition, PaxManifest, SettingsLiteralBlockDefinition, SettingsValueDefinition};
     use crate::types;
     #[cfg(feature = "parser")]
     lazy_static! {

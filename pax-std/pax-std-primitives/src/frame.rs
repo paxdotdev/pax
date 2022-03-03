@@ -6,8 +6,9 @@ use std::rc::Rc;
 use kurbo::BezPath;
 use piet::RenderContext;
 
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Transform, HostPlatformContext};
-use crate::rendering::Size2D;
+use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, InstantiationArgs};
+use pax_properties_coproduct::TypesCoproduct;
+use pax_runtime_api::{Transform, Size, Property, Size2D};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
 /// like [`Group`], except [`Frame`] has the option of clipping rendering outside
@@ -19,23 +20,48 @@ use crate::rendering::Size2D;
 pub struct Frame {
     pub children: RenderNodePtrList,
     pub size: Size2D,
-    pub transform: Rc<RefCell<Transform>>,
+    pub transform: Rc<RefCell<dyn Property<Transform>>>,
 }
 
 impl RenderNode for Frame {
+    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+        Rc::new(RefCell::new(
+            Self {
+                children: args.primitive_children.expect("Frame expects primitive_children, even if empty Vec"),
+                size: Rc::new(RefCell::new(args.size.expect("Frame requires size"))),
+                transform: args.transform,
+            }
+        ))
+    }
+
     fn get_rendering_children(&self) -> RenderNodePtrList {
         Rc::clone(&self.children)
     }
+
     fn get_size(&self) -> Option<Size2D> {
         Some(Rc::clone(&self.size))
     }
 
-    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
-        self.size.borrow_mut().0.compute_in_place(rtc);
-        self.size.borrow_mut().1.compute_in_place(rtc);
-        self.transform.borrow_mut().compute_in_place(rtc);
+        let mut size = &mut *self.size.as_ref().borrow_mut();
+
+        if let Some(new_size) = rtc.get_computed_value(size[0]._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+            size[0].set(new_value);
+        }
+
+        if let Some(new_size) = rtc.get_computed_value(size[1]._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+            size[1].set(new_value);
+        }
+
+        let mut transform = &mut *self.transform.as_ref().borrow_mut();
+        if let Some(new_transform) = rtc.get_computed_value(transform._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Transform(v) = new_transform { v } else { unreachable!() };
+            transform.set(new_value);
+        }
     }
 
     fn pre_render(&mut self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {

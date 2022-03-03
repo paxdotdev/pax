@@ -30,7 +30,6 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
     map.insert("a".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
             let x = (*ec.engine).borrow();
-            (*x.runtime).borrow().log(&format!("expressing i: {}", i));
             (Rc::clone(datum), *i)
         } else { unreachable!() };
 
@@ -84,17 +83,19 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
             instance_map: Rc::clone(&instance_map),
             transform: Transform::default_wrapped(),
             size: None,
-            children: Some(Rc::new(RefCell::new(vec![
+            primitive_children: None,
+            component_template: Some(Rc::new(RefCell::new(vec![
                 GroupInstance::instantiate(InstantiationArgs {
                     properties: PropertiesCoproduct::Empty,
                     handler_registry: None,
                     instance_map: Rc::clone(&instance_map),
                     transform: Transform::default_wrapped(),
                     size: None,
-                    adoptees: None,
+                    component_adoptees: None,
+                    component_template: None,
                     data_list: None,
                     compute_properties_fn: None,
-                    children: Some(Rc::new(RefCell::new(vec![
+                    primitive_children: Some(Rc::new(RefCell::new(vec![
                         // RectangleInstance::instantiate(InstantiationArgs {
                         //     properties: PropertiesCoproduct::Rectangle(RectangleProperties{
                         //         stroke: Box::new(PropertyExpression {id: "c".into(), cached_value: Default::default()}),
@@ -115,7 +116,8 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             instance_map: Rc::clone(&instance_map),
                             transform: Transform::default_wrapped(),
                             size: None,
-                            children: Some(Rc::new(RefCell::new(vec![
+                            component_template: None,
+                            primitive_children: Some(Rc::new(RefCell::new(vec![
                                 RectangleInstance::instantiate(InstantiationArgs {
                                     properties: PropertiesCoproduct::Rectangle(RectangleProperties{
                                         stroke: Box::new(PropertyLiteral (StrokeProperties {
@@ -131,20 +133,26 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                         cached_value: Default::default(),
                                     })),
                                     size: Some([PropertyLiteral(Size::Pixel(200.0)).into(),PropertyLiteral(Size::Pixel(200.0)).into()]),
-                                    children: None,
-                                    adoptees: None,
+                                    primitive_children: None,
+                                    component_template: None,
+                                    component_adoptees: None,
+                                    placeholder_index: None,
                                     data_list: None,
                                     compute_properties_fn: None
                                 }),
                             ]))),
-                            adoptees: None,
+                            component_adoptees: None,
+                            placeholder_index: None,
                             data_list: Some(Box::new(PropertyLiteral((0..100).into_iter().map(|d|{Rc::new(PropertiesCoproduct::i64(d))}).collect() ))),
                             compute_properties_fn: None
                         }), 
                     ]))),
+
+                    placeholder_index: None
                 })
             ]))),
-            adoptees: None,
+            component_adoptees: None,
+            placeholder_index: None,
             data_list: None,
             compute_properties_fn: Some(Box::new(|properties, rtc|{
                 let mut properties = &mut *properties.as_ref().borrow_mut();

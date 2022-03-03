@@ -1,6 +1,6 @@
 <Group>
     <Rectangle on_tick=@handle_tick id="rect-a" />
-    @foreach i in (0..10) {
+    @for i in (0..10) {
         <Rectangle id="repeated_rect" transform=@{
             translate(i * 100.0, i * 100.0)
         }/>

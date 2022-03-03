@@ -45,8 +45,54 @@ Perhaps a macro is the answer?
     [x] Better ergonomics for `wrap_render_node_ptr_into_list`
     [x] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
 
+## Milestone: Spread
 
-## Milestone: "hello world" from .pax
+[x] decide on API design, expected GUI experience
+    - Direction (horiz/vert)
+    - Gutter
+    - Cell widths
+[x] expose a Spread element for consumption by engine
+[x] accept children, just like primitives e.g. `Group`
+[x] author an internal template, incl. `placeholder`ing children and `repeating` inputs
+    <Frame repeat=self.children transform=get_transform(i)>
+        <Placeholder index=i>
+    </Frame>
+    - need to be able to define/call methods on containing class (a la VB)
+    - need to figure out polymorphism, Vec<T> (?) for repeat
+    - need to figure out placeholder — special kind of rendernode?
+[x] Frame
+    [x] Clipping
+[x] Placeholder
+[x] Repeat
+    [x] "flattening yield" to support <Spread><Repeat n=5><Rect>...
+    [x] scopes:
+        [x] `i`, `datum`
+        [x] braced templating {} ? or otherwise figure out `eval`
+            - Code-gen?  piece together strings into a file and run rustc on it?
+            * Can achieve this with Expressions for now
+        [x] calling "class methods" from templates, e.g. <Repeat n=5><Rect color="get_color(i)"
+            * Can achieve with expressions
+[x] Scopes & DI
+    [x] Figure out dissonance between:  1. string based keys, 2. struct `Properties`
+        and figure out how this plays out into the property DI mechanism.  Along the way,
+        figure out how to inject complex objects (ideally with a path forward to a JS runtime.)
+            - Option A:  write a macro that decorates expression definitions (or _is_ the exp. def.) and (if possible)
+                         generates the necessary code to match param names to elsewhere-registered dependency streams (Angular-style)
+            - Option A0: don't write the macro (above, A) yet, but write the expanded version of it by hand, incl. string deps (present-day approach)
+                         ^ to achieve "DI," does this require a hand-rolled "monomorphization" of each expression invocation?
+                         Or does a string dependency list suffice?  If the latter, we must solve a way to pass a data-type <D> through PolymorphicValue
+                         Probably the answer is the _former_ — write the DI-binding logic manually alongside a string dep list (roughly how the macro unrolling will work)
+    [x] Support getting self (or Scope) for access to Repeat Data
+        - use-case: translate each element within a `repeat` by `i * k`
+    [x] Quick pass on other relevant data to get from Scopes
+[x] Layout
+    [x] Primary logic + repeat via expression
+    [x] Parameterize:
+        - Gutter
+        - (come back later for overrides; ensure design supports visual UX)
+
+
+## Milestone: expressive RIL, hand-written
 
 [x] Compile base cartridge
     [x] Refactor PropertiesCoproduct to its own module
@@ -55,7 +101,50 @@ Perhaps a macro is the answer?
         [x] Add stub macro for `pax`, derives
 [x] baseline primitive(s) for hello world
     [x] import/package management
-    [x] RIL -> PAX compatibility, or rewrite primitives
+    [x] RIL -> PAX compatibility, port primitives
+        [x] Repeat, path from @foreach
+[ ] hand-write RIL first!
+    [ ] Handle control-flow with codegen
+        [ ] support with parser & manifest
+        [ ] support with manual RIL, port old primitives
+        [ ] primitives:
+            [x] @for
+                [ ] syntax
+                [ ] with/out enumeration (`i`)
+                [ ] figure out scoping, e.g. addition of symbols to namespace, collision management
+                [x] RepeatItem: manage scope, properties
+            [ ] @if
+            [ ] placeholder?
+            [ ] spread?
+                [ ] frame
+                [ ] placeholder
+                [ ] registration mechanism for imported expressions — or global ID allocator from engine
+    [x] rendering hello world
+    [x] proof of concept (RIL) for expressions
+    [x] handle expressable + nestable, e.g. Stroke (should be able to set root as Expression, or any individual sub-properties)
+    [ ] proof of concept (RIL) for timelines
+    [x] proof of concept (RIL) for actions
+        [x] pax::log
+        [x] `Tick` support (wired up)
+        [x] pencil in `Click`, but don't worry about raycasting yet (or do naive raycasting?? easy to PoC!)
+        [x] sanity-check Repeat
+    [ ] port Repeat, Spread, etc. to latest RIL
+[ ] API cleanup pass
+    [ ] make consistent Size, Percent, Origin, Align
+    [ ] spend some cycles on timeline API design, pax-side
+
+
+Worth revisiting requirements list for a `demo` milestone?
+might already have enough (without e2e `pax run`)
+
+
+
+
+## Milestone: automated compilation
+
+[x] parser
+    [x] grammar definition, PEG
+    [x] parse grammar into manifest
 [ ] `pax-compiler`
     [x] architecture
         [x] compiler seq. diagram 
@@ -81,9 +170,9 @@ Perhaps a macro is the answer?
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
-[ ] API cleanup pass
-    [ ] make consistent Size, Percent, Origin, Align
-    [ ] spend some cycles on timeline API design
+[ ] expression compilation
+    [ ] expression string => RIL generation
+    [ ] symbol resolution & code-gen, incl. shadowing with `@for`
 [ ] compiler codegen
     [ ] codegen Cargo.toml + solution for patching
         [x] manual
@@ -95,43 +184,12 @@ Perhaps a macro is the answer?
         [ ] if necessary, supporting type parsing & inference work for TypesCoproduct
         [ ] hook into compiler lifecycle
     [ ] serialize to RIL
-        [ ] Handle control-flow with codegen
-            [*] @for syntax:
-                [ ] with/out enumeration (`i`)
-                [ ] figure out scoping, e.g. addition of symbols to namespace, collision management
-            [ ] RepeatItem: manage scope, properties
-            [ ] support with parser & manifest
-            [ ] support with manual RIL, port old primitives
-        [ ] hand-write RIL first!
-            [x] rendering hello world
-            [x] proof of concept (RIL) for expressions
-            [x] handle expressable + nestable, e.g. Stroke (should be able to set root as Expression, or any individual sub-properties)
-            [ ] proof of concept (RIL) for timelines
-            [x] proof of concept (RIL) for actions
-                [x] pax::log
-                [x] `Tick` support (wired up)
-                [x] pencil in `Click`, but don't worry about raycasting yet (or do naive raycasting?? easy to PoC!)
-                [x] sanity-check Repeat
-            [ ] port Repeat, Spread, etc. to latest RIL
         [ ] normalize manifest, or efficient JIT traversal
             [ ] stack Settings fragments (settings-selector-blocks and inline properties on top of defaults)
         [ ] codegen RIL into source via `#[pax]` macro, to enable vanilla run-via-cargo (well, pax-compiler, but maybe there's still a path to bare cargo!)
         [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
- 
 
-
-Worth revisiting requirements list for a `demo` milestone?
-might already have enough (without e2e `pax run`)
-
-
-
-
-## Milestone: automated compilation
-
-[ ] expression compilation
-    [ ] expression string => RIL generation
-    [ ] symbol resolution & code-gen, incl. shadowing with `@for`
 [ ] e2e `pax run`
 
 
@@ -151,6 +209,7 @@ might already have enough (without e2e `pax run`)
 [ ] Event capture and transmission
     [ ] Map inputs through chassis, native events (mouse, touch)
         [ ] PoC with Web
+    [x] tick event e2e
     [x] Message queue in runtime
     [ ] Ray-casting? probably
     [ ] Message bubbling/capture or similar solution
@@ -174,8 +233,10 @@ might already have enough (without e2e `pax run`)
     [ ] would dramatically simplify compiler, code-gen process
     [ ] would make build process less brittle
     [ ] roughly: `dyn RenderNode` -> `Box<Any>`, downcast blocks instead of `match ... unreachable!()` blocks
+        [ ] de-globalize InstantiationArgs, e.g. `placeholder_index` and `data_list`
         [ ] sanity check that we can downcast from a given `Any` both to: 1. `dyn RenderNode` (to call methods), and 2. `WhateverProperties` (to access properties)
         [ ] sanity check that `Any + 'static` will work with needs of `dyn RenderNode` and individual properties
+        [ ] check out downcast_rs crate as way to ease?
 [ ] Designtime
     [ ] codegen DefinitionToInstance traverser
         [ ] codegen in `#[pax]`: From<SettingsLiteralBlockDefinition>
@@ -1161,4 +1222,90 @@ Disadvantage:  RIL becomes more cumbersome to read, write.  Advantage: cleaner i
 Another option: add `instantiate` to RenderNode, thereby firming the contract of what needs to go into instantiation
 (e.g. the instance_map, the handler_registry, and properties)
 
-This makes it 
+*Decision: add `instantiate` to RenderNode*
+
+
+
+
+### children vs template vs adoptees
+2022-02-28
+
+Refer to the following comment copied from the definition of `RenderNode`:
+
+```
+/// Return the list of nodes that are children of this node at render-time.
+/// Note that "children" is somewhat overloaded, hence "rendering_children" here.
+/// "Children" may indicate a.) a template root, b.) adoptees, c.) primitive children
+/// Each RenderNode is responsible for determining at render-time which of these concepts
+/// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
+```
+
+Perhaps it is worth revisiting these concepts in order to compact
+the conceptual surface area.
+
+*Template:* conceptually sound with 
+ - Repeat (repeating a template, a la a stamp)
+ - Component (instantiates an instance based on a template, a la a stamp)
+
+*Adoptees:* conceptually sound with Spread, via placeholders
+ - fits in the same struct `RenderNodePtrList`
+ - instead of an "average case tree," Adoptees are an "expected case list"
+ - Sequence of siblings is relevant (beyond z-indexing); used to pluck adoptees away into whatever context
+
+*Children:* a.k.a. "primitive children," the intuitive
+"XML children" of certain elements that deal with children,
+such as Group, Frame, and more.
+Note that adoptees are a special form of children — Spread's
+`children` (per the `Component` `template` definition that declares that Spread)
+are dealt with by Spread as adoptees.  
+
+Tangential observation: the `Component` has no way of knowing whether
+the children it's passing will be dealt with as `adoptees` or `primitive children`.
+
+**So: can these concepts be compacted?**
+
+Let's imagine establishing a rule: that a `RenderNode` may deal with its
+`children` however it sees fit.  For example: it may or may not deal with
+`children` as order-sensitive `adoptees`.  The management of `children` is thus
+_encapsulated._
+
+A key distinction between `template` and `children` is the authoring.  `children`
+are passed as "intuitive XML children", e.g. to Repeat & friends.
+
+`template` is a definition, currently used only by Components.  A Component may
+have both a `template` (its definition) and `children` (adoptees) [but is there
+ever a case where a Component instance has non-adoptee children? perhaps not!]
+
+Given the duality above, perhaps it's worth making `adoptees` explicit?
+It reinforces the notion that `children` are injected from the outside,
+rather than "birthed" internally (a la a template)
+
+Is there a case where `adoptees` doesn't make sense to describe children?
+For `Group`, for example, it's awkward.  Group also doesn't use placeholders.
+So: 
+ - `children` are for primitives, e.g. for a `Group` and its contents
+ - `adoptees` are specific to `Component` instances (because `StackFrame` is req'd.) that use `Placeholder`s
+ - `template` is specific to `Component` instances
+
+
+
+
+### on properties for core primitives
+
+e.g. `data_list` for `Repeat` and `index` (and maybe someday: `selector`) for `Placeholder`
+
+Currently these are being shimmed into the top-level `InstantiationArgs`, e.g. `data_list`.
+This works but is a bit inelegant.  Options:
+
+- introduce a sub-struct, essentially just a cleanliness 'module' for InstantiationArgs.
+  add the relevant built-in-specific data there, like `placeholder_index` and `repeat_data_list`.
+- generate the built-in `{}Properties` structs inside pax-cartridge-runtime,
+  where they can be imported to PropertiesCoproduct (see RectangleProperties)
+
+  
+
+### on spread, "primitive components"
+
+after tangling with porting Spread as a primitive, decided 
+to stop for now
+ - not a great use-case to encourage (primitive + component, lots of ugliness incl. manual expression unrolling)

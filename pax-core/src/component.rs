@@ -45,8 +45,8 @@ impl RenderNode for ComponentInstance {
         let new_id = pax_runtime_api::generate_unique_id();
 
         let ret = Rc::new(RefCell::new(ComponentInstance {
-            template: args.children.unwrap(),
-            adoptees: match args.adoptees {
+            template: args.component_template.unwrap(),
+            adoptees: match args.component_adoptees {
                 Some(adoptees) => unimplemented!("TODO: accept adoptees"),
                 None => Rc::new(RefCell::new(vec![])),
             },

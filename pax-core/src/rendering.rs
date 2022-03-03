@@ -24,8 +24,12 @@ pub struct InstantiationArgs {
     pub instance_map: Rc<RefCell<InstanceMap>>,
     pub transform: Rc<RefCell<dyn Property<Transform>>>,
     pub size: Option<[Box<dyn Property<Size>>;2]>,
-    pub children: Option<RenderNodePtrList>,
-    pub adoptees: Option<RenderNodePtrList>,
+    pub primitive_children: Option<RenderNodePtrList>,
+    pub component_template: Option<RenderNodePtrList>,
+    pub component_adoptees: Option<RenderNodePtrList>,
+
+    //used by Placeholder
+    pub placeholder_index: Option<Box<dyn Property<usize>>>,
 
     ///used by Repeat
     pub data_list: Option<Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>>,
@@ -42,16 +46,15 @@ pub struct InstantiationArgs {
 /// associated with this node.
 pub trait RenderNode
 {
+
+    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized;
+
     /// Return the list of nodes that are children of this node at render-time.
     /// Note that "children" is somewhat overloaded, hence "rendering_children" here.
     /// "Children" may indicate a.) a template root, b.) adoptees, c.) primitive children
     /// Each RenderNode is responsible for determining at render-time which of these concepts
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList;
-
-
-
-    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized;
 
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {

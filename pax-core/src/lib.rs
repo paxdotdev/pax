@@ -17,6 +17,7 @@ pub mod expressions;
 // mod primitives;
 pub mod component;
 pub mod repeat;
+pub mod placeholder;
 pub mod runtime;
 pub mod timeline;
 pub mod designtime;
@@ -29,6 +30,8 @@ pub use crate::expressions::*;
 // pub use crate::components::*;
 pub use crate::runtime::*;
 pub use crate::timeline::*;
+pub use crate::repeat::*;
+pub use crate::placeholder::*;
 
 
 

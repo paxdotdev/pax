@@ -19,6 +19,9 @@ pub mod pax_types {
             pub use pax_std::primitives::RectangleProperties;
             pub use pax_std::primitives::Group;
             pub use pax_std::primitives::GroupProperties;
+            pub use pax_std::primitives::SpreadProperties;
+            pub use pax_std::primitives::SpreadCellProperties;
+            pub use pax_std::primitives::SpreadDirection;
         }
         pub mod types {
             pub use pax_std::types::Color;

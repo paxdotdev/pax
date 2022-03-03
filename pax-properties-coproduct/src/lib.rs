@@ -21,26 +21,23 @@ use std::rc::Rc;
 pub enum PropertiesCoproduct {
     //core
     Empty,
-    Repeat(),
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     //generated
-    i64(i64),
+    i64(i64), //used by range for repeat (0..10)
+
     Rectangle(pax_example::pax_types::pax_std::primitives::RectangleProperties),
     Group(pax_example::pax_types::pax_std::primitives::GroupProperties),
+    Spread(pax_example::pax_types::pax_std::primitives::SpreadProperties),
     Root(pax_example::RootProperties),
 }
-
-
-
-
-
 
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
     //core (?)
     f64(f64),
     i64(i64),
+    usize(usize), //used by Placeholder for index
     Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
     DeeperStruct(pax_example::DeeperStruct),
     Transform(pax_example::pax_types::Transform),
