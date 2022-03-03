@@ -6,7 +6,7 @@ use crate::{PaxEngine, RenderTreeContext};
 use crate::runtime::StackFrame;
 
 
-use pax_runtime_api::{Property, PropertyLiteral, PropertyTimeline};
+use pax_runtime_api::{Property, PropertyLiteral};
 
 
 // The `Expression` form of a property — stores a function
@@ -59,10 +59,10 @@ impl<T: Default> Property<T> for PropertyExpression<T> {
 // }
 
 /// The Timeline form of a Property
-
-trait Tweenable {
-
-}
+//
+// trait Tweenable {
+//
+// }
 
 //
 // pub struct PropertyTimeline {

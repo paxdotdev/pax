@@ -19,7 +19,7 @@ pub mod component;
 pub mod repeat;
 pub mod placeholder;
 pub mod runtime;
-pub mod timeline;
+pub mod timelines;
 pub mod designtime;
 
 pub use crate::engine::*;
@@ -29,7 +29,7 @@ pub use crate::rendering::*;
 pub use crate::expressions::*;
 // pub use crate::components::*;
 pub use crate::runtime::*;
-pub use crate::timeline::*;
+pub use crate::timelines::*;
 pub use crate::repeat::*;
 pub use crate::placeholder::*;
 

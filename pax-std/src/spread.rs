@@ -1,83 +1,21 @@
-use std::cell::RefCell;
 use std::rc::Rc;
-
-use pax_core::{RepeatInstance, Placeholder, PropertyExpression, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs, PaxEngine, InstanceMap};
-use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-
-use pax_runtime_api::{PropertyLiteral, Size, Transform, Size2D, Property};
-
-
+use pax::*;
+use pax::api::{Size2D, Size};
 use crate::primitives::{SpreadDirection, SpreadProperties, SpreadCellProperties};
 
-
-use pax_std_primitives::frame::Frame;
-
-//SPREAD ANATOMY
-// <Component>
-//      <Template>
-//          <Repeat declarations={{(i, elem)}} iterable={{get_children()}}>
-//              <Frame transform={{get_frame_transform(i)}} size={{get_frame_size(i)}}>
-//                  <Placeholder index={{i}}>
-//              </Frame>
-//          <Repeat/>
-//      </Template>
-// </Component>
 
 /// A layout component which renders a series of nodes either
 /// vertically or horizontally with a specified gutter in between
 /// each node.  Spreads can be stacked inside of each other, horizontally
 /// and vertically, alongside `Transform.align` and `Transform.origin` to achieve any 2D layout.
-pub struct SpreadInstance {
-    pub size: Size2D,
-    pub transform: Rc<RefCell<dyn Property<Transform>>>,
-    pub properties: Rc<RefCell<SpreadProperties>>,
-    pub inner_component: RenderNodePtrList,
-    pub _cached_computed_layout_spec: Vec<Rc<SpreadCellProperties>>,
+#[pax]
+pub struct Spread {
+    pub computed_layout_spec: Vec<Rc<SpreadCellProperties>>,
 }
 
-impl SpreadInstance {
+impl Spread {
 
-    pub fn compute_in_place(&mut self, rtc: &RenderTreeContext) {
-
-
-        let mut properties = &mut *self.properties.as_ref().borrow_mut();
-
-
-
-        if let Some(cell_count) = rtc.get_computed_value(properties.cell_count._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::usize(v) = cell_count { v } else { unreachable!() };
-            properties.cell_count.set(new_value);
-        }
-
-        if let Some(gutter_width) = rtc.get_computed_value(properties.gutter_width._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = gutter_width { v } else { unreachable!() };
-            properties.gutter_width.set(new_value);
-        }
-
-        let mut size = &mut *self.size.as_ref().borrow_mut();
-
-        if let Some(new_size) = rtc.get_computed_value(size[0]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
-            size[0].set(new_value);
-        }
-
-        if let Some(new_size) = rtc.get_computed_value(size[1]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
-            size[1].set(new_value);
-        }
-
-        let mut transform = &mut *self.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.get_computed_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform(v) = new_transform { v } else { unreachable!() };
-            transform.set(new_value);
-        }
-
-
-
-        &self.calc_layout_spec_in_place(rtc);
-    }
-
-    pub fn calc_layout_spec_in_place(&mut self, rtc: &RenderTreeContext) {
+    pub fn on_pre_tick(&mut self, rtc: &RenderTreeContext) {
         let bounds = rtc.bounds;
 
         let active_bound = match (*self.properties).borrow().direction.get() {
@@ -96,7 +34,7 @@ impl SpreadInstance {
         let per_cell_space = usable_interior_space / cell_count;
 
         //TODO: account for overrides
-        self._cached_computed_layout_spec = (0..(cell_count as usize)).into_iter().map(|i| {
+        self.computed_layout_spec = (0..(cell_count as usize)).into_iter().map(|i| {
             // rtc.runtime.borrow_mut().log(&format!("Caching computed cells: {}", ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space));
             match self.properties.borrow().direction.get() {
                 SpreadDirection::Horizontal =>
@@ -118,237 +56,239 @@ impl SpreadInstance {
 
     }
 
-    pub fn instantiate(args: InstantiationArgs) -> Self {
-        //Component must be accessible so that we can unwrap its properties
-        //Template is a "higher template" that belongs to Spread, not Component —
-        //  this is the root of Spread's own rendering, and is what should be returned
-        //  by get_children.
 
-        // let properties = if let PropertiesCoproduct::Spread(p) = args.properties { p } else {unreachable!("wrong type")};
-
-        // let wrapped_properties = Rc::new(RefCell::new(args.properties));
-        let component: RenderNodePtr = Rc::new(RefCell::new(
-            ComponentInstance {
-                template: init_and_retrieve_template(Rc::clone(&args.instance_map)),
-                adoptees: args.component_adoptees.expect("adoptees expected for Spread, even if empty vec"),
-                handler_registry: None,
-                transform: Transform::default_wrapped(),
-                properties: Rc::new(RefCell::new(PropertiesCoproduct::Empty)),
-                timeline: None,
-                compute_properties_fn: Box::new(|_,_|{})
-            }
-        ));
-        let template: RenderNodePtrList = Rc::new(RefCell::new(vec![
-            Rc::clone(&component)
-        ]));
-
-        let properties = if let PropertiesCoproduct::Spread(p) = args.properties { p } else {unreachable!("wrong type")};
-
-        SpreadInstance {
-            inner_component: template,
-            size: Rc::new(RefCell::new(args.size.expect("Spread requires size"))),
-            transform: args.transform,
-            properties: Rc::new(RefCell::new(properties)),
-            _cached_computed_layout_spec: vec![]
-        }
-    }
 }
 
+//
+// impl RenderNode for SpreadInstance {
 
-impl RenderNode for SpreadInstance {
+// pub fn instantiate(args: InstantiationArgs) -> Self {
+//     //Component must be accessible so that we can unwrap its properties
+//     //Template is a "higher template" that belongs to Spread, not Component —
+//     //  this is the root of Spread's own rendering, and is what should be returned
+//     //  by get_children.
+//
+//     // let properties = if let PropertiesCoproduct::Spread(p) = args.properties { p } else {unreachable!("wrong type")};
+//
+//     // let wrapped_properties = Rc::new(RefCell::new(args.properties));
+//     let component: RenderNodePtr = Rc::new(RefCell::new(
+//         ComponentInstance {
+//             template: init_and_retrieve_template(Rc::clone(&args.instance_map)),
+//             adoptees: args.component_adoptees.expect("adoptees expected for Spread, even if empty vec"),
+//             handler_registry: None,
+//             transform: Transform::default_wrapped(),
+//             properties: Rc::new(RefCell::new(PropertiesCoproduct::Empty)),
+//             timeline: None,
+//             compute_properties_fn: Box::new(|_,_|{})
+//         }
+//     ));
+//     let template: RenderNodePtrList = Rc::new(RefCell::new(vec![
+//         Rc::clone(&component)
+//     ]));
+//
+//     let properties = if let PropertiesCoproduct::Spread(p) = args.properties { p } else {unreachable!("wrong type")};
+//
+//     SpreadInstance {
+//         inner_component: template,
+//         size: Rc::new(RefCell::new(args.size.expect("Spread requires size"))),
+//         transform: args.transform,
+//         properties: Rc::new(RefCell::new(properties)),
+//         _cached_computed_layout_spec: vec![]
+//     }
+// }
+//
+//     fn get_rendering_children(&self) -> RenderNodePtrList {
+//         // return the root of the internal template here — as long
+//         // as we capture refs to (c) and (d) below during Spread's `render` or `pre_render` fn,
+//         // we can happily let rendering just take its course,
+//         // recursing through the subtree starting with (e).
+//         //
+//         // example application render tree
+//         //          a( root )
+//         //              |
+//         //          b( Spread )
+//         //         /          \
+//         //    c( Rect )      d( Rect )
+//         //
+//         // example Spread (component) template render tree
+//         //          e( root )
+//         //              |         //  expanded:
+//         //          f( Repeat  .. //  n=2 )
+//         //           /            //      \
+//         //      g( Frame )        //     i( Frame )
+//         //          |             //        |
+//         //      h( Placeholder )  //     j( Placeholder )
+//         //
+//         // traversal order:
+//         // [a b e f g h c i j d]
+//         //
+//         // a: load the application root Group
+//         // b: found a Spread, start rendering it
+//         //    get its children from the Engine (get_children)
+//         //    — these are the `adoptees` that will be passed to `Placeholder`
+//         //    and they need to be tracked.
+//         //    We can do this with a RenderNodeContext that we pass between recursive calls
+//         //    when rendering.  We can keep a stack of prefab "scopes," allowing `placeholder`'s render
+//         //    function to handily grab a reference to `adoptees[i]` when needed.  The stack
+//         //    enables components to nest among themselves
+//         // e: is Spread::render()
+//         // f: first child of Spread — it's a Repeat;
+//         //    loop twice, first passing rendering onto a Frame (g), waiting for it to return,
+//         //    then passing onto the next Frame (i)
+//         // g: render the containing frame in the correct position,
+//         //    (plus clipping, maybe)
+//         // h: needs to "evaluate" into the rectangle itself — directs the
+//         //    flow of the render tree to (c) via the Context described in (b)
+//         // c: finally render the rectangle itself; return & allow recursion to keep whirring
+//         // i,j,d: repeat g,h,c
+//
+//         Rc::clone(&self.inner_component)
+//     }
+//
+//     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+//         todo!()
+//     }
+//
+//     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
+//
+//     fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
+//
+//     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+//         self.compute_in_place(rtc);
+//     }
+// }
 
-    fn get_rendering_children(&self) -> RenderNodePtrList {
-        // return the root of the internal template here — as long
-        // as we capture refs to (c) and (d) below during Spread's `render` or `pre_render` fn,
-        // we can happily let rendering just take its course,
-        // recursing through the subtree starting with (e).
-        //
-        // example application render tree
-        //          a( root )
-        //              |
-        //          b( Spread )
-        //         /          \
-        //    c( Rect )      d( Rect )
-        //
-        // example Spread (component) template render tree
-        //          e( root )
-        //              |         //  expanded:
-        //          f( Repeat  .. //  n=2 )
-        //           /            //      \
-        //      g( Frame )        //     i( Frame )
-        //          |             //        |
-        //      h( Placeholder )  //     j( Placeholder )
-        //
-        // traversal order:
-        // [a b e f g h c i j d]
-        //
-        // a: load the application root Group
-        // b: found a Spread, start rendering it
-        //    get its children from the Engine (get_children)
-        //    — these are the `adoptees` that will be passed to `Placeholder`
-        //    and they need to be tracked.
-        //    We can do this with a RenderNodeContext that we pass between recursive calls
-        //    when rendering.  We can keep a stack of prefab "scopes," allowing `placeholder`'s render
-        //    function to handily grab a reference to `adoptees[i]` when needed.  The stack
-        //    enables components to nest among themselves
-        // e: is Spread::render()
-        // f: first child of Spread — it's a Repeat;
-        //    loop twice, first passing rendering onto a Frame (g), waiting for it to return,
-        //    then passing onto the next Frame (i)
-        // g: render the containing frame in the correct position,
-        //    (plus clipping, maybe)
-        // h: needs to "evaluate" into the rectangle itself — directs the
-        //    flow of the render tree to (c) via the Context described in (b)
-        // c: finally render the rectangle itself; return & allow recursion to keep whirring
-        // i,j,d: repeat g,h,c
-
-        Rc::clone(&self.inner_component)
-    }
-
-    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
-        todo!()
-    }
-
-    fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
-
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
-
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
-        self.compute_in_place(rtc);
-    }
-}
-
-fn init_and_retrieve_template(instance_map: Rc<RefCell<InstanceMap>>) -> RenderNodePtrList {
-    Rc::new(RefCell::new(
-        vec![
-            Rc::new(RefCell::new(
-                RepeatInstance::instantiate(InstantiationArgs{
-                    properties: PropertiesCoproduct::Empty,
-                    handler_registry: None,
-                    instance_map: Rc::clone(&instance_map),
-                    transform: Transform::default_wrapped(),
-                    size: None,
-                    component_template: None,
-                    primitive_children: Some(Rc::new(RefCell::new(vec![
-                        Frame::instantiate(InstantiationArgs {
-                            properties: PropertiesCoproduct::Empty,
-                            handler_registry: None,
-                            instance_map: Rc::clone(&instance_map),
-                            transform: Rc::new(RefCell::new(
-                                PropertyExpression {
-                                    id: "7870505b-27b4-4871-a239-f734db0e5709".to_string(),
-                                    cached_value: Transform::default(),
-                                }
-                            )),
-                            size: None,
-                            primitive_children: Some(Rc::new(RefCell::new(
-                                vec![]
-                            ))),
-                            component_template: None,
-                            component_adoptees: None,
-                            placeholder_index: None,
-                            data_list: None,
-                            compute_properties_fn: None
-                        })
-                    ]))),
-                    component_adoptees: None,
-                    placeholder_index: None,
-                    data_list: Some(Box::new(
-                        PropertyExpression {
-                            id:  "8d81fc58-3d2e-4e9d-b7c0-e219819b9684".to_string(),
-                            cached_value: vec![]
-                    })),
-                    compute_properties_fn: None
-                })
-            ))
-        ]
-    ))
-    //             Repeat {
-    //                 data_list: Box::new(PropertyExpression {
-    //                     cached_value: vec![],
-    //                     evaluator: SpreadPropertiesInjector {variadic_evaluator: |properties: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
-    //                         properties.borrow()._cached_computed_layout_spec.iter()
-    //                             .map(|scp|{Rc::new(PropertiesCoproduct::SpreadCell(Rc::clone(scp)))}).collect()
-    //                     }}
-    //                 }),
-    //                 template: Rc::new(RefCell::new(vec![
-    //                     Rc::new(RefCell::new(
-    //                         Frame {
-    //                             size: Rc::new(RefCell::new((
-    //                                 Box::new(PropertyExpression {
-    //                                     cached_value: Size::Pixel(100.0),
-    //                                     evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size {
-    //                                         match &*scope.borrow().datum {
-    //                                             PropertiesCoproduct::SpreadCell(sc) => {
-    //                                                 Size::Pixel(sc.width_px)
-    //                                             },
-    //                                             _ => panic!("Unknown property coproduct")
-    //                                         }
-    //                                     }}
-    //                                 }),
-    //                                 Box::new(PropertyExpression {
-    //                                     cached_value: Size::Pixel(100.0),
-    //                                     evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size {
-    //                                         match &*scope.borrow().datum {
-    //                                             PropertiesCoproduct::SpreadCell(sc) => {
-    //                                                 Size::Pixel(sc.height_px)
-    //                                             },
-    //                                             _ => panic!("Unknown property coproduct")
-    //                                         }
-    //                                     }}
-    //                                 }),
-    //                             ))),
-    //                             transform: Rc::new(RefCell::new(
-    //                                 Transform {
-    //                                         translate: (
-    //                                             Box::new(PropertyExpression {
-    //                                                 cached_value: 0.0,
-    //                                                 evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
-    //                                                     match &*scope.borrow().datum {
-    //                                                         PropertiesCoproduct::SpreadCell(sc) => {
-    //                                                             sc.x_px
-    //                                                         },
-    //                                                         _ => panic!("Unknown property coproduct")
-    //                                                     }
-    //                                                 }}
-    //                                             }),
-    //                                             Box::new(PropertyExpression {
-    //                                                 cached_value: 0.0,
-    //                                                 evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
-    //                                                     match &*scope.borrow().datum {
-    //                                                         PropertiesCoproduct::SpreadCell(sc) => {
-    //                                                             sc.y_px
-    //                                                         },
-    //                                                         _ => panic!("Unknown property coproduct")
-    //                                                     }
-    //                                                 }}
-    //                                             })
-    //                                         ),
-    //                                         ..Default::default()
-    //                                     },
-    //                             )),
-    //                             children: Rc::new(RefCell::new(vec![
-    //                                 Rc::new(RefCell::new(
-    //                                     Placeholder::new(
-    //                                         Transform::default(),
-    //                                         Box::new(PropertyExpression {
-    //                                             cached_value: 0,
-    //                                             evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
-    //                                                 scope.borrow().i
-    //                                             }}
-    //                                         })
-    //                                     )
-    //                                 ))
-    //                             ])),
-    //                         }
-    //                     ))
-    //                 ])),
-    //                 ..Default::default()
-    //             }
-    //         ))
-    //     ]
-    // ))
-}
+// fn init_and_retrieve_template(instance_map: Rc<RefCell<InstanceMap>>) -> RenderNodePtrList {
+//     Rc::new(RefCell::new(
+//         vec![
+//             Rc::new(RefCell::new(
+//                 RepeatInstance::instantiate(InstantiationArgs{
+//                     properties: PropertiesCoproduct::Empty,
+//                     handler_registry: None,
+//                     instance_map: Rc::clone(&instance_map),
+//                     transform: Transform::default_wrapped(),
+//                     size: None,
+//                     component_template: None,
+//                     primitive_children: Some(Rc::new(RefCell::new(vec![
+//                         Frame::instantiate(InstantiationArgs {
+//                             properties: PropertiesCoproduct::Empty,
+//                             handler_registry: None,
+//                             instance_map: Rc::clone(&instance_map),
+//                             transform: Rc::new(RefCell::new(
+//                                 PropertyExpression {
+//                                     id: "7870505b-27b4-4871-a239-f734db0e5709".to_string(),
+//                                     cached_value: Transform::default(),
+//                                 }
+//                             )),
+//                             size: None,
+//                             primitive_children: Some(Rc::new(RefCell::new(
+//                                 vec![]
+//                             ))),
+//                             component_template: None,
+//                             component_adoptees: None,
+//                             placeholder_index: None,
+//                             data_list: None,
+//                             compute_properties_fn: None
+//                         })
+//                     ]))),
+//                     component_adoptees: None,
+//                     placeholder_index: None,
+//                     data_list: Some(Box::new(
+//                         PropertyExpression {
+//                             id:  "8d81fc58-3d2e-4e9d-b7c0-e219819b9684".to_string(),
+//                             cached_value: vec![]
+//                     })),
+//                     compute_properties_fn: None
+//                 })
+//             ))
+//         ]
+//     ))
+//     //             Repeat {
+//     //                 data_list: Box::new(PropertyExpression {
+//     //                     cached_value: vec![],
+//     //                     evaluator: SpreadPropertiesInjector {variadic_evaluator: |properties: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
+//     //                         properties.borrow()._cached_computed_layout_spec.iter()
+//     //                             .map(|scp|{Rc::new(PropertiesCoproduct::SpreadCell(Rc::clone(scp)))}).collect()
+//     //                     }}
+//     //                 }),
+//     //                 template: Rc::new(RefCell::new(vec![
+//     //                     Rc::new(RefCell::new(
+//     //                         Frame {
+//     //                             size: Rc::new(RefCell::new((
+//     //                                 Box::new(PropertyExpression {
+//     //                                     cached_value: Size::Pixel(100.0),
+//     //                                     evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size {
+//     //                                         match &*scope.borrow().datum {
+//     //                                             PropertiesCoproduct::SpreadCell(sc) => {
+//     //                                                 Size::Pixel(sc.width_px)
+//     //                                             },
+//     //                                             _ => panic!("Unknown property coproduct")
+//     //                                         }
+//     //                                     }}
+//     //                                 }),
+//     //                                 Box::new(PropertyExpression {
+//     //                                     cached_value: Size::Pixel(100.0),
+//     //                                     evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size {
+//     //                                         match &*scope.borrow().datum {
+//     //                                             PropertiesCoproduct::SpreadCell(sc) => {
+//     //                                                 Size::Pixel(sc.height_px)
+//     //                                             },
+//     //                                             _ => panic!("Unknown property coproduct")
+//     //                                         }
+//     //                                     }}
+//     //                                 }),
+//     //                             ))),
+//     //                             transform: Rc::new(RefCell::new(
+//     //                                 Transform {
+//     //                                         translate: (
+//     //                                             Box::new(PropertyExpression {
+//     //                                                 cached_value: 0.0,
+//     //                                                 evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
+//     //                                                     match &*scope.borrow().datum {
+//     //                                                         PropertiesCoproduct::SpreadCell(sc) => {
+//     //                                                             sc.x_px
+//     //                                                         },
+//     //                                                         _ => panic!("Unknown property coproduct")
+//     //                                                     }
+//     //                                                 }}
+//     //                                             }),
+//     //                                             Box::new(PropertyExpression {
+//     //                                                 cached_value: 0.0,
+//     //                                                 evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
+//     //                                                     match &*scope.borrow().datum {
+//     //                                                         PropertiesCoproduct::SpreadCell(sc) => {
+//     //                                                             sc.y_px
+//     //                                                         },
+//     //                                                         _ => panic!("Unknown property coproduct")
+//     //                                                     }
+//     //                                                 }}
+//     //                                             })
+//     //                                         ),
+//     //                                         ..Default::default()
+//     //                                     },
+//     //                             )),
+//     //                             children: Rc::new(RefCell::new(vec![
+//     //                                 Rc::new(RefCell::new(
+//     //                                     Placeholder::new(
+//     //                                         Transform::default(),
+//     //                                         Box::new(PropertyExpression {
+//     //                                             cached_value: 0,
+//     //                                             evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> usize {
+//     //                                                 scope.borrow().i
+//     //                                             }}
+//     //                                         })
+//     //                                     )
+//     //                                 ))
+//     //                             ])),
+//     //                         }
+//     //                     ))
+//     //                 ])),
+//     //                 ..Default::default()
+//     //             }
+//     //         ))
+//     //     ]
+//     // ))
+// }
 
 
 //

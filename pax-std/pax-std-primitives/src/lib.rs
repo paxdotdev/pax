@@ -7,5 +7,5 @@ pub mod rectangle;
 pub use frame::*;
 pub use group::*;
 pub use rectangle::*;
-pub use pax_std::components::spread::*;
+// pub use pax_std::components::spread::*;
 // pub use text::*;

@@ -1,0 +1,14 @@
+Spread {
+    @for (elem, i) in {
+        <Frame transform=@{get_frame_transform(i)} size=@{get_frame_size(i)}>
+            <Placeholder index=@i>
+        </Frame>
+    }
+
+    @settings {
+
+    }
+}
+
+
+

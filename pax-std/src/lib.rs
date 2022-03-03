@@ -6,7 +6,7 @@ use pax::*;
 
 pub mod components;
 pub mod types;
-pub mod spread;
+// pub mod spread;
 
 pub use components::*;
 

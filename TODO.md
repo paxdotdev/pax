@@ -104,21 +104,16 @@ Perhaps a macro is the answer?
     [x] RIL -> PAX compatibility, port primitives
         [x] Repeat, path from @foreach
 [ ] hand-write RIL first!
-    [ ] Handle control-flow with codegen
-        [ ] support with parser & manifest
-        [ ] support with manual RIL, port old primitives
-        [ ] primitives:
+    [-] Handle control-flow with codegen
+        [x] support with manual RIL, port old primitives
             [x] @for
-                [ ] syntax
-                [ ] with/out enumeration (`i`)
-                [ ] figure out scoping, e.g. addition of symbols to namespace, collision management
+                [x] syntax
+                [x] with/out enumeration (`i`)
+                [x] figure out scoping, e.g. addition of symbols to namespace, collision management
                 [x] RepeatItem: manage scope, properties
             [ ] @if
-            [ ] placeholder?
-            [ ] spread?
-                [ ] frame
-                [ ] placeholder
-                [ ] registration mechanism for imported expressions — or global ID allocator from engine
+            [x] placeholder
+            [x] frame
     [x] rendering hello world
     [x] proof of concept (RIL) for expressions
     [x] handle expressable + nestable, e.g. Stroke (should be able to set root as Expression, or any individual sub-properties)
@@ -128,17 +123,26 @@ Perhaps a macro is the answer?
         [x] `Tick` support (wired up)
         [x] pencil in `Click`, but don't worry about raycasting yet (or do naive raycasting?? easy to PoC!)
         [x] sanity-check Repeat
-    [ ] port Repeat, Spread, etc. to latest RIL
+    [x] port Repeat, etc. to latest RIL
 [ ] API cleanup pass
     [ ] make consistent Size, Percent, Origin, Align
     [ ] spend some cycles on timeline API design, pax-side
+    [ ] finish-line @if and timelines
 
+## Milestone: imported .pax
 
-Worth revisiting requirements list for a `demo` milestone?
-might already have enough (without e2e `pax run`)
-
-
-
+[ ] Spend some cycles ideating demo deliverables
+[ ] Port Spread to be a pure component
+    [ ] path to importing Spread and using in template
+    [ ] figure out importing mechanism for core and/or other std primitives
+        [ ] Group, Placeholder (e.g. from Core)
+        [ ] Frame (e.g. from std — though if easier could just move to Core)
+    [ ] port spread logic; design expression/method approach
+        [ ] pure expressions + helpers?
+        [ ] on_pre_tick + manual dirty checking?
+        [ ] hook in existing layout calc logic
+[ ] Import and use Spread in Root example
+    [ ] update example .pax as needed along the way
 
 ## Milestone: automated compilation
 
@@ -402,23 +406,6 @@ API thought: can continue the `#[pax ...]` convention, decorating a function dec
 #[pax helper]
 pub fn hue_shift() {
     //gather an entropic hue value from the world
-}
-```
-
-### timelines, syntax in .pax
-2022-01-29
-implemented in core, but not yet sketched in the pax language / parser, is timeline support.
-
-Timeline specs for a given property<T> are: 1. starting value: T, 2. Vec<{curve_in, ending_frame, ending_value: T}>
-
-A jot of how the API may look in a paxy way:
-```
-background_color: Timeline {
-    starting_value: Color::hsla()
-    segments: [
-        {}
-    ],
-    tween_strategy: ColorTweenStrategy::Hue,
 }
 ```
 
@@ -1136,7 +1123,7 @@ consider the template fragment:
 
 when creating new scopes for @for, we have two major options:
     - Angular-style: replace scope.  would require kludgy re-passing of data into repeatable structs, far from ideal
-    - more robust: additive scopes (req. dupe management and dynamic resolution up stack frame)
+    - more robust: additive (shadowed) scopes (req. dupe management and dynamic resolution up stack frame)
         specifically, `for` adds to scope, vs. component definitions resetting scope (cannot access ancestors' scopes, certainly not implicitly)
         duplicate symbol management: check at compile-time whether symbol names are available in shadowing scopes
 
@@ -1307,5 +1294,42 @@ This works but is a bit inelegant.  Options:
 ### on spread, "primitive components"
 
 after tangling with porting Spread as a primitive, decided 
-to stop for now
- - not a great use-case to encourage (primitive + component, lots of ugliness incl. manual expression unrolling)
+to stop for now:
+
+It's not a great use-case to encourage (primitive + component, lots of ugliness incl. manual expression unrolling)
+
+Instead, this is a great use-case for bundling spread.pax and spread.rs into an importable package, via pax-std
+
+Can "manually unroll" the code for importing in pax-std in order to "derive the codegen proof"
+
+
+### on demo story
+
+// TODO
+Performative coding or compelling example?
+Former requires automated compiler
+Latter requires "PoodleSurf" effort, plus support for images, text styling, full layouts, animations, interactions, more.
+
+Both would be ideal for a broad audience!
+
+What about for a more understanding niche audience?
+
+
+### on timeline API
+
+2022-03-03
+
+
+Here's the current def. of TimelineSegment
+
+```
+pub struct TimelineSegment {
+    pub curve_in: Box<dyn Easible>,
+    pub ending_value: Box<dyn Property<f64>>,
+    pub ending_frame_inclusive: usize,
+}
+```
+
+
+
+
