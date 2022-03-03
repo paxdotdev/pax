@@ -269,7 +269,7 @@ impl ComputableTransform for Transform {
             }
         };
 
-        //counter-intuitively, previous_transform (describing its position in userland) here goes at the end
+        //align component is passed separately because it is global for a given sequence of Transform operations
         (origin_transform * transform * previous_transform, align_component)
     }
 

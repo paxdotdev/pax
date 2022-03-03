@@ -128,6 +128,7 @@ Perhaps a macro is the answer?
     [ ] make consistent Size, Percent, Origin, Align
     [ ] spend some cycles on timeline API design, pax-side
     [ ] finish-line @if and timelines
+    [ ] support in-.rs-file pax, as alternative choice vs. code-behind file
 
 ## Milestone: imported .pax
 
@@ -197,12 +198,19 @@ Perhaps a macro is the answer?
 [ ] e2e `pax run`
 
 
+
+## Milestone: timelines
+
+[ ] Hook up PropertyTimeline
+    [ ] refactor easing curve packaging, probably into enum
+    [ ] refactor Tweenable, to support arbitrary types (dyn Tweenable) and impl for `fsize`
+
 ## Milestone: clickable square
 
 [ ] Action API
-    [ ] state management (.get/.set/etc.)
+    [x] state management (.get/.set/etc.)
     [ ] hooks into dirty-update system, for efficient expressions
-    [ ] Instantiation, reference management, enum ID + addressing for method definitions &
+    [x] Instantiation, reference management, enum ID + addressing for method definitions &
         invocations
     [ ] tween/dynamic timeline API
 [ ] revisit chassis architecture
