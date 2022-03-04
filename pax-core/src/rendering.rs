@@ -34,6 +34,8 @@ pub struct InstantiationArgs {
     ///used by Repeat
     pub repeat_data_list: Option<Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>>,
 
+    ///used by Conditional
+    pub conditional_boolean_expression: Option<Box<dyn Property<bool>>>,
 
     ///used by Component instances, specifically to unwrap type-specific PropertiesCoproducts
     ///and recurse into descendant property computation

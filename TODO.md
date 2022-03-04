@@ -117,7 +117,8 @@ Perhaps a macro is the answer?
     [x] rendering hello world
     [x] proof of concept (RIL) for expressions
     [x] handle expressable + nestable, e.g. Stroke (should be able to set root as Expression, or any individual sub-properties)
-    [ ] proof of concept (RIL) for timelines
+    [x] proof of concept (RIL) for timelines
+        [x] running on assumption that the problem is isomorphic to the Expression vtable problem
     [x] proof of concept (RIL) for actions
         [x] pax::log
         [x] `Tick` support (wired up)
@@ -127,7 +128,7 @@ Perhaps a macro is the answer?
 [ ] API cleanup pass
     [ ] make consistent Size, Percent, Origin, Align
     [ ] finish-line @if
-    [ ] support in-.rs-file pax, as alternative choice vs. code-behind file
+    [x] support in-.rs-file pax, as alternative choice vs. code-behind file
 
 ## Milestone: imported .pax
 
@@ -149,6 +150,7 @@ Perhaps a macro is the answer?
 [x] parser
     [x] grammar definition, PEG
     [x] parse grammar into manifest
+[ ] update parser to support inline (in-file) component def.
 [ ] `pax-compiler`
     [x] architecture
         [x] compiler seq. diagram 
@@ -178,7 +180,7 @@ Perhaps a macro is the answer?
     [ ] expression string => RIL generation
     [ ] symbol resolution & code-gen, incl. shadowing with `@for`
 [ ] control flow
-    [ ] @repeat
+    [ ] @for
         [ ] parse data
         [ ] handle range literals (0..10)
         [ ] shuttle data into RepeatInstance via Manifest
@@ -209,6 +211,8 @@ Perhaps a macro is the answer?
 [ ] Hook up PropertyTimeline
     [ ] refactor easing curve packaging, probably into enum
     [ ] refactor Tweenable, to support arbitrary types (dyn Tweenable) and impl for `fsize`
+    [ ] support Tweenable for f64
+    [ ] support Tweenable for `Transform`
 [ ] ergonomic timeline API design in pax
 
 ## Milestone: clickable square
@@ -1328,6 +1332,7 @@ Both would be ideal for a broad audience!
 
 What about for a more understanding niche audience?
 
+What about showcasing designability?
 
 ### on timeline API
 
@@ -1344,10 +1349,10 @@ pub struct TimelineSegment {
 }
 ```
 
-
 1. needs default value (e.g. for keyframe-0 if no keyframe value is defined)
 2. needs sequence of TimelineSegment
 3. can be element-inline or in settings block
+
 ```
 # some-rect {
     transform: @timeline {
@@ -1360,7 +1365,48 @@ pub struct TimelineSegment {
 
 ```
 
-Note that a segment's value can be a literal (as described here with `Transform::rotate(12.0)`) or it can be an expression (e.g. `Transform::rotate(12.0) * Transform::translate(100.0, 200.0)`)
+Note that a segment's value can be a literal (as described here with `Transform::rotate(12.0)`) or it can be an expression (e.g. `@{Transform::rotate(12.0) * Transform::translate(100.0, 200.0)}`)
 
 
 
+### on the Sword of Pax
+
+when invoking a pax macro with an inline template, any number of contiguous equal signs
+followed by a single right angle bracket may follow `#[pax(`, which are to be ignored by the parser. Like:
+```
+#[pax(==============>
+
+    //component definition...
+
+)]
+```
+or
+```
+#[pax(========>
+
+    //component definition...
+
+)]
+```
+
+The Sword of Pax is purely decorative and completely optional. Within the bounds of resource
+constraints, the Sword of Pax may be as long or short as 
+the author likes.  Of course, not using the Sword is a fully
+valid and defensible option as well:
+```
+#[pax(
+
+    //component definition...
+
+)]
+```
+
+It is recommended that syntax highlighting be flamboyant for the Sword of Pax.
+
+
+
+### on align
+2022-03-03
+
+Currently align is a float.
+Ideally it should be a percent

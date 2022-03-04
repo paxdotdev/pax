@@ -5,7 +5,6 @@ pub use kurbo::{Affine};
 pub use piet::{Color, StrokeStyle, Error};
 
 pub use pax_properties_coproduct;
-
 pub mod engine;
 pub mod rendering;
 pub mod expressions;
@@ -19,8 +18,9 @@ pub mod component;
 pub mod repeat;
 pub mod placeholder;
 pub mod runtime;
+pub mod conditional;
 // pub mod timelines;
-pub mod designtime;
+// pub mod designtime;
 
 pub use crate::engine::*;
 pub use crate::component::*;
@@ -32,6 +32,7 @@ pub use crate::runtime::*;
 // pub use crate::timelines::*;
 pub use crate::repeat::*;
 pub use crate::placeholder::*;
+pub use crate::conditional::*;
 
 
 

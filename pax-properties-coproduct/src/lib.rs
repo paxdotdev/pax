@@ -36,6 +36,7 @@ pub enum PropertiesCoproduct {
 pub enum TypesCoproduct {
     //core (?)
     f64(f64),
+    bool(bool),
     isize(isize),
     usize(usize), //used by Placeholder for index
     Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),

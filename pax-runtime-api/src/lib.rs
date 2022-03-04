@@ -66,7 +66,7 @@ pub fn register_logger(logger: fn(&str)) {
 }
 
 pub fn log(msg: &str) {
-    (LOGGER.borrow().read().unwrap().0)(msg);
+    (LOGGER.borrow().read().expect("TODO: handle case where logger isn't registered").0)(msg);
 }
 
 impl Mul for Size {
@@ -211,14 +211,23 @@ impl<T> PropertyLiteral<T> {
 
 }
 
+//TODO: teach types how to interpolate
 pub trait Tweenable {
+
+}
+
+impl Tweenable for f64 {
+
+}
+
+pub trait Easible {
     /// Map the domain x [0,1] to the range y [all f64]
     fn map(&self, x: f64) -> f64;
 }
 
 pub struct NoneEasingCurve {}
 
-impl Tweenable for NoneEasingCurve {
+impl Easible for NoneEasingCurve {
     fn map(&self, _x: f64) -> f64 {
         0.0
     }
@@ -227,7 +236,7 @@ impl Tweenable for NoneEasingCurve {
 
 pub struct LinearEasingCurve {}
 
-impl Tweenable for LinearEasingCurve {
+impl Easible for LinearEasingCurve {
     fn map(&self, x: f64) -> f64 {
         x
     }
@@ -235,7 +244,7 @@ impl Tweenable for LinearEasingCurve {
 
 pub struct InQuadEasingCurve {}
 
-impl Tweenable for InQuadEasingCurve{
+impl Easible for InQuadEasingCurve{
     fn map(&self, x: f64) -> f64 {
         x * x
     }
@@ -243,7 +252,7 @@ impl Tweenable for InQuadEasingCurve{
 
 pub struct OutQuadEasingCurve {}
 
-impl Tweenable for OutQuadEasingCurve{
+impl Easible for OutQuadEasingCurve{
     fn map(&self, x: f64) -> f64 {
         1.0 - (1.0 - x) * (1.0 - x)
     }
@@ -251,7 +260,7 @@ impl Tweenable for OutQuadEasingCurve{
 
 pub struct InBackEasingCurve {}
 
-impl Tweenable for InBackEasingCurve{
+impl Easible for InBackEasingCurve{
     fn map(&self, x: f64) -> f64 {
         const C1: f64 = 1.70158;
         const C3: f64 = C1 + 1.00;
@@ -261,7 +270,7 @@ impl Tweenable for InBackEasingCurve{
 
 pub struct OutBackEasingCurve {}
 
-impl Tweenable for OutBackEasingCurve{
+impl Easible for OutBackEasingCurve{
     fn map(&self, x: f64) -> f64 {
         const C1: f64 = 1.70158;
         const C3: f64 = C1 + 1.00;
@@ -271,7 +280,7 @@ impl Tweenable for OutBackEasingCurve{
 
 pub struct InOutBackEasingCurve {}
 
-impl Tweenable for InOutBackEasingCurve{
+impl Easible for InOutBackEasingCurve{
     fn map(&self, x: f64) -> f64 {
         const C1: f64 = 1.70158;
         const C2 : f64 = C1 * 1.525;
@@ -286,25 +295,25 @@ impl Tweenable for InOutBackEasingCurve{
 pub struct EasingCurve {}
 
 impl EasingCurve {
-    pub fn none() -> Box<dyn Tweenable> {
+    pub fn none() -> Box<dyn Easible> {
         Box::new(NoneEasingCurve {})
     }
-    pub fn linear() -> Box<dyn Tweenable> {
+    pub fn linear() -> Box<dyn Easible> {
         Box::new(LinearEasingCurve {})
     }
-    pub fn in_quad() -> Box<dyn Tweenable> {
+    pub fn in_quad() -> Box<dyn Easible> {
         Box::new(InQuadEasingCurve {})
     }
-    pub fn out_quad() -> Box<dyn Tweenable> {
+    pub fn out_quad() -> Box<dyn Easible> {
         Box::new(OutQuadEasingCurve {})
     }
-    pub fn in_back() -> Box<dyn Tweenable> {
+    pub fn in_back() -> Box<dyn Easible> {
         Box::new(InBackEasingCurve {})
     }
-    pub fn out_back() -> Box<dyn Tweenable> {
+    pub fn out_back() -> Box<dyn Easible> {
         Box::new(OutBackEasingCurve {})
     }
-    pub fn in_out_back() -> Box<dyn Tweenable> {
+    pub fn in_out_back() -> Box<dyn Easible> {
         Box::new(InOutBackEasingCurve {})
     }
 }
