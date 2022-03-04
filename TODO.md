@@ -104,7 +104,7 @@ Perhaps a macro is the answer?
     [x] RIL -> PAX compatibility, port primitives
         [x] Repeat, path from @foreach
 [x] hand-write RIL first!
-    [-] Handle control-flow with codegen
+    [x] Handle control-flow with codegen
         [x] support with manual RIL, port old primitives
             [x] @for
                 [x] syntax
@@ -125,9 +125,9 @@ Perhaps a macro is the answer?
         [x] pencil in `Click`, but don't worry about raycasting yet (or do naive raycasting?? easy to PoC!)
         [x] sanity-check Repeat
     [x] port Repeat, etc. to latest RIL
-[ ] API cleanup pass
-    [ ] make consistent Size, Percent, Origin, Align
-    [ ] finish-line @if
+[x] API cleanup pass
+    [x] make consistent Size, Percent, Origin, Align
+    [x] finish-line @if
     [x] support in-.rs-file pax, as alternative choice vs. code-behind file
 
 ## Milestone: imported .pax
