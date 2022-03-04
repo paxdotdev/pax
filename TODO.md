@@ -103,7 +103,7 @@ Perhaps a macro is the answer?
     [x] import/package management
     [x] RIL -> PAX compatibility, port primitives
         [x] Repeat, path from @foreach
-[ ] hand-write RIL first!
+[x] hand-write RIL first!
     [-] Handle control-flow with codegen
         [x] support with manual RIL, port old primitives
             [x] @for
@@ -111,7 +111,7 @@ Perhaps a macro is the answer?
                 [x] with/out enumeration (`i`)
                 [x] figure out scoping, e.g. addition of symbols to namespace, collision management
                 [x] RepeatItem: manage scope, properties
-            [ ] @if
+            [x] @if
             [x] placeholder
             [x] frame
     [x] rendering hello world

@@ -265,7 +265,10 @@ impl ComputableTransform for Transform {
         };
 
         let align_component = match &self.align {
-            Some(align) => {Affine::translate((align[0] * container_bounds.0, align[1] * container_bounds.1))},
+            Some(align) => {
+                let x_percent = if let Size::Percent(x) = align[0] {x} else {panic!("Align requires a Size::Percent value")};
+                let y_percent = if let Size::Percent(y) = align[1] {y} else {panic!("Align requires a Size::Percent value")};
+                Affine::translate((x_percent * container_bounds.0, y_percent * container_bounds.1))},
             None => {
                 previous_align_component //which defaults to identity
             }

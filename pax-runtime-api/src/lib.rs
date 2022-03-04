@@ -126,7 +126,7 @@ pub struct Transform { //Literal
     pub rotate: Option<f64>, ///over z axis
     pub translate: Option<[f64; 2]>,
     pub origin: Option<[Size; 2]>,
-    pub align: Option<[f64; 2]>,
+    pub align: Option<[Size; 2]>,
     pub scale: Option<[f64; 2]>,
 }
 
@@ -162,7 +162,7 @@ impl Transform {
     }
     ///Describe alignment within parent bounding box, as a starting point before
     /// affine transformations are applied
-    pub fn align(x: f64, y: f64) -> Self {
+    pub fn align(x: Size, y: Size) -> Self {
         let mut ret  = Transform::default();
         ret.align = Some([x, y]);
         ret

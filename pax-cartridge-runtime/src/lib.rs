@@ -43,7 +43,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         // } else { unreachable!() };
 
         return TypesCoproduct::Transform(
-            Transform::align(0.5, 0.5) *
+            Transform::align(Size::Percent(50.0), Size::Percent(50.0)) *
             Transform::origin( Size::Percent(50.0), Size::Percent(50.0)) *
             Transform::rotate(__AT__frames_elapsed * i / 100.0) *
             Transform::translate( i * 10.0, i * 10.0) *
