@@ -10,12 +10,18 @@ extern crate mut_static;
 
 use mut_static::MutStatic;
 
-// /// An abstract Property that may be either: Literal,
-// /// a dynamic runtime Expression, or a Timeline-bound value
+/// An abstract Property that may be either: Literal,
+/// a dynamic runtime Expression, or a Timeline-bound value
 pub trait Property<T: Default> {
     fn get(&self) -> &T;
     fn _get_vtable_id(&self) -> Option<&str>;
     fn set(&mut self, value: T);
+
+    //Dirty-checking. Intended for Expressions,
+    //as well as a user-facing API for manual caching (e.g.
+    //only recompute a cached value if one of its inputs changes)
+    // fn is_fresh(&self) -> bool;
+    // fn _mark_not_fresh(&mut self);
 }
 
 impl<T: Default + 'static> Default for Box<dyn Property<T>> {
@@ -47,8 +53,15 @@ pub struct ArgsClick {
     y: f64,
 }
 
-/// A size value that can be either a concrete pixel value
-/// or a percent of parent bounds.
+
+#[derive(Clone)]
+pub struct ArgsRender {
+    pub bounds: (f64, f64)
+}
+
+/// A Size value that can be either a concrete pixel value
+/// or a percent of parent bounds.  Note that this may be more precisely
+/// called a Dimension or a SizeDimension, but Size was initially chosen for brevity.
 #[derive(Copy, Clone)]
 pub enum Size {
     Pixel(f64),
@@ -120,9 +133,28 @@ pub struct TransformInstance {
 pub type Size2D = Rc<RefCell<[Box<dyn Property<Size>>; 2]>>;
 
 
+
+
+/// A sugary representation of an Affine transform+, including
+/// `origin` and `align` as layout-computed properties.
+///
+/// `translate` represents an (x,y) affine translation
+/// `scale`     represents an (x,y) non-uniform affine scale
+/// `rotate`    represents a (z) affine rotation (intuitive 2D rotation)
+/// `origin`    represents the "(0,0)" point of the render node as it relates to its own bounding box.
+///             By default that's the top-left of the element, but `origin` allows that
+///             to be offset either by a pixel or percentage-of-element-size
+///             for each of (x,y)
+/// `align`     the offset of this element's `origin` as it relates to the element's parent.
+///             By default this is the top-left corner of the parent container,
+///             but can be set to be any value [0,1] for each of (x,y), representing
+///             the percentage (between 0.0 and 1.0) multiplied by the parent container size.
+///             For example, an align of (0.5, 0.5) will center an element's `origin` point both vertically
+///             and horizontally within the parent container.  Combined with an origin of (Size::Percent(50.0), Size::Percent(50.0)),
+///             an element will appear fully centered within its parent.
 #[derive(Default, Clone)]
-pub struct Transform { //Literal
-    pub previous: Option<Box<Transform>>,
+pub struct Transform2D { //Literal
+    pub previous: Option<Box<Transform2D>>,
     pub rotate: Option<f64>, ///over z axis
     pub translate: Option<[f64; 2]>,
     pub origin: Option<[Size; 2]>,
@@ -130,9 +162,8 @@ pub struct Transform { //Literal
     pub scale: Option<[f64; 2]>,
 }
 
-
-impl Mul for Transform {
-    type Output = Transform;
+impl Mul for Transform2D {
+    type Output = Transform2D;
 
     fn mul(self, rhs: Self) -> Self::Output {
         let mut ret = rhs.clone();
@@ -141,41 +172,41 @@ impl Mul for Transform {
     }
 }
 
-impl Transform {
+impl Transform2D {
     ///Scale coefficients (1.0 == 100%) over x-y plane
     pub fn scale(x: f64, y: f64) -> Self {
-        let mut ret  = Transform::default();
+        let mut ret  = Transform2D::default();
         ret.scale = Some([x, y]);
         ret
     }
     ///Rotation over z axis
     pub fn rotate(z: f64) -> Self {
-        let mut ret  = Transform::default();
+        let mut ret  = Transform2D::default();
         ret.rotate = Some(z);
         ret
     }
     ///Translation across x-y plane, pixels
     pub fn translate(x: f64, y: f64) -> Self {
-        let mut ret  = Transform::default();
+        let mut ret  = Transform2D::default();
         ret.translate = Some([x, y]);
         ret
     }
     ///Describe alignment within parent bounding box, as a starting point before
     /// affine transformations are applied
     pub fn align(x: Size, y: Size) -> Self {
-        let mut ret  = Transform::default();
+        let mut ret  = Transform2D::default();
         ret.align = Some([x, y]);
         ret
     }
     ///Describe alignment of the (0,0) position of this element as it relates to its own bounding box
     pub fn origin(x: Size, y: Size) -> Self {
-        let mut ret  = Transform::default();
+        let mut ret  = Transform2D::default();
         ret.origin = Some([x, y]);
         ret
     }
 
     pub fn default_wrapped() -> Rc<RefCell<dyn Property<Self>>> {
-        Rc::new(RefCell::new(PropertyLiteral(Transform::default())))
+        Rc::new(RefCell::new(PropertyLiteral(Transform2D::default())))
     }
 }
 
@@ -198,6 +229,15 @@ impl<T: Default> Property<T> for PropertyLiteral<T> {
     fn _get_vtable_id(&self) -> Option<&str> {
         None
     }
+
+    // fn is_fresh(&self) -> bool {
+    //     //TODO: should probably return true for the first frame that this Property exists.
+    //     //Perhaps turn PropertyLiteral into a two-tuple (v,true)
+    // }
+    //
+    // fn _mark_not_fresh(&mut self) {
+    //     //no-op
+    // }
 
     fn set(&mut self, value: T) {
         self.0 = value;

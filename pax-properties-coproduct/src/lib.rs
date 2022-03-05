@@ -26,9 +26,9 @@ pub enum PropertiesCoproduct {
     //generated
     isize(isize), //used by range for repeat (0..10)
 
-    Rectangle(pax_example::pax_types::pax_std::primitives::RectangleProperties),
-    Group(pax_example::pax_types::pax_std::primitives::GroupProperties),
-    Spread(pax_example::pax_types::pax_std::primitives::SpreadProperties),
+    Rectangle(pax_example::pax_types::pax_std::primitives::Rectangle),
+    Group(pax_example::pax_types::pax_std::primitives::Group),
+    // Spread(pax_example::pax_types::pax_std::primitives::SpreadProperties),
     Root(pax_example::RootProperties),
 }
 
@@ -41,9 +41,9 @@ pub enum TypesCoproduct {
     usize(usize), //used by Placeholder for index
     Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
     DeeperStruct(pax_example::DeeperStruct),
-    Transform(pax_example::pax_types::Transform),
+    Transform2D(pax_example::pax_types::Transform2D),
     //generated
-    Stroke(pax_example::pax_types::pax_std::types::StrokeProperties),
+    Stroke(pax_example::pax_types::pax_std::types::Stroke),
     Color(pax_example::pax_types::pax_std::types::Color),
     Size(pax_example::pax_types::pax_std::types::Size),
 }

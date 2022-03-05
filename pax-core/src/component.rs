@@ -5,7 +5,7 @@ use std::rc::Rc;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext, HandlerRegistry, InstantiationArgs};
 
-use pax_runtime_api::{Timeline, Transform, Size2D, Property, ArgsCoproduct};
+use pax_runtime_api::{Timeline, Transform2D, Size2D, Property, ArgsCoproduct};
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `adoptees` and
@@ -17,7 +17,7 @@ pub struct ComponentInstance {
     pub template: RenderNodePtrList,
     pub adoptees: RenderNodePtrList,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub transform: Rc<RefCell<dyn Property<Transform>>>,
+    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext)>,
@@ -63,11 +63,11 @@ impl RenderNode for ComponentInstance {
 
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.get_computed_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform(v) = new_transform { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
         }
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);

@@ -7,12 +7,12 @@ use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderT
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 
-use pax_runtime_api::{ArgsCoproduct, Property, PropertyLiteral, Transform};
+use pax_runtime_api::{ArgsCoproduct, Property, PropertyLiteral, Transform2D};
 
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
 use pax_example::pax_types::{RootProperties};
-use pax_example::pax_types::pax_std::primitives::{GroupProperties, RectangleProperties};
-use pax_example::pax_types::pax_std::types::{Color, StrokeProperties, Size};
+use pax_example::pax_types::pax_std::primitives::{Group, Rectangle};
+use pax_example::pax_types::pax_std::types::{Color, Stroke, Size};
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
 use pax_std_primitives::{RectangleInstance, GroupInstance };
@@ -42,12 +42,12 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         //     *p.current_rotation.get()
         // } else { unreachable!() };
 
-        return TypesCoproduct::Transform(
-            Transform::align(Size::Percent(50.0), Size::Percent(50.0)) *
-            Transform::origin( Size::Percent(50.0), Size::Percent(50.0)) *
-            Transform::rotate(__AT__frames_elapsed * i / 100.0) *
-            Transform::translate( i * 10.0, i * 10.0) *
-            Transform::rotate(__AT__frames_elapsed / 50.0)
+        return TypesCoproduct::Transform2D(
+            Transform2D::align(Size::Percent(50.0), Size::Percent(50.0)) *
+            Transform2D::origin(Size::Percent(50.0), Size::Percent(50.0)) *
+            Transform2D::rotate(__AT__frames_elapsed * i / 100.0) *
+            Transform2D::translate(i * 10.0, i * 10.0) *
+            Transform2D::rotate(__AT__frames_elapsed / 50.0)
 
         )
         // } else {unreachable!()};
@@ -62,7 +62,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         //TODO: how to determine (for Expression codegen) that StrokeProperties is compound and requires
         //      wrapping in PropertyLiteral values?
         TypesCoproduct::Stroke(
-            StrokeProperties {
+            Stroke {
                 color: Box::new(PropertyLiteral (Color::hlca((__AT__frames_elapsed as isize % 360) as f64, 100.0,100.0,1.0) )),
                 width: Box::new(PropertyLiteral (45.0)),
             }
@@ -82,7 +82,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
             }),
             handler_registry: None,
             instance_map: Rc::clone(&instance_map),
-            transform: Transform::default_wrapped(),
+            transform: Transform2D::default_wrapped(),
             size: None,
             primitive_children: None,
             component_template: Some(Rc::new(RefCell::new(vec![
@@ -90,7 +90,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                     properties: PropertiesCoproduct::Empty,
                     handler_registry: None,
                     instance_map: Rc::clone(&instance_map),
-                    transform: Transform::default_wrapped(),
+                    transform: Transform2D::default_wrapped(),
                     size: None,
                     component_adoptees: None,
                     component_template: None,
@@ -102,17 +102,17 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             properties: PropertiesCoproduct::Empty,
                             handler_registry: None,
                             instance_map: Rc::clone(&instance_map),
-                            transform: Transform::default_wrapped(),
+                            transform: Transform2D::default_wrapped(),
                             size: None,
                             primitive_children: Some(Rc::new(RefCell::new(vec![
                                 RectangleInstance::instantiate(InstantiationArgs {
-                                    properties: PropertiesCoproduct::Rectangle(RectangleProperties{
+                                    properties: PropertiesCoproduct::Rectangle(Rectangle{
                                         stroke: Box::new(PropertyExpression {id: "c".into(), cached_value: Default::default()}),
                                         fill: Box::new(PropertyLiteral (Color::rgba(1.0, 1.0, 0.0, 1.0)))
                                     }),
                                     handler_registry: None,
                                     instance_map: Rc::clone(&instance_map),
-                                    transform: Rc::new(RefCell::new(PropertyLiteral(Transform::translate(200.0, 200.0)))),
+                                    transform: Rc::new(RefCell::new(PropertyLiteral(Transform2D::translate(200.0, 200.0)))),
                                     size: Some([PropertyLiteral(Size::Pixel(200.0)).into(),PropertyLiteral(Size::Pixel(200.0)).into()]),
                                     primitive_children: None,
                                     component_template: None,
@@ -130,51 +130,50 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             conditional_boolean_expression: Some(Box::new(PropertyLiteral(true))),
                             compute_properties_fn: None
                         }),
-                        ConditionalInstance::instantiate(InstantiationArgs {
-                            properties: PropertiesCoproduct::Empty,
-                            handler_registry: None,
-                            instance_map: Rc::clone(&instance_map),
-                            transform: Transform::default_wrapped(),
-                            size: None,
-                            primitive_children: Some(Rc::new(RefCell::new(vec![
-                                RectangleInstance::instantiate(InstantiationArgs {
-                                    properties: PropertiesCoproduct::Rectangle(RectangleProperties{
-                                        stroke: Box::new(PropertyExpression {id: "c".into(), cached_value: Default::default()}),
-                                        fill: Box::new(PropertyLiteral (Color::rgba(1.0, 1.0, 0.0, 1.0)))
-                                    }),
-                                    handler_registry: None,
-                                    instance_map: Rc::clone(&instance_map),
-                                    transform: Rc::new(RefCell::new(PropertyLiteral(Transform::translate(400.0, 200.0)))),
-                                    size: Some([PropertyLiteral(Size::Pixel(200.0)).into(),PropertyLiteral(Size::Pixel(200.0)).into()]),
-                                    primitive_children: None,
-                                    component_template: None,
-                                    component_adoptees: None,
-                                    placeholder_index: None,
-                                    repeat_data_list: None,
-                                    conditional_boolean_expression: None,
-                                    compute_properties_fn: None
-                                }),
-                            ]))),
-                            component_template: None,
-                            component_adoptees: None,
-                            placeholder_index: None,
-                            repeat_data_list: None,
-                            conditional_boolean_expression: Some(Box::new(PropertyLiteral(false))),
-                            compute_properties_fn: None
-                        }),
-
+                        // ConditionalInstance::instantiate(InstantiationArgs {
+                        //     properties: PropertiesCoproduct::Empty,
+                        //     handler_registry: None,
+                        //     instance_map: Rc::clone(&instance_map),
+                        //     transform: Transform2D::default_wrapped(),
+                        //     size: None,
+                        //     primitive_children: Some(Rc::new(RefCell::new(vec![
+                        //         RectangleInstance::instantiate(InstantiationArgs {
+                        //             properties: PropertiesCoproduct::Rectangle(Rectangle{
+                        //                 stroke: Box::new(PropertyExpression {id: "c".into(), cached_value: Default::default()}),
+                        //                 fill: Box::new(PropertyLiteral (Color::rgba(1.0, 1.0, 0.0, 1.0)))
+                        //             }),
+                        //             handler_registry: None,
+                        //             instance_map: Rc::clone(&instance_map),
+                        //             transform: Rc::new(RefCell::new(PropertyLiteral(Transform2D::translate(400.0, 200.0)))),
+                        //             size: Some([PropertyLiteral(Size::Pixel(200.0)).into(),PropertyLiteral(Size::Pixel(200.0)).into()]),
+                        //             primitive_children: None,
+                        //             component_template: None,
+                        //             component_adoptees: None,
+                        //             placeholder_index: None,
+                        //             repeat_data_list: None,
+                        //             conditional_boolean_expression: None,
+                        //             compute_properties_fn: None
+                        //         }),
+                        //     ]))),
+                        //     component_template: None,
+                        //     component_adoptees: None,
+                        //     placeholder_index: None,
+                        //     repeat_data_list: None,
+                        //     conditional_boolean_expression: Some(Box::new(PropertyLiteral(false))),
+                        //     compute_properties_fn: None
+                        // }),
 
                         RepeatInstance::instantiate(InstantiationArgs {
                             properties: PropertiesCoproduct::Empty,
                             handler_registry: None,
                             instance_map: Rc::clone(&instance_map),
-                            transform: Transform::default_wrapped(),
+                            transform: Transform2D::default_wrapped(),
                             size: None,
                             component_template: None,
                             primitive_children: Some(Rc::new(RefCell::new(vec![
                                 RectangleInstance::instantiate(InstantiationArgs {
-                                    properties: PropertiesCoproduct::Rectangle(RectangleProperties{
-                                        stroke: Box::new(PropertyLiteral (StrokeProperties {
+                                    properties: PropertiesCoproduct::Rectangle(Rectangle{
+                                        stroke: Box::new(PropertyLiteral (Stroke {
                                             color: Box::new(PropertyLiteral(Color::rgba(1.0, 0.0, 1.0, 1.0))),
                                             width: Box::new(PropertyLiteral(5.0))
                                         })),
@@ -182,6 +181,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                     }),
                                     handler_registry: None,
                                     instance_map: Rc::clone(&instance_map),
+                                    // transform: Transform2D::default_wrapped(),
                                     transform: Rc::new(RefCell::new(PropertyExpression {
                                         id: "a".to_string(),
                                         cached_value: Default::default(),

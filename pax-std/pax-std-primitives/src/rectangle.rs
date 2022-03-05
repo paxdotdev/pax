@@ -2,7 +2,7 @@
 use kurbo::{BezPath};
 use piet::{RenderContext};
 
-use pax_std::primitives::RectangleProperties;
+use pax_std::primitives::{Rectangle};
 use pax_std::types::ColorVariant;
 
 
@@ -11,15 +11,16 @@ use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{Property, PropertyLiteral, Size, Transform, Size2D, ArgsCoproduct};
+use pax_runtime_api::{Property, PropertyLiteral, Size, Transform2D, Size2D, ArgsCoproduct};
+
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
 ///
 /// maybe #[pax primitive]
 pub struct RectangleInstance {
-    pub transform: Rc<RefCell<dyn Property<Transform>>>,
-    pub properties: Rc<RefCell<RectangleProperties>>,
+    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
+    pub properties: Rc<RefCell<Rectangle>>,
     pub size: Rc<RefCell<[Box<dyn Property<Size>>; 2]>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 }
@@ -122,7 +123,7 @@ impl RenderNode for RectangleInstance {
         }
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
@@ -150,7 +151,7 @@ impl RenderNode for RectangleInstance {
 
         let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.get_computed_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform(v) = new_transform { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
         }
 

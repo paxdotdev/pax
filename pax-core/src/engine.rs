@@ -1,6 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::env::Args;
 use std::rc::Rc;
 
 
@@ -27,9 +28,7 @@ use crate::runtime::{Runtime};
 use wasm_bindgen::JsValue;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsTick, Property};
-
-
+use pax_runtime_api::{ArgsClick, ArgsRender, ArgsTick, Property};
 
 pub enum EventMessage {
     Tick(ArgsTick),
@@ -42,7 +41,6 @@ pub struct PaxEngine {
     pub event_message_queue: Vec<(String, EventMessage)>, //(element id, args)
     pub expression_table: HashMap<String, Box<dyn Fn(ExpressionContext) -> TypesCoproduct> >,
     pub root_component: Rc<RefCell<ComponentInstance>>,
-    //NOTE: root_component is optional because: 1. engine must be instantiatable without a root_component, so that 2. instantiate_root_component() can receive a mutable reference to engine, so that 3. `instantiate` calls can receive a mutable reference to engine, so that 4. RenderNode instances may register themselves in the engine's id->instance map (used, e.g. for method dispatch)
     //NOTE: to support multiple concurrent "root components," e.g. for multi-stage authoring, this could simply be made an array of `root_components`
     pub runtime: Rc<RefCell<Runtime>>,
     viewport_size: (f64, f64),
@@ -60,6 +58,14 @@ pub struct RenderTreeContext<'a>
     pub timeline_playhead_position: usize,
 }
 
+
+impl<'a> Into<ArgsRender> for RenderTreeContext<'a> {
+    fn into(self) -> ArgsRender {
+        ArgsRender {
+            bounds: self.bounds.clone(),
+        }
+    }
+}
 
 
 impl<'a> RenderTreeContext<'a> {
@@ -293,39 +299,3 @@ impl PaxEngine {
         Ok(())
     }
 }
-
-/*****************************/
-/* Codegen (macro) territory */
-
-//OR: revisit this approach, without variadics.
-//
-// pub struct MyManualMacroExpression<T> {
-//     pub variadic_evaluator: fn(engine: &PaxEngine) -> T,
-// }
-//
-// //TODO:  should this hard-code the return type
-// impl<T> MyManualMacroExpression<T> {
-//
-// }
-//
-// impl<T> Evaluator<T> for MyManualMacroExpression<T> {
-//     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
-//         //TODO:CODEGEN
-//         //       pull necessary data from `ic`,
-//         //       map into the variadic args of elf.variadic_evaluator()
-//         //       Perhaps this is a LUT of `String => (Fn(njectionContext) -> V)` for any variadic type (injection tream) V
-//
-//         let x = ||{};
-//         let y = |x: isize| x + 6;
-//
-//
-//         let engine = ic.engine;
-//         (self.variadic_evaluator)(engine)
-//
-//
-//     }
-// }
-
-
-/* End codegen (macro) territory */
-/*********************************/

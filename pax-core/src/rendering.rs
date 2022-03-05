@@ -22,7 +22,7 @@ pub struct InstantiationArgs {
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_map: Rc<RefCell<InstanceMap>>,
-    pub transform: Rc<RefCell<dyn Property<Transform>>>,
+    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
     pub size: Option<[Box<dyn Property<Size>>;2]>,
     pub primitive_children: Option<RenderNodePtrList>,
     pub component_template: Option<RenderNodePtrList>,
@@ -123,7 +123,7 @@ pub trait RenderNode
         }
     }
 
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>>;
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>>;
 
     /// Very first lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.
@@ -159,52 +159,7 @@ pub trait RenderNode
 
 }
 
-/// A sugary representation of an Affine transform+, including
-/// `origin` and `align` as layout-computed properties.
-///
-/// `translate` represents an (x,y) affine translation
-/// `scale`     represents an (x,y) non-uniform affine scale
-/// `rotate`    represents a (z) affine rotation (intuitive 2D rotation)
-/// `origin`    represents the "(0,0)" point of the render node as it relates to its own bounding box.
-///             By default that's the top-left of the element, but `origin` allows that
-///             to be offset either by a pixel or percentage-of-element-size
-///             for each of (x,y)
-/// `align`     the offset of this element's `origin` as it relates to the element's parent.
-///             By default this is the top-left corner of the parent container,
-///             but can be set to be any value [0,1] for each of (x,y), representing
-///             the percentage (between 0.0 and 1.0) multiplied by the parent container size.
-///             For example, an align of (0.5, 0.5) will center an element's `origin` point both vertically
-///             and horizontally within the parent container.  Combined with an origin of (Size::Percent(50.0), Size::Percent(50.0)),
-///             an element will appear fully centered within its parent.
-///
-/// Note that transform order is currently hard-coded.  This could be amended
-/// upon deriving a suitable API — this may look like passing a manual `Affine` object or expressing
-/// transforms in a sugared syntax in Pax
-// pub struct Transform {
-//     pub translate: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
-//     pub scale: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
-//     pub rotate: Box<dyn Property<f64>>, //z-axis only for 2D rendering
-//     //TODO: add shear? needed at least to support ungrouping after scale+rotate
-//     pub origin: (Box<dyn Property<Size>>, Box<dyn Property<Size>>),
-//     pub align: (Box<dyn Property<f64>>, Box<dyn Property<f64>>),
-//     pub cached_computed_transform: Affine,
-// }
-//
-//
-// impl Default for Transform {
-//     fn default() -> Self {
-//         Transform{
-//             cached_computed_transform: Affine::default(),
-//             align: (Box::new(PropertyLiteral { value: 0.0 }), Box::new(PropertyLiteral { value: 0.0 })),
-//             origin: (Box::new(PropertyLiteral { value: Size::Pixel(0.0)}), Box::new(PropertyLiteral { value: Size::Pixel(0.0)})),
-//             translate: (Box::new(PropertyLiteral { value: 0.0}), Box::new(PropertyLiteral { value: 0.0})),
-//             scale: (Box::new(PropertyLiteral { value: 1.0}), Box::new(PropertyLiteral { value: 1.0})),
-//             rotate: Box::new(PropertyLiteral { value: 0.0 }),
-//         }
-//     }
-// }
-
-use pax_runtime_api::Transform;
+use pax_runtime_api::Transform2D;
 
 
 
@@ -212,7 +167,7 @@ pub trait ComputableTransform {
     fn compute_transform_matrix(&self, node_size: (f64, f64), container_bounds: (f64, f64)) -> (Affine,Affine);
 }
 
-impl ComputableTransform for Transform {
+impl ComputableTransform for Transform2D {
     //Distinction of note: scale, translate, rotate, origin, and align are all AUTHOR-TIME properties
     //                     node_size and container_bounds are (computed) RUNTIME properties
     //Returns (Base affine transform, align component)
@@ -266,8 +221,8 @@ impl ComputableTransform for Transform {
 
         let align_component = match &self.align {
             Some(align) => {
-                let x_percent = if let Size::Percent(x) = align[0] {x} else {panic!("Align requires a Size::Percent value")};
-                let y_percent = if let Size::Percent(y) = align[1] {y} else {panic!("Align requires a Size::Percent value")};
+                let x_percent = if let Size::Percent(x) = align[0] {x/100.0} else {panic!("Align requires a Size::Percent value")};
+                let y_percent = if let Size::Percent(y) = align[1] {y/100.0} else {panic!("Align requires a Size::Percent value")};
                 Affine::translate((x_percent * container_bounds.0, y_percent * container_bounds.1))},
             None => {
                 previous_align_component //which defaults to identity

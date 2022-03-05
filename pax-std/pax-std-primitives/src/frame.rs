@@ -8,7 +8,7 @@ use piet::RenderContext;
 
 use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, InstantiationArgs};
 use pax_properties_coproduct::TypesCoproduct;
-use pax_runtime_api::{Transform, Size, Property, Size2D};
+use pax_runtime_api::{Transform2D, Size, Property, Size2D};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
 /// like [`Group`], except [`Frame`] has the option of clipping rendering outside
@@ -17,13 +17,13 @@ use pax_runtime_api::{Transform, Size, Property, Size2D};
 /// If clipping or the option of clipping is not required,
 /// a [`Group`] will generally be a more performant and otherwise-equivalent ]
 /// option since clipping is expensive.
-pub struct Frame {
+pub struct FrameInstance {
     pub children: RenderNodePtrList,
     pub size: Size2D,
-    pub transform: Rc<RefCell<dyn Property<Transform>>>,
+    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
 }
 
-impl RenderNode for Frame {
+impl RenderNode for FrameInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
         Rc::new(RefCell::new(
             Self {
@@ -42,7 +42,7 @@ impl RenderNode for Frame {
         Some(Rc::clone(&self.size))
     }
 
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut size = &mut *self.size.as_ref().borrow_mut();
@@ -59,7 +59,7 @@ impl RenderNode for Frame {
 
         let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.get_computed_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform(v) = new_transform { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
         }
     }

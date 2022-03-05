@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 
 use crate::{HandlerRegistry, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
-use pax_runtime_api::{Property, PropertyLiteral, Size2D, Transform};
+use pax_runtime_api::{Property, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 
@@ -15,7 +15,7 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 /// with an index `i` and a pointer to that relevant datum `data_list[i]`
 pub struct RepeatInstance {
     pub primitive_children: RenderNodePtrList, //TODO: private?
-    pub transform: Rc<RefCell<dyn Property<Transform>>>,
+    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
     pub data_list: Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>,
     pub virtual_children: RenderNodePtrList,
 }
@@ -61,12 +61,12 @@ impl RenderNode for RepeatInstance {
                     ComponentInstance {
                         adoptees: Rc::new(RefCell::new(vec![])),
                         template: Rc::clone(&self.primitive_children),
-                        transform: Rc::new(RefCell::new(PropertyLiteral (Transform::default()))),
+                        transform: Rc::new(RefCell::new(PropertyLiteral (Transform2D::default()))),
                         properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(datum), i))),
                         timeline: None,
                         handler_registry: None,
                         compute_properties_fn: Box::new(|props, rtc|{
-                            //no-op since the Repeat RenderNode handles the necessary calc (see `RepeatInstnace::compute_in_place`)
+                            //no-op since the Repeat RenderNode handles the necessary calc (see `RepeatInstance::compute_in_place`)
                         })
                     }
                 ));
@@ -84,7 +84,7 @@ impl RenderNode for RepeatInstance {
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>> { Rc::clone(&self.transform) }
 
 
 }

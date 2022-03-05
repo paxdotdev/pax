@@ -16,20 +16,18 @@ pub mod pax_types {
     pub mod pax_std {
         pub mod primitives {
             pub use pax_std::primitives::Rectangle;
-            pub use pax_std::primitives::RectangleProperties;
             pub use pax_std::primitives::Group;
-            pub use pax_std::primitives::GroupProperties;
-            pub use pax_std::primitives::SpreadProperties;
-            pub use pax_std::primitives::SpreadCellProperties;
-            pub use pax_std::primitives::SpreadDirection;
+            // pub use pax_std::primitives::SpreadProperties;
+            // pub use pax_std::primitives::SpreadCellProperties;
+            // pub use pax_std::primitives::SpreadDirection;
         }
         pub mod types {
             pub use pax_std::types::Color;
-            pub use pax_std::types::StrokeProperties;
+            pub use pax_std::types::Stroke;
             pub use pax_std::types::Size;
         }
     }
-    pub use pax::api::Transform;
+    pub use pax::api::Transform2D;
 
     pub use crate::RootProperties;
     //plus other relevant.

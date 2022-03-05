@@ -132,16 +132,17 @@ Perhaps a macro is the answer?
 
 ## Milestone: imported .pax
 
-[ ] Spend some cycles ideating demo deliverables
+[x] Spend some cycles ideating demo deliverables
 [ ] Port Spread to be a pure component
     [ ] path to importing Spread and using in template
     [ ] figure out importing mechanism for core and/or other std primitives
         [ ] Group, Placeholder (e.g. from Core)
         [ ] Frame (e.g. from std — though if easier could just move to Core)
-    [ ] port spread logic; design expression/method approach
-        [ ] pure expressions + helpers?
-        [ ] on_pre_tick + manual dirty checking?
-        [ ] hook in existing layout calc logic
+    [x] port spread logic; design expression/method approach
+        [-] pure expressions + helpers?
+        [x] on_pre_tick + manual dirty checking?
+            [x] decision: no dirty checking at all for right now; expose imperative dirty-check API only when implementing dirty checking for Expressions
+    [x] hook in existing layout calc logic
 [ ] Import and use Spread in Root example
     [ ] update example .pax as needed along the way
 
@@ -244,6 +245,7 @@ Perhaps a macro is the answer?
     [x] Write ExpressionTable harness, incl. mechanisms for:
         [x] vtable storage & lookup
         [ ] Dependency tracking & dirty-watching
+            [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender`
         [x] Return value passing & caching
     [ ] Sketch out design for parallelized expression computation (e.g. in WebWorkers)
     [-] Patch ExpressionTable into cartridge à la PropertyCoproduct
@@ -1409,4 +1411,154 @@ It is recommended that syntax highlighting be flamboyant for the Sword of Pax.
 2022-03-03
 
 Currently align is a float.
-Ideally it should be a percent
+Ideally it should be a percent.
+Decision: port to Size, panic if px value is passed
+
+
+
+### on dirty-checking, userland API
+2022-03-04
+
+Spread needs to update its cached computed layout as a function of its ~six properties:
+
+pub computed_layout_spec: Vec<Rc<SpreadCellProperties>>,
+pub direction:  Box<dyn pax::api::Property<SpreadDirection>>,
+pub cell_count: Box<dyn pax::api::Property<usize>>,
+pub gutter_width: Box<dyn pax::api::Property<pax::api::Size>>,
+pub overrides_cell_size: Option(Vec<(usize, pax::api::Size)>),
+pub overrides_gutter_size: Option(Vec<(usize, pax::api::Size)>),
+
+
+As a single expression? (probably requires functional list operators in PAXEL, like `map`, as well
+as lambdas)
+```
+(0..cell_count).map(|i|{
+    
+})
+```
+
+By surfacing an imperative API for dirty-checking?
+
+Add to `dyn Property`
+`is_fresh() -> bool`
+
+and `_mark_not_fresh()` — but when is this called?
+
+As a consumer, Spread wants to know whether a value is "fresh" in order
+to determine whether to proceed with a calculation.
+
+Specifically, `fresh` here means "does it have a new value since last tick," presumably
+within the scope of an every-tick handler like "prerender"
+
+Note that the Expression dirty-handling system should be able to bolt onto the same
+API.  Perhaps this should be deferred to the point that system is built,
+so that the major use-case (Expression dirty-checking) is handled best
+
+
+Any time a value is set (and implicitly marked fresh), we need to ensure
+that freshness is maintained until the next complete batch of expression calculations
+is complete.  That means *at the end of the following frame* (not the current frame, which is partially evaluated)
+This also means that a `postrender` handler should see `fresh` twice for a given
+`set`, but `prerender` should see it only once.  Thus, by this approach,
+there should be room for userland patching into `pre-render` to do manual
+caching based on dirty-checking.
+
+
+
+### On untangling Render Instances, API instances, Definition objects, Properties objects
+2022-03-04
+
+*Render nodes == instances*
+Any instance will impl `dyn RenderNode`
+
+
+*API instances* are `Property`-free structs used e.g. for imperative instantiation
+without needing to wrap with `Box` and `PropertyLiteral`.  `Stroke` vs `StrokeProperties` is a great example.
+Note that `Stroke` is not a RenderNode, and likely never would be (a RenderNode is unlikely to be managed imperatively in userlkand
+
+*Definition objects* are used by the parser, stored in manifests
+
+*Properties objects* are containers for node-specific, arbitrary values, conventionally
+wrapped in `Box<dyn Property>` (though technically not necessarily so, e.g. perhaps for a cached or private value)
+
+---
+
+*A use-case,* perhaps not perfectly served by the existing ontology, is an
+object that can be:
+    1. easily declared with low conceptual overhead
+    2. imported and used in templates in other files.  
+E.g. just `Rectangle`, not `RectangleProperties` or `RectangleInstance`.  
+
+This feels adjacent to `Stroke` vs. `StrokeProperties`, but it's re: a RenderNode
+rather than a PropertiesObject.  Should there thus be an "API Instance", but
+for RenderNodes?
+
+Thus, to define a custom RenderNode, one must provide:
+
+1. the API object, or at least symbol name (Rectangle)
+2. the Properties object
+3. `Instance`: if primitive, the `impl RenderNode for ...`, else `ComponentInstance` 
+
+---
+
+*Another use-case:*
+
+a userland component def (e.g. Spread) may want to access not only the current node's
+`properties`, but also it's built-ins like `size` or maybe even `transform`.
+
+What does that API look like?
+
+Consider the following excerpt:
+```
+pub fn handle_prerender(&mut self, args: ArgsRender) {
+        
+        let bounds = args.bounds;
+
+        let active_bound = match *self.direction.get() {
+            SpreadDirection::Horizontal => bounds.0,
+            SpreadDirection::Vertical => bounds.1
+        };
+
+        let gutter_calc = match *self.gutter_width.get() {
+            Size::Pixel(px) => px,
+            Size::Percent(pct) => active_bound * (pct / 100.0),
+        };
+
+        // snip
+        
+    }
+```
+
+The key question: What is `self` here?
+Is it the API object?  It would be the easiest to author (`impl Spread { ... }`)
+Let's say it's the API object.  Can we also have the Properties available on that API object?
+(This would suggest that the PropertiesObject and the API object are the same thing.
+This would further suggest that RectangleProperties -> Rectangle, and that the user is responsible
+for wrapping properties in Box<pax::api::Property<>> — or that the `pax` macro help in this regard
+(perhaps suppressible with an arg to the macro))
+
+So, we can reduce our surface area to:
+1. Instance object (RenderNode), e.g. `RectangleInstance`
+2. Properties object + API object, e.g. `Rectangle`.  Properties must be wrapped in Box<dyn Property>, even if by macro.
+3. `DeeperStruct`-style nested literal objects.  These must be wrapped in `Box<dyn Property>`. 
+
+
+
+
+
+
+Some facts:
+ - Every Render Node will have an accompanying Properties object, even if trivial/`Empty`
+ - When consuming a 
+
+
+
+
+
+
+
+### note to immediate future self:
+
+Observation: by removing the Transform expression from the repeated (yellow & pink)
+rects, they began rendering again.  Look around the intersection of Transform2D and expressions
+(perhaps the impl. of that particular expression) for clues

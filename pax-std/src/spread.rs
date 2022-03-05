@@ -1,34 +1,76 @@
 use std::rc::Rc;
 use pax::*;
-use pax::api::{Size2D, Size};
-use crate::primitives::{SpreadDirection, SpreadProperties, SpreadCellProperties};
-
+use pax::api::{Size2D, Size, ArgsRender};
+use crate::primitives::Frame;
 
 /// A layout component which renders a series of nodes either
 /// vertically or horizontally with a specified gutter in between
 /// each node.  Spreads can be stacked inside of each other, horizontally
 /// and vertically, alongside `Transform.align` and `Transform.origin` to achieve any 2D layout.
-#[pax]
+#[pax(Spread {
+    @template {
+        @for (elem, i) in computed_layout_spec {
+            <Frame transform=@elem.transform size=@elem.size>
+                <Placeholder index=@i>
+            </Frame>
+        }
+    }
+})]
 pub struct Spread {
     pub computed_layout_spec: Vec<Rc<SpreadCellProperties>>,
+    pub direction:  Box<dyn pax::api::Property<SpreadDirection>>,
+    pub cell_count: Box<dyn pax::api::Property<usize>>,
+    pub gutter_width: Box<dyn pax::api::Property<pax::api::Size>>,
+
+    //These two data structures act as "sparse maps," where
+    //the first element in the tuple is the index of the cell/gutter to
+    //override and the second is the override value.  In the absence
+    //of overrides (`vec![]`), cells and gutters will divide space
+    //evenly.
+    pub overrides_cell_size: Option<Box<dyn pax::api::Property<Vec<(usize, pax::api::Size)>>>>,
+    pub overrides_gutter_size: Option<Box<dyn pax::api::Property<Vec<(usize, pax::api::Size)>>>>,
+}
+
+
+/// Simple way to represent whether a spread should render
+/// vertically or horizontally
+pub enum SpreadDirection {
+    Vertical,
+    Horizontal,
+}
+
+impl Default for SpreadDirection {
+    fn default() -> Self {
+        SpreadDirection::Horizontal
+    }
+}
+
+pub struct SpreadCellProperties {
+    pub x_px: f64,
+    pub y_px: f64,
+    pub width_px: f64,
+    pub height_px: f64,
 }
 
 impl Spread {
 
-    pub fn on_pre_tick(&mut self, rtc: &RenderTreeContext) {
-        let bounds = rtc.bounds;
+    // #[pax_on(prerender)]
+    pub fn handle_prerender(&mut self, args: ArgsRender) {
+        //TODO: dirty check?
+        // is there a way to more elegantly expressionize this?
+        let bounds = args.bounds;
 
-        let active_bound = match (*self.properties).borrow().direction.get() {
+        let active_bound = match *self.direction.get() {
             SpreadDirection::Horizontal => bounds.0,
             SpreadDirection::Vertical => bounds.1
         };
 
-        let gutter_calc = match *self.properties.borrow().gutter_width.get() {
+        let gutter_calc = match *self.gutter_width.get() {
             Size::Pixel(px) => px,
             Size::Percent(pct) => active_bound * (pct / 100.0),
         };
 
-        let cell_count = *self.properties.borrow().cell_count.get() as f64;
+        let cell_count = *self.cell_count.get() as f64;
 
         let usable_interior_space = active_bound - (cell_count + 1.0) * gutter_calc;
         let per_cell_space = usable_interior_space / cell_count;
@@ -36,7 +78,7 @@ impl Spread {
         //TODO: account for overrides
         self.computed_layout_spec = (0..(cell_count as usize)).into_iter().map(|i| {
             // rtc.runtime.borrow_mut().log(&format!("Caching computed cells: {}", ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space));
-            match self.properties.borrow().direction.get() {
+            match self.direction.get() {
                 SpreadDirection::Horizontal =>
                     Rc::new(SpreadCellProperties {
                         height_px: bounds.1,

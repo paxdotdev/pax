@@ -1,38 +1,19 @@
 use pax::*;
 use pax::api::{Property, PropertyLiteral};
 
-//register in coproduct;
-//generate unwrapping code in cartridge-runtime (if let/match&panic)
-//(will be wrapped up as a PropertyCoproduct)
-// #[pax_type]
-pub struct Stroke {
-    pub color: Color,
-    pub width: f64,
-}
-
-//this allows StrokeProperties to be set at runtime with an ergonomic Stroke object
-impl Into<StrokeProperties> for Stroke {
-    fn into(self) -> StrokeProperties {
-        StrokeProperties {
-            color: Box::new(PropertyLiteral(self.color)),
-            width: Box::new(PropertyLiteral(self.width)),
-        }
-    }
-}
 
 #[pax_type]
 #[derive(Default)]
-pub struct StrokeProperties {
+pub struct Stroke {
     pub color: Box<dyn Property<Color>>,
     pub width: Box<dyn Property<f64>>,
 }
 
 
-#[pax_primitive_type("../pax-std-primitives", crate::ColorInstance)]
+#[pax_type]
 pub struct Color{
     pub color_variant: ColorVariant,
 }
-
 impl Default for Color {
     fn default() -> Self {
         Self {
@@ -40,8 +21,13 @@ impl Default for Color {
         }
     }
 }
-
 impl Color {
+    pub fn hlca(h:f64, l:f64, c:f64, a:f64) -> Self {
+        Self {color_variant: ColorVariant::Hlca([h,l,c,a])}
+    }
+    pub fn rgba(r:f64, g:f64, b:f64, a:f64) -> Self {
+        Self {color_variant: ColorVariant::Rgba([r,g,b,a])}
+    }
     pub fn to_piet_color(&self) -> piet::Color {
         match self.color_variant {
             ColorVariant::Hlca(slice) => {
@@ -53,20 +39,11 @@ impl Color {
         }
     }
 }
-
+#[pax_type]
 pub enum ColorVariant {
     Hlca([f64; 4]),
     Rgba([f64; 4]),
 }
 
-impl Color {
-    pub fn hlca(h:f64, l:f64, c:f64, a:f64) -> Self {
-        Self {color_variant: ColorVariant::Hlca([h,l,c,a])}
-    }
-    pub fn rgba(r:f64, g:f64, b:f64, a:f64) -> Self {
-        Self {color_variant: ColorVariant::Rgba([r,g,b,a])}
-    }
-}
-
-#[pax_primitive_type("../pax-std-primitives", crate::Size)]
+#[pax_type]
 pub use pax::api::Size;

@@ -5,7 +5,7 @@ use std::rc::Rc;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use crate::{InstantiationArgs, RenderNode, RenderNodePtrList, RenderTreeContext};
-use pax_runtime_api::{Property, Transform, Size2D};
+use pax_runtime_api::{Property, Transform2D, Size2D};
 
 
 
@@ -20,7 +20,7 @@ use pax_runtime_api::{Property, Transform, Size2D};
 /// that become the final rendered home of those adoptees.  This same technique
 /// is portable and applicable elsewhere via Placeholder.
 pub struct Placeholder {
-    pub transform: Rc<RefCell<dyn Property<Transform>>>,
+    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
     pub index: Box<dyn Property<usize>>,
     cached_computed_children: RenderNodePtrList,
 }
@@ -44,7 +44,7 @@ impl RenderNode for Placeholder {
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
 
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
 
