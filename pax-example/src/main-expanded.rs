@@ -9,22 +9,6 @@ struct DeeperStruct {
 
  */
 
-// Do we need to wrap the following in Property<> ?  What if DeeperStruct is already
-// wrapped in a Property in the containing component?
-// Refer to how Rectangle `fill` already does Box<dyn Property<Color>> — this suggests
-// 'no,' we don't need to wrap DeeperStruct's members in Property<>
-//
-// That said, it will be a userland responsibility to implement `Tweenable` (or better yet, make it
-// derivable! that can then be chained into the #[properties] macro and then wholly automated away,
-// as long as all properties are Tweenable in turn.)
-//
-// If any properties aren't tweenable, the derive would
-// cause a compiler failure, which would require not using `properties` if we're not careful
-// (perhaps we can pass flags into properties, like `#[properties(no-derive)]` ? )
-struct DeeperStruct {
-    a: isize,
-    b: String,
-}
 
 
 //lib

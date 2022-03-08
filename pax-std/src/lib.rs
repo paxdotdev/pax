@@ -5,12 +5,13 @@ extern crate lazy_static;
 use pax::*;
 
 pub mod types;
-pub mod spread;
+ mod spread;
 // pub mod spread;
 
 pub mod components {
     pub use super::spread::*;
 }
+
 
 use pax::api::Property;
 

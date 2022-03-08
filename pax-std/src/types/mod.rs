@@ -10,6 +10,30 @@ pub struct Stroke {
 }
 
 
+#[derive(Clone)]
+#[pax_type]
+pub struct SpreadCellProperties {
+    pub x_px: f64,
+    pub y_px: f64,
+    pub width_px: f64,
+    pub height_px: f64,
+}
+
+/// Simple way to represent whether a spread should render
+/// vertically or horizontally
+#[pax_type]
+pub enum SpreadDirection {
+    Vertical,
+    Horizontal,
+}
+
+impl Default for SpreadDirection {
+    fn default() -> Self {
+        SpreadDirection::Horizontal
+    }
+}
+
+
 #[pax_type]
 pub struct Color{
     pub color_variant: ColorVariant,

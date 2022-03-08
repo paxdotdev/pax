@@ -2,15 +2,10 @@
 extern crate lazy_static;
 
 use pax::*;
-use pax::api::{ArgsCoproduct, ArgsTick, Property};
+use pax::api::{ArgsCoproduct, ArgsRender, Property};
 
 use pax_std::primitives::{Group, Rectangle};
 
-#[derive(Copy, Clone, Default)]
-pub struct DeeperStruct {
-    a: isize,
-    b: &'static str,
-}
 
 pub mod pax_types {
     pub mod pax_std {
@@ -18,33 +13,48 @@ pub mod pax_types {
             pub use pax_std::primitives::Rectangle;
             pub use pax_std::primitives::Group;
             // pub use pax_std::primitives::SpreadProperties;
-            // pub use pax_std::primitives::SpreadCellProperties;
+
             // pub use pax_std::primitives::SpreadDirection;
         }
+        pub mod components {
+            pub use pax_std::components::Spread;
+        }
         pub mod types {
+            pub use pax_std::types::SpreadCellProperties;
             pub use pax_std::types::Color;
             pub use pax_std::types::Stroke;
             pub use pax_std::types::Size;
+            pub use pax_std::types::SpreadDirection;
+
         }
     }
     pub use pax::api::Transform2D;
 
-    pub use crate::RootProperties;
+    pub use crate::Root;
     //plus other relevant.
 }
 
-//#[pax] was here
-pub struct RootProperties {
-    pub num_clicks: Box<dyn pax::api::Property<isize>>,
-    pub current_rotation: Box<dyn pax::api::Property<f64>>,
-    pub deeper_struct: Box<dyn pax::api::Property<DeeperStruct>>,
+
+#[pax_type]
+pub struct SpreadCellProperties {
+    pub x_px: f64,
+    pub y_px: f64,
+    pub width_px: f64,
+    pub height_px: f64,
 }
 
-impl RootProperties {
-    pub fn handle_tick(&mut self, args: ArgsTick) {
-        // pax::log(&format!("pax::log from frame {}", args.frame));
 
-        self.current_rotation.set(self.current_rotation.get() +(args.frame as f64 / 100.0).powf(1.001));
+//#[pax] was here
+#[derive(Default)]
+pub struct Root {
+    pub num_clicks: Box<dyn pax::api::Property<isize>>,
+    pub current_rotation: Box<dyn pax::api::Property<f64>>,
+}
+
+impl Root {
+    pub fn handle_pre_render(&mut self, args: ArgsRender) {
+        // pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
+        self.current_rotation.set(self.current_rotation.get() +(args.frames_elapsed as f64 / 100.0).powf(1.001));
     }
 
     // pub fn _dispatch(&mut self, args: ArgsCoproduct)

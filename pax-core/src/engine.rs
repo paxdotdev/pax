@@ -28,10 +28,10 @@ use crate::runtime::{Runtime};
 use wasm_bindgen::JsValue;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsRender, ArgsTick, Property};
+use pax_runtime_api::{ArgsClick, ArgsRender, Property};
 
 pub enum EventMessage {
-    Tick(ArgsTick),
+    Tick(ArgsRender),
     Click(ArgsClick),
 }
 
@@ -62,6 +62,7 @@ pub struct RenderTreeContext<'a>
 impl<'a> Into<ArgsRender> for RenderTreeContext<'a> {
     fn into(self) -> ArgsRender {
         ArgsRender {
+            frames_elapsed: self.engine.frames_elapsed,
             bounds: self.bounds.clone(),
         }
     }
@@ -98,7 +99,7 @@ pub struct HostPlatformContext<'a, 'b>
 #[derive(Default)]
 pub struct HandlerRegistry {
     pub click_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsClick)>,
-    pub tick_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsTick)>,
+    pub pre_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
 }
 
 pub type InstanceMap = HashMap<String, Rc<RefCell<dyn RenderNode>>>;
@@ -171,27 +172,13 @@ impl PaxEngine {
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done with this frame
 
-        //handle tick event dispatch for this element
-        let registry = (*node).borrow().get_handler_registry();
-        if let Some(registry) = registry {
-            //grab Rc of properties from stack frame; pass to type-specific handler
-            //on instance in order to dispatch cartridge method
-            match rtc.runtime.borrow_mut().peek_stack_frame() {
-                Some(stack_frame) => {
-                    for handler in (*registry).borrow().tick_handlers.iter() {
-                        let args = ArgsTick { frame: rtc.engine.frames_elapsed };
-                        handler(Rc::clone(&stack_frame.borrow_mut().get_scope().borrow_mut().properties), args);
-                    }
-                },
-                None => {
-                    panic!("can't bind events without a component")
-                },
-            }
-        }
+
 
         //populate a pointer to this (current) `RenderNode` onto `rtc`
         rtc.node = Rc::clone(&node);
 
+        //TODO: double-check that this logic should be happening here, vs. after `compute_properties` (where
+        //the "current component" will actually push its stack frame.)
         //peek at the current stack frame and set a scoped playhead position as needed
         match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
@@ -229,8 +216,26 @@ impl PaxEngine {
         rtc.bounds = new_accumulated_bounds;
         rtc.transform = new_accumulated_transform;
 
-        //lifecycle: pre_render
+        //lifecycle: pre_render for primitives
         node.borrow_mut().pre_render(rtc, hpc);
+
+        //lifecycle: pre_render for userland components
+        let registry = (*node).borrow().get_handler_registry();
+        if let Some(registry) = registry {
+            //grab Rc of properties from stack frame; pass to type-specific handler
+            //on instance in order to dispatch cartridge method
+            match rtc.runtime.borrow_mut().peek_stack_frame() {
+                Some(stack_frame) => {
+                    for handler in (*registry).borrow().pre_render_handlers.iter() {
+                        let args = ArgsRender { bounds: rtc.bounds.clone(), frames_elapsed: rtc.engine.frames_elapsed };
+                        handler(Rc::clone(&stack_frame.borrow_mut().get_scope().borrow_mut().properties), args);
+                    }
+                },
+                None => {
+                    panic!("can't bind events without a component")
+                },
+            }
+        }
 
         let children = node.borrow_mut().get_rendering_children();
 

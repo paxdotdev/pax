@@ -134,17 +134,17 @@ Perhaps a macro is the answer?
 
 [x] Spend some cycles ideating demo deliverables
 [ ] Port Spread to be a pure component
-    [ ] path to importing Spread and using in template
-    [ ] figure out importing mechanism for core and/or other std primitives
-        [ ] Group, Placeholder (e.g. from Core)
-        [ ] Frame (e.g. from std — though if easier could just move to Core)
+    [x] figure out importing mechanism for core and/or other std primitives
+        [x] Group, Placeholder (e.g. from Core)
+        [x] Frame (e.g. from std — though if easier could just move to Core)
     [x] port spread logic; design expression/method approach
         [-] pure expressions + helpers?
-        [x] on_pre_tick + manual dirty checking?
+        [x] on_pre_render + manual dirty checking?
             [x] decision: no dirty checking at all for right now; expose imperative dirty-check API only when implementing dirty checking for Expressions
     [x] hook in existing layout calc logic
 [ ] Import and use Spread in Root example
     [ ] update example .pax as needed along the way
+    [ ] "expand the proof" of generated code & make it work manually
 
 ## Milestone: automated compilation
 
@@ -205,8 +205,6 @@ Perhaps a macro is the answer?
 
 [ ] e2e `pax run`
 
-
-
 ## Milestone: timelines
 
 [ ] Hook up PropertyTimeline
@@ -253,6 +251,7 @@ Perhaps a macro is the answer?
 
 ## Backlog
 
+[ ] Revisit embedded literal strings for error messages, to reduce binary footprint
 [ ] Reinvestigate Any as an alternative to Coproduct generation
     [ ] would dramatically simplify compiler, code-gen process
     [ ] would make build process less brittle
@@ -261,6 +260,7 @@ Perhaps a macro is the answer?
         [ ] sanity check that we can downcast from a given `Any` both to: 1. `dyn RenderNode` (to call methods), and 2. `WhateverProperties` (to access properties)
         [ ] sanity check that `Any + 'static` will work with needs of `dyn RenderNode` and individual properties
         [ ] check out downcast_rs crate as way to ease?
+        [ ] ensure that `'static` constraints can be met!! e.g. `Repeat`
 [ ] Designtime
     [ ] codegen DefinitionToInstance traverser
         [ ] codegen in `#[pax]`: From<SettingsLiteralBlockDefinition>
@@ -272,8 +272,6 @@ Perhaps a macro is the answer?
         [ ] Attach CRUD API endpoints to `Definition` ORM methods via `designtime` server
     [ ] figure out recompilation loop or hot-reloading of Properties and Expressions
         [ ] incl. state transfer
-
-
 [ ] Margin & padding?
     [ ] Decide whether to support, e.g. is there a simpler alternative w/ existing pieces?
     [ ] Decide whether to support ONE or BOTH
@@ -1544,21 +1542,53 @@ So, we can reduce our surface area to:
 
 
 
+(cont. 2022-03-07)
+
+SO: when declaring a component instance, say `Root` or `Spread` —
+1. we're declaring the `Properties + API` object (`Root` and `Spread`, with a series of `Box<dyn pax::api::Property<some_type>>` properties
+2. there will be auto-generated Instance impl (or Factory, or boilerplate instantiation code)
+   1. On this point — which is best?  Probably generation of Factory/Instance, both for consistency (easing codegen reqs) and for footprint (presumably lower footprint)_
+3. 
 
 
 
-Some facts:
- - Every Render Node will have an accompanying Properties object, even if trivial/`Empty`
- - When consuming a 
 
 
 
 
+### On return type for `@for (elem i) in self.computed_layout_spec`
 
+The expression generated for this @for statement -- i.e. the expression bound to the `data_list`
+property of the `Repeat` instance -- needs to return a `Vec` of _something_.
 
+The `data_list` property for Repeat is of type `pub data_list: Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>`
 
-### note to immediate future self:
+So that _something_ should probably be a `Vec<Rc<PropertiesCoproduct>>`.  This means the expression needs to
+remap from `computed_layout_spec` — i.e. whatever is the type of each element of that array — into a PropertiesCoproduct.
 
-Observation: by removing the Transform expression from the repeated (yellow & pink)
-rects, they began rendering again.  Look around the intersection of Transform2D and expressions
-(perhaps the impl. of that particular expression) for clues
+More specifically, the compiler needs to know what variant of the PropertiesCoproduct enum to wrap each element
+into.  In the Spread case, it's `PropertiesCoproduct::SpreadCellProperty(elem)`
+
+How can we know what type `SpreadCellProperty` should be?  One option is to make it static, i.e. for 
+`B` in `@for A in B` to be a statically knowable symbol, present in the current scope.
+
+One version of this constraint would be to ensure the symbol is a `Property`.  Another could
+include its ability to be a method call (we can know the return types of methods from the parser via macros) 
+
+Is it the case we will only want to support `static property` symbols and `static method calls`?
+(more dynamic collections could be computed in event handlers...)  so, yes!
+
+OK — so the parser is responsible for gathering the type attached to a symbol, incl. via shadowing,
+whether the symbol is a `property` or a `method`.  We can expect that the type is wrapped in `Vec<>`
+(or, perhaps, is otherwise `enumeratable`).  We should also be able to support `literal ranges` like `(0..10)` or even `(0..num_clicks)`
+
+With this type in hand, the compiler can generate the correct Coproduct wrapper type,
+e.g. `PropertiesCoproduct::SomeDiscoveredType(datum)`
+
+Let's walk through how that gets unwrapped, as a sanity check.
+
+Repeat will create a `Component` instance mounted with `PropertiesCoproduct::SomeDiscoveredType(datum)` as its `properties`.
+Inside any expression with access to this scope, a member may be invoked, any symbol...
+
+*The compiler is responsible once again for resolving that symbol (or throwing an error if it 
+cannot be resolved) and then generating the correct "invocation" code to bind that symbol*

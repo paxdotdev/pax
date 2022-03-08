@@ -1,8 +1,217 @@
 # Pax 
 
-Pax is a toolkit for creating high-performance, expressive, and portable user interfaces.  
+Pax is a toolkit for creating high-performance UIs that run as natively as possible on any device.
 
-Pax is designed to support any platform via extensible rendering engines, either 2D or 3D, across Web, iOS, Android, Desktop (macOS, Linux, Windows), Embedded devices, and more.
+Pax is designed to support any platform via swappable rendering backends, either 2D or 3D, across Web, iOS, Android, Desktop (macOS, Linux, Windows), and embedded devices.  See the current support matrix below.
+
+In short: author once, deploy everywhere.
+
+Finally, Pax is designed to be _designed._  That is:
+  1. *Pax is very expressive* — Pax is designed to support arbitrary drawing 
+
+
+
+
+## How it works
+
+Pax is _not_ Turing-complete by itself, by design.  Instead, Pax attaches to a _host codebase_ which is responsible for handling
+any imperative logic and side-effectful logic (e.g. network requests, operating system interactions.) 
+
+Following is a simple example.  This Pax UI describes a rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle increments its rotation by 1/20 radians.
+
+```rust
+use pax::*;
+use pax::drawing2D::Rectangle;
+
+#[pax(
+    @template {
+        <Rectangle on_click=@self.handle_click transform=@{
+            align(50%, 50%) *
+            rotate(self.num_clicks / 20.0)
+        }>
+    }
+)]
+pub struct HelloWorld {
+    num_clicks: isize,
+}
+
+impl HelloWorld {
+    pub fn handle_click(&mut self, args: ArgsClick) {
+        let old_num_clicks = self.num_clicks.get();
+        self.num_clicks.set(old_num_clicks + 1);
+    }
+}
+```
+
+You'll notice a few moving pieces here:
+
+1. Template and settings
+   1. Each component declares a template in an XML-like syntax, which describes how its UI should be displayed.
+   2. Any element in that template can have settings assigned as XML key-value pairs.  Alternatively, not shown above, settings may be broken out into a separate `@settings` block for code cleanliness.
+2. Expressions
+   1. Notice the two `@`-signs in the template above.  Those signal to the Pax compiler that the subsequent symbol(s) are dynamic, and should be evaluated in the context of the host codebase.
+   2. The mechanism behind this is in fact a whole computer language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.
+   3. PAXEL expressions are unusual in a few ways:
+      1. Any PAXEL expression is a pure functions and must be side-effect free
+      2. As a result of the above, PAXEL expressions may be aggressively cached and updated only when inputs change
+      3. In spirit, expressions act a lot like spreadsheet formulas
+3. Components all the way down
+   1. This example declares a Pax component called `HelloWorld`.  Every Pax UI is a component at its root, which comprises other components in its template.
+   2. Special primitives are included with Pax core and may be authored by anyone.  These primitives (`Rectangle` in the example above) have access to the core engine and drawing APIs, which is how `Rectangle` draws itself.  Other built-in primitives include `Text`, `Group`, `Ellipse`, `Path`.
+
+
+Currently, Pax supports 
+
+
+ - Component definitions
+ - Drawing and rendering primitives, e.g. shapes, text, and form controls
+ - Template declarations, as compilations of components and primitives
+
+Currently Rust is the only supported host language.  Pax is itself built with Rust.  Support for JavaScript/TypeScript as a host language is on the [roadmap](TODO.md).
+
+That is, you _describe_ the definition and properties of a UI with the Pax language, and
+handle 
+
+
+Pax currently works alongside Rust and is built with Rust.though support for authoring UI logic in JavaScript/TypeScript is also on the 
+
+
+
+## A bit more detail
+
+Portable, All-purpose, eXpressive
+User Interface Description Language
+
+
+
+## Current support
+
+
+|                             | Web browsers   | Native iOS           | Native Android | Native macOS         | Native Windows   |
+|-----------------------------|----------------|----------------------|----------------|----------------------|------------------|
+| 2D rendering[1]             | ✅ (via Canvas) | ✅ (via CoreGraphics) | ✅ (via Cairo)  | ✅ (via CoreGraphics) | ✅ (via Direct2D) |
+| 3D rendering                | ⏲              | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| Vector graphics APIs        | ✅              | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| Native text rendering       | ✅ (via DOM)    | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| Native form elements        | ⏲ (via DOM)    | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| 2D layouts                  | ✅              | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| Animation APIs              | ✅              | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| Rust host language          | ✅              | ✅                    | ✅              | ✅                    | ✅                |
+| JS/TypeScript host language | ⏲              | ⏲                    | ⏲              | ⏲                    | ⏲                |
+
+✅ Supported
+⏲ Not yet supported
+
+[1] Native 2D drawing that _just works_ on every device is available thanks to the hard work behind [piet](https://github.com/linebender/piet), 
+
+## Anatomy of Pax
+
+
+
+
+### Anatomy of a Pax UI program
+
+1. Host Codebase
+   1. Pax works as a _companion language_ to a host codebase.  As of this writing, Pax supports Rust for host codebases — i.e. you author UIs in Pax driven by the logic written in Rust. JavaScript/TypeScript host codebase support is planned for the future.
+2. Pax declarations (either a "code-behind" file, or inline)
+3. Pax compiler builds "cartridge", which fits (NES) into native platform renderersloaded into native codebases with SDK (a la React)
+
+
+### Detail of a Pax declaration
+
+1. Component declarations
+   1. Template declarations, 
+   2. Settings declarations
+2. Primitives
+   1. E.g. for drawing 
+
+
+
+
+
+```
+
+
+
+
+The core design goal of Pax is to be _designable._
+
+That is, anything you could imagine _designing_ visually on a screen, e.g. through a vector
+graphics design tool, or a 3D scene for a video game, should be elegantly expressible with Pax.
+
+Further, Pax's language syntax was designed for tooling to read and write.  The compiler API accepts
+parsed language tokens through the same bridge that is exposed for future design tools to perform operations like
+"create vector ellipse" or "change bezier path control point."
+
+
+
+Not
+only can you express sky's-the-limit UIs with it (not unlike a game engine,)
+but the language itself was designed to be "hyper-declarative"
+
+
+
+
+Pax draws inspiration from hardware description languages like Verilog and VHDL, which operate
+highly declaratively.
+
+In much the same way as Verilog and VHDL allow you to "declare transitor arrangements," Pax allows
+you to "declare UI arrangements," with the express goal of supporting any UI you can imagine or design.
+
+Similar to a Hardware Description Language,[1] Pax aims to be hyper-
+
+
+[1] "HDLs", like Verilog or VHDL
+
+a tool for authoring cross-platform
+native, high-performance, delightful UIs
+
+
+
+
+As of the authoring of this document, Pax only supports vector and text graphics for 2D back-ends[1], but there's a clear path
+to 3D support.  This would be an excellent area for community contribution; the hardest part will simply be
+the creation of 3D primitives
+
+[1] Thanks to the hard work of the folks behind `piet`
+
+
+```
+
+
+## Native rendering, native controls
+
+Rather than introduce virtual controls at the canvas layer, Pax orchestrates a layer of native
+controls as part of its rendering process.  This native overlay is used both for form controls like checkboxes
+and drop-downs, as well as for rendering text.
+
+In the browser, for example, a pool of DOM nodes is created for form control elements and text.
+Those elements are positioned as an overlay on top of any canvas rendering, allowing for a cohesive
+experience that blends dynamic graphics (e.g. vectors, animations) with native familiar UI elements (e.g. text boxes.)
+
+[Visual of DOM "marionette" overlay layer on top of parallaxed graphics layer]
+
+
+
+
+
+
+## Who?
+
+
+
+## Inspiration
+
+Pax draws design inspiration from, among others:
+ - Verilog, VHDL
+ - Macromedia Flash, Dreamweaver
+ - The World Wide Web, HTML, CSS
+ - React, Vue
+ - Visual Basic, ASP.NET
+ - VisiCalc, Lotus 1-2-3, Excel
+ - The Nintendo Entertainment System
+ 
+
 
 
 ## How does it work?

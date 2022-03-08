@@ -38,13 +38,16 @@ pub fn mint_unique_id() -> String {
 }
 
 pub enum ArgsCoproduct {
-    Tick(ArgsTick),
+    Render(ArgsRender),
     Click(ArgsClick),
 }
 
 #[derive(Clone)]
-pub struct ArgsTick {
-    pub frame: usize,
+pub struct ArgsRender {
+    /// The current global engine tick count
+    pub frames_elapsed: usize,
+    /// The bounds of this element's container in px
+    pub bounds: (f64, f64)
 }
 
 #[derive(Clone)]
@@ -53,11 +56,6 @@ pub struct ArgsClick {
     y: f64,
 }
 
-
-#[derive(Clone)]
-pub struct ArgsRender {
-    pub bounds: (f64, f64)
-}
 
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.  Note that this may be more precisely
