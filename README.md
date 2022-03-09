@@ -89,10 +89,10 @@ Pax is in its early days but has ambitions to mature robustly.
 | Vector graphics APIs                    | ✅                 | ✅                     | ✅                       | ✅                     | ✅                                 |
 | 2D layouts                              | ✅                 | ✅                     | ✅                       | ✅                     | ✅                                 |
 | Animation APIs                          | ✅                 | ✅                     | ✅                       | ✅                     | ✅                                 |
-| Native text rendering                   | ✅ <br/>(via DOM)  | ⏲ <br/>(via UIKit)    | ⏲ <br/>(via android:\*) | ⏲ <br/>(via UIKit)    | ⏲ <br/>(via System.Windows.Forms) |
-| Native form elements                    | ⏲ <br/>(via DOM)  | ⏲ <br/>(via UIKit)    | ⏲ <br/>(via android:\*) | ⏲ <br/>(via UIKit)    | ⏲ <br/>(via System.Windows.Forms) |
+| Native text rendering                   | ✅ <br/>(DOM)  | ⏲ <br/>(UIKit)    | ⏲ <br/>(android:\*) | ⏲ <br/>(UIKit)    | ⏲ <br/>(System.Windows.Forms) |
+| Native form elements                    | ⏲ <br/>(DOM)  | ⏲ <br/>(UIKit)    | ⏲ <br/>(android:\*) | ⏲ <br/>(UIKit)    | ⏲ <br/>(System.Windows.Forms) |
 | Native event handling (e.g. Click, Tap) | ✅                 | ⏲                     | ⏲                       | ⏲                     | ⏲                                 |
-| Rust as host language                   | ✅ <br/>(via WASM) | ✅ <br/>(via LLVM)     | ✅ <br/>(via LLVM)       | ✅ <br/>(via LLVM)     | ✅ <br/>(via LLVM)                 |
+| Rust as host language                   | ✅ <br/>(WASM) | ✅ <br/>(LLVM)     | ✅ <br/>(LLVM)       | ✅ <br/>(LLVM)     | ✅ <br/>(LLVM)                 |
 | JS/TypeScript as host language          | ⏲                 | ⏲                     | ⏲                       | ⏲                     | ⏲                                 |
 
 | Legend:             |
