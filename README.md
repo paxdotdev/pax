@@ -84,7 +84,7 @@ Pax is in its early days but has ambitions to mature robustly.
 
 |                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              |
 |-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|
-| 2D rendering[1]                         | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D)            |
+| 2D rendering[1]                         | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D             |
 | 3D rendering                            | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
 | Vector graphics APIs                    | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
 | 2D layouts                              | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
