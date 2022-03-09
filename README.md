@@ -82,25 +82,25 @@ You'll notice a few moving pieces here:
 
 Pax is in its early days but has ambitions to mature robustly.
 
-|                                         | Web browsers    | Native iOS            | Native Android      | Native macOS          | Native Windows               |
-|-----------------------------------------|-----------------|-----------------------|---------------------|-----------------------|------------------------------|
-| 2D rendering[1]                         | ✅ <br/>(Canvas) | ✅ <br/>(CoreGraphics) | ✅ <br/>(Cairo)      | ✅ <br/>(CoreGraphics) | ✅ <br/>(Direct2D)            |
-| 3D rendering                            | ⏲               | ⏲                     | ⏲                   | ⏲                     | ⏲                            |
-| Vector graphics APIs                    | ✅               | ✅                     | ✅                   | ✅                     | ✅                            |
-| 2D layouts                              | ✅               | ✅                     | ✅                   | ✅                     | ✅                            |
-| Animation APIs                          | ✅               | ✅                     | ✅                   | ✅                     | ✅                            |
-| Native text rendering                   | ✅ (via DOM)     | ⏲ (via UIKit)         | ⏲ (via `android:*`) | ⏲ (via UIKit)         | ⏲ (via System.Windows.Forms) |
-| Native form elements                    | ⏲ (via DOM)     | ⏲ (via UIKit)         | ⏲ (via `android:*`) | ⏲ (via UIKit)         | ⏲ (via System.Windows.Forms) |
-| Native event handling (e.g. Click, Tap) | ✅               | ⏲                     | ⏲                   | ⏲                     | ⏲                            |
-| Rust as host language                   | ✅ (via WASM)    | ✅                     | ✅                   | ✅                     | ✅                            |
-| JS/TypeScript as host language          | ⏲               | ⏲                     | ⏲                   | ⏲                     | ⏲                            |
+|                                         | Web browsers     | Native iOS            | Native Android          | Native macOS          | Native Windows                    |
+|-----------------------------------------|------------------|-----------------------|-------------------------|-----------------------|-----------------------------------|
+| 2D rendering[1]                         | ✅ <br/>(Canvas)  | ✅ <br/>(CoreGraphics) | ✅ <br/>(Cairo)          | ✅ <br/>(CoreGraphics) | ✅ <br/>(Direct2D)                 |
+| 3D rendering                            | ⏲                | ⏲                     | ⏲                       | ⏲                     | ⏲                                 |
+| Vector graphics APIs                    | ✅                | ✅                     | ✅                       | ✅                     | ✅                                 |
+| 2D layouts                              | ✅                | ✅                     | ✅                       | ✅                     | ✅                                 |
+| Animation APIs                          | ✅                | ✅                     | ✅                       | ✅                     | ✅                                 |
+| Native text rendering                   | ✅ <br/>(via DOM) | ⏲ <br/>(via UIKit)    | ⏲ <br/>(via android:\*) | ⏲ <br/>(via UIKit)    | ⏲ <br/>(via System.Windows.Forms) |
+| Native form elements                    | ⏲ <br/>(via DOM) | ⏲ <br/>(via UIKit)    | ⏲ <br/>(via android:\*) | ⏲ <br/>(via UIKit)    | ⏲ <br/>(via System.Windows.Forms) |
+| Native event handling (e.g. Click, Tap) | ✅                | ⏲                     | ⏲                       | ⏲                     | ⏲                                 |
+| Rust as host language                   | ✅ (via WASM)     | ✅                     | ✅                       | ✅                     | ✅                                 |
+| JS/TypeScript as host language          | ⏲                | ⏲                     | ⏲                       | ⏲                     | ⏲                                 |
 
 | Legend:             |
 |---------------------|
 | ✅ Supported         |
 | ⏲ Not yet supported |
 
-[1] Native 2D drawing that _just works_ on every device is available thanks to the hard work behind [piet](https://github.com/linebender/piet), 
+[1] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the hard work behind [Piet](https://github.com/linebender/piet). 
 
 
 
