@@ -103,6 +103,7 @@ Pax is in its early days but has ambitions to mature robustly.
 
 
 [1] First, note that Pax is currently in alpha and should only be used in rare production settings where that's not a concern.  Second, "production" in this context describes end-to-end functionality, hinging on a native adapter layer (`chassis`), which handles rendering commands and native inputs like touch and mouse.  As of this writing, only the [Web chassis](pax-chassis-web) is complete enough to use at all. 
+
 [2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the hard work behind [Piet](https://github.com/linebender/piet). 
 
 
