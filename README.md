@@ -82,18 +82,18 @@ You'll notice a few moving pieces here:
 
 Pax is in its early days but has ambitions to mature robustly.
 
-|                                         | Web browsers      | Native iOS            | Native Android          | Native macOS          | Native Windows                    |
-|-----------------------------------------|-------------------|-----------------------|-------------------------|-----------------------|-----------------------------------|
-| 2D rendering[1]                         | ✅ <br/>(Canvas)   | ✅ <br/>(CoreGraphics) | ✅ <br/>(Cairo)          | ✅ <br/>(CoreGraphics) | ✅ <br/>(Direct2D)                 |
-| 3D rendering                            | ⏲                 | ⏲                     | ⏲                       | ⏲                     | ⏲                                 |
-| Vector graphics APIs                    | ✅                 | ✅                     | ✅                       | ✅                     | ✅                                 |
-| 2D layouts                              | ✅                 | ✅                     | ✅                       | ✅                     | ✅                                 |
-| Animation APIs                          | ✅                 | ✅                     | ✅                       | ✅                     | ✅                                 |
-| Native text rendering                   | ✅ <br/>(DOM)  | ⏲ <br/>(UIKit)    | ⏲ <br/>(android:\*) | ⏲ <br/>(UIKit)    | ⏲ <br/>(System.Windows.Forms) |
-| Native form elements                    | ⏲ <br/>(DOM)  | ⏲ <br/>(UIKit)    | ⏲ <br/>(android:\*) | ⏲ <br/>(UIKit)    | ⏲ <br/>(System.Windows.Forms) |
-| Native event handling (e.g. Click, Tap) | ✅                 | ⏲                     | ⏲                       | ⏲                     | ⏲                                 |
-| Rust as host language                   | ✅ <br/>(WASM) | ✅ <br/>(LLVM)     | ✅ <br/>(LLVM)       | ✅ <br/>(LLVM)     | ✅ <br/>(LLVM)                 |
-| JS/TypeScript as host language          | ⏲                 | ⏲                     | ⏲                       | ⏲                     | ⏲                                 |
+|                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              |
+|-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|
+| 2D rendering[1]                         | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D)            |
+| 3D rendering                            | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
+| Vector graphics APIs                    | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
+| 2D layouts                              | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
+| Animation APIs                          | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
+| Native text rendering                   | ✅ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>UIKit        | ⏲ <br/>System.Windows.Forms |
+| Native form elements                    | ⏲ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>UIKit        | ⏲ <br/>System.Windows.Forms |
+| Native event handling (e.g. Click, Tap) | ✅             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
+| Rust as host language                   | ✅ <br/>WASM   | ✅ <br/>LLVM         | ✅ <br/>LLVM       | ✅ <br/>LLVM         | ✅ <br/>LLVM                 |
+| JS/TypeScript as host language          | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
 
 | Legend:             |
 |---------------------|
