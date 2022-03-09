@@ -55,24 +55,27 @@ You'll notice a few moving pieces here:
      - Any PAXEL expression must be a pure function of its inputs and must be side-effect free
      - As a result of the above, PAXEL expressions may be aggressively cached and recalculated only when inputs change.
      - In spirit, expressions act a lot like spreadsheet formulas
-  - Components all the way down
-     - This example declares a Pax component called `HelloWorld`.  Every Pax UI is a component at its root, which comprises other components in its template.  Another program or file could import `HelloWorld` and include it in its template as `<HelloWorld num_clicks=4 />`
-     - Special primitives are included with Pax core and may be authored by anyone.  These primitives (`Rectangle` in the example above) have access to the core engine and drawing APIs, which is how `Rectangle` draws itself.  Other built-in primitives include `Text`, `Frame` (clipping), `Group`, `Ellipse`, and `Path`.
+     
+####Components all the way down
+  - This example declares a Pax component called `HelloWorld`.  Every Pax UI is a component at its root, which comprises other components in its template.  Another program or file could import `HelloWorld` and include it in its template as `<HelloWorld num_clicks=4 />`
+  - Special primitives are included with Pax core and may be authored by anyone.  These primitives (`Rectangle` in the example above) have access to the core engine and drawing APIs, which is how `Rectangle` draws itself.  Other built-in primitives include `Text`, `Frame` (clipping), `Group`, `Ellipse`, and `Path`.
 
     
-## Current support
+## Current status & support
 
-|                             | Web browsers   | Native iOS           | Native Android | Native macOS         | Native Windows   |
-|-----------------------------|----------------|----------------------|----------------|----------------------|------------------|
-| 2D rendering[1]             | ✅ <br/>(via Canvas) | ✅ <br/>(via CoreGraphics) | ✅ <br/>(via Cairo)  | ✅ <br/>(via CoreGraphics) | ✅ <br/>(via Direct2D) |
-| 3D rendering                | ⏲              | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| Vector graphics APIs        | ✅              | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| Native text rendering       | ✅ (via DOM)    | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| Native form elements        | ⏲ (via DOM)    | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| 2D layouts                  | ✅              | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| Animation APIs              | ✅              | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| Rust host language          | ✅              | ✅                    | ✅              | ✅                    | ✅                |
-| JS/TypeScript host language | ⏲              | ⏲                    | ⏲              | ⏲                    | ⏲                |
+Pax is in its early days but has ambitions to mature robustly.
+
+|                             | Web browsers    | Native iOS           | Native Android | Native macOS         | Native Windows   |
+|-----------------------------|-----------------|----------------------|----------------|----------------------|------------------|
+| 2D rendering[1]             | ✅ <br/>(Canvas) | ✅ <br/>(CoreGraphics) | ✅ <br/>(Cairo)  | ✅ <br/>(CoreGraphics) | ✅ <br/>(Direct2D) |
+| 3D rendering                | ⏲               | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| Vector graphics APIs        | ✅               | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| Native text rendering       | ✅ (via DOM)     | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| Native form elements        | ⏲ (via DOM)     | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| 2D layouts                  | ✅               | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| Animation APIs              | ✅               | ⏲                    | ⏲              | ⏲                    | ⏲                |
+| Rust host language          | ✅ (via WASM)    | ✅                    | ✅              | ✅                    | ✅                |
+| JS/TypeScript host language | ⏲               | ⏲                    | ⏲              | ⏲                    | ⏲                |
 
 ✅ Supported
 ⏲ Not yet supported
@@ -115,6 +118,7 @@ experience that blends dynamic graphics (e.g. vectors, animations) with native f
 
 ## Who?
 
+Pax is managed by the Pax Foundation, a non-profit entity with open membership.  You can join and have a hand the future of Pax!
 
 
 ## Inspiration
