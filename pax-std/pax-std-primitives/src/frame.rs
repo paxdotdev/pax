@@ -25,6 +25,7 @@ pub struct FrameInstance {
 
 impl RenderNode for FrameInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+        //TODO: add to instance_map!
         Rc::new(RefCell::new(
             Self {
                 children: args.primitive_children.expect("Frame expects primitive_children, even if empty Vec"),

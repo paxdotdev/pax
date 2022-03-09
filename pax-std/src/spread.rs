@@ -11,7 +11,7 @@ use crate::types::{SpreadDirection, SpreadCellProperties};
 #[pax(
     @template {
         @for (elem, i) in computed_layout_spec {
-            <Frame transform=@elem.transform size=@elem.size>
+            <Frame transform=@{translate(elem.x_px, elem.y_px)} size=@{[elem.width_px, elem.height_px]}>
                 <Placeholder index=@i>
             </Frame>
         }

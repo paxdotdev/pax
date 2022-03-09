@@ -1,21 +1,20 @@
 # Pax 
 
-Pax is a toolkit for creating high-performance UIs that run as natively as possible on any device.
+Pax is a toolkit for creating high-performance UIs that render natively on any device.
 
 Pax is designed to support any platform via swappable rendering backends, either 2D or 3D, across Web, iOS, Android, Desktop (macOS, Linux, Windows), and embedded devices.  See the current support matrix below.
 
-In short: author once, deploy everywhere.
+Finally, Pax is designed to be _designed._ That is:
+ 1. Pax's declaration format is meant to be read & written by tooling as well as by hand.
+ 2. Pax is designed to be _expressive,_ including support for vector drawings and complex animations, as well as plain ol' forms and layouts.  Feel free to mix and match all of the above.
+ 3. Pax's rendering engine is intended to offer a rendering platform for any number of future visual UI design tools — e.g. a next generation of "Figma" or "Illustrator" that paints UIs instead of pictures.
 
-Finally, Pax is designed to be _designed._  That is:
-  1. *Pax is very expressive* — Pax is designed to support arbitrary drawing 
-
-
-
+Pax is free, under a permissive license (MIT/Apache 2.0, your choice).   
 
 ## How it works
 
-Pax is _not_ Turing-complete by itself, by design.  Instead, Pax attaches to a _host codebase_ which is responsible for handling
-any imperative logic and side-effectful logic (e.g. network requests, operating system interactions.) 
+Pax attaches to a _host codebase_ which is responsible for handling
+any imperative logic and side-effectful logic (e.g. network requests, operating system interactions.)  This divide allows Pax itself to remain highly declarative.
 
 Following is a simple example.  This Pax UI describes a rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle increments its rotation by 1/20 radians.
 
@@ -47,17 +46,17 @@ You'll notice a few moving pieces here:
 
 1. Template and settings
    1. Each component declares a template in an XML-like syntax, which describes how its UI should be displayed.
-   2. Any element in that template can have settings assigned as XML key-value pairs.  Alternatively, not shown above, settings may be broken out into a separate `@settings` block for code cleanliness.
+   2. Any element in that template can have settings assigned as XML key-value pairs.
 2. Expressions
-   1. Notice the two `@`-signs in the template above.  Those signal to the Pax compiler that the subsequent symbol(s) are dynamic, and should be evaluated in the context of the host codebase.
+   1. Notice the two `@`-signs in the template above.  Those signal to the Pax compiler that the subsequent symbol(s) are dynamic, and should be evaluated in the context of the host codebase.  `@self.handle_click` points to a function as an event handler, and `transform=@{ ... }` calculates the contents of the `{}` block and passes a return value. 
    2. The mechanism behind this is in fact a whole computer language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.
-   3. PAXEL expressions are unusual in a few ways:
-      1. Any PAXEL expression is a pure functions and must be side-effect free
-      2. As a result of the above, PAXEL expressions may be aggressively cached and updated only when inputs change
+   3. PAXEL expressions are distinctive in a few ways:
+      1. Any PAXEL expression must be a pure function of its inputs and must be side-effect free
+      2. As a result of the above, PAXEL expressions may be aggressively cached and recalculated only when inputs change.
       3. In spirit, expressions act a lot like spreadsheet formulas
 3. Components all the way down
-   1. This example declares a Pax component called `HelloWorld`.  Every Pax UI is a component at its root, which comprises other components in its template.
-   2. Special primitives are included with Pax core and may be authored by anyone.  These primitives (`Rectangle` in the example above) have access to the core engine and drawing APIs, which is how `Rectangle` draws itself.  Other built-in primitives include `Text`, `Group`, `Ellipse`, `Path`.
+   1. This example declares a Pax component called `HelloWorld`.  Every Pax UI is a component at its root, which comprises other components in its template.  Another program or file could import `HelloWorld` and include it in its template as `<HelloWorld num_clicks=4 />`
+   2. Special primitives are included with Pax core and may be authored by anyone.  These primitives (`Rectangle` in the example above) have access to the core engine and drawing APIs, which is how `Rectangle` draws itself.  Other built-in primitives include `Text`, `Frame` (clipping), `Group`, `Ellipse`, and `Path`.
 
 
 Currently, Pax supports 
