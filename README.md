@@ -4,23 +4,23 @@ Pax is a language for creating high-performance cross-platform UIs.
 
 Pax is designed to support any platform via swappable rendering backends, either 2D or 3D, across Web, iOS, Android, Desktop (macOS, Linux, Windows), and embedded devices.  See the current support matrix below.
 
-Pax's goals can be understood through this pneumonic:
+## Goals
 
-## Pax's goals
+Pax's goals can be understood through this mnemonic:
 
-**P**ortable
+**Portable**
 - runs everywhere
 - tiny footprint: suitable for web applications and embedded applications
 - excellent performance for a wide range of hardware
 - Fast & tiny binary "cartridges" describe production applications
 
-**A**ll-purpose
+**All-purpose**
 - 2D, 3D, digital documents, web apps, VR/AR, embedded GUIs
 - Per-platform native UI controls (dropdowns, scroll, etc.)
 - Expressive & intuitive layouts
 - Animations (bouncy UI ex.), simulations (particles ex.), complex GUIs (spreadsheet ex.), data-viz (d3-style animated chart ex.)
 
-e**X**tensible
+**eXtensible**
 - Reusable, extensible UI building blocks
 - Open source (MIT / Apache 2.0)
 - Pluggable rendering back-ends
