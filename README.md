@@ -1,20 +1,35 @@
 # Pax 
 
-Pax is a language for creating high-performance UIs that render natively on any device.
+Pax is a language for creating high-performance cross-platform UIs.
 
 Pax is designed to support any platform via swappable rendering backends, either 2D or 3D, across Web, iOS, Android, Desktop (macOS, Linux, Windows), and embedded devices.  See the current support matrix below.
 
-Finally, Pax is designed to be _designed._ That is:
- 1. Pax's declaration format is meant to be read & written by tooling as well as by hand.
- 2. Pax is designed to be _expressive,_ including support for vector drawings and complex animations, as well as plain ol' forms and layouts.  Feel free to mix and match all of the above.
- 3. Pax's rendering engine is intended to offer a rendering platform for any number of future visual UI design tools — e.g. a next generation of "Figma" or "Illustrator" that paints UIs instead of pictures.
+Pax's goals can be understood through this pneumonic:
 
-Pax is free, under a permissive license (MIT/Apache 2.0, your choice).   
+## Pax's goals
+
+**P**ortable
+- runs everywhere
+- tiny footprint: suitable for web applications and embedded applications
+- excellent performance for a wide range of hardware
+- Fast & tiny binary "cartridges" describe production applications
+
+**A**ll-purpose
+- 2D, 3D, digital documents, web apps, VR/AR, embedded GUIs
+- Per-platform native UI controls (dropdowns, scroll, etc.)
+- Expressive & intuitive layouts
+- Animations (bouncy UI ex.), simulations (particles ex.), complex GUIs (spreadsheet ex.), data-viz (d3-style animated chart ex.)
+
+e**X**tensible
+- Reusable, extensible UI building blocks
+- Open source (MIT / Apache 2.0)
+- Pluggable rendering back-ends
+
+Also: designable. (TODO)
 
 ## How it works
 
-Pax attaches to a _host codebase_ which is responsible for
-any imperative logic and side-effectful logic (e.g. network requests, operating system interactions.)  This divide allows Pax itself to remain highly declarative.
+Pax attaches to a _host codebase_ which is responsible for any imperative or side-effectful logic (e.g. network requests, operating system interactions.)  This divide allows Pax itself to remain highly declarative.
 
 Currently Pax supports Rust as a host language, though support for JavaScript/TypeScript is on the [roadmap](TODO.md).
 
