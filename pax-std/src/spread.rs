@@ -10,7 +10,7 @@ use crate::types::{SpreadDirection, SpreadCellProperties};
 /// and vertically, alongside `Transform.align` and `Transform.origin` to achieve any 2D layout.
 #[pax(
     @template {
-        @for (elem, i) in computed_layout_spec {
+        @for (elem, i) in self.computed_layout_spec {
             <Frame transform=@{translate(elem.x_px, elem.y_px)} size=@{[elem.width_px, elem.height_px]}>
                 <Placeholder index=@i>
             </Frame>

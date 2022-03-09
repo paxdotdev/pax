@@ -14,8 +14,8 @@ use pax_std::{Spread};
     }
 )]
 pub struct Root {
-    pub num_clicks : Box<dyn pax::api::Property<isize>>,
-    pub current_rotation: Box<dyn pax::api::Property<f64>>,
+    pub num_clicks : isize,
+    pub current_rotation: f64,
 }
 
 impl Root {

@@ -73,7 +73,7 @@ You'll notice a few moving pieces here:
      - As a result of the above, PAXEL expressions may be aggressively cached and recalculated only when inputs change.
      - In spirit, expressions act a lot like spreadsheet formulas
      
-####Components all the way down
+#### Components all the way down
   - This example declares a Pax component called `HelloWorld`.  Every Pax UI is a component at its root, which comprises other components in its template.  Another program or file could import `HelloWorld` and include it in its template as `<HelloWorld num_clicks=4 />`
   - Special primitives are included with Pax core and may be authored by anyone.  These primitives (`Rectangle` in the example above) have access to the core engine and drawing APIs, which is how `Rectangle` draws itself.  Other built-in primitives include `Text`, `Frame` (clipping), `Group`, `Ellipse`, and `Path`.
 
@@ -82,22 +82,27 @@ You'll notice a few moving pieces here:
 
 Pax is in its early days but has ambitions to mature robustly.
 
-|                             | Web browsers    | Native iOS           | Native Android | Native macOS         | Native Windows   |
-|-----------------------------|-----------------|----------------------|----------------|----------------------|------------------|
-| 2D rendering[1]             | ✅ <br/>(Canvas) | ✅ <br/>(CoreGraphics) | ✅ <br/>(Cairo)  | ✅ <br/>(CoreGraphics) | ✅ <br/>(Direct2D) |
-| 3D rendering                | ⏲               | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| Vector graphics APIs        | ✅               | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| Native text rendering       | ✅ (via DOM)     | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| Native form elements        | ⏲ (via DOM)     | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| 2D layouts                  | ✅               | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| Animation APIs              | ✅               | ⏲                    | ⏲              | ⏲                    | ⏲                |
-| Rust host language          | ✅ (via WASM)    | ✅                    | ✅              | ✅                    | ✅                |
-| JS/TypeScript host language | ⏲               | ⏲                    | ⏲              | ⏲                    | ⏲                |
+|                                         | Web browsers    | Native iOS            | Native Android      | Native macOS          | Native Windows               |
+|-----------------------------------------|-----------------|-----------------------|---------------------|-----------------------|------------------------------|
+| 2D rendering[1]                         | ✅ <br/>(Canvas) | ✅ <br/>(CoreGraphics) | ✅ <br/>(Cairo)      | ✅ <br/>(CoreGraphics) | ✅ <br/>(Direct2D)            |
+| 3D rendering                            | ⏲               | ⏲                     | ⏲                   | ⏲                     | ⏲                            |
+| Vector graphics APIs                    | ✅               | ✅                     | ✅                   | ✅                     | ✅                            |
+| 2D layouts                              | ✅               | ✅                     | ✅                   | ✅                     | ✅                            |
+| Animation APIs                          | ✅               | ✅                     | ✅                   | ✅                     | ✅                            |
+| Native text rendering                   | ✅ (via DOM)     | ⏲ (via UIKit)         | ⏲ (via `android:*`) | ⏲ (via UIKit)         | ⏲ (via System.Windows.Forms) |
+| Native form elements                    | ⏲ (via DOM)     | ⏲ (via UIKit)         | ⏲ (via `android:*`) | ⏲ (via UIKit)         | ⏲ (via System.Windows.Forms) |
+| Native event handling (e.g. Click, Tap) | ✅               | ⏲                     | ⏲                   | ⏲                     | ⏲                            |
+| Rust as host language                   | ✅ (via WASM)    | ✅                     | ✅                   | ✅                     | ✅                            |
+| JS/TypeScript as host language          | ⏲               | ⏲                     | ⏲                   | ⏲                     | ⏲                            |
 
-✅ Supported
-⏲ Not yet supported
+| Legend:             |
+|---------------------|
+| ✅ Supported         |
+| ⏲ Not yet supported |
 
 [1] Native 2D drawing that _just works_ on every device is available thanks to the hard work behind [piet](https://github.com/linebender/piet), 
+
+
 
 ## Anatomy of Pax
 
