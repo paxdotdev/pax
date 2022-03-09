@@ -1,6 +1,6 @@
 # Pax 
 
-Pax is a toolkit for creating high-performance UIs that render natively on any device.
+Pax is a language for creating high-performance UIs that render natively on any device.
 
 Pax is designed to support any platform via swappable rendering backends, either 2D or 3D, across Web, iOS, Android, Desktop (macOS, Linux, Windows), and embedded devices.  See the current support matrix below.
 
@@ -13,8 +13,10 @@ Pax is free, under a permissive license (MIT/Apache 2.0, your choice).
 
 ## How it works
 
-Pax attaches to a _host codebase_ which is responsible for handling
+Pax attaches to a _host codebase_ which is responsible for
 any imperative logic and side-effectful logic (e.g. network requests, operating system interactions.)  This divide allows Pax itself to remain highly declarative.
+
+Currently Pax supports Rust as a host language, though support for JavaScript/TypeScript is on the [roadmap](TODO.md).
 
 Following is a simple example.  This Pax UI describes a rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle increments its rotation by 1/20 radians.
 
