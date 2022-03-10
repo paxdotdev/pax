@@ -21,7 +21,7 @@ Pax's goals can be understood through this mnemonic:
 - Animations (bouncy UI ex.), simulations (particles ex.), complex GUIs (spreadsheet ex.), data-viz (d3-style animated chart ex.)
 
 **eXtensible**
-- Reusable, extensible UI building blocks
+- Reusable, extensible UI building blocks.
 - Open source (MIT / Apache 2.0)
 - Pluggable rendering back-ends
 
@@ -84,7 +84,7 @@ Pax is in its early days but has ambitions to mature robustly.
 
 |                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              |
 |-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|
-| Ready to use [1]                        | ✅             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
+| *Ready to use* [1]                      | ✅             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
 | 2D rendering [2]                        | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D             |
 | 3D rendering                            | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
 | Vector graphics APIs                    | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
@@ -107,10 +107,6 @@ Pax is in its early days but has ambitions to mature robustly.
 [2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the hard work behind [Piet](https://github.com/linebender/piet). 
 
 
-
-
-
-
 ## Native rendering, native controls
 
 Rather than introduce virtual controls at the canvas layer, Pax orchestrates a layer of native
@@ -125,17 +121,12 @@ experience that blends dynamic graphics (e.g. vectors, animations) with native f
 
 
 
-
-
-
 ## Anatomy of Pax
 
 1. Host Codebase
     1. Pax works as a _companion language_ to a host codebase.  As of this writing, Pax supports Rust for host codebases — i.e. you author UIs in Pax driven by the logic written in Rust. JavaScript/TypeScript host codebase support is planned for the future.
 2. Pax declarations (either "code-behind" with a `.pax` file, or inline in Rust/TypeScript)
 3. Pax compiler builds "cartridge", which fits (NES) into native codebases with SDK (a la React)
-
-
 
 
 ## Who?
@@ -153,9 +144,6 @@ Pax draws design inspiration from, among others:
  - Visual Basic, ASP.NET
  - VisiCalc, Lotus 1-2-3, Excel
  - The Nintendo Entertainment System
- 
-
-
 
 
 ## Development
@@ -181,8 +169,6 @@ Pax draws design inspiration from, among others:
   # if necessary: sudo chown -R yourusername /usr/local/lib/node_modules 
   npm i --global yarn
    ```
-
-
 
 
 

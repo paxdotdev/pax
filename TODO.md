@@ -1387,42 +1387,6 @@ Note that a segment's value can be a literal (as described here with `Transform:
 
 
 
-### on the Sword of Pax
-
-when invoking a pax macro with an inline template, any number of contiguous equal signs
-followed by a single right angle bracket may follow `#[pax(`, which are to be ignored by the parser. Like:
-```
-#[pax(==============>
-
-    //component definition...
-
-)]
-```
-or
-```
-#[pax(========>
-
-    //component definition...
-
-)]
-```
-
-The Sword of Pax is purely decorative and completely optional. Within the bounds of resource
-constraints, the Sword of Pax may be as long or short as 
-the author likes.  Of course, not using the Sword is a fully
-valid and defensible option as well:
-```
-#[pax(
-
-    //component definition...
-
-)]
-```
-
-It is recommended that syntax highlighting be flamboyant for the Sword of Pax.
-
-
-
 ### on align
 2022-03-03
 
