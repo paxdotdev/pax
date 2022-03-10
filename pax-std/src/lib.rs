@@ -13,7 +13,7 @@ pub mod components {
 }
 
 
-use pax::api::Property;
+use pax::api::PropertyInstance;
 
 pub mod primitives {
     use pax::pax_primitive;
@@ -76,8 +76,8 @@ pub mod primitives {
 
     #[pax_primitive("./pax-std-primitives", crate::RectangleInstance)]
     pub struct Rectangle {
-        pub stroke: Box<dyn pax::api::Property<types::Stroke>>,
-        pub fill: Box<dyn pax::api::Property<types::Color>>,
+        pub stroke: Box<dyn pax::api::PropertyInstance<types::Stroke>>,
+        pub fill: Box<dyn pax::api::PropertyInstance<types::Color>>,
     }
 
     //

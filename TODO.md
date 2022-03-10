@@ -97,6 +97,11 @@ Perhaps a macro is the answer?
 
 ## Milestone: expressive RIL, hand-written
 
+_RIL means Rust Intermediate Language, which is the
+"object code" for Pax.  As the name suggests, RIL is valid Rust
+(specifically, a subset of Rust.)  Pax relies on
+`rustc` to convert RIL "object code" to machine code._
+
 ```
 [x] Compile base cartridge
     [x] Refactor PropertiesCoproduct to its own module
@@ -139,7 +144,7 @@ Perhaps a macro is the answer?
 
 ```
 [x] Spend some cycles ideating demo deliverables
-[ ] Port Spread to be a pure component
+[x] Port Spread to be a pure component
     [x] figure out importing mechanism for core and/or other std primitives
         [x] Group, Placeholder (e.g. from Core)
         [x] Frame (e.g. from std — though if easier could just move to Core)
@@ -148,9 +153,9 @@ Perhaps a macro is the answer?
         [x] on_pre_render + manual dirty checking?
             [x] decision: no dirty checking at all for right now; expose imperative dirty-check API only when implementing dirty checking for Expressions
     [x] hook in existing layout calc logic
-[ ] Import and use Spread in Root example
-    [ ] update example .pax as needed along the way
-    [ ] "expand the proof" of generated code & make it work manually
+[x] Import and use Spread in Root example
+    [x] update example .pax as needed along the way
+    [x] "expand the proof" of generated code & make it work manually
 ```
 
 ## Milestone: automated compilation
@@ -163,9 +168,7 @@ Perhaps a macro is the answer?
 [ ] `pax-compiler`
     [x] architecture
         [x] compiler seq. diagram 
-<img src="pax-compiler/pax-compiler-sequence-diagram.png" />
         [x] dependency diagram
-<img src="pax-dependency-graph.png" />
     [ ] two-stage compilation process
         [x] thread/process/IPC chassis
         [x] parser cargo feature
@@ -212,6 +215,9 @@ Perhaps a macro is the answer?
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
 [ ] e2e `pax run`
 ```
+
+<img src="pax-compiler/pax-compiler-sequence-diagram.png" />
+<img src="pax-dependency-graph.png" />
 
 ## Milestone: timelines
 
@@ -1574,3 +1580,100 @@ Inside any expression with access to this scope, a member may be invoked, any sy
 
 *The compiler is responsible once again for resolving that symbol (or throwing an error if it 
 cannot be resolved) and then generating the correct "invocation" code to bind that symbol*
+
+
+
+### On ergonomics, working with sequential data and interactions
+
+Use-case:  from three elements repeated on a screen, when any one is clicked,
+increment _that_ element's rotation, independently of the other two.
+
+```
+@template {
+    @for i in (0..3) {
+        <Rectangle on_click=@handle_click />
+    }
+}
+```
+
+
+Possibilities:
+
+#### embed scope in ArgsClick
+
+Requires unwrapping scope type in method body, no bueno
+
+but... really... we want the fully qualified, shadow-compatible scope
+
+if we have `@for i in (0..3)`, it would be simplest and cleanest to have access to `i`,
+as well as `j` in a nested `@for j in (0..5) {`.
+
+This is theoretically doable, with code-genned "shadowed frames" for each context
+where scope may be embedded in a click arg.  In the simplest case, scope
+just returns the Properties object.  If there's a `@for i in (0..3)`, any event
+handler bound instead of that loop should have access to an {`i`} union {`...current_properties`}
+
+
+#### embed metadata 
+
+probably by a special syntax around handler binding
+(maybe just embed index? but what about nested `for`s?)
+
+```
+@template {
+    @for i in (0..3) {
+        <Rectangle on_click=@handle_click with i/>
+    }
+}
+```
+
+might be able to embed "metadata" in the ID and parse it later, but that's kludgy
+
+Could also add a Vec<usize> to ArgsClick, which can keep indecies (only; not data, which would really be nice to have)
+
+
+#### embed args, codegen with compiler
+
+something like:
+```
+<Rectangle id=r >
+@for i in (0..10) {
+   <Triangle on_click=@handler with i, r>
+}
+...
+```
+`on_click=@{self.call_method#(i)}`
+`on_click=@{self.some_method | i }`
+`on_click=@{def self.some_method(.., i) }`
+`on_click=@some_method<i, s>`
+`on_click=@some_method @(i, j, string)`
+`on_click=@some_method of ..., i, j`
+`on_click=@some_method with i`
+^ this one is pretty nice, or:
+`on_click=@{self.some_method < i,j,k }`
+(pipe feels a bit more conventional...
+this is adjacent to currying, but 
+
+this would codegen a closure that "summons" `i` via the
+same codegen logic used elsewhere in compiler, then
+passes not only the unwrapped ArgsClick (etc.) but also
+`i` (and optionally `j` or `datum` or whatever.)
+
+In other words:
+`on_click=@{self.some_method | i }`
+would call at runtime
+`some::namespaced::method(&mut self_instance, args_click, resolved_i)`
+and
+`on_click=@{self.some_method | i, j }`
+would call at runtime
+`some::namespaced::method(&mut self_instance, args_click, resolved_i, resolved_j)`
+
+
+A major advantage of this approach is that it allows rustc
+to deal with enforcing types (if `i` or `datum` isn't the right type for
+the method signature of `call_method`, `rustc` will complain)
+
+`(fn a b) ** c -> (fn a b c)`
+
+
+# explore ref use-case

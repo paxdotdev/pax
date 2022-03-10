@@ -47,8 +47,8 @@ pub struct SpreadCellProperties {
 //#[pax] was here
 #[derive(Default)]
 pub struct Root {
-    pub num_clicks: Box<dyn pax::api::Property<isize>>,
-    pub current_rotation: Box<dyn pax::api::Property<f64>>,
+    pub num_clicks: Property<isize>,
+    pub current_rotation: Property<f64>,
 }
 
 impl Root {
@@ -56,8 +56,6 @@ impl Root {
         // pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
         self.current_rotation.set(self.current_rotation.get() +(args.frames_elapsed as f64 / 100.0).powf(1.001));
     }
-
-    // pub fn _dispatch(&mut self, args: ArgsCoproduct)
 }
 
 #[cfg(feature = "parser")]

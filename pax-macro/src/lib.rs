@@ -37,6 +37,16 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
     input
 }
 
+#[proc_macro_attribute]
+pub fn pax_on(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let _ = args;
+    let _ = input;
+
+    //TODO: register event handler (e.g. pre_render)
+
+    input
+}
+
 // Needed because Cargo wouldn't otherwise watch for changes in pax files.
 // By include_str!ing the file contents,
 // (Trick borrowed from Pest: github.com/pest-parser/pest)

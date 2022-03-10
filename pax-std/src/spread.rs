@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use pax::*;
-use pax::api::{Size2D, Size, ArgsRender};
+use pax::api::{Size2D, Size, ArgsRender, Property};
 use crate::primitives::Frame;
 use crate::types::{SpreadDirection, SpreadCellProperties};
 
@@ -18,23 +18,23 @@ use crate::types::{SpreadDirection, SpreadCellProperties};
     }
 )]
 pub struct Spread {
-    pub computed_layout_spec: Box<dyn pax::api::Property<Vec<Rc<SpreadCellProperties>>>>,
-    pub direction:  Box<dyn pax::api::Property<SpreadDirection>>,
-    pub cell_count: Box<dyn pax::api::Property<usize>>,
-    pub gutter_width: Box<dyn pax::api::Property<pax::api::Size>>,
+    pub computed_layout_spec: Property<Vec<Rc<SpreadCellProperties>>>,
+    pub direction: Property<SpreadDirection>,
+    pub cell_count: Property<usize>,
+    pub gutter_width: Property<pax::api::Size>,
 
     //These two data structures act as "sparse maps," where
     //the first element in the tuple is the index of the cell/gutter to
     //override and the second is the override value.  In the absence
     //of overrides (`vec![]`), cells and gutters will divide space evenly.
-    pub overrides_cell_size: Box<dyn pax::api::Property<Vec<(usize, pax::api::Size)>>>,
-    pub overrides_gutter_size: Box<dyn pax::api::Property<Vec<(usize, pax::api::Size)>>>,
+    pub overrides_cell_size: Property<Vec<(usize, pax::api::Size)>>,
+    pub overrides_gutter_size: Property<Vec<(usize, pax::api::Size)>>,
 }
 
 
 impl Spread {
 
-    // #[pax_on(pre_render)]
+    #[pax_on(pre_render)]
     pub fn handle_pre_render(&mut self, args: ArgsRender) {
         // pax::log("handling pre-render from Spread");
         //TODO: dirty check

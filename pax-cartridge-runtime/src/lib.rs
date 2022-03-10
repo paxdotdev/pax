@@ -7,7 +7,7 @@ use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderT
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 
-use pax_runtime_api::{ArgsCoproduct, Property, PropertyLiteral, Transform2D};
+use pax_runtime_api::{ArgsCoproduct, PropertyInstance, PropertyLiteral, Transform2D};
 
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
 use pax_example::pax_types::{Root};

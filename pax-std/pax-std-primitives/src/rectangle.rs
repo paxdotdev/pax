@@ -11,7 +11,7 @@ use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{Property, PropertyLiteral, Size, Transform2D, Size2D, ArgsCoproduct};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, ArgsCoproduct};
 
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
@@ -19,9 +19,9 @@ use pax_runtime_api::{Property, PropertyLiteral, Size, Transform2D, Size2D, Args
 ///
 /// maybe #[pax primitive]
 pub struct RectangleInstance {
-    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
+    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub properties: Rc<RefCell<Rectangle>>,
-    pub size: Rc<RefCell<[Box<dyn Property<Size>>; 2]>>,
+    pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 }
 
@@ -123,7 +123,7 @@ impl RenderNode for RectangleInstance {
         }
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
 

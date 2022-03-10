@@ -8,7 +8,7 @@ use piet::RenderContext;
 
 use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, InstantiationArgs};
 use pax_properties_coproduct::TypesCoproduct;
-use pax_runtime_api::{Transform2D, Size, Property, Size2D};
+use pax_runtime_api::{Transform2D, Size, PropertyInstance, Size2D};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
 /// like [`Group`], except [`Frame`] has the option of clipping rendering outside
@@ -20,7 +20,7 @@ use pax_runtime_api::{Transform2D, Size, Property, Size2D};
 pub struct FrameInstance {
     pub children: RenderNodePtrList,
     pub size: Size2D,
-    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
+    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 }
 
 impl RenderNode for FrameInstance {
@@ -43,7 +43,7 @@ impl RenderNode for FrameInstance {
         Some(Rc::clone(&self.size))
     }
 
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut size = &mut *self.size.as_ref().borrow_mut();

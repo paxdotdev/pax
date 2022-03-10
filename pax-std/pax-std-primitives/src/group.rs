@@ -4,14 +4,14 @@ use std::rc::Rc;
 use pax_core::{HandlerRegistry, HostPlatformContext, InstanceMap, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::PropertiesCoproduct;
 
-use pax_runtime_api::{Transform2D, Size2D, Property, ArgsCoproduct};
+use pax_runtime_api::{Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
 pub struct GroupInstance {
     pub primitive_children: RenderNodePtrList,
     pub id: String,
-    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
+    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 }
 
@@ -52,5 +52,5 @@ impl RenderNode for GroupInstance {
 
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 }

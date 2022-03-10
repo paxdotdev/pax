@@ -12,7 +12,7 @@ use mut_static::MutStatic;
 
 /// An abstract Property that may be either: Literal,
 /// a dynamic runtime Expression, or a Timeline-bound value
-pub trait Property<T: Default> {
+pub trait PropertyInstance<T: Default> {
     fn get(&self) -> &T;
     fn _get_vtable_id(&self) -> Option<&str>;
     fn set(&mut self, value: T);
@@ -24,8 +24,8 @@ pub trait Property<T: Default> {
     // fn _mark_not_fresh(&mut self);
 }
 
-impl<T: Default + 'static> Default for Box<dyn Property<T>> {
-    fn default() -> Box<dyn Property<T>> {
+impl<T: Default + 'static> Default for Box<dyn PropertyInstance<T>> {
+    fn default() -> Box<dyn PropertyInstance<T>> {
         Box::new(PropertyLiteral(Default::default()))
     }
 }
@@ -41,6 +41,8 @@ pub enum ArgsCoproduct {
     Render(ArgsRender),
     Click(ArgsClick),
 }
+
+pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
 pub struct ArgsRender {
@@ -122,13 +124,13 @@ impl Default for Size {
 }
 
 pub struct TransformInstance {
-    rotate: Option<Box<dyn Property<f64>>>
+    rotate: Option<Box<dyn PropertyInstance<f64>>>
 }
 
 // More than just a tuble of (Size, Size),
 // Size2D wraps up Properties as well to make it easy
 // to declare expressable Size properties
-pub type Size2D = Rc<RefCell<[Box<dyn Property<Size>>; 2]>>;
+pub type Size2D = Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>;
 
 
 
@@ -203,7 +205,7 @@ impl Transform2D {
         ret
     }
 
-    pub fn default_wrapped() -> Rc<RefCell<dyn Property<Self>>> {
+    pub fn default_wrapped() -> Rc<RefCell<dyn PropertyInstance<Self>>> {
         Rc::new(RefCell::new(PropertyLiteral(Transform2D::default())))
     }
 }
@@ -212,14 +214,14 @@ impl Transform2D {
 pub struct PropertyLiteral<T>(pub T);
 
 
-impl<T> Into<Box<dyn Property<T>>> for PropertyLiteral<T>
+impl<T> Into<Box<dyn PropertyInstance<T>>> for PropertyLiteral<T>
 where T: Default + 'static {
-    fn into(self) -> Box<dyn Property<T>> {
+    fn into(self) -> Box<dyn PropertyInstance<T>> {
         Box::new(self)
     }
 }
 
-impl<T: Default> Property<T> for PropertyLiteral<T> {
+impl<T: Default> PropertyInstance<T> for PropertyLiteral<T> {
     fn get(&self) -> &T {
         &self.0
     }

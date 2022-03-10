@@ -28,7 +28,7 @@ use crate::runtime::{Runtime};
 use wasm_bindgen::JsValue;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsRender, Property};
+use pax_runtime_api::{ArgsClick, ArgsRender, PropertyInstance};
 
 pub enum EventMessage {
     Tick(ArgsRender),

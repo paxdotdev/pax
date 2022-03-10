@@ -9,7 +9,7 @@ use pax_runtime_api::{ArgsCoproduct, Size, Size2D};
 
 use crate::{RenderTreeContext, HostPlatformContext, HandlerRegistry, InstanceMap};
 
-use pax_runtime_api::{Property, PropertyLiteral};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.
@@ -22,20 +22,20 @@ pub struct InstantiationArgs {
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_map: Rc<RefCell<InstanceMap>>,
-    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
-    pub size: Option<[Box<dyn Property<Size>>;2]>,
+    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub size: Option<[Box<dyn PropertyInstance<Size>>;2]>,
     pub primitive_children: Option<RenderNodePtrList>,
     pub component_template: Option<RenderNodePtrList>,
     pub component_adoptees: Option<RenderNodePtrList>,
 
     //used by Placeholder
-    pub placeholder_index: Option<Box<dyn Property<usize>>>,
+    pub placeholder_index: Option<Box<dyn PropertyInstance<usize>>>,
 
     ///used by Repeat
-    pub repeat_data_list: Option<Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>>,
+    pub repeat_data_list: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
 
     ///used by Conditional
-    pub conditional_boolean_expression: Option<Box<dyn Property<bool>>>,
+    pub conditional_boolean_expression: Option<Box<dyn PropertyInstance<bool>>>,
 
     ///used by Component instances, specifically to unwrap type-specific PropertiesCoproducts
     ///and recurse into descendant property computation
@@ -123,7 +123,7 @@ pub trait RenderNode
         }
     }
 
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>>;
+    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>>;
 
     /// Very first lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.

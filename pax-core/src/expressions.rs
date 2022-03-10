@@ -6,7 +6,7 @@ use crate::{PaxEngine, RenderTreeContext};
 use crate::runtime::StackFrame;
 
 
-use pax_runtime_api::{Property, PropertyLiteral};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral};
 
 
 // The `Expression` form of a property — stores a function
@@ -19,7 +19,7 @@ pub struct PropertyExpression<T: Default>
     pub cached_value: T,
 }
 
-impl<T: Default> Property<T> for PropertyExpression<T> {
+impl<T: Default> PropertyInstance<T> for PropertyExpression<T> {
     fn get(&self) -> &T {
         &self.cached_value
     }

@@ -1,12 +1,12 @@
 use pax::*;
-use pax::api::{Property, PropertyLiteral};
+use pax::api::{PropertyInstance, PropertyLiteral};
 
 
 #[pax_type]
 #[derive(Default)]
 pub struct Stroke {
-    pub color: Box<dyn Property<Color>>,
-    pub width: Box<dyn Property<f64>>,
+    pub color: Box<dyn PropertyInstance<Color>>,
+    pub width: Box<dyn PropertyInstance<f64>>,
 }
 
 

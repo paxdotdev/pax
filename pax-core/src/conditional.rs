@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 
 use crate::{HandlerRegistry, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
-use pax_runtime_api::{Property, PropertyLiteral, Size2D, Transform2D};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 
@@ -14,8 +14,8 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 /// with the `@if` syntax in templates.
 pub struct ConditionalInstance {
     pub primitive_children: RenderNodePtrList, //TODO: private?
-    pub transform: Rc<RefCell<dyn Property<Transform2D>>>,
-    pub boolean_expression: Box<dyn Property<bool>>,
+    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub boolean_expression: Box<dyn PropertyInstance<bool>>,
     pub empty_children: RenderNodePtrList,
 }
 
@@ -59,7 +59,7 @@ impl RenderNode for ConditionalInstance {
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn Property<Transform2D>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
 
 }
