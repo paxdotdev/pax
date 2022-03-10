@@ -7,9 +7,8 @@ use std::rc::Rc;
 ///
 /// This enum/coproduct structure solves the problem of knowing
 /// the amount of memory to allocate for `PropertiesCoproduct`s on stack frames.
-/// Because our components are polymorphic (i.e. each component can have
-/// a different 'shape' of Properties,) and because stack frames are stored
-/// in a central data structure (the runtime stack,) we need a means of
+/// Because our components can have different Property "schemas," and because stack frames are stored
+/// in a central data structure (the runtime stack,) we run into an issue storingneed a means of
 /// storing them together.  Generics + traits don't work because we
 /// need concrete access to struct fields, vs. traits which give us methods only.
 ///

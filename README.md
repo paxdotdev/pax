@@ -1,18 +1,18 @@
 # Pax 
 
-Pax is a language for creating high-performance cross-platform UIs.
+Pax is a language for creating high-performance cross-platform UIs.  Pax is written in Rust.
 
-Pax is designed to support any platform via swappable rendering backends, either 2D or 3D, across Web, iOS, Android, Desktop (macOS, Linux, Windows), and embedded devices.  See the current support matrix below.
+Pax can, with effort, support any platform via swappable rendering backends, either 2D or 3D, across Web, iOS, Android, Desktop (macOS, Linux, Windows), and embedded devices.  See the current support matrix below.
+
 
 ## Goals
 
 Pax's goals can be understood through this mnemonic:
 
 **Portable**
-- runs everywhere
+- runs on any device
 - tiny footprint: suitable for web applications and embedded applications
-- excellent performance for a wide range of hardware
-- Fast & tiny binary "cartridges" describe production applications
+- extremely fast (animations up to 120fps on supporting hardware)
 
 **All-purpose**
 - 2D, 3D, digital documents, web apps, VR/AR, embedded GUIs
@@ -84,8 +84,8 @@ Pax is in its early days but has ambitions to mature robustly.
 
 |                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              |
 |-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|
-| Ready for production[1]                 | ✅             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
-| 2D rendering[2]                         | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D             |
+| Ready to use [1]                        | ✅             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
+| 2D rendering [2]                        | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D             |
 | 3D rendering                            | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
 | Vector graphics APIs                    | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
 | 2D layouts                              | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
@@ -102,7 +102,7 @@ Pax is in its early days but has ambitions to mature robustly.
 | ⏲ Not yet supported |
 
 
-[1] First, note that Pax is currently in alpha and should only be used in rare production settings where that's not a concern.  Second, "production" in this context describes end-to-end functionality, hinging on a native adapter layer (`chassis`), which handles rendering commands and native inputs like touch and mouse.  As of this writing, only the [Web chassis](pax-chassis-web) is complete enough to use at all. 
+[1] Note that Pax is currently in alpha and should only be used in rare production settings where that's not a concern. 
 
 [2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the hard work behind [Piet](https://github.com/linebender/piet). 
 

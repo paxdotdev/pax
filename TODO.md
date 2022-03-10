@@ -3,6 +3,7 @@
 
 ## Milestone: proof of concept engine
 
+```
 [x] Rendering 
 [x] Components 
 [x] Logging
@@ -44,9 +45,11 @@ Perhaps a macro is the answer?
     [x] Take a pass on references/ownership in render_render_tree — perhaps &Affine should transfer ownership instead, for example
     [x] Better ergonomics for `wrap_render_node_ptr_into_list`
     [x] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
+```
 
 ## Milestone: Spread
 
+```
 [x] decide on API design, expected GUI experience
     - Direction (horiz/vert)
     - Gutter
@@ -90,10 +93,11 @@ Perhaps a macro is the answer?
     [x] Parameterize:
         - Gutter
         - (come back later for overrides; ensure design supports visual UX)
-
+```
 
 ## Milestone: expressive RIL, hand-written
 
+```
 [x] Compile base cartridge
     [x] Refactor PropertiesCoproduct to its own module
     [x] Sanity check "patch" ability for "blanks" (Properties, Expressions)
@@ -129,9 +133,11 @@ Perhaps a macro is the answer?
     [x] make consistent Size, Percent, Origin, Align
     [x] finish-line @if
     [x] support in-.rs-file pax, as alternative choice vs. code-behind file
+```
 
 ## Milestone: imported .pax
 
+```
 [x] Spend some cycles ideating demo deliverables
 [ ] Port Spread to be a pure component
     [x] figure out importing mechanism for core and/or other std primitives
@@ -145,9 +151,11 @@ Perhaps a macro is the answer?
 [ ] Import and use Spread in Root example
     [ ] update example .pax as needed along the way
     [ ] "expand the proof" of generated code & make it work manually
+```
 
 ## Milestone: automated compilation
 
+```
 [x] parser
     [x] grammar definition, PEG
     [x] parse grammar into manifest
@@ -202,20 +210,23 @@ Perhaps a macro is the answer?
         [ ] codegen RIL into source via `#[pax]` macro, to enable vanilla run-via-cargo (well, pax-compiler, but maybe there's still a path to bare cargo!)
         [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
-
 [ ] e2e `pax run`
+```
 
 ## Milestone: timelines
 
+```
 [ ] Hook up PropertyTimeline
     [ ] refactor easing curve packaging, probably into enum
     [ ] refactor Tweenable, to support arbitrary types (dyn Tweenable) and impl for `fsize`
     [ ] support Tweenable for f64
     [ ] support Tweenable for `Transform`
 [ ] ergonomic timeline API design in pax
+```
 
 ## Milestone: clickable square
 
+```
 [ ] Action API
     [x] state management (.get/.set/etc.)
     [ ] hooks into dirty-update system, for efficient expressions
@@ -247,10 +258,12 @@ Perhaps a macro is the answer?
         [x] Return value passing & caching
     [ ] Sketch out design for parallelized expression computation (e.g. in WebWorkers)
     [-] Patch ExpressionTable into cartridge à la PropertyCoproduct
+```
 
 
 ## Backlog
 
+```
 [ ] Revisit embedded literal strings for error messages, to reduce binary footprint
 [ ] Reinvestigate Any as an alternative to Coproduct generation
     [ ] would dramatically simplify compiler, code-gen process
@@ -278,11 +291,16 @@ Perhaps a macro is the answer?
 [ ] Ellipse
 [ ] Path
 [ ] Frames: overflow scrolling
-[ ] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
-[ ] PoC on macOS, iOS, Android, Windows
-[ ] Image primitive
+[x] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
+[ ] chassis:
+    [ ] macOS
+    [ ] iOS
+    [ ] Windows    
+    [ ] Android
+[ ] Image (bitmap) primitive
     [ ] Hook into `piet`s image rendering
     [ ] Asset management
+    [ ] SVG support? Separate primitive?
 [ ] Gradients
     [ ] Multiple (stacked, polymorphic) fills
 [ ] Production compilation
@@ -312,7 +330,7 @@ Perhaps a macro is the answer?
     [ ] Parser for custom expression lang
 [ ] Debugging chassis
 [ ] Perf-optimize Rectangle (assuming BezPath is inefficient)
-
+```
 
 ```
 Creative development environment
