@@ -21,14 +21,14 @@ pub struct Spread {
     pub computed_layout_spec: Property<Vec<Rc<SpreadCellProperties>>>,
     pub direction: Property<SpreadDirection>,
     pub cell_count: Property<usize>,
-    pub gutter_width: Property<pax::api::Size>,
+    pub gutter_width: Property<Size>,
 
     //These two data structures act as "sparse maps," where
     //the first element in the tuple is the index of the cell/gutter to
     //override and the second is the override value.  In the absence
     //of overrides (`vec![]`), cells and gutters will divide space evenly.
-    pub overrides_cell_size: Property<Vec<(usize, pax::api::Size)>>,
-    pub overrides_gutter_size: Property<Vec<(usize, pax::api::Size)>>,
+    pub overrides_cell_size: Property<Vec<(usize, Size)>>,
+    pub overrides_gutter_size: Property<Vec<(usize, Size)>>,
 }
 
 

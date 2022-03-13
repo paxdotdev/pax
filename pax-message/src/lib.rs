@@ -1,6 +1,7 @@
 use std::path::Component;
-use serde::{Serialize, Deserialize};
-use bincode::{serialize, deserialize};
+
+use bincode::{deserialize, serialize};
+use serde::{Deserialize, Serialize};
 
 #[cfg(test)]
 mod tests {

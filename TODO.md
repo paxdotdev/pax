@@ -161,6 +161,12 @@ _RIL means Rust Intermediate Language, which is the
 ## Milestone: automated compilation
 
 ```
+[ ] resolve the `Any` question
+    [ ] scope out the remaining work to automate PropertiesCoproduct generation
+        [ ] manifest generation, coordination between "flaky macros" (manifest generation & storage on disk)
+        [ ] generation of shadow Cargo.toml, automated patching mechanism, compiler coordination
+        [ ] 
+    [ ] decide whether the possible savings of that work is 
 [x] parser
     [x] grammar definition, PEG
     [x] parse grammar into manifest
@@ -196,6 +202,11 @@ _RIL means Rust Intermediate Language, which is the
         [ ] parse data
         [ ] handle range literals (0..10)
         [ ] shuttle data into RepeatInstance via Manifest
+        [ ] `with`
+            [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
+            [ ] grammar+parser support
+            [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
+            [ ] multiple variables in tuple `(i,j,k)`
     [ ] @if
 [ ] compiler codegen
     [ ] codegen Cargo.toml + solution for patching
@@ -257,6 +268,9 @@ _RIL means Rust Intermediate Language, which is the
         [ ] parenthetical grouping  `(.*)`
         [ ] Literals for strings, bools, ints, floats
         [ ] Nested object references + injected context
+            [ ] incantation for deriving values from scope
+            [ ] type-matching
+            [ ] Numeric type management, casting
     [x] Write ExpressionTable harness, incl. mechanisms for:
         [x] vtable storage & lookup
         [ ] Dependency tracking & dirty-watching
@@ -276,10 +290,12 @@ _RIL means Rust Intermediate Language, which is the
     [ ] would make build process less brittle
     [ ] roughly: `dyn RenderNode` -> `Box<Any>`, downcast blocks instead of `match ... unreachable!()` blocks
         [ ] de-globalize InstantiationArgs, e.g. `placeholder_index` and `data_list`
+        [ ] remove PropertiesCoproduct entirely (and probably repeat the process for TypesCoproduct)
+        [ ] possibly remove two-stage compiler process
         [ ] sanity check that we can downcast from a given `Any` both to: 1. `dyn RenderNode` (to call methods), and 2. `WhateverProperties` (to access properties)
         [ ] sanity check that `Any + 'static` will work with needs of `dyn RenderNode` and individual properties
         [ ] check out downcast_rs crate as way to ease?
-        [ ] ensure that `'static` constraints can be met!! e.g. `Repeat`
+        [ ] ensure that `'static` constraints can be met!! e.g. with dynamically instantiated nodes in `Repeat`
 [ ] Designtime
     [ ] codegen DefinitionToInstance traverser
         [ ] codegen in `#[pax]`: From<SettingsLiteralBlockDefinition>
@@ -1178,7 +1194,7 @@ logic to resolve symbol (e.g. `rect.fill`) to backing value:
 
 For enumeration:
 ```
-@for (i, rect) in rects {
+@for (rect, i) in rects {
     <Rectangle fill=@rect.fill />
 }
 ```
@@ -1380,7 +1396,7 @@ pub struct TimelineSegment {
 ```
 # some-rect {
     transform: @timeline {
-        default: Transform::default(),
+        starting_value: Transform::default(),
         segments: [
             (15, Transform::rotate(12.0), InOutBack)
         ] 
@@ -1638,7 +1654,7 @@ something like:
 ```
 <Rectangle id=r >
 @for i in (0..10) {
-   <Triangle on_click=@handler with i, r>
+   <Triangle on_click=@handler with (i, r)>
 }
 ...
 ```
@@ -1646,6 +1662,7 @@ something like:
 `on_click=@{self.some_method | i }`
 `on_click=@{def self.some_method(.., i) }`
 `on_click=@some_method<i, s>`
+
 `on_click=@some_method @(i, j, string)`
 `on_click=@some_method of ..., i, j`
 `on_click=@some_method with i`
@@ -1676,4 +1693,77 @@ the method signature of `call_method`, `rustc` will complain)
 `(fn a b) ** c -> (fn a b c)`
 
 
-# explore ref use-case
+a distinction -- currying is unary — from a given (likely nested) function, 
+
+#### on `ref` use-cases
+
+The `with` functionality may also support
+React-style `ref` functionality, if we choose
+to enable it.  
+
+For example:
+`on_click=@some_handler with some_rect_id` where `some_rect_id` is `<Rectangle id=some_rect_id>`
+
+This would (probably) resolve to the Instance+Properties object (the PropertiesCoproduct entry) for that element.
+
+The major family of use-cases this would open is imperative manipulations of the render tree (if we want to support this?)
+and otherwise imperative manipulation/access of properties
+
+
+#### on returning chunks of template from methods
+"stencil"
+
+This is a common pattern in React, for example. It allows for cleanly breaking
+complex templates into smaller pieces, without needing whole new Components
+
+```
+#[pax(
+    <Rectangle>
+    get_dynamic_thing()
+)]
+pub struct Hello {}
+
+impl Hello {
+    pub fn get_dynamic_thing() {
+        pax_stencil!(
+            <Group>
+            
+            </Group>
+        )
+    }   
+}
+```
+
+Is this a special case of grouping?  
+It's roughly like minting a component, without a stack frame
+Could easily be managed in a design tool as such, while maintaining
+compatibility with hand-coding 
+
+~complet? comp?~
+Let's go with *stencil* for now.
+
+What about when a stencil need to take parameters?  No problem —
+
+```
+#[pax(
+    <Rectangle>
+    @for i in (0..10) {
+        get_dynamic_thing(i)
+    }
+)]
+pub struct Hello {}
+
+impl Hello {
+    pub fn get_dynamic_thing(i: usize) {
+        pax_stencil!(
+            <Group>
+                
+            </Group>
+        )
+    }   
+}
+```
+
+Note that `i` is bound from the template into the method call `get_dynamic_thing`
+
+The compiler can weave this together in the same fashion that it handles `with`

@@ -19,7 +19,7 @@ use std::rc::Rc;
 ///
 pub enum PropertiesCoproduct {
     //core
-    Empty,
+    None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     //generated

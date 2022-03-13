@@ -19,14 +19,14 @@ use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
 /// the outside.  Inside Spread's template, there are a number of Placeholders — this primitive —
 /// that become the final rendered home of those adoptees.  This same technique
 /// is portable and applicable elsewhere via Placeholder.
-pub struct Placeholder {
+pub struct PlaceholderInstance {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub index: Box<dyn PropertyInstance<usize>>,
     cached_computed_children: RenderNodePtrList,
 }
 
 
-impl RenderNode for Placeholder {
+impl RenderNode for PlaceholderInstance {
 
     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
         let new_id = pax_runtime_api::mint_unique_id();
