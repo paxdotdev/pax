@@ -1,31 +1,24 @@
 # Pax 
 
-Pax is a language for creating high-performance cross-platform UIs.  Pax is written in Rust.
-
-Pax can, with effort, support any platform via swappable rendering backends, either 2D or 3D, across Web, iOS, Android, Desktop (macOS, Linux, Windows), and embedded devices.  See the current support matrix below.
-
+Pax is a language for creating high-performance, cross-platform user interfaces.
 
 ## Goals
 
-Pax's goals can be understood through this mnemonic:
-
 **Portable**
-- runs on any device
+- run on any device
 - tiny footprint: suitable for web applications and embedded applications
-- extremely fast (animations up to 120fps on supporting hardware)
+- be extremely fast (animations up to 120fps on supporting hardware)
 
 **All-purpose**
 - 2D, 3D, digital documents, web apps, VR/AR, embedded GUIs
 - Per-platform native UI controls (dropdowns, scroll, etc.)
 - Expressive & intuitive layouts
-- Animations (bouncy UI ex.), simulations (particles ex.), complex GUIs (spreadsheet ex.), data-viz (d3-style animated chart ex.)
+- Complex, fine-tuned animations
 
 **eXtensible**
 - Reusable, extensible UI building blocks.
 - Open source (MIT / Apache 2.0)
-- Pluggable rendering back-ends
-
-Also: designable. (TODO)
+- Extensible rendering back-ends
 
 ## How it works
 
@@ -40,12 +33,10 @@ use pax::*;
 use pax::drawing2D::Rectangle;
 
 #[pax(
-    @template {
-        <Rectangle on_click=@self.handle_click transform=@{
-            align(50%, 50%) *
-            rotate(self.num_clicks / 20.0)
-        }>
-    }
+    <Rectangle on_click=@self.handle_click transform=@{
+        align(50%, 50%) *
+        rotate(self.num_clicks / 20.0)
+    }/>
 )]
 pub struct HelloWorld {
     num_clicks: isize,
@@ -67,7 +58,7 @@ You'll notice a few moving pieces here:
 
 #### Expressions
   - Notice the two `@`-signs in the template above.  Those signal to the Pax compiler that the subsequent symbol(s) are dynamic, and should be evaluated in the context of the host codebase.  `@self.handle_click` points to a function as an event handler, and `transform=@{ ... }` calculates the contents of the `{}` block and passes a return value. 
-  - The mechanism behind this is in fact a whole computer language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.
+  - The mechanism behind this is in fact a whole language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.
   - PAXEL expressions are distinctive in a few ways:
      - Any PAXEL expression must be a pure function of its inputs and must be side-effect free
      - As a result of the above, PAXEL expressions may be aggressively cached and recalculated only when inputs change.
@@ -102,7 +93,7 @@ Pax is in its early days but has ambitions to mature robustly.
 | ⏲ Not yet supported |
 
 
-[1] Note that Pax is currently in alpha and should only be used in rare production settings where that's not a concern. 
+[1] Note that Pax is currently in alpha and should only be used in settings where that's not a concern. 
 
 [2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the hard work behind [Piet](https://github.com/linebender/piet). 
 
@@ -111,7 +102,7 @@ Pax is in its early days but has ambitions to mature robustly.
 
 Rather than introduce virtual controls at the canvas layer, Pax orchestrates a layer of native
 controls as part of its rendering process.  This native overlay is used both for form controls like checkboxes
-and drop-downs, as well as for rendering text.
+and drop-downs, as well as for rendering native text.
 
 In the browser, for example, a pool of DOM nodes is created for form control elements and text.
 Those elements are positioned as an overlay on top of any canvas rendering, allowing for a cohesive
@@ -119,19 +110,8 @@ experience that blends dynamic graphics (e.g. vectors, animations) with native f
 
 [Visual of DOM "marionette" overlay layer on top of parallaxed graphics layer]
 
+TODO: describe benefits of this approach toward a11y
 
-
-## Anatomy of Pax
-
-1. Host Codebase
-    1. Pax works as a _companion language_ to a host codebase.  As of this writing, Pax supports Rust for host codebases — i.e. you author UIs in Pax driven by the logic written in Rust. JavaScript/TypeScript host codebase support is planned for the future.
-2. Pax declarations (either "code-behind" with a `.pax` file, or inline in Rust/TypeScript)
-3. Pax compiler builds "cartridge", which fits (NES) into native codebases with SDK (a la React)
-
-
-## Who?
-
-Pax is managed by the Pax Foundation, a non-profit entity with open membership.  You can join and have a hand the future of Pax!
 
 
 ## Inspiration
@@ -175,6 +155,43 @@ Pax draws design inspiration from, among others:
 
 ```
 Scratch pad:
+
+
+
+
+## Who?
+
+
+
+
+
+
+
+
+
+
+Pax is designed to be designed — that is, the language specification, compiler, and runtime are designed around the goal of enabling interoperability with visual designer tooling.
+
+At the same time, it aims to be both 
+
+
+
+
+
+
+
+## Anatomy of Pax
+
+1. Host Codebase
+    1. Pax works as a _companion language_ to a host codebase.  As of this writing, Pax supports Rust for host codebases — i.e. you author UIs in Pax driven by the logic written in Rust. JavaScript/TypeScript host codebase support is planned for the future.
+2. Pax declarations (either "code-behind" with a `.pax` file, or inline in Rust/TypeScript)
+3. Pax compiler builds "cartridge", which fits (NES) into native codebases with SDK (a la React)
+
+
+
+
+
+
 
 The core design goal of Pax is to be _designable._
 
