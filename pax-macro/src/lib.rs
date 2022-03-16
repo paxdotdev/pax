@@ -33,6 +33,7 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
     let _ = input;
 
     //TODO: idempotent pax-macro-coordination startup
+    //Handle incremental compilation
 
     input
 }
@@ -43,6 +44,7 @@ pub fn pax_on(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
     let _ = input;
 
     //TODO: register event handler (e.g. pre_render)
+    //Handle incremental compilation
 
     input
 }

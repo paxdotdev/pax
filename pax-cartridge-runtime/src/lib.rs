@@ -7,7 +7,7 @@ use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderT
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 
-use pax_runtime_api::{ArgsCoproduct, PropertyInstance, PropertyLiteral, Transform2D};
+use pax_runtime_api::{ArgsCoproduct, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
 use pax_example::pax_types::{Root};
@@ -127,6 +127,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     }));
 
+    //Frame size x
     map.insert("h".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
             let x = (*ec.engine).borrow();
@@ -140,6 +141,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         )
     }));
 
+    //Frame size y
     map.insert("i".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
             let x = (*ec.engine).borrow();
@@ -151,6 +153,18 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         return TypesCoproduct::Size(
             Size::Pixel(datum_cast.height_px)
         )
+    }));
+
+    //Frame index
+    map.insert("j".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
+            let x = (*ec.engine).borrow();
+            (Rc::clone(datum), *i)
+        } else { unreachable!("epsilon") };
+
+        return TypesCoproduct::usize(
+            i
+        );
     }));
 
     map
@@ -184,54 +198,54 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
             component_template: Some(Rc::new(RefCell::new(vec![
 
                 //rainbow box
-                GroupInstance::instantiate(InstantiationArgs {
-                    properties: PropertiesCoproduct::None,
-                    handler_registry: None,
-                    instance_map: Rc::clone(&instance_map),
-                    transform: Transform2D::default_wrapped(),
-                    size: None,
-                    component_adoptees: None,
-                    component_template: None,
-                    repeat_data_list: None,
-                    conditional_boolean_expression: None,
-                    compute_properties_fn: None,
-                    primitive_children: Some(Rc::new(RefCell::new(vec![
-                        ConditionalInstance::instantiate(InstantiationArgs {
-                            properties: PropertiesCoproduct::None,
-                            handler_registry: None,
-                            instance_map: Rc::clone(&instance_map),
-                            transform: Transform2D::default_wrapped(),
-                            size: None,
-                            primitive_children: Some(Rc::new(RefCell::new(vec![
-                                RectangleInstance::instantiate(InstantiationArgs {
-                                    properties: PropertiesCoproduct::Rectangle(Rectangle{
-                                        stroke: Box::new(PropertyExpression {id: "c".into(), cached_value: Default::default()}),
-                                        fill: Box::new(PropertyLiteral (Color::rgba(1.0, 1.0, 0.0, 1.0)))
-                                    }),
-                                    handler_registry: None,
-                                    instance_map: Rc::clone(&instance_map),
-                                    transform: Rc::new(RefCell::new(PropertyLiteral(Transform2D::translate(200.0, 200.0)))),
-                                    size: Some([PropertyLiteral(Size::Pixel(200.0)).into(),PropertyLiteral(Size::Pixel(200.0)).into()]),
-                                    primitive_children: None,
-                                    component_template: None,
-                                    component_adoptees: None,
-                                    placeholder_index: None,
-                                    repeat_data_list: None,
-                                    conditional_boolean_expression: None,
-                                    compute_properties_fn: None
-                                }),
-                            ]))),
-                            component_template: None,
-                            component_adoptees: None,
-                            placeholder_index: None,
-                            repeat_data_list: None,
-                            conditional_boolean_expression: Some(Box::new(PropertyLiteral(true))),
-                            compute_properties_fn: None
-                        }),
-                    ]))),
-
-                    placeholder_index: None
-                }),
+                // GroupInstance::instantiate(InstantiationArgs {
+                //     properties: PropertiesCoproduct::None,
+                //     handler_registry: None,
+                //     instance_map: Rc::clone(&instance_map),
+                //     transform: Transform2D::default_wrapped(),
+                //     size: None,
+                //     component_adoptees: None,
+                //     component_template: None,
+                //     repeat_data_list: None,
+                //     conditional_boolean_expression: None,
+                //     compute_properties_fn: None,
+                //     primitive_children: Some(Rc::new(RefCell::new(vec![
+                //         ConditionalInstance::instantiate(InstantiationArgs {
+                //             properties: PropertiesCoproduct::None,
+                //             handler_registry: None,
+                //             instance_map: Rc::clone(&instance_map),
+                //             transform: Transform2D::default_wrapped(),
+                //             size: None,
+                //             primitive_children: Some(Rc::new(RefCell::new(vec![
+                //                 RectangleInstance::instantiate(InstantiationArgs {
+                //                     properties: PropertiesCoproduct::Rectangle(Rectangle{
+                //                         stroke: Box::new(PropertyExpression {id: "c".into(), cached_value: Default::default()}),
+                //                         fill: Box::new(PropertyLiteral (Color::rgba(1.0, 1.0, 0.0, 1.0)))
+                //                     }),
+                //                     handler_registry: None,
+                //                     instance_map: Rc::clone(&instance_map),
+                //                     transform: Rc::new(RefCell::new(PropertyLiteral(Transform2D::translate(200.0, 200.0)))),
+                //                     size: Some([PropertyLiteral(Size::Pixel(200.0)).into(),PropertyLiteral(Size::Pixel(200.0)).into()]),
+                //                     primitive_children: None,
+                //                     component_template: None,
+                //                     component_adoptees: None,
+                //                     placeholder_index: None,
+                //                     repeat_data_list: None,
+                //                     conditional_boolean_expression: None,
+                //                     compute_properties_fn: None
+                //                 }),
+                //             ]))),
+                //             component_template: None,
+                //             component_adoptees: None,
+                //             placeholder_index: None,
+                //             repeat_data_list: None,
+                //             conditional_boolean_expression: Some(Box::new(PropertyLiteral(true))),
+                //             compute_properties_fn: None
+                //         }),
+                //     ]))),
+                //
+                //     placeholder_index: None
+                // }),
                 //end rainbow box
                 //Spread
                 ComponentInstance::instantiate(
@@ -259,6 +273,41 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                         instance_map: Rc::clone(&instance_map),
                         transform: Transform2D::default_wrapped(),
                         size: Some([Box::new(PropertyLiteral(Size::Percent(100.0))), Box::new(PropertyLiteral(Size::Percent(100.0)))]),
+                        component_adoptees: Some(Rc::new(RefCell::new(vec![RepeatInstance::instantiate(InstantiationArgs {
+                            properties: PropertiesCoproduct::None,
+                            handler_registry: None,
+                            instance_map: Rc::clone(&instance_map),
+                            transform: Transform2D::default_wrapped(),
+                            size: None,
+                            primitive_children: Some(Rc::new(RefCell::new( vec![
+                                RectangleInstance::instantiate(InstantiationArgs{
+                                    properties: PropertiesCoproduct::Rectangle(Rectangle {
+                                        stroke: Default::default(),
+                                        fill: Box::new(PropertyLiteral(Color::rgba(1.0, 0.45, 0.25, 1.0)))
+                                    }),
+                                    handler_registry: None,
+                                    instance_map: Rc::clone(&instance_map),
+                                    transform: Transform2D::default_wrapped(),
+                                    size: Some([PropertyLiteral(Size::Percent(100.0)).into(),PropertyLiteral(Size::Percent(100.0)).into()]),
+                                    primitive_children: None,
+                                    component_template: None,
+                                    component_adoptees: None,
+                                    placeholder_index: None,
+                                    repeat_data_list: None,
+                                    conditional_boolean_expression: None,
+                                    compute_properties_fn: None
+                                })
+                            ]
+                            ))),
+                            component_template: None,
+                            component_adoptees: None,
+                            placeholder_index: None,
+                            repeat_data_list: Some(Box::new(PropertyLiteral((0..10).into_iter().map(|i|{
+                                Rc::new(PropertiesCoproduct::isize(i))
+                            }).collect()))),
+                            conditional_boolean_expression: None,
+                            compute_properties_fn: None
+                        })]))),
                         component_template: Some(Rc::new(RefCell::new(
                             vec![
                                 RepeatInstance::instantiate(InstantiationArgs {
@@ -297,7 +346,10 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                                     primitive_children: None,
                                                     component_template: None,
                                                     component_adoptees: None,
-                                                    placeholder_index: None,
+                                                    placeholder_index: Some(Box::new(PropertyExpression {
+                                                        id: "j".to_string(),
+                                                        cached_value: Default::default()
+                                                    })),
                                                     repeat_data_list: None,
                                                     conditional_boolean_expression: None,
                                                     compute_properties_fn: None
@@ -343,7 +395,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             ]
                         ))),
                         primitive_children: None,
-                        component_adoptees: None,
+
                         placeholder_index: None,
                         repeat_data_list: None,
                         conditional_boolean_expression: None,

@@ -161,17 +161,20 @@ _RIL means Rust Intermediate Language, which is the
 ## Milestone: automated compilation
 
 ```
-[ ] resolve the `Any` question
-    [ ] scope out the remaining work to automate PropertiesCoproduct generation
-        [ ] manifest generation, coordination between "flaky macros" (manifest generation & storage on disk)
-        [ ] generation of shadow Cargo.toml, automated patching mechanism, compiler coordination
-        [ ] 
-    [ ] decide whether the possible savings of that work is 
+[x] resolve the `Any` question
+    [x] defer until later; reassess if it becomes clear a lot of backtracking is emerging 
 [x] parser
     [x] grammar definition, PEG
     [x] parse grammar into manifest
-[ ] update parser to support inline (in-file) component def.
+[ ] update parser to support inline (in-file) component def. (as opposed to file path)
 [ ] `pax-compiler`
+    [ ] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
+        [ ] science: determine how macros behave, caching of expansion, incremental compilation
+        [ ] allow macros to report their registrants and the appropriate module path + file path via IPC
+        [ ] sweep for files that have been removed from fs; update fsdb
+        [ ] determine
+        [ ] persist fsdb to disk, probably .pax/fsdb, probably binpack
+        [ ] enable manual full rebuild, e.g. via `pax compile --full | --force | etc.` (should be doable via rustc with something like INCREMENTAL=0, refer to rust incremental compilation docs)
     [x] architecture
         [x] compiler seq. diagram 
         [x] dependency diagram
@@ -197,6 +200,7 @@ _RIL means Rust Intermediate Language, which is the
 [ ] expression compilation
     [ ] expression string => RIL generation
     [ ] symbol resolution & code-gen, incl. shadowing with `@for`
+    [ ] binding event handlers
 [ ] control flow
     [ ] @for
         [ ] parse data
@@ -218,6 +222,7 @@ _RIL means Rust Intermediate Language, which is the
         [x] manual
         [ ] if necessary, supporting type parsing & inference work for TypesCoproduct
         [ ] hook into compiler lifecycle
+            [ ] handle deleted files (e.g. if there's a `shadow/whatever.rs` but not a `whatever.rs`, then compiler should prune `shadow/whatever.rs`)
     [ ] serialize to RIL
         [ ] normalize manifest, or efficient JIT traversal
             [ ] stack Settings fragments (settings-selector-blocks and inline properties on top of defaults)
@@ -227,19 +232,7 @@ _RIL means Rust Intermediate Language, which is the
 [ ] e2e `pax run`
 ```
 
-<img src="pax-compiler/pax-compiler-sequence-diagram.png" />
-<img src="pax-dependency-graph.png" />
 
-## Milestone: timelines
-
-```
-[ ] Hook up PropertyTimeline
-    [ ] refactor easing curve packaging, probably into enum
-    [ ] refactor Tweenable, to support arbitrary types (dyn Tweenable) and impl for `fsize`
-    [ ] support Tweenable for f64
-    [ ] support Tweenable for `Transform`
-[ ] ergonomic timeline API design in pax
-```
 
 ## Milestone: clickable square
 
@@ -280,6 +273,32 @@ _RIL means Rust Intermediate Language, which is the
     [-] Patch ExpressionTable into cartridge à la PropertyCoproduct
 ```
 
+## Milestone: timelines
+
+```
+[ ] Hook up PropertyTimeline
+    [ ] refactor easing curve packaging, probably into enum
+    [ ] refactor Tweenable, to support arbitrary types (dyn Tweenable) and impl for `fsize`
+    [ ] support Tweenable for f64
+    [ ] support Tweenable for `Transform`
+[ ] ergonomic timeline API design in pax
+```
+
+## Milestone: vector primitives
+
+```
+[ ] Ellipse
+[ ] Path
+[ ] Image (bitmap) primitive
+    [ ] Hook into `piet`s image rendering
+    [ ] Asset management
+    [ ] SVG support? Separate primitive?
+```
+
+
+
+
+
 
 ## Backlog
 
@@ -310,19 +329,14 @@ _RIL means Rust Intermediate Language, which is the
 [ ] Margin & padding?
     [ ] Decide whether to support, e.g. is there a simpler alternative w/ existing pieces?
     [ ] Decide whether to support ONE or BOTH
-[ ] Ellipse
-[ ] Path
+[ ] Component-level defaults ("default masks") for properties (think: design system) -- e.g. "if not specified, all Rectangle > Stroke is _this value_"
 [ ] Frames: overflow scrolling
-[x] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
 [ ] chassis:
     [ ] macOS
     [ ] iOS
     [ ] Windows    
     [ ] Android
-[ ] Image (bitmap) primitive
-    [ ] Hook into `piet`s image rendering
-    [ ] Asset management
-    [ ] SVG support? Separate primitive?
+
 [ ] Gradients
     [ ] Multiple (stacked, polymorphic) fills
 [ ] Production compilation
@@ -352,6 +366,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] Parser for custom expression lang
 [ ] Debugging chassis
 [ ] Perf-optimize Rectangle (assuming BezPath is inefficient)
+[x] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
 ```
 
 ```
@@ -359,6 +374,11 @@ Creative development environment
 for makers of
 graphical user interfaces
 ```
+
+
+
+<img src="pax-compiler/pax-compiler-sequence-diagram.png" />
+<img src="pax-dependency-graph.png" />
 
 
 

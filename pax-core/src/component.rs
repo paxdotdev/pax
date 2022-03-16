@@ -52,7 +52,7 @@ impl RenderNode for ComponentInstance {
         let ret = Rc::new(RefCell::new(ComponentInstance {
             template,
             adoptees: match args.component_adoptees {
-                Some(adoptees) => unimplemented!("TODO: accept adoptees"),
+                Some(adoptees) => adoptees,
                 None => Rc::new(RefCell::new(vec![])),
             },
             transform: args.transform,
@@ -81,7 +81,7 @@ impl RenderNode for ComponentInstance {
             Box::new(Scope {
                 properties: Rc::clone(&self.properties)
             }),
-            self.timeline.clone(),
+            self.timeline.clone()
         );
     }
 

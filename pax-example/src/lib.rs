@@ -1,16 +1,14 @@
 use pax::*;
-use pax::api::{Prop};
+use pax::api::{Property};
 use pax_std::{Spread};
 
 #[pax(
-    <Group>
-        <Rectangle>
-    </Group>
-    <Spread>
+    <Spread cell_count=10 >
         @for i in (0..10) {
-            <Rectangle fill=Color::rgba(1.0, 1.0, 1.0, 1.0)/>
+            <Text content=@{"Index: " + i} />
+            <Rectangle fill=Color::rgba(100%, 45%, 25%, 100%) />
         }
-    </Group>
+    </Spread>
 )]
 pub struct Root {
     pub num_clicks : Property<isize>,

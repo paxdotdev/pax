@@ -9,12 +9,10 @@ use crate::types::{SpreadDirection, SpreadCellProperties};
 /// each node.  Spreads can be stacked inside of each other, horizontally
 /// and vertically, alongside `Transform.align` and `Transform.origin` to achieve any 2D layout.
 #[pax(
-    @template {
-        @for (elem, i) in self.computed_layout_spec {
-            <Frame transform=@{translate(elem.x_px, elem.y_px)} size=@{[elem.width_px, elem.height_px]}>
-                <Placeholder index=@i>
-            </Frame>
-        }
+    @for (elem, i) in self.computed_layout_spec {
+        <Frame transform=@{translate(elem.x_px, elem.y_px)} size=@{[elem.width_px, elem.height_px]}>
+            <Placeholder index=@i>
+        </Frame>
     }
 )]
 pub struct Spread {
@@ -30,7 +28,6 @@ pub struct Spread {
     pub overrides_cell_size: Property<Vec<(usize, Size)>>,
     pub overrides_gutter_size: Property<Vec<(usize, Size)>>,
 }
-
 
 impl Spread {
 

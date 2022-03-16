@@ -60,10 +60,22 @@ pub struct RenderTreeContext<'a>
 
 
 impl<'a> Into<ArgsRender> for RenderTreeContext<'a> {
+
     fn into(self) -> ArgsRender {
+        // possible approach to enabling "auto cell count" in `Spread`, for example:
+        // let adoptee_count = {
+        //     let stack_frame = (*(*self.runtime).borrow().peek_stack_frame().expect("Component required")).borrow();
+        //     if stack_frame.has_adoptees() {
+        //         (*stack_frame.get_adoptees()).borrow().len()
+        //     } else {
+        //         0
+        //     }
+        // };
+
         ArgsRender {
             frames_elapsed: self.engine.frames_elapsed,
             bounds: self.bounds.clone(),
+            // adoptee_count,
         }
     }
 }

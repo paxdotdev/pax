@@ -49,7 +49,9 @@ pub struct ArgsRender {
     /// The current global engine tick count
     pub frames_elapsed: usize,
     /// The bounds of this element's container in px
-    pub bounds: (f64, f64)
+    pub bounds: (f64, f64),
+    // /// The number of adoptees passed to the current component (used by Spread for auto cell-count calc; might be extended/adjusted for other use-cases)
+    // pub adoptee_count: usize,
 }
 
 #[derive(Clone)]

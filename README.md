@@ -2,16 +2,20 @@
 
 Pax is a language for creating high-performance, cross-platform user interfaces.
 
+[TODO: GIF of three devices, each showing a progression of: 1. responsive form/CRUD app + layouts, 2. game, e.g. spaceship shooter, 3. animated data viz + text, a la d3]
+
 ## Goals
 
 **Portable**
 - run on any device
 - tiny footprint: suitable for web applications and embedded applications
-- be extremely fast (animations up to 120fps on supporting hardware)
+- extremely fast (animations up to 120fps on supporting hardware)
 
 **All-purpose**
-- 2D, 3D, digital documents, web apps, VR/AR, embedded GUIs
-- Per-platform native UI controls (dropdowns, scroll, etc.)
+- "Any UI you can imagine" -- 2D, 3D, digital documents, VR/AR, web apps, CRUD apps, data visualization, embedded GUIs
+- Native UI controls for every platform (dropdowns and text boxes, scrolling, etc.)
+- Native text rendering & styling for every platform
+- Native accessibility (a11y) support for every platform
 - Expressive & intuitive layouts
 - Complex, fine-tuned animations
 
@@ -20,13 +24,19 @@ Pax is a language for creating high-performance, cross-platform user interfaces.
 - Open source (MIT / Apache 2.0)
 - Extensible rendering back-ends
 
+And this breaks the mnemonic, but is a fundamental goal:
+
+**Designable**
+- Pax is designed from the ground-up to be deterministically _machine_ read/writable alongside _human_ authoring, while maintaining ergonomics.
+- In other words: as an alternative to hand-writing Pax, visual design tools can read and write Pax through a interface that feels like Adobe Illustrator, Sketch, or Figma.
+
 ## How it works
 
 Pax attaches to a _host codebase_ which is responsible for any imperative or side-effectful logic (e.g. network requests, operating system interactions.)  This divide allows Pax itself to remain highly declarative.
 
-Currently Pax supports Rust as a host language, though support for JavaScript/TypeScript is on the [roadmap](TODO.md).
+Currently Pax supports Rust as a host language, though support for JavaScript/TypeScript is on the [roadmap](TODO.md).  For Pax itself: the compiler tooling and the runtimes are all written in Rust.
 
-Following is a simple example.  This Pax UI describes a rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle increments its rotation by 1/20 radians.
+Following is a simple example.  This Pax UI describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle increments its rotation by 1/20 radians.
 
 ```rust
 use pax::*;
@@ -53,22 +63,42 @@ impl HelloWorld {
 You'll notice a few moving pieces here:
 
 #### Template and settings
-  - Each component declares a template in an XML-like syntax, which describes how its UI should be displayed.
-  - Any element in that template can have settings assigned as XML key-value pairs.
+
+`<Rectangle fill=/*some value*/> ...`
+
+Each component declares a template in an XML-like syntax, which describes how its UI should be displayed.  Any element in that template can have its settings assigned as XML key-value pairs.
 
 #### Expressions
-  - Notice the two `@`-signs in the template above.  Those signal to the Pax compiler that the subsequent symbol(s) are dynamic, and should be evaluated in the context of the host codebase.  `@self.handle_click` points to a function as an event handler, and `transform=@{ ... }` calculates the contents of the `{}` block and passes a return value. 
-  - The mechanism behind this is in fact a whole language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.
-  - PAXEL expressions are distinctive in a few ways:
-     - Any PAXEL expression must be a pure function of its inputs and must be side-effect free
+
+Properties can have literal values, like `transform=translate(200,200)` or `fill=Color::rgba(100%, 100%, 0%, 100%)`
+
+Or values can be dynamic *expressions*, like:
+`transform=@{translate(200,y_counter) * rotate(self.rotation_counter)}` or `fill=@{Color::rgba(self.red_amount, self.green_amount, 0%, 100%)}`
+
+Notice the `@`-signs — these signal to the Pax compiler that the subsequent symbol(s) are dynamic, and should be evaluated in the context of the host codebase.  The contents of the `{}` block are evaluated and the return value is bound to the setting.  
+
+The mechanism behind this is in fact a whole language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.[3] 
+
+PAXEL expressions are distinctive in a few ways:
+     - Any PAXEL expression must be a pure function of its inputs and must be side-effect free.  E.g. there's simply no way in the PAXEL language to _set_ a value.
      - As a result of the above, PAXEL expressions may be aggressively cached and recalculated only when inputs change.
      - In spirit, expressions act a lot like spreadsheet formulas
-     
+
+#### Event handlers
+
+`on_click=@self.handle_click` binds a the `handle_click` method defined in the host codebase to the built-in `click` event which Pax fires when a user clicks the mouse on this element.  Events fire as "interrupts" and are allowed to execute arbitrary, side-effectful, imperative logic.  
+
+It is in event handlers that you will normally change property values (e.g. `self.red_amount.set(/*new value*/)`, where `self.red_amount` is referenced in the Expression example above.)
+
+Pax includes a number of built-in lifecycle events like `pre_render` and user interaction events like `on_click` and `on_tap`.
+
+
 #### Components all the way down
   - This example declares a Pax component called `HelloWorld`.  Every Pax UI is a component at its root, which comprises other components in its template.  Another program or file could import `HelloWorld` and include it in its template as `<HelloWorld num_clicks=4 />`
-  - Special primitives are included with Pax core and may be authored by anyone.  These primitives (`Rectangle` in the example above) have access to the core engine and drawing APIs, which is how `Rectangle` draws itself.  Other built-in primitives include `Text`, `Frame` (clipping), `Group`, `Ellipse`, and `Path`.
+  - Special primitives are included with Pax core but these may be also be extended and authored by anyone.  These primitives (`Rectangle` in the example above) have access to the core engine and drawing APIs, which is how `Rectangle` draws itself.  Other built-in primitives include `Text`, `Frame` (clipping), `Group`, `Ellipse`, `Image`, and `Path` — as well as (forthcoming) form controls like `DropDownList` and `TextBox`.
 
-    
+
+
 ## Current status & support
 
 Pax is in its early days but has ambitions to mature robustly.
@@ -76,8 +106,8 @@ Pax is in its early days but has ambitions to mature robustly.
 |                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              |
 |-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|
 | *Ready to use* [1]                      | ✅             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
-| 2D rendering [2]                        | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D             |
-| 3D rendering                            | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
+| 2D rendering and UIs [2]                | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D             |
+| 3D rendering and UIs                    | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
 | Vector graphics APIs                    | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
 | 2D layouts                              | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
 | Animation APIs                          | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
@@ -95,8 +125,11 @@ Pax is in its early days but has ambitions to mature robustly.
 
 [1] Note that Pax is currently in alpha and should only be used in settings where that's not a concern. 
 
-[2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the hard work behind [Piet](https://github.com/linebender/piet). 
+[2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the admirable work behind [Piet](https://github.com/linebender/piet). 
 
+[3] PAXEL is similar to Google's Common Expression Language (CEL), but CEL was not a suitable fit for Pax due to its footprint — being written in Go, CEL adds
+a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total footprint of ~100KB.  Pax also has subtly distinct goals
+vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this domain.
 
 ## Native rendering, native controls
 
@@ -120,7 +153,7 @@ Pax draws design inspiration from, among others:
  - Verilog, VHDL
  - Macromedia Flash, Dreamweaver
  - The World Wide Web, HTML, CSS
- - React, Vue
+ - React, Vue, Angular
  - Visual Basic, ASP.NET
  - VisiCalc, Lotus 1-2-3, Excel
  - The Nintendo Entertainment System
