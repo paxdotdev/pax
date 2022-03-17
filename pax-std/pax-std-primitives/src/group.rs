@@ -28,7 +28,7 @@ impl RenderNode for GroupInstance {
     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
         let new_id = pax_runtime_api::mint_unique_id();
         let ret = Rc::new(RefCell::new(Self {
-            primitive_children: match args.primitive_children {
+            primitive_children: match args.children {
                 None => {Rc::new(RefCell::new(vec![]))}
                 Some(children) => children
             },

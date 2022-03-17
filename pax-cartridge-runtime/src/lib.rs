@@ -194,7 +194,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
             instance_map: Rc::clone(&instance_map),
             transform: Transform2D::default_wrapped(),
             size: None,
-            primitive_children: None,
+            children: None,
             component_template: Some(Rc::new(RefCell::new(vec![
 
                 //rainbow box
@@ -273,13 +273,13 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                         instance_map: Rc::clone(&instance_map),
                         transform: Transform2D::default_wrapped(),
                         size: Some([Box::new(PropertyLiteral(Size::Percent(100.0))), Box::new(PropertyLiteral(Size::Percent(100.0)))]),
-                        component_adoptees: Some(Rc::new(RefCell::new(vec![RepeatInstance::instantiate(InstantiationArgs {
+                        children: Some(Rc::new(RefCell::new(vec![RepeatInstance::instantiate(InstantiationArgs {
                             properties: PropertiesCoproduct::None,
                             handler_registry: None,
                             instance_map: Rc::clone(&instance_map),
                             transform: Transform2D::default_wrapped(),
                             size: None,
-                            primitive_children: Some(Rc::new(RefCell::new( vec![
+                            children: Some(Rc::new(RefCell::new( vec![
                                 RectangleInstance::instantiate(InstantiationArgs{
                                     properties: PropertiesCoproduct::Rectangle(Rectangle {
                                         stroke: Default::default(),
@@ -289,10 +289,10 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                     instance_map: Rc::clone(&instance_map),
                                     transform: Transform2D::default_wrapped(),
                                     size: Some([PropertyLiteral(Size::Percent(100.0)).into(),PropertyLiteral(Size::Percent(100.0)).into()]),
-                                    primitive_children: None,
+                                    children: None,
                                     component_template: None,
-                                    component_adoptees: None,
                                     placeholder_index: None,
+                                    should_skip_adoption: false,
                                     repeat_data_list: None,
                                     conditional_boolean_expression: None,
                                     compute_properties_fn: None
@@ -300,7 +300,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             ]
                             ))),
                             component_template: None,
-                            component_adoptees: None,
+                            should_skip_adoption: false,
                             placeholder_index: None,
                             repeat_data_list: Some(Box::new(PropertyLiteral((0..10).into_iter().map(|i|{
                                 Rc::new(PropertiesCoproduct::isize(i))
@@ -317,7 +317,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                     transform: Transform2D::default_wrapped(),
                                     size: None,
                                     component_template: None,
-                                    primitive_children: Some(Rc::new(RefCell::new(vec![
+                                    children: Some(Rc::new(RefCell::new(vec![
                                         FrameInstance::instantiate(InstantiationArgs{
                                             properties: PropertiesCoproduct::None,
                                             handler_registry: None,
@@ -336,16 +336,16 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                                     cached_value: Default::default()
                                                 }
                                             )]),
-                                            primitive_children: Some(Rc::new(RefCell::new(vec![
+                                            children: Some(Rc::new(RefCell::new(vec![
                                                 PlaceholderInstance::instantiate(InstantiationArgs {
                                                     properties: PropertiesCoproduct::None,
                                                     handler_registry: None,
                                                     instance_map: Rc::clone(&instance_map),
                                                     transform: Transform2D::default_wrapped(),
                                                     size: Some([PropertyLiteral(Size::Percent(100.0)).into(),PropertyLiteral(Size::Percent(100.0)).into()]),
-                                                    primitive_children: None,
+                                                    children: None,
                                                     component_template: None,
-                                                    component_adoptees: None,
+                                                    should_skip_adoption: false,
                                                     placeholder_index: Some(Box::new(PropertyExpression {
                                                         id: "j".to_string(),
                                                         cached_value: Default::default()
@@ -376,26 +376,26 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                                 // }),
                                             ]))),
                                             component_template: None,
-                                            component_adoptees: None,
+                                            should_skip_adoption: false,
                                             placeholder_index: None,
                                             repeat_data_list: None,
                                             conditional_boolean_expression: None,
                                             compute_properties_fn: None
                                         }),
                                     ]))),
-                                    component_adoptees: None,
                                     placeholder_index: None,
                                     repeat_data_list: Some(Box::new(PropertyExpression {
                                         id: "f".to_string(),
                                         cached_value: vec![],
                                     })),
                                     conditional_boolean_expression: None,
-                                    compute_properties_fn: None
+                                    compute_properties_fn: None,
+                                    should_skip_adoption: false
                                 }),
                             ]
                         ))),
-                        primitive_children: None,
 
+                        should_skip_adoption: false,
                         placeholder_index: None,
                         repeat_data_list: None,
                         conditional_boolean_expression: None,
@@ -434,7 +434,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                 //End Spread
 
             ]))),
-            component_adoptees: None,
+            should_skip_adoption: false,
             placeholder_index: None,
             repeat_data_list: None,
             conditional_boolean_expression: None,

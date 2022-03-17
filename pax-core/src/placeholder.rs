@@ -59,7 +59,7 @@ impl RenderNode for PlaceholderInstance {
             Some(stack_frame) => {
                 // Grab the adoptee from the current stack_frame at Placeholder's specified `index`
                 // then make it Placeholder's own child.
-                match stack_frame.borrow().get_adoptees().borrow().get(*self.index.get()) {
+                match stack_frame.borrow().nth_adoptee(*self.index.get()) {
                     Some(rnp) => Rc::new(RefCell::new(vec![Rc::clone(&rnp)])),
                     None => Rc::new(RefCell::new(vec![])),
                 }

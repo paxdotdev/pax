@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext, HandlerRegistry, InstantiationArgs};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext, HandlerRegistry, InstantiationArgs, RenderNodePtr};
 
 use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
 
@@ -15,7 +15,8 @@ use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, ArgsCopro
 /// properties attached to each of Repeat's virtual nodes.
 pub struct ComponentInstance {
     pub template: RenderNodePtrList,
-    pub adoptees: RenderNodePtrList,
+    pub children: RenderNodePtrList,
+    pub should_skip_adoption: bool,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
@@ -24,8 +25,30 @@ pub struct ComponentInstance {
 }
 
 
+
+
+
+
+fn flatten_adoptees(adoptees: RenderNodePtrList) -> RenderNodePtrList {
+    let mut running_adoptees : Vec<RenderNodePtr> = vec![];
+
+    (*adoptees).borrow_mut().iter().for_each(|node|{
+        let node_borrowed = (**node).borrow();
+        if node_borrowed.should_flatten() {
+            let children = (*node_borrowed).get_rendering_children();
+            (*children).borrow().iter().for_each(|child|{running_adoptees.push(Rc::clone(child))});
+        } else {
+            running_adoptees.push(Rc::clone(node));
+        }
+    });
+
+    Rc::new(RefCell::new(running_adoptees))
+}
+
+
 //TODO:
 //  - track internal playhead for this component
+
 
 impl RenderNode for ComponentInstance {
     fn get_rendering_children(&self) -> RenderNodePtrList {
@@ -51,14 +74,15 @@ impl RenderNode for ComponentInstance {
 
         let ret = Rc::new(RefCell::new(ComponentInstance {
             template,
-            adoptees: match args.component_adoptees {
-                Some(adoptees) => adoptees,
+            children: match args.children {
+                Some(children) => children,
                 None => Rc::new(RefCell::new(vec![])),
             },
             transform: args.transform,
             properties: Rc::new(RefCell::new(args.properties)),
             compute_properties_fn: args.compute_properties_fn.expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
+            should_skip_adoption: args.should_skip_adoption,
             handler_registry: args.handler_registry,
         }));
 
@@ -77,11 +101,12 @@ impl RenderNode for ComponentInstance {
         }
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
         (*rtc.runtime).borrow_mut().push_stack_frame(
-            Rc::clone(&self.adoptees),
+            Rc::clone(&flatten_adoptees(Rc::clone(&self.children))),//TODO: this is the problem.
             Box::new(Scope {
                 properties: Rc::clone(&self.properties)
             }),
-            self.timeline.clone()
+            self.timeline.clone(),
+            self.should_skip_adoption
         );
     }
 

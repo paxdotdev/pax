@@ -24,9 +24,13 @@ pub struct InstantiationArgs {
     pub instance_map: Rc<RefCell<InstanceMap>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub size: Option<[Box<dyn PropertyInstance<Size>>;2]>,
-    pub primitive_children: Option<RenderNodePtrList>,
+    pub children: Option<RenderNodePtrList>,
     pub component_template: Option<RenderNodePtrList>,
-    pub component_adoptees: Option<RenderNodePtrList>,
+
+    //used in special cases where certain Component instances should not
+    //interfere with Placeholder <> Adoptee linking, e.g. for the
+    //internals of Repeat
+    pub should_skip_adoption: bool,
 
     //used by Placeholder
     pub placeholder_index: Option<Box<dyn PropertyInstance<usize>>>,

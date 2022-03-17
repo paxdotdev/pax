@@ -1787,3 +1787,87 @@ impl Hello {
 Note that `i` is bound from the template into the method call `get_dynamic_thing`
 
 The compiler can weave this together in the same fashion that it handles `with`
+
+
+
+### on adoptees
+2022-03-17
+
+Certain `should_flatten` elements, namely `if` (`Conditional`) and `for` (`Repeat`), 
+need to hoist their children as a sequence of adoptees, in lieu of themselves as singular nodes, e.g.
+
+```
+<Spread>
+    @for i in (0..10) {
+        <Rectangle>
+    }
+    <Ellipse>
+</Spread>
+```
+
+Spread should have 11 adoptees in this case
+
+Possibly a wrinkle: the computation of `Repeat`'s children
+(via `data_list`) might come later in the lifecycle than assignment
+of adoptees.
+
+Also take note that `Repeat` wraps each element in its own
+`Component`, which will take a stack frame and which currently 
+
+Stack frames are pushed/popped on each tick
+
+Expose `pop_adoptee() -> Option<RenderNodePtr>` on `StackFrame` (and maybe `nth_adoptee()`)
+StackFrame greedily traverses upward seeking the next `adoptee` to pop.
+`adoptees` become strictly an implementation detail, meaning the field can be eliminated 
+and `Component` can pass its `children` if specified to the StackFrame that it creates.  
+Unpacking `should_flatten` nodes can happen at this stage, and this probably requires a linear traversal of top-level child nodes.
+
+
+
+
+Stepping back briefly...
+
+Conceptually, when we expose placeholders, we're opening a "slot".  We're allowing two nodes
+to be connected in our graph, a `child` (to become `adoptee`) passed to a Component, and to a contained `Placeholder`, which mounts that `adoptee` as its own `child`.
+
+Spread introduces an additional `Component` into the mix, underneath `Repeat`.
+There seem to be some cases where we want to traverse parent nodes
+for adoptees, and other cases where we don't (e.g. a Spread
+with insufficient adoptees should render empty cells, not the surplus adoptees that were
+passed somewhere higher in the render tree.)
+
+We could pipe adoptees explicily, e.g. Repeat hand-picks an 
+adoptee for each ComponentInstance, attaches it to that stack frame,
+and we go on our merry way.
+
+There's also still the problem of flattening.
+Repeat and Conditional could be trained to push their children directly to
+a mutable StackFrame's `adoptees` list... still there's a matter of
+lifecycle management, though. (will those adoptees be pushed at the
+right time?)
+
+```
+<Spread>
+    @for i in (0..10) {
+        <Rectangle/>
+    }
+</Spread>
+```
+
+Could the `pre_render` hook be useful here?  Properties have already been computed:
+for **this node, but not for its children** (e.g. Repeat)
+So no, `pre_render` probably won't be helpful as it sits.
+
+
+Probably our best bet is for the lookup to be dynamic on StackFrame itself.
+
+1. register children to StackFrame `adoptees` naively, no unpacking
+2. expose `nth_adoptee` on StackFrame, which 
+   1. somehow knows when to stop traversing stack upwards to seek adoptee list (special flag on componentinstance => stackframe ? hard-coded in Repeat where it instantiates Compoennt, for example), and
+   2. expands `should_flatten` nodes to compute its index lookup. naively, this can start O(n)
+3. 
+Where `nth_adoptee` checks all nodes for `should_flatten`, grabbing
+a
+
+Maybe there should be an explicit "adoptee delegation" operation? where a component
+may delegate the responsibility of certain adoptees to a member of its template

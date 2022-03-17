@@ -2,7 +2,7 @@
 
 Pax is a language for creating high-performance, cross-platform user interfaces.
 
-[TODO: GIF of three devices, each showing a progression of: 1. responsive form/CRUD app + layouts, 2. game, e.g. spaceship shooter, 3. animated data viz + text, a la d3]
+[TODO: GIF of three devices, each showing a progression of: 1. responsive form/CRUD app + layouts, 2. game, e.g. spaceship/asteroid shooter, 3. animated data viz + text, a la d3]
 
 ## Goals
 
@@ -10,6 +10,7 @@ Pax is a language for creating high-performance, cross-platform user interfaces.
 - run on any device
 - tiny footprint: suitable for web applications and embedded applications
 - extremely fast (animations up to 120fps on supporting hardware)
+- based on Rust and LLVM, compiles to machine code on most platforms and WASM (Web Assembly) for the Web.
 
 **All-purpose**
 - "Any UI you can imagine" -- 2D, 3D, digital documents, VR/AR, web apps, CRUD apps, data visualization, embedded GUIs
@@ -20,15 +21,19 @@ Pax is a language for creating high-performance, cross-platform user interfaces.
 - Complex, fine-tuned animations
 
 **eXtensible**
-- Reusable, extensible UI building blocks.
-- Open source (MIT / Apache 2.0)
-- Extensible rendering back-ends
+- "Components all the way down" as reusable, extensible UI building blocks
+- Extensible rendering back-ends, meaning any platform can be supported
+- Agnostic "host language" means any language can be supports (Rust, TypeScript/JavaScript, C++, .NET CLR...)
+- Free and open source (MIT / Apache 2.0)
 
 And this breaks the mnemonic, but is a fundamental goal:
 
 **Designable**
-- Pax is designed from the ground-up to be deterministically _machine_ read/writable alongside _human_ authoring, while maintaining ergonomics.
-- In other words: as an alternative to hand-writing Pax, visual design tools can read and write Pax through a interface that feels like Adobe Illustrator, Sketch, or Figma.
+- Pax is designed from the ground-up to be deterministically _machine_ read&writable alongside ergonomic _human_ authoring.
+- In other words: Pax is designed to be _designed_ with visual tools that feel like Illustrator or Figma, as an alternative to hand-writing.
+
+Above all, Pax aims to be a medium for _art_.  Utility, also, yes: that's table-stakes.  If Pax helps push the envelope for how humans express ourselves with interactive digital media, then it was worth building.    
+
 
 ## How it works
 
@@ -93,9 +98,6 @@ It is in event handlers that you will normally change property values (e.g. `sel
 Pax includes a number of built-in lifecycle events like `pre_render` and user interaction events like `on_click` and `on_tap`.
 
 
-#### Components all the way down
-  - This example declares a Pax component called `HelloWorld`.  Every Pax UI is a component at its root, which comprises other components in its template.  Another program or file could import `HelloWorld` and include it in its template as `<HelloWorld num_clicks=4 />`
-  - Special primitives are included with Pax core but these may be also be extended and authored by anyone.  These primitives (`Rectangle` in the example above) have access to the core engine and drawing APIs, which is how `Rectangle` draws itself.  Other built-in primitives include `Text`, `Frame` (clipping), `Group`, `Ellipse`, `Image`, and `Path` — as well as (forthcoming) form controls like `DropDownList` and `TextBox`.
 
 
 
@@ -129,7 +131,23 @@ Pax is in its early days but has ambitions to mature robustly.
 
 [3] PAXEL is similar to Google's Common Expression Language (CEL), but CEL was not a suitable fit for Pax due to its footprint — being written in Go, CEL adds
 a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total footprint of ~100KB.  Pax also has subtly distinct goals
-vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this domain.
+vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this particular domain.
+
+
+## What's in the box
+
+ - Compiler
+   - Builds a pax project into platform-specific "cartridges" (a la the Nintendo Entertainment System.) These cartrides can be mounted as self-contained native apps or embedded as UI components in existing codebases.
+ - Runtime (core)
+   - Written in Rust, logic for rendering and computation
+ - Runtime (native chassis)
+   - Written in combination of Rust and native platform code (e.g. TypeScript for Web, Swift for macOS/iOS)
+   - Handles platform-native concerns like: user input, native element rendering, text and form controls
+ - Examples
+ - APIs
+   - Tools for authoring Pax apps
+
+
 
 ## Native rendering, native controls
 

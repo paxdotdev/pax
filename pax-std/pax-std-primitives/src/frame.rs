@@ -28,7 +28,7 @@ impl RenderNode for FrameInstance {
         //TODO: add to instance_map!
         Rc::new(RefCell::new(
             Self {
-                children: args.primitive_children.expect("Frame expects primitive_children, even if empty Vec"),
+                children: args.children.expect("Frame expects primitive_children, even if empty Vec"),
                 size: Rc::new(RefCell::new(args.size.expect("Frame requires size"))),
                 transform: args.transform,
             }
