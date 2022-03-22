@@ -37,13 +37,21 @@ Above all, Pax aims to be a medium for _art_.  Utility, also, yes: that's table-
 
 ## How it works
 
-Pax attaches to a _host codebase_ which is responsible for any imperative or side-effectful logic (e.g. network requests, operating system interactions.)  This divide allows Pax itself to remain highly declarative.
+Pax attaches to a _host codebase_, which is responsible for any imperative or side-effectful logic (e.g. network requests, operating system interactions.)  This divide allows Pax itself to remain highly declarative.
 
-Currently Pax supports Rust as a host language, though support for JavaScript/TypeScript is on the [roadmap](TODO.md).  For Pax itself: the compiler tooling and the runtimes are all written in Rust.
+In practice, this looks like: write template and settings in Pax, write event handlers and data structures in the host language.
+
+[image: infographic illustrating layers of Pax and Host, illustrating the divide described above + "imperative", "declarative", "side-effects"]
+
+
+
+
+Currently Pax supports Rust as a host language, though support for JavaScript/TypeScript is on the [roadmap](TODO.md). For Pax itself: the compiler tooling and the runtimes are all written in Rust.
 
 Following is a simple example.  This Pax UI describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle increments its rotation by 1/20 radians.
 
 ```rust
+//Rust
 use pax::*;
 use pax::drawing2D::Rectangle;
 
@@ -63,6 +71,36 @@ impl HelloWorld {
         self.num_clicks.set(old_num_clicks + 1);
     }
 }
+```
+
+With Pax TypeScript, this example would look like:
+
+```typescript
+//TypeScript, speculative API
+//This is not yet available
+import pax from 'pax-ui';
+
+class HelloWorld {
+
+    @pax `
+        <Rectangle onClick=@this.handleClick transform=@{
+            align(50%, 50%) *
+            rotate(this.numClicks / 20.0)
+        } />
+    `
+    
+    @property
+    numClicks: number;
+    
+    handleClick(args: ArgsClick) {
+        const oldNumClicks = this.numClicks.get();
+        this.numClicks.set(oldNumClicks + 1);
+    }
+    
+}
+
+
+ 
 ```
 
 You'll notice a few moving pieces here:
@@ -140,7 +178,7 @@ vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible f
    - Builds a pax project into platform-specific "cartridges" (a la the Nintendo Entertainment System.) These cartrides can be mounted as self-contained native apps or embedded as UI components in existing codebases.
  - Runtime (core)
    - Written in Rust, logic for rendering and computation
- - Runtime (native chassis)
+ - Runtime (per-platform native chassis)
    - Written in combination of Rust and native platform code (e.g. TypeScript for Web, Swift for macOS/iOS)
    - Handles platform-native concerns like: user input, native element rendering, text and form controls
  - Examples

@@ -78,7 +78,7 @@ impl Runtime {
     }
 
     /// Add a new frame to the stack, passing a list of adoptees
-    /// that may be handled by `Placeholder` and a scope that includes
+    /// that may be handled by `Placeholder` and a scope that includes the PropertiesCoproduct of the associated Component
     pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Box<Scope>, timeline: Option<Rc<RefCell<Timeline>>>, should_skip_adoption: bool) {
 
         let parent = self.peek_stack_frame();
@@ -191,21 +191,47 @@ impl StackFrame {
         }
     }
 
-    pub fn nth_adoptee(&self, i: usize) -> Option<RenderNodePtr> {
+    pub fn get_unexpanded_adoptees(&self) -> RenderNodePtrList {
+        Rc::clone(&self.adoptees)
+    }
 
-        //first, determine which frame we should draw adoptees from
+    pub fn nth_adoptee(&self, n: usize) -> Option<RenderNodePtr> {
 
-
+        //first, determine which frame we should draw adoptees from.
         let adoptees = if self.should_skip_adoption {
             StackFrame::recurse_get_adoptees(&self.parent)
         } else {
             Some(Rc::clone(&self.adoptees))
         };
 
+        match adoptees {
+            Some(adoptees) => {
+                //Now that we have the correct stackframe, we must
+                //walk the adoptees list and expand nodes that are `should_flatten`
 
-        // match adoptees {
-        //
-        // }
+                let expanded_nodes : Vec<RenderNodePtr> = (*adoptees).borrow_mut().iter().map(|render_node| {
+                    if (**render_node).borrow().should_flatten() {
+                        let mut ret = vec![];
+                        // pax_runtime_api::log(&format!("rendering children len: {}", (*(**render_node).borrow().get_rendering_children()).borrow().len()));
+                        (*(**render_node).borrow().get_rendering_children()).borrow().iter().for_each(|child_node|{
+                            ret.push(Rc::clone(child_node))
+                        });
+                        ret
+                    } else {
+                        vec![Rc::clone(render_node)]
+                    }
+                }).flatten().collect();
+                // pax_runtime_api::log(&format!("expanded nodes length: {}", expanded_nodes.len()));
+                return if &expanded_nodes.len() - 1 > n {
+                    None
+                } else {
+                    Some(Rc::clone(&expanded_nodes[n]))
+                }
+            },
+            None => {
+                return None;
+            }
+        }
 
         // let mut frame = self;
         // loop {

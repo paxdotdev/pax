@@ -100,8 +100,11 @@ impl RenderNode for ComponentInstance {
             transform.set(new_value);
         }
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
+
+        //TODO: adoptees need their properties calculated too!
+
         (*rtc.runtime).borrow_mut().push_stack_frame(
-            Rc::clone(&flatten_adoptees(Rc::clone(&self.children))),//TODO: this is the problem.
+            Rc::clone(&self.children),
             Box::new(Scope {
                 properties: Rc::clone(&self.properties)
             }),

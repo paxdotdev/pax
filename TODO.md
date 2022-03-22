@@ -1871,3 +1871,7 @@ a
 
 Maybe there should be an explicit "adoptee delegation" operation? where a component
 may delegate the responsibility of certain adoptees to a member of its template
+
+
+Twofold problem:
+1. adoptees need to have their properties computed, at least for top-level should_flatten

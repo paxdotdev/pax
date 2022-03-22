@@ -44,6 +44,7 @@ impl RenderNode for RepeatInstance {
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
 
 
+        pax_runtime_api::log(&"computing repeat properties");
         if let Some(data_list) = rtc.get_computed_value(self.data_list._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(v) = data_list { v } else { unreachable!() };
             self.data_list.set(new_value);
@@ -78,6 +79,8 @@ impl RenderNode for RepeatInstance {
                 render_node
             }).collect()
         ));
+
+        pax_runtime_api::log(&format!("finished computing repeat properties, virt len: {}", (*self.virtual_children).borrow().len()));
     }
 
     fn should_flatten(&self) -> bool {

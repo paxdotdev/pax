@@ -249,6 +249,35 @@ impl PaxEngine {
             }
         }
 
+        //adoptees need their properties calculated too...
+        //... but we _don't_ want to render them.
+        //maybe we only need to manually compute properties of top-level
+        //adoptees?  or maybe _only_ in specific _should_flatten_ cases!
+        match rtc.runtime.borrow_mut().peek_stack_frame() {
+            Some(stack_frame) => {
+                let adoptees = (*stack_frame).borrow_mut().get_unexpanded_adoptees();
+
+
+                //keep recursing through adoptees
+                adoptees.borrow_mut().iter().rev().for_each(|adoptee| {
+                    if (**adoptee).borrow().should_flatten() {
+
+                        (**adoptee).borrow_mut().compute_properties(&mut rtc.clone())
+                        //TODO:  maybe this is also where we should expand/flatten the adoptee —
+                        //       we now know that its properties are computed, which e.g. for Repeat means that
+                        //       get_rendering_children will return what it should. This may be the lowest-touch
+                        //       way of magicking adoptee flattening!
+                    }
+                });
+            },
+            None => {
+                //no stack frame, no adoptees
+            },
+        }
+
+
+
+
         let children = node.borrow_mut().get_rendering_children();
 
         //keep recursing through children
