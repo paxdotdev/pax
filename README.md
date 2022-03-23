@@ -6,6 +6,8 @@ Pax is a language for creating high-performance, cross-platform user interfaces.
 
 ## Goals
 
+Make the digital medium more expressive, for art and for productivity.
+
 **Portable**
 - run on any device
 - tiny footprint: suitable for web applications and embedded applications
@@ -13,7 +15,7 @@ Pax is a language for creating high-performance, cross-platform user interfaces.
 - based on Rust and LLVM, compiles to machine code on most platforms and WASM (Web Assembly) for the Web.
 
 **All-purpose**
-- "Any UI you can imagine" -- 2D, 3D, digital documents, VR/AR, web apps, CRUD apps, data visualization, embedded GUIs
+- "Any UI you can imagine" -- 2D, 3D, digital documents, VR/AR, web apps, CRUD apps, data visualization, interactive cartoons, experimental art, embedded GUIs
 - Native UI controls for every platform (dropdowns and text boxes, scrolling, etc.)
 - Native text rendering & styling for every platform
 - Native accessibility (a11y) support for every platform
@@ -25,14 +27,6 @@ Pax is a language for creating high-performance, cross-platform user interfaces.
 - Extensible rendering back-ends, meaning any platform can be supported
 - Agnostic "host language" means any language can be supports (Rust, TypeScript/JavaScript, C++, .NET CLR...)
 - Free and open source (MIT / Apache 2.0)
-
-And this breaks the mnemonic, but is a fundamental goal:
-
-**Designable**
-- Pax is designed from the ground-up to be deterministically _machine_ read&writable alongside ergonomic _human_ authoring.
-- In other words: Pax is designed to be _designed_ with visual tools that feel like Illustrator or Figma, as an alternative to hand-writing.
-
-Above all, Pax aims to be a medium for _art_.  Utility, also, yes: that's table-stakes.  If Pax helps push the envelope for how humans express ourselves with interactive digital media, then it was worth building.    
 
 
 ## How it works
@@ -221,6 +215,7 @@ Pax draws design inspiration from, among others:
 `./serve.sh`
 
 ### Dev Env Setup
+(for web chassis)
 - Install `wasm-opt` via `binaryen`:
    ```shell
    brew install binaryen
@@ -244,6 +239,34 @@ Pax draws design inspiration from, among others:
 
 ```
 Scratch pad:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+And this breaks the mnemonic, but is a fundamental goal:
+
+**Designable**
+- Pax is designed from the ground-up to be deterministically _machine_ read&writable alongside ergonomic _human_ authoring.
+- In other words: Pax is designed to be _designed_ with visual tools that feel like Illustrator or Figma, as an alternative to hand-writing.
+
+Above all, Pax aims to be a medium for _art_.  Utility, also, yes: that's table-stakes.  If Pax helps push the envelope for how humans express ourselves with interactive digital media, then it was worth building.    
+
+
+
+
 
 
 

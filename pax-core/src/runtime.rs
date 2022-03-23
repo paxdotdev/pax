@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_properties_coproduct::{PropertiesCoproduct};
-use crate::{HandlerRegistry, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use crate::{HandlerRegistry, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 
 use pax_runtime_api::{Timeline};
 
@@ -79,11 +79,28 @@ impl Runtime {
 
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Placeholder` and a scope that includes the PropertiesCoproduct of the associated Component
-    pub fn push_stack_frame(&mut self, adoptees: RenderNodePtrList, scope: Box<Scope>, timeline: Option<Rc<RefCell<Timeline>>>, should_skip_adoption: bool) {
+    pub fn push_stack_frame(&mut self, unexpanded_adoptees: RenderNodePtrList, scope: Box<Scope>, timeline: Option<Rc<RefCell<Timeline>>>, should_skip_adoption: bool, rtc: &mut RenderTreeContext) {
 
         let parent = self.peek_stack_frame();
 
         //TODO: track index/map for `nth_adoptee` to optimize hot-running lookup logic
+
+
+        //expand adoptees:
+        // - compute_properties for top-level (and recursively top-level) `should_flatten` nodes (e.g. to expand `Repeat`/nested `Repeat`s)
+        // - for `should_flatten` nodes, after computing their properties, hoist their children to be
+        //   top-level adoptees here on the StackFrame
+        // - combine expanded nodes into a single RenderNodePtrList; this is `adoptees`; proceed with instantiating
+
+
+
+        let adoptees = Rc::new(RefCell::new(
+            (*unexpanded_adoptees).borrow().iter().map(|adoptee| {
+                Runtime::process_adoptee_recursive(adoptee, rtc)
+            }).flatten().collect()
+        ));
+
+
 
         self.stack.push(
             Rc::new(RefCell::new(
@@ -91,6 +108,21 @@ impl Runtime {
             ))
         );
     }
+
+    fn  process_adoptee_recursive (adoptee: &RenderNodePtr, rtc: &mut RenderTreeContext) -> Vec<RenderNodePtr> {
+        let mut adoptee_borrowed = (**adoptee).borrow_mut();
+        if adoptee_borrowed.should_flatten() {
+            //1. compute properties
+            adoptee_borrowed.compute_properties(rtc);
+            //2. recurse into top-level should_flatten() nodes
+            (*adoptee_borrowed.get_rendering_children()).borrow().iter().map(|top_level_child_node|{
+                Runtime::process_adoptee_recursive(top_level_child_node, rtc)
+            }).flatten().collect()
+        } else {
+            vec![Rc::clone(adoptee)]
+        }
+    }
+
 
 }
 
@@ -121,17 +153,20 @@ pub struct StackFrame
     scope: Rc<RefCell<Scope>>,
     parent: Option<Rc<RefCell<StackFrame>>>,
     timeline: Option<Rc<RefCell<Timeline>>>,
-    should_skip_adoption: bool,
+    /// Handles a special case for Repeat > RepeatItem + Adoptees -- when working with adoptees inside a RepeatItem,
+    /// the runtime needs to know how to grab ancestors' adoptees instead of RepeatItem
+    /// //Alternatively........ can we just clone our adoptees from Repeat (if it has them) into any of its children?
+    shadow_scope_only: bool,
 }
 
 impl StackFrame {
-    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>, parent: Option<Rc<RefCell<StackFrame>>>, timeline: Option<Rc<RefCell<Timeline>>>, should_skip_adoption: bool) -> Self {
+    pub fn new(adoptees: RenderNodePtrList, scope: Rc<RefCell<Scope>>, parent: Option<Rc<RefCell<StackFrame>>>, timeline: Option<Rc<RefCell<Timeline>>>, shadow_scope_only: bool) -> Self {
         StackFrame {
             adoptees: Rc::clone(&adoptees),
             scope,
             parent,
             timeline,
-            should_skip_adoption,
+            shadow_scope_only,
         }
     }
 
@@ -179,7 +214,7 @@ impl StackFrame {
     fn recurse_get_adoptees(maybe_parent: &Option<Rc<RefCell<StackFrame>>>) -> Option<RenderNodePtrList> {
         match maybe_parent {
             Some(parent) => {
-                if (**parent).borrow().should_skip_adoption {
+                if (**parent).borrow().shadow_scope_only {
                     StackFrame::recurse_get_adoptees(&(**parent).borrow().parent)
                 } else {
                     Some(Rc::clone(&(**parent).borrow().adoptees))
@@ -196,42 +231,46 @@ impl StackFrame {
     }
 
     pub fn nth_adoptee(&self, n: usize) -> Option<RenderNodePtr> {
+        match (*self.adoptees).borrow().get(n) {
+            Some(i) => {Some(Rc::clone(i))}
+            None => {None}
+        }
 
         //first, determine which frame we should draw adoptees from.
-        let adoptees = if self.should_skip_adoption {
-            StackFrame::recurse_get_adoptees(&self.parent)
-        } else {
-            Some(Rc::clone(&self.adoptees))
-        };
-
-        match adoptees {
-            Some(adoptees) => {
-                //Now that we have the correct stackframe, we must
-                //walk the adoptees list and expand nodes that are `should_flatten`
-
-                let expanded_nodes : Vec<RenderNodePtr> = (*adoptees).borrow_mut().iter().map(|render_node| {
-                    if (**render_node).borrow().should_flatten() {
-                        let mut ret = vec![];
-                        // pax_runtime_api::log(&format!("rendering children len: {}", (*(**render_node).borrow().get_rendering_children()).borrow().len()));
-                        (*(**render_node).borrow().get_rendering_children()).borrow().iter().for_each(|child_node|{
-                            ret.push(Rc::clone(child_node))
-                        });
-                        ret
-                    } else {
-                        vec![Rc::clone(render_node)]
-                    }
-                }).flatten().collect();
-                // pax_runtime_api::log(&format!("expanded nodes length: {}", expanded_nodes.len()));
-                return if &expanded_nodes.len() - 1 > n {
-                    None
-                } else {
-                    Some(Rc::clone(&expanded_nodes[n]))
-                }
-            },
-            None => {
-                return None;
-            }
-        }
+        // let adoptees = if self.shadow_scope_only {
+        //     StackFrame::recurse_get_adoptees(&self.parent)
+        // } else {
+        //     Some(Rc::clone(&self.adoptees))
+        // };
+        //
+        // match adoptees {
+        //     Some(adoptees) => {
+        //         //Now that we have the correct stackframe, we must
+        //         //walk the adoptees list and expand nodes that are `should_flatten`
+        //
+        //         let expanded_nodes : Vec<RenderNodePtr> = (*adoptees).borrow_mut().iter().map(|render_node| {
+        //             if (**render_node).borrow().should_flatten() {
+        //                 let mut ret = vec![];
+        //                 // pax_runtime_api::log(&format!("rendering children len: {}", (*(**render_node).borrow().get_rendering_children()).borrow().len()));
+        //                 (*(**render_node).borrow().get_rendering_children()).borrow().iter().for_each(|child_node|{
+        //                     ret.push(Rc::clone(child_node))
+        //                 });
+        //                 ret
+        //             } else {
+        //                 vec![Rc::clone(render_node)]
+        //             }
+        //         }).flatten().collect();
+        //         // pax_runtime_api::log(&format!("expanded nodes length: {}", expanded_nodes.len()));
+        //         return if &expanded_nodes.len() - 1 > n {
+        //             None
+        //         } else {
+        //             Some(Rc::clone(&expanded_nodes[n]))
+        //         }
+        //     },
+        //     None => {
+        //         return None;
+        //     }
+        // }
 
         // let mut frame = self;
         // loop {
@@ -251,7 +290,7 @@ impl StackFrame {
         //     }
         // };
 
-        todo!()
+        // todo!()
 
         // let appropriate_frame = if &self.should_skip_adoption {
         //     let ancestor = &self.parent;

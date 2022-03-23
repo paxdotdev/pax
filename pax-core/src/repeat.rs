@@ -44,12 +44,27 @@ impl RenderNode for RepeatInstance {
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
 
 
-        pax_runtime_api::log(&"computing repeat properties");
+        // pax_runtime_api::log(&"computing repeat properties");
         if let Some(data_list) = rtc.get_computed_value(self.data_list._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(v) = data_list { v } else { unreachable!() };
             self.data_list.set(new_value);
         }
 
+
+        let parents_children = match &rtc.inherited_adoptees {
+            Some(adoptees) => {
+                Rc::clone(adoptees)
+            },
+            None => {
+                Rc::new(RefCell::new(vec![]))
+            }
+        };
+
+
+        //     match (*rtc.runtime).borrow_mut().peek_stack_frame() {
+        //     Some(frame) => {Rc::clone(&(*frame.borrow()).get_unexpanded_adoptees())},
+        //     None => {Rc::new(RefCell::new(vec![]))},
+        // };
         //TODO: cache and be smarter
 
         //reset children:
@@ -60,7 +75,7 @@ impl RenderNode for RepeatInstance {
 
                 let render_node : RenderNodePtr = Rc::new(RefCell::new(
                     ComponentInstance {
-                        children: Rc::new(RefCell::new(vec![])),
+                        children: Rc::clone(&parents_children),
                         template: Rc::clone(&self.children),
                         transform: Rc::new(RefCell::new(PropertyLiteral (Transform2D::default()))),
                         properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(datum), i))),
@@ -80,7 +95,7 @@ impl RenderNode for RepeatInstance {
             }).collect()
         ));
 
-        pax_runtime_api::log(&format!("finished computing repeat properties, virt len: {}", (*self.virtual_children).borrow().len()));
+        // pax_runtime_api::log(&format!("finished computing repeat properties, virt len: {}", (*self.virtual_children).borrow().len()));
     }
 
     fn should_flatten(&self) -> bool {

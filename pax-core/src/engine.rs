@@ -21,7 +21,7 @@ use kurbo::{
 use piet::RenderContext;
 use piet_web::WebRenderContext;
 
-use crate::{Affine, ComponentInstance, Color, Error, ComputableTransform, RenderNodePtr, StrokeInstance, StrokeStyle, RenderNode, ExpressionContext, PropertyExpression};
+use crate::{Affine, ComponentInstance, Color, Error, ComputableTransform, RenderNodePtr, StrokeInstance, StrokeStyle, RenderNode, ExpressionContext, PropertyExpression, RenderNodePtrList};
 use crate::runtime::{Runtime};
 //TODO: make the JsValue render_message_queue platform agnostic and remove this dep —
 //      (probably translate to JsValue at the pax-chassis-web layer instead of here.)
@@ -56,6 +56,7 @@ pub struct RenderTreeContext<'a>
     pub runtime: Rc<RefCell<Runtime>>,
     pub node: RenderNodePtr,
     pub timeline_playhead_position: usize,
+    pub inherited_adoptees: Option<RenderNodePtrList>,
 }
 
 
@@ -169,6 +170,7 @@ impl PaxEngine {
             runtime: self.runtime.clone(),
             node: Rc::clone(&cast_component_rc),
             timeline_playhead_position: self.frames_elapsed,
+            inherited_adoptees: None,
         };
 
         &self.recurse_traverse_render_tree(&mut rtc, &mut hpc, Rc::clone(&cast_component_rc));
@@ -194,7 +196,7 @@ impl PaxEngine {
         //peek at the current stack frame and set a scoped playhead position as needed
         match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
-                rtc.timeline_playhead_position = stack_frame.borrow_mut().get_timeline_playhead_position();
+                rtc.timeline_playhead_position = stack_frame.borrow_mut().get_timeline_playhead_position().clone();
             },
             None => ()
         }
@@ -249,31 +251,38 @@ impl PaxEngine {
             }
         }
 
+
+        //problem: if a stackframe has `n` nodes (children), this logic will be called `n` times per frame.
+        //         is there a more elegant place to handle this? *perhaps when pushing the stackframe.*
         //adoptees need their properties calculated too...
         //... but we _don't_ want to render them.
         //maybe we only need to manually compute properties of top-level
         //adoptees?  or maybe _only_ in specific _should_flatten_ cases!
-        match rtc.runtime.borrow_mut().peek_stack_frame() {
-            Some(stack_frame) => {
-                let adoptees = (*stack_frame).borrow_mut().get_unexpanded_adoptees();
-
-
-                //keep recursing through adoptees
-                adoptees.borrow_mut().iter().rev().for_each(|adoptee| {
-                    if (**adoptee).borrow().should_flatten() {
-
-                        (**adoptee).borrow_mut().compute_properties(&mut rtc.clone())
-                        //TODO:  maybe this is also where we should expand/flatten the adoptee —
-                        //       we now know that its properties are computed, which e.g. for Repeat means that
-                        //       get_rendering_children will return what it should. This may be the lowest-touch
-                        //       way of magicking adoptee flattening!
-                    }
-                });
-            },
-            None => {
-                //no stack frame, no adoptees
-            },
-        }
+        //cloned_frame is declared separately so that descendents may freely borrow `rtc.runtime`
+        // let cloned_frame = rtc.runtime.borrow_mut().peek_stack_frame().clone();
+        // match cloned_frame {
+        //     Some(stack_frame) => {
+        //         let adoptees = (*stack_frame).borrow_mut().get_unexpanded_adoptees();
+        //
+        //
+        //         //keep recursing through adoptees
+        //         adoptees.borrow_mut().iter().rev().for_each(|adoptee| {
+        //             if (**adoptee).borrow().should_flatten() {
+        //
+        //                 (**adoptee).borrow_mut().compute_properties(&mut rtc.clone())
+        //                 //TODO:  maybe this is also where we should expand/flatten the adoptee —
+        //                 //       we now know that its properties are computed, which e.g. for Repeat means that
+        //                 //       get_rendering_children will return what it should. This may be the lowest-touch
+        //                 //       way of magicking adoptee flattening!
+        //                 //       One subtle alternative: do this when pushing the stack frame
+        //
+        //             }
+        //         });
+        //     },
+        //     None => {
+        //         //no stack frame, no adoptees
+        //     },
+        // }
 
 
 

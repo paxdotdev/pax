@@ -135,7 +135,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         } else { unreachable!("gamma") };
 
         let datum_cast = if let PropertiesCoproduct::SpreadCellProperties(d)= &*datum {d} else {unreachable!("epsilon")};
-        (*ec.engine.runtime).borrow().log(&format!("evaling layout width {}", datum_cast.width_px));
+        // (*ec.engine.runtime).borrow().log(&format!("evaling layout width {}", datum_cast.width_px));
         return TypesCoproduct::Size(
             Size::Pixel(datum_cast.width_px)
         )

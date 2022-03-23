@@ -1799,6 +1799,7 @@ need to hoist their children as a sequence of adoptees, in lieu of themselves as
 ```
 <Spread>
     @for i in (0..10) {
+        //shadowed scope (component) adds `i` here
         <Rectangle>
     }
     <Ellipse>
@@ -1809,7 +1810,8 @@ Spread should have 11 adoptees in this case
 
 Possibly a wrinkle: the computation of `Repeat`'s children
 (via `data_list`) might come later in the lifecycle than assignment
-of adoptees.
+of adoptees. (Update: this was indeed a wrinkle, fixed by adding a manual computation
+of adoptees' properties when they are `should_flatten` (namely for `if`, `for`))
 
 Also take note that `Repeat` wraps each element in its own
 `Component`, which will take a stack frame and which currently 
@@ -1822,6 +1824,18 @@ StackFrame greedily traverses upward seeking the next `adoptee` to pop.
 and `Component` can pass its `children` if specified to the StackFrame that it creates.  
 Unpacking `should_flatten` nodes can happen at this stage, and this probably requires a linear traversal of top-level child nodes.
 
+
+Spread's template in the example above might be something like:
+
+```
+
+@for i in self.cell_count {
+    <Frame transform=@{self.get_transform(i)}>
+        <Placeholder index=@i />
+    </Frame>
+}
+
+```
 
 
 
@@ -1875,3 +1889,19 @@ may delegate the responsibility of certain adoptees to a member of its template
 
 Twofold problem:
 1. adoptees need to have their properties computed, at least for top-level should_flatten
+
+### on TypeScript support, syntax
+2022-03-22
+
+1. comment (@pax `<Rectangle ...>`)
+2. JSX-style approach, extend JS/TS as a language.  Note: with a subtly different syntax, either:
+   1. adjust Pax's template syntax to conform with JSX, or:
+   2. fork JSX extensions (for build tooling, code editors) to support Pax
+
+It's probably worth _embracing_ the distinction that Pax is a separate language (without closure access or side effects in `render` fn)
+
+It's also probably worth embracing the advantage of strong typing (i.e. not worry about vanilla JS support; instead focus on TS support,) even if it diminishes the shorter-term reach of Pax.  
+
+There is almost certainly room in the world for more robustly built, strongly typed UIs.
+
+

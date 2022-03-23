@@ -103,13 +103,20 @@ impl RenderNode for ComponentInstance {
 
         //TODO: adoptees need their properties calculated too!
 
+        //TODO: expand children here, recursively, such that:
+        //      - any top-level child that is should_flatten gets proactively `compute_properties`-d, and
+        //      - any top-level child that is should_flatten gets its children assigned upward (hoisted here)
+        //        as top-level adoptees.  E.g. turn `<Ellipse />  @for i in (0..5) {<Rectangle />} <Ellipse />` into 7 elements
+        let mut rtc_cloned = (*rtc).clone();
         (*rtc.runtime).borrow_mut().push_stack_frame(
             Rc::clone(&self.children),
             Box::new(Scope {
+
                 properties: Rc::clone(&self.properties)
             }),
             self.timeline.clone(),
-            self.should_skip_adoption
+            self.should_skip_adoption,
+            &mut rtc_cloned,
         );
     }
 
