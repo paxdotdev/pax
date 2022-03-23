@@ -51,20 +51,21 @@ impl RenderNode for RepeatInstance {
         }
 
 
-        let parents_children = match &rtc.inherited_adoptees {
-            Some(adoptees) => {
-                Rc::clone(adoptees)
-            },
-            None => {
-                Rc::new(RefCell::new(vec![]))
-            }
-        };
-
-
-        //     match (*rtc.runtime).borrow_mut().peek_stack_frame() {
-        //     Some(frame) => {Rc::clone(&(*frame.borrow()).get_unexpanded_adoptees())},
-        //     None => {Rc::new(RefCell::new(vec![]))},
+        // let parents_children = match &rtc.inherited_adoptees {
+        //     Some(adoptees) => {
+        //         Rc::clone(adoptees)
+        //     },
+        //     None => {
+        //         Rc::new(RefCell::new(vec![]))
+        //     }
         // };
+
+
+        //if Repeat has any adoptees, they should be cloned into the ComponentInstances so that Placeholder works as expected
+        let parents_children = match (*rtc.runtime).borrow_mut().peek_stack_frame() {
+            Some(frame) => {Rc::clone(&(*frame.borrow()).get_unexpanded_adoptees())},
+            None => {Rc::new(RefCell::new(vec![]))},
+        };
         //TODO: cache and be smarter
 
         //reset children:

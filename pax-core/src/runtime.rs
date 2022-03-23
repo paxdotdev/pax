@@ -39,7 +39,9 @@ use pax_runtime_api::{Timeline};
 //     //to be written manually for primitives, codegenned for pax components
 //     fn unwrap_properties(&mut self) -> T;
 // }
+pub struct StackFramePushArgs {
 
+}
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, this is a home
@@ -79,7 +81,7 @@ impl Runtime {
 
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Placeholder` and a scope that includes the PropertiesCoproduct of the associated Component
-    pub fn push_stack_frame(&mut self, unexpanded_adoptees: RenderNodePtrList, scope: Box<Scope>, timeline: Option<Rc<RefCell<Timeline>>>, should_skip_adoption: bool, rtc: &mut RenderTreeContext) {
+    pub fn push_stack_frame(&mut self, expanded_adoptees: RenderNodePtrList, scope: Box<Scope>, timeline: Option<Rc<RefCell<Timeline>>>, should_skip_adoption: bool) {
 
         let parent = self.peek_stack_frame();
 
@@ -92,24 +94,14 @@ impl Runtime {
         //   top-level adoptees here on the StackFrame
         // - combine expanded nodes into a single RenderNodePtrList; this is `adoptees`; proceed with instantiating
 
-
-
-        let adoptees = Rc::new(RefCell::new(
-            (*unexpanded_adoptees).borrow().iter().map(|adoptee| {
-                Runtime::process_adoptee_recursive(adoptee, rtc)
-            }).flatten().collect()
-        ));
-
-
-
         self.stack.push(
             Rc::new(RefCell::new(
-                StackFrame::new(adoptees, Rc::new(RefCell::new(*scope)), parent, timeline, should_skip_adoption)
+                StackFrame::new(expanded_adoptees, Rc::new(RefCell::new(*scope)), parent, timeline, should_skip_adoption)
             ))
         );
     }
 
-    fn  process_adoptee_recursive (adoptee: &RenderNodePtr, rtc: &mut RenderTreeContext) -> Vec<RenderNodePtr> {
+    pub fn process_adoptee_recursive (adoptee: &RenderNodePtr, rtc: &mut RenderTreeContext) -> Vec<RenderNodePtr> {
         let mut adoptee_borrowed = (**adoptee).borrow_mut();
         if adoptee_borrowed.should_flatten() {
             //1. compute properties

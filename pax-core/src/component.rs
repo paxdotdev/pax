@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext, HandlerRegistry, InstantiationArgs, RenderNodePtr};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime};
 
 use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
 
@@ -107,16 +107,24 @@ impl RenderNode for ComponentInstance {
         //      - any top-level child that is should_flatten gets proactively `compute_properties`-d, and
         //      - any top-level child that is should_flatten gets its children assigned upward (hoisted here)
         //        as top-level adoptees.  E.g. turn `<Ellipse />  @for i in (0..5) {<Rectangle />} <Ellipse />` into 7 elements
-        let mut rtc_cloned = (*rtc).clone();
-        (*rtc.runtime).borrow_mut().push_stack_frame(
-            Rc::clone(&self.children),
-            Box::new(Scope {
+        // let mut rtc_cloned = (*rtc).clone();
 
+        //first: expand adoptees
+        let unexpanded_adoptees = Rc::clone(&self.children);
+
+        let expanded_adoptees = Rc::new(RefCell::new(
+            (*unexpanded_adoptees).borrow().iter().map(|adoptee| {
+                Runtime::process_adoptee_recursive(adoptee, rtc)
+            }).flatten().collect()
+        ));
+
+        (*rtc.runtime).borrow_mut().push_stack_frame(
+            expanded_adoptees,
+            Box::new(Scope {
                 properties: Rc::clone(&self.properties)
             }),
             self.timeline.clone(),
             self.should_skip_adoption,
-            &mut rtc_cloned,
         );
     }
 
