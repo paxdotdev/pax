@@ -242,7 +242,7 @@ impl PaxEngine {
                 Some(stack_frame) => {
                     for handler in (*registry).borrow().pre_render_handlers.iter() {
                         let args = ArgsRender { bounds: rtc.bounds.clone(), frames_elapsed: rtc.engine.frames_elapsed };
-                        handler(Rc::clone(&stack_frame.borrow_mut().get_scope().borrow_mut().properties), args);
+                        handler(stack_frame.borrow_mut().get_properties(), args);
                     }
                 },
                 None => {

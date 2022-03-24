@@ -29,7 +29,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
     //(compiler can keep a dict of operand types)
 
     map.insert("a".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
-        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
         } else { unreachable!() };
@@ -92,7 +92,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         //This is necessary for the non-clonable `Vec` in this case, and might need/want to be applied across codegen
         //(nesting instead of implicit cloning, e.g. of primitive types)
         #[allow(non_snake_case)]
-        if let PropertiesCoproduct::Spread(p) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
+        if let PropertiesCoproduct::Spread(p) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let computed_layout_spec = p.computed_layout_spec.get();
             return TypesCoproduct::Vec_Rc_PropertiesCoproduct___(computed_layout_spec.iter().enumerate().map(|(i,e)|{
                 let cloned = Rc::clone(e);
@@ -113,7 +113,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
 
     map.insert("g".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
-        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
         } else { unreachable!("alpha") };
@@ -129,7 +129,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     //Frame size x
     map.insert("h".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
-        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
         } else { unreachable!("gamma") };
@@ -143,7 +143,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     //Frame size y
     map.insert("i".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
-        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
         } else { unreachable!("delta") };
@@ -157,7 +157,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     //Frame index
     map.insert("j".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
-        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
         } else { unreachable!("epsilon") };

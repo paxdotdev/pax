@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, Scope, HostPlatformContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime};
 
 use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
 
@@ -101,15 +101,10 @@ impl RenderNode for ComponentInstance {
         }
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
 
-        //TODO: adoptees need their properties calculated too!
-
-        //TODO: expand children here, recursively, such that:
-        //      - any top-level child that is should_flatten gets proactively `compute_properties`-d, and
-        //      - any top-level child that is should_flatten gets its children assigned upward (hoisted here)
-        //        as top-level adoptees.  E.g. turn `<Ellipse />  @for i in (0..5) {<Rectangle />} <Ellipse />` into 7 elements
-        // let mut rtc_cloned = (*rtc).clone();
-
-        //first: expand adoptees
+        //expand adoptees before adding to stack frame.
+        //NOTE: this requires *evaluating properties* for certain RenderNodes,
+        //      namely `should_flatten` nodes like Repeat and Conditional, whose
+        //      properties must be evaluated before we can know how to handle them as adoptees
         let unexpanded_adoptees = Rc::clone(&self.children);
 
         let expanded_adoptees = Rc::new(RefCell::new(
@@ -120,11 +115,8 @@ impl RenderNode for ComponentInstance {
 
         (*rtc.runtime).borrow_mut().push_stack_frame(
             expanded_adoptees,
-            Box::new(Scope {
-                properties: Rc::clone(&self.properties)
-            }),
+            Rc::clone(&self.properties),
             self.timeline.clone(),
-            self.should_skip_adoption,
         );
     }
 
