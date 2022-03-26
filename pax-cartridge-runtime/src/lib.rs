@@ -111,7 +111,6 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     }));
 
-
     map.insert("g".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();

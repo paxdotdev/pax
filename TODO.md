@@ -1759,8 +1759,8 @@ It's roughly like minting a component, without a stack frame
 Could easily be managed in a design tool as such, while maintaining
 compatibility with hand-coding 
 
-~complet? comp?~
-Let's go with *stencil* for now.
+~complet? comp? precomp?~
+Let's go with *stencil* for now. [edit: precomp might be better, c.f. After Effects]
 
 What about when a stencil need to take parameters?  No problem —
 

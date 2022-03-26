@@ -55,16 +55,24 @@ impl Runtime {
         );
     }
 
-    pub fn process_adoptee_recursive (adoptee: &RenderNodePtr, rtc: &mut RenderTreeContext) -> Vec<RenderNodePtr> {
+    /// Handles special-cases like `@for`/`Repeat`, where properties for the
+    /// control flow primitive need to be computed out-of-lifecycle, and where nested child elements
+    /// need to be treated as top-level elements.
+    /// For example, for `<Spread><Ellipse />@for i in (0..3){ <Rectangle /> }</Spread>`,
+    /// without this special handling `Spread` will receive only two adoptees: the `Ellipse` and the `Repeat` node
+    /// created by `@for`.  In other words `@for`s children need to be treated as `<Spread>`s children,
+    /// and this processing allows that to happpen.
+    /// Note that this must be recursive to handle nested cases of flattening, for example nested `@for` loops
+    pub fn process__should_flatten__adoptees_recursive(adoptee: &RenderNodePtr, rtc: &mut RenderTreeContext) -> Vec<RenderNodePtr> {
         let mut adoptee_borrowed = (**adoptee).borrow_mut();
         if adoptee_borrowed.should_flatten() {
             //1. compute properties
             adoptee_borrowed.compute_properties(rtc);
             //2. recurse into top-level should_flatten() nodes
             (*adoptee_borrowed.get_rendering_children()).borrow().iter().map(|top_level_child_node|{
-                Runtime::process_adoptee_recursive(top_level_child_node, rtc)
+                Runtime::process__should_flatten__adoptees_recursive(top_level_child_node, rtc)
             }).flatten().collect()
-            //note that there's lots of allocation happening here -- flattening and collecting `Vec`s is probably not
+            //TODO: optimize.  Lots of allocation happening here -- flattening and collecting `Vec`s is probably not
             //the most efficient possible approach, and this is fairly hot-running code.
         } else {
             vec![Rc::clone(adoptee)]

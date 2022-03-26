@@ -109,7 +109,7 @@ impl RenderNode for ComponentInstance {
 
         let expanded_adoptees = Rc::new(RefCell::new(
             (*unexpanded_adoptees).borrow().iter().map(|adoptee| {
-                Runtime::process_adoptee_recursive(adoptee, rtc)
+                Runtime::process__should_flatten__adoptees_recursive(adoptee, rtc)
             }).flatten().collect()
         ));
 
