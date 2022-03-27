@@ -1,25 +1,19 @@
 //Comments are supported
 
-<Spread id="main-spread"> //Comments work at end of line
-    <Rectangle id="rect-1" onclick=@handle_click />
-    <Rectangle id="rect-2" /> /* inline comments work anywhere whitespace does */
-    <Group>
-        @if ( num_clicks % 2 == 0 ) {
-            <Text id="label" />
-        }
-        <Rectangle id="rect-3" fill=@{ x == 5 } />
-    </Group>
-</Spread>
-
+@template {
+    <Spread id="main-spread"> //Comments work at end of line
+        <Rectangle id="rect-1" onclick=@handle_click />
+        <Rectangle id="rect-2" /> /* inline comments work anywhere whitespace does */
+        <Group>
+            @if ( num_clicks % 2 == 0 ) {
+                <Text id="label" />
+            }
+            <Rectangle id="rect-3" fill=@{ x == 5 } />
+        </Group>
+    </Spread>
+}
 
 @settings {
-
-    //TBD: should the following property definitions be in Rust or here?
-    //     similarly, should imports rely on Rust's imports or should we have them in .dash?
-    //     the two questions should probably have the same answer...
-    num_clicks: Number = 0,
-    label: String = "namaste",
-    some_obj: {a: 1, b:2, c: "I'm a string!"}
 
     #main-spread {
         cell_count: 3
@@ -30,10 +24,10 @@
     #rect-1 {
         fill: {r: 255, g: 255, b: 255, a: 1}
         stroke: {
-            color: {r: 255, g: 0, b: 0, a: 1}
+            color: Color::rgba(100%, 0,0, 100%}
             width: 5px
             style: {
-                line_join: None
+                line_join: LineJoin::None
                 line_cap: LineCap::Butt
                 dash: [5,0,5,0]
             }
@@ -42,7 +36,7 @@
 
     #rect-2 {
         fill: @{
-            Color {h: (Engine.frames_elapsed / 100) % 360, s: 75, l: 75, a: 1}
+            Color::hsla(ColorChannel::Percent(Engine.frames_elapsed / 100) % 360), 75%, 75%, 100%)
         }
     }
 }

@@ -1,11 +1,11 @@
-
-<Spread id="main-spread">
-    <Rectangle id="rect-1" some_binding=@some_binding some_expression=@{ num_clicks % 2 == 0 } />
-    <Rectangle id="rect-2" />
-    <Rectangle id="rect-5" />
-    <Rectangle id="rect-3" />
-</Spread>
-
+@template {
+    <Spread id="main-spread">
+        <Rectangle id="rect-1" some_binding=@some_binding some_expression=@{ num_clicks % 2 == 0 } />
+        <Rectangle id="rect-2" />
+        <Rectangle id="rect-5" />
+        <Rectangle id="rect-3" />
+    </Spread>
+}
 
 @settings {
     #main-spread {
@@ -15,14 +15,9 @@
     }
 
     #rect-1 {
-        fill: {
-            r: 1.0
-            g: 0.0
-            b: 0.0
-            a: 1.0
-        },
+        fill: Color::rgba(100%, 100%, 0, 100%)
         stroke: {
-            color: { h: 360.0, s: 1.0, l: 1.0, a: 1.0 }
+            color: Color::rgba(100%, 0%, 100%, 100%)
             width: 5px
             style: {
                 line_join: None
@@ -33,8 +28,6 @@
     }
 
     #rect-2 {
-        fill: @{
-            { h: 360.0, s: 1.0, l: 1.0, a: 1.0 }
-        }
+        fill: Color::rgba(0,0,100%,100%)
     }
 }

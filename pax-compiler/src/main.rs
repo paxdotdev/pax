@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate pest_derive;
 
-
-
 use tokio::net::{TcpListener, TcpStream};
 
 use tokio::task::yield_now;
@@ -10,8 +8,6 @@ use tokio::{select, task};
 use tokio::runtime::Handle;
 use tokio::sync::mpsc::{Sender, Receiver, UnboundedReceiver};
 use tokio_stream::wrappers::{ReceiverStream};
-
-
 
 mod parser;
 mod server;
@@ -26,20 +22,13 @@ use std::sync::Arc;
 use clap::{App, AppSettings, Arg};
 
 use futures::prelude::*;
-
-
-
 use pax_message::*;
 use serde_json::Value;
 use tokio::process::Command;
 use tokio::sync::oneshot;
 use tokio_serde::SymmetricallyFramed;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
-
-// use serde_json::Value;
 use tokio_serde::formats::*;
-// use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
-
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -74,10 +63,10 @@ async fn main() -> Result<(), Error> {
             let target = "web";
 
             if args.is_present("target") {
-                unimplemented!("Target currently hard-coded for web")
+                unimplemented!("Target currently hard-coded for web.  TODO: support other platforms")
             }
 
-            let path = args.value_of("path").unwrap();
+            let path = args.value_of("path").unwrap(); //default value "."
 
             perform_run(RunContext{
                 target: target.into(), 
@@ -240,12 +229,11 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
     Ok(())
 }
 
-/// Run the project at the specified path inside the demo chassis
-/// for the specified target platform
+/// For the specified file path or current working directory, first compile Pax project,
+/// then run it with the `chassis-app` appropriate for the specified platform
 async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     
     //see pax-compiler-sequence-diagram.png
-
 
     let macro_coordination_tcp_port= get_open_tcp_port();
     println!("Listening for macro communication on open TCP port: {}", macro_coordination_tcp_port);
