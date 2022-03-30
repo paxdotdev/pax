@@ -40,7 +40,7 @@ pub enum TypesCoproduct {
     f64(f64),
     bool(bool),
     isize(isize),
-    usize(usize), //used by Placeholder for index
+    usize(usize), //used by Slot for index
     Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
     Transform2D(pax_example::pax_types::Transform2D),
     //generated

@@ -6,15 +6,11 @@ use pax::api::{ArgsCoproduct, ArgsRender, Property};
 
 use pax_std::primitives::{Group, Rectangle};
 
-
 pub mod pax_types {
     pub mod pax_std {
         pub mod primitives {
             pub use pax_std::primitives::Rectangle;
             pub use pax_std::primitives::Group;
-            // pub use pax_std::primitives::SpreadProperties;
-
-            // pub use pax_std::primitives::SpreadDirection;
         }
         pub mod components {
             pub use pax_std::components::Spread;
@@ -25,26 +21,13 @@ pub mod pax_types {
             pub use pax_std::types::Stroke;
             pub use pax_std::types::Size;
             pub use pax_std::types::SpreadDirection;
-
         }
     }
     pub use pax::api::Transform2D;
 
     pub use crate::Root;
-    //plus other relevant.
 }
 
-
-#[pax_type]
-pub struct SpreadCellProperties {
-    pub x_px: f64,
-    pub y_px: f64,
-    pub width_px: f64,
-    pub height_px: f64,
-}
-
-
-//#[pax] was here
 #[derive(Default)]
 pub struct Root {
     pub num_clicks: Property<isize>,
@@ -53,7 +36,7 @@ pub struct Root {
 
 impl Root {
     pub fn handle_pre_render(&mut self, args: ArgsRender) {
-        // pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
+        pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
         self.current_rotation.set(self.current_rotation.get() +(args.frames_elapsed as f64 / 100.0).powf(1.001));
     }
 }
@@ -74,12 +57,10 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 #[cfg(feature = "parser")]
 use pax::internal::message::{SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
-
 #[cfg(feature = "parser")]
 lazy_static! {
     static ref source_id: String = parser::get_uuid();
 }
-//generated if lib.rs
 #[cfg(feature = "parser")]
 pub fn main() {
     let mut ctx = ManifestContext {
@@ -109,7 +90,7 @@ impl Root {
         //this is decided based on which macro is used: [#pax(contents)] for inline and [#pax_file("path")] for file
         //those two macros should be otherwise equivalent, generating simply a different line that
         //evaluates `raw_pax`.
-        const raw_pax: String = fs::read_to_string("lib.pax").expect("failed to load lib.pax. Does the specified file exist?");
+        const raw_pax: String = todo!();//fs::read_to_string("lib.pax").expect("failed to load lib.pax. Does the specified file exist?");
         match ctx.visited_source_ids.get(&source_id as &str) {
             _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
             None => {
@@ -119,7 +100,7 @@ impl Root {
                 ctx.visited_source_ids.insert(source_id.clone());
 
                 //GENERATE: gen explict_path value with macro
-                let explicit_path: Option<String> = Some(.to_string());
+                let explicit_path: Option<String> = todo!();//Some(.to_string());
                 //TODO: support inline pax as an alternative to file
                 let mut template_map: HashMap<String, String> = HashMap::new();
 
@@ -131,8 +112,6 @@ impl Root {
 
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Root";
-
-
 
                 let (mut ctx, component_definition_for_this_file) = parser::handle_file(
                     ctx,

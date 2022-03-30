@@ -56,7 +56,7 @@ impl PaxManifest {
 #[derive(Debug)]
 #[derive(Serialize, Deserialize)]
 pub struct ComponentDefinition {
-    pub id: String,
+    pub source_id: String,
     pub pascal_identifier: String,
     pub module_path: String,
     //optional not because it cannot exist, but because

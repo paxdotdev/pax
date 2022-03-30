@@ -28,12 +28,12 @@ pub struct InstantiationArgs {
     pub component_template: Option<RenderNodePtrList>,
 
     //used in special cases where certain Component instances should not
-    //interfere with Placeholder <> Adoptee linking, e.g. for the
+    //interfere with Slot <> Adoptee linking, e.g. for the
     //internals of Repeat
     pub should_skip_adoption: bool,
 
-    //used by Placeholder
-    pub placeholder_index: Option<Box<dyn PropertyInstance<usize>>>,
+    //used by Slot
+    pub slot_index: Option<Box<dyn PropertyInstance<usize>>>,
 
     ///used by Repeat
     pub repeat_data_list: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
@@ -90,8 +90,8 @@ pub trait RenderNode
     /// `Repeat` overrides `should_flatten` to return true, which `Engine` interprets to mean "ignore this
     /// node and consume its children" during traversal.
     ///
-    /// This may also be useful as a check during placeholder -> adoptee
-    /// searching via stackframes — currently placeholders will recurse
+    /// This may also be useful as a check during slot -> adoptee
+    /// searching via stackframes — currently slots will recurse
     /// up the stackframe looking for adoptees, but it may be the case that
     /// checking should_flatten and NOT recursing is better behavior.  TBD
     /// as more use-cases are vetted.

@@ -11,7 +11,7 @@ use crate::types::{SpreadDirection, SpreadCellProperties};
 #[pax(
     @for (elem, i) in self.computed_layout_spec {
         <Frame transform=@{translate(elem.x_px, elem.y_px)} size=@{[elem.width_px, elem.height_px]}>
-            <Placeholder index=@i>
+            @slot(i)
         </Frame>
     }
 )]
@@ -135,7 +135,7 @@ impl Spread {
 //         //           /            //      \
 //         //      g( Frame )        //     i( Frame )
 //         //          |             //        |
-//         //      h( Placeholder )  //     j( Placeholder )
+//         //      h( Slot )  //     j( Slot )
 //         //
 //         // traversal order:
 //         // [a b e f g h c i j d]
@@ -143,10 +143,10 @@ impl Spread {
 //         // a: load the application root Group
 //         // b: found a Spread, start rendering it
 //         //    get its children from the Engine (get_children)
-//         //    — these are the `adoptees` that will be passed to `Placeholder`
+//         //    — these are the `adoptees` that will be passed to `Slot`
 //         //    and they need to be tracked.
 //         //    We can do this with a RenderNodeContext that we pass between recursive calls
-//         //    when rendering.  We can keep a stack of prefab "scopes," allowing `placeholder`'s render
+//         //    when rendering.  We can keep a stack of prefab "scopes," allowing `slot`'s render
 //         //    function to handily grab a reference to `adoptees[i]` when needed.  The stack
 //         //    enables components to nest among themselves
 //         // e: is Spread::render()
@@ -204,13 +204,13 @@ impl Spread {
 //                             ))),
 //                             component_template: None,
 //                             component_adoptees: None,
-//                             placeholder_index: None,
+//                             slot_index: None,
 //                             data_list: None,
 //                             compute_properties_fn: None
 //                         })
 //                     ]))),
 //                     component_adoptees: None,
-//                     placeholder_index: None,
+//                     slot_index: None,
 //                     data_list: Some(Box::new(
 //                         PropertyExpression {
 //                             id:  "8d81fc58-3d2e-4e9d-b7c0-e219819b9684".to_string(),
@@ -287,7 +287,7 @@ impl Spread {
 //     //                             )),
 //     //                             children: Rc::new(RefCell::new(vec![
 //     //                                 Rc::new(RefCell::new(
-//     //                                     Placeholder::new(
+//     //                                     Slot::new(
 //     //                                         Transform::default(),
 //     //                                         Box::new(PropertyExpression {
 //     //                                             cached_value: 0,
@@ -428,7 +428,7 @@ impl Spread {
         <Template>
             <Repeat declarations={{(i, elem)}} iterable={{get_children()}}>
                 <Frame transform={{get_frame_transform(i)}} size={{get_frame_size(i)}}>
-                    <Placeholder index={{i}}>
+                    <Slot index={{i}}>
                 </Frame>
             <Repeat/>
         </Template>

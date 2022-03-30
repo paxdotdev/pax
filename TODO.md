@@ -24,8 +24,8 @@
     `components`
     [x] Internal template mechanism for components
     [x] Make `root` into a component definition
-    [x] Control-flow `placeholder` (`placeholder`) for inputs/children
-    [x] Ensure path forward to userland `placeholders`
+    [x] Control-flow `slot` (`slot`) for inputs/children
+    [x] Ensure path forward to userland `slots`
     [x] Clipping & Frames
     [x] Control-flow `repeat` for cells & dividers inside template
     [x] Gutter
@@ -56,16 +56,16 @@ Perhaps a macro is the answer?
     - Cell widths
 [x] expose a Spread element for consumption by engine
 [x] accept children, just like primitives e.g. `Group`
-[x] author an internal template, incl. `placeholder`ing children and `repeating` inputs
+[x] author an internal template, incl. `slot`ing children and `repeating` inputs
     <Frame repeat=self.children transform=get_transform(i)>
-        <Placeholder index=i>
+        <Slot index=i>
     </Frame>
     - need to be able to define/call methods on containing class (a la VB)
     - need to figure out polymorphism, Vec<T> (?) for repeat
-    - need to figure out placeholder — special kind of rendernode?
+    - need to figure out slot — special kind of rendernode?
 [x] Frame
     [x] Clipping
-[x] Placeholder
+[x] Slot
 [x] Repeat
     [x] "flattening yield" to support <Spread><Repeat n=5><Rect>...
     [x] scopes:
@@ -121,7 +121,7 @@ _RIL means Rust Intermediate Language, which is the
                 [x] figure out scoping, e.g. addition of symbols to namespace, collision management
                 [x] RepeatItem: manage scope, properties
             [x] @if
-            [x] placeholder
+            [x] slot
             [x] frame
     [x] rendering hello world
     [x] proof of concept (RIL) for expressions
@@ -146,7 +146,7 @@ _RIL means Rust Intermediate Language, which is the
 [x] Spend some cycles ideating demo deliverables
 [x] Port Spread to be a pure component
     [x] figure out importing mechanism for core and/or other std primitives
-        [x] Group, Placeholder (e.g. from Core)
+        [x] Group, Slot (e.g. from Core)
         [x] Frame (e.g. from std — though if easier could just move to Core)
     [x] port spread logic; design expression/method approach
         [-] pure expressions + helpers?
@@ -167,7 +167,7 @@ _RIL means Rust Intermediate Language, which is the
     [x] grammar definition, PEG
     [x] parse grammar into manifest
 [ ] latest parser + grammar updates:
-    [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
+    [ ] support inline (in-file) component def. (as alternative to `#[pax_component_definition]` file path)
     [ ] `with` syntax
     [ ] `@for`
     [ ] ranges: literal and symbolic
@@ -314,7 +314,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] would dramatically simplify compiler, code-gen process
     [ ] would make build process less brittle
     [ ] roughly: `dyn RenderNode` -> `Box<Any>`, downcast blocks instead of `match ... unreachable!()` blocks
-        [ ] de-globalize InstantiationArgs, e.g. `placeholder_index` and `data_list`
+        [ ] de-globalize InstantiationArgs, e.g. `slot_index` and `data_list`
         [ ] remove PropertiesCoproduct entirely (and probably repeat the process for TypesCoproduct)
         [ ] possibly remove two-stage compiler process
         [ ] sanity check that we can downcast from a given `Any` both to: 1. `dyn RenderNode` (to call methods), and 2. `WhateverProperties` (to access properties)
@@ -1021,7 +1021,7 @@ for nested access.  Note that this extends to referring to desc. properties as w
 4. generated into RIL to handle this runtime story:
    1. user clicks on screen
    2. hits either:
-      1. native element (e.g. in PLaceholders or mixed mode content) 
+      1. native element (e.g. in Slots or mixed mode content) 
       2. or virtual element (canvas)
    3. for virtual elements, ray-cast location of click, find top element
    4. dispatch click event (add to message queue for relevant element(s))
@@ -1318,7 +1318,7 @@ the conceptual surface area.
  - Repeat (repeating a template, a la a stamp)
  - Component (instantiates an instance based on a template, a la a stamp)
 
-*Adoptees:* conceptually sound with Spread, via placeholders
+*Adoptees:* conceptually sound with Spread, via slots
  - fits in the same struct `RenderNodePtrList`
  - instead of an "average case tree," Adoptees are an "expected case list"
  - Sequence of siblings is relevant (beyond z-indexing); used to pluck adoptees away into whatever context
@@ -1352,10 +1352,10 @@ It reinforces the notion that `children` are injected from the outside,
 rather than "birthed" internally (a la a template)
 
 Is there a case where `adoptees` doesn't make sense to describe children?
-For `Group`, for example, it's awkward.  Group also doesn't use placeholders.
+For `Group`, for example, it's awkward.  Group also doesn't use slots.
 So: 
  - `children` are for primitives, e.g. for a `Group` and its contents
- - `adoptees` are specific to `Component` instances (because `StackFrame` is req'd.) that use `Placeholder`s
+ - `adoptees` are specific to `Component` instances (because `StackFrame` is req'd.) that use `Slot`s
  - `template` is specific to `Component` instances
 
 
@@ -1363,13 +1363,13 @@ So:
 
 ### on properties for core primitives
 
-e.g. `data_list` for `Repeat` and `index` (and maybe someday: `selector`) for `Placeholder`
+e.g. `data_list` for `Repeat` and `index` (and maybe someday: `selector`) for `Slot`
 
 Currently these are being shimmed into the top-level `InstantiationArgs`, e.g. `data_list`.
 This works but is a bit inelegant.  Options:
 
 - introduce a sub-struct, essentially just a cleanliness 'module' for InstantiationArgs.
-  add the relevant built-in-specific data there, like `placeholder_index` and `repeat_data_list`.
+  add the relevant built-in-specific data there, like `slot_index` and `repeat_data_list`.
 - generate the built-in `{}Properties` structs inside pax-cartridge-runtime,
   where they can be imported to PropertiesCoproduct (see RectangleProperties)
 
@@ -1885,7 +1885,7 @@ Spread's template in the example above might be something like:
 
 @for i in self.cell_count {
     <Frame transform=@{self.get_transform(i)}>
-        <Placeholder index=@i />
+        <Slot index=@i />
     </Frame>
 }
 
@@ -1895,8 +1895,8 @@ Spread's template in the example above might be something like:
 
 Stepping back briefly...
 
-Conceptually, when we expose placeholders, we're opening a "slot".  We're allowing two nodes
-to be connected in our graph, a `child` (to become `adoptee`) passed to a Component, and to a contained `Placeholder`, which mounts that `adoptee` as its own `child`.
+Conceptually, when we expose slots, we're opening a "slot".  We're allowing two nodes
+to be connected in our graph, a `child` (to become `adoptee`) passed to a Component, and to a contained `Slot`, which mounts that `adoptee` as its own `child`.
 
 Spread introduces an additional `Component` into the mix, underneath `Repeat`.
 There seem to be some cases where we want to traverse parent nodes

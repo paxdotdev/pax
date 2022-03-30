@@ -10,7 +10,7 @@ COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 //@property binding and @{}-style templating (embedding expressions)
 
 //A template has exactly one root tag, which cannot be control-flow
-pax_file = { SOI ~ root_tag_pair ~ settings_declaration? ~ EOI }
+pax_component_definition = { SOI ~ root_tag_pair ~ settings_declaration? ~ EOI }
 root_tag_pair = { any_tag_pair }
 
 //On the other hand, the inner_nodes (children of another tag)
@@ -180,7 +180,6 @@ xo_rel_eq = {"=="}
 xo_rel_neq = {"!="}
 
 
-
 //////  //////  //////
 /// BEGIN CONTROL FLOW
 //////
@@ -191,13 +190,8 @@ xo_rel_neq = {"!="}
 //can only sit alongside elements in a template and cannot be bound to properties.  As a result,
 //and to foster clarity of nomenclature, we call these `statements` rather than `expressions`.
 //These statements work as syntactic sugar for built-in primitives Conditional and Repeat.
-statement_control_flow = {"@" ~ (statement_if | statement_for)}// | statement_placeholder)}
+statement_control_flow = {"@" ~ (statement_if | statement_for| statement_slot)}
 
-//TODO: make parentheses optional, for example `@if (x == 5) {}` should be equiv. to `@if x == 5 {}`
-statement_if = {"if" ~ "("? ~ expression_body ~ ")" ~ "{" ~ inner_nodes ~ "}"} //TODO: else
-statement_for = {"for" ~ "(" ~ expression_body ~ ")" ~ "{" ~ inner_nodes ~ "}"}
-//There could be a case for @placeholder being a keyword and treated as a statement, namely for ergonomic consistency
-//with if and for.  That said, @placeholder has a complex API: can take an integer index (which may be bound to an expression/symbol) — or
-//can take a selector.  The XML API gained by using `placeholder as an element (i.e. instantiating pax-core/placeholder as `<Placeholder index=.../>`)
-//covers the API elegantly enough for now
-
+statement_if = {"if" ~ expression_body ~ "{" ~ inner_nodes ~ "}"} //TODO: else
+statement_for = {"for" ~ expression_body ~ "{" ~ inner_nodes ~ "}"}
+statement_slot = {"slot" ~ expression_body}

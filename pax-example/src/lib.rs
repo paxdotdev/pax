@@ -5,7 +5,7 @@ use pax_std::{Spread};
 #[pax(
     <Spread cell_count=10 >
         @for i in (0..10) {
-            <Text content=@{"Index: " + i} />
+            <Text>@{"Index: " + i}</Text>
             <Rectangle fill=Color::rgba(100%, 45%, 25%, 100%) />
         }
     </Spread>
@@ -16,6 +16,8 @@ pub struct Root {
 }
 
 impl Root {
+
+    #[pax_on(pre_render)]
     pub fn handle_pre_render(&mut self, args: ArgsTick) {
         pax::log(&format!("pax::log from frame {}", args.frame));
         self.current_rotation.set(self.current_rotation.get() + 0.10)

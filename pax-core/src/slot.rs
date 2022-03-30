@@ -10,29 +10,29 @@ use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
 
 
 /// A special "control-flow" primitive (a la `yield`) — represents a slot into which
-/// an adoptee can be rendered.  Placeholder relies on `adoptees` being present
+/// an adoptee can be rendered.  Slot relies on `adoptees` being present
 /// on the [`Runtime`] stack and will not render any content if there are no `adoptees` found.
 ///
 /// Consider a Spread:  the owner of a Spread passes the Spread some nodes to render
 /// inside the cells of the Spread.  To the owner of the Spread, those nodes might seem like
 /// "children," but to the Spread they are "adoptees" — children provided from
-/// the outside.  Inside Spread's template, there are a number of Placeholders — this primitive —
+/// the outside.  Inside Spread's template, there are a number of Slots — this primitive —
 /// that become the final rendered home of those adoptees.  This same technique
-/// is portable and applicable elsewhere via Placeholder.
-pub struct PlaceholderInstance {
+/// is portable and applicable elsewhere via Slot.
+pub struct SlotInstance {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub index: Box<dyn PropertyInstance<usize>>,
     cached_computed_children: RenderNodePtrList,
 }
 
 
-impl RenderNode for PlaceholderInstance {
+impl RenderNode for SlotInstance {
 
     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
         let new_id = pax_runtime_api::mint_unique_id();
         Rc::new(RefCell::new(Self {
             transform: args.transform,
-            index: args.placeholder_index.expect("index required for Placeholder"),
+            index: args.slot_index.expect("index required for Slot"),
             cached_computed_children: Rc::new(RefCell::new(vec![]))
         }))
     }
@@ -54,11 +54,11 @@ impl RenderNode for PlaceholderInstance {
         }
 
         // The following sort of children-caching is done by "control flow" primitives
-        // (Placeholder, Repeat, If) —
+        // (Slot, Repeat, If) —
         self.cached_computed_children = match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
-                // Grab the adoptee from the current stack_frame at Placeholder's specified `index`
-                // then make it Placeholder's own child.
+                // Grab the adoptee from the current stack_frame at Slot's specified `index`
+                // then make it Slot's own child.
                 match stack_frame.borrow().nth_adoptee(*self.index.get()) {
                     Some(rnp) => Rc::new(RefCell::new(vec![Rc::clone(&rnp)])),
                     None => Rc::new(RefCell::new(vec![])),

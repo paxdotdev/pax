@@ -8,7 +8,7 @@ use pest_derive::Parser;
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::fs;
+use std::{fs, env};
 use std::hint::unreachable_unchecked;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -109,11 +109,11 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
 //
 // pub fn parse_pax_for_template(pax: &str) {//-> TemplateNodeDefinition {
 //
-//     let pax_file = PaxParser::parse(Rule::pax_file, pax)
+//     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
 //         .expect("unsuccessful parse") // unwrap the parse result
 //         .next().unwrap(); // get and unwrap the `file` rule; never fails
 //
-//     let x = pax_file.into_inner();
+//     let x = pax_component_definition.into_inner();
 //     x.for_each(|pair|{
 //         match pair.as_rule() {
 //             Rule::root_tag_pair => {
@@ -138,7 +138,7 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
 
 pub fn handle_primitive(pascal_identifier: &str, module_path: &str, source_id: &str) -> ComponentDefinition {
     ComponentDefinition {
-        id: source_id.to_string(),
+        source_id: source_id.to_string(),
         pascal_identifier: pascal_identifier.to_string(),
         template: None,
         settings: None,
@@ -186,21 +186,19 @@ pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, expl
     println!("path: {:?}", path);
     let pax = fs::read_to_string(path).unwrap();
 
-    let (ctx, comp_def) = parse_component_from_pax_file(ctx,&pax, pascal_identifier ,true, template_map, source_id, module_path);
+    let (ctx, comp_def) = parse_full_component_definition_string(ctx, &pax, pascal_identifier, true, template_map, source_id, module_path);
     (ctx, comp_def)
 }
 
 
-pub fn parse_pascal_identifiers_from_pax_file(pax: &str) -> Vec<String> {
-    // let mut ret = vec![];
-
-    let pax_file = PaxParser::parse(Rule::pax_file, pax)
+pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
+    let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect("unsuccessful parse") // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `pax_file` rule
+        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
     let pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
 
-    pax_file.into_inner().for_each(|pair|{
+    pax_component_definition.into_inner().for_each(|pair|{
         match pair.as_rule() {
             Rule::root_tag_pair => {
                 recurse_visit_tag_pairs_for_pascal_identifiers(
@@ -257,12 +255,12 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
     }
 }
 
-fn parse_template_from_pax_file(ctx: &mut TemplateParseContext,pax: &str)  {
-    let pax_file = PaxParser::parse(Rule::pax_file, pax)
+fn parse_template_from_component_definition_string(ctx: &mut TemplateParseContext, pax: &str)  {
+    let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect("unsuccessful parse") // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `pax_file` rule
+        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
-    pax_file.into_inner().for_each(|pair|{
+    pax_component_definition.into_inner().for_each(|pair|{
         match pair.as_rule() {
             Rule::root_tag_pair => {
                 ctx.children_id_tracking_stack.push(vec![]);
@@ -470,15 +468,15 @@ fn derive_settings_value_definition_from_literal_object_pair(mut literal_object:
     }
 }
 
-fn parse_settings_from_pax_file(pax: &str) -> Option<Vec<SettingsSelectorBlockDefinition>> {
+fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<SettingsSelectorBlockDefinition>> {
 
-    let pax_file = PaxParser::parse(Rule::pax_file, pax)
+    let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect("unsuccessful parse") // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `pax_file` rule
+        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
     let mut ret : Vec<SettingsSelectorBlockDefinition> = vec![];
 
-    pax_file.into_inner().for_each(|top_level_pair|{
+    pax_component_definition.into_inner().for_each(|top_level_pair|{
         match top_level_pair.as_rule() {
             Rule::settings_declaration => {
 
@@ -523,12 +521,12 @@ pub struct ManifestContext {
 
 }
 
-//TODO: support fragments of pax that ARE NOT pax_file (e.g. inline expressions)
-pub fn parse_component_from_pax_file(mut ctx: ManifestContext, pax: &str, symbol_name: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ManifestContext, ComponentDefinition) {
+//TODO: support fragments of pax that ARE NOT pax_component_definition (e.g. inline expressions)
+pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &str, pascal_identifier: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ManifestContext, ComponentDefinition) {
 
-    let ast = PaxParser::parse(Rule::pax_file, pax)
+    let ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect("unsuccessful parse") // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `pax_file` rule
+        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
     if is_root {
         ctx.root_component_id = source_id.to_string();
@@ -546,13 +544,13 @@ pub fn parse_component_from_pax_file(mut ctx: ManifestContext, pax: &str, symbol
         children_id_tracking_stack: vec![],
     };
 
-    parse_template_from_pax_file(&mut tpc, pax);
+    parse_template_from_component_definition_string(&mut tpc, pax);
 
     let mut new_def = ComponentDefinition {
-        id: source_id.into(),
-        pascal_identifier: symbol_name.to_string(),
+        source_id: source_id.into(),
+        pascal_identifier: pascal_identifier.to_string(),
         template: Some(tpc.template_node_definitions),
-        settings: parse_settings_from_pax_file(pax),
+        settings: parse_settings_from_component_definition_string(pax),
         module_path: module_path.to_string(),
         root_template_node_id: tpc.root_template_node_id,
     };

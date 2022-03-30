@@ -44,7 +44,7 @@ impl Runtime {
     }
 
     /// Add a new frame to the stack, passing a list of adoptees
-    /// that may be handled by `Placeholder` and a scope that includes the PropertiesCoproduct of the associated Component
+    /// that may be handled by `Slot` and a scope that includes the PropertiesCoproduct of the associated Component
     pub fn push_stack_frame(&mut self, expanded_adoptees: RenderNodePtrList, properties: Rc<RefCell<PropertiesCoproduct>>, timeline: Option<Rc<RefCell<Timeline>>>) {
         let parent = self.peek_stack_frame();
 
@@ -83,7 +83,7 @@ impl Runtime {
 
 /// Data structure for a single frame of our runtime stack, including
 /// a reference to its parent frame, a list of `adoptees` for
-/// prospective [`Placeholder`] consumption, and `properties` for
+/// prospective [`Slot`] consumption, and `properties` for
 /// runtime evaluation, e.g. of Expressions.  StackFrames also track
 /// timeline playhead position.
 pub struct StackFrame
