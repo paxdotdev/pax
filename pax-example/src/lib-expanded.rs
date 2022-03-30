@@ -100,11 +100,18 @@ pub fn main() {
     let tcp_port = std::env::var("PAX_TCP_CALLBACK_PORT").expect("TCP callback port not provided");
 }
 
+
 #[cfg(feature = "parser")]
 //GENERATE pascal_identifier
 impl Root {
     pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
+        //a given source may be EITHER a.) inline pax, or b.) code-behind pax.
+        //this is decided based on which macro is used: [#pax(contents)] for inline and [#pax_file("path")] for file
+        //those two macros should be otherwise equivalent, generating simply a different line that
+        //evaluates `raw_pax`.
+        const raw_pax: String = fs::read_to_string("lib.pax").expect("failed to load lib.pax. Does the specified file exist?");
         match ctx.visited_source_ids.get(&source_id as &str) {
+            _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
             None => {
                 //First time visiting this file/source — parse the relevant contents
                 //then recurse through child nodes, unrolled here in the macro as
@@ -112,11 +119,11 @@ impl Root {
                 ctx.visited_source_ids.insert(source_id.clone());
 
                 //GENERATE: gen explict_path value with macro
-                let explicit_path: Option<String> = Some("lib.pax".to_string());
+                let explicit_path: Option<String> = Some(.to_string());
                 //TODO: support inline pax as an alternative to file
                 let mut template_map: HashMap<String, String> = HashMap::new();
 
-                //GENERATE:
+                //GENERATE: do for each unique component type found in template
                 let (mut ctx, component_id) = Rectangle::parse_to_manifest(ctx);
                 template_map.insert("Rectangle".into(), component_id);
                 let (mut ctx, component_id) = Group::parse_to_manifest(ctx);
@@ -124,6 +131,8 @@ impl Root {
 
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Root";
+
+
 
                 let (mut ctx, component_definition_for_this_file) = parser::handle_file(
                     ctx,
@@ -151,8 +160,7 @@ impl Root {
                 println!("{:?}", ctx);
 
                 (ctx, source_id.to_string())
-            }
-            _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
+            },
         }
     }
 }

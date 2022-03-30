@@ -8,7 +8,7 @@ use pest_derive::Parser;
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
-use std::{env, fs};
+use std::fs;
 use std::hint::unreachable_unchecked;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
@@ -30,7 +30,7 @@ pub struct PaxParser;
 /*
 COMPILATION STAGES
 
-0. Process template
+0. Macro codegen
     - build render tree by parsing template file
         - unroll @{} into a vanilla tree (e.g. `<repeat>` instead of `foreach`)
         - defer inlined properties & expressions to `process properties` step, except for `id`s
@@ -147,8 +147,13 @@ pub fn handle_primitive(pascal_identifier: &str, module_path: &str, source_id: &
     }
 }
 
-pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, explicit_path: Option<String>, pascal_identifier: &str, template_map: HashMap<String, String>, source_id: &str) -> (ManifestContext, ComponentDefinition) {
 
+pub enum PaxContents {
+    FilePath(String),
+    Inline(String),
+}
+
+pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, explicit_path: Option<String>, pascal_identifier: &str, template_map: HashMap<String, String>, source_id: &str) -> (ManifestContext, ComponentDefinition) {
     let path =
         match explicit_path {
             None => {

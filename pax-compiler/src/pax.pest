@@ -190,9 +190,14 @@ xo_rel_neq = {"!="}
 //are NOT embeddable all places that expressions are.  That is, control-flow statements
 //can only sit alongside elements in a template and cannot be bound to properties.  As a result,
 //and to foster clarity of nomenclature, we call these `statements` rather than `expressions`.
-statement_control_flow = {"@" ~ (statement_if | statement_foreach | statement_placeholder)}
+//These statements work as syntactic sugar for built-in primitives Conditional and Repeat.
+statement_control_flow = {"@" ~ (statement_if | statement_for)}// | statement_placeholder)}
 
-statement_if = {"if" ~ "(" ~ expression_body ~ ")" ~ "{" ~ inner_nodes ~ "}"} //TODO: else
-statement_foreach = {"foreach" ~ "(" ~ expression_body ~ ")" ~ "{" ~ inner_nodes ~ "}"}
-statement_placeholder = {"placeholder"}
+//TODO: make parentheses optional, for example `@if (x == 5) {}` should be equiv. to `@if x == 5 {}`
+statement_if = {"if" ~ "("? ~ expression_body ~ ")" ~ "{" ~ inner_nodes ~ "}"} //TODO: else
+statement_for = {"for" ~ "(" ~ expression_body ~ ")" ~ "{" ~ inner_nodes ~ "}"}
+//There could be a case for @placeholder being a keyword and treated as a statement, namely for ergonomic consistency
+//with if and for.  That said, @placeholder has a complex API: can take an integer index (which may be bound to an expression/symbol) — or
+//can take a selector.  The XML API gained by using `placeholder as an element (i.e. instantiating pax-core/placeholder as `<Placeholder index=.../>`)
+//covers the API elegantly enough for now
 

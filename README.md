@@ -25,6 +25,7 @@ Make the digital medium more expressive, for art and for productivity.
 **eXtensible**
 - "Components all the way down" as reusable, extensible UI building blocks
 - Extensible rendering back-ends, meaning any platform can be supported
+- Can support any type of digital media — audio, video, etc.
 - Agnostic "host language" means any language can be supports (Rust, TypeScript/JavaScript, C++, .NET CLR...)
 - Free and open source (MIT / Apache 2.0)
 
@@ -35,9 +36,7 @@ Pax attaches to a _host codebase_, which is responsible for any imperative or si
 
 In practice, this looks like: write template and settings in Pax, write event handlers and data structures in the host language.
 
-[image: infographic illustrating layers of Pax and Host, illustrating the divide described above + "imperative", "declarative", "side-effects"]
-
-
+[image: infographic illustrating layers of Pax and Host, illustrating the divide described above + "imperative", "declarative", "side-effects"] d
 
 
 Currently Pax supports Rust as a host language, though support for JavaScript/TypeScript is on the [roadmap](TODO.md). For Pax itself: the compiler tooling and the runtimes are all written in Rust.

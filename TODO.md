@@ -98,9 +98,9 @@ Perhaps a macro is the answer?
 ## Milestone: expressive RIL, hand-written
 
 _RIL means Rust Intermediate Language, which is the
-"object code" for Pax.  As the name suggests, RIL is valid Rust
+"object code" — i.e. compiler backend target — for Pax.  As the name suggests, RIL is valid Rust
 (specifically, a subset of Rust.)  Pax relies on
-`rustc` to convert RIL "object code" to machine code._
+`rustc` (via `cargo`) to convert RIL "object code" to machine code._
 
 ```
 [x] Compile base cartridge
@@ -166,15 +166,21 @@ _RIL means Rust Intermediate Language, which is the
 [x] parser
     [x] grammar definition, PEG
     [x] parse grammar into manifest
-[ ] update parser to support inline (in-file) component def. (as opposed to file path)
+[ ] latest parser + grammar updates:
+    [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
+    [ ] `with` syntax
+    [ ] `@for`
+    [ ] ranges: literal and symbolic
+    [ ] `@template` block, vs. top-level
 [ ] `pax-compiler`
-    [ ] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
-        [ ] science: determine how macros behave, caching of expansion, incremental compilation
-        [ ] allow macros to report their registrants and the appropriate module path + file path via IPC
-        [ ] sweep for files that have been removed from fs; update fsdb
-        [ ] determine
-        [ ] persist fsdb to disk, probably .pax/fsdb, probably binpack
-        [ ] enable manual full rebuild, e.g. via `pax compile --full | --force | etc.` (should be doable via rustc with something like INCREMENTAL=0, refer to rust incremental compilation docs)
+    [x] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
+        [-] NOTE: provisionally, this whole group is solved as not necessary, in light of the "parser binary" feature-flagged approach
+        [x] science: determine how macros behave, caching of expansion, incremental compilation
+        [x] allow macros to report their registrants and the appropriate module path + file path via IPC
+        [x] sweep for files that have been removed from fs; update fsdb
+        [x] determine
+        [x] persist fsdb to disk, probably .pax/fsdb, probably binpack
+        [x] enable manual full rebuild, e.g. via `pax compile --full | --force | etc.` (should be doable via rustc with something like INCREMENTAL=0, refer to rust incremental compilation docs)
     [x] architecture
         [x] compiler seq. diagram 
         [x] dependency diagram
@@ -203,7 +209,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] binding event handlers
 [ ] control flow
     [ ] @for
-        [ ] parse data
+        [ ] parse declaration `i`, `(i)`, `(i, elem)`
         [ ] handle range literals (0..10)
         [ ] shuttle data into RepeatInstance via Manifest
         [ ] `with`
@@ -1423,6 +1429,54 @@ pub struct TimelineSegment {
     }
 }
 
+
+//more spatial, ASCII-art-like.  Mildly awkard to type/maintain, but not so bad; big ergonomic benefits, and
+//UX can be improved through tooling, e.g. like the markdown table plugin in j                                                etbrains IDEs 
+# some-rect {
+    fill: @timeline {
+        (0           ,             10,           100)
+        (Palette::Red, Palette::Green, Palette::Blue)
+    }
+}
+//how about a vertical version?
+# some-rect {
+    fill: @timeline {
+        0: Palette::Red,
+        10: Palette::Green,
+        100: Color::rgba(
+            100%, 100%, 0%, 100%
+        ),
+    }
+}
+//not only does the above feel more familiar a la JSON, it elegantly handles multi-line constructions like the `Color::rgba...` above.
+
+
+//or horizontal with paging?
+
+
+//Maybe there's ALSO a use for the horizontal syntax, for simple cases and basic constants.  It just feels good when well aligned -- more like looking at a visual timeline
+
+# some-rect {
+    fill: @timeline {
+        |0            |10             |100           |
+        |None         |Linear         |OutBack       |
+        |Palette::Red |Palette::Green |Palette::Blue |
+        
+        |120          |180            |220           |
+        |Elastic      |Out            |In            |
+        |Palette::Red |Palette::Green |Palette::Blue |
+        
+        |300          |500            |800           |
+        |Bounce       |
+        |Palette::Red |Palette::Green |Palette::Blue |
+    }
+}
+
+//That said, the apparent inability for the horizontal syntax to elegantly handle multi-line statements makes it a less
+//practical choice than the vertical JSON-like syntax 
+
+
+
 ```
 
 Note that a segment's value can be a literal (as described here with `Transform::rotate(12.0)`) or it can be an expression (e.g. `@{Transform::rotate(12.0) * Transform::translate(100.0, 200.0)}`)
@@ -1905,3 +1959,37 @@ It's also probably worth embracing the advantage of strong typing (i.e. not worr
 There is almost certainly room in the world for more robustly built, strongly typed UIs.
 
 
+
+
+
+### on parsing story, recap/rehash
+2022-03-27
+
+1. find UI root (for app cartridge).  find explicit export roots (for app/lib cartridges). for each of these roots:
+   1. parse template, discover dependencies, gen parser bin logic (`parse_to_manifest` and friends)
+   2. Execute parser bin:
+      1. call each root's `parse_to_manifest`, load *template*, *settings*, and *expressions* into manifest, phone home to compiler server
+      2. for each dep, recurse and call that dep's parse_to_manifest
+      3. finish when compiler server has all manifest info
+3. transpile expressions into vtable-ready function bodies (as String), parts:
+   1. invocation:
+       1. importing symbols and binding values, crawling up stack as necessary
+       2. casting as necessary, for types with known conversion paths (rely on Rust's `Into`?)
+   2. execution:
+       1. transpile PAXEL logic to Rust logic
+5. Generate pax-cartridge-runtime for app cartridges only:
+   1. Generate expression vtable
+   2. Generate timeline vtable
+   3. Generate expression dependency graph ("ROM")
+   4. Generate component instance factories
+   5. Generate root component instance tree
+      
+
+
+
+### on timeline vtable
+
+are timelines just a special form of expression, where `t` is a parameter?  this fits nicely with other moving pieces,
+e.g. gets dirty watching for free (lazy evaluation of timeline-bound properties, not re-evaluating when `t` doesn't change -- extensible to support Expression keyframes, too)
+
+timeline-bound functions can live in the same vtable as expressions, then
