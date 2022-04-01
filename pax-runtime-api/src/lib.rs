@@ -1,7 +1,9 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::ops::Mul;
 use std::rc::Rc;
+use std::time::Duration;
 use uuid::Uuid;
 
 #[macro_use]
@@ -10,23 +12,46 @@ extern crate mut_static;
 
 use mut_static::MutStatic;
 
+
+pub struct TransitionQueueEntry<T> {
+    global_frame_started: Option<usize>,
+    duration_frames: usize,
+    curve: EasingCurve,
+    starting_value: T,
+    ending_value: T,
+}
 /// An abstract Property that may be either: Literal,
 /// a dynamic runtime Expression, or a Timeline-bound value
-pub trait PropertyInstance<T: Default> {
+pub trait PropertyInstance<T: Default + Clone> {
     fn get(&self) -> &T;
     fn _get_vtable_id(&self) -> Option<&str>;
     fn set(&mut self, value: T);
+    //need to:
+    // - register that a transition is enqueued; probably keep a queue (`.ease_to_later` to append)
+    // - query during properties comp. whether a transition is queued — `_tick()` if so, leave alone otherwise
 
-    //Dirty-checking. Intended for Expressions,
-    //as well as a user-facing API for manual caching (e.g.
-    //only recompute a cached value if one of its inputs changes)
-    // fn is_fresh(&self) -> bool;
-    // fn _mark_not_fresh(&mut self);
+    fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve);
+
+    fn ease_to_later(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve);
+
+    //called by engine during properties computation.  Engine will mutate in at least two ways:
+    // - register starting frame if missing (can probably do this lazily, with first element on queue only)
+    // - dequeue finished transitions
+    //Engine will also call
+    fn _get_transition_queue_mut(&mut self) -> &mut VecDeque<TransitionQueueEntry<T>>;
+
 }
 
-impl<T: Default + 'static> Default for Box<dyn PropertyInstance<T>> {
+
+impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
     fn default() -> Box<dyn PropertyInstance<T>> {
-        Box::new(PropertyLiteral(Default::default()))
+        Box::new(PropertyLiteral::new(Default::default()))
+    }
+}
+
+impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
+    fn clone(&self) -> Self {
+        Box::clone(self)
     }
 }
 
@@ -208,24 +233,36 @@ impl Transform2D {
     }
 
     pub fn default_wrapped() -> Rc<RefCell<dyn PropertyInstance<Self>>> {
-        Rc::new(RefCell::new(PropertyLiteral(Transform2D::default())))
+        Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::default())))
     }
 }
 
 /// The Literal form of a Property: a bare literal value
-pub struct PropertyLiteral<T>(pub T);
+pub struct PropertyLiteral<T> {
+    value: T,
+    transition_queue: VecDeque<TransitionQueueEntry<T>>,
+}
 
 
 impl<T> Into<Box<dyn PropertyInstance<T>>> for PropertyLiteral<T>
-where T: Default + 'static {
+where T: Default + Clone + 'static {
     fn into(self) -> Box<dyn PropertyInstance<T>> {
         Box::new(self)
     }
 }
 
-impl<T: Default> PropertyInstance<T> for PropertyLiteral<T> {
+
+impl<T> PropertyLiteral<T> {
+    pub fn new(value: T) -> Self {
+        PropertyLiteral {
+            value,
+            transition_queue: VecDeque::new(),
+        }
+    }
+}
+impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     fn get(&self) -> &T {
-        &self.0
+        &self.value
     }
 
     fn _get_vtable_id(&self) -> Option<&str> {
@@ -242,121 +279,119 @@ impl<T: Default> PropertyInstance<T> for PropertyLiteral<T> {
     // }
 
     fn set(&mut self, value: T) {
-        self.0 = value;
+        self.value = value;
+    }
+
+    fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
+        &self.transition_queue.push_back(TransitionQueueEntry {
+            global_frame_started: None,
+            duration_frames,
+            curve,
+            starting_value: self.value.clone(),
+            ending_value: new_value
+        });
+    }
+
+    fn ease_to_later(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
+        todo!()
+    }
+
+    fn _get_transition_queue_mut(&mut self) -> &mut VecDeque<TransitionQueueEntry<T>> {
+        todo!()
     }
 }
 
-impl<T> PropertyLiteral<T> {
-    pub fn new(value: T) -> Box<Self> {
-        Box::new(Self(value))
+pub enum EasingCurve {
+    Linear,
+    InQuad,
+    OutQuad,
+    InBack,
+    OutBack,
+    InOutBack,
+    Custom(Box<dyn Fn(f64) -> f64>),
+}
+
+struct EasingEvaluators {}
+impl EasingEvaluators {
+    fn linear(t: f64) -> f64 {
+        t
     }
-
-}
-
-//TODO: teach types how to interpolate
-pub trait Tweenable {
-
-}
-
-impl Tweenable for f64 {
-
-}
-
-pub trait Easible {
-    /// Map the domain x [0,1] to the range y [all f64]
-    fn map(&self, x: f64) -> f64;
-}
-
-pub struct NoneEasingCurve {}
-
-impl Easible for NoneEasingCurve {
-    fn map(&self, _x: f64) -> f64 {
-        0.0
+    fn none(t: f64) -> f64 {
+        if t == 1.0 { 1.0 } else { 0.0 }
     }
-}
-
-
-pub struct LinearEasingCurve {}
-
-impl Easible for LinearEasingCurve {
-    fn map(&self, x: f64) -> f64 {
-        x
+    fn in_quad(t: f64) -> f64 {
+        t * t
     }
-}
-
-pub struct InQuadEasingCurve {}
-
-impl Easible for InQuadEasingCurve{
-    fn map(&self, x: f64) -> f64 {
-        x * x
+    fn out_quad(t: f64) -> f64 {
+        1.0 - (1.0 - t) * (1.0 - t)
     }
-}
-
-pub struct OutQuadEasingCurve {}
-
-impl Easible for OutQuadEasingCurve{
-    fn map(&self, x: f64) -> f64 {
-        1.0 - (1.0 - x) * (1.0 - x)
-    }
-}
-
-pub struct InBackEasingCurve {}
-
-impl Easible for InBackEasingCurve{
-    fn map(&self, x: f64) -> f64 {
+    fn in_back(t: f64) -> f64 {
         const C1: f64 = 1.70158;
         const C3: f64 = C1 + 1.00;
-        C3 * x * x * x - C1 * x * x
+        C3 * t * t * t - C1 * t * t
     }
-}
-
-pub struct OutBackEasingCurve {}
-
-impl Easible for OutBackEasingCurve{
-    fn map(&self, x: f64) -> f64 {
+    fn out_back(t: f64) -> f64 {
         const C1: f64 = 1.70158;
         const C3: f64 = C1 + 1.00;
-        1.0 + C3 * (x - 1.0).powi(3) + C1 * (x - 1.0).powi(2)
+        1.0 + C3 * (t - 1.0).powi(3) + C1 * (t - 1.0).powi(2)
     }
-}
 
-pub struct InOutBackEasingCurve {}
-
-impl Easible for InOutBackEasingCurve{
-    fn map(&self, x: f64) -> f64 {
+    fn in_out_back(t: f64) -> f64 {
         const C1: f64 = 1.70158;
         const C2 : f64 = C1 * 1.525;
-        if x < 0.5 {
-            ((2.0 * x).powi(2) * ((C2 + 1.0) * 2.0 * x - C2)) / 2.0
+        if t < 0.5 {
+            ((2.0 * t).powi(2) * ((C2 + 1.0) * 2.0 * t - C2)) / 2.0
         } else {
-            ((2.0 * x - 2.0).powi(2) * ((C2 + 1.0) * (x * 2.0 - 2.0) + C2) + 2.0) / 2.0
+            ((2.0 * t - 2.0).powi(2) * ((C2 + 1.0) * (t * 2.0 - 2.0) + C2) + 2.0) / 2.0
         }
     }
 }
 
-pub struct EasingCurve {}
-
 impl EasingCurve {
-    pub fn none() -> Box<dyn Easible> {
-        Box::new(NoneEasingCurve {})
+    //for a time on the unit interval `t ∈ [0,1]`, given a value `t`,
+    // find the interpolated value `vt` between `v0` and `v1` given the self-contained easing curve
+    pub fn interpolate<T: Interpolatable>(&self, v0: T, v1: T, t: f64) -> T /*vt*/ {
+        let multiplier = match self {
+            EasingCurve::Linear => {
+                EasingEvaluators::linear(t)
+            }
+            EasingCurve::InQuad => {
+                EasingEvaluators::in_quad(t)
+            }
+            EasingCurve::OutQuad => {
+                EasingEvaluators::out_quad(t)
+            }
+            EasingCurve::InBack => {
+                EasingEvaluators::in_back(t)
+            }
+            EasingCurve::OutBack => {
+                EasingEvaluators::out_back(t)
+            }
+            EasingCurve::InOutBack => {
+                EasingEvaluators::in_out_back(t)
+            }
+            EasingCurve::Custom(evaluator) => {
+                (*evaluator)(t)
+            }
+        };
+
+        v0.interpolate( v1, multiplier)
     }
-    pub fn linear() -> Box<dyn Easible> {
-        Box::new(LinearEasingCurve {})
+}
+
+pub trait Interpolatable
+where Self : Sized + Clone //Clone used for default implementation of `interpolate`
+{
+    //default implementation acts like a `None` ease — that is,
+    //the first value is simply returned.
+    fn interpolate(&self, other: Self, t: f64) -> Self {
+        self.clone()
     }
-    pub fn in_quad() -> Box<dyn Easible> {
-        Box::new(InQuadEasingCurve {})
-    }
-    pub fn out_quad() -> Box<dyn Easible> {
-        Box::new(OutQuadEasingCurve {})
-    }
-    pub fn in_back() -> Box<dyn Easible> {
-        Box::new(InBackEasingCurve {})
-    }
-    pub fn out_back() -> Box<dyn Easible> {
-        Box::new(OutBackEasingCurve {})
-    }
-    pub fn in_out_back() -> Box<dyn Easible> {
-        Box::new(InOutBackEasingCurve {})
+}
+
+impl Interpolatable for f64 {
+    fn interpolate(&self, other: f64, t: f64) -> f64 {
+        self + (other - self) * t
     }
 }
 

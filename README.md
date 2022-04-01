@@ -1,12 +1,41 @@
 # Pax 
 
+
+
+Pax is a language for computer graphics and user interfaces.
+
+Pax aims to be high-performance
+
+Pax is a language for the Web
+Pax is the Web for web3
+    - Language: Pax is an alternative to HTML/CSS/JavaScript 
+    - Backwards-compatible: works with any modern web browser via Web Assembly
+    - Universal: also runs natively (LLVM) on iOS, Android, macOS, Windows, Linux
+
+
+
+Pax is like the l, but includes 
+
+Animations, generative art, data visualization
+Layouts, UI animations, form controls and elements, modularity and reusability
+Games, 2D, 3D
+
+
+Pax is a language for high-performance, cross-platform computer graphics and user interfaces.  
 Pax is a language for creating high-performance, cross-platform user interfaces.
 
 [TODO: GIF of three devices, each showing a progression of: 1. responsive form/CRUD app + layouts, 2. game, e.g. spaceship/asteroid shooter, 3. animated data viz + text, a la d3]
 
+
+
+- how does this fit into my workflow?  (cartridges)
+- how does this differ from other template tools?  why might I choose this instead of, say, React?
+
+
+
 ## Goals
 
-Make the digital medium more expressive, for art and for productivity.
+Make the digital medium more expressive, for productivity and for art.
 
 **Portable**
 - run on any device
@@ -26,7 +55,7 @@ Make the digital medium more expressive, for art and for productivity.
 - "Components all the way down" as reusable, extensible UI building blocks
 - Extensible rendering back-ends, meaning any platform can be supported
 - Can support any type of digital media — audio, video, etc.
-- Agnostic "host language" means any language can be supports (Rust, TypeScript/JavaScript, C++, .NET CLR...)
+- Agnostic "host language" means any language can be supported (Rust, TypeScript/JavaScript, C++, .NET CLR...)
 - Free and open source (MIT / Apache 2.0)
 
 

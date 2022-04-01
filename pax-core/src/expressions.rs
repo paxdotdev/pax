@@ -1,12 +1,13 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
+use std::collections::VecDeque;
 use std::rc::Rc;
 
 use crate::{PaxEngine, RenderTreeContext};
 use crate::runtime::StackFrame;
 
 
-use pax_runtime_api::{PropertyInstance, PropertyLiteral};
+use pax_runtime_api::{EasingCurve, PropertyInstance, PropertyLiteral, TransitionQueueEntry};
 
 
 // The `Expression` form of a property — stores a function
@@ -19,7 +20,7 @@ pub struct PropertyExpression<T: Default>
     pub cached_value: T,
 }
 
-impl<T: Default> PropertyInstance<T> for PropertyExpression<T> {
+impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
     fn get(&self) -> &T {
         &self.cached_value
     }
@@ -38,6 +39,18 @@ impl<T: Default> PropertyInstance<T> for PropertyExpression<T> {
 
     fn set(&mut self, value: T) {
         self.cached_value = value;
+    }
+
+    fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
+        todo!()
+    }
+
+    fn ease_to_later(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
+        todo!()
+    }
+
+    fn _get_transition_queue_mut(&mut self) -> &mut VecDeque<TransitionQueueEntry<T>> {
+        todo!()
     }
 }
 

@@ -78,7 +78,7 @@ impl RenderNode for RepeatInstance {
                     ComponentInstance {
                         children: Rc::clone(&parents_children),
                         template: Rc::clone(&self.children),
-                        transform: Rc::new(RefCell::new(PropertyLiteral (Transform2D::default()))),
+                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::default()))),
                         properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(datum), i))),
                         timeline: None,
 

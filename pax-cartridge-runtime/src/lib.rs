@@ -65,8 +65,8 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         //      wrapping in PropertyLiteral values?
         TypesCoproduct::Stroke(
             Stroke {
-                color: Box::new(PropertyLiteral (Color::hlca((__AT__frames_elapsed as isize % 360) as f64, 100.0,100.0,1.0) )),
-                width: Box::new(PropertyLiteral (45.0)),
+                color: Box::new(PropertyLiteral::new(Color::hlca((__AT__frames_elapsed as isize % 360) as f64, 100.0,100.0,1.0) )),
+                width: Box::new(PropertyLiteral::new(45.0)),
             }
         )
     }));
@@ -170,7 +170,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                 //can inject Default::default.  If the rust compiler throws an error,
                 //that is the user's responsibility.
                 num_clicks: Default::default(),
-                current_rotation: Box::new(PropertyLiteral(0.0)),
+                current_rotation: Box::new(PropertyLiteral::new(0.0)),
             }),
             handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
                 click_handlers: vec![],
@@ -244,8 +244,8 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                         properties: PropertiesCoproduct::Spread(Spread {
                             computed_layout_spec: Default::default(),
                             direction: Default::default(),
-                            cell_count: Box::new(PropertyLiteral(10)),
-                            gutter_width: Box::new(PropertyLiteral(Size::Pixel(5.0))),
+                            cell_count: Box::new(PropertyLiteral::new(10)),
+                            gutter_width: Box::new(PropertyLiteral::new(Size::Pixel(5.0))),
                             overrides_cell_size: Default::default(),
                             overrides_gutter_size: Default::default(),
                         }),
@@ -263,17 +263,17 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                         ))),
                         instance_map: Rc::clone(&instance_map),
                         transform: Transform2D::default_wrapped(),
-                        size: Some([Box::new(PropertyLiteral(Size::Percent(100.0))), Box::new(PropertyLiteral(Size::Percent(100.0)))]),
+                        size: Some([Box::new(PropertyLiteral::new(Size::Percent(100.0))), Box::new(PropertyLiteral::new(Size::Percent(100.0)))]),
                         children: Some(Rc::new(RefCell::new(vec![
                             RectangleInstance::instantiate(InstantiationArgs{
                                 properties: PropertiesCoproduct::Rectangle(Rectangle {
                                     stroke: Default::default(),
-                                    fill: Box::new(PropertyLiteral(Color::rgba(0.0, 1.0, 1.0, 1.0)))
+                                    fill: Box::new(PropertyLiteral::new(Color::rgba(0.0, 1.0, 1.0, 1.0)))
                                 }),
                                 handler_registry: None,
                                 instance_map: Rc::clone(&instance_map),
                                 transform: Transform2D::default_wrapped(),
-                                size: Some([PropertyLiteral(Size::Percent(100.0)).into(),PropertyLiteral(Size::Percent(100.0)).into()]),
+                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                 children: None,
                                 component_template: None,
                                 slot_index: None,
@@ -292,12 +292,12 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                     RectangleInstance::instantiate(InstantiationArgs{
                                         properties: PropertiesCoproduct::Rectangle(Rectangle {
                                             stroke: Default::default(),
-                                            fill: Box::new(PropertyLiteral(Color::rgba(1.0, 0.45, 0.25, 1.0)))
+                                            fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 0.45, 0.25, 1.0)))
                                         }),
                                         handler_registry: None,
                                         instance_map: Rc::clone(&instance_map),
                                         transform: Transform2D::default_wrapped(),
-                                        size: Some([PropertyLiteral(Size::Percent(100.0)).into(),PropertyLiteral(Size::Percent(100.0)).into()]),
+                                        size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                         children: None,
                                         component_template: None,
                                         slot_index: None,
@@ -311,7 +311,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                 component_template: None,
                                 should_skip_adoption: false,
                                 slot_index: None,
-                                repeat_data_list: Some(Box::new(PropertyLiteral((0..8).into_iter().map(|i|{
+                                repeat_data_list: Some(Box::new(PropertyLiteral::new((0..8).into_iter().map(|i|{
                                     Rc::new(PropertiesCoproduct::isize(i))
                                 }).collect()))),
                                 conditional_boolean_expression: None,
@@ -320,12 +320,12 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             RectangleInstance::instantiate(InstantiationArgs{
                                 properties: PropertiesCoproduct::Rectangle(Rectangle {
                                     stroke: Default::default(),
-                                    fill: Box::new(PropertyLiteral(Color::rgba(1.0, 1.0, 0.0, 1.0)))
+                                    fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 1.0, 0.0, 1.0)))
                                 }),
                                 handler_registry: None,
                                 instance_map: Rc::clone(&instance_map),
                                 transform: Transform2D::default_wrapped(),
-                                size: Some([PropertyLiteral(Size::Percent(100.0)).into(),PropertyLiteral(Size::Percent(100.0)).into()]),
+                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                 children: None,
                                 component_template: None,
                                 slot_index: None,
@@ -369,7 +369,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                                     handler_registry: None,
                                                     instance_map: Rc::clone(&instance_map),
                                                     transform: Transform2D::default_wrapped(),
-                                                    size: Some([PropertyLiteral(Size::Percent(100.0)).into(),PropertyLiteral(Size::Percent(100.0)).into()]),
+                                                    size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                                     children: None,
                                                     component_template: None,
                                                     should_skip_adoption: false,

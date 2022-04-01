@@ -1,13 +1,14 @@
 use pax::*;
-use pax::api::{Property};
-use pax_std::{Spread};
+use pax_std::{Spread, Text, Rectangle};
 
 #[pax(
     <Spread cell_count=10 >
-        @for i in (0..10) {
+        <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
+        @for i in (0..8) {
             <Text>@{"Index: " + i}</Text>
-            <Rectangle fill=Color::rgba(100%, 45%, 25%, 100%) />
+            <Rectangle fill=Color::rgba(100%, 0, 100%, 100%) />
         }
+        <Rectangle fill=Color::rgba(0, 100%, 100%, 100%) />
     </Spread>
 )]
 pub struct Root {
