@@ -7,7 +7,7 @@ use crate::{PaxEngine, RenderTreeContext};
 use crate::runtime::StackFrame;
 
 
-use pax_runtime_api::{EasingCurve, PropertyInstance, PropertyLiteral, TransitionQueueEntry};
+use pax_runtime_api::{EasingCurve, PropertyInstance, PropertyLiteral, TransitionManager, TransitionQueueEntry};
 
 
 // The `Expression` form of a property — stores a function
@@ -18,6 +18,18 @@ pub struct PropertyExpression<T: Default>
 {
     pub id: String,
     pub cached_value: T,
+    pub transition_manager: TransitionManager<T>,
+}
+
+
+impl<T: Default> PropertyExpression<T> {
+    pub fn new(id: String) -> Self {
+        Self {
+            id,
+            cached_value: Default::default(),
+            transition_manager: TransitionManager::new(),
+        }
+    }
 }
 
 impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
@@ -41,17 +53,32 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
         self.cached_value = value;
     }
 
+    //TODO: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
-        todo!()
+        &self.transition_manager.queue.clear();
+        &self.transition_manager.queue.push_back(TransitionQueueEntry {
+            global_frame_started: None,
+            duration_frames,
+            curve,
+            starting_value: self.cached_value.clone(),
+            ending_value: new_value
+        });
     }
 
     fn ease_to_later(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
-        todo!()
+        &self.transition_manager.queue.push_back(TransitionQueueEntry {
+            global_frame_started: None,
+            duration_frames,
+            curve,
+            starting_value: self.cached_value.clone(),
+            ending_value: new_value
+        });
     }
 
-    fn _get_transition_queue_mut(&mut self) -> &mut VecDeque<TransitionQueueEntry<T>> {
-        todo!()
+    fn _get_transition_queue_mut(&mut self) -> Option<&mut VecDeque<TransitionQueueEntry<T>>> {
+        Some(&mut self.transition_manager.queue)
     }
+
 }
 
 /// Data structure used for dynamic injection of values

@@ -14,31 +14,26 @@ use mut_static::MutStatic;
 
 
 pub struct TransitionQueueEntry<T> {
-    global_frame_started: Option<usize>,
-    duration_frames: usize,
-    curve: EasingCurve,
-    starting_value: T,
-    ending_value: T,
+    pub global_frame_started: Option<usize>,
+    pub duration_frames: usize,
+    pub curve: EasingCurve,
+    pub starting_value: T,
+    pub ending_value: T,
 }
 /// An abstract Property that may be either: Literal,
 /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait PropertyInstance<T: Default + Clone> {
     fn get(&self) -> &T;
     fn _get_vtable_id(&self) -> Option<&str>;
-    fn set(&mut self, value: T);
-    //need to:
-    // - register that a transition is enqueued; probably keep a queue (`.ease_to_later` to append)
-    // - query during properties comp. whether a transition is queued — `_tick()` if so, leave alone otherwise
 
+    fn set(&mut self, value: T);
+
+    fn _get_transition_queue_mut(&mut self) -> Option<&mut VecDeque<TransitionQueueEntry<T>>>;
+
+    //TODO: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve);
 
     fn ease_to_later(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve);
-
-    //called by engine during properties computation.  Engine will mutate in at least two ways:
-    // - register starting frame if missing (can probably do this lazily, with first element on queue only)
-    // - dequeue finished transitions
-    //Engine will also call
-    fn _get_transition_queue_mut(&mut self) -> &mut VecDeque<TransitionQueueEntry<T>>;
 
 }
 
@@ -237,10 +232,26 @@ impl Transform2D {
     }
 }
 
+
+
+pub struct TransitionManager<T> {
+    pub queue: VecDeque<TransitionQueueEntry<T>>,
+    value: Option<T>,
+}
+
+impl<T> TransitionManager<T> {
+    pub fn new() -> Self {
+        Self {
+            queue: VecDeque::new(),
+            value: None,
+        }
+    }
+}
+
 /// The Literal form of a Property: a bare literal value
 pub struct PropertyLiteral<T> {
     value: T,
-    transition_queue: VecDeque<TransitionQueueEntry<T>>,
+    transition_manager: TransitionManager<T>,
 }
 
 
@@ -252,13 +263,15 @@ where T: Default + Clone + 'static {
 }
 
 
-impl<T> PropertyLiteral<T> {
+impl<T: Clone> PropertyLiteral<T> {
     pub fn new(value: T) -> Self {
         PropertyLiteral {
             value,
-            transition_queue: VecDeque::new(),
+            transition_manager: TransitionManager::new(),
         }
     }
+
+
 }
 impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     fn get(&self) -> &T {
@@ -282,8 +295,12 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         self.value = value;
     }
 
+
+
+    //TODO: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
-        &self.transition_queue.push_back(TransitionQueueEntry {
+        &self.transition_manager.queue.clear();
+        &self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
             duration_frames,
             curve,
@@ -293,11 +310,17 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     }
 
     fn ease_to_later(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
-        todo!()
+        &self.transition_manager.queue.push_back(TransitionQueueEntry {
+            global_frame_started: None,
+            duration_frames,
+            curve,
+            starting_value: self.value.clone(),
+            ending_value: new_value
+        });
     }
 
-    fn _get_transition_queue_mut(&mut self) -> &mut VecDeque<TransitionQueueEntry<T>> {
-        todo!()
+    fn _get_transition_queue_mut(&mut self) -> Option<&mut VecDeque<TransitionQueueEntry<T>>> {
+        Some(&mut self.transition_manager.queue)
     }
 }
 

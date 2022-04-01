@@ -1,6 +1,6 @@
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::ops::Deref;
 use std::rc::Rc;
 use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance};
@@ -349,20 +349,11 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                             properties: PropertiesCoproduct::None,
                                             handler_registry: None,
                                             instance_map: Rc::clone(&instance_map),
-                                            transform: Rc::new(RefCell::new(PropertyExpression {
-                                                id: "g".to_string(),
-                                                cached_value: Transform2D::default(),
-                                            })),
+                                            transform: Rc::new(RefCell::new(PropertyExpression::new("g".to_string()))),
                                             size: Some([
-                                                Box::new(PropertyExpression {
-                                                    id: "h".to_string(),
-                                                    cached_value: Default::default()
-                                                }),
-                                                Box::new(PropertyExpression {
-                                                    id: "i".to_string(),
-                                                    cached_value: Default::default()
-                                                }
-                                            )]),
+                                                Box::new(PropertyExpression::new("h".to_string())),
+                                                Box::new(PropertyExpression::new("i".to_string())),
+                                            ]),
                                             children: Some(Rc::new(RefCell::new(vec![
                                                 SlotInstance::instantiate(InstantiationArgs {
                                                     properties: PropertiesCoproduct::None,
@@ -373,10 +364,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                                     children: None,
                                                     component_template: None,
                                                     should_skip_adoption: false,
-                                                    slot_index: Some(Box::new(PropertyExpression {
-                                                        id: "j".to_string(),
-                                                        cached_value: Default::default()
-                                                    })),
+                                                    slot_index: Some(Box::new(PropertyExpression::new("j".to_string()))),
                                                     repeat_data_list: None,
                                                     conditional_boolean_expression: None,
                                                     compute_properties_fn: None
@@ -391,10 +379,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                         }),
                                     ]))),
                                     slot_index: None,
-                                    repeat_data_list: Some(Box::new(PropertyExpression {
-                                        id: "f".to_string(),
-                                        cached_value: vec![],
-                                    })),
+                                    repeat_data_list: Some(Box::new(PropertyExpression::new("f".to_string()))),
                                     conditional_boolean_expression: None,
                                     compute_properties_fn: None,
                                     should_skip_adoption: false
