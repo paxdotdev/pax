@@ -173,9 +173,10 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         // let current_rotation = if let PropertiesCoproduct::Root(p) = properties {
         //     *p.current_rotation.get() + 1.4
         // } else { unreachable!() };
+        const STACK_FRAME_OFFSET : isize = 2;
+        let STARTING_FRAME = (*ec.stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
 
-        let this_frame = (*ec.stack_frame).borrow();
-        let properties = this_frame.get_properties();
+        let properties = STARTING_FRAME.deref().borrow().get_properties();
         let properties = &*(*properties).borrow();
 
         //specifically: the same property is getting computed multiple times, in different contexts.

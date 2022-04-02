@@ -127,9 +127,7 @@ impl StackFrame {
     // Unchecked: will throw a runtime error if there are fewer than `n` descendants to traverse.
     // TODO: more elegant error handling?
     pub fn nth_descendant(&self, n: isize) -> Rc<RefCell<StackFrame>> {
-        if n == 0 {
-            unreachable!("nth_descendant")
-        }
+        assert!(n > 0);
         self.nth_descendant_recursive(n, 0)
     }
 
