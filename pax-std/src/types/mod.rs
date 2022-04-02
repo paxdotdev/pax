@@ -3,14 +3,14 @@ use pax::api::{PropertyInstance, PropertyLiteral};
 
 
 #[pax_type]
-#[derive(Default, Clone)]
+#[derive(Default, Clone, Debug)]
 pub struct Stroke {
     pub color: Box<dyn PropertyInstance<Color>>,
     pub width: Box<dyn PropertyInstance<f64>>,
 }
 
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 #[pax_type]
 pub struct SpreadCellProperties {
     pub x_px: f64,
@@ -22,7 +22,7 @@ pub struct SpreadCellProperties {
 /// Simple way to represent whether a spread should render
 /// vertically or horizontally
 #[pax_type]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum SpreadDirection {
     Vertical,
     Horizontal,
@@ -36,7 +36,7 @@ impl Default for SpreadDirection {
 
 
 #[pax_type]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Color{
     pub color_variant: ColorVariant,
 }
@@ -66,7 +66,7 @@ impl Color {
     }
 }
 #[pax_type]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum ColorVariant {
     Hlca([f64; 4]),
     Rgba([f64; 4]),

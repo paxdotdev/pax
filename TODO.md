@@ -1993,3 +1993,83 @@ are timelines just a special form of expression, where `t` is a parameter?  this
 e.g. gets dirty watching for free (lazy evaluation of timeline-bound properties, not re-evaluating when `t` doesn't change -- extensible to support Expression keyframes, too)
 
 timeline-bound functions can live in the same vtable as expressions, then
+
+
+
+### back to children/adoptees
+2022-04-01
+
+
+
+Consider the following Pax program:
+
+```
+Root's template: [stack frame ⍺ for Root]
+A <Rectangle />
+B <Spread>
+C     <Ellipse />
+D     <Path />
+- </Spread>
+  
+  Spread's template: [stack frame β for Spread]
+E <Repeat> // [stack frames γ0-γn for n RepeatItems]
+F     <Frame>
+G        <Placeholder>
+-     </Frame>
+- </Repeat>
+```
+
+In what order and in the context of which stack frame should properties be computed?
+```
+stack frame ⍺:
+  A, B, C, D (visit each child, and their non_rendering_children recursively)
+stack frame β:
+  E
+stack frames γ0-γn:
+  F, G
+  
+```
+
+Note that get_rendering_children for Spread will return E, so we first need to
+first visit B's non-rendering children, C and D
+
+To pull this off[1], we will need to perform two separate passes of the render tree.
+
+The first will be to perform properties computation, and it will recurse via `get_adopted_children` 
+and `get_template_children`.
+
+The second pass will be a rendering pass, which will recurse by `get_rendering_children`
+
+
+
+[1] (namely, without running into issues of double-computation of properties by computing
+them during "adoptee" traversal, then again during "render_children" traversal, especially with the
+tangles that introduces to pulling values out of the runtime stack)
+
+
+
+//maybe:  introduce distinction between get_rendering_children and
+//        ... get_(what exactly?)  get_rendering_children_that_aren't_adoptees
+//        maybe this can be solved with lifecycle?  traverse node/property tree before
+//        adoptees are linked as rendering_children?
+//Another possibility: link a reference to stack frame to node — then it doesn't matter when it's
+//                     computed; instead of peeking from global stack (in expression eval) it can start evaluation
+//                     from the linked stackframe
+//C:  keep track of whether a node has already been visited for a given frame;
+//    track that either in `rtc` (with a unique ID per node) or on each
+//    node (with a `last_frame_computed` register.)
+
+        //Perhaps perform multiple traversals of the graph:
+        // - compute properties
+        //    - special-cases adoptees (calcs first) recurses via get_natural_children
+        // - render
+        //    - recurse via get_rendering_children
+
+
+#### Cont. 2022-04-02
+
+store a `stack_frame_offset` with component instances.  that offset should be known statically, thus can be embedded with the compiler.
+traverse `stack_frame_offset` frames up the stack (backed by `unreachable!`) before evaluating expressions.
+can instantiate this STACK_FRAME_OFFSET constant inside expr. instance declarations (`|ec: ExpressionContext| -> TypesCoproduct {`...)
+
+revert changes to rendering lifecycle; traverse / compute properties / render as before.

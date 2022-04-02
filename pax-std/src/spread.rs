@@ -15,6 +15,7 @@ use crate::types::{SpreadDirection, SpreadCellProperties};
         </Frame>
     }
 )]
+#[derive(Debug)]
 pub struct Spread {
     pub computed_layout_spec: Property<Vec<Rc<SpreadCellProperties>>>,
     pub direction: Property<SpreadDirection>,

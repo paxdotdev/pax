@@ -120,6 +120,7 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     //Frame size x
     vtable.insert("h".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
+        pax_runtime_api::log(&format!("h: {:?}", &*(*(*ec.stack_frame).borrow().get_properties()).borrow()));
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
@@ -158,6 +159,47 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         );
     }));
 
+    vtable.insert("k".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
+        #[allow(non_snake_case)]
+
+        //example of pulling property from parent
+        // let this_frame = (*ec.stack_frame).borrow();
+        // let an0_frame = this_frame.parent.as_ref().unwrap();
+        // let an0_frame_borrowed = (**an0_frame).borrow();
+        // let properties = &*(*an0_frame_borrowed.properties).borrow();
+        //
+        // let current_rotation = if let PropertiesCoproduct::Root(p) = properties {
+        //     *p.current_rotation.get() + 1.4
+        // } else { unreachable!() };
+
+        let this_frame = (*ec.stack_frame).borrow();
+        let properties = this_frame.get_properties();
+        let properties = &*(*properties).borrow();
+
+        //specifically: the same property is getting computed multiple times, in different contexts.
+        //              It makes sense that processing the same node multiple times is not desirable behavior.
+        //              -- the non_rendering_children passed to a node will become
+        //                 rendering_children further down the tree, at which time
+        //                 they will have already been computed (and we don't want to compute them in the later context,
+        //                 as it will likely be in the wrong stack frame.)
+        //              Do we have any guarantees that non_rendering_children will cover the whole render tree?  No, they probably won't.
+        //              One possible solution: keep track of whether a given node has been visited for the given global frame; skip if it was already visited
+        pax_runtime_api::log(&format!("Properties: {:?}", properties));
+        let current_rotation = if let PropertiesCoproduct::Root(p) = properties {
+            pax_runtime_api::log( &format!("current_rotation: {}", p.current_rotation.get()));
+            //*p.current_rotation.get() + 1.4
+            // p.current_rotation.get() + 1.4
+            *p.current_rotation.get() as f64
+        } else { unreachable!("Aint root!") };
+
+
+
+        TypesCoproduct::Transform2D(
+            Transform2D::origin(Size::Percent(50.0), Size::Percent(50.0))
+                * Transform2D::rotate(current_rotation)
+        )
+    }));
+
     vtable
 }
 
@@ -188,56 +230,6 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
             children: None,
             component_template: Some(Rc::new(RefCell::new(vec![
 
-                //rainbow box
-                // GroupInstance::instantiate(InstantiationArgs {
-                //     properties: PropertiesCoproduct::None,
-                //     handler_registry: None,
-                //     instance_map: Rc::clone(&instance_map),
-                //     transform: Transform2D::default_wrapped(),
-                //     size: None,
-                //     component_adoptees: None,
-                //     component_template: None,
-                //     repeat_data_list: None,
-                //     conditional_boolean_expression: None,
-                //     compute_properties_fn: None,
-                //     primitive_children: Some(Rc::new(RefCell::new(vec![
-                //         ConditionalInstance::instantiate(InstantiationArgs {
-                //             properties: PropertiesCoproduct::None,
-                //             handler_registry: None,
-                //             instance_map: Rc::clone(&instance_map),
-                //             transform: Transform2D::default_wrapped(),
-                //             size: None,
-                //             primitive_children: Some(Rc::new(RefCell::new(vec![
-                //                 RectangleInstance::instantiate(InstantiationArgs {
-                //                     properties: PropertiesCoproduct::Rectangle(Rectangle{
-                //                         stroke: Box::new(PropertyExpression {id: "c".into(), cached_value: Default::default()}),
-                //                         fill: Box::new(PropertyLiteral (Color::rgba(1.0, 1.0, 0.0, 1.0)))
-                //                     }),
-                //                     handler_registry: None,
-                //                     instance_map: Rc::clone(&instance_map),
-                //                     transform: Rc::new(RefCell::new(PropertyLiteral(Transform2D::translate(200.0, 200.0)))),
-                //                     size: Some([PropertyLiteral(Size::Pixel(200.0)).into(),PropertyLiteral(Size::Pixel(200.0)).into()]),
-                //                     primitive_children: None,
-                //                     component_template: None,
-                //                     component_adoptees: None,
-                //                     slot_index: None,
-                //                     repeat_data_list: None,
-                //                     conditional_boolean_expression: None,
-                //                     compute_properties_fn: None
-                //                 }),
-                //             ]))),
-                //             component_template: None,
-                //             component_adoptees: None,
-                //             slot_index: None,
-                //             repeat_data_list: None,
-                //             conditional_boolean_expression: Some(Box::new(PropertyLiteral(true))),
-                //             compute_properties_fn: None
-                //         }),
-                //     ]))),
-                //
-                //     slot_index: None
-                // }),
-                //end rainbow box
                 //Spread
                 ComponentInstance::instantiate(
                     InstantiationArgs {
@@ -324,7 +316,7 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                                 }),
                                 handler_registry: None,
                                 instance_map: Rc::clone(&instance_map),
-                                transform: Transform2D::default_wrapped(),
+                                transform: Rc::new(RefCell::new(PropertyExpression::new("k".to_string()))),
                                 size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                 children: None,
                                 component_template: None,

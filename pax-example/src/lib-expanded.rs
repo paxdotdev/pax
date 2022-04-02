@@ -28,7 +28,7 @@ pub mod pax_types {
     pub use crate::Root;
 }
 
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct Root {
     pub num_clicks: Property<isize>,
     pub current_rotation: Property<f64>,
@@ -36,8 +36,14 @@ pub struct Root {
 
 impl Root {
     pub fn handle_pre_render(&mut self, args: ArgsRender) {
-        pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
-        self.current_rotation.set(self.current_rotation.get() +(args.frames_elapsed as f64 / 100.0).powf(1.001));
+
+        if args.frames_elapsed % 180 == 0 {
+            //every 4s
+            pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
+            let new_rotation = self.current_rotation.get() + (2.0 * std::f64::consts::PI);
+            self.current_rotation.ease_to(new_rotation, 120, EasingCurve::InOutBack );
+        }
+
     }
 }
 
@@ -57,6 +63,7 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 #[cfg(feature = "parser")]
 use pax::internal::message::{SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
+use crate::api::EasingCurve;
 #[cfg(feature = "parser")]
 lazy_static! {
     static ref source_id: String = parser::get_uuid();

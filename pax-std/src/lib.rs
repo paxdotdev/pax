@@ -22,6 +22,7 @@ pub mod primitives {
     pub struct Frame {}
 
     #[pax_primitive("./pax-std-primitives", crate::GroupInstance)]
+    #[derive(Debug)]
     pub struct Group {}
 
     #[cfg(feature = "parser")]
@@ -74,6 +75,7 @@ pub mod primitives {
 
 
 
+    #[derive(Debug)]
     #[pax_primitive("./pax-std-primitives", crate::RectangleInstance)]
     pub struct Rectangle {
         pub stroke: Box<dyn pax::api::PropertyInstance<types::Stroke>>,

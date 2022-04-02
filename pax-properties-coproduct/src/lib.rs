@@ -17,6 +17,7 @@ use std::rc::Rc;
 /// of `TheMostBloatedTypeEver`, so be judicious about what gets stored in PropertiesCoproduct
 /// structs (e.g. be wary of binary assets like images/multimedia!)
 ///
+#[derive(Debug)]
 pub enum PropertiesCoproduct {
     //core
     None,
