@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::ops::Deref;
 use std::rc::Rc;
-use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance};
+use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 
@@ -120,7 +120,9 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     //Frame size x
     vtable.insert("h".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
-        pax_runtime_api::log(&format!("h: {:?}", &*(*(*ec.stack_frame).borrow().get_properties()).borrow()));
+        const STACK_FRAME_OFFSET : isize = 1;
+        let STARTING_FRAME = (*ec.stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
+        pax_runtime_api::log(&format!("h: {:?}", &*(*(*STARTING_FRAME).borrow().get_properties()).borrow()));
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)

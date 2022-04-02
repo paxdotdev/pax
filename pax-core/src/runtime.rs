@@ -1,5 +1,6 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
+use std::ops::Deref;
 use std::rc::Rc;
 
 use pax_properties_coproduct::{PropertiesCoproduct};
@@ -120,6 +121,25 @@ impl StackFrame {
                 (**timeline).borrow().playhead_position
             }
         }
+    }
+
+    // Traverses stack recursively `n` times to retrieve
+    // Unchecked: will throw a runtime error if there are fewer than `n` descendants to traverse.
+    // TODO: more elegant error handling?
+    pub fn nth_descendant(&self, n: isize) -> Rc<RefCell<StackFrame>> {
+        if n == 0 {
+            unreachable!("nth_descendant")
+        }
+        self.nth_descendant_recursive(n, 0)
+    }
+
+    fn nth_descendant_recursive(&self, n: isize, depth: isize) -> Rc<RefCell<StackFrame>> {
+        let new_depth = depth + 1;
+        let parent = self.parent.as_ref().unwrap();
+        if new_depth == n {
+            return Rc::clone(parent);
+        }
+        parent.deref().borrow().nth_descendant_recursive(n, new_depth)
     }
 
     pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
