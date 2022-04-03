@@ -8,10 +8,6 @@ Pax is a language for computer graphics and user interfaces.
 
 
 
-- how does this fit into my workflow?  (cartridges)
-- how does this differ from other template tools?  why might I choose this instead of, say, React?
-
-
 
 ## Goals
 
@@ -249,6 +245,10 @@ Pax draws design inspiration from, among others:
 Scratch pad:
 
 
+
+
+- how does this fit into my workflow?  (cartridges)
+- how does this differ from other template tools?  why might I choose this instead of, say, React?
 
 
 
