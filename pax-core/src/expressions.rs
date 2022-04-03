@@ -67,6 +67,10 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
     }
 
     fn ease_to_later(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
+        if let None = self.transition_manager.value {
+            //handle case where transition queue is empty -- a None value gets skipped, so populate it with Some
+            self.transition_manager.value = Some(self.get().clone());
+        }
         &self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
             duration_frames,
