@@ -67,13 +67,14 @@ impl Runtime {
     pub fn process__should_flatten__adoptees_recursive(adoptee: &RenderNodePtr, rtc: &mut RenderTreeContext) -> Vec<RenderNodePtr> {
         let mut adoptee_borrowed = (**adoptee).borrow_mut();
         if adoptee_borrowed.should_flatten() {
-            //1. compute properties
+            //1. this is an @if or @for (etc.) — it needs its properties computed
+            //   in order for its children to be correct
             adoptee_borrowed.compute_properties(rtc);
             //2. recurse into top-level should_flatten() nodes
             (*adoptee_borrowed.get_rendering_children()).borrow().iter().map(|top_level_child_node|{
                 Runtime::process__should_flatten__adoptees_recursive(top_level_child_node, rtc)
             }).flatten().collect()
-            //TODO: optimize.  Lots of allocation happening here -- flattening and collecting `Vec`s is probably not
+            //TODO: probably worth optimizing (pending profiling.)  Lots of allocation happening here -- flattening and collecting `Vec`s is probably not
             //the most efficient possible approach, and this is fairly hot-running code.
         } else {
             vec![Rc::clone(adoptee)]

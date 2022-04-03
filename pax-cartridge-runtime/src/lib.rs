@@ -120,9 +120,9 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
 
     //Frame size x
     vtable.insert("h".to_string(), Box::new(|ec: ExpressionContext| -> TypesCoproduct {
-        const STACK_FRAME_OFFSET : isize = 1;
-        let STARTING_FRAME = (*ec.stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
-        pax_runtime_api::log(&format!("h: {:?}", &*(*(*STARTING_FRAME).borrow().get_properties()).borrow()));
+        // const STACK_FRAME_OFFSET : isize = 1;
+        // let STARTING_FRAME = (*ec.stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
+        // pax_runtime_api::log(&format!("h: {:?}", &*(*(*STARTING_FRAME).borrow().get_properties()).borrow()));
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
@@ -174,31 +174,20 @@ pub fn instantiate_expression_table() -> HashMap<String, Box<dyn Fn(ExpressionCo
         //     *p.current_rotation.get() + 1.4
         // } else { unreachable!() };
         const STACK_FRAME_OFFSET : isize = 2;
-        let STARTING_FRAME = (*ec.stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
+        let SCOPED_STACK_FRAME = (*ec.stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
 
-        let properties = STARTING_FRAME.deref().borrow().get_properties();
+        let properties = SCOPED_STACK_FRAME.deref().borrow().get_properties();
         let properties = &*(*properties).borrow();
 
-        //specifically: the same property is getting computed multiple times, in different contexts.
-        //              It makes sense that processing the same node multiple times is not desirable behavior.
-        //              -- the non_rendering_children passed to a node will become
-        //                 rendering_children further down the tree, at which time
-        //                 they will have already been computed (and we don't want to compute them in the later context,
-        //                 as it will likely be in the wrong stack frame.)
-        //              Do we have any guarantees that non_rendering_children will cover the whole render tree?  No, they probably won't.
-        //              One possible solution: keep track of whether a given node has been visited for the given global frame; skip if it was already visited
-        pax_runtime_api::log(&format!("Properties: {:?}", properties));
+        // pax_runtime_api::log(&format!("Properties: {:?}", properties));
         let current_rotation = if let PropertiesCoproduct::Root(p) = properties {
-            pax_runtime_api::log( &format!("current_rotation: {}", p.current_rotation.get()));
-            //*p.current_rotation.get() + 1.4
-            // p.current_rotation.get() + 1.4
+            // pax_runtime_api::log( &format!("current_rotation: {}", p.current_rotation.get()));
             *p.current_rotation.get() as f64
-        } else { unreachable!("Aint root!") };
-
-
+        } else { unreachable!("zeta") };
 
         TypesCoproduct::Transform2D(
             Transform2D::origin(Size::Percent(50.0), Size::Percent(50.0))
+                * Transform2D::align(Size::Percent(50.0), Size::Percent(50.0))
                 * Transform2D::rotate(current_rotation)
         )
     }));
@@ -390,27 +379,30 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             let properties = &mut *properties.as_ref().borrow_mut();
                             let properties = if let PropertiesCoproduct::Spread(p) = properties {p} else {unreachable!()};
 
-                            if let Some(new_value) = rtc.get_computed_value(properties.direction._get_vtable_id()) {
+                            // if let Some(new_value) = rtc.get_eased_value(properties.direction._get_transition_manager()) {
+                            //     properties.direction.set(new_value);
+                            // }else
+                            if let Some(new_value) = rtc.get_vtable_computed_value(properties.direction._get_vtable_id()) {
                                 let new_value = if let TypesCoproduct::SpreadDirection(v) = new_value { v } else { unreachable!() };
                                 properties.direction.set(new_value);
                             }
 
-                            if let Some(new_value) = rtc.get_computed_value(properties.cell_count._get_vtable_id()) {
+                            if let Some(new_value) = rtc.get_vtable_computed_value(properties.cell_count._get_vtable_id()) {
                                 let new_value = if let TypesCoproduct::usize(v) = new_value { v } else { unreachable!() };
                                 properties.cell_count.set(new_value);
                             }
 
-                            if let Some(new_value) = rtc.get_computed_value(properties.gutter_width._get_vtable_id()) {
+                            if let Some(new_value) = rtc.get_vtable_computed_value(properties.gutter_width._get_vtable_id()) {
                                 let new_value = if let TypesCoproduct::Size(v) = new_value { v } else { unreachable!() };
                                 properties.gutter_width.set(new_value);
                             }
 
-                            if let Some(new_value) = rtc.get_computed_value(properties.overrides_cell_size._get_vtable_id()) {
+                            if let Some(new_value) = rtc.get_vtable_computed_value(properties.overrides_cell_size._get_vtable_id()) {
                                 let new_value = if let TypesCoproduct::Vec_LPAREN_usize_COMMA_Size_RPAREN(v) = new_value { v } else { unreachable!() };
                                 properties.overrides_cell_size.set(new_value);
                             }
 
-                            if let Some(new_value) = rtc.get_computed_value(properties.overrides_gutter_size._get_vtable_id()) {
+                            if let Some(new_value) = rtc.get_vtable_computed_value(properties.overrides_gutter_size._get_vtable_id()) {
                                 let new_value = if let TypesCoproduct::Vec_LPAREN_usize_COMMA_Size_RPAREN(v) = new_value { v } else { unreachable!() };
                                 properties.overrides_gutter_size.set(new_value);
                             }
@@ -429,12 +421,14 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                 let properties = &mut *properties.as_ref().borrow_mut();
                 let properties = if let PropertiesCoproduct::Root(p) = properties {p} else {unreachable!()};
 
-                if let Some(new_current_rotation) = rtc.get_computed_value(properties.current_rotation._get_vtable_id()) {
+                if let Some(new_value) = rtc.get_eased_value(properties.current_rotation._get_transition_manager()) {
+                    properties.current_rotation.set(new_value);
+                }else if let Some(new_current_rotation) = rtc.get_vtable_computed_value(properties.current_rotation._get_vtable_id()) {
                     let new_value = if let TypesCoproduct::f64(v) = new_current_rotation { v } else { unreachable!() };
                     properties.current_rotation.set(new_value);
                 }
 
-                if let Some(new_num_clicks) = rtc.get_computed_value(properties.num_clicks._get_vtable_id()) {
+                if let Some(new_num_clicks) = rtc.get_vtable_computed_value(properties.num_clicks._get_vtable_id()) {
                     let new_value = if let TypesCoproduct::isize(v) = new_num_clicks { v } else { unreachable!() };
                     properties.num_clicks.set(new_value);
                 }

@@ -136,9 +136,6 @@ pub trait RenderNode
         //no-op default implementation
     }
 
-    fn post_compute(&mut self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
-        //no-op default implementation
-    }
     /// Second lifecycle method during each render loop, occurs AFTER
     /// properties have been computed, but BEFORE rendering
     /// Example use-case: perform side-effects to the drawing context.

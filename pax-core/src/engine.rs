@@ -1,7 +1,8 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::env::Args;
+use std::f64::EPSILON;
 use std::rc::Rc;
 
 
@@ -28,7 +29,7 @@ use crate::runtime::{Runtime};
 use wasm_bindgen::JsValue;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsRender, PropertyInstance};
+use pax_runtime_api::{ArgsClick, ArgsRender, Interpolatable, PropertyInstance, TransitionManager, TransitionQueueEntry};
 
 pub enum EventMessage {
     Tick(ArgsRender),
@@ -83,7 +84,33 @@ impl<'a> Into<ArgsRender> for RenderTreeContext<'a> {
 
 
 impl<'a> RenderTreeContext<'a> {
-    pub fn get_computed_value(&self, vtable_id: Option<&str>) -> Option<TypesCoproduct> {
+    pub fn get_eased_value<T: Clone + Interpolatable>(&self, transition_manager: Option<&mut TransitionManager<T>>) -> Option<T> {
+        if let Some(mut tm) = transition_manager {
+            if tm.queue.len() > 0 {
+                let mut current_transition = tm.queue.get_mut(0).unwrap();
+                if let None = current_transition.global_frame_started {
+                    current_transition.global_frame_started = Some(self.engine.frames_elapsed);
+                }
+                //[0,1]
+                let progress = (self.engine.frames_elapsed as f64 - current_transition.global_frame_started.unwrap() as f64) / (current_transition.duration_frames as f64);
+                return if progress >= 1.0 { //TODO -- minus some epsilon for float imprecision?
+                    tm.queue.pop_front();
+                    self.get_eased_value(Some(tm))
+                } else {
+
+                    let new_value = current_transition.curve.interpolate(&current_transition.starting_value, &current_transition.ending_value, progress);
+                    tm.value = Some(new_value.clone());
+                    tm.value.clone()
+                };
+            } else {
+                return tm.value.clone();
+            }
+        }
+        pax_runtime_api::log(&format!("Returning None for eased value"));
+        None
+    }
+    pub fn get_vtable_computed_value(&self, vtable_id: Option<&str>) -> Option<TypesCoproduct> {
+
         if let Some(id) = vtable_id {
             if let Some(evaluator) = self.engine.expression_table.borrow().get(id) {
                 let ec = ExpressionContext {
@@ -92,8 +119,8 @@ impl<'a> RenderTreeContext<'a> {
                 };
                 return Some((**evaluator)(ec));
             }
-        }
-        //else if present in timeline table...
+        } //TODO: else if present in timeline vtable...
+
         None
     }
 }
@@ -250,41 +277,6 @@ impl PaxEngine {
                 },
             }
         }
-
-
-        //problem: if a stackframe has `n` nodes (children), this logic will be called `n` times per frame.
-        //         is there a more elegant place to handle this? *perhaps when pushing the stackframe.*
-        //adoptees need their properties calculated too...
-        //... but we _don't_ want to render them.
-        //maybe we only need to manually compute properties of top-level
-        //adoptees?  or maybe _only_ in specific _should_flatten_ cases!
-        //cloned_frame is declared separately so that descendents may freely borrow `rtc.runtime`
-        // let cloned_frame = rtc.runtime.borrow_mut().peek_stack_frame().clone();
-        // match cloned_frame {
-        //     Some(stack_frame) => {
-        //         let adoptees = (*stack_frame).borrow_mut().get_unexpanded_adoptees();
-        //
-        //
-        //         //keep recursing through adoptees
-        //         adoptees.borrow_mut().iter().rev().for_each(|adoptee| {
-        //             if (**adoptee).borrow().should_flatten() {
-        //
-        //                 (**adoptee).borrow_mut().compute_properties(&mut rtc.clone())
-        //                 //TODO:  maybe this is also where we should expand/flatten the adoptee —
-        //                 //       we now know that its properties are computed, which e.g. for Repeat means that
-        //                 //       get_rendering_children will return what it should. This may be the lowest-touch
-        //                 //       way of magicking adoptee flattening!
-        //                 //       One subtle alternative: do this when pushing the stack frame
-        //
-        //             }
-        //         });
-        //     },
-        //     None => {
-        //         //no stack frame, no adoptees
-        //     },
-        // }
-
-
 
 
         let children = node.borrow_mut().get_rendering_children();

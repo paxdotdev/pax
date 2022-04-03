@@ -2073,3 +2073,31 @@ traverse `stack_frame_offset` frames up the stack (backed by `unreachable!`) bef
 can instantiate this STACK_FRAME_OFFSET constant inside expr. instance declarations (`|ec: ExpressionContext| -> TypesCoproduct {`...)
 
 revert changes to rendering lifecycle; traverse / compute properties / render as before.
+
+
+New problem: interpolatable properties
+Not all properties will be interpolatable (though a reasonable default can be trivially derived)
+We will not know easily at runtime NOR compile-time (without digging into some rustc API) whether a property is interpolatable
+a `default` impl (see `rust specialization rfc`) would solve this with a blanket implementation, e.g.:
+
+```
+impl<T: Clone> Interpolatable for T {
+    default fn interpolate(&self, other: &Self, t: f64) -> Self {
+        self.clone()
+    }
+}
+```
+
+BUT, that `default` is unstable, and without it rustc won't let the blanket impl live alongside concrete defs, such as:
+```
+impl Interpolatable for f64 {
+    fn interpolate(&self, other: f64, t: f64) -> f64 {
+        self + (other - self) * t
+    }
+}
+```
+
+Is there some way to hook into `RenderTreeContext::get_computed_value` here?
+Probably so, as long as Interpolatable is defined for all built-in / common types
+So that's probably the solution -- impl `Interpolatable` for all expected property types,
+with a path to implementing for 3rd party types as well

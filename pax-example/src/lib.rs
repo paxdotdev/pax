@@ -20,7 +20,7 @@ impl Root {
 
     #[pax_on(pre_render)]
     pub fn handle_pre_render(&mut self, args: ArgsTick) {
-        pax::log(&format!("pax::log from frame {}", args.frame));
+        pax::log(&format!("pre_render from frame {}", args.frame));
         self.current_rotation.set(self.current_rotation.get() + 0.10)
     }
 

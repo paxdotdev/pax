@@ -1,5 +1,5 @@
 use pax::*;
-use pax::api::{PropertyInstance, PropertyLiteral};
+use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable};
 
 
 #[pax_type]
@@ -34,6 +34,8 @@ impl Default for SpreadDirection {
     }
 }
 
+impl Interpolatable for SpreadDirection {}
+
 
 #[pax_type]
 #[derive(Clone, Debug)]
@@ -47,6 +49,11 @@ impl Default for Color {
         }
     }
 }
+
+impl Interpolatable for Color {
+    //TODO: Colors can be meaningfully interpolated.
+}
+
 impl Color {
     pub fn hlca(h:f64, l:f64, c:f64, a:f64) -> Self {
         Self {color_variant: ColorVariant::Hlca([h,l,c,a])}

@@ -29,11 +29,18 @@ pub trait PropertyInstance<T: Default + Clone> {
 
     fn set(&mut self, value: T);
 
-    fn _get_transition_queue_mut(&mut self) -> Option<&mut VecDeque<TransitionQueueEntry<T>>>;
+    /// Used by engine to gain access to this property's transition queue
+    fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>>;
 
-    //TODO: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
+    // fn get_eased_value(&self) -> Option<T>
+
+    /// Immediately start transitioning from current value to the provided `new_value`,
+    /// clearing the transition queue before doing so
     fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve);
 
+    /// Add a transition to the transition queue, which will execute
+    /// after the current queue is complete.  The starting value for this new
+    /// transition will be the final value upon completion of the current transition queue.
     fn ease_to_later(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve);
 
 }
@@ -69,7 +76,7 @@ pub enum ArgsCoproduct {
     Click(ArgsClick),
 }
 
-pub type Property<T> = Box<dyn PropertyInstance<T>>;
+pub type Property<T: Interpolatable> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
 pub struct ArgsRender {
@@ -243,7 +250,7 @@ impl Transform2D {
 
 pub struct TransitionManager<T> {
     pub queue: VecDeque<TransitionQueueEntry<T>>,
-    value: Option<T>,
+    pub value: Option<T>,
 }
 
 impl<T> TransitionManager<T> {
@@ -295,6 +302,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
 
     //TODO: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
+        self.transition_manager.value = Some(self.get().clone());
         &self.transition_manager.queue.clear();
         &self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
@@ -315,8 +323,12 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         });
     }
 
-    fn _get_transition_queue_mut(&mut self) -> Option<&mut VecDeque<TransitionQueueEntry<T>>> {
-        Some(&mut self.transition_manager.queue)
+    fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
+        if let None = self.transition_manager.value {
+            None
+        }else {
+            Some(&mut self.transition_manager)
+        }
     }
 }
 
@@ -369,7 +381,7 @@ impl EasingEvaluators {
 impl EasingCurve {
     //for a time on the unit interval `t ∈ [0,1]`, given a value `t`,
     // find the interpolated value `vt` between `v0` and `v1` given the self-contained easing curve
-    pub fn interpolate<T: Interpolatable>(&self, v0: T, v1: T, t: f64) -> T /*vt*/ {
+    pub fn interpolate<T: Interpolatable>(&self, v0: &T, v1: &T, t: f64) -> T /*vt*/ {
         let multiplier = match self {
             EasingCurve::Linear => {
                 EasingEvaluators::linear(t)
@@ -403,16 +415,30 @@ where Self : Sized + Clone //Clone used for default implementation of `interpola
 {
     //default implementation acts like a `None` ease — that is,
     //the first value is simply returned.
-    fn interpolate(&self, other: Self, t: f64) -> Self {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
         self.clone()
     }
 }
 
 impl Interpolatable for f64 {
-    fn interpolate(&self, other: f64, t: f64) -> f64 {
-        self + (other - self) * t
+    fn interpolate(&self, other: &f64, t: f64) -> f64 {
+        self + (*other - self) * t
     }
 }
+
+impl Interpolatable for usize {
+    fn interpolate(&self, other: &usize, t: f64) -> usize {
+        (*self as f64 + (*other - self) as f64 * t) as usize
+    }
+}
+
+impl Interpolatable for isize {
+    fn interpolate(&self, other: &isize, t: f64) -> isize {
+        (*self as f64 + (*other - self) as f64 * t) as isize
+    }
+}
+
+impl Interpolatable for String {}
 
 
 pub struct Timeline {

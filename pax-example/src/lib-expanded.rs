@@ -38,7 +38,7 @@ impl Root {
     pub fn handle_pre_render(&mut self, args: ArgsRender) {
 
         if args.frames_elapsed % 180 == 0 {
-            //every 4s
+            //every 3s
             pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
             let new_rotation = self.current_rotation.get() + (2.0 * std::f64::consts::PI);
             self.current_rotation.ease_to(new_rotation, 120, EasingCurve::InOutBack );

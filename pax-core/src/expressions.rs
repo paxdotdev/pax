@@ -55,6 +55,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
 
     //TODO: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
+        self.transition_manager.value = Some(self.get().clone());
         &self.transition_manager.queue.clear();
         &self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
@@ -75,8 +76,12 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
         });
     }
 
-    fn _get_transition_queue_mut(&mut self) -> Option<&mut VecDeque<TransitionQueueEntry<T>>> {
-        Some(&mut self.transition_manager.queue)
+    fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
+        if let None = self.transition_manager.value {
+            None
+        }else {
+            Some(&mut self.transition_manager)
+        }
     }
 
 }

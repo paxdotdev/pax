@@ -45,7 +45,7 @@ impl RenderNode for RepeatInstance {
 
 
         // pax_runtime_api::log(&"computing repeat properties");
-        if let Some(data_list) = rtc.get_computed_value(self.data_list._get_vtable_id()) {
+        if let Some(data_list) = rtc.get_vtable_computed_value(self.data_list._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(v) = data_list { v } else { unreachable!() };
             self.data_list.set(new_value);
         }
