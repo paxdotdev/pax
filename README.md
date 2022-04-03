@@ -4,26 +4,6 @@
 
 Pax is a language for computer graphics and user interfaces.
 
-Pax aims to be high-performance
-
-Pax is a language for the Web
-Pax is the Web for web3
-    - Language: Pax is an alternative to HTML/CSS/JavaScript 
-    - Backwards-compatible: works with any modern web browser via Web Assembly
-    - Universal: also runs natively (LLVM) on iOS, Android, macOS, Windows, Linux
-
-
-
-Pax is like the l, but includes 
-
-Animations, generative art, data visualization
-Layouts, UI animations, form controls and elements, modularity and reusability
-Games, 2D, 3D
-
-
-Pax is a language for high-performance, cross-platform computer graphics and user interfaces.  
-Pax is a language for creating high-performance, cross-platform user interfaces.
-
 [TODO: GIF of three devices, each showing a progression of: 1. responsive form/CRUD app + layouts, 2. game, e.g. spaceship/asteroid shooter, 3. animated data viz + text, a la d3]
 
 
@@ -269,6 +249,29 @@ Pax draws design inspiration from, among others:
 Scratch pad:
 
 
+
+
+
+
+Pax aims to be high-performance
+
+Pax is a language for the Web
+Pax is the Web for web3
+    - Language: Pax is an alternative to HTML/CSS/JavaScript 
+    - Backwards-compatible: works with any modern web browser via Web Assembly
+    - Universal: also runs natively (LLVM) on iOS, Android, macOS, Windows, Linux
+
+
+
+Pax is like the l, but includes 
+
+Animations, generative art, data visualization
+Layouts, UI animations, form controls and elements, modularity and reusability
+Games, 2D, 3D
+
+
+Pax is a language for high-performance, cross-platform computer graphics and user interfaces.  
+Pax is a language for creating high-performance, cross-platform user interfaces.
 
 
 
