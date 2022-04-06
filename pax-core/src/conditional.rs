@@ -38,7 +38,7 @@ impl RenderNode for ConditionalInstance {
 
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
-        if let Some(boolean_expression) = rtc.get_vtable_computed_value(self.boolean_expression._get_vtable_id()) {
+        if let Some(boolean_expression) = rtc.compute_vtable_value(self.boolean_expression._get_vtable_id()) {
             let new_value = if let TypesCoproduct::bool(v) = boolean_expression { v } else { unreachable!() };
             self.boolean_expression.set(new_value);
         }

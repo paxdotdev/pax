@@ -95,7 +95,7 @@ impl RenderNode for ComponentInstance {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut transform = &mut *self.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.get_vtable_computed_value(transform._get_vtable_id()) {
+        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
         }

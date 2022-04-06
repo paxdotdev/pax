@@ -84,7 +84,7 @@ impl<'a> Into<ArgsRender> for RenderTreeContext<'a> {
 
 
 impl<'a> RenderTreeContext<'a> {
-    pub fn get_eased_value<T: Clone + Interpolatable>(&self, transition_manager: Option<&mut TransitionManager<T>>) -> Option<T> {
+    pub fn compute_eased_value<T: Clone + Interpolatable>(&self, transition_manager: Option<&mut TransitionManager<T>>) -> Option<T> {
         if let Some(mut tm) = transition_manager {
             if tm.queue.len() > 0 {
                 let mut current_transition = tm.queue.get_mut(0).unwrap();
@@ -95,7 +95,7 @@ impl<'a> RenderTreeContext<'a> {
                 let progress = (self.engine.frames_elapsed as f64 - current_transition.global_frame_started.unwrap() as f64) / (current_transition.duration_frames as f64);
                 return if progress >= 1.0 { //TODO -- minus some epsilon for float imprecision?
                     tm.queue.pop_front();
-                    self.get_eased_value(Some(tm))
+                    self.compute_eased_value(Some(tm))
                 } else {
 
                     let new_value = current_transition.curve.interpolate(&current_transition.starting_value, &current_transition.ending_value, progress);
@@ -109,7 +109,9 @@ impl<'a> RenderTreeContext<'a> {
         pax_runtime_api::log(&format!("Returning None for eased value"));
         None
     }
-    pub fn get_vtable_computed_value(&self, vtable_id: Option<&str>) -> Option<TypesCoproduct> {
+
+    //both Expressions and Timelines store their evaluators in the same vtable
+    pub fn compute_vtable_value(&self, vtable_id: Option<&str>) -> Option<TypesCoproduct> {
 
         if let Some(id) = vtable_id {
             if let Some(evaluator) = self.engine.expression_table.borrow().get(id) {
@@ -124,9 +126,6 @@ impl<'a> RenderTreeContext<'a> {
         None
     }
 }
-
-
-
 
 
 pub struct HostPlatformContext<'a, 'b>

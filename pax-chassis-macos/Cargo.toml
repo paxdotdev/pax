@@ -1,0 +1,11 @@
+[package]
+name = "pax-chassis-macos
+
+version = "0.1.0"
+authors = ["Zack Brown <zack@inclination.co>"]
+description = "Pax chassis for macos"
+publish = false
+
+[lib]
+name = "pax-chassis-macos"
+crate-type = ["staticlib", "cdylib"]

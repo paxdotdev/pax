@@ -382,27 +382,27 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                             // if let Some(new_value) = rtc.get_eased_value(properties.direction._get_transition_manager()) {
                             //     properties.direction.set(new_value);
                             // }else
-                            if let Some(new_value) = rtc.get_vtable_computed_value(properties.direction._get_vtable_id()) {
+                            if let Some(new_value) = rtc.compute_vtable_value(properties.direction._get_vtable_id()) {
                                 let new_value = if let TypesCoproduct::SpreadDirection(v) = new_value { v } else { unreachable!() };
                                 properties.direction.set(new_value);
                             }
 
-                            if let Some(new_value) = rtc.get_vtable_computed_value(properties.cell_count._get_vtable_id()) {
+                            if let Some(new_value) = rtc.compute_vtable_value(properties.cell_count._get_vtable_id()) {
                                 let new_value = if let TypesCoproduct::usize(v) = new_value { v } else { unreachable!() };
                                 properties.cell_count.set(new_value);
                             }
 
-                            if let Some(new_value) = rtc.get_vtable_computed_value(properties.gutter_width._get_vtable_id()) {
+                            if let Some(new_value) = rtc.compute_vtable_value(properties.gutter_width._get_vtable_id()) {
                                 let new_value = if let TypesCoproduct::Size(v) = new_value { v } else { unreachable!() };
                                 properties.gutter_width.set(new_value);
                             }
 
-                            if let Some(new_value) = rtc.get_vtable_computed_value(properties.overrides_cell_size._get_vtable_id()) {
+                            if let Some(new_value) = rtc.compute_vtable_value(properties.overrides_cell_size._get_vtable_id()) {
                                 let new_value = if let TypesCoproduct::Vec_LPAREN_usize_COMMA_Size_RPAREN(v) = new_value { v } else { unreachable!() };
                                 properties.overrides_cell_size.set(new_value);
                             }
 
-                            if let Some(new_value) = rtc.get_vtable_computed_value(properties.overrides_gutter_size._get_vtable_id()) {
+                            if let Some(new_value) = rtc.compute_vtable_value(properties.overrides_gutter_size._get_vtable_id()) {
                                 let new_value = if let TypesCoproduct::Vec_LPAREN_usize_COMMA_Size_RPAREN(v) = new_value { v } else { unreachable!() };
                                 properties.overrides_gutter_size.set(new_value);
                             }
@@ -421,14 +421,14 @@ pub fn instantiate_root_component(instance_map: Rc<RefCell<InstanceMap>>) -> Rc<
                 let properties = &mut *properties.as_ref().borrow_mut();
                 let properties = if let PropertiesCoproduct::Root(p) = properties {p} else {unreachable!()};
 
-                if let Some(new_value) = rtc.get_eased_value(properties.current_rotation._get_transition_manager()) {
+                if let Some(new_value) = rtc.compute_eased_value(properties.current_rotation._get_transition_manager()) {
                     properties.current_rotation.set(new_value);
-                }else if let Some(new_current_rotation) = rtc.get_vtable_computed_value(properties.current_rotation._get_vtable_id()) {
+                }else if let Some(new_current_rotation) = rtc.compute_vtable_value(properties.current_rotation._get_vtable_id()) {
                     let new_value = if let TypesCoproduct::f64(v) = new_current_rotation { v } else { unreachable!() };
                     properties.current_rotation.set(new_value);
                 }
 
-                if let Some(new_num_clicks) = rtc.get_vtable_computed_value(properties.num_clicks._get_vtable_id()) {
+                if let Some(new_num_clicks) = rtc.compute_vtable_value(properties.num_clicks._get_vtable_id()) {
                     let new_value = if let TypesCoproduct::isize(v) = new_num_clicks { v } else { unreachable!() };
                     properties.num_clicks.set(new_value);
                 }

@@ -166,13 +166,31 @@ _RIL means Rust Intermediate Language, which is the
 [x] parser
     [x] grammar definition, PEG
     [x] parse grammar into manifest
-[ ] latest parser + grammar updates:
+[x] grammar/parser updates:
+    [x] `@for`
+    [x] ranges: literal and symbolic
+    [x] `@template` block, vs. top-level
+[ ] dev env ++
     [ ] support inline (in-file) component def. (as alternative to `#[pax_component_definition]` file path)
-    [ ] `with` syntax
-    [ ] `@for`
-    [ ] ranges: literal and symbolic
-    [ ] `@template` block, vs. top-level
+    [ ] support for different example projects
+    [ ] native macOS chassis + dev-harness?
+        *** rename: is it the case that `engine` is an `os`; `chassis` is a `console` ? 
+        [ ] pax-chassis-coregraphics (written in rust). responsible for:
+            [ ] accepting a CGContext pointer and rendering to it via Piet
+            [ ] managing user input channel, e.g. click/touch
+            [ ] managing native rendering channel, e.g. form controls, text
+        [ ] mac app dev-harness (written in swift). responsible for:
+            [ ] granting a piece of real estate (full window of simple mac app) to rendering with a CGContext.
+            [ ] passing CGContext to pax-chassis-coregraphics
+            [ ] handling basic user input (e.g. click) and text rendering (renderqueue)
+        [ ] ios app dev-harness (written in swift)
+            [ ] (~same as mac app dev-harness)
+            [ ] supporting ios simulator + physical device, however is ergonomic with xcode
+        [ ] Debugging via LLDB
+            [ ] support debugging as necessary with macos dev-harness
+            [ ] IDE configs for each of: userland cartridge; core; std
 [ ] `pax-compiler`
+    [ ] update manifest-populating logic to latest parser defs
     [x] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
         [-] NOTE: provisionally, this whole group is solved as not necessary, in light of the "parser binary" feature-flagged approach
         [x] science: determine how macros behave, caching of expansion, incremental compilation
@@ -210,13 +228,8 @@ _RIL means Rust Intermediate Language, which is the
 [ ] control flow
     [ ] @for
         [ ] parse declaration `i`, `(i)`, `(i, elem)`
-        [ ] handle range literals (0..10)
+        [ ] handle range literals 0..10 
         [ ] shuttle data into RepeatInstance via Manifest
-        [ ] `with`
-            [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
-            [ ] grammar+parser support
-            [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
-            [ ] multiple variables in tuple `(i,j,k)`
     [ ] @if
 [ ] compiler codegen
     [ ] codegen Cargo.toml + solution for patching
@@ -241,8 +254,17 @@ _RIL means Rust Intermediate Language, which is the
 
 
 ## Milestone: clickable square
+Three "clickable squares" with independent event handlers, state
+On click, each square performs an animated transformation, e.g. rotation
 
 ```
+[ ] compiler updates
+    [ ] `with`
+        [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
+        [ ] grammar+parser support
+        [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
+        [ ] multiple variables in tuple `(i,j,k)`
+    
 [ ] Action API
     [x] state management (.get/.set/etc.)
     [ ] hooks into dirty-update system, for efficient expressions
@@ -287,7 +309,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] refactor Tweenable, to support arbitrary types (dyn Tweenable) and impl for `fsize`
     [ ] support Tweenable for f64
     [ ] support Tweenable for `Transform`
-[ ] ergonomic timeline API design in pax
+[ ] ergonomic timeline API design in pax (probably JSON-esque {30: value, 120: other_value} where 30 is frame number
 ```
 
 ## Milestone: vector primitives

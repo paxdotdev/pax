@@ -97,8 +97,6 @@ class HelloWorld {
     
 }
 
-
- 
 ```
 
 You'll notice a few moving pieces here:

@@ -127,30 +127,30 @@ impl RenderNode for RectangleInstance {
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
-        if let Some(stroke) = rtc.get_vtable_computed_value(properties.stroke._get_vtable_id()) {
+        if let Some(stroke) = rtc.compute_vtable_value(properties.stroke._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Stroke(v) = stroke { v } else { unreachable!() };
             properties.stroke.set(new_value);
         }
 
-        if let Some(fill) = rtc.get_vtable_computed_value(properties.fill._get_vtable_id()) {
+        if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Color(v) = fill { v } else { unreachable!() };
             properties.fill.set(new_value);
         }
 
         let mut size = &mut *self.size.as_ref().borrow_mut();
 
-        if let Some(new_size) = rtc.get_vtable_computed_value(size[0]._get_vtable_id()) {
+        if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
             size[0].set(new_value);
         }
 
-        if let Some(new_size) = rtc.get_vtable_computed_value(size[1]._get_vtable_id()) {
+        if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
             size[1].set(new_value);
         }
 
         let mut transform = &mut *self.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.get_vtable_computed_value(transform._get_vtable_id()) {
+        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
         }

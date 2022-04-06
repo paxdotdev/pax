@@ -48,7 +48,7 @@ impl RenderNode for SlotInstance {
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
 
-        if let Some(index) = rtc.get_vtable_computed_value(self.index._get_vtable_id()) {
+        if let Some(index) = rtc.compute_vtable_value(self.index._get_vtable_id()) {
             let new_value = if let TypesCoproduct::usize(v) = index { v } else { unreachable!() };
             self.index.set(new_value);
         }

@@ -7,11 +7,16 @@ COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 //////
 
 //A template is expressed as an XML-like document with support for
-//@property binding and @{}-style templating (embedding expressions)
+//@property binding, control-flow (@if, @for) and @{}-style templating (embedding expressions)
 
 //A template has exactly one root tag, which cannot be control-flow
-pax_component_definition = { SOI ~ root_tag_pair ~ settings_declaration? ~ EOI }
+//A template may be passed as the only content of a pax component definition, or one or more of a `@template{}` or `@settings{}` block may be passed.
+//If a `@settings` block is present, the template must be wrapped in `@template` rather than exposed at the root.
+//The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
+pax_component_definition = { SOI ~ (root_tag_pair | (template_block_declaration | settings_block_declaration)+) ~ EOI }
 root_tag_pair = { any_tag_pair }
+
+template_block_declaration = {"@template" ~ "{" ~ root_tag_pair ~ "}"}
 
 //On the other hand, the inner_nodes (children of another tag)
 //may have multiple top-level siblings
@@ -29,7 +34,11 @@ any_tag_pair = _{matched_tag | self_closing_tag}
 
 //Describes an XML subtree surrounded by a pair of matching tags, like
 //<SomeElement>...</SomeElement>
-matched_tag = {open_tag ~ inner_nodes ~ closing_tag}
+matched_tag = {open_tag ~ (node_inner_content | inner_nodes) ~ closing_tag}
+//For example: <Text>"This is my inner content"</Text>
+//Presumably this content can be bare literal values other than strings like Color::hlca(...)
+//It can also be a @binding or @{} expression
+node_inner_content = { literal_value | expression }
 
 //Describes a (leaf-node) self-closing element, like <SomeElement />
 self_closing_tag = {"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/>"}
@@ -43,8 +52,8 @@ char = {
     | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
 }
 
-//Describes a symbolic identifier, like `id` or `Engine`
-identifier = @{ ASCII_ALPHANUMERIC ~ (ASCII_ALPHANUMERIC | "_" | "-")* }
+//Describes an atomic symbolic identifier, like `id`, `Engine`, or `some_thing`
+identifier = @{ ASCII_ALPHANUMERIC ~ (ASCII_ALPHANUMERIC | "_")* }
 
 //Describes a symbolic identifier with an Uppercase first letter, a la PascalCase
 //Does not enforce the presence of any other uppercase letters.
@@ -58,7 +67,7 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_" | "-")*}
 /// BEGIN SETTINGS
 //////
 
-settings_declaration = {"@settings" ~ "{" ~ selector_block* ~ "}"}
+settings_block_declaration = {"@settings" ~ "{" ~ selector_block* ~ "}"}
 selector_block = {selector ~ literal_object}
 literal_object = { pascal_identifier? ~ "{" ~ settings_key_value_pair* ~ "}" }
 
@@ -86,7 +95,6 @@ enum_value = @{pascal_identifier ~ ("::" ~ pascal_identifier ~ ("("~enum_args_li
 //Experimental/probably incomplete: pass values to enums, like rust but variadically
 enum_args_list = !{settings_value ~ ("," ~ settings_value)*}
 
-
 //////  //////  //////
 /// BEGIN EXPRESSIONS (PAXEL)
 //////
@@ -106,7 +114,7 @@ expression_lambda = !{"{"~expression_body~"}"}
 expression_body = { expression_operand ~ (xo_infix_binary ~ expression_operand)* }
 
 //terminal, or recurse into `(...)`
-expression_operand = { expression_grouped | xo_literal | xo_symbol | xo_range }
+expression_operand = { expression_grouped | xo_range | xo_literal | xo_symbol }
 expression_grouped = { "(" ~ expression_body ~ ")" }
 
 /*
@@ -182,7 +190,7 @@ xo_rel_neq = {"!="}
 //(0..10)
 //("abc".."def") <- will parse OK but will rely on Rust's support for constructing ranges from these types/operands
 //(this.num_clicks..25)
-xo_range = {"(" ~ (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | expression_symbolic_binding) ~ ")"}
+xo_range = { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | expression_symbolic_binding)}
 xo_range_exclusive = @{".."}
 xo_range_inclusive = @{"..."}
 

@@ -478,7 +478,7 @@ fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<Sett
 
     pax_component_definition.into_inner().for_each(|top_level_pair|{
         match top_level_pair.as_rule() {
-            Rule::settings_declaration => {
+            Rule::settings_block_declaration => {
 
 
                 let mut selector_block_definitions: Vec<SettingsSelectorBlockDefinition> = top_level_pair.into_inner().map(|selector_block| {
