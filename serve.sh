@@ -11,9 +11,9 @@ set -ex
 cd pax-chassis-web
 
 # before adding serde: 92.94kb
-wasm-pack build --release -d basic-web-static/dist
+wasm-pack build --release -d pax-dev-harness-web/dist
 
 # Finally, package everything up using Webpack and start a server so we can
 # browse the result
-cd basic-web-static
+cd pax-dev-harness-web
 yarn serve || (yarn && yarn serve)
