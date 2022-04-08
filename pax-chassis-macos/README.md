@@ -2,6 +2,7 @@
 
 Handles:
     - 2D rendering on macOS via CoreGraphics
+    - passing tick events (a la rAF; see NSViewRepresentable)
     - Managing native user input (e.g. mouse, keyboard, camera, microphone, also form control events like 'click' on a button)
     - Rendering native text based off of commands from engine
     - Rendering native form controls based off of commands from engine

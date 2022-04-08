@@ -175,7 +175,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] support for different example projects
     [ ] native macOS chassis + dev-harness?
         *** rename: is it the case that `engine` is an `os`; `chassis` is a `console` ? 
-        [ ] pax-chassis-coregraphics (written in rust). responsible for:
+        [ ] pax-chassis-macos (written in rust). responsible for:
             [ ] accepting a CGContext pointer and rendering to it via Piet
             [ ] managing user input channel, e.g. click/touch
             [ ] managing native rendering channel, e.g. form controls, text
@@ -184,7 +184,7 @@ _RIL means Rust Intermediate Language, which is the
             [ ] passing CGContext to pax-chassis-coregraphics
             [ ] handling basic user input (e.g. click) and text rendering (renderqueue)
         [ ] ios app dev-harness (written in swift)
-            [ ] (~same as mac app dev-harness)
+            [ ] (~similar to mac app dev-harness)
             [ ] supporting ios simulator + physical device, however is ergonomic with xcode
         [ ] Debugging via LLDB
             [ ] support debugging as necessary with macos dev-harness
