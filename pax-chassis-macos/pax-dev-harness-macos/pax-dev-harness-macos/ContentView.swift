@@ -41,75 +41,66 @@ struct ContentView: View {
     
     var body: some View {
         Group {
-            ChartViewRepresentable(data: chartData)
+            CanvasViewRepresentable()
                 .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
         }
-        .onAppear{
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
-                print("New data!")
-                chartData = ChartData(array: [1,2,3,4])
-            }
-        }
     }
 }
 
 
-struct ChartViewRepresentable: NSViewRepresentable {
-    typealias NSViewType = ChartView
+struct CanvasViewRepresentable: NSViewRepresentable {
+    typealias NSViewType = CanvasView
     
-    var data: ChartData
-    
-    func makeNSView(context: Context) -> ChartView {
-        return ChartView(data: data)
+    func makeNSView(context: Context) -> CanvasView {
+        return CanvasView()
     }
     
-    func updateNSView(_ chart: ChartView, context: Context) {
-        chart.data = data
+    func updateNSView(_ canvas: CanvasView, context: Context) {
+//        canvas.data = data
     }
 }
 
-class ChartView: NSView {
-    
-    var data: ChartData {
-        didSet {
-            self.needsDisplay = true
-        }
-    }
-    
-    init(data: ChartData) {
-        self.data = data
-        print("\(data)")
-        super.init(frame: .zero)
-        wantsLayer = true
-        layer?.backgroundColor = .white
-    }
-    
-    required init?(coder: NSCoder) {
-        fatalError("init(coder:) has not been implemented")
-    }
+class CanvasView: NSView {
+    //TODO: figure out if this is necessary/reasonable
+//    override func needsToDraw(_ rect: NSRect) -> Bool {
+//        true
+//    }
     
     override func draw(_ dirtyRect: NSRect) {
-        print("draw call - Frame: \(self.frame), Data: \(data.array.count)")
+        print("draw call - Frame: \(self.frame)")
         
         super.draw(dirtyRect)
         
         guard let context = NSGraphicsContext.current else { return }
+        
+        let str = NSString(format:"hello with frame height: %f", self.frame.height)
+        let rustGreetings = RustGreetings()
+        print("\(rustGreetings.sayHello(to: str as String))")
+        
+        
+        //TODO: determine order/neccessity of {saveGraphicsState, drawing/tick, and restoreGraphicsState}
         context.saveGraphicsState()
 
         //here!!
 //        context.cgContext
         
         //TODO: pass cgContext pointer to pax-chassis-macos if this is the first `draw`
-        //      (ideally, there would be a separate lifecycle method
-        
-        if data.array.count > 0 {
-            //detect data present on ChartView
-            let ctx = context.cgContext
-            ctx.setFillColor(NSColor.green.cgColor)
-            ctx.fillEllipse(in: CGRect(x: 10, y: 10, width: 10, height: 10))
-        }
+        //      (TODO: ideally, this would be best sent in a separate lifecycle method, e.g. `init`. Someone who knows SwiftUI should refactor & improve: pass CGContext pointer on `init`, then call `tick` on `draw`)
+        //       Alternatively, if the cgContext pointer moves between ticks, support a new context per tick in chassis-macos (and probably chassis-ios)
+        //TODO: send `tick` event to pax-chassis-macos
         
         context.restoreGraphicsState()
+        self.setNeedsDisplay(dirtyRect)
+//        self.displayIfNeeded()
+    }
+}
+
+class RustGreetings {
+    func sayHello(to: String) -> String {
+        let result = rust_greeting(to)
+        let swift_result = String(cString: result!)
+        rust_greeting_free(UnsafeMutablePointer(mutating: result))
+        return swift_result
     }
 }
 
@@ -128,46 +119,46 @@ class ChartView: NSView {
 // and https://github.com/shufflingB/swiftui-macos-windowManagment
 // and https://lostmoa.com/blog/ReadingTheCurrentWindowInANewSwiftUILifecycleApp/
 // and https://stackoverflow.com/questions/66982859/swiftui-nsviewrepresentable-cant-read-data-from-publisher
-
-#if canImport(AppKit)
-    
-    struct MyRepresentedCustomView: NSViewRepresentable {
-//        let callback: (NSWindow?) -> Void
 //
-//        func makeNSView(context: Self.Context) -> NSView {
-//            let view = NSView()
+//#if canImport(AppKit)
 //
-//
-//
-//            DispatchQueue.main.async { [weak view] in
-//
-//                self.callback(view?.window)
-//            }
-//            return view
-//        }
-//        //coordinator likely will be needed for user input / event mapping
-////        func makeCoordinator() -> () {
-////            <#code#>
+//    struct MyRepresentedCustomView: NSViewRepresentable {
+////        let callback: (NSWindow?) -> Void
+////
+////        func makeNSView(context: Self.Context) -> NSView {
+////            let view = NSView()
+////
+////
+////
+////            DispatchQueue.main.async { [weak view] in
+////
+////                self.callback(view?.window)
+////            }
+////            return view
+////        }
+////        //coordinator likely will be needed for user input / event mapping
+//////        func makeCoordinator() -> () {
+//////            <#code#>
+//////        }
+////
+////        func updateNSView(_ nsView: NSView, context: Context) {
+////            let c = context.cgContext
 ////        }
 //
-//        func updateNSView(_ nsView: NSView, context: Context) {
-//            let c = context.cgContext
-//        }
-        
-        typealias NSViewType = ChartView
-            
-            var data: ChartData //store the data -- not the chart view
-            
-            func makeNSView(context: Context) -> ChartView {
-                return ChartView(data: data)
-            }
-            
-            func updateNSView(_ chart: ChartView, context: Context) {
-                chart.data = data //update the chart view's data
-            }
-    }
-#else
-    #error("Unsupported platform")
-#endif
-
-
+//        typealias NSViewType = CanvasView
+//
+//            var data: ChartData //store the data -- not the chart view
+//
+//            func makeNSView(context: Context) -> CanvasView {
+//                return CanvasView(data: data)
+//            }
+//
+//            func updateNSView(_ chart: CanvasView, context: Context) {
+//                chart.data = data //update the chart view's data
+//            }
+//    }
+//#else
+//    #error("Unsupported platform")
+//#endif
+//
+//

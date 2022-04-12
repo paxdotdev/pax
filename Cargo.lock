@@ -1431,6 +1431,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pax-chassis-macos"
+version = "0.1.0"
+
+[[package]]
 name = "pax-chassis-web"
 version = "0.0.1"
 dependencies = [

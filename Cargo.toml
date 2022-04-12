@@ -4,6 +4,7 @@ members = [
     "pax",
     "pax-core",
     "pax-chassis-web",
+    "pax-chassis-macos",
     "pax-macro",
     "pax-message",
     "pax-compiler",
@@ -15,6 +16,7 @@ members = [
 exclude = [
     "pax-example",
     "pax-std",
+    "pax-chassis-macos/pax-dev-harness-macos",
     "pax-example/.pax-manual/patches/pax-cartridge-runtime",
     "pax-example/.pax-manual/patches/pax-properties-coproduct",
 ]
