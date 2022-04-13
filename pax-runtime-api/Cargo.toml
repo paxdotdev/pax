@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-kurbo = "0.7.1"
+kurbo = "0.8.3"
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 uuid = {version = "0.8", features = ["v4", "wasm-bindgen"]}

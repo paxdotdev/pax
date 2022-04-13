@@ -11,8 +11,8 @@ crate-type = ["cdylib"]
 default = ["console_error_panic_hook"]
 
 [dependencies]
-piet = "0.3.1"
-piet-web = "0.3.1"
+piet = "0.5.0"
+piet-web = "0.5.0"
 
 
 #pax-core is sufficient to break wasmpack.  try binary-removing its dependencies for trial & error?

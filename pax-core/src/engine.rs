@@ -6,6 +6,8 @@ use std::f64::EPSILON;
 use std::rc::Rc;
 
 
+
+
 extern crate wee_alloc;
 
 // Use `wee_alloc` as the global allocator.
@@ -302,46 +304,11 @@ impl PaxEngine {
     }
 
     pub fn tick(&mut self, rc: &mut WebRenderContext) -> Vec<JsValue> {
-        rc.clear(Color::rgb8(0, 0, 0));
+
+        rc.clear(None,Color::rgb8(0, 0, 0));
         let native_render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue
     }
 
-    //keeping until this can be done via scene graph
-    pub fn tick_and_render_disco_taps(&mut self, rc: &mut WebRenderContext) -> Result<(), Error> {
-        let hue = (((self.frames_elapsed + 1) as f64 * 2.0) as isize % 360) as f64;
-        let current_color = Color::hlc(hue, 75.0, 127.0);
-        rc.clear(current_color);
-
-        for x in 0..20 {
-            for y in 0..12 {
-                let bp_width: f64 = 100.;
-                let bp_height: f64 = 100.;
-                let mut bez_path = BezPath::new();
-                bez_path.move_to(Point::new(-bp_width / 2., -bp_height / 2.));
-                bez_path.line_to(Point::new(bp_width / 2., -bp_height / 2.));
-                bez_path.line_to(Point::new(bp_width / 2., bp_height / 2.));
-                bez_path.line_to(Point::new(-bp_width / 2., bp_height / 2.));
-                bez_path.line_to(Point::new(-bp_width / 2., -bp_height / 2.));
-                bez_path.close_path();
-
-                let theta = self.frames_elapsed as f64 * (0.04 + (x as f64 + y as f64 + 10.) / 64.) / 10.;
-                let transform =
-                    Affine::translate(Vec2::new(x as f64 * bp_width, y as f64 * bp_height)) *
-                        Affine::rotate(theta) *
-                        Affine::scale(theta.sin() * 1.2)
-                    ;
-
-                let transformed_bez_path = transform * bez_path;
-
-                let phased_hue = ((hue + 180.) as isize % 360) as f64;
-                let phased_color = Color::hlc(phased_hue, 75., 127.);
-                rc.fill(transformed_bez_path, &phased_color);
-            }
-        }
-
-        self.frames_elapsed = self.frames_elapsed + 1;
-        Ok(())
-    }
 }

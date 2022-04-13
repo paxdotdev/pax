@@ -10,6 +10,6 @@ pax-core = {path = "../../pax-core"}
 pax-std = {path = "../"}
 pax-runtime-api = {path = "../../pax-runtime-api"}
 pax-properties-coproduct = {path = "../../pax-properties-coproduct"}
-piet = "0.3.1"
-piet-web = "0.3.1"
-kurbo = "0.7.1"
+piet = "0.5.0"
+piet-web = "0.5.0"
+kurbo = "0.8.3"
