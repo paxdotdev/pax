@@ -30,6 +30,7 @@ import SwiftUI
 
 
 
+let REFRESH_RATE = 1.0/60.0 //seconds per frame
 
 
 struct ChartData {
@@ -37,25 +38,33 @@ struct ChartData {
 }
 
 struct ContentView: View {
-    @State var chartData : ChartData = ChartData(array: [])
+    
+    
+//    @Published var internal_date : Date
     
     var body: some View {
-        Group {
+//        TimelineView(.periodic(from: .now, by: 1)) { context in
             CanvasViewRepresentable()
                 .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+//                .onChange(of: date, perform: { _ in
+//
+//                })
         }
-    }
+//    }
 }
 
 
 struct CanvasViewRepresentable: NSViewRepresentable {
+//    @State var timestamp : Date
     typealias NSViewType = CanvasView
+//    let date : Date
     
     func makeNSView(context: Context) -> CanvasView {
         return CanvasView()
     }
     
     func updateNSView(_ canvas: CanvasView, context: Context) {
+//        canvas.tim
 //        canvas.data = data
     }
 }
@@ -90,8 +99,11 @@ class CanvasView: NSView {
         //TODO: send `tick` event to pax-chassis-macos
         
         context.restoreGraphicsState()
-        self.setNeedsDisplay(dirtyRect)
-//        self.displayIfNeeded()
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_RATE) {
+            self.setNeedsDisplay(dirtyRect)
+            self.displayIfNeeded()
+        }
     }
 }
 
