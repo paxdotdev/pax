@@ -3,6 +3,11 @@ use std::ffi::{CString, CStr};
 
 //hello world achieved with help from: https://mozilla.github.io/firefox-browser-architecture/experiments/2017-09-06-rust-on-ios.html
 
+
+//TODO: expose `tick`, manage instance of Engine and Chassis,
+//      accept CGContext and pass into CoreGraphicsRenderer
+
+
 #[no_mangle]
 pub extern fn rust_greeting(to: *const c_char) -> *mut c_char {
     let c_str = unsafe { CStr::from_ptr(to) };

@@ -44,6 +44,7 @@ fn flatten_adoptees<R: 'static + RenderContext>(adoptees: RenderNodePtrList<R>) 
     });
 
     Rc::new(RefCell::new(running_adoptees))
+
 }
 
 
@@ -63,6 +64,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
             },
             _ => {None}
         }
+    }
+
+    fn post_render(&mut self, rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+        (*rtc.runtime).borrow_mut().pop_stack_frame();
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {

@@ -1,17 +1,11 @@
 # Pax 
 
-
-
-Pax is a language for computer graphics and user interfaces.
+Pax is a language for high performance, cross-platform computer graphics and user interfaces.
 
 [TODO: GIF of three devices, each showing a progression of: 1. responsive form/CRUD app + layouts, 2. game, e.g. spaceship/asteroid shooter, 3. animated data viz + text, a la d3]
 
 
-
-
 ## Goals
-
-Make the digital medium more expressive, for productivity and for art.
 
 **Portable**
 - run on any device
@@ -34,6 +28,7 @@ Make the digital medium more expressive, for productivity and for art.
 - Agnostic "host language" means any language can be supported (Rust, TypeScript/JavaScript, C++, .NET CLR...)
 - Free and open source (MIT / Apache 2.0)
 
+Above all: Make the digital medium more expressive, for productivity and for art.
 
 ## How it works
 
@@ -131,8 +126,20 @@ It is in event handlers that you will normally change property values (e.g. `sel
 
 Pax includes a number of built-in lifecycle events like `pre_render` and user interaction events like `on_click` and `on_tap`.
 
+#### Declarative and designable
 
+At first glance, Pax templates look quite a bit like familiar templating languages like React/JSX.  
 
+On closer inspection, you may notice a key distinction: _Pax's templates are not evaluated within a closure_ — they are declared statically and evaluated entirely at compile time.  
+Symbols in expressions that refer to a component's properties, like `color=@self.active_bg_color`, are handled via special runtime lookups
+in the expression vtable — again, specifically _not_ a reference to some `self` in the scope of some closure.
+
+Because the template is evaluated entirely at compile-time, the template is exactly what it is described to
+be in the code — or in other words, it is both _code_ and _data_, in the same sense as Lisp.  Expressions themselves, given their functional constraints,
+are roughly equivalent to formulas in spreadsheets: declarative, easy to isolate, easy to hack.
+
+The reason _all of that_ matters is because Pax was **designed to be designed** — in the sense of "design tools" that can read and write Pax code as a comprehensive
+description of any visual content, document, or scene.
 
 
 ## Current status & support
@@ -164,7 +171,7 @@ Pax is in its early days but has ambitions to mature robustly.
 [2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the admirable work behind [Piet](https://github.com/linebender/piet). 
 
 [3] PAXEL is similar to Google's Common Expression Language (CEL), but CEL was not a suitable fit for Pax due to its footprint — being written in Go, CEL adds
-a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total footprint of ~100KB.  Pax also has subtly distinct goals
+a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total target footprint of <100KB.  Pax also has subtly distinct goals
 vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this particular domain.
 
 
@@ -241,6 +248,20 @@ Pax draws design inspiration from, among others:
 
 ```
 Scratch pad:
+
+
+
+
+
+
+Pax aims to be an expressive substrate for *anything you can imagine* on a screen — for example:
+    - User interfaces, from the mundane to the experimental
+    - 2D vector graphics and animations
+    - 3D scenes and games, including VR and AR
+    - Data visualizations
+    - Text and documents
+    
+
 
 
 
