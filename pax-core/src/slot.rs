@@ -3,6 +3,7 @@ use core::option::Option;
 use core::option::Option::{None, Some};
 use std::rc::Rc;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use piet_common::RenderContext;
 
 use crate::{InstantiationArgs, RenderNode, RenderNodePtrList, RenderTreeContext};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
@@ -19,16 +20,16 @@ use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
 /// the outside.  Inside Spread's template, there are a number of Slots — this primitive —
 /// that become the final rendered home of those adoptees.  This same technique
 /// is portable and applicable elsewhere via Slot.
-pub struct SlotInstance {
+pub struct SlotInstance<R: 'static + RenderContext> {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub index: Box<dyn PropertyInstance<usize>>,
-    cached_computed_children: RenderNodePtrList,
+    cached_computed_children: RenderNodePtrList<R>,
 }
 
 
-impl RenderNode for SlotInstance {
+impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
 
-    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let new_id = pax_runtime_api::mint_unique_id();
         Rc::new(RefCell::new(Self {
             transform: args.transform,
@@ -37,7 +38,7 @@ impl RenderNode for SlotInstance {
         }))
     }
 
-    fn get_rendering_children(&self) -> RenderNodePtrList {
+    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.cached_computed_children)
     }
 
@@ -46,7 +47,7 @@ impl RenderNode for SlotInstance {
 
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
         if let Some(index) = rtc.compute_vtable_value(self.index._get_vtable_id()) {
             let new_value = if let TypesCoproduct::usize(v) = index { v } else { unreachable!() };

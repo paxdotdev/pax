@@ -58,9 +58,13 @@ pub fn log_wrapper(msg: &str) {
 
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
-    engine: Rc<RefCell<PaxEngine>>,
+    engine: Rc<RefCell<PaxEngine<WebRenderContext<'static>>>>,
     drawing_context: WebRenderContext<'static>,
 }
+
+// lazy_static! {
+//     static ref ENGINE: Rc<RefCell<PaxEngine<WebRenderContext>>> = Rc::new();
+// }
 
 #[wasm_bindgen]
 impl PaxChassisWeb {
@@ -95,16 +99,16 @@ impl PaxChassisWeb {
 
         let _ = context.scale(dpr, dpr);
 
-        let piet_context  = WebRenderContext::new(context, window);
+        let render_context = WebRenderContext::new(context, window);
 
 
-        let instance_map : Rc<RefCell<InstanceMap>> = Rc::new(RefCell::new(std::collections::HashMap::new()));
+        let instance_map : Rc<RefCell<InstanceMap<WebRenderContext>>> = Rc::new(RefCell::new(std::collections::HashMap::new()));
         let root_component_instance = pax_cartridge_runtime::instantiate_root_component(Rc::clone(&instance_map));
         let expression_table = pax_cartridge_runtime::instantiate_expression_table();
 
         let engine = pax_core::PaxEngine::new(root_component_instance, expression_table, log_wrapper, (width / dpr, height / dpr), instance_map);
 
-        let engine_container : Rc<RefCell<PaxEngine>> = Rc::new(RefCell::new(engine));
+        let engine_container : Rc<RefCell<PaxEngine<WebRenderContext>>> = Rc::new(RefCell::new(engine));
 
         let engine_cloned = Rc::clone(&engine_container);
         //see web-sys docs for handling browser events with closures
@@ -142,7 +146,7 @@ impl PaxChassisWeb {
 
         Self {
             engine: engine_container,
-            drawing_context: piet_context,
+            drawing_context: render_context,
         }
     }
 

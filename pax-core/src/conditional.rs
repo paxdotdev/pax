@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+use piet_common::RenderContext;
 use crate::{HandlerRegistry, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
@@ -10,16 +11,16 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 /// based on the value of the property `boolean_expression`.
 /// The Pax compiler handles ConditionalInstance specially
 /// with the `@if` syntax in templates.
-pub struct ConditionalInstance {
-    pub primitive_children: RenderNodePtrList,
+pub struct ConditionalInstance<R: 'static + RenderContext> {
+    pub primitive_children: RenderNodePtrList<R>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub boolean_expression: Box<dyn PropertyInstance<bool>>,
-    pub empty_children: RenderNodePtrList,
+    pub empty_children: RenderNodePtrList<R>,
 }
 
-impl RenderNode for ConditionalInstance {
+impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
 
-    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
 
         let new_id = pax_runtime_api::mint_unique_id();
         let ret = Rc::new(RefCell::new(Self {
@@ -32,12 +33,12 @@ impl RenderNode for ConditionalInstance {
             empty_children: Rc::new(RefCell::new(vec![]))
         }));
 
-        (*args.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        (*args.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
 
 
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         if let Some(boolean_expression) = rtc.compute_vtable_value(self.boolean_expression._get_vtable_id()) {
             let new_value = if let TypesCoproduct::bool(v) = boolean_expression { v } else { unreachable!() };
             self.boolean_expression.set(new_value);
@@ -47,7 +48,7 @@ impl RenderNode for ConditionalInstance {
     fn should_flatten(&self) -> bool {
         true
     }
-    fn get_rendering_children(&self) -> RenderNodePtrList {
+    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         if *self.boolean_expression.get() {
             Rc::clone(&self.primitive_children)
         } else {

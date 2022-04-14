@@ -3,29 +3,30 @@ use std::rc::Rc;
 
 use kurbo::{Affine};
 use piet::{Color, StrokeStyle};
+use piet_common::RenderContext;
 use pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{ArgsCoproduct, Size, Size2D};
 
-use crate::{RenderTreeContext, HostPlatformContext, HandlerRegistry, InstanceMap};
+use crate::{RenderTreeContext, HandlerRegistry, InstanceMap};
 
 use pax_runtime_api::{PropertyInstance, PropertyLiteral};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.
-pub type RenderNodePtr = Rc<RefCell<dyn RenderNode>>;
-pub type RenderNodePtrList = Rc<RefCell<Vec<RenderNodePtr>>>;
+pub type RenderNodePtr<R: 'static + RenderContext> = Rc<RefCell<dyn RenderNode<R>>>;
+pub type RenderNodePtrList<R: 'static + RenderContext> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
 
 
 
-pub struct InstantiationArgs {
+pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub instance_map: Rc<RefCell<InstanceMap>>,
+    pub instance_map: Rc<RefCell<InstanceMap<R>>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub size: Option<[Box<dyn PropertyInstance<Size>>;2]>,
-    pub children: Option<RenderNodePtrList>,
-    pub component_template: Option<RenderNodePtrList>,
+    pub children: Option<RenderNodePtrList<R>>,
+    pub component_template: Option<RenderNodePtrList<R>>,
 
     //used in special cases where certain Component instances should not
     //interfere with Slot <> Adoptee linking, e.g. for the
@@ -43,24 +44,24 @@ pub struct InstantiationArgs {
 
     ///used by Component instances, specifically to unwrap type-specific PropertiesCoproducts
     ///and recurse into descendant property computation
-    pub compute_properties_fn: Option<Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext)>>,
+    pub compute_properties_fn: Option<Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>>,
 }
 
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
 /// T: a member of PropertiesCoproduct, representing the type of the set of properites
 /// associated with this node.
-pub trait RenderNode
+pub trait RenderNode<R: 'static + RenderContext>
 {
 
-    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized;
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized;
 
     /// Return the list of nodes that are children of this node at render-time.
     /// Note that "children" is somewhat overloaded, hence "rendering_children" here.
     /// "Children" may indicate a.) a template root, b.) adoptees, c.) primitive children
     /// Each RenderNode is responsible for determining at render-time which of these concepts
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
-    fn get_rendering_children(&self) -> RenderNodePtrList;
+    fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
@@ -129,10 +130,10 @@ pub trait RenderNode
 
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>>;
 
-    /// Very first lifecycle method during each render loop, used to compute
+    /// First lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.
     /// Occurs in a pre-order traversal of the render tree.
-    fn compute_properties(&mut self, _rtc: &mut RenderTreeContext) {
+    fn compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
 
@@ -141,14 +142,14 @@ pub trait RenderNode
     /// Example use-case: perform side-effects to the drawing context.
     /// This is how [`Frame`] performs clipping, for example.
     /// Occurs in a pre-order traversal of the render tree.
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
+    fn pre_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
         //no-op default implementation
     }
 
     /// Third lifecycle method during each render loop, occurs
     /// AFTER all descendents have been rendered.
     /// Occurs in a post-order traversal of the render tree.
-    fn render(&self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
+    fn render(&self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
         //no-op default implementation
     }
 
@@ -157,9 +158,16 @@ pub trait RenderNode
     /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing context
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
-    fn post_render(&mut self, _rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
+    fn post_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
         //no-op default implementation
     }
+
+
+
+}
+
+pub trait LifecycleNode {
+
 
 }
 

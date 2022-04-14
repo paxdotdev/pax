@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-
+use piet_common::RenderContext;
 use crate::{HandlerRegistry, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
@@ -13,17 +13,17 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 /// That is: for a `data_list` of length `n`, `Repeat` will render its
 /// template `n` times, each with an embedded component context (`RepeatItem`)
 /// with an index `i` and a pointer to that relevant datum `data_list[i]`
-pub struct RepeatInstance {
-    pub children: RenderNodePtrList,
+pub struct RepeatInstance<R: 'static + RenderContext> {
+    pub children: RenderNodePtrList<R>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub data_list: Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>,
-    pub virtual_children: RenderNodePtrList,
+    pub virtual_children: RenderNodePtrList<R>,
 }
 
 
-impl RenderNode for RepeatInstance {
+impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
-    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
 
         let new_id = pax_runtime_api::mint_unique_id();
         let ret = Rc::new(RefCell::new(RepeatInstance {
@@ -36,12 +36,12 @@ impl RenderNode for RepeatInstance {
             virtual_children: Rc::new(RefCell::new(vec![]))
         }));
 
-        (*args.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        (*args.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
 
 
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
 
         // pax_runtime_api::log(&"computing repeat properties");
@@ -74,7 +74,7 @@ impl RenderNode for RepeatInstance {
         self.virtual_children = Rc::new(RefCell::new(
             self.data_list.get().iter().enumerate().map(|(i, datum)| {
 
-                let render_node : RenderNodePtr = Rc::new(RefCell::new(
+                let render_node : RenderNodePtr<R> = Rc::new(RefCell::new(
                     ComponentInstance {
                         children: Rc::clone(&parents_children),
                         template: Rc::clone(&self.children),
@@ -102,7 +102,7 @@ impl RenderNode for RepeatInstance {
     fn should_flatten(&self) -> bool {
         true
     }
-    fn get_rendering_children(&self) -> RenderNodePtrList {
+    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.virtual_children)
     }
     fn get_size(&self) -> Option<Size2D> { None }

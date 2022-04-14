@@ -1,9 +1,10 @@
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
+use piet_common::RenderContext;
 
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime, LifecycleNode};
 
 use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
 
@@ -13,15 +14,15 @@ use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, ArgsCopro
 /// applications, at the root of reusable components like `Spread`, and
 /// in special applications like `Repeat` where it houses the `RepeatItem`
 /// properties attached to each of Repeat's virtual nodes.
-pub struct ComponentInstance {
-    pub template: RenderNodePtrList,
-    pub children: RenderNodePtrList,
+pub struct ComponentInstance<R: 'static + RenderContext> {
+    pub template: RenderNodePtrList<R>,
+    pub children: RenderNodePtrList<R>,
     pub should_skip_adoption: bool,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-    pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext)>,
+    pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>,
 }
 
 
@@ -29,8 +30,8 @@ pub struct ComponentInstance {
 
 
 
-fn flatten_adoptees(adoptees: RenderNodePtrList) -> RenderNodePtrList {
-    let mut running_adoptees : Vec<RenderNodePtr> = vec![];
+fn flatten_adoptees<R: 'static + RenderContext>(adoptees: RenderNodePtrList<R>) -> RenderNodePtrList<R> {
+    let mut running_adoptees : Vec<RenderNodePtr<R>> = vec![];
 
     (*adoptees).borrow_mut().iter().for_each(|node|{
         let node_borrowed = (**node).borrow();
@@ -50,8 +51,8 @@ fn flatten_adoptees(adoptees: RenderNodePtrList) -> RenderNodePtrList {
 //  - track internal playhead for this component
 
 
-impl RenderNode for ComponentInstance {
-    fn get_rendering_children(&self) -> RenderNodePtrList {
+impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
+    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.template)
     }
 
@@ -64,7 +65,7 @@ impl RenderNode for ComponentInstance {
         }
     }
 
-    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
         let new_id = pax_runtime_api::mint_unique_id();
 
         let template = match args.component_template {
@@ -86,14 +87,14 @@ impl RenderNode for ComponentInstance {
             handler_registry: args.handler_registry,
         }));
 
-        (*args.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        (*args.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
 
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
@@ -120,20 +121,6 @@ impl RenderNode for ComponentInstance {
         );
     }
 
-    fn post_render(&mut self, rtc: &mut RenderTreeContext, _hpc: &mut HostPlatformContext) {
-        (*rtc.runtime).borrow_mut().pop_stack_frame();
-        match &self.timeline {
-            Some(timeline_rc) => {
-                let mut timeline = (**timeline_rc).borrow_mut();
-                if timeline.is_playing {
-                    timeline.playhead_position += 1;
-                    if timeline.playhead_position >= timeline.frame_count {
-                        timeline.playhead_position = 0;
-                    }
-                }
-            },
-            None => (),
-        }
 
-    }
 }
+

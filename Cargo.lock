@@ -1669,6 +1669,7 @@ dependencies = [
  "pax-example",
  "pax-runtime-api",
  "pax-std-primitives",
+ "piet-common",
 ]
 
 [[package]]
@@ -1795,7 +1796,7 @@ dependencies = [
  "pax-runtime-api",
  "pax-std",
  "piet",
- "piet-web",
+ "piet-common",
 ]
 
 [[package]]

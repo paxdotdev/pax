@@ -6,7 +6,7 @@ use std::rc::Rc;
 use kurbo::BezPath;
 use piet::RenderContext;
 
-use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, InstantiationArgs};
+use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
 use pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, Size2D};
 
@@ -17,14 +17,14 @@ use pax_runtime_api::{Transform2D, Size, PropertyInstance, Size2D};
 /// If clipping or the option of clipping is not required,
 /// a [`Group`] will generally be a more performant and otherwise-equivalent ]
 /// option since clipping is expensive.
-pub struct FrameInstance {
-    pub children: RenderNodePtrList,
+pub struct FrameInstance<R: RenderContext> {
+    pub children: RenderNodePtrList<R>,
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 }
 
-impl RenderNode for FrameInstance {
-    fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         //TODO: add to instance_map!
         Rc::new(RefCell::new(
             Self {
@@ -35,7 +35,7 @@ impl RenderNode for FrameInstance {
         ))
     }
 
-    fn get_rendering_children(&self) -> RenderNodePtrList {
+    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.children)
     }
 
@@ -45,7 +45,7 @@ impl RenderNode for FrameInstance {
 
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let mut size = &mut *self.size.as_ref().borrow_mut();
 
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
@@ -65,7 +65,7 @@ impl RenderNode for FrameInstance {
         }
     }
 
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
+    fn pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         // construct a BezPath of this frame's bounds * its transform,
         // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
         //TODO:  if clipping is TURNED OFF for this Frame, don't do any of this
@@ -85,11 +85,11 @@ impl RenderNode for FrameInstance {
         bez_path.close_path();
 
         let transformed_bez_path = transform * bez_path;
-        hpc.drawing_context.save().unwrap(); //our "save point" before clipping — restored to in the post_render
-        hpc.drawing_context.clip(transformed_bez_path);
+        rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
+        rc.clip(transformed_bez_path);
     }
-    fn post_render(&mut self, _rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
+    fn post_render(&mut self, _rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //pop the clipping context from the stack
-        hpc.drawing_context.restore().unwrap();
+        rc.restore().unwrap();
     }
 }

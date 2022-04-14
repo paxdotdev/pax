@@ -3,6 +3,7 @@ use std::cell::RefCell;
 use std::ops::Deref;
 use std::rc::Rc;
 
+use piet::RenderContext;
 use pax_properties_coproduct::{PropertiesCoproduct};
 use pax_runtime_api::{Timeline};
 
@@ -11,12 +12,12 @@ use crate::{HandlerRegistry, RenderNodePtr, RenderNodePtrList, RenderTreeContext
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, this is a home
 /// for logic that manages scopes and stack frames.
-pub struct Runtime {
-    stack: Vec<Rc<RefCell<StackFrame>>>,
+pub struct Runtime<R: 'static + RenderContext> {
+    stack: Vec<Rc<RefCell<StackFrame<R>>>>,
     logger: fn(&str),
 }
 
-impl Runtime {
+impl<R: 'static + RenderContext> Runtime<R> {
     pub fn new(logger: fn(&str)) -> Self {
         Runtime {
             stack: Vec::new(),
@@ -30,7 +31,7 @@ impl Runtime {
 
     /// Return a pointer to the top StackFrame on the stack,
     /// without mutating the stack or consuming the value
-    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame>>> {
+    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame<R>>>> {
         if self.stack.len() > 0 {
             Some(Rc::clone(&self.stack[&self.stack.len() - 1]))
         }else{
@@ -46,7 +47,7 @@ impl Runtime {
 
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Slot` and a scope that includes the PropertiesCoproduct of the associated Component
-    pub fn push_stack_frame(&mut self, expanded_adoptees: RenderNodePtrList, properties: Rc<RefCell<PropertiesCoproduct>>, timeline: Option<Rc<RefCell<Timeline>>>) {
+    pub fn push_stack_frame(&mut self, expanded_adoptees: RenderNodePtrList<R>, properties: Rc<RefCell<PropertiesCoproduct>>, timeline: Option<Rc<RefCell<Timeline>>>) {
         let parent = self.peek_stack_frame();
 
         self.stack.push(
@@ -64,7 +65,7 @@ impl Runtime {
     /// created by `@for`.  In other words `@for`s children need to be treated as `<Spread>`s children,
     /// and this processing allows that to happpen.
     /// Note that this must be recursive to handle nested cases of flattening, for example nested `@for` loops
-    pub fn process__should_flatten__adoptees_recursive(adoptee: &RenderNodePtr, rtc: &mut RenderTreeContext) -> Vec<RenderNodePtr> {
+    pub fn process__should_flatten__adoptees_recursive(adoptee: &RenderNodePtr<R>, rtc: &mut RenderTreeContext<R>) -> Vec<RenderNodePtr<R>> {
         let mut adoptee_borrowed = (**adoptee).borrow_mut();
         if adoptee_borrowed.should_flatten() {
             //1. this is an @if or @for (etc.) — it needs its properties computed
@@ -88,16 +89,16 @@ impl Runtime {
 /// prospective [`Slot`] consumption, and `properties` for
 /// runtime evaluation, e.g. of Expressions.  StackFrames also track
 /// timeline playhead position.
-pub struct StackFrame
+pub struct StackFrame<R: 'static + RenderContext>
 {
-    adoptees: RenderNodePtrList,
+    adoptees: RenderNodePtrList<R>,
     properties: Rc<RefCell<PropertiesCoproduct>>,
-    parent: Option<Rc<RefCell<StackFrame>>>,
+    parent: Option<Rc<RefCell<StackFrame<R>>>>,
     timeline: Option<Rc<RefCell<Timeline>>>,
 }
 
-impl StackFrame {
-    pub fn new(adoptees: RenderNodePtrList, properties: Rc<RefCell<PropertiesCoproduct>>, parent: Option<Rc<RefCell<StackFrame>>>, timeline: Option<Rc<RefCell<Timeline>>>) -> Self {
+impl<R: 'static + RenderContext> StackFrame<R> {
+    pub fn new(adoptees: RenderNodePtrList<R>, properties: Rc<RefCell<PropertiesCoproduct>>, parent: Option<Rc<RefCell<StackFrame<R>>>>, timeline: Option<Rc<RefCell<Timeline>>>) -> Self {
         StackFrame {
             adoptees,
             properties,
@@ -127,12 +128,12 @@ impl StackFrame {
     // Traverses stack recursively `n` times to retrieve
     // Unchecked: will throw a runtime error if there are fewer than `n` descendants to traverse.
     // TODO: more elegant error handling?
-    pub fn nth_descendant(&self, n: isize) -> Rc<RefCell<StackFrame>> {
+    pub fn nth_descendant(&self, n: isize) -> Rc<RefCell<StackFrame<R>>> {
         assert!(n > 0);
         self.nth_descendant_recursive(n, 0)
     }
 
-    fn nth_descendant_recursive(&self, n: isize, depth: isize) -> Rc<RefCell<StackFrame>> {
+    fn nth_descendant_recursive(&self, n: isize, depth: isize) -> Rc<RefCell<StackFrame<R>>> {
         let new_depth = depth + 1;
         let parent = self.parent.as_ref().unwrap();
         if new_depth == n {
@@ -145,11 +146,11 @@ impl StackFrame {
         Rc::clone(&self.properties)
     }
 
-    pub fn get_unexpanded_adoptees(&self) -> RenderNodePtrList {
+    pub fn get_unexpanded_adoptees(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.adoptees)
     }
 
-    pub fn nth_adoptee(&self, n: usize) -> Option<RenderNodePtr> {
+    pub fn nth_adoptee(&self, n: usize) -> Option<RenderNodePtr<R>> {
         match (*self.adoptees).borrow().get(n) {
             Some(i) => {Some(Rc::clone(i))}
             None => {None}

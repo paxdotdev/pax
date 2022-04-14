@@ -2,6 +2,7 @@ use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
+use piet::RenderContext;
 
 use crate::{PaxEngine, RenderTreeContext};
 use crate::runtime::StackFrame;
@@ -93,8 +94,8 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
 /// Data structure used for dynamic injection of values
 /// into Expressions, maintaining a pointer e.g. to the current
 /// stack frame to enable evaluation of properties & dependencies
-pub struct ExpressionContext<'a> {
+pub struct ExpressionContext<'a, R: 'static + RenderContext> {
     //TODO: add scope tree, etc.
-    pub engine: &'a PaxEngine,
-    pub stack_frame: Rc<RefCell<StackFrame>>,
+    pub engine: &'a PaxEngine<R>,
+    pub stack_frame: Rc<RefCell<StackFrame<R>>>,
 }

@@ -6,7 +6,7 @@ use pax_std::primitives::{Rectangle};
 use pax_std::types::ColorVariant;
 
 
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HostPlatformContext, ExpressionContext, InstanceMap, HandlerRegistry, InstantiationArgs};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceMap, HandlerRegistry, InstantiationArgs, RenderNodePtr};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -94,12 +94,12 @@ impl RectangleInstance {
 
 
 
-impl RenderNode for RectangleInstance {
-    fn get_rendering_children(&self) -> RenderNodePtrList {
+impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance {
+    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn instantiate(ctx: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(ctx: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let properties = if let PropertiesCoproduct::Rectangle(p) = ctx.properties { p } else {unreachable!("Wrong properties type")};
 
         let new_id = pax_runtime_api::mint_unique_id();
@@ -110,7 +110,7 @@ impl RenderNode for RectangleInstance {
             handler_registry: ctx.handler_registry,
         }));
 
-        (*ctx.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as Rc<RefCell<dyn RenderNode>>);
+        (*ctx.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
 
@@ -124,7 +124,7 @@ impl RenderNode for RectangleInstance {
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(stroke) = rtc.compute_vtable_value(properties.stroke._get_vtable_id()) {
@@ -156,7 +156,7 @@ impl RenderNode for RectangleInstance {
         }
 
     }
-    fn render(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
+    fn render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounds;
         let width: f64 =  bounding_dimens.0;
@@ -187,8 +187,8 @@ impl RenderNode for RectangleInstance {
         let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
         let color = properties.fill.get().to_piet_color();
-        hpc.drawing_context.fill(transformed_bez_path, &color);
-        hpc.drawing_context.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), **&properties.stroke.get().width.get());
+        rc.fill(transformed_bez_path, &color);
+        rc.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), **&properties.stroke.get().width.get());
 
 
     }

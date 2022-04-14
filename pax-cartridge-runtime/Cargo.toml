@@ -6,6 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+piet-common = "0.5.0"
 pax-core = {path = "../pax-core"}
 pax-example = {path = "../pax-example"}
 pax-std-primitives = {path = "../pax-std/pax-std-primitives"}
