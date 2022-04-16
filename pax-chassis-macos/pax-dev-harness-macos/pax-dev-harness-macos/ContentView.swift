@@ -7,27 +7,22 @@
 
 import SwiftUI
 
-
-
-let REFRESH_PERIOD = 1.0/60 //seconds per frame
-
+let FPS = 60.0
+let REFRESH_PERIOD = 1.0/FPS //seconds between frames (e.g. 16.667 for 60Hz)
 
 struct ChartData {
     var array : [Int]
 }
 
 struct ContentView: View {
-        
     var body: some View {
         CanvasViewRepresentable()
             .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
     }
-
 }
 
 
 struct CanvasViewRepresentable: NSViewRepresentable {
-
     typealias NSViewType = CanvasView
     
     func makeNSView(context: Context) -> CanvasView {
@@ -41,45 +36,34 @@ struct CanvasViewRepresentable: NSViewRepresentable {
 class CanvasView: NSView {
     
     var contextContainer : OpaquePointer? = nil
+    var needsDispatch : Bool = true
     
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
-        
         guard let context = NSGraphicsContext.current else { return }
-        
-        //TODO: determine order/neccessity of {saveGraphicsState, drawing/tick, and restoreGraphicsState}
-        context.saveGraphicsState()
-
         var cgContext = context.cgContext
         
         if let initializedContainer = contextContainer {
-//            print("running tick with context at address: \(cgContext)")
             pax_tick(initializedContainer, &cgContext)
         } else {
-//            print("initializing contextContainer")
             contextContainer = pax_init()
         }
         
-        context.restoreGraphicsState()
+        //TODO: use TimelineView or CVDisplayLink (or something better?) to handle "clock signal" for render loop.
+        //TODO: fix multiplying dispatchqueue events when `draw` is called externally (e.g. with window resizing)
+        //      see https://stackoverflow.com/questions/48016111/how-to-stop-a-dispatchqueue-in-swift for a potential solution
+        //      -- also consider an approach outside of DispatchQueue
         
-        //TODO: use TimelineView or better to handle render loop.
-        
-        DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_PERIOD) {
-            self.setNeedsDisplay(dirtyRect)
-            self.displayIfNeeded()
+        if needsDispatch {
+            needsDispatch = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_PERIOD) {
+                self.needsDispatch = true
+                self.setNeedsDisplay(dirtyRect)
+                self.displayIfNeeded()
+            }
         }
     }
 }
-//
-//class RustGreetings {
-//    func sayHello(to: String) -> String {
-//        let result = rust_greeting(to)
-//        let swift_result = String(cString: result!)
-//        rust_greeting_free(UnsafeMutablePointer(mutating: result))
-//        return swift_result
-//    }
-//}
-
 
 
 // see: https://developer.apple.com/documentation/swiftui/nsviewrepresentable

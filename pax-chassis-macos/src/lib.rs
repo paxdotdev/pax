@@ -13,7 +13,7 @@ use pax_core::{InstanceMap, PaxEngine};
 
 #[repr(C)]
 pub struct PaxChassisMacosBridgeContainer {
-    _engine: *mut Rc<RefCell<PaxEngine<CoreGraphicsContext<'static>>>>,
+    _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
 }
 
 #[no_mangle]
@@ -28,15 +28,15 @@ pub extern fn pax_init() -> *mut PaxChassisMacosBridgeContainer {
     let root_component_instance = pax_cartridge_runtime::instantiate_root_component(Rc::clone(&instance_map));
     let expression_table = pax_cartridge_runtime::instantiate_expression_table();
 
-    let engine : ManuallyDrop<Box<Rc<RefCell<PaxEngine<CoreGraphicsContext<'static>>>>>> = ManuallyDrop::new(
+    let engine : ManuallyDrop<Box<PaxEngine<CoreGraphicsContext<'static>>>> = ManuallyDrop::new(
         Box::new(
-            Rc::new(RefCell::new(PaxEngine::new(
+           PaxEngine::new(
                 root_component_instance,
                 expression_table,
                 |msg:&str| {  }, //TODO
                 (400.0, 400.0), //TODO
                 Rc::new(RefCell::new(Default::default()))
-            )))
+           )
         )
     );
 
@@ -49,12 +49,12 @@ pub extern fn pax_init() -> *mut PaxChassisMacosBridgeContainer {
 
 #[no_mangle]
 pub extern fn pax_tick(bridge_container: *mut PaxChassisMacosBridgeContainer, cgContext: *mut CGContext) {
-    let engine = unsafe { Box::from_raw((*bridge_container)._engine) };
+    let mut engine = unsafe { Box::from_raw((*bridge_container)._engine) };
     let ctx = unsafe { &mut *cgContext };
     let mut render_context = CoreGraphicsContext::new_y_up(ctx, 400.0, None);
-    if let Ok(mut engine_borrowed) = (**engine).try_borrow_mut() {
-        engine_borrowed.tick(&mut render_context);
-    };
+
+    (*engine).tick(&mut render_context);
+
     //This step is necessary to clean up engine, e.g. to drop all of the RefCell::borrow_mut's throughout
     unsafe {(*bridge_container)._engine=  Box::into_raw(engine)}
 
