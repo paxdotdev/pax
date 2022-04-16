@@ -65,10 +65,9 @@ class CanvasView: NSView {
 //        cgContext.saveGState()
         
         if let initializedContainer = contextContainer {
-            //ignore -- we've already initialized
             print("running tick: \(cgContext)")
 //            let cast = OpaquePointer( initializedContainer)//unsafeBitCast(initializedContainer, to: OpaquePointer.self )
-            pax_tick(initializedContainer)
+            pax_tick(initializedContainer, &cgContext)
         } else {
             print("initializing contextContainer \(cgContext)")
 //            let x = ()

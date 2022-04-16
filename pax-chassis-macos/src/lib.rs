@@ -17,6 +17,7 @@ use pax_cartridge_runtime;
 use core_graphics::{
     context::CGContextRef,
 };
+use core_graphics::context::CGContext;
 use piet_coregraphics::{CoreGraphicsContext};
 
 use pax_core::{ComponentInstance, InstanceMap, PaxEngine};
@@ -27,13 +28,14 @@ use pax_core::{ComponentInstance, InstanceMap, PaxEngine};
 //TODO: expose `tick`, manage instance of Engine and Chassis,
 //      accept CGContext and pass into CoreGraphicsRenderer
 #[no_mangle]
-pub extern fn pax_tick(container: *mut PaxChassisMacosBridgeContainer) {
+pub extern fn pax_tick(container: *mut PaxChassisMacosBridgeContainer, cgContext: *mut CGContext) {
     unsafe {
         let mut engine = Box::from_raw((*container)._engine);
-        let mut render_context = Box::from_raw((*container)._render_context);
-        engine.tick(&mut *render_context);
+        // let mut render_context = Box::from_raw((*container)._render_context);
+        let ctx = unsafe { &mut *cgContext };
+        let mut render_context = CoreGraphicsContext::new_y_up(ctx, 500.0, None);
+        engine.tick(&mut render_context);
     }
-
 
 }
 
@@ -54,14 +56,17 @@ pub struct PaxChassisMacosBridgeContainer {
 }
 
 #[no_mangle]
-pub extern fn pax_init(cgContext: &'static mut CGContextRef) -> *mut PaxChassisMacosBridgeContainer {
+pub extern fn pax_init(cgContext: *mut CGContext) -> *mut PaxChassisMacosBridgeContainer {
 
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
     //engine can be passed back to Swift via the C (FFI) bridge
     //This could presumably be cleaned up but currently the engine will exist
     //on the heap for the lifetime of the containing process.
+    let ctx = unsafe { &mut *cgContext };
 
-    let render_context : ManuallyDrop<Box<CoreGraphicsContext<'static>>> = ManuallyDrop::new(Box::new(CoreGraphicsContext::new_y_down(cgContext, None)));
+    let render_context : ManuallyDrop<Box<CoreGraphicsContext<'static>>> = ManuallyDrop::new(Box::new(
+        CoreGraphicsContext::new_y_up(ctx, 500.0, None)
+    ));
 
     let instance_map : Rc<RefCell<InstanceMap<CoreGraphicsContext<'static>>>> = Rc::new(RefCell::new(std::collections::HashMap::new()));
     let root_component_instance = pax_cartridge_runtime::instantiate_root_component(Rc::clone(&instance_map));
