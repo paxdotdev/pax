@@ -2123,3 +2123,44 @@ Is there some way to hook into `RenderTreeContext::get_computed_value` here?
 Probably so, as long as Interpolatable is defined for all built-in / common types
 So that's probably the solution -- impl `Interpolatable` for all expected property types,
 with a path to implementing for 3rd party types as well
+
+
+
+
+### formulation of data storage + FFI puzzle
+
+Hi folks, I'm working on a project involving FFI and have hit a dead-end.  This project includes native interop libraries for various platforms.  For Swift (macOS/iOS) interop, these are the relevant pieces:
+
+```
+| Rust library |  <->  | C Bridge (FFI) |  <->  | Swift |
+```
+
+Swift owns the process — it loads the Rust library via a C bridge (FFI), then it must abide by the following lifecycle:
+
+1. The Swift process must call `init` once on the Rust library, which carries some Rust-internal side-effects.  Internally, the Rust process initializes two complex nested structs, let's call them `BigStructA` and `BigStructB`
+2. The Swift process will thereafter call the Rust library's `thunk` periodically, based on interrupts/events knowable only by the Swift process.
+
+My problem:  `thunk` needs to be able to operate on the instances of `BigStructA` and `BigStructB`, which were initialized in `init`.   How can `thunk` gain access to those instances of `BigStructA` and `BigStructB`?
+
+The best approach I've scoped out so far is to wrap these big structs in `ManuallyDrop<Box<>>`, then either:
+ - pass raw pointers back to Swift, which it can pass _back_ to `thunk(ptra, ptrb)` — or
+ - store those pointers statically only inside of Rust, unsafely (but OK for this project) referring to those entities during `thunk`.
+ - somehow otherwise statically share these complex structs (unsafe OK!)
+
+The first approach runs the risk of polluting the FFI bridge and spurring unnecessary low-level headaches;
+the latter two approaches have exceeded my abilities and Duck-Duck-Go-fu re: `lazy_static!` / `static ref`, namely because `BigStructA` and `BigStructB` are not and will not be thread safe. 
+
+Can anyone help point me in the right direction here — either toward some documentation I've missed or with a hint at how you'd approach this?
+
+Thanks in advance!
+
+
+
+
+
+
+
+
+The two approaches I've been able to scope out so far:
+
+  Approach 1: use `ManuallyDrop<Box<BigStructA>>`, initialize this during `init`, then store a static pointer 

@@ -160,8 +160,8 @@ pub type InstanceMap<R: 'static + RenderContext> = HashMap<String, RenderNodePtr
 
 impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn new(
-        root_component: Rc<RefCell<ComponentInstance<R>>>,
-        expression_table: HashMap<String, Box<dyn Fn(ExpressionContext<R>)->TypesCoproduct>> ,
+        root_component_instance: Rc<RefCell<ComponentInstance<R>>>,
+        expression_table: HashMap<String, Box<dyn Fn(ExpressionContext<R>)->TypesCoproduct>>,
         logger: fn(&str),
         viewport_size: (f64, f64),
         instance_map: Rc<RefCell<InstanceMap<R>>>,
@@ -173,7 +173,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             event_message_queue: vec![],
             expression_table,
             runtime: Rc::new(RefCell::new(Runtime::new(logger))),
-            root_component,
+            root_component: root_component_instance,
             viewport_size,
         }
     }

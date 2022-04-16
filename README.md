@@ -25,7 +25,7 @@ Pax is a language for high performance, cross-platform computer graphics and use
 - "Components all the way down" as reusable, extensible UI building blocks
 - Extensible rendering back-ends, meaning any platform can be supported
 - Can support any type of digital media — audio, video, etc.
-- Agnostic "host language" means any language can be supported (Rust, TypeScript/JavaScript, C++, .NET CLR...)
+- Agnostic "host language" means any language can be supported (Rust, TypeScript/JavaScript, C++, .NET CLR, Python...)
 - Free and open source (MIT / Apache 2.0)
 
 Above all: Make the digital medium more expressive, for productivity and for art.
@@ -36,8 +36,7 @@ Pax attaches to a _host codebase_, which is responsible for any imperative or si
 
 In practice, this looks like: write template and settings in Pax, write event handlers and data structures in the host language.
 
-[image: infographic illustrating layers of Pax and Host, illustrating the divide described above + "imperative", "declarative", "side-effects"] d
-
+[image: infographic illustrating layers of Pax and Host, illustrating the divide described above + "imperative", "declarative", "expressions", "side-effects"] 
 
 Currently Pax supports Rust as a host language, though support for JavaScript/TypeScript is on the [roadmap](TODO.md). For Pax itself: the compiler tooling and the runtimes are all written in Rust.
 
@@ -71,17 +70,15 @@ With Pax TypeScript, this example would look like:
 ```typescript
 //TypeScript, speculative API
 //This is not yet available
-import pax from 'pax-ui';
+import pax from '@pax-lang/pax';
 
+@pax(`
+    <Rectangle onClick=@this.handleClick transform=@{
+        align(50%, 50%) *
+        rotate(this.numClicks / 20.0)
+    } />
+`)
 class HelloWorld {
-
-    @pax `
-        <Rectangle onClick=@this.handleClick transform=@{
-            align(50%, 50%) *
-            rotate(this.numClicks / 20.0)
-        } />
-    `
-    
     @property
     numClicks: number;
     
@@ -89,7 +86,6 @@ class HelloWorld {
         const oldNumClicks = this.numClicks.get();
         this.numClicks.set(oldNumClicks + 1);
     }
-    
 }
 
 ```
@@ -125,21 +121,6 @@ PAXEL expressions are distinctive in a few ways:
 It is in event handlers that you will normally change property values (e.g. `self.red_amount.set(/*new value*/)`, where `self.red_amount` is referenced in the Expression example above.)
 
 Pax includes a number of built-in lifecycle events like `pre_render` and user interaction events like `on_click` and `on_tap`.
-
-#### Declarative and designable
-
-At first glance, Pax templates look quite a bit like familiar templating languages like React/JSX.  
-
-On closer inspection, you may notice a key distinction: _Pax's templates are not evaluated within a closure_ — they are declared statically and evaluated entirely at compile time.  
-Symbols in expressions that refer to a component's properties, like `color=@self.active_bg_color`, are handled via special runtime lookups
-in the expression vtable — again, specifically _not_ a reference to some `self` in the scope of some closure.
-
-Because the template is evaluated entirely at compile-time, the template is exactly what it is described to
-be in the code — or in other words, it is both _code_ and _data_, in the same sense as Lisp.  Expressions themselves, given their functional constraints,
-are roughly equivalent to formulas in spreadsheets: declarative, easy to isolate, easy to hack.
-
-The reason _all of that_ matters is because Pax was **designed to be designed** — in the sense of "design tools" that can read and write Pax code as a comprehensive
-description of any visual content, document, or scene.
 
 
 ## Current status & support
@@ -188,8 +169,7 @@ vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible f
  - APIs
    - Tools for authoring Pax apps
 
-
-
+   
 ## Native rendering, native controls
 
 Rather than introduce virtual controls at the canvas layer, Pax orchestrates a layer of native
@@ -203,6 +183,22 @@ experience that blends dynamic graphics (e.g. vectors, animations) with native f
 [Visual of DOM "marionette" overlay layer on top of parallaxed graphics layer]
 
 TODO: describe benefits of this approach toward a11y
+
+
+## Declarative and designable
+
+At first glance, Pax templates look quite a bit like familiar templating languages like React/JSX.
+
+On closer inspection, you may notice a key distinction: _Pax's templates are not evaluated within a closure_ — they are declared statically and evaluated entirely at compile time.  
+Symbols in expressions that refer to a component's properties, like `color=@self.active_bg_color`, are handled via special runtime lookups
+in the expression vtable — again, specifically _not_ a reference to some `self` in the scope of some closure.
+
+Because the template is evaluated entirely at compile-time, the template is exactly what it is described to
+be in the code — or in other words, it is both _code_ and _data_, in the same sense as Lisp.  Expressions themselves, given their functional constraints,
+are roughly equivalent to formulas in spreadsheets: declarative, easy to isolate, easy to hack.
+
+The reason _all of that_ matters is because Pax was **designed to be designed** — in the sense of "design tools" that can read and write Pax code as a comprehensive
+description of any visual content, document, or scene.
 
 
 

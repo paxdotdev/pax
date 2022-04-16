@@ -1,4 +1,7 @@
 #include <stdint.h>
+#import "CoreGraphics/CoreGraphics.h"
 
-const char* rust_greeting(const char* to);
-void rust_greeting_free(char *);
+// Don't forget to `cargo build --release` after updating this interface Rust-side
+typedef PaxChassisMacosBridgeContainer;
+const struct PaxChassisMacosBridgeContainer* pax_init(const void * ctx);
+const char* pax_tick(const struct PaxChassisMacosBridgeContainer * ctx);

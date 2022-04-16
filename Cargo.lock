@@ -1675,6 +1675,15 @@ dependencies = [
 [[package]]
 name = "pax-chassis-macos"
 version = "0.1.0"
+dependencies = [
+ "core-graphics",
+ "lazy_static",
+ "mut_static",
+ "pax-cartridge-runtime",
+ "pax-core",
+ "piet",
+ "piet-coregraphics",
+]
 
 [[package]]
 name = "pax-chassis-web"
