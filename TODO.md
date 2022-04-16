@@ -2132,7 +2132,7 @@ with a path to implementing for 3rd party types as well
 Hi folks, I'm working on a project involving FFI and have hit a dead-end.  This project includes native interop libraries for various platforms.  For Swift (macOS/iOS) interop, these are the relevant pieces:
 
 ```
-| Rust library |  <->  | C Bridge (FFI) |  <->  | Swift |
+| Rust library |  <->  | C Bridge (FFI) |  <->  | Swift (process entrypoint) |
 ```
 
 Swift owns the process — it loads the Rust library via a C bridge (FFI), then it must abide by the following lifecycle:
@@ -2154,13 +2154,3 @@ Can anyone help point me in the right direction here — either toward some docu
 
 Thanks in advance!
 
-
-
-
-
-
-
-
-The two approaches I've been able to scope out so far:
-
-  Approach 1: use `ManuallyDrop<Box<BigStructA>>`, initialize this during `init`, then store a static pointer 

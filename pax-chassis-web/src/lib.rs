@@ -151,7 +151,7 @@ impl PaxChassisWeb {
     }
 
     //TODO: accept array of input messages, e.g. representing changes in user/input state
-    pub fn tick(&mut self) -> Vec<JsValue> {
-        self.engine.borrow_mut().tick(&mut self.drawing_context)
+    pub fn tick(&mut self) {
+        self.engine.borrow_mut().tick(&mut self.drawing_context);
     }
 }

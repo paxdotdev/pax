@@ -190,7 +190,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     // }
 
     //TODO: use piet-common and `dyn`-ize WebRenderContext
-    fn traverse_render_tree(&self, rc: &mut R) -> Vec<JsValue> {
+    fn traverse_render_tree(&self, rc: &mut R) -> Vec<u8> {
         // Broadly:
         // 1. compute properties
         // 2. find lowest node (last child of last node), accumulating transform along the way
@@ -226,7 +226,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done with this frame
-
 
 
         //populate a pointer to this (current) `RenderNode` onto `rtc`
@@ -316,12 +315,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         self.viewport_size = new_viewport_size;
     }
 
-    pub fn tick(&mut self, rc: &mut R) -> Vec<JsValue> {
-
-        rc.clear(None,Color::rgb8(0, 0, 0));
+    pub fn tick(&mut self, rc: &mut R) {
+        rc.clear(None, Color::rgb8(0, 0, 0));
         let native_render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
-        native_render_queue
     }
 
 }
