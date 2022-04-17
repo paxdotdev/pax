@@ -33,6 +33,7 @@ class CanvasView: NSView {
     
     var contextContainer : OpaquePointer? = nil
     var needsDispatch : Bool = true
+    var tickWorkItem : DispatchWorkItem? = nil
     
     override func draw(_ dirtyRect: NSRect) {
         
@@ -40,26 +41,25 @@ class CanvasView: NSView {
         guard let context = NSGraphicsContext.current else { return }
         var cgContext = context.cgContext
         
-        if let initializedContainer = contextContainer {
-            pax_tick(initializedContainer, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
-        } else {
+        if contextContainer == nil {
             contextContainer = pax_init()
+        } else {
+            pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
+        }
+
+        //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally, which
+        //would otherwise create new families of DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
+        //This cancellation + shared singleton (`tickWorkItem`) ensures that only one DispatchWorkItem is enqueued at a time.
+        if tickWorkItem != nil {
+            tickWorkItem!.cancel()
         }
         
-        //needsDispatch is used as a hack to keep DispatchQueue workitems from multiplying, e.g.
-        //when `draw` is triggered by a window resize (where each event will create its own family of workitems)
-        //
-        //This might leave edge-cases where resizing leaves bounds calculations off-by-a-frame, and a more robust approach
-        //might be to use the WorkItem API to cancel/make sure that the latest need-to-refresh wins
-        if needsDispatch {
-            needsDispatch = false
-            DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_PERIOD) {
-                self.needsDispatch = true
-                
-                //TODO: use TimelineView or CVDisplayLink (or something better?) to handle this "clock signal" for render loop.
-                self.setNeedsDisplay(dirtyRect)
-                self.displayIfNeeded()
-            }
+        tickWorkItem = DispatchWorkItem {
+            self.setNeedsDisplay(dirtyRect)
+            self.displayIfNeeded()
         }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_PERIOD, execute: tickWorkItem!)
+        
     }
 }
