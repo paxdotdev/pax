@@ -16,6 +16,7 @@ pub struct PaxChassisMacosBridgeContainer {
     _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
 }
 
+//Exposed to Swift via paxchassismacos.h
 #[no_mangle]
 pub extern fn pax_init() -> *mut PaxChassisMacosBridgeContainer {
 
@@ -47,12 +48,13 @@ pub extern fn pax_init() -> *mut PaxChassisMacosBridgeContainer {
     Box::into_raw(ManuallyDrop::into_inner(container))
 }
 
+//Exposed to Swift via paxchassismacos.h
 #[no_mangle]
-pub extern fn pax_tick(bridge_container: *mut PaxChassisMacosBridgeContainer, cgContext: *mut CGContext) {
+pub extern fn pax_tick(bridge_container: *mut PaxChassisMacosBridgeContainer, cgContext: *mut CGContext, width: f32, height: f32) { // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
     let mut engine = unsafe { Box::from_raw((*bridge_container)._engine) };
     let ctx = unsafe { &mut *cgContext };
-    let mut render_context = CoreGraphicsContext::new_y_up(ctx, 400.0, None);
-
+    let mut render_context = CoreGraphicsContext::new_y_up(ctx, height as f64, None);
+    (*engine).set_viewport_size((width as f64, height as f64));
     (*engine).tick(&mut render_context);
 
     //This step is necessary to clean up engine, e.g. to drop all of the RefCell::borrow_mut's throughout

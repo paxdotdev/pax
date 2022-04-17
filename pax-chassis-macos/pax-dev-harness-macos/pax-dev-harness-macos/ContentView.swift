@@ -10,10 +10,6 @@ import SwiftUI
 let FPS = 60.0
 let REFRESH_PERIOD = 1.0/FPS //seconds between frames (e.g. 16.667 for 60Hz)
 
-struct ChartData {
-    var array : [Int]
-}
-
 struct ContentView: View {
     var body: some View {
         CanvasViewRepresentable()
@@ -39,34 +35,31 @@ class CanvasView: NSView {
     var needsDispatch : Bool = true
     
     override func draw(_ dirtyRect: NSRect) {
+        
         super.draw(dirtyRect)
         guard let context = NSGraphicsContext.current else { return }
         var cgContext = context.cgContext
         
         if let initializedContainer = contextContainer {
-            pax_tick(initializedContainer, &cgContext)
+            pax_tick(initializedContainer, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
         } else {
             contextContainer = pax_init()
         }
         
-        //TODO: use TimelineView or CVDisplayLink (or something better?) to handle "clock signal" for render loop.
-        //TODO: fix multiplying dispatchqueue events when `draw` is called externally (e.g. with window resizing)
-        //      see https://stackoverflow.com/questions/48016111/how-to-stop-a-dispatchqueue-in-swift for a potential solution
-        //      -- also consider an approach outside of DispatchQueue
-        
+        //needsDispatch is used as a hack to keep DispatchQueue workitems from multiplying, e.g.
+        //when `draw` is triggered by a window resize (where each event will create its own family of workitems)
+        //
+        //This might leave edge-cases where resizing leaves bounds calculations off-by-a-frame, and a more robust approach
+        //might be to use the WorkItem API to cancel/make sure that the latest need-to-refresh wins
         if needsDispatch {
             needsDispatch = false
             DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_PERIOD) {
                 self.needsDispatch = true
+                
+                //TODO: use TimelineView or CVDisplayLink (or something better?) to handle this "clock signal" for render loop.
                 self.setNeedsDisplay(dirtyRect)
                 self.displayIfNeeded()
             }
         }
     }
 }
-
-
-// see: https://developer.apple.com/documentation/swiftui/nsviewrepresentable
-// and https://github.com/shufflingB/swiftui-macos-windowManagment
-// and https://lostmoa.com/blog/ReadingTheCurrentWindowInANewSwiftUILifecycleApp/
-// and https://stackoverflow.com/questions/66982859/swiftui-nsviewrepresentable-cant-read-data-from-publisher
