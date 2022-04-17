@@ -121,7 +121,6 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
                 return tm.value.clone();
             }
         }
-        pax_runtime_api::log(&format!("Returning None for eased value"));
         None
     }
 
@@ -162,7 +161,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn new(
         root_component_instance: Rc<RefCell<ComponentInstance<R>>>,
         expression_table: HashMap<String, Box<dyn Fn(ExpressionContext<R>)->TypesCoproduct>>,
-        logger: fn(&str),
+        logger: pax_runtime_api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
         instance_map: Rc<RefCell<InstanceMap<R>>>,
     ) -> Self {
@@ -172,7 +171,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             instance_map,
             event_message_queue: vec![],
             expression_table,
-            runtime: Rc::new(RefCell::new(Runtime::new(logger))),
+            runtime: Rc::new(RefCell::new(Runtime::new())),
             root_component: root_component_instance,
             viewport_size,
         }

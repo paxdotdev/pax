@@ -1681,6 +1681,7 @@ dependencies = [
  "mut_static",
  "pax-cartridge-runtime",
  "pax-core",
+ "pax-runtime-api",
  "piet",
  "piet-coregraphics",
 ]
@@ -1693,6 +1694,7 @@ dependencies = [
  "pax-cartridge-runtime",
  "pax-core",
  "pax-properties-coproduct",
+ "pax-runtime-api",
  "piet",
  "piet-web",
  "wasm-bindgen",

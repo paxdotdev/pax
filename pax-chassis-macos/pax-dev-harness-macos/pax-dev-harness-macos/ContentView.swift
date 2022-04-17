@@ -45,39 +45,24 @@ class CanvasView: NSView {
     var tickWorkItem : DispatchWorkItem? = nil
     
     override func draw(_ dirtyRect: NSRect) {
-        
         super.draw(dirtyRect)
         guard let context = NSGraphicsContext.current else { return }
         var cgContext = context.cgContext
         
         if contextContainer == nil {
-            
-//            let callbackClosure : LoggerCallback = { msg in
-//                let outputString = String(cString: msg!)
-//                print(outputString)
-//            }
-            
-            
-            let swiftCallback : @convention(c) (UnsafePointer<CChar>?) -> () = {
+            let swiftLoggerCallback : @convention(c) (UnsafePointer<CChar>?) -> () = {
                 (msg) -> () in
                 let outputString = String(cString: msg!)
                 print(outputString)
             }
-            
-            
-//            let basicCallback : @convention(c) () -> () = {
-//                () -> () in
-//                
-//                print("unary thunk!")
-//            }
 
-            contextContainer = pax_init(swiftCallback)
+            contextContainer = pax_init(swiftLoggerCallback)
         } else {
             pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
         }
 
         //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally, which
-        //would otherwise create new families of DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
+        //would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
         //This cancellation + shared singleton (`tickWorkItem`) ensures that only one DispatchWorkItem is enqueued at a time.
         if tickWorkItem != nil {
             tickWorkItem!.cancel()
@@ -89,6 +74,5 @@ class CanvasView: NSView {
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_PERIOD, execute: tickWorkItem!)
-        
     }
 }

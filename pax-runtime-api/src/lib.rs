@@ -1,11 +1,11 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::fmt::{Debug, Formatter, Pointer};
+use std::fmt::{Debug, Formatter};
 use std::ops::Mul;
 use std::rc::Rc;
-use std::time::Duration;
 use uuid::Uuid;
+use std::ffi::CString;
 
 #[macro_use]
 extern crate lazy_static;
@@ -104,18 +104,33 @@ pub enum Size {
     Percent(f64),
 }
 
-pub struct Logger(fn(&str));
+
+pub enum PlatformSpecificLogger {
+    Web(fn(&str)),
+    MacOS(extern "C" fn(*const std::os::raw::c_char)),
+}
+
+pub struct Logger(PlatformSpecificLogger);
 
 lazy_static! {
     static ref LOGGER: MutStatic<Logger> = MutStatic::new();
 }
 
-pub fn register_logger(logger: fn(&str)) {
+pub fn register_logger(logger: PlatformSpecificLogger) {
     LOGGER.borrow().set(Logger(logger)).unwrap();
 }
 
 pub fn log(msg: &str) {
-    (LOGGER.borrow().read().expect("TODO: handle case where logger isn't registered").0)(msg);
+    let logging_variant = &(LOGGER.borrow().read().expect("Logger isn't registered").0);
+    match logging_variant {
+        PlatformSpecificLogger::Web(closure) => {
+            closure(msg)
+        },
+        PlatformSpecificLogger::MacOS(closure) => {
+            let msg = CString::new(msg).unwrap();
+            unsafe {(closure)(msg.as_ptr())};
+        }
+    }
 }
 
 impl Mul for Size {

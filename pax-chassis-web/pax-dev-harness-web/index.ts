@@ -47,8 +47,8 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
 }
 
 function renderLoop (chassis: PaxChassisWeb) {
-     let messages = chassis.tick();
-     processMessages(messages);
+     chassis.tick();
+     //TODO: process messages
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 let doneOnce = false;
@@ -57,7 +57,7 @@ function processMessages(messages: any[]) {
 
     //TODO:  mount relative+absolute layer on top of render context
     //       create DOM elements (pooled) for each supported message type
-    messages.forEach((msg) => {
+    messages?.forEach((msg) => {
         // console.log("Trying to pack: ", packAffineCoeffsIntoMatrix3DString(msg.transform));
         switch(msg.kind) {
             case "TextMessage":

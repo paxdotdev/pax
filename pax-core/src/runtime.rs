@@ -14,20 +14,18 @@ use crate::{HandlerRegistry, RenderNodePtr, RenderNodePtrList, RenderTreeContext
 /// for logic that manages scopes and stack frames.
 pub struct Runtime<R: 'static + RenderContext> {
     stack: Vec<Rc<RefCell<StackFrame<R>>>>,
-    logger: fn(&str),
 }
 
 impl<R: 'static + RenderContext> Runtime<R> {
-    pub fn new(logger: fn(&str)) -> Self {
+    pub fn new() -> Self {
         Runtime {
             stack: Vec::new(),
-            logger,
         }
     }
 
-    pub fn log(&self, message: &str) {
-        (&self.logger)(message);
-    }
+    // pub fn log(&self, message: &str) {
+    //     (&self.logger)(message);
+    // }
 
     /// Return a pointer to the top StackFrame on the stack,
     /// without mutating the stack or consuming the value

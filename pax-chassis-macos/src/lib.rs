@@ -1,8 +1,8 @@
 #![allow(non_snake_case)]
+//Non-snake-case is used to help denote foreign structs, e.g. from Swift via C
 
 use std::rc::Rc;
 use std::cell::RefCell;
-use std::ffi::{CStr, CString};
 use std::mem::ManuallyDrop;
 use std::os::raw::c_char;
 
@@ -26,14 +26,6 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxChas
     //engine can be passed back to Swift via the C (FFI) bridge
     //This could presumably be cleaned up but currently the engine will exist
     //on the heap for the lifetime of the containing process.
-
-    // let x = |msg:&str| {  }
-
-
-
-    let msg = CString::new("Hello from rust!!").unwrap();
-    unsafe {(logger)(msg.as_ptr())};
-
     let instance_map : Rc<RefCell<InstanceMap<CoreGraphicsContext<'static>>>> = Rc::new(RefCell::new(std::collections::HashMap::new()));
     let root_component_instance = pax_cartridge_runtime::instantiate_root_component(Rc::clone(&instance_map));
     let expression_table = pax_cartridge_runtime::instantiate_expression_table();
@@ -41,14 +33,11 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxChas
     let engine : ManuallyDrop<Box<PaxEngine<CoreGraphicsContext<'static>>>> = ManuallyDrop::new(
         Box::new(
            PaxEngine::new(
-                root_component_instance,
-                expression_table,
-                |msg|{
-                    // msg.
-                    // unsafe {*logger(msg.into())}
-                },
-                (1.0, 1.0),
-                Rc::new(RefCell::new(Default::default()))
+               root_component_instance,
+               expression_table,
+               pax_runtime_api::PlatformSpecificLogger::MacOS(logger),
+               (1.0, 1.0),
+               Rc::new(RefCell::new(Default::default()))
            )
         )
     );
@@ -69,7 +58,6 @@ pub extern fn pax_tick(bridge_container: *mut PaxChassisMacosBridgeContainer, cg
     (*engine).set_viewport_size((width as f64, height as f64));
     (*engine).tick(&mut render_context);
 
-    //This step is necessary to clean up engine, e.g. to drop all of the RefCell::borrow_mut's throughout
+    //`Box::into_raw` is our necessary manual clean-up for engine, e.g. to drop all of the RefCell::borrow_mut's throughout the tick lifecycle
     unsafe {(*bridge_container)._engine=  Box::into_raw(engine)}
-
 }
