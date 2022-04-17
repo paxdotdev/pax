@@ -371,7 +371,6 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                 }),
                             ]
                         ))),
-
                         should_skip_adoption: false,
                         slot_index: None,
                         repeat_data_list: None,

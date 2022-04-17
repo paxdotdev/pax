@@ -129,7 +129,7 @@ Pax is in its early days but has ambitions to mature robustly.
 
 |                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              |
 |-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|
-| *Ready to use* [1]                      | ✅             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
+| *Ready to use* [1]                      | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           |
 | 2D rendering and UIs [2]                | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D             |
 | 3D rendering and UIs                    | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
 | Vector graphics APIs                    | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
@@ -137,7 +137,7 @@ Pax is in its early days but has ambitions to mature robustly.
 | Animation APIs                          | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
 | Native text rendering                   | ✅ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>UIKit        | ⏲ <br/>System.Windows.Forms |
 | Native form elements                    | ⏲ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>UIKit        | ⏲ <br/>System.Windows.Forms |
-| Native event handling (e.g. Click, Tap) | ✅             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
+| Native event handling (e.g. Click, Tap) | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
 | Rust as host language                   | ✅ <br/>WASM   | ✅ <br/>LLVM         | ✅ <br/>LLVM       | ✅ <br/>LLVM         | ✅ <br/>LLVM                 |
 | JS/TypeScript as host language          | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
 
@@ -189,7 +189,7 @@ TODO: describe benefits of this approach toward a11y
 
 At first glance, Pax templates look quite a bit like familiar templating languages like React/JSX.
 
-On closer inspection, you may notice a key distinction: _Pax's templates are not evaluated within a closure_ — they are declared statically and evaluated entirely at compile time.  
+On closer inspection, you may notice an important distinction: _Pax's templates are not evaluated within a closure_ — they are declared statically and evaluated entirely at compile time.  
 Symbols in expressions that refer to a component's properties, like `color=@self.active_bg_color`, are handled via special runtime lookups
 in the expression vtable — again, specifically _not_ a reference to some `self` in the scope of some closure.
 
@@ -198,8 +198,7 @@ be in the code — or in other words, it is both _code_ and _data_, in the same 
 are roughly equivalent to formulas in spreadsheets: declarative, easy to isolate, easy to hack.
 
 The reason _all of that_ matters is because Pax was **designed to be designed** — in the sense of "design tools" that can read and write Pax code as a comprehensive
-description of any visual content, document, or scene.
-
+description of any visual content, document, GUI, or scene.
 
 
 ## Inspiration

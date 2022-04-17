@@ -1,6 +1,8 @@
 node_modules
 target/
 
+pax-chassis-macos/pax-dev-harness-macos/build
+
 **/*.rs.bk
 Cargo.lock
 .DS_Store

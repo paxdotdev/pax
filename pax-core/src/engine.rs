@@ -315,7 +315,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     }
 
     pub fn tick(&mut self, rc: &mut R) {
-        rc.clear(None, Color::rgb8(0, 0, 0));
+        rc.clear(None, Color::rgb8(255, 0, 0));
         let native_render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
     }

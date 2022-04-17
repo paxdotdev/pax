@@ -13,7 +13,6 @@ extern crate mut_static;
 
 use mut_static::MutStatic;
 
-
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
     pub duration_frames: usize,

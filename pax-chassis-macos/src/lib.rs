@@ -6,20 +6,18 @@ use std::cell::RefCell;
 use std::mem::ManuallyDrop;
 use std::os::raw::c_char;
 
-use pax_cartridge_runtime;
-
 use core_graphics::context::CGContext;
 use piet_coregraphics::{CoreGraphicsContext};
 
 use pax_core::{InstanceMap, PaxEngine};
+use pax_cartridge_runtime;
 
-#[repr(C)]
+#[repr(C)] //Exposed to Swift via paxchassismacos.h
 pub struct PaxChassisMacosBridgeContainer {
     _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
 }
 
-//Exposed to Swift via paxchassismacos.h
-#[no_mangle]
+#[no_mangle] //Exposed to Swift via paxchassismacos.h
 pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxChassisMacosBridgeContainer {
 
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
@@ -49,8 +47,8 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxChas
     Box::into_raw(ManuallyDrop::into_inner(container))
 }
 
-//Exposed to Swift via paxchassismacos.h
-#[no_mangle]
+
+#[no_mangle] //Exposed to Swift via paxchassismacos.h
 pub extern fn pax_tick(bridge_container: *mut PaxChassisMacosBridgeContainer, cgContext: *mut CGContext, width: f32, height: f32) { // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
     let mut engine = unsafe { Box::from_raw((*bridge_container)._engine) };
     let ctx = unsafe { &mut *cgContext };
