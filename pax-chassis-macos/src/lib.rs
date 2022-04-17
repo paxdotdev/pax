@@ -2,7 +2,9 @@
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::ffi::{CStr, CString};
 use std::mem::ManuallyDrop;
+use std::os::raw::c_char;
 
 use pax_cartridge_runtime;
 
@@ -18,12 +20,19 @@ pub struct PaxChassisMacosBridgeContainer {
 
 //Exposed to Swift via paxchassismacos.h
 #[no_mangle]
-pub extern fn pax_init() -> *mut PaxChassisMacosBridgeContainer {
+pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxChassisMacosBridgeContainer {
 
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
     //engine can be passed back to Swift via the C (FFI) bridge
     //This could presumably be cleaned up but currently the engine will exist
     //on the heap for the lifetime of the containing process.
+
+    // let x = |msg:&str| {  }
+
+
+
+    let msg = CString::new("Hello from rust!!").unwrap();
+    unsafe {(logger)(msg.as_ptr())};
 
     let instance_map : Rc<RefCell<InstanceMap<CoreGraphicsContext<'static>>>> = Rc::new(RefCell::new(std::collections::HashMap::new()));
     let root_component_instance = pax_cartridge_runtime::instantiate_root_component(Rc::clone(&instance_map));
@@ -34,8 +43,11 @@ pub extern fn pax_init() -> *mut PaxChassisMacosBridgeContainer {
            PaxEngine::new(
                 root_component_instance,
                 expression_table,
-                |msg:&str| {  }, //TODO
-                (400.0, 400.0), //TODO
+                |msg|{
+                    // msg.
+                    // unsafe {*logger(msg.into())}
+                },
+                (1.0, 1.0),
                 Rc::new(RefCell::new(Default::default()))
            )
         )

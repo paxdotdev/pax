@@ -18,6 +18,11 @@ struct ContentView: View {
 }
 
 
+//see: https://medium.com/codex/swift-c-callback-interoperability-6d57da6c8ee6
+//typealias LoggerCallback = @convention(c) (
+//    UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
+//) -> ()
+
 struct CanvasViewRepresentable: NSViewRepresentable {
     typealias NSViewType = CanvasView
     
@@ -29,10 +34,14 @@ struct CanvasViewRepresentable: NSViewRepresentable {
     }
 }
 
+//func logger(cString: UnsafeMutablePointer<CChar>?) {
+//    let outputString = String(cString: cString!)
+//    print(outputString)
+//}
+
 class CanvasView: NSView {
     
     var contextContainer : OpaquePointer? = nil
-    var needsDispatch : Bool = true
     var tickWorkItem : DispatchWorkItem? = nil
     
     override func draw(_ dirtyRect: NSRect) {
@@ -42,7 +51,27 @@ class CanvasView: NSView {
         var cgContext = context.cgContext
         
         if contextContainer == nil {
-            contextContainer = pax_init()
+            
+//            let callbackClosure : LoggerCallback = { msg in
+//                let outputString = String(cString: msg!)
+//                print(outputString)
+//            }
+            
+            
+            let swiftCallback : @convention(c) (UnsafePointer<CChar>?) -> () = {
+                (msg) -> () in
+                let outputString = String(cString: msg!)
+                print(outputString)
+            }
+            
+            
+//            let basicCallback : @convention(c) () -> () = {
+//                () -> () in
+//                
+//                print("unary thunk!")
+//            }
+
+            contextContainer = pax_init(swiftCallback)
         } else {
             pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
         }
