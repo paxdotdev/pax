@@ -86,54 +86,10 @@ class HelloWorld {
 
 ```
 
-You'll notice a few moving pieces here:
+Perhaps it's immediately clear what's happening in these examples,
+as they should feel familiar compared with common GUI toolkits.
 
-#### Template and settings
-
-`<Rectangle fill=/*some value*/> ...`
-
-Each component declares a template in an XML-like syntax, which describes how its UI should be displayed.  Any element in that template can have its settings assigned as XML key-value pairs.
-
-Settings can also be declared separately from the template, in the style of HTML + CSS:
-
-```
-@template {
-    <Rectangle id=my_rect />
-}
-
-@settings {
-    #my_rect {
-        fill: Color::rgb(100%, 100%, 0)
-        height: 200px
-        width: 200px
-    }
-}
-```
-
-#### Expressions
-
-Properties can have literal values, like `transform=translate(200,200)` or `fill=Color::rgba(100%, 100%, 0%, 100%)`
-
-Or values can be dynamic *expressions*, like:
-`transform=@{translate(200,y_counter) * rotate(self.rotation_counter)}` or `fill=@{Color::rgba(self.red_amount, self.green_amount, 0%, 100%)}`
-
-The mechanism behind this is in fact an entire language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.[3]
-
-PAXEL expressions have _read-only_ access to the scope of their containing component.
-For example: `self.some_prop` describes "a copy of the data from the attached Rust struct member `self.some_prop`"
-
-PAXEL expressions are noteworthy in a few ways:
-     - Any PAXEL expression must be a pure function of its inputs and must be side-effect free.  E.g. there's simply no way in the PAXEL language to _set_ a value.
-     - As a result of the above, PAXEL expressions may be aggressively cached and recalculated only when inputs change.
-     - In spirit, PAXEL expressions act a lot like spreadsheet formulas, bindable to any property in Pax.
-
-#### Event handlers
-
-`on_click=@self.handle_click` binds a the `handle_click` method defined in the host codebase to the built-in `click` event which Pax fires when a user clicks the mouse on this element.  Events fire as "interrupts" and are allowed to execute arbitrary, side-effectful, imperative logic.  
-
-It is in event handlers that you will normally change property values (e.g. `self.red_amount.set(/*new value*/)`, where `self.red_amount` is referenced in the Expression example above.)
-
-Pax includes a number of built-in lifecycle events like `pre_render` and user interaction events like `on_click` and `on_tap`.
+For 
 
 
 ## Current status & support
@@ -172,6 +128,36 @@ Pax draws design inspiration from, among others:
 
 
 
+## Development
+
+### Running the project
+`./serve.sh`
+
+### Dev Env Setup, Web chassis
+- Install `wasm-opt` via `binaryen`:
+   ```shell
+   brew install binaryen
+   ```
+
+- Install 'wasm-pack' via:
+   ```shell
+    curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh 
+   ```
+
+- Install `node`: https://nodejs.org/en/download/
+
+- Install `yarn`:
+   ```shell
+  # if necessary: sudo chown -R yourusername /usr/local/lib/node_modules 
+  npm i --global yarn
+   ```
+
+### Dev Env Setup, macOS chassis
+
+
+
+
+
 # Footnotes
 
 [0] Description of GIF:  scene with three devices, each showing a progression of: 1. responsive form/CRUD app + layouts, 2. game, e.g. spaceship/asteroid shooter, 3. animated data viz + text, a la d3
@@ -191,12 +177,92 @@ vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible f
 
 
 
-
-
 # Appendices
 
+## Appendix A: Anatomy of a Pax component
 
-## Goals
+For visual reference, consider again the example:
+
+```rust
+//Rust
+use pax::*;
+use pax::drawing2D::Rectangle;
+
+#[pax(
+    <Rectangle on_click=@self.handle_click transform=@{
+        align(50%, 50%) *
+        rotate(self.theta)
+    }/>
+)]
+pub struct HelloWorld {
+    theta: f64,
+}
+
+impl HelloWorld {
+    pub fn handle_click(&mut self, args: ArgsClick) {
+        let old_theta = self.theta.get();
+        
+        //instead of animation, could set value immediately with `self.theta.set(...)`
+        self.theta.ease_to(
+            old_theta + f64::PI() * 3.0, //new value
+            240,                         //duration of transition, frames
+            EasingCurve::OutBack,        //curve to use for interpolation 
+        );
+    }
+}
+```
+
+#### Template and settings
+
+`<Rectangle fill=/*some value*/> ...`
+
+Each component declares a template in an XML-like syntax, which describes how its UI should be displayed.  Any element in that template can have its settings assigned as XML key-value pairs.
+
+Settings can also be declared separately from the template, in the style of HTML + CSS:
+
+```
+@template {
+    <Rectangle id=my_rect />
+}
+
+@settings {
+    #my_rect {
+        fill: Color::rgb(100%, 100%, 0)
+        height: 200px
+        width: 200px
+    }
+}
+```
+
+#### Expressions
+
+Properties can have literal values, like `transform=translate(200,200)` or `fill=Color::rgba(100%, 100%, 0%, 100%)`
+
+Or values can be dynamic *expressions*, like:
+`transform=@{translate(200,y_counter) * rotate(self.rotation_counter)}` or `fill=@{Color::rgba(self.red_amount, self.green_amount, 0%, 100%)}`
+
+The mechanism behind this is in fact an entire language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.[3]
+
+PAXEL expressions have _read-only_ access to the scope of their containing component.
+For example: `self.some_prop` describes "a copy of the data from the attached Rust struct member `self.some_prop`"
+
+PAXEL expressions are noteworthy in a few ways:
+- Any PAXEL expression must be a pure function of its inputs and must be side-effect free.  E.g. there's simply no way in the PAXEL language to _set_ a value.
+- As a result of the above, PAXEL expressions may be aggressively cached and recalculated only when inputs change.
+- In spirit, PAXEL expressions act a lot like spreadsheet formulas, bindable to any property in Pax.
+
+#### Event handlers
+
+`on_click=@self.handle_click` binds a the `handle_click` method defined in the host codebase to the built-in `click` event which Pax fires when a user clicks the mouse on this element.  Events fire as "interrupts" and are allowed to execute arbitrary, side-effectful, imperative logic.
+
+It is in event handlers that you will normally change property values (e.g. `self.red_amount.set(/*new value*/)`, where `self.red_amount` is referenced in the Expression example above.)
+
+Pax includes a number of built-in lifecycle events like `pre_render` and user interaction events like `on_click` and `on_tap`.
+
+
+
+
+## Appendix B: Goals, draft
 
 **Portable**
 - run on any device
@@ -222,9 +288,7 @@ vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible f
 Above all: Make the digital medium more expressive, for productivity and for art.
 
 
-
-   
-## Native rendering, native controls
+## Appendix C: Description of native rendering approach for text, certain other elements
 
 Rather than introduce virtual controls at the canvas layer, Pax orchestrates a layer of native
 controls as part of its rendering process.  This native overlay is used both for form controls like checkboxes
@@ -236,7 +300,7 @@ experience that blends dynamic graphics (e.g. vectors, animations) with native f
 
 [Visual of DOM "marionette" overlay layer on top of parallaxed graphics layer]
 
-TODO: describe benefits of this approach toward a11y
+TODO: describe benefits of this approach toward a11y, because e.g. full DOM + content is present in the browser
 
 
 ## Declarative and designable
@@ -253,35 +317,6 @@ are roughly equivalent to formulas in spreadsheets: declarative, easy to isolate
 
 The reason _all of that_ matters is because Pax was **designed to be designed** — in the sense of "design tools" that can read and write Pax code as a comprehensive
 description of any visual content, document, GUI, or scene.
-
-
-
-
-
-## Development
-
-### Running the project
-`./serve.sh`
-
-### Dev Env Setup
-(for web chassis)
-- Install `wasm-opt` via `binaryen`:
-   ```shell
-   brew install binaryen
-   ```
-
-- Install 'wasm-pack' via:
-   ```shell
-    curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh 
-   ```
-  
-- Install `node`: https://nodejs.org/en/download/
-
-- Install `yarn`:
-   ```shell
-  # if necessary: sudo chown -R yourusername /usr/local/lib/node_modules 
-  npm i --global yarn
-   ```
 
 
 
