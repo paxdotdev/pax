@@ -17,7 +17,7 @@ Pax is designed for humans, aiming to bring digital creation closer to _art_ and
 Pax is designed to extend and support _anything you can imagine_ on a screen — from 2D to 3D to VR/AR, embedded multimedia, and more.
 
 
-**Today** Pax is in alpha, supports GPU-primitive 2D rendering, and has working development harnesses for Web (WASM) and macOS (Swift).
+> Note: Today Pax is in alpha, supports GPU-primitive 2D rendering, and has working development harnesses for Web (WASM) and macOS (Swift).
 
 
 ## Target use-cases
