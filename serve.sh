@@ -1,3 +1,4 @@
 #!/bin/bash
 
-./pax-chassis-macos/pax-dev-harness-macos/build.sh
+cd pax-chassis-macos/pax-dev-harness-macos/ || return
+./build.sh

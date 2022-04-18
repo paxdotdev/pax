@@ -6,11 +6,11 @@ Pax is a language for high performance, cross-platform computer graphics and use
 
 #### Low-level, fast, and universal
 
-Every program made with Pax compiles as Rust to machine code, i.e. Web Assembly in browsers and LLVM for native platforms. It's very fast.
+Every program made with Pax compiles via Rust to machine code, i.e. Web Assembly in browsers and LLVM for native platforms. It's very fast.
 
 #### Ergonomic and fun to use
 
-Pax is designed for humans, aiming to bring digital creation closer to _art_ and _artists_.
+Pax is designed for humans.  While the current state of authoring Pax requires writing (at least basic) Rust, Pax ultimately aims to be a tool for _art_ and _artists._
 
 #### Sky's the limit
 
@@ -22,11 +22,11 @@ Pax is designed to extend and support _anything you can imagine_ on a screen —
 
 ## Target use-cases
 
- - Cross-platform GUIs that are fun to build
- - Data visualizations
+ - Cross-platform GUIs that are fun to build and use
  - Interactive cartoons and animations
  - Generative art
  - Support visual builder tools for GUIs, digital art
+ - Data visualizations
 
 ## Basic example
 
