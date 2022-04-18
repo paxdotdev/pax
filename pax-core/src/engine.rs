@@ -6,15 +6,11 @@ use std::f64::EPSILON;
 use std::rc::Rc;
 
 
-
-
 extern crate wee_alloc;
 
 // Use `wee_alloc` as the global allocator.
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
-
-
 
 use kurbo::{
     BezPath,
@@ -31,11 +27,12 @@ use crate::runtime::{Runtime};
 use wasm_bindgen::JsValue;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsRender, Interpolatable, PropertyInstance, TransitionManager, TransitionQueueEntry};
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, Interpolatable, PropertyInstance, TransitionManager, TransitionQueueEntry};
 
 pub enum EventMessage {
     Tick(ArgsRender),
     Click(ArgsClick),
+    Jab(ArgsJab),
 }
 
 pub struct PaxEngine<R: 'static + RenderContext> {
@@ -97,7 +94,6 @@ impl<'a, R: RenderContext> Into<ArgsRender> for RenderTreeContext<'a, R> {
     }
 }
 
-
 impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     pub fn compute_eased_value<T: Clone + Interpolatable>(&self, transition_manager: Option<&mut TransitionManager<T>>) -> Option<T> {
         if let Some(mut tm) = transition_manager {
@@ -140,14 +136,6 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
         None
     }
 }
-
-//
-// pub struct HostPlatformContext<'a, 'b>
-// {
-//     pub drawing_context: Box<dyn RenderContext>,
-//     pub render_message_queue: Vec<JsValue>, //TODO: platform polyfill
-// }
-
 
 #[derive(Default)]
 pub struct HandlerRegistry {
@@ -315,7 +303,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     }
 
     pub fn tick(&mut self, rc: &mut R) {
-        rc.clear(None, Color::rgb8(255, 0, 0));
+        rc.clear(None, Color::rgb8(0, 0, 0));
         let native_render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
     }

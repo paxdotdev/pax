@@ -15,7 +15,7 @@ use mut_static::MutStatic;
 
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
-    pub duration_frames: usize,
+    pub duration_frames: u64,
     pub curve: EasingCurve,
     pub starting_value: T,
     pub ending_value: T,
@@ -35,12 +35,12 @@ pub trait PropertyInstance<T: Default + Clone> {
 
     /// Immediately start transitioning from current value to the provided `new_value`,
     /// clearing the transition queue before doing so
-    fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve);
+    fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve);
 
     /// Add a transition to the transition queue, which will execute
     /// after the current queue is complete.  The starting value for this new
     /// transition will be the final value upon completion of the current transition queue.
-    fn ease_to_later(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve);
+    fn ease_to_later(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve);
 
 }
 
@@ -87,12 +87,27 @@ pub struct ArgsRender {
     // pub adoptee_count: usize,
 }
 
+
+/// A Click occurs when the following sequence occurs:
+///   0. mousedown
+///   1. mouseup, must occur within the bounding box of the linked element
+/// The contained `x` and `y` describe the coordinates relative to the linked element's bounding box
+/// where the mousedown occurred.
 #[derive(Clone)]
 pub struct ArgsClick {
     x: f64,
     y: f64,
 }
 
+/// A Jab describes either a "click" (mousedown followed by mouseup), OR a
+/// "tap" with one finger (singular fingerdown event).
+/// Jabs are a useful alternative to most kinds of `Click` or `Tap` events,
+/// when you want the same behavior for both to be contained in one place.
+#[derive(Clone)]
+pub struct ArgsJab {
+    x: f64,
+    y: f64,
+}
 
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.  Note that this may be more precisely
@@ -103,7 +118,8 @@ pub enum Size {
     Percent(f64),
 }
 
-
+/// Coproduct for storing various kinds of function pointer,
+/// needed to achieve compatibility with various native bridge mechanisms
 pub enum PlatformSpecificLogger {
     Web(fn(&str)),
     MacOS(extern "C" fn(*const std::os::raw::c_char)),
@@ -119,6 +135,8 @@ pub fn register_logger(logger: PlatformSpecificLogger) {
     LOGGER.borrow().set(Logger(logger)).unwrap();
 }
 
+/// Log to the appropriate native logging mechanism
+/// Most often called as `pax::log("some message")`
 pub fn log(msg: &str) {
     let logging_variant = &(LOGGER.borrow().read().expect("Logger isn't registered").0);
     match logging_variant {
@@ -164,7 +182,6 @@ impl Mul for Size {
         }
     }
 }
-
 
 /// TODO: revisit if 100% is the most ergonomic default size (remember Dreamweaver)
 impl Default for Size {
@@ -315,7 +332,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     }
 
     //TODO: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
-    fn ease_to(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
+    fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
         self.transition_manager.value = Some(self.get().clone());
         &self.transition_manager.queue.clear();
         &self.transition_manager.queue.push_back(TransitionQueueEntry {
@@ -327,7 +344,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         });
     }
 
-    fn ease_to_later(&mut self, new_value: T, duration_frames: usize, curve: EasingCurve) {
+    fn ease_to_later(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
         if let None = self.transition_manager.value {
             //handle case where transition queue is empty -- a None value gets skipped, so populate it with Some
             self.transition_manager.value = Some(self.get().clone());

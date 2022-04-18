@@ -18,13 +18,13 @@ pub struct Root {
 
 impl Root {
 
-    #[pax_on(pre_render)]
+    #[pax_on(PreRender)] //or long-hand: #[pax_on(Lifecycle::PreRender)]
     pub fn handle_pre_render(&mut self, args: ArgsTick) {
         pax::log(&format!("pre_render from frame {}", args.frame));
         self.current_rotation.set(self.current_rotation.get() + 0.10)
     }
 
-    pub fn some_method(&mut self, args: ArgsClick, i: usize) {
+    pub fn some_click_handler(&mut self, args: ArgsClick, i: usize) {
 
     }
 }

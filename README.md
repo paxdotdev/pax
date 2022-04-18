@@ -2,45 +2,35 @@
 
 Pax is a language for high performance, cross-platform computer graphics and user interfaces.
 
-[TODO: GIF of three devices, each showing a progression of: 1. responsive form/CRUD app + layouts, 2. game, e.g. spaceship/asteroid shooter, 3. animated data viz + text, a la d3]
+[TODO: GIF, see [0]]
+
+#### Low-level, fast, and universal
+
+Every program made with Pax compiles as Rust to machine code, meaning Web Assembly in browsers and LLVM for native platforms. It's very fast.
+
+#### Ergonomic and fun to use
+
+Pax is designed for humans, aiming to bring digital creation closer to _art_ and _artists_.
+
+#### Sky's the limit
+
+Pax is designed to extend and support _anything you can imagine_ on a screen — from 2D to 3D to VR/AR, embedded multimedia, and more.
 
 
-## Goals
+**Today** Pax is in alpha, supports GPU-primitive 2D rendering, and has working development harnesses for Web (WASM) and macOS (Swift).
 
-**Portable**
-- run on any device
-- tiny footprint: suitable for web applications and embedded applications
-- extremely fast (animations up to 120fps on supporting hardware)
-- based on Rust and LLVM, compiles to machine code on most platforms and WASM (Web Assembly) for the Web.
 
-**All-purpose**
-- "Any UI you can imagine" -- 2D, 3D, digital documents, VR/AR, web apps, CRUD apps, data visualization, interactive cartoons, experimental art, embedded GUIs
-- Native UI controls for every platform (dropdowns and text boxes, scrolling, etc.)
-- Native text rendering & styling for every platform
-- Native accessibility (a11y) support for every platform
-- Expressive & intuitive layouts
-- Complex, fine-tuned animations
+### Target use-cases
 
-**eXtensible**
-- "Components all the way down" as reusable, extensible UI building blocks
-- Extensible rendering back-ends, meaning any platform can be supported
-- Can support any type of digital media — audio, video, etc.
-- Agnostic "host language" means any language can be supported (Rust, TypeScript/JavaScript, C++, .NET CLR, Python...)
-- Free and open source (MIT / Apache 2.0)
+ - Cross-platform GUIs that are fun to build
+ - Data visualizations
+ - Interactive cartoons and animations
+ - Generative art
+ - Support visual builder tools for GUIs, digital art
 
-Above all: Make the digital medium more expressive, for productivity and for art.
+### Basic example
 
-## How it works
-
-Pax attaches to a _host codebase_, which is responsible for any imperative or side-effectful logic (e.g. network requests, operating system interactions.)  This divide allows Pax itself to remain highly declarative.
-
-In practice, this looks like: write template and settings in Pax, write event handlers and data structures in the host language.
-
-[image: infographic illustrating layers of Pax and Host, illustrating the divide described above + "imperative", "declarative", "expressions", "side-effects"] 
-
-Currently Pax supports Rust as a host language, though support for JavaScript/TypeScript is on the [roadmap](TODO.md). For Pax itself: the compiler tooling and the runtimes are all written in Rust.
-
-Following is a simple example.  This Pax UI describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle increments its rotation by 1/20 radians.
+This Pax UI describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle transitions its rotation to a new value via an animation.
 
 ```rust
 //Rust
@@ -50,17 +40,23 @@ use pax::drawing2D::Rectangle;
 #[pax(
     <Rectangle on_click=@self.handle_click transform=@{
         align(50%, 50%) *
-        rotate(self.num_clicks / 20.0)
+        rotate(self.theta)
     }/>
 )]
 pub struct HelloWorld {
-    num_clicks: isize,
+    theta: f64,
 }
 
 impl HelloWorld {
     pub fn handle_click(&mut self, args: ArgsClick) {
-        let old_num_clicks = self.num_clicks.get();
-        self.num_clicks.set(old_num_clicks + 1);
+        let old_theta = self.theta.get();
+        
+        //instead of animation, could set value immediately with `self.theta.set(...)`
+        self.theta.ease_to(
+            old_theta + f64::PI() * 3.0, //new value
+            240,                         //duration of transition, frames
+            EasingCurve::OutBack,        //curve to use for interpolation 
+        );
     }
 }
 ```
@@ -121,17 +117,15 @@ Properties can have literal values, like `transform=translate(200,200)` or `fill
 Or values can be dynamic *expressions*, like:
 `transform=@{translate(200,y_counter) * rotate(self.rotation_counter)}` or `fill=@{Color::rgba(self.red_amount, self.green_amount, 0%, 100%)}`
 
-The mechanism behind this is in fact an entire language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.[3] 
-
+The mechanism behind this is in fact an entire language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.[3]
 
 PAXEL expressions have _read-only_ access to the scope of their containing component.
-For example: `self.some_prop` describes "a copy of the data from the attached Rust struct member `self.some_prop`" 
-A struct member must implement `PaxProperty`
+For example: `self.some_prop` describes "a copy of the data from the attached Rust struct member `self.some_prop`"
 
 PAXEL expressions are noteworthy in a few ways:
      - Any PAXEL expression must be a pure function of its inputs and must be side-effect free.  E.g. there's simply no way in the PAXEL language to _set_ a value.
      - As a result of the above, PAXEL expressions may be aggressively cached and recalculated only when inputs change.
-     - In spirit, PAXEL expressions act a lot like spreadsheet formulas.
+     - In spirit, PAXEL expressions act a lot like spreadsheet formulas, bindable to any property in Pax.
 
 #### Event handlers
 
@@ -147,6 +141,7 @@ Pax includes a number of built-in lifecycle events like `pre_render` and user in
 |                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              |
 |-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|
 | *Ready to use* [1]                      | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           |
+| Development harness                     | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           |
 | 2D rendering and UIs [2]                | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D             |
 | 3D rendering and UIs                    | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
 | Vector graphics APIs                    | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
@@ -164,13 +159,68 @@ Pax includes a number of built-in lifecycle events like `pre_render` and user in
 | ⏲ Not yet supported |
 
 
-[1] Note that Pax is currently in alpha and should only be used in settings where that's not a concern. 
+## Inspiration
 
-[2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the admirable work behind [Piet](https://github.com/linebender/piet). 
+Pax draws design inspiration from, among others:
+- Verilog, VHDL
+- Macromedia Flash, Dreamweaver
+- The World Wide Web, HTML, CSS
+- React, Vue, Angular
+- Visual Basic, ASP.NET
+- VisiCalc, Lotus 1-2-3, Excel
+- The Nintendo Entertainment System
+
+
+
+# Footnotes
+
+[0] Description of GIF:  scene with three devices, each showing a progression of: 1. responsive form/CRUD app + layouts, 2. game, e.g. spaceship/asteroid shooter, 3. animated data viz + text, a la d3
+
+[1] Note that Pax is currently in alpha and should only be used in settings where that's not a concern.
+
+[2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the admirable work behind [Piet](https://github.com/linebender/piet).
 
 [3] PAXEL is similar to Google's Common Expression Language (CEL), but CEL was not a suitable fit for Pax due to its footprint — being written in Go, CEL adds
 a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total target footprint of <100KB.  Pax also has subtly distinct goals
 vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this particular domain.
+
+
+
+
+
+
+
+
+
+
+# Appendices
+
+
+## Goals
+
+**Portable**
+- run on any device
+- tiny footprint: suitable for web applications and embedded applications
+- extremely fast (animations up to 120fps on supporting hardware)
+- based on Rust and LLVM, compiles to machine code on most platforms and WASM (Web Assembly) for the Web.
+
+**All-purpose**
+- "Any UI you can imagine" -- 2D, 3D, digital documents, VR/AR, web apps, CRUD apps, data visualization, interactive cartoons, experimental art, embedded GUIs
+- Native UI controls for every platform (dropdowns and text boxes, scrolling, etc.)
+- Native text rendering & styling for every platform
+- Native accessibility (a11y) support for every platform
+- Expressive & intuitive layouts
+- Complex, fine-tuned animations
+
+**eXtensible**
+- "Components all the way down" as reusable, extensible UI building blocks
+- Extensible rendering back-ends, meaning any platform can be supported
+- Can support any type of digital media — audio, video, etc.
+- Agnostic "host language" means any language can be supported (Rust, TypeScript/JavaScript, C++, .NET CLR, Python...)
+- Free and open source (MIT / Apache 2.0)
+
+Above all: Make the digital medium more expressive, for productivity and for art.
+
 
 
    
@@ -205,16 +255,7 @@ The reason _all of that_ matters is because Pax was **designed to be designed** 
 description of any visual content, document, GUI, or scene.
 
 
-## Inspiration
 
-Pax draws design inspiration from, among others:
- - Verilog, VHDL
- - Macromedia Flash, Dreamweaver
- - The World Wide Web, HTML, CSS
- - React, Vue, Angular
- - Visual Basic, ASP.NET
- - VisiCalc, Lotus 1-2-3, Excel
- - The Nintendo Entertainment System
 
 
 ## Development
