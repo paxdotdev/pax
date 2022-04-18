@@ -20,7 +20,7 @@ Pax is designed to extend and support _anything you can imagine_ on a screen —
 **Today** Pax is in alpha, supports GPU-primitive 2D rendering, and has working development harnesses for Web (WASM) and macOS (Swift).
 
 
-### Target use-cases
+## Target use-cases
 
  - Cross-platform GUIs that are fun to build
  - Data visualizations
@@ -28,7 +28,7 @@ Pax is designed to extend and support _anything you can imagine_ on a screen —
  - Generative art
  - Support visual builder tools for GUIs, digital art
 
-### Basic example
+## Basic example
 
 This Pax UI describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle transitions its rotation to a new value via an animation.
 
