@@ -6,7 +6,7 @@ Pax is a language for high performance, cross-platform computer graphics and use
 
 #### Low-level, fast, and universal
 
-Every program made with Pax compiles as Rust to machine code, meaning Web Assembly in browsers and LLVM for native platforms. It's very fast.
+Every program made with Pax compiles as Rust to machine code, i.e. Web Assembly in browsers and LLVM for native platforms. It's very fast.
 
 #### Ergonomic and fun to use
 
@@ -154,6 +154,8 @@ Pax draws design inspiration from, among others:
 
 ### Dev Env Setup, macOS chassis
 
+(TODO)
+Install xcode, command line utils 
 
 
 
