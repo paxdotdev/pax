@@ -2,7 +2,7 @@
 
 Pax is a language for high performance, cross-platform computer graphics and user interfaces.
 
-[TODO: GIF, see [0]]
+<img src="whiteboard-multi-device-placeholder.png" alt="placeholder image for visual of various devices showing the same Pax rendering with responsive layout">
 
 #### Low-level, fast, and universal
 
@@ -174,10 +174,6 @@ vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible f
 
 
 
-
-
-# Appendices
-
 ## Appendix A: Anatomy of a Pax component
 
 For visual reference, consider again the example:
@@ -259,33 +255,7 @@ It is in event handlers that you will normally change property values (e.g. `sel
 Pax includes a number of built-in lifecycle events like `pre_render` and user interaction events like `on_click` and `on_tap`.
 
 
-## Appendix B: Goals, draft
-
-**Portable**
-- run on any device
-- tiny footprint: suitable for web applications and embedded applications
-- extremely fast (animations up to 120fps on supporting hardware)
-- based on Rust and LLVM, compiles to machine code on most platforms and WASM (Web Assembly) for the Web.
-
-**All-purpose**
-- "Any UI you can imagine" -- 2D, 3D, digital documents, VR/AR, web apps, CRUD apps, data visualization, interactive cartoons, experimental art, embedded GUIs
-- Native UI controls for every platform (dropdowns and text boxes, scrolling, etc.)
-- Native text rendering & styling for every platform
-- Native accessibility (a11y) support for every platform
-- Expressive & intuitive layouts
-- Complex, fine-tuned animations
-
-**eXtensible**
-- "Components all the way down" as reusable, extensible UI building blocks
-- Extensible rendering back-ends, meaning any platform can be supported
-- Can support any type of digital media — audio, video, etc.
-- Agnostic "host language" means any language can be supported (Rust, TypeScript/JavaScript, C++, .NET CLR, Python...)
-- Free and open source (MIT / Apache 2.0)
-
-Above all: Make the digital medium more expressive, for productivity and for art.
-
-
-## Appendix C: Description of native rendering approach for text, certain other elements
+## Appendix B: Description of native rendering approach for text, certain other elements
 
 Rather than introduce virtual controls at the canvas layer, Pax orchestrates a layer of native
 controls as part of its rendering process.  This native overlay is used both for form controls like checkboxes
@@ -300,7 +270,7 @@ experience that blends dynamic graphics (e.g. vectors, animations) with native f
 TODO: describe benefits of this approach toward a11y, because e.g. full DOM + content is present in the browser
 
 
-## Appendix D: Declarative and designable
+## Appendix C: Declarative and designable
 
 At first glance, Pax templates look quite a bit like familiar templating languages like React/JSX.
 
