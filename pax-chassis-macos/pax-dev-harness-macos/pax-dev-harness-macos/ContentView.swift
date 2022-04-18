@@ -12,18 +12,12 @@ let REFRESH_PERIOD = 1.0/FPS //seconds between frames (e.g. 16.667 for 60Hz)
 
 struct ContentView: View {
     var body: some View {
-        CanvasViewRepresentable()
+        PaxCanvasViewRepresentable()
             .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
     }
 }
 
-
-//see: https://medium.com/codex/swift-c-callback-interoperability-6d57da6c8ee6
-//typealias LoggerCallback = @convention(c) (
-//    UnsafeMutablePointer<UnsafeMutablePointer<CChar>?>?
-//) -> ()
-
-struct CanvasViewRepresentable: NSViewRepresentable {
+struct PaxCanvasViewRepresentable: NSViewRepresentable {
     typealias NSViewType = CanvasView
     
     func makeNSView(context: Context) -> CanvasView {
@@ -34,10 +28,6 @@ struct CanvasViewRepresentable: NSViewRepresentable {
     }
 }
 
-//func logger(cString: UnsafeMutablePointer<CChar>?) {
-//    let outputString = String(cString: cString!)
-//    print(outputString)
-//}
 
 class CanvasView: NSView {
     

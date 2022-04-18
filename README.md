@@ -98,6 +98,22 @@ You'll notice a few moving pieces here:
 
 Each component declares a template in an XML-like syntax, which describes how its UI should be displayed.  Any element in that template can have its settings assigned as XML key-value pairs.
 
+Settings can also be declared separately from the template, in the style of HTML + CSS:
+
+```
+@template {
+    <Rectangle id=my_rect />
+}
+
+@settings {
+    #my_rect {
+        fill: Color::rgb(100%, 100%, 0)
+        height: 200px
+        width: 200px
+    }
+}
+```
+
 #### Expressions
 
 Properties can have literal values, like `transform=translate(200,200)` or `fill=Color::rgba(100%, 100%, 0%, 100%)`
@@ -105,14 +121,17 @@ Properties can have literal values, like `transform=translate(200,200)` or `fill
 Or values can be dynamic *expressions*, like:
 `transform=@{translate(200,y_counter) * rotate(self.rotation_counter)}` or `fill=@{Color::rgba(self.red_amount, self.green_amount, 0%, 100%)}`
 
-Notice the `@`-signs — these signal to the Pax compiler that the subsequent symbol(s) are dynamic, and should be evaluated in the context of the host codebase.  The contents of the `{}` block are evaluated and the return value is bound to the setting.  
+The mechanism behind this is in fact an entire language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.[3] 
 
-The mechanism behind this is in fact a whole language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.[3] 
 
-PAXEL expressions are distinctive in a few ways:
+PAXEL expressions have _read-only_ access to the scope of their containing component.
+For example: `self.some_prop` describes "a copy of the data from the attached Rust struct member `self.some_prop`" 
+A struct member must implement `PaxProperty`
+
+PAXEL expressions are noteworthy in a few ways:
      - Any PAXEL expression must be a pure function of its inputs and must be side-effect free.  E.g. there's simply no way in the PAXEL language to _set_ a value.
      - As a result of the above, PAXEL expressions may be aggressively cached and recalculated only when inputs change.
-     - In spirit, expressions act a lot like spreadsheet formulas
+     - In spirit, PAXEL expressions act a lot like spreadsheet formulas.
 
 #### Event handlers
 
@@ -124,8 +143,6 @@ Pax includes a number of built-in lifecycle events like `pre_render` and user in
 
 
 ## Current status & support
-
-Pax is in its early days but has ambitions to mature robustly.
 
 |                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              |
 |-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|
@@ -155,19 +172,6 @@ Pax is in its early days but has ambitions to mature robustly.
 a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total target footprint of <100KB.  Pax also has subtly distinct goals
 vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this particular domain.
 
-
-## What's in the box
-
- - Compiler
-   - Builds a pax project into platform-specific "cartridges" (a la the Nintendo Entertainment System.) These cartrides can be mounted as self-contained native apps or embedded as UI components in existing codebases.
- - Runtime (core)
-   - Written in Rust, logic for rendering and computation
- - Runtime (per-platform native chassis)
-   - Written in combination of Rust and native platform code (e.g. TypeScript for Web, Swift for macOS/iOS)
-   - Handles platform-native concerns like: user input, native element rendering, text and form controls
- - Examples
- - APIs
-   - Tools for authoring Pax apps
 
    
 ## Native rendering, native controls
