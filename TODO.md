@@ -143,7 +143,7 @@ _RIL means Rust Intermediate Language, which is the
 ## Milestone: imported .pax
 
 ```
-[x] Spend some cycles ideating demo deliverables
+[x] Spend some cycles ideating demo deliverables/storyboard
 [x] Port Spread to be a pure component
     [x] figure out importing mechanism for core and/or other std primitives
         [x] Group, Slot (e.g. from Core)
@@ -172,23 +172,24 @@ _RIL means Rust Intermediate Language, which is the
     [x] `@template` block, vs. top-level
 [ ] dev env ++
     [ ] support inline (in-file) component def. (as alternative to `#[pax_component_definition]` file path)
-    [ ] support for different example projects
+    [x] support for different example projects
     [ ] native macOS chassis + dev-harness?
         *** rename: is it the case that `engine` is an `os`; `chassis` is a `console` ? 
-        [ ] pax-chassis-macos (written in rust). responsible for:
-            [ ] accepting a CGContext pointer and rendering to it via Piet
+        [x] pax-chassis-macos (written in rust). responsible for:
+            [x] accepting a CGContext pointer and rendering to it via Piet
             [ ] managing user input channel, e.g. click/touch
             [ ] managing native rendering channel, e.g. form controls, text
-        [ ] mac app dev-harness (written in swift). responsible for:
-            [ ] granting a piece of real estate (full window of simple mac app) to rendering with a CGContext.
-            [ ] passing CGContext to pax-chassis-coregraphics
+        [x] mac app dev-harness (written in swift). responsible for:
+            [x] granting a piece of real estate (full window of simple mac app) to rendering with a CGContext.
+            [x] passing CGContext to pax-chassis-coregraphics
+            [x] handling resize
             [ ] handling basic user input (e.g. click) and text rendering (renderqueue)
         [ ] ios app dev-harness (written in swift)
             [ ] (~similar to mac app dev-harness)
             [ ] supporting ios simulator + physical device, however is ergonomic with xcode
-        [ ] Debugging via LLDB
-            [ ] support debugging as necessary with macos dev-harness
-            [ ] IDE configs for each of: userland cartridge; core; std
+        [x] Debugging via LLDB
+            [x] support debugging as necessary with macos dev-harness
+            [x] IDE configs for each of: userland cartridge; core; std
 [ ] `pax-compiler`
     [ ] update manifest-populating logic to latest parser defs
     [x] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation

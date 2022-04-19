@@ -1,4 +1,5 @@
 #!/bin/bash
 
+cargo build
 cd pax-chassis-macos/pax-dev-harness-macos/ || return
-./build.sh
+./run-debuggable-mac-app.sh

@@ -15,8 +15,8 @@ use pax_runtime_api::{Transform2D, Size, PropertyInstance, Size2D};
 /// of its bounds.
 ///
 /// If clipping or the option of clipping is not required,
-/// a [`Group`] will generally be a more performant and otherwise-equivalent ]
-/// option since clipping is expensive.
+/// a [`Group`] will generally be a more performant and otherwise-equivalent
+/// to [`Frame`], since `[Frame]` creates a clipping mask.
 pub struct FrameInstance<R: RenderContext> {
     pub children: RenderNodePtrList<R>,
     pub size: Size2D,

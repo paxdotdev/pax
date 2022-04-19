@@ -6,11 +6,11 @@ Pax is a language for high performance, cross-platform computer graphics and use
 
 #### Low-level, fast, and universal
 
-Every program made with Pax compiles via Rust to machine code, i.e. Web Assembly in browsers and LLVM for native platforms. It's very fast.
+Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast.
 
 #### Ergonomic and fun to use
 
-Pax is designed for humans.  While the current state of authoring Pax requires writing (at least basic) Rust, Pax ultimately aims to be a tool for _art_ and _artists._
+While the current state of authoring Pax requires writing (at least basic) Rust, Pax ultimately aims to be a tool for _art_ and _artists._
 
 #### Sky's the limit
 
@@ -51,7 +51,7 @@ impl HelloWorld {
     pub fn handle_click(&mut self, args: ArgsClick) {
         let old_theta = self.theta.get();
         
-        //instead of animation, could set value immediately with `self.theta.set(...)`
+        //instead of an `ease_to` animation, could set value immediately with `self.theta.set(...)`
         self.theta.ease_to(
             old_theta + f64::PI() * 3.0, //new value
             240,                         //duration of transition, frames
@@ -86,11 +86,6 @@ class HelloWorld {
 
 ```
 
-Perhaps it's immediately clear what's happening in these examples,
-as they should feel familiar compared with common GUI toolkits.
-
-For 
-
 
 ## Current status & support
 
@@ -115,6 +110,25 @@ For
 | ⏲ Not yet supported |
 
 
+## FAQ
+
+
+#### How does Pax work cross-platform?
+
+Compile to cartridge (machine code: LLVM or WASM -- like an NES ROM)
+Snap into chassis, load
+Development harness OR production harness OR UI component
+
+#### What is Pax's footprint?
+
+As of the current authoring, the WASM bundle for a very basic Pax app is about 150kb including several known unnecessary libraries and debug symbols.
+100kb will be easily achievable and is a reasonable long-term goal.  <50kb is a stretch-goal.
+
+Memory footprint is on the order of 10s of MB (contrast with 500MB+ for browsers/Electron apps)
+
+
+
+
 ## Inspiration
 
 Pax draws design inspiration from, among others:
@@ -133,7 +147,7 @@ Pax draws design inspiration from, among others:
 ### Running the project
 `./serve.sh`
 
-### Dev Env Setup, Web chassis
+### Environment setup, web chassis
 - Install `wasm-opt` via `binaryen`:
    ```shell
    brew install binaryen
@@ -152,16 +166,14 @@ Pax draws design inspiration from, among others:
   npm i --global yarn
    ```
 
-### Dev Env Setup, macOS chassis
+### Environment setup, macOS chassis
 
-(TODO)
-Install xcode, command line utils 
+(TODO: make more thorough)
+ - Install xcode, command line utils 
 
 
 
 # Footnotes
-
-[0] Description of GIF:  scene with three devices, each showing a progression of: 1. responsive form/CRUD app + layouts, 2. game, e.g. spaceship/asteroid shooter, 3. animated data viz + text, a la d3
 
 [1] Note that Pax is currently in alpha and should only be used in settings where that's not a concern.
 
@@ -197,7 +209,7 @@ impl HelloWorld {
     pub fn handle_click(&mut self, args: ArgsClick) {
         let old_theta = self.theta.get();
         
-        //instead of animation, could set value immediately with `self.theta.set(...)`
+        //instead of an `ease_to` animation, could set value immediately with `self.theta.set(...)`
         self.theta.ease_to(
             old_theta + f64::PI() * 3.0, //new value
             240,                         //duration of transition, frames
@@ -276,12 +288,12 @@ At first glance, Pax templates look quite a bit like familiar templating languag
 
 On closer inspection, you may notice an important distinction: _Pax's templates are not evaluated within a closure_ — they are declared statically and evaluated entirely at compile time.  
 Symbols in expressions that refer to a component's properties, like `color=@self.active_bg_color`, are handled via special runtime lookups
-in the expression vtable — again, specifically _not_ a reference to some `self` in the scope of some closure.
+in the expression vtable — again, specifically _not_ a direct reference to some `self` in the scope of some closure.
 
 Because the template is evaluated entirely at compile-time, the template is exactly what it is described to
 be in the code — or in other words, it is both _code_ and _data_, in the same sense as Lisp.  Expressions themselves, given their functional constraints,
 are roughly equivalent to formulas in spreadsheets: declarative, easy to isolate, easy to hack.
 
 The reason _all of that_ matters is because Pax was **designed to be designed** — in the sense of "design tools" that can read and write Pax code as a comprehensive
-description of any visual content, document, GUI, or scene.
+description of any visual content, design, prototype, document, production GUI, or scene.
 

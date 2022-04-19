@@ -50,7 +50,7 @@ impl Spread {
 
         let cell_count = *self.cell_count.get() as f64;
 
-        let usable_interior_space = active_bound - (cell_count + 1.0) * gutter_calc;
+        let usable_interior_space = active_bound - (cell_count - 1.0) * gutter_calc;
         let per_cell_space = usable_interior_space / cell_count;
 
         //TODO: account for overrides
@@ -60,7 +60,7 @@ impl Spread {
                     Rc::new(SpreadCellProperties {
                         height_px: bounds.1,
                         width_px: per_cell_space,
-                        x_px: ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
+                        x_px: ((i) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
                         y_px: 0.0,
                     }),
                 SpreadDirection::Vertical =>
@@ -68,7 +68,7 @@ impl Spread {
                         height_px: per_cell_space,
                         width_px: bounds.0,
                         x_px: 0.0,
-                        y_px: ((i + 1) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
+                        y_px: ((i) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
                     }),
             }
         }).collect());

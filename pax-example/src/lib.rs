@@ -20,8 +20,13 @@ impl Root {
 
     #[pax_on(PreRender)] //or long-hand: #[pax_on(Lifecycle::PreRender)]
     pub fn handle_pre_render(&mut self, args: ArgsTick) {
-        pax::log(&format!("pre_render from frame {}", args.frame));
-        self.current_rotation.set(self.current_rotation.get() + 0.10)
+        if args.frames_elapsed % 180 == 0 {
+            //every 3s
+            pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
+            let new_rotation = self.current_rotation.get() + (2.0 * f64::PI());
+            self.current_rotation.ease_to(new_rotation, 120, EasingCurve::InOutBack );
+            self.current_rotation.ease_to_later(0.0, 1, EasingCurve::Linear );
+        }
     }
 
     pub fn some_click_handler(&mut self, args: ArgsClick, i: usize) {
