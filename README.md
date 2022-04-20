@@ -137,6 +137,9 @@ class HelloWorld {
 | ⏲ Not yet supported |
 
 
+<img src="support-matrix-cartridge-placeholder.png" alt="A surrealistic painting of a support matrix of green checkmarks and eggs; A series of video game cartridges emitting magic glows" />
+
+
 ## FAQ
 
 
