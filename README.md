@@ -62,7 +62,7 @@ First let's look at the Pax by itself:
 You'll notice it looks a lot like HTML, XAML, or JSX.  You'll also notice it includes a couple of symbols that seem to be defined elsewhere -- 
 a click handler called `self.handle_click` and some rotation value `self.theta`.  Those values are defined in the Rust struct that Pax attaches to.
 
-You may also notice that an _expression_ is declared for the rectangle's `rotation`. Similar to a spreadsheet formula, the `transform` value of the Rectangle will be computed as a function of its inputs (in this case, `self.theta`).
+You may also notice that an _expression_ is declared for the rectangle's `rotation`. Similar to a spreadsheet formula, the `transform` value of the Rectangle will be computed as a function of its inputs (in this case, `self.theta` — vs. a spreadsheet formula which might have an input like `A1`).
 
 Here's the full example including Rust:
 
@@ -179,7 +179,9 @@ The first versions of Pax were designed and built by [an individual](https://www
 
 Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  
 
-Right now it's a basic, mostly empty legal entity, and it's likely to stay that way for many years.  If you're interested in helping bring form to the non-profit, [reach out on Discord!](https://discord.gg/4E6tcrtCRb)
+Participation in the non-profit is available to any contributor or sponsor.  [Reach out on Discord](https://discord.gg/4E6tcrtCRb) to learn more.
+
+Right now it's a basic, mostly empty legal entity, and it's likely to stay that way for many years.  If you're interested in helping bring form to the non-profit, 
 
 <img src="support-matrix-cartridge-placeholder.png" alt="A surrealistic painting of a support matrix of green checkmarks and eggs; A series of video game cartridges emitting magic glows" />
 
