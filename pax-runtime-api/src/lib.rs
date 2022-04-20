@@ -160,7 +160,7 @@ impl Mul for Size {
                     //multiplying two pixel values adds them,
                     //in the sense of multiplying two affine translations.
                     //this might be wildly unexpected in some cases, so keep an eye on this and
-                    //revisit whether to support Percent values in origin calcs (could rescind)
+                    //revisit whether to support Percent values in anchor calcs (could rescind)
                     Size::Pixel(px1) => {
                         Size::Pixel(px0 + px1)
                     }
@@ -203,28 +203,28 @@ pub type Size2D = Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>;
 
 
 /// A sugary representation of an Affine transform+, including
-/// `origin` and `align` as layout-computed properties.
+/// `anchor` and `align` as layout-computed properties.
 ///
 /// `translate` represents an (x,y) affine translation
 /// `scale`     represents an (x,y) non-uniform affine scale
 /// `rotate`    represents a (z) affine rotation (intuitive 2D rotation)
-/// `origin`    represents the "(0,0)" point of the render node as it relates to its own bounding box.
-///             By default that's the top-left of the element, but `origin` allows that
+/// `anchor`    represents the "(0,0)" point of the render node as it relates to its own bounding box.
+///             By default that's the top-left of the element, but `anchor` allows that
 ///             to be offset either by a pixel or percentage-of-element-size
 ///             for each of (x,y)
-/// `align`     the offset of this element's `origin` as it relates to the element's parent.
+/// `align`     the offset of this element's `anchor` as it relates to the element's parent.
 ///             By default this is the top-left corner of the parent container,
 ///             but can be set to be any value [0,1] for each of (x,y), representing
 ///             the percentage (between 0.0 and 1.0) multiplied by the parent container size.
-///             For example, an align of (0.5, 0.5) will center an element's `origin` point both vertically
-///             and horizontally within the parent container.  Combined with an origin of (Size::Percent(50.0), Size::Percent(50.0)),
+///             For example, an align of (0.5, 0.5) will center an element's `anchor` point both vertically
+///             and horizontally within the parent container.  Combined with an anchor of (Size::Percent(50.0), Size::Percent(50.0)),
 ///             an element will appear fully centered within its parent.
 #[derive(Default, Clone)]
 pub struct Transform2D { //Literal
     pub previous: Option<Box<Transform2D>>,
     pub rotate: Option<f64>, ///over z axis
     pub translate: Option<[f64; 2]>,
-    pub origin: Option<[Size; 2]>,
+    pub anchor: Option<[Size; 2]>,
     pub align: Option<[Size; 2]>,
     pub scale: Option<[f64; 2]>,
 }
@@ -266,9 +266,9 @@ impl Transform2D {
         ret
     }
     ///Describe alignment of the (0,0) position of this element as it relates to its own bounding box
-    pub fn origin(x: Size, y: Size) -> Self {
+    pub fn anchor(x: Size, y: Size) -> Self {
         let mut ret  = Transform2D::default();
-        ret.origin = Some([x, y]);
+        ret.anchor = Some([x, y]);
         ret
     }
 

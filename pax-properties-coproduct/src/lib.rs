@@ -26,7 +26,7 @@ pub enum PropertiesCoproduct {
     //generated
     isize(isize), //used by range for repeat (0..10)
     SpreadCellProperties(pax_example::pax_types::pax_std::types::SpreadCellProperties),
-    Rectangle(pax_example::pax_types::pax_std::primitives::Rectangle),
+    Rectangle(pax_example::pax_types::pax_std::primitives::RectangleProperties),
     Group(pax_example::pax_types::pax_std::primitives::Group),
     Spread(pax_example::pax_types::pax_std::components::Spread),
     Root(pax_example::Root),

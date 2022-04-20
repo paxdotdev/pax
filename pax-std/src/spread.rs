@@ -7,7 +7,7 @@ use crate::types::{SpreadDirection, SpreadCellProperties};
 /// A layout component which renders a series of nodes either
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
 /// each node.  Spreads can be stacked inside of each other, horizontally
-/// and vertically, alongside `Transform.align` and `Transform.origin` to achieve any 2D layout.
+/// and vertically, alongside `Transform.align` and `Transform.anchor` to achieve any 2D layout.
 #[pax(
     @for (elem, i) in self.computed_layout_spec {
         <Frame transform=@{translate(elem.x_px, elem.y_px)} size=@{[elem.width_px, elem.height_px]}>

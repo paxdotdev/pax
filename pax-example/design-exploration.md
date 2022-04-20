@@ -138,7 +138,7 @@ That is, three total parsers:
         transform: {
             translate: 20px, x, //x is "don't care" i.e. "default"
             scale: 100%, 90%,
-            origin: 50%, 50%,
+            anchor: 50%, 50%,
         }
         orientation: vertical, //enums are tricky.  single global keywords are most ergonomic
                                //but have obvious namespace collision risks.
@@ -168,7 +168,7 @@ That is, three total parsers:
         transform: {
             translate: (20px, x); //x is "don't care" i.e. "default"
             scale: (100%, 90%);
-            origin: (50%, 50%),
+            anchor: (50%, 50%),
         }
         orientation: vertical, //enums are tricky.  single global keywords are most ergonomic
                                //but have obvious namespace collision risks.

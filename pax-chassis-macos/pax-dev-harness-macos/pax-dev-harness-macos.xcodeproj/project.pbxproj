@@ -7,24 +7,24 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1459D7E4280F2922006391F8 /* libpaxchassismacos.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */; };
+		1459D7E5280F2922006391F8 /* libpaxchassismacos.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
+		1459D7E8280F2933006391F8 /* libpaxchassismacos.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1459D7E7280F2922006391F8 /* libpaxchassismacos.a */; };
 		14965C0527FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14965C0427FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift */; };
 		14965C0727FE3D0F00A38CA1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14965C0627FE3D0F00A38CA1 /* ContentView.swift */; };
 		14965C0927FE3D1100A38CA1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14965C0827FE3D1100A38CA1 /* Assets.xcassets */; };
 		14965C0C27FE3D1100A38CA1 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14965C0B27FE3D1100A38CA1 /* Preview Assets.xcassets */; };
-		14965C182805EA7300A38CA1 /* libpaxchassismacos.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 14965C172805EA3B00A38CA1 /* libpaxchassismacos.a */; };
 		14965C1E2805EAFD00A38CA1 /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 14965C1D2805EAF500A38CA1 /* libresolv.tbd */; platformFilter = maccatalyst; };
-		14965C1F2805EB3800A38CA1 /* libpaxchassismacos.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 14965C192805EAA700A38CA1 /* libpaxchassismacos.dylib */; };
-		14965C202805EB3800A38CA1 /* libpaxchassismacos.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 14965C192805EAA700A38CA1 /* libpaxchassismacos.dylib */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		14965C212805EB3800A38CA1 /* Embed Libraries */ = {
+		1459D7E6280F2922006391F8 /* Embed Libraries */ = {
 			isa = PBXCopyFilesBuildPhase;
 			buildActionMask = 2147483647;
 			dstPath = "";
 			dstSubfolderSpec = 10;
 			files = (
-				14965C202805EB3800A38CA1 /* libpaxchassismacos.dylib in Embed Libraries */,
+				1459D7E5280F2922006391F8 /* libpaxchassismacos.dylib in Embed Libraries */,
 			);
 			name = "Embed Libraries";
 			runOnlyForDeploymentPostprocessing = 0;
@@ -32,6 +32,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libpaxchassismacos.dylib; path = ../../target/debug/libpaxchassismacos.dylib; sourceTree = "<group>"; };
+		1459D7E7280F2922006391F8 /* libpaxchassismacos.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpaxchassismacos.a; path = ../../target/debug/libpaxchassismacos.a; sourceTree = "<group>"; };
 		14965C0127FE3D0F00A38CA1 /* pax-dev-harness-macos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "pax-dev-harness-macos.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		14965C0427FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pax_dev_harness_macosApp.swift; sourceTree = "<group>"; };
 		14965C0627FE3D0F00A38CA1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -51,9 +53,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				14965C182805EA7300A38CA1 /* libpaxchassismacos.a in Frameworks */,
-				14965C1F2805EB3800A38CA1 /* libpaxchassismacos.dylib in Frameworks */,
+				1459D7E8280F2933006391F8 /* libpaxchassismacos.a in Frameworks */,
 				14965C1E2805EAFD00A38CA1 /* libresolv.tbd in Frameworks */,
+				1459D7E4280F2922006391F8 /* libpaxchassismacos.dylib in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -102,6 +104,8 @@
 		14965C132805E47D00A38CA1 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				1459D7E7280F2922006391F8 /* libpaxchassismacos.a */,
+				1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */,
 				14965C1D2805EAF500A38CA1 /* libresolv.tbd */,
 				14965C192805EAA700A38CA1 /* libpaxchassismacos.dylib */,
 				14965C172805EA3B00A38CA1 /* libpaxchassismacos.a */,
@@ -120,7 +124,7 @@
 				14965BFD27FE3D0F00A38CA1 /* Sources */,
 				14965BFE27FE3D0F00A38CA1 /* Frameworks */,
 				14965BFF27FE3D0F00A38CA1 /* Resources */,
-				14965C212805EB3800A38CA1 /* Embed Libraries */,
+				1459D7E6280F2922006391F8 /* Embed Libraries */,
 			);
 			buildRules = (
 			);

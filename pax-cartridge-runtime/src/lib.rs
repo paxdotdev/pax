@@ -12,7 +12,7 @@ use pax_runtime_api::{ArgsCoproduct, PropertyInstance, PropertyLiteral, Size2D, 
 
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
 use pax_example::pax_types::{Root};
-use pax_example::pax_types::pax_std::primitives::{Rectangle, Group};
+use pax_example::pax_types::pax_std::primitives::{RectangleProperties, Group};
 use pax_example::pax_types::pax_std::types::{Color, Stroke, Size, SpreadCellProperties};
 use pax_example::pax_types::pax_std::components::Spread;
 
@@ -48,7 +48,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
 
         return TypesCoproduct::Transform2D(
             Transform2D::align(Size::Percent(50.0), Size::Percent(50.0)) *
-            Transform2D::origin(Size::Percent(50.0), Size::Percent(50.0)) *
+            Transform2D::anchor(Size::Percent(50.0), Size::Percent(50.0)) *
             Transform2D::rotate(__AT__frames_elapsed * i / 100.0) *
             Transform2D::translate(i * 10.0, i * 10.0) *
             Transform2D::rotate(__AT__frames_elapsed / 50.0)
@@ -187,7 +187,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
         } else { unreachable!("zeta") };
 
         TypesCoproduct::Transform2D(
-            Transform2D::origin(Size::Percent(50.0), Size::Percent(50.0))
+            Transform2D::anchor(Size::Percent(50.0), Size::Percent(50.0))
                 * Transform2D::align(Size::Percent(50.0), Size::Percent(50.0))
                 * Transform2D::rotate(current_rotation)
         )
@@ -251,7 +251,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                         size: Some([Box::new(PropertyLiteral::new(Size::Percent(100.0))), Box::new(PropertyLiteral::new(Size::Percent(100.0)))]),
                         children: Some(Rc::new(RefCell::new(vec![
                             RectangleInstance::instantiate(InstantiationArgs{
-                                properties: PropertiesCoproduct::Rectangle(Rectangle {
+                                properties: PropertiesCoproduct::Rectangle(RectangleProperties {
                                     stroke: Default::default(),
                                     fill: Box::new(PropertyLiteral::new(Color::rgba(0.0, 1.0, 1.0, 1.0)))
                                 }),
@@ -275,7 +275,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                 size: None,
                                 children: Some(Rc::new(RefCell::new( vec![
                                     RectangleInstance::instantiate(InstantiationArgs{
-                                        properties: PropertiesCoproduct::Rectangle(Rectangle {
+                                        properties: PropertiesCoproduct::Rectangle(RectangleProperties {
                                             stroke: Default::default(),
                                             fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 0.45, 0.25, 1.0)))
                                         }),
@@ -303,7 +303,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                 compute_properties_fn: None
                             }),
                             RectangleInstance::instantiate(InstantiationArgs{
-                                properties: PropertiesCoproduct::Rectangle(Rectangle {
+                                properties: PropertiesCoproduct::Rectangle(RectangleProperties {
                                     stroke: Default::default(),
                                     fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 1.0, 0.0, 1.0)))
                                 }),

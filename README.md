@@ -6,41 +6,55 @@ Pax is a language for high performance, cross-platform computer graphics and use
 
 #### Low-level, fast, and universal
 
-Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast.
+Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast (targeting up to 120FPS) and very light-weight (targeting <100KB WASM bundles).
+
+Any Pax program can run on all available platform targets — write once, deploy everywhere.  Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
 
 #### Ergonomic and fun to use
 
-While the current state of authoring Pax requires writing (at least basic) Rust, Pax ultimately aims to be a tool for _art_ and _artists._
+Pax was birthed within Rust.  Authoring Pax in the early days will require writing Rust.
+
+A JavaScript/TypeScript runtime [is planned](TODO.md), which will enable JS/TS developers to write Pax (no Rust required.)
+
+Ultimately, Pax is aimed at enabling visual creative tooling, which should bring even more fun into the picture. 
 
 #### Sky's the limit
 
 Pax is designed to extend and support _anything you can imagine_ on a screen — from 2D to 3D to VR/AR, embedded multimedia, and more.
 
+Pax's _raison d'être_ is to enable art and artists.  This is ultimately why it's free: licensed MIT or Apache 2.0, at your choice.
 
 > Note: Today Pax is in alpha, supports GPU-primitive 2D rendering, and has working development harnesses for Web (WASM) and macOS (Swift).
 
 
 ## Target use-cases
 
- - Cross-platform GUIs that are fun to build and use
+ - Cross-platform GUIs that are fun to build and fun to use
  - Interactive cartoons and animations
- - Generative art
- - Support visual builder tools for GUIs, digital art
+ - Games
+ - Generative and procedural art, digital experimental media
  - Data visualizations
+ - Support visual design tools that create GUIs/apps/websites
+ 
 
-## Basic example
+## Get started...
 
-This Pax UI describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle transitions its rotation to a new value via an animation.
+[Get started here](https://www.pax-lang.org/get-started) with a sample project. 
+
+## ... or read on for a basic example
+
+This Pax project describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle transitions its rotation to a new value via an animation.
 
 ```rust
-//Rust
+// src/lib.rs
 use pax::*;
-use pax::drawing2D::Rectangle;
+use pax::std::drawing2D::Rectangle;
 
 #[pax(
     <Rectangle on_click=@self.handle_click transform=@{
-        align(50%, 50%) *
-        rotate(self.theta)
+        anchor(50%, 50%)   * 
+        align(50%, 50%)    * 
+        rotate(self.theta) 
     }/>
 )]
 pub struct HelloWorld {
@@ -66,10 +80,11 @@ With Pax TypeScript, this example would look like:
 ```typescript
 //TypeScript, speculative API
 //This is not yet available
-import pax from '@pax-lang/pax';
+import {pax, EasingCurve} from '@pax-lang/pax';
 
 @pax(`
     <Rectangle onClick=@this.handleClick transform=@{
+        anchor(50%, 50%) *
         align(50%, 50%) *
         rotate(this.numClicks / 20.0)
     } />
@@ -79,8 +94,14 @@ class HelloWorld {
     numClicks: number;
     
     handleClick(args: ArgsClick) {
-        const oldNumClicks = this.numClicks.get();
-        this.numClicks.set(oldNumClicks + 1);
+        const oldTheta = this.theta.get();
+        
+        //instead of an `easeTo` animation, could set value immediately with `self.theta.set(...)`
+        this.theta.easeTo(
+            oldTheta + Math.PI * 3.0,
+            240,
+            EasingCurve.OutBack
+        );
     }
 }
 
@@ -124,9 +145,13 @@ Development harness OR production harness OR UI component
 As of the current authoring, the WASM bundle for a very basic Pax app is about 150kb including several known unnecessary libraries and debug symbols.
 100kb will be easily achievable and is a reasonable long-term goal.  <50kb is a stretch-goal.
 
-Memory footprint is on the order of 10s of MB (contrast with 500MB+ for browsers/Electron apps)
+Baseline memory (RAM) footprint is on the order of 50MB; this has not yet been optimized.
 
+#### Who is behind Pax?
 
+The first versions of Pax were designed and built by [an individual](https://www.github.com/zackbrown), but the goal is for Pax to be community-owned.
+
+Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  If you're interested in helping bring form to the non-profit, [reach out on Discord!](https://discord.gg/4E6tcrtCRb)
 
 
 ## Inspiration
@@ -141,13 +166,26 @@ Pax draws design inspiration from, among others:
 - The Nintendo Entertainment System
 
 
+## Get started
+
+[Get started here](https://www.pax-lang.org/get-started) with a sample project.
+
+
+## Contributing
+
+There are generous TODOs sprinkled throughout the codebase.  Feel free to strike up a conversation on [Discord](https://discord.gg/4E6tcrtCRb).
 
 ## Development
 
-### Running the project
+### Running the project, with debugger support
+
 `./serve.sh`
 
+Then attach to the `pax-dev-harness-macos` process using your IDE or debugging client.
+(TODO: make these instructions Linux and Windows friendly)
+
 ### Environment setup, web chassis
+
 - Install `wasm-opt` via `binaryen`:
    ```shell
    brew install binaryen
@@ -173,7 +211,7 @@ Pax draws design inspiration from, among others:
 
 
 
-# Footnotes
+## Footnotes
 
 [1] Note that Pax is currently in alpha and should only be used in settings where that's not a concern.
 

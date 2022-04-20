@@ -7,8 +7,8 @@
 
 import SwiftUI
 
-let FPS = 60.0
-let REFRESH_PERIOD = 1.0/FPS //seconds between frames (e.g. 16.667 for 60Hz)
+let FPS = 60.0                   //Hz
+let REFRESH_PERIOD = 1.0 / FPS   //seconds between frames (e.g. 16.667 for 60Hz)
 
 struct ContentView: View {
     var body: some View {
@@ -21,11 +21,12 @@ struct PaxCanvasViewRepresentable: NSViewRepresentable {
     typealias NSViewType = CanvasView
     
     func makeNSView(context: Context) -> CanvasView {
-        return CanvasView()
+        let view = CanvasView()
+        //TODO: BG transparency
+        return view
     }
     
-    func updateNSView(_ canvas: CanvasView, context: Context) {
-    }
+    func updateNSView(_ canvas: CanvasView, context: Context) { }
 }
 
 

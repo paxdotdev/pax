@@ -12,7 +12,7 @@
     [x] Browser resize support
     [x] None-sizing
     [x] Transform.align
-    [x] Transform.origin
+    [x] Transform.anchor
 [x] Expression engine
     [x] variables, declaration & storage
     [x] node IDs
@@ -34,7 +34,7 @@
     [x] (Further work to be done via compiler task)
 [x] Timelines, transitions
 [x] Refactors
-    [x] Bundle Transform into "sugary transform," incl. origin & align; consider a separate transform_matrix property
+    [x] Bundle Transform into "sugary transform," incl. anchor & align; consider a separate transform_matrix property
     [x] Is there a way to better-DRY the shared logic across render-nodes?
 e.g. check out the `get_size` methods for Frame and Spread
     [x] Maybe related to above:  can we DRY the default properties for a render node?
@@ -135,7 +135,7 @@ _RIL means Rust Intermediate Language, which is the
         [x] sanity-check Repeat
     [x] port Repeat, etc. to latest RIL
 [x] API cleanup pass
-    [x] make consistent Size, Percent, Origin, Align
+    [x] make consistent Size, Percent, Anchor, Align
     [x] finish-line @if
     [x] support in-.rs-file pax, as alternative choice vs. code-behind file
 ```
@@ -170,6 +170,10 @@ _RIL means Rust Intermediate Language, which is the
     [x] `@for`
     [x] ranges: literal and symbolic
     [x] `@template` block, vs. top-level
+[ ] chassis/native serialization++
+    [ ] runtime serialization standard -- JSON? RON? FlatBuffers? consider wasm footprint (JSON deserialization is free in footprint)
+    [ ] chassis-specific deserialization 
+    [ ] applicability to other direction -- e.g. passing user input, events
 [ ] dev env ++
     [ ] support inline (in-file) component def. (as alternative to `#[pax_component_definition]` file path)
     [x] support for different example projects
@@ -748,7 +752,7 @@ it must be handled as a primitive (i.e. one that defines `fn get_size() { None }
 
 one more decision:
 Add `position` as a property? (essentially `.x` and `.y` — but consistent with ergonomics of giving `transform` and `size` their own buckets)
-This would act as an affine translation, after origin and align calculation but before remaining transform calculation
+This would act as an affine translation, after anchor and align calculation but before remaining transform calculation
 Currently it's not necessary because `translate` is effectively equivalent.
 
 If `position` were added, given that it's purely ergonomic (approachability), consider
