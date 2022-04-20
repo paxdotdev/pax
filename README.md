@@ -37,7 +37,7 @@ Pax is designed to extend and support _anything you can imagine_ on a screen —
  - Games
  - Generative and procedural art, digital experimental media
  - Data visualizations
- - Enable visual design tools to create GUIs/apps/websites
+ - Visual design tooling
  
 
 ## Get started...
@@ -48,10 +48,10 @@ Pax is designed to extend and support _anything you can imagine_ on a screen —
 
 This Pax project describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle transitions its rotation to a new value via an animation.
 
-First let's look at the Pax in this example by itself:
+First let's look at the Pax by itself:
 
-```pax
-// Pax example
+```xml
+// Pax
 <Rectangle on_click=@self.handle_click transform=@{
     anchor(50%, 50%)   * 
     align(50%, 50%)    * 
