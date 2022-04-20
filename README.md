@@ -164,9 +164,7 @@ Thus, even from its earliest days, Pax is stewarded through a non-profit: the [P
 
 Right now it's a basic, mostly empty legal entity, and it's likely to stay that way for many years.  If you're interested in helping bring form to the non-profit, [reach out on Discord!](https://discord.gg/4E6tcrtCRb)
 
-
 <img src="support-matrix-cartridge-placeholder.png" alt="A surrealistic painting of a support matrix of green checkmarks and eggs; A series of video game cartridges emitting magic glows" />
-
 
 
 ## Inspiration
@@ -181,10 +179,9 @@ Pax draws design inspiration from, among others:
 - The Nintendo Entertainment System
 
 
-
 ## Art credit
 
-[DALL-E 2](https://openai.com/dall-e-2/)'s rendition of: "A phone, a tablet, and a laptop: each displaying a nebula"_
+[DALL-E 2](https://openai.com/dall-e-2/) 
 
 
 ## Footnotes
