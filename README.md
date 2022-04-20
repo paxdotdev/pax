@@ -30,8 +30,6 @@ Pax is designed to extend and support _anything you can imagine_ on a screen —
 <img src="fast-ergonomic-sky-placeholder.png" alt="A surrealistic painting of a computer chip; A pastel sunrise over a city made of checkboxes, dropdown lists, buttons, and mouse pointers" />
 
 
-
-
 ## Target use-cases
 
  - Cross-platform GUIs that are fun to build and fun to use
@@ -137,8 +135,6 @@ class HelloWorld {
 | ⏲ Not yet supported |
 
 
-<img src="support-matrix-cartridge-placeholder.png" alt="A surrealistic painting of a support matrix of green checkmarks and eggs; A series of video game cartridges emitting magic glows" />
-
 
 ## FAQ
 
@@ -168,9 +164,9 @@ Thus, even from its earliest days, Pax is stewarded through a non-profit: the [P
 
 Right now it's a basic, mostly empty legal entity, and it's likely to stay that way for many years.  If you're interested in helping bring form to the non-profit, [reach out on Discord!](https://discord.gg/4E6tcrtCRb)
 
-## Get started
 
-[Get started here](https://www.pax-lang.org/get-started) with an example project.
+<img src="support-matrix-cartridge-placeholder.png" alt="A surrealistic painting of a support matrix of green checkmarks and eggs; A series of video game cartridges emitting magic glows" />
+
 
 
 ## Inspiration
