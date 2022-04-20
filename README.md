@@ -4,7 +4,7 @@ Pax is a language for high performance, cross-platform computer graphics and use
 
 <img src="multi-device-placeholder.png" alt="placeholder image for visual of various devices showing the same Pax rendering with responsive layout">
 
-_Image credit: OpenAI DALL-E 2_
+_Art credit: [DALL-E 2](https://openai.com/dall-e-2/)'s rendition of: "A phone, a tablet, and a laptop: each displaying a nebula"_
 
 Pax _snaps on_ to any Rust codebase (one day: also other languages) to build highly declarative, expressive, and performant UIs
 
