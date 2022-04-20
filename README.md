@@ -16,14 +16,13 @@ Pax is "write once, deploy everywhere."  Native techniques are applied maximally
 
 Pax was birthed within Rust.  Authoring Pax in the early days will require writing Rust for application logic.  
 
-That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  On the roadmap is a JavaScript runtime that will allow authoring Pax without writing any Rust. 
-
-Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_ is to enable art and artists as well as developers.   
-
+That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is a JavaScript runtime that will allow authoring Pax without writing any Rust.
 
 #### Sky's the limit
 
 Pax is designed to extend and support _anything you can imagine_ on a screen — from 2D to 3D to VR/AR, embedded multimedia, and more.
+
+Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_ is to enable art and artists as well as developers.
 
 > Note: Today Pax is in alpha, supports GPU-primitive 2D vector graphics, and has working development harnesses for Web (WASM) and native macOS (Swift).
 
@@ -51,7 +50,7 @@ First let's look at the Pax by itself:
 
 ```jsx
 // Pax
-<Rectangle on_click={self.handle_click} transform={
+<Rectangle on_click={self.handle_click with (i, j)} transform={
     anchor(50%, 50%)   * 
     align(50%, 50%)    * 
     rotate(self.theta) 
