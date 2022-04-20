@@ -16,7 +16,7 @@ Pax is "write once, deploy everywhere."  Native techniques are applied maximally
 
 Pax was birthed within Rust.  Authoring Pax in the early days will require writing Rust for application logic.  
 
-That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is a JavaScript runtime that will allow authoring Pax without writing any Rust.
+That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is a JavaScript runtime that will allow authoring Pax without writing any Rust — it should feel more like hacking HTML and CSS.
 
 #### Sky's the limit
 
@@ -42,7 +42,7 @@ Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d
 
 [Get started here](https://www.pax-lang.org/get-started) with an example project. 
 
-## ... or read on for a basic example
+## ... or see a basic example
 
 This Pax project describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle transitions its rotation to a new value via an animation.
 
@@ -178,8 +178,6 @@ The first versions of Pax were designed and built by [an individual](https://www
 Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  
 
 Participation in the non-profit is available to any contributor or sponsor.  [Reach out on Discord](https://discord.gg/4E6tcrtCRb) to learn more.
-
-Right now it's a basic, mostly empty legal entity, and it's likely to stay that way for many years.  If you're interested in helping bring form to the non-profit, 
 
 <img src="support-matrix-cartridge-placeholder.png" alt="A surrealistic painting of a support matrix of green checkmarks and eggs; A series of video game cartridges emitting magic glows" />
 
