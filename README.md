@@ -2,11 +2,9 @@
 
 Pax is a language for high performance, cross-platform computer graphics and user interfaces.
 
-<img src="multi-device-placeholder.png" alt="placeholder image for visual of various devices showing the same Pax rendering with responsive layout">
+<img src="multi-device-placeholder.png" alt="Two separate rendition wherein a phone, a tablet, and a laptop each display a nebula">
 
-_Art credit: [DALL-E 2](https://openai.com/dall-e-2/)'s rendition of: "A phone, a tablet, and a laptop: each displaying a nebula"_
-
-Pax _snaps on_ to any Rust codebase (one day: also other languages) to build highly declarative, expressive, and performant UIs
+Pax _snaps on_ to any Rust codebase (one day: also other languages) to build highly declarative, expressive, and performant graphics, animations, and GUIs.
 
 #### Low-level, fast, and universal
 
@@ -20,7 +18,7 @@ Pax was birthed within Rust.  Authoring Pax in the early days will require writi
 
 A JavaScript/TypeScript runtime [is planned](TODO.md), which will enable JS/TS developers to write Pax (no Rust required.)
 
-Ultimately, Pax is aimed at enabling visual creative tooling, which should be even more fun. 
+Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_, in the long run, is to enable art and artists.
 
 #### Sky's the limit
 
@@ -28,7 +26,11 @@ Pax is designed to extend and support _anything you can imagine_ on a screen —
 
 > Note: Today Pax is in alpha, supports GPU-primitive 2D rendering, and has working development harnesses for Web (WASM) and native macOS (Swift).
 
-Pax's _raison d'être_ is to enable art and artists.  This is ultimately why it's free: licensed MIT or Apache 2.0, at your choice.
+
+<img src="fast-ergonomic-sky-placeholder.png" alt="A surrealistic painting of a computer chip; A pastel sunrise over a city made of checkboxes, dropdown lists, buttons, and mouse pointers" />
+
+
+
 
 ## Target use-cases
 
@@ -179,6 +181,11 @@ Pax draws design inspiration from, among others:
 - VisiCalc, Lotus 1-2-3, Excel
 - The Nintendo Entertainment System
 
+
+
+## Art credit
+
+[DALL-E 2](https://openai.com/dall-e-2/)'s rendition of: "A phone, a tablet, and a laptop: each displaying a nebula"_
 
 
 ## Footnotes
