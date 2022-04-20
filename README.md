@@ -37,7 +37,7 @@ Pax is designed to extend and support _anything you can imagine_ on a screen —
  - Games
  - Generative and procedural art, digital experimental media
  - Data visualizations
- - Support visual design tools that create GUIs/apps/websites
+ - Enable visual design tools to create GUIs/apps/websites
  
 
 ## Get started...
