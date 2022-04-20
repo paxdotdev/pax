@@ -29,7 +29,4 @@ impl Root {
         }
     }
 
-    pub fn some_click_handler(&mut self, args: ArgsClick, i: usize) {
-
-    }
 }

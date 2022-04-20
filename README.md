@@ -1,10 +1,10 @@
-# Pax 
-
-Pax is a language for high performance, cross-platform computer graphics and user interfaces.
+# Pax
 
 <img src="multi-device-placeholder.png" alt="Two separate rendition wherein a phone, a tablet, and a laptop each display a nebula">
 
-Pax _snaps on_ to a Rust codebase to create highly declarative and expressive visual scenes, connected to application logic.
+Pax is a language for high performance, cross-platform computer graphics and user interfaces.
+
+Pax _snaps on_ to a Rust codebase to create expressive GUIs or graphical scenes, connected to Rust application logic.
 
 #### Low-level, fast, and universal
 
@@ -18,15 +18,14 @@ Pax was birthed within Rust.  Authoring Pax in the early days will require writi
 
 That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  On the roadmap is a JavaScript runtime that will allow authoring Pax without writing any Rust. 
 
-Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_ is to enable art and artists as well as the most technical of developers.   
-
+Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_ is to enable art and artists as well as developers.   
 
 
 #### Sky's the limit
 
 Pax is designed to extend and support _anything you can imagine_ on a screen — from 2D to 3D to VR/AR, embedded multimedia, and more.
 
-> Note: Today Pax is in alpha, supports GPU-primitive 2D rendering, and has working development harnesses for Web (WASM) and native macOS (Swift).
+> Note: Today Pax is in alpha, supports GPU-primitive 2D vector graphics, and has working development harnesses for Web (WASM) and native macOS (Swift).
 
 <img src="fast-ergonomic-sky-placeholder.png" alt="A surrealistic painting of a computer chip; A pastel sunrise over a city made of checkboxes, dropdown lists, buttons, and mouse pointers" />
 
@@ -50,19 +49,17 @@ This Pax project describes a 2D rectangle at the center of the viewport that can
 
 First let's look at the Pax by itself:
 
-```xml
+```jsx
 // Pax
-<Rectangle on_click=@self.handle_click transform=@{
+<Rectangle on_click={self.handle_click} transform={
     anchor(50%, 50%)   * 
     align(50%, 50%)    * 
     rotate(self.theta) 
 }/>
 ```
 
-You'll notice it looks a lot like HTML, XAML, or JSX.  You'll also notice it includes a couple of symbols that seem to be defined elsewhere -- 
+You'll notice it looks a lot like HTML, XAML, or JSX.  You'll also notice a couple of symbols that seem to be defined elsewhere -- 
 a click handler called `self.handle_click` and some rotation value `self.theta`.  Those values are defined in the Rust struct that Pax attaches to.
-
-You may also notice that an _expression_ is declared for the rectangle's `rotation`. Similar to a spreadsheet formula, the `transform` value of the Rectangle will be computed as a function of its inputs (in this case, `self.theta` — vs. a spreadsheet formula which might have an input like `A1`).
 
 Here's the full example including Rust:
 
@@ -73,7 +70,7 @@ use pax::*;
 use pax::std::drawing2D::Rectangle;
 
 #[pax(
-    <Rectangle on_click=@self.handle_click transform=@{
+    <Rectangle on_click=@self.handle_click transform={
         anchor(50%, 50%)   * 
         align(50%, 50%)    * 
         rotate(self.theta) 
@@ -97,7 +94,9 @@ impl HelloWorld {
 }
 ```
 
-With Pax TypeScript, this full example would look like:
+## TypeScript example (future)
+
+With Pax TypeScript, this full example might look like:
 
 ```typescript
 // TypeScript, speculative API
@@ -253,8 +252,6 @@ Then attach to the `pax-dev-harness-macos` process using your IDE or debugging c
 
 (TODO: make more thorough)
 - Install xcode, command line utils
-
-
 
 
 
