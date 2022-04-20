@@ -4,13 +4,13 @@ Pax is a language for high performance, cross-platform computer graphics and use
 
 <img src="multi-device-placeholder.png" alt="Two separate rendition wherein a phone, a tablet, and a laptop each display a nebula">
 
-Pax _snaps on_ to any Rust codebase (one day: also other languages) to build highly declarative, expressive, and performant graphics, animations, and GUIs.
+Pax _snaps on_ to any Rust codebase to build highly declarative, expressive, and performant graphics, animations, and GUIs.  One day, Pax will support _host languages_ beyond Rust.
 
 #### Low-level, fast, and universal
 
-Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast (targeting up to 120FPS) and very light-weight (targeting <100KB WASM bundles).
+Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and carries a small disk/network footprint.
 
-Any Pax program can run on all available platform targets — write once, deploy everywhere.  Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
+Pax is "write once, deploy everywhere."  Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
 
 #### Ergonomic and fun to use
 
@@ -18,7 +18,7 @@ Pax was birthed within Rust.  Authoring Pax in the early days will require writi
 
 A JavaScript/TypeScript runtime [is planned](TODO.md), which will enable JS/TS developers to write Pax (no Rust required.)
 
-Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_, in the long run, is to enable art and artists.
+Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_ is to enable art and artists.  At the same time, Pax is first and foremost a language for developers.
 
 #### Sky's the limit
 
@@ -26,9 +26,7 @@ Pax is designed to extend and support _anything you can imagine_ on a screen —
 
 > Note: Today Pax is in alpha, supports GPU-primitive 2D rendering, and has working development harnesses for Web (WASM) and native macOS (Swift).
 
-
 <img src="fast-ergonomic-sky-placeholder.png" alt="A surrealistic painting of a computer chip; A pastel sunrise over a city made of checkboxes, dropdown lists, buttons, and mouse pointers" />
-
 
 ## Target use-cases
 
@@ -143,7 +141,6 @@ class HelloWorld {
 
 Compile to cartridge (machine code: LLVM or WASM -- like an NES ROM)
 Snap into chassis, load in a full-screen container app — like Electron but pure, fast native code — also like "Electron" for iOS/Android apps
-
 
 Development harness OR production harness OR UI component
 
