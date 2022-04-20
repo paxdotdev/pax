@@ -4,7 +4,7 @@ Pax is a language for high performance, cross-platform computer graphics and use
 
 <img src="multi-device-placeholder.png" alt="Two separate rendition wherein a phone, a tablet, and a laptop each display a nebula">
 
-Pax _snaps on_ to any Rust codebase to build highly declarative, expressive, and performant graphics, animations, and GUIs.  One day, Pax will support _host languages_ beyond Rust.
+Pax _snaps on_ to a Rust codebase to create highly declarative, expressive, and performant graphics, animations, and GUIs.
 
 #### Low-level, fast, and universal
 
@@ -14,11 +14,13 @@ Pax is "write once, deploy everywhere."  Native techniques are applied maximally
 
 #### Ergonomic and fun to use
 
-Pax was birthed within Rust.  Authoring Pax in the early days will require writing Rust.
+Pax was birthed within Rust.  Authoring Pax in the early days will require writing Rust for application logic.  
 
-A JavaScript/TypeScript runtime [is planned](TODO.md), which will enable JS/TS developers to write Pax (no Rust required.)
+That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  On the roadmap is a JavaScript runtime that will allow authoring Pax without writing any Rust. 
 
-Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_ is to enable art and artists.  At the same time, Pax is first and foremost a language for developers.
+Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_ is to enable art and artists as well as the most technical of developers.   
+
+
 
 #### Sky's the limit
 
@@ -45,6 +47,24 @@ Pax is designed to extend and support _anything you can imagine_ on a screen —
 ## ... or read on for a basic example
 
 This Pax project describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle transitions its rotation to a new value via an animation.
+
+First let's look at the Pax in this example by itself:
+
+```pax
+// Pax example
+<Rectangle on_click=@self.handle_click transform=@{
+    anchor(50%, 50%)   * 
+    align(50%, 50%)    * 
+    rotate(self.theta) 
+}/>
+```
+
+You'll notice it looks a lot like HTML, XAML, or JSX.  You'll also notice it includes a couple of symbols that seem to be defined elsewhere -- 
+a click handler called `self.handle_click` and some rotation value `self.theta`.  Those values are defined in the Rust struct that Pax attaches to.
+
+You may also notice that an _expression_ is declared for the rectangle's `rotation`. Similar to a spreadsheet formula, the `transform` value of the Rectangle will be computed as a function of its inputs (in this case, `self.theta`).
+
+Here's the full example including Rust:
 
 ```rust
 // Rust
@@ -77,7 +97,7 @@ impl HelloWorld {
 }
 ```
 
-With Pax TypeScript, this example would look like:
+With Pax TypeScript, this full example would look like:
 
 ```typescript
 // TypeScript, speculative API
@@ -147,7 +167,7 @@ Development harness OR production harness OR UI component
 #### What is Pax's footprint?
 
 As of the current authoring, the WASM bundle for a very basic Pax app is about 150kb including several known unnecessary libraries and debug symbols.
-100kb will be easily achievable and is a reasonable long-term goal.  <50kb is a stretch-goal.
+100kb should be easily achievable and is a reasonable long-term goal.  <50kb is a stretch-goal.
 
 Baseline memory (RAM) footprint is on the order of 50MB; this has not yet been optimized.
 
@@ -347,6 +367,30 @@ are roughly equivalent to formulas in spreadsheets: declarative, easy to isolate
 The reason _all of that_ matters is because Pax was **designed to be designed** — in the sense of "design tools" that can read and write Pax code as a comprehensive
 description of any visual content, design, prototype, document, production GUI, or scene.
 
+
+
+## Appendix D: Tic-tac-toe example
+
+```
+//Tic-tac-toe example
+<Spread direction=Horizontal cell_count=3 >
+  @for i in 0..3 {
+    <Spread direction=Vertical cell_count=3 >
+      @for j in 0..3 {
+        <Group on_jab=@handle_jab with (i, j)>
+          if self.cells[i][j] == Cell::Empty {
+            <image src="blank.png">
+          }else if self.cells[i][j] == Cell:X {
+            <Image src="x.png" />
+          }else if self.cells[i][j] == Cell::O {
+            <Image src="o.png" />
+          }
+        </Group>
+      }
+    </Spread>
+  }
+</Spread>
+```
 
 
 ## Get started
