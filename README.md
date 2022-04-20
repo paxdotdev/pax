@@ -1,6 +1,8 @@
 # Pax 
 
-Pax is a language for high performance, cross-platform computer graphics and user interfaces.
+Pax is a language for high performance, cross-platform computer graphics and user interfaces.  
+
+Pax "snaps on" to a Rust codebase (future: other languages beyond Rust) to build highly declarative, reusable, and easy UIs
 
 <img src="multi-device-placeholder.png" alt="placeholder image for visual of various devices showing the same Pax rendering with responsive layout">
 
@@ -16,16 +18,15 @@ Pax was birthed within Rust.  Authoring Pax in the early days will require writi
 
 A JavaScript/TypeScript runtime [is planned](TODO.md), which will enable JS/TS developers to write Pax (no Rust required.)
 
-Ultimately, Pax is aimed at enabling visual creative tooling, which should bring even more fun into the picture. 
+Ultimately, Pax is aimed at enabling visual creative tooling, which should be even more fun. 
 
 #### Sky's the limit
 
 Pax is designed to extend and support _anything you can imagine_ on a screen — from 2D to 3D to VR/AR, embedded multimedia, and more.
 
+> Note: Today Pax is in alpha, supports GPU-primitive 2D rendering, and has working development harnesses for Web (WASM) and native macOS (Swift).
+
 Pax's _raison d'être_ is to enable art and artists.  This is ultimately why it's free: licensed MIT or Apache 2.0, at your choice.
-
-> Note: Today Pax is in alpha, supports GPU-primitive 2D rendering, and has working development harnesses for Web (WASM) and macOS (Swift).
-
 
 ## Target use-cases
 
@@ -39,13 +40,14 @@ Pax's _raison d'être_ is to enable art and artists.  This is ultimately why it'
 
 ## Get started...
 
-[Get started here](https://www.pax-lang.org/get-started) with a sample project. 
+[Get started here](https://www.pax-lang.org/get-started) with an example project. 
 
 ## ... or read on for a basic example
 
 This Pax project describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle transitions its rotation to a new value via an animation.
 
 ```rust
+// Rust
 // src/lib.rs
 use pax::*;
 use pax::std::drawing2D::Rectangle;
@@ -78,8 +80,8 @@ impl HelloWorld {
 With Pax TypeScript, this example would look like:
 
 ```typescript
-//TypeScript, speculative API
-//This is not yet available
+// TypeScript, speculative API
+// This is not yet available
 import {pax, EasingCurve} from '@pax-lang/pax';
 
 @pax(`
@@ -137,7 +139,9 @@ class HelloWorld {
 #### How does Pax work cross-platform?
 
 Compile to cartridge (machine code: LLVM or WASM -- like an NES ROM)
-Snap into chassis, load
+Snap into chassis, load in a full-screen container app — like Electron but pure, fast native code — also like "Electron" for iOS/Android apps
+
+
 Development harness OR production harness OR UI component
 
 #### What is Pax's footprint?
@@ -147,11 +151,19 @@ As of the current authoring, the WASM bundle for a very basic Pax app is about 1
 
 Baseline memory (RAM) footprint is on the order of 50MB; this has not yet been optimized.
 
+CPU has not been well profiled (TODO:) but stands to be improved significantly, especially through rendering optimizations.
+
 #### Who is behind Pax?
 
 The first versions of Pax were designed and built by [an individual](https://www.github.com/zackbrown), but the goal is for Pax to be community-owned.
 
-Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  If you're interested in helping bring form to the non-profit, [reach out on Discord!](https://discord.gg/4E6tcrtCRb)
+Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  
+
+Right now it's a basic, mostly empty legal entity, and it's likely to stay that way for many years.  If you're interested in helping bring form to the non-profit, [reach out on Discord!](https://discord.gg/4E6tcrtCRb)
+
+## Get started
+
+[Get started here](https://www.pax-lang.org/get-started) with an example project.
 
 
 ## Inspiration
@@ -166,14 +178,23 @@ Pax draws design inspiration from, among others:
 - The Nintendo Entertainment System
 
 
-## Get started
 
-[Get started here](https://www.pax-lang.org/get-started) with a sample project.
+## Footnotes
 
+[1] Note that Pax is currently in alpha and should only be used in settings where that's not a concern.
+
+[2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the admirable work behind [Piet](https://github.com/linebender/piet).
+
+[3] PAXEL is similar to Google's Common Expression Language (CEL), but CEL was not a suitable fit for Pax due to its footprint — being written in Go, CEL adds
+a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total target footprint of <100KB.  Pax also has subtly distinct goals
+vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this particular domain.
+
+
+---
 
 ## Contributing
 
-There are generous TODOs sprinkled throughout the codebase.  Feel free to strike up a conversation on [Discord](https://discord.gg/4E6tcrtCRb).
+There are generous TODOs sprinkled throughout the codebase.  There may be undocumented nuance or intention behind certain aspects of the project — feel free to strike up a conversation on [Discord](https://discord.gg/4E6tcrtCRb).
 
 ## Development
 
@@ -207,19 +228,8 @@ Then attach to the `pax-dev-harness-macos` process using your IDE or debugging c
 ### Environment setup, macOS chassis
 
 (TODO: make more thorough)
- - Install xcode, command line utils 
+- Install xcode, command line utils
 
-
-
-## Footnotes
-
-[1] Note that Pax is currently in alpha and should only be used in settings where that's not a concern.
-
-[2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the admirable work behind [Piet](https://github.com/linebender/piet).
-
-[3] PAXEL is similar to Google's Common Expression Language (CEL), but CEL was not a suitable fit for Pax due to its footprint — being written in Go, CEL adds
-a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total target footprint of <100KB.  Pax also has subtly distinct goals
-vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this particular domain.
 
 
 
@@ -335,3 +345,8 @@ are roughly equivalent to formulas in spreadsheets: declarative, easy to isolate
 The reason _all of that_ matters is because Pax was **designed to be designed** — in the sense of "design tools" that can read and write Pax code as a comprehensive
 description of any visual content, design, prototype, document, production GUI, or scene.
 
+
+
+## Get started
+
+[Get started here](https://www.pax-lang.org/get-started) with an example project.
