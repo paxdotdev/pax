@@ -3,6 +3,7 @@
 Pax is a language for high performance, cross-platform computer graphics and user interfaces.
 
 <img src="multi-device-placeholder.png" alt="placeholder image for visual of various devices showing the same Pax rendering with responsive layout">
+
 _Image credit: OpenAI DALL-E 2_
 
 Pax _snaps on_ to any Rust codebase (one day: also other languages) to build highly declarative, expressive, and performant UIs
