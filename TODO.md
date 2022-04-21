@@ -158,7 +158,7 @@ _RIL means Rust Intermediate Language, which is the
     [x] "expand the proof" of generated code & make it work manually
 ```
 
-## Milestone: automated compilation
+## Milestone: OSS release
 
 ```
 [x] resolve the `Any` question
@@ -171,7 +171,10 @@ _RIL means Rust Intermediate Language, which is the
     [x] ranges: literal and symbolic
     [x] `@template` block, vs. top-level
 [ ] chassis/native serialization++
-    [ ] runtime serialization standard -- JSON? RON? FlatBuffers? consider wasm footprint (JSON deserialization is free in footprint)
+    [ ] message design: coproduct? (what about extensibility? treat like PropertiesCoproduct with codegen?)
+        [ ] components can register messages to be added to global coproduct (a la `PropertiesCoproduct`)
+        [ ] Optimization: allow messages to be categorized `in`/`out`/`both` to reduce generated de/ser logic for footprint. For example: `ClickArgs` may be a `in` event, meaning the dev harness needs only to serialize
+    [ ] runtime serialization standard -- JSON? RON? FlatBuffers? consider wasm footprint vs. serialization compute overhead (JSON deserialization is free in footprint, medium-cost in de/ser)
     [ ] chassis-specific deserialization 
     [ ] applicability to other direction -- e.g. passing user input, events
 [ ] dev env ++
@@ -257,6 +260,32 @@ _RIL means Rust Intermediate Language, which is the
 ```
 
 
+## Milestone: drawing++
+```
+[ ] Palette built-in: perhaps `@palette { optional_nesting: {  } }
+[ ] Path primitive + APIs for animations
+[ ] Ellipse
+```
+
+
+
+
+## Milestone: capabilities++
+
+```
+[ ] asset management -- enables fonts and images
+    [ ] decide on approach: bundle into binary or work with chassis/dev-harness for bundling
+    [ ] support async/http assets, relative paths + configurable prefix path, absolute paths, http/https
+[ ] Text++
+    [ ] custom fonts: embedded or webfonts
+    [ ] basic text + paragraph API
+        [ ] font family, face, weight, decoration
+        [ ] "rich text" or "annotated text" to support mixed content
+        [ ] paragraph: left-align/right-align/justify
+        [ ] (rely on `Transform` for vertical centering)
+[ ] Raster images
+    [ ] Sizing / clipping API (e.g. cover, or anchor + stretch/maintain/fill/target-width/target-height/etc.)
+```
 
 ## Milestone: clickable square
 Three "clickable squares" with independent event handlers, state
@@ -269,18 +298,17 @@ On click, each square performs an animated transformation, e.g. rotation
         [ ] grammar+parser support
         [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
         [ ] multiple variables in tuple `(i,j,k)`
-    
 [ ] Action API
     [x] state management (.get/.set/etc.)
-    [ ] hooks into dirty-update system, for efficient expressions
+    [ ] hooks into dirty-update system, for expression updates
     [x] Instantiation, reference management, enum ID + addressing for method definitions &
         invocations
-    [ ] tween/dynamic timeline API
-[ ] revisit chassis architecture
+    [x] tween/dynamic timeline API
+[ ] revisit chassis-web implementation
     [ ] rust/JS divide
         [ ] Sandwich TS and rust (as current,) or
         [ ] handle all cartridge work from rust, incl. generation of public API
-    [ ] concrete userland API (`mount`)
+    
 [ ] Event capture and transmission
     [ ] Map inputs through chassis, native events (mouse, touch)
         [ ] PoC with Web
@@ -306,6 +334,20 @@ On click, each square performs an animated transformation, e.g. rotation
     [-] Patch ExpressionTable into cartridge à la PropertyCoproduct
 ```
 
+
+
+## Milestone: embedded UI components
+(instead of full-window Electron/Expo-like wrappers)
+
+```
+[ ] Runtime sharing -- allow cartridges to share/sideload a runtime instead of duplicating, e.g. for 100 individual component/cartridges in a codebase
+[ ] Component SDK
+    [ ] per-platform userland API (`mount`)
+    [ ] `component-harness` alternative to `dev-harness` for embedding
+    [ ] Wire up: properties/settings, placeholders,
+    
+```
+
 ## Milestone: timelines
 
 ```
@@ -317,30 +359,17 @@ On click, each square performs an animated transformation, e.g. rotation
 [ ] ergonomic timeline API design in pax (probably JSON-esque {30: value, 120: other_value} where 30 is frame number
 ```
 
-## Milestone: vector primitives
-
-```
-[ ] Ellipse
-[ ] Path
-[ ] Image (bitmap) primitive
-    [ ] Hook into `piet`s image rendering
-    [ ] Asset management
-    [ ] SVG support? Separate primitive?
-```
-
-
-
-
 
 
 ## Backlog
 
 ```
-[ ] Revisit embedded literal strings for error messages, to reduce binary footprint
+[ ] Revisit embedded literal strings across codebase for error messages, to reduce binary footprint (enum? codes?)
 [ ] Reinvestigate Any as an alternative to Coproduct generation
     [ ] would dramatically simplify compiler, code-gen process
     [ ] would make build process less brittle
     [ ] roughly: `dyn RenderNode` -> `Box<Any>`, downcast blocks instead of `match ... unreachable!()` blocks
+        [ ] ensure compatibility with `Rc`!  Circa Q4'21, Any could not be downcast to Rc (e.g. `RenderNodePtr`)
         [ ] de-globalize InstantiationArgs, e.g. `slot_index` and `data_list`
         [ ] remove PropertiesCoproduct entirely (and probably repeat the process for TypesCoproduct)
         [ ] possibly remove two-stage compiler process

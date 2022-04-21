@@ -6,9 +6,20 @@ Pax is a language for high performance, cross-platform computer graphics and use
 
 Pax _snaps on_ to a Rust codebase to create expressive GUIs or graphical scenes, connected to Rust application logic.
 
+Some use-cases:
+
+- Cross-platform GUIs
+- Interactive cartoons and animations
+- Games
+- 2D documents, 2D/3D mixed media
+- Generative and procedural art, digital experimental media
+- Data visualizations
+- Visual design tooling
+
+
 #### Low-level, fast, and universal
 
-Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and carries a small disk/network footprint.
+Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very small.
 
 Pax is "write once, deploy everywhere."  Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
 
@@ -16,7 +27,7 @@ Pax is "write once, deploy everywhere."  Native techniques are applied maximally
 
 Pax was birthed within Rust.  Authoring Pax in the early days will require writing Rust for application logic.  
 
-That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is a JavaScript runtime that will allow authoring Pax without writing any Rust — it should feel more like hacking HTML and CSS.
+That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is to add a JavaScript runtime.  This will enable writing Pax without writing any Rust — hacking Pax should feel like hacking HTML and CSS.
 
 #### Sky's the limit
 
@@ -28,15 +39,6 @@ Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d
 
 <img src="fast-ergonomic-sky-placeholder.png" alt="A surrealistic painting of a computer chip; A pastel sunrise over a city made of checkboxes, dropdown lists, buttons, and mouse pointers" />
 
-## Target use-cases
-
- - Cross-platform GUIs that are fun to build and fun to use
- - Interactive cartoons and animations
- - Games
- - Generative and procedural art, digital experimental media
- - Data visualizations
- - Visual design tooling
- 
 
 ## Get started...
 
@@ -50,7 +52,7 @@ First let's look at the Pax by itself:
 
 ```jsx
 // Pax
-<Rectangle on_click={self.handle_click with (i, j)} transform={
+<Rectangle on_click={self.handle_click} transform={
     anchor(50%, 50%)   * 
     align(50%, 50%)    * 
     rotate(self.theta) 
@@ -59,6 +61,9 @@ First let's look at the Pax by itself:
 
 You'll notice it looks a lot like HTML, XAML, or JSX.  You'll also notice a couple of symbols that seem to be defined elsewhere -- 
 a click handler called `self.handle_click` and some rotation value `self.theta`.  Those values are defined in the Rust struct that Pax attaches to.
+
+A key distinction between Pax and templating languages like JSX is that Pax is _not evaluated in a closure._  Pax is always declared statically, and bound values are looked up at runtime.
+In fact, the contents of expressions isn't Rust at all, but a part of the Pax language called PAXEL — the Pax Expression Language.  
 
 Here's the full example including Rust:
 
@@ -130,20 +135,20 @@ class HelloWorld {
 
 ## Current status & support
 
-|                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              |
-|-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|
-| *Ready to use* [1]                      | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           |
-| Development harness                     | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           |
-| 2D rendering and UIs [2]                | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D             |
-| 3D rendering and UIs                    | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
-| Vector graphics APIs                    | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
-| 2D layouts                              | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
-| Animation APIs                          | ✅             | ✅                   | ✅                 | ✅                   | ✅                           |
-| Native text rendering                   | ✅ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>UIKit        | ⏲ <br/>System.Windows.Forms |
-| Native form elements                    | ⏲ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>UIKit        | ⏲ <br/>System.Windows.Forms |
-| Native event handling (e.g. Click, Tap) | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
-| Rust as host language                   | ✅ <br/>WASM   | ✅ <br/>LLVM         | ✅ <br/>LLVM       | ✅ <br/>LLVM         | ✅ <br/>LLVM                 |
-| JS/TypeScript as host language          | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           |
+|                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              | Native Linux |
+|-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|--------------|
+| *Ready to use* [1]                      | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| Development harness                     | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| 2D rendering and UIs [2]                | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ✅ <br/>Cairo      | ✅ <br/>CoreGraphics | ✅ <br/>Direct2D             | ✅ <br/>Cairo |
+| 3D rendering and UIs                    | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
+| Vector graphics APIs                    | ✅             | ✅                   | ✅                 | ✅                   | ✅                           | ✅            |
+| 2D layouts                              | ✅             | ✅                   | ✅                 | ✅                   | ✅                           | ✅            |
+| Animation APIs                          | ✅             | ✅                   | ✅                 | ✅                   | ✅                           | ✅            |
+| Native text rendering                   | ✅ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>UIKit        | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
+| Native form elements                    | ⏲ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>UIKit        | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
+| Native event handling (e.g. Click, Tap) | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
+| Rust as host language                   | ✅ <br/>WASM   | ✅ <br/>LLVM         | ✅ <br/>LLVM       | ✅ <br/>LLVM         | ✅ <br/>LLVM                 | ✅ <br/>LLVM  |
+| JS/TypeScript as host language          | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
 
 | Legend:             |
 |---------------------|
@@ -179,8 +184,6 @@ Thus, even from its earliest days, Pax is stewarded through a non-profit: the [P
 
 Participation in the non-profit is available to any contributor or sponsor.  [Reach out on Discord](https://discord.gg/4E6tcrtCRb) to learn more.
 
-<img src="support-matrix-cartridge-placeholder.png" alt="A surrealistic painting of a support matrix of green checkmarks and eggs; A series of video game cartridges emitting magic glows" />
-
 
 ## Inspiration
 
@@ -196,8 +199,9 @@ Pax draws design inspiration from, among others:
 
 ## Art credit
 
-[DALL-E 2](https://openai.com/dall-e-2/) 
+[DALL-E 2](https://openai.com/dall-e-2/) by OpenAI
 
+<img src="support-matrix-cartridge-placeholder.png" alt="A surrealistic painting of a support matrix of green checkmarks and eggs; A series of video game cartridges emitting magic sparks" />
 
 ## Footnotes
 
@@ -320,7 +324,7 @@ PAXEL expressions have _read-only_ access to the scope of their containing compo
 For example: `self.some_prop` describes "a copy of the data from the attached Rust struct member `self.some_prop`"
 
 PAXEL expressions are noteworthy in a few ways:
-- Any PAXEL expression must be a pure function of its inputs and must be side-effect free.  E.g. there's simply no way in the PAXEL language to _set_ a value.
+- Any PAXEL expression must be a pure function of its inputs and must be side-effect free.  
 - As a result of the above, PAXEL expressions may be aggressively cached and recalculated only when inputs change.
 - In spirit, PAXEL expressions act a lot like spreadsheet formulas, bindable to any property in Pax.
 

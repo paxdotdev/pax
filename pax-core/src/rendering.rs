@@ -14,8 +14,8 @@ use pax_runtime_api::{PropertyInstance, PropertyLiteral};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.
-pub type RenderNodePtr<R: 'static + RenderContext> = Rc<RefCell<dyn RenderNode<R>>>;
-pub type RenderNodePtrList<R: 'static + RenderContext> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
+pub type RenderNodePtr<R> = Rc<RefCell<dyn RenderNode<R>>>;
+pub type RenderNodePtrList<R> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
 
 
 
