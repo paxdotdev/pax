@@ -19,7 +19,7 @@ Some use-cases:
 
 #### Low-level, fast, and universal
 
-Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very small.
+Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very light-weight.
 
 Pax is "write once, deploy everywhere."  Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
 
@@ -27,7 +27,7 @@ Pax is "write once, deploy everywhere."  Native techniques are applied maximally
 
 Pax was birthed within Rust.  Authoring Pax in the early days will require writing Rust for application logic.  
 
-That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is to add a JavaScript runtime.  This will enable writing Pax without writing any Rust — hacking Pax should feel like hacking HTML and CSS.
+That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is to add a JavaScript runtime.  This will enable hacking on Pax without writing any Rust.
 
 #### Sky's the limit
 
@@ -52,7 +52,7 @@ First let's look at the Pax by itself:
 
 ```jsx
 // Pax
-<Rectangle on_click={self.handle_click} transform={
+<Rectangle on_click=self.handle_click transform={
     anchor(50%, 50%)   * 
     align(50%, 50%)    * 
     rotate(self.theta) 
@@ -74,7 +74,7 @@ use pax::*;
 use pax::std::drawing2D::Rectangle;
 
 #[pax(
-    <Rectangle on_click=@self.handle_click transform={
+    <Rectangle on_click=self.handle_click transform={
         anchor(50%, 50%)   * 
         align(50%, 50%)    * 
         rotate(self.theta) 
@@ -108,7 +108,7 @@ With Pax TypeScript, this full example might look like:
 import {pax, EasingCurve} from '@pax-lang/pax';
 
 @pax(`
-    <Rectangle onClick=@this.handleClick transform=@{
+    <Rectangle onClick=this.handleClick transform={
         anchor(50%, 50%) *
         align(50%, 50%) *
         rotate(this.numClicks / 20.0)
@@ -160,10 +160,96 @@ class HelloWorld {
 ## FAQ
 
 
+#### Is there a specification for the Pax language?
+
+Pax is currently specified by this implementation, but that could change.
+
+Pax is really an assorted bag of partial languages, which taken as a whole act as a functional _thing._
+In this way, Pax is arguably similar to the assorted bag of {HTML, JS, CSS, modern web browsers}.
+
+Pax breaks down into 3 sub-languages:
+
+**1. Template language**
+Data representing the _content_ of a scene graph or UI tree. 
+Includes a provision for referencing/linking (`id=some_identifier`). 
+Also includes condition/loop logic (`if`, `for`)
+
+```
+<Group>
+  <Rectangle id=my_rect />
+  <Ellipse id=my_ellipse />
+</Group>
+```
+
+**2. Settings language**
+Data representing the _behavior_ of a scene graph or UI tree
+
+```
+@settings {
+  #my_rect {
+    fill: Color::rgb(100%,0,0)
+    stroke: {
+      width: 5px
+      color: Color::rgb(0,0,0)
+    }
+    width: 100px
+    height: 200px
+  }
+  #my_ellipse {
+    
+  }
+}
+```
+
+Settings may be freely inlined inside template element declarations, too:
+
+```
+<Rectangle fill=Color::rgb(100%,0,0) stroke=Stroke {color: Color::rgb(100%,0,0)} />
+```
+
+
+**3. Expression language (PAXEL)**
+
+Pax Expression Language, or PAXEL, is where Pax starts to look more like a programming language.
+
+You can create an Expression with PAXEL anywhere you can set a settings value, in `template` definitions or in `@settings` blocks.
+
+For example in a template:
+
+```
+<Rectangle fill={ self.activeColor.adjustBrightness(50%) } />
+```
+or in a settings block:
+```
+@settings {
+  #my_rectangle {
+    fill: { self.activeColor.adjustBrightness(50%) }
+  }
+}
+```
+
+In both cases above, the snippet of PAXEL is `self.activeColor.adjustBrightness(50%)`.  The Pax compiler transpiles all expressions
+in a program to machine code, collecting them in a vtable that gets called at runtime.
+
+Because Pax Expressions are side-effect free and pure functions, the Pax runtime can make aggressive optimizations, namely caching values
+and only recomputing when one of the stated inputs changes.  In this way, Pax expressions are rather alike formulas in a spreadsheet.
+
+Pax is very similar to an existing language, Google's CEL. PAXEL shares the following characteristics with CEL[4]:
+
+```
+    memory-safe: programs cannot access unrelated memory, such as out-of-bounds array indexes or use-after-free pointer dereferences;
+    side-effect-free: a PAXEL program only computes an output from its inputs;
+    terminating: PAXEL programs cannot loop forever;
+    strongly-typed: values have a well-defined type, and operators and functions check that their arguments have the expected types;
+    gradually-typed: a type-checking phase occurs before runtime via `rustc`, which detects and rejects some programs that would violate type constraints.
+```
+
+
+
 #### How does Pax work cross-platform?
 
 Compile to cartridge (machine code: LLVM or WASM -- like an NES ROM)
-Snap into chassis, load in a full-screen container app — like Electron but pure, fast native code — also like "Electron" for iOS/Android apps
+Snap into chassis, load in a full-screen container app — like Electron but 100% fast native code — also like Expo for iOS/Android apps
 
 Development harness OR production harness OR UI component
 
@@ -178,7 +264,7 @@ CPU has not been well profiled (TODO:) but stands to be improved significantly, 
 
 #### Who is behind Pax?
 
-The first versions of Pax were designed and built by [an individual](https://www.github.com/zackbrown), but the goal is for Pax to be community-owned.
+The first versions of Pax were designed and built by [an individual](https://www.github.com/zackbrown), but that individual's desire is for Pax to be community-owned.
 
 Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  
 
@@ -213,6 +299,7 @@ Pax draws design inspiration from, among others:
 a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total target footprint of <100KB.  Pax also has subtly distinct goals
 vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this particular domain.
 
+[4] Content modified from https://github.com/google/cel-spec/blob/master/doc/langdef.md, substituting PAXEL for CEL + adjustments for accuracy
 
 ---
 
@@ -266,7 +353,7 @@ use pax::*;
 use pax::drawing2D::Rectangle;
 
 #[pax(
-    <Rectangle on_click=@self.handle_click transform=@{
+    <Rectangle on_click=self.handle_click transform={
         align(50%, 50%) *
         rotate(self.theta)
     }/>
@@ -316,7 +403,7 @@ Settings can also be declared separately from the template, in the style of HTML
 Properties can have literal values, like `transform=translate(200,200)` or `fill=Color::rgba(100%, 100%, 0%, 100%)`
 
 Or values can be dynamic *expressions*, like:
-`transform=@{translate(200,y_counter) * rotate(self.rotation_counter)}` or `fill=@{Color::rgba(self.red_amount, self.green_amount, 0%, 100%)}`
+`transform={translate(200,y_counter) * rotate(self.rotation_counter)}` or `fill={Color::rgba(self.red_amount, self.green_amount, 0%, 100%)}`
 
 The mechanism behind this is in fact an entire language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.[3]
 
@@ -374,10 +461,10 @@ description of any visual content, design, prototype, document, production GUI, 
 ```
 //Tic-tac-toe example
 <Spread direction=Horizontal cell_count=3 >
-  @for i in 0..3 {
+  for i in 0..3 {
     <Spread direction=Vertical cell_count=3 >
-      @for j in 0..3 {
-        <Group on_jab=@handle_jab with (i, j)>
+      for j in 0..3 {
+        <Group on_jab=handle_jab with (i, j)>
           if self.cells[i][j] == Cell::Empty {
             <image src="blank.png">
           }else if self.cells[i][j] == Cell:X {

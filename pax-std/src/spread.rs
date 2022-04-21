@@ -9,9 +9,9 @@ use crate::types::{SpreadDirection, SpreadCellProperties};
 /// each node.  Spreads can be stacked inside of each other, horizontally
 /// and vertically, alongside `Transform.align` and `Transform.anchor` to achieve any 2D layout.
 #[pax(
-    @for (elem, i) in self.computed_layout_spec {
-        <Frame transform=@{translate(elem.x_px, elem.y_px)} size=@{[elem.width_px, elem.height_px]}>
-            @slot(i)
+    for (elem, i) in self.computed_layout_spec {
+        <Frame transform={translate(elem.x_px, elem.y_px)} size={[elem.width_px, elem.height_px]}>
+            slot(i)
         </Frame>
     }
 )]
@@ -34,7 +34,7 @@ impl Spread {
 
     #[pax_on(pre_render)]
     pub fn handle_pre_render(&mut self, args: ArgsRender) {
-        // pax::log("handling pre-render from Spread");
+
         //TODO: dirty check
         let bounds = args.bounds;
 
