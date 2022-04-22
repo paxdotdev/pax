@@ -157,7 +157,6 @@ class HelloWorld {
 
 
 
-
 ## Get started
 
 [Get started here](https://www.pax-lang.org/get-started) with an example project.
@@ -169,9 +168,9 @@ class HelloWorld {
 
 #### Is there a specification for the Pax language?
 
-Pax is currently specified by this implementation, but that could change.
+Pax is currently specified by this implementation.
 
-Pax is really an assorted bag of partial languages, which taken as a whole act as a functional _thing._
+Pax is really an assorted bag of special-purpose languages and a runtime, which as a whole act as an application platform.
 In this way, Pax is arguably similar to the assorted bag of {HTML, JS, CSS, modern web browsers}.
 
 Pax breaks down into 3 sub-languages:
@@ -240,7 +239,7 @@ in a program to machine code, collecting them in a central vtable that gets call
 Because Pax Expressions are pure, side-effect free functions, the Pax runtime can make aggressive optimizations: caching values
 and only recomputing when one of the stated inputs changes.  Expressions are also readily parallelizable.
 
-PAXEL is very similar to an existing language, Google's CEL. PAXEL shares the following characteristics with CEL[4]:
+PAXEL is very similar to at least one existing language: Google's CEL. PAXEL shares the following characteristics with CEL[4]:
 
 ```
     memory-safe: programs cannot access unrelated memory, such as out-of-bounds array indexes or use-after-free pointer dereferences;
@@ -255,9 +254,8 @@ PAXEL has a tighter, more specialized scope than CEL and carries a much smaller 
 
 #### How does Pax work cross-platform?
 
-<!-- TODO: refine and add text -->
 <img src="how-it-works-placeholder.png" alt="placeholder infographic for how Pax compiles to a cartridge that can be loaded into any number of native runtimes" />
-
+<!-- TODO: refine; caption -->
 
 #### What is Pax's footprint?
 
