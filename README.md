@@ -1,17 +1,15 @@
 # Pax
 
-
-<img src="multi-device-placeholder.png" alt="Two separate rendition wherein a phone, a tablet, and a laptop each display a nebula">
-
 Pax is a language for high performance, cross-platform computer graphics and user interfaces.
 
 Pax _snaps on_ to a Rust codebase to create expressive GUIs or graphical scenes, connected to Rust application logic.
 
-Though Pax has zero dependencies on Web technologies (no WebViews, no JS runtime, no DOM), it aims to achieve the same universality of Web technologies: to run consistently on every device, and ultimately to deliver better-than-Web user experiences.
+Though Pax has zero dependencies on Web technologies (no WebViews, no JS runtime, no DOM), it aims to achieve the same universality of Web technologies: to run consistently on _every_ screen, and ultimately to deliver better-than-Web user experiences.
 
-Some use-cases:
 
-- Write once, deploy to: native desktop apps, native mobile apps, high-performance web apps
+#### Use-cases:
+
+- Expressive GUIs for: native desktop apps, native mobile apps, high-performance web apps
 - Interactive cartoons and animations
 - Games
 - 2D documents, 2D/3D mixed media
@@ -19,25 +17,32 @@ Some use-cases:
 - Data visualizations
 - Visual design tooling
 
-#### Low-level, fast, and universal
+
+
+<img src="multi-device-placeholder.png" alt="Two separate rendition wherein a phone, a tablet, and a laptop each display a nebula">
+
+
+
+
+### Low-level, fast, and universal
 
 Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very light-weight. (up to 120FPS rendering, target <100KB baseline disk footprint)
 
 Pax is "write once, deploy everywhere."  Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
 
-#### Ergonomic and fun to use
+### Ergonomic and fun to use
 
 Pax was birthed within Rust.  Authoring Pax in the early days will require writing Rust for application logic.  
 
 That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is the addition of an optional JavaScript runtime.  This will enable hacking on Pax without writing any Rust.
 
-#### Sky's the limit
+### Sky's the limit
 
 Pax is designed to extend and support _anything you can imagine_ on a screen — from 2D to 3D to VR/AR, embedded multimedia, and more.
 
 Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_ is to enable art and artists as well as developers.
 
-> Note: Today Pax is in alpha, supports GPU-primitive 2D vector graphics, and has working development harnesses for Web (WASM) and native macOS (Swift).
+> Note: Today Pax is in alpha, supports GPU-primitive 2D vector graphics, and has working development harnesses for Web (WASM) and native macOS (Swift).  See [the roadmap](TODO.md).
 
 <img src="fast-ergonomic-sky-placeholder.png" alt="A surrealistic painting of a computer chip; A pastel sunrise over a city made of checkboxes, dropdown lists, buttons, and mouse pointers" />
 
@@ -250,10 +255,9 @@ PAXEL has a tighter, more specialized scope than CEL and carries a much smaller 
 
 #### How does Pax work cross-platform?
 
-Compile to cartridge (machine code: LLVM or WASM -- like an NES ROM)
-Snap into chassis, load in a full-screen container app — like Electron but 100% fast native code — also like Expo for iOS/Android apps
+<!-- TODO: refine and add text -->
+<img src="how-it-works-placeholder.png" alt="placeholder infographic for how Pax compiles to a cartridge that can be loaded into any number of native runtimes" />
 
-Development harness OR production harness OR UI component
 
 #### What is Pax's footprint?
 
