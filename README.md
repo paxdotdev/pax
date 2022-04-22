@@ -166,7 +166,7 @@ class HelloWorld {
 ## FAQ
 
 
-#### Is there a specification for the Pax language?
+### Is there a specification for the Pax language?
 
 Pax is currently specified by this implementation.
 
@@ -252,12 +252,12 @@ PAXEL is very similar to at least one existing language: Google's CEL. PAXEL sha
 PAXEL has a tighter, more specialized scope than CEL and carries a much smaller runtime footprint.
 
 
-#### How does Pax work cross-platform?
+### How does Pax work cross-platform?
 
 <img src="how-it-works-placeholder.png" alt="placeholder infographic for how Pax compiles to a cartridge that can be loaded into any number of native runtimes" />
 <!-- TODO: refine; caption -->
 
-#### What is Pax's footprint?
+### What is Pax's footprint?
 
 As of the current authoring, the WASM bundle for a very basic Pax app is about 150kb including several known unnecessary libraries and debug symbols.
 100kb should be easily achievable and is a reasonable long-term goal.  <50kb is a stretch-goal.
@@ -266,7 +266,7 @@ Baseline memory (RAM) footprint is on the order of 50MB; this has not yet been o
 
 CPU has not been well profiled (TODO:) but stands to be improved significantly, especially through rendering optimizations.
 
-#### Who is behind Pax?
+### Who is behind Pax?
 
 The first versions of Pax were designed and built by [an individual](https://www.github.com/zackbrown), but that individual's desire is for Pax to be community-owned.
 
