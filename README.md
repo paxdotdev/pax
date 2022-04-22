@@ -1,14 +1,17 @@
 # Pax
 
+
 <img src="multi-device-placeholder.png" alt="Two separate rendition wherein a phone, a tablet, and a laptop each display a nebula">
 
 Pax is a language for high performance, cross-platform computer graphics and user interfaces.
 
 Pax _snaps on_ to a Rust codebase to create expressive GUIs or graphical scenes, connected to Rust application logic.
 
+Though Pax has zero dependencies on Web technologies (no WebViews, no JS runtime, no DOM), it aims to achieve the same universality of Web technologies: to run consistently on every device, and ultimately to deliver better-than-Web user experiences.
+
 Some use-cases:
 
-- Cross-platform GUIs
+- Write once, deploy to: native desktop apps, native mobile apps, high-performance web apps
 - Interactive cartoons and animations
 - Games
 - 2D documents, 2D/3D mixed media
@@ -16,10 +19,9 @@ Some use-cases:
 - Data visualizations
 - Visual design tooling
 
-
 #### Low-level, fast, and universal
 
-Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very light-weight.
+Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very light-weight. (up to 120FPS rendering, target <100KB baseline disk footprint)
 
 Pax is "write once, deploy everywhere."  Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
 
@@ -27,7 +29,7 @@ Pax is "write once, deploy everywhere."  Native techniques are applied maximally
 
 Pax was birthed within Rust.  Authoring Pax in the early days will require writing Rust for application logic.  
 
-That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is to add a JavaScript runtime.  This will enable hacking on Pax without writing any Rust.
+That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is the addition of an optional JavaScript runtime.  This will enable hacking on Pax without writing any Rust.
 
 #### Sky's the limit
 
@@ -40,11 +42,7 @@ Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d
 <img src="fast-ergonomic-sky-placeholder.png" alt="A surrealistic painting of a computer chip; A pastel sunrise over a city made of checkboxes, dropdown lists, buttons, and mouse pointers" />
 
 
-## Get started...
-
-[Get started here](https://www.pax-lang.org/get-started) with an example project. 
-
-## ... or see a basic example
+## Basic example
 
 This Pax project describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle transitions its rotation to a new value via an animation.
 
@@ -61,9 +59,6 @@ First let's look at the Pax by itself:
 
 You'll notice it looks a lot like HTML, XAML, or JSX.  You'll also notice a couple of symbols that seem to be defined elsewhere -- 
 a click handler called `self.handle_click` and some rotation value `self.theta`.  Those values are defined in the Rust struct that Pax attaches to.
-
-A key distinction between Pax and templating languages like JSX is that Pax is _not evaluated in a closure._  Pax is always declared statically, and bound values are looked up at runtime.
-In fact, the contents of expressions isn't Rust at all, but a part of the Pax language called PAXEL — the Pax Expression Language.  
 
 Here's the full example including Rust:
 
@@ -157,6 +152,13 @@ class HelloWorld {
 
 
 
+
+## Get started
+
+[Get started here](https://www.pax-lang.org/get-started) with an example project.
+
+
+
 ## FAQ
 
 
@@ -182,11 +184,11 @@ Also includes condition/loop logic (`if`, `for`)
 ```
 
 **2. Settings language**
-Data representing the _behavior_ of a scene graph or UI tree
+Data representing the _behavior_ of a scene graph or UI tree.  Similarly to HTML/CSS, settings may be _joined_ to a template by use of IDs and selectors.
 
 ```
 @settings {
-  #my_rect {
+  #my_rect { // attaches to element with id `my_rect`
     fill: Color::rgb(100%,0,0)
     stroke: {
       width: 5px
@@ -206,7 +208,6 @@ Settings may be freely inlined inside template element declarations, too:
 ```
 <Rectangle fill=Color::rgb(100%,0,0) stroke=Stroke {color: Color::rgb(100%,0,0)} />
 ```
-
 
 **3. Expression language (PAXEL)**
 
@@ -229,12 +230,12 @@ or in a settings block:
 ```
 
 In both cases above, the snippet of PAXEL is `self.activeColor.adjustBrightness(50%)`.  The Pax compiler transpiles all expressions
-in a program to machine code, collecting them in a vtable that gets called at runtime.
+in a program to machine code, collecting them in a central vtable that gets called / evaluated at runtime.
 
-Because Pax Expressions are side-effect free and pure functions, the Pax runtime can make aggressive optimizations, namely caching values
-and only recomputing when one of the stated inputs changes.  In this way, Pax expressions are rather alike formulas in a spreadsheet.
+Because Pax Expressions are pure, side-effect free functions, the Pax runtime can make aggressive optimizations: caching values
+and only recomputing when one of the stated inputs changes.  Expressions are also readily parallelizable.
 
-Pax is very similar to an existing language, Google's CEL. PAXEL shares the following characteristics with CEL[4]:
+PAXEL is very similar to an existing language, Google's CEL. PAXEL shares the following characteristics with CEL[4]:
 
 ```
     memory-safe: programs cannot access unrelated memory, such as out-of-bounds array indexes or use-after-free pointer dereferences;
@@ -244,6 +245,7 @@ Pax is very similar to an existing language, Google's CEL. PAXEL shares the foll
     gradually-typed: a type-checking phase occurs before runtime via `rustc`, which detects and rejects some programs that would violate type constraints.
 ```
 
+PAXEL has a tighter, more specialized scope than CEL and carries a much smaller runtime footprint.
 
 
 #### How does Pax work cross-platform?
@@ -303,9 +305,17 @@ vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible f
 
 ---
 
+
+## Get started
+
+[Get started here](https://www.pax-lang.org/get-started) with an example project.
+
+
+---
+
 ## Contributing
 
-There are generous TODOs sprinkled throughout the codebase.  There may be undocumented nuance or intention behind certain aspects of the project — feel free to strike up a conversation on [Discord](https://discord.gg/4E6tcrtCRb).
+See [TODO.md](TODO.md).  There are also generous TODOs sprinkled throughout the codebase.  There may be undocumented nuance or intention behind certain aspects of the project — feel free to strike up a conversation on [Discord](https://discord.gg/4E6tcrtCRb).
 
 ## Development
 

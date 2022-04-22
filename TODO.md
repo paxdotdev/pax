@@ -171,9 +171,9 @@ _RIL means Rust Intermediate Language, which is the
     [x] ranges: literal and symbolic
     [x] `@template` block, vs. top-level
 [ ] chassis/native serialization++
-    [ ] message design: coproduct? (what about extensibility? treat like PropertiesCoproduct with codegen?)
+    [ ] message design
         [ ] components can register messages to be added to global coproduct (a la `PropertiesCoproduct`)
-        [ ] Optimization: allow messages to be categorized `in`/`out`/`both` to reduce generated de/ser logic for footprint. For example: `ClickArgs` may be a `in` event, meaning the dev harness needs only to serialize
+        [ ] Optimization: allow messages to be categorized `in`/`out`/`both` to reduce generated de/ser logic for footprint. For example: `ClickArgs` may be a `in` event, meaning the dev harness needs only to serialize and the cartridge need only deserialize
     [ ] runtime serialization standard -- JSON? RON? FlatBuffers? consider wasm footprint vs. serialization compute overhead (JSON deserialization is free in footprint, medium-cost in de/ser)
     [ ] chassis-specific deserialization 
     [ ] applicability to other direction -- e.g. passing user input, events
