@@ -54,7 +54,7 @@ This Pax project describes a 2D rectangle at the center of the viewport that can
 First let's look at the Pax by itself:
 
 ```jsx
-// Pax
+// Pax: a centered, clickable rectangle
 <Rectangle on_click=self.handle_click transform={
     anchor(50%, 50%)   * 
     align(50%, 50%)    * 
@@ -111,12 +111,12 @@ import {pax, EasingCurve} from '@pax-lang/pax';
     <Rectangle onClick=this.handleClick transform={
         anchor(50%, 50%) *
         align(50%, 50%) *
-        rotate(this.numClicks / 20.0)
+        rotate(this.theta)
     } />
 `)
 class HelloWorld {
     @property
-    numClicks: number;
+    theta: number;
     
     handleClick(args: ArgsClick) {
         const oldTheta = this.theta.get();
