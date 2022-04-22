@@ -357,7 +357,9 @@ Then attach to the `pax-dev-harness-macos` process using your IDE or debugging c
 
 ## Appendix A: Anatomy of a Pax component
 
-For visual reference, consider again the example:
+Every Pax program defines a _component_.  That component may be mounted full-window into an app, imported and used by other Pax programs, or (future) be embedded as a UI component in existing (non-Pax) codebases, e.g. as a React component or a SwiftUI View. 
+
+For visual reference, consider again the following example, which declares a component called `HelloWorld`:
 
 ```rust
 //Rust
@@ -366,6 +368,7 @@ use pax::drawing2D::Rectangle;
 
 #[pax(
     <Rectangle on_click=self.handle_click transform={
+        anchor(50%, 50%) *
         align(50%, 50%) *
         rotate(self.theta)
     }/>
