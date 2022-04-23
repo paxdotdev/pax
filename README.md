@@ -18,10 +18,7 @@ Though Pax has zero dependencies on Web technologies (no WebViews, no JS runtime
 - Visual design tooling
 
 
-
-<img src="multi-device-placeholder.png" alt="Two separate rendition wherein a phone, a tablet, and a laptop each display a nebula">
-
-
+<img src="multi-device-placeholder.png" alt="Two separate renditions wherein a phone, a tablet, and a laptop each display a nebula">
 
 
 ### Low-level, fast, and universal
@@ -202,7 +199,7 @@ Data representing the _behavior_ of a scene graph or UI tree.  Similarly to HTML
     height: 200px
   }
   #my_ellipse {
-    
+    // ...
   }
 }
 ```
@@ -233,7 +230,7 @@ or in a settings block:
 }
 ```
 
-In both cases above, the snippet of PAXEL is `self.activeColor.adjustBrightness(50%)`.  The Pax compiler transpiles all expressions
+In both cases above, the snippet of PAXEL is `self.activeColor.adjustBrightness(50%)`.  The Pax compiler builds all expressions
 in a program to machine code, collecting them in a central vtable that gets called / evaluated at runtime.
 
 Because Pax Expressions are pure, side-effect free functions, the Pax runtime can make aggressive optimizations: caching values
@@ -241,13 +238,15 @@ and only recomputing when one of the stated inputs changes.  Expressions are als
 
 PAXEL is very similar to at least one existing language: Google's CEL. PAXEL shares the following characteristics with CEL[4]:
 
-```
-    memory-safe: programs cannot access unrelated memory, such as out-of-bounds array indexes or use-after-free pointer dereferences;
-    side-effect-free: a PAXEL program only computes an output from its inputs;
-    terminating: PAXEL programs cannot loop forever;
-    strongly-typed: values have a well-defined type, and operators and functions check that their arguments have the expected types;
-    gradually-typed: a type-checking phase occurs before runtime via `rustc`, which detects and rejects some programs that would violate type constraints.
-```
+> **memory-safe**: programs cannot access unrelated memory, such as out-of-bounds array indexes or use-after-free pointer dereferences;
+> 
+> **side-effect-free**: a PAXEL program only computes an output from its inputs;
+> 
+> **terminating**: PAXEL programs cannot loop forever;
+> 
+> **strongly-typed**: values have a well-defined type, and operators and functions check that their arguments have the expected types;
+> 
+> **gradually-typed**: a type-checking phase occurs before runtime via `rustc`, which detects and rejects some programs that would violate type constraints.
 
 PAXEL has a tighter, more specialized scope than CEL and carries a much smaller runtime footprint.
 
@@ -432,7 +431,7 @@ PAXEL expressions are noteworthy in a few ways:
 
 #### Event handlers
 
-`on_click=@self.handle_click` binds a the `handle_click` method defined in the host codebase to the built-in `click` event which Pax fires when a user clicks the mouse on this element.  Events fire as "interrupts" and are allowed to execute arbitrary, side-effectful, imperative logic.
+`on_click=self.handle_click` binds a the `handle_click` method defined in the host codebase to the built-in `click` event which Pax fires when a user clicks the mouse on this element.  Events fire as "interrupts" and are allowed to execute arbitrary, side-effectful, imperative logic.
 
 It is in event handlers that you will normally change property values (e.g. `self.red_amount.set(/*new value*/)`, where `self.red_amount` is referenced in the Expression example above.)
 
@@ -459,7 +458,7 @@ TODO: describe benefits of this approach toward a11y, because e.g. full DOM + co
 At first glance, Pax templates look quite a bit like familiar templating languages like React/JSX.
 
 On closer inspection, you may notice an important distinction: _Pax's templates are not evaluated within a closure_ — they are declared statically and evaluated entirely at compile time.  
-Symbols in expressions that refer to a component's properties, like `color=@self.active_bg_color`, are handled via special runtime lookups
+Symbols in expressions that refer to a component's properties, like `color=self.active_bg_color`, are handled via special runtime lookups
 in the expression vtable — again, specifically _not_ a direct reference to some `self` in the scope of some closure.
 
 Because the template is evaluated entirely at compile-time, the template is exactly what it is described to

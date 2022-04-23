@@ -173,7 +173,7 @@ _RIL means Rust Intermediate Language, which is the
 [ ] chassis/native serialization++
     [ ] message design
         [ ] components can register messages to be added to global coproduct (a la `PropertiesCoproduct`)
-        [ ] Optimization: allow messages to be categorized `in`/`out`/`both` to reduce generated de/ser logic for footprint. For example: `ClickArgs` may be a `in` event, meaning the dev harness needs only to serialize and the cartridge need only deserialize
+        [ ] Optimization: allow messages to be categorized `in`/`out`/`both` to reduce generated de/ser logic for footprint. For example: `ClickArgs` may be a `in` event, meaning the dev harness needs only to generate serialization logic and the cartridge need only generate deserialization logic
     [ ] runtime serialization standard -- JSON? RON? FlatBuffers? consider wasm footprint vs. serialization compute overhead (JSON deserialization is free in footprint, medium-cost in de/ser)
     [ ] chassis-specific deserialization 
     [ ] applicability to other direction -- e.g. passing user input, events
@@ -181,11 +181,14 @@ _RIL means Rust Intermediate Language, which is the
     [ ] support inline (in-file) component def. (as alternative to `#[pax_component_definition]` file path)
     [x] support for different example projects
     [ ] native macOS chassis + dev-harness?
-        *** rename: is it the case that `engine` is an `os`; `chassis` is a `console` ? 
         [x] pax-chassis-macos (written in rust). responsible for:
             [x] accepting a CGContext pointer and rendering to it via Piet
             [ ] managing user input channel, e.g. click/touch
             [ ] managing native rendering channel, e.g. form controls, text
+                [ ] Create command -- instantiate, then run `Update` with initial values, probably
+                [ ] Read command (?) -- maybe necessary for grabbing value to attach to payload, e.g. must get textbox value to send with `post_change`
+                [ ] Update command -- for any subset of properties (e.g., text content, transform)
+                [ ] Delete command -- deinstantiate
         [x] mac app dev-harness (written in swift). responsible for:
             [x] granting a piece of real estate (full window of simple mac app) to rendering with a CGContext.
             [x] passing CGContext to pax-chassis-coregraphics
@@ -239,6 +242,9 @@ _RIL means Rust Intermediate Language, which is the
         [ ] handle range literals 0..10 
         [ ] shuttle data into RepeatInstance via Manifest
     [ ] @if
+[ ] user input
+    [ ] mouse click
+    [ ] scroll (maybe polyfill touch/mousewheel?)
 [ ] compiler codegen
     [ ] codegen Cargo.toml + solution for patching
         [x] manual
@@ -268,6 +274,14 @@ _RIL means Rust Intermediate Language, which is the
 ```
 
 
+## Milestone: form controls
+```
+[ ] Rich text
+[ ] Dropdown list
+[ ] Text boxes
+[ ] Databinding: event-based changes + two-way binding 
+
+```
 
 
 ## Milestone: capabilities++
