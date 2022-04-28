@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 
 use pest::Parser;
-use pax_message::{AttributeValueDefinition, ComponentDefinition, Number, PaxManifest, SettingsLiteralBlockDefinition, SettingsSelectorBlockDefinition, SettingsValueDefinition, SettingsLiteralValue, TemplateNodeDefinition, Unit};
+use pax_message::compiletime::{AttributeValueDefinition, ComponentDefinition, Number, PaxManifest, SettingsLiteralBlockDefinition, SettingsSelectorBlockDefinition, SettingsValueDefinition, SettingsLiteralValue, TemplateNodeDefinition, Unit};
 // use pest::prec_climber::PrecClimber;
 
 #[derive(Parser)]
@@ -511,7 +511,6 @@ pub fn create_uuid() -> String {
 }
 
 
-#[derive(Debug)]
 pub struct ManifestContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing

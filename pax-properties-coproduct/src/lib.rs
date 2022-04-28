@@ -1,22 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
-/// ∐
-/// This data structure represents all of the Component Properties that
-/// exist in an application.
-///
-/// This enum/coproduct structure solves the problem of knowing
-/// the amount of memory to allocate for `PropertiesCoproduct`s on stack frames.
-/// Because our components can have different Property "schemas," and because stack frames are stored
-/// in a central data structure (the runtime stack,) we run into an challenge storing this data in a single data structure.
-/// Generics + traits don't work because we need concrete access to struct fields, vs. traits which give us methods only.
-/// `Any` doesn't (seem) to work due to current need for Rc<>-wrapped `RenderNode`s.
-///
-/// Keep in mind that each PropertiesCoproduct type will have the memory footprint
-/// of the LARGEST type associated.  Even an instance of `Empty` will have the memory footprint
-/// of `TheMostBloatedTypeEver`, so be judicious about what gets stored in PropertiesCoproduct
-/// structs (e.g. be wary of binary assets like images/multimedia!)
-///
-#[derive(Debug)]
+
 pub enum PropertiesCoproduct {
     //core
     None,
@@ -51,21 +35,6 @@ pub enum TypesCoproduct {
     Vec_SpreadCellProperties_(Vec<pax_example::pax_types::pax_std::types::SpreadCellProperties>),
     Vec_LPAREN_usize_COMMA_Size_RPAREN(Vec<(usize, pax_example::pax_types::pax_std::types::Size)>),
 }
-
-
-pub enum MessagesCoproduct {
-
-}
-
-pub struct MessageTextProperties {
-    content: String,
-
-}
-pub struct MessageTextCreate {}
-pub struct MessageTextRead {}
-pub struct MessageTextUpdate {}
-pub struct MessageTextDelete {}
-
 
 
 

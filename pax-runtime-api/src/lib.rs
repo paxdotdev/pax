@@ -1,7 +1,7 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::fmt::{Debug, Formatter};
+use std::fmt::{Formatter};
 use std::ops::Mul;
 use std::rc::Rc;
 use uuid::Uuid;
@@ -45,11 +45,11 @@ pub trait PropertyInstance<T: Default + Clone> {
 }
 
 
-impl<T: Debug + Default + Clone + 'static> Debug for Box<dyn PropertyInstance<T>> {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        self.get().fmt(f)
-    }
-}
+// impl<T: Debug + Default + Clone + 'static> Debug for Box<dyn PropertyInstance<T>> {
+//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+//         self.get().fmt(f)
+//     }
+// }
 
 impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
     fn default() -> Box<dyn PropertyInstance<T>> {
@@ -112,7 +112,7 @@ pub struct ArgsJab {
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.  Note that this may be more precisely
 /// called a Dimension or a SizeDimension, but Size was initially chosen for brevity.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone)]
 pub enum Size {
     Pixel(f64),
     Percent(f64),

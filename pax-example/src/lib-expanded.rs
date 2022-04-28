@@ -28,7 +28,7 @@ pub mod pax_types {
     pub use crate::Root;
 }
 
-#[derive(Default, Debug)]
+#[derive(Default)]
 pub struct Root {
     pub num_clicks: Property<isize>,
     pub current_rotation: Property<f64>,

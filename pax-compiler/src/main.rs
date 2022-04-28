@@ -22,7 +22,7 @@ use std::sync::Arc;
 use clap::{App, AppSettings, Arg};
 
 use futures::prelude::*;
-use pax_message::*;
+use pax_message::compiletime::*;
 use serde_json::Value;
 use tokio::process::Command;
 use tokio::sync::oneshot;
@@ -272,7 +272,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     let component_manifest = payload_rx.await.expect("failed to retrieve component_manifest from macro coordination thread");
 
-    println!("received component manifest: {:?}",component_manifest);
+    println!("received component manifest");
 
     //TODO: codegen PropertiesCoproduct
     //TODO: codegen DefinitionToInstanceTraverser (note: probably hand-roll this for v0, like macros)

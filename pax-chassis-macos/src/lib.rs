@@ -10,7 +10,7 @@ use core_graphics::context::CGContext;
 use piet_coregraphics::{CoreGraphicsContext};
 
 use pax_core::{InstanceMap, PaxEngine};
-use pax_cartridge_runtime;
+use pax_cartridge;
 
 #[repr(C)] //Exposed to Swift via paxchassismacos.h
 pub struct PaxChassisMacosBridgeContainer {
@@ -25,8 +25,8 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxChas
     //This could presumably be cleaned up but currently the engine will exist
     //on the heap for the lifetime of the containing process.
     let instance_map : Rc<RefCell<InstanceMap<CoreGraphicsContext<'static>>>> = Rc::new(RefCell::new(std::collections::HashMap::new()));
-    let root_component_instance = pax_cartridge_runtime::instantiate_root_component(Rc::clone(&instance_map));
-    let expression_table = pax_cartridge_runtime::instantiate_expression_table();
+    let root_component_instance = pax_cartridge::instantiate_root_component(Rc::clone(&instance_map));
+    let expression_table = pax_cartridge::instantiate_expression_table();
 
     let engine : ManuallyDrop<Box<PaxEngine<CoreGraphicsContext<'static>>>> = ManuallyDrop::new(
         Box::new(
