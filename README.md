@@ -1,29 +1,26 @@
 # Pax
 
-Pax is a language for high performance, cross-platform computer graphics and user interfaces.
+Pax is a language for cross-platform computer graphics and user interfaces.
 
-Pax _snaps on_ to a Rust codebase to create expressive GUIs or graphical scenes, connected to Rust application logic.
+Pax can be authored on its own in `.pax` files (in the spirit of `.html` files), or it can _snap on_ to a Rust codebase to create expressive graphical scenes or data-connected GUIs.  In either case, Pax gets compiled to high-performance machine code, compatible with any number of supported devices.
 
-Though Pax has zero dependencies on Web technologies (no WebViews, no JS runtime, no DOM), it aims to achieve the same universality of Web technologies: to run consistently on _every_ screen, and ultimately to deliver better-than-Web user experiences.
-
+Though Pax has zero dependencies on Web technologies — no WebViews, no JS runtime, no DOM — it aims to achieve the same universality as Web technologies: to run consistently across any device, and to deliver better-than-Web user experiences.
 
 #### Use-cases:
 
 - Expressive GUIs for: native desktop apps, native mobile apps, high-performance web apps
 - Interactive cartoons and animations
 - Games
-- 2D documents, 2D/3D mixed media
+- Webpage-style content, documents, articles
 - Generative and procedural art, digital experimental media
 - Data visualizations
 - Visual design tooling
 
-
 <img src="multi-device-placeholder.png" alt="Two separate renditions wherein a phone, a tablet, and a laptop each display a nebula">
-
 
 ### Low-level, fast, and universal
 
-Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very light-weight. (up to 120FPS rendering, target <100KB baseline disk footprint)
+Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very light-weight. (up to 120FPS rendering, target <100KB runtime disk footprint)
 
 Pax is "write once, deploy everywhere."  Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
 
@@ -46,27 +43,24 @@ Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d
 
 ## Basic example
 
-This Pax project describes a 2D rectangle at the center of the viewport that can be clicked.  Upon click, the rectangle transitions its rotation to a new value via an animation.
-
-First let's look at the Pax by itself:
+First let's look at some Pax by itself:
 
 ```jsx
-// Pax: a centered, clickable rectangle
-<Rectangle on_click=self.handle_click transform={
-    anchor(50%, 50%)   * 
-    align(50%, 50%)    * 
-    rotate(self.theta) 
+// Pax
+// src/stand-alone.pax
+<Rectangle size=[100px, 100px] fill=Color::rgb(100%, 0, 0) transform={
+    anchor(50%, 50%) * align(50%, 50%) 
 }/>
 ```
 
-You'll notice it looks a lot like HTML, XAML, or JSX.  You'll also notice a couple of symbols that seem to be defined elsewhere -- 
-a click handler called `self.handle_click` and some rotation value `self.theta`.  Those values are defined in the Rust struct that Pax attaches to.
 
-Here's the full example including Rust:
+You'll notice this code looks a lot like HTML, XAML, or JSX.  The above example will simply show a 100 x 100 pixel red rectangle, centered in the viewport.
+
+Here's another example including Rust and interactivity:
 
 ```rust
 // Rust
-// src/lib.rs
+// src/hello-world.rs
 use pax::*;
 use pax::std::drawing2D::Rectangle;
 
@@ -212,9 +206,7 @@ Settings may be freely inlined inside template element declarations, too:
 
 **3. Expression language (PAXEL)**
 
-Pax Expression Language, or PAXEL, is where Pax starts to look more like a programming language.
-
-You can create an Expression with PAXEL anywhere you can set a settings value, in `template` definitions or in `@settings` blocks.
+You can create a PAXEL Expression anywhere you can set a settings value, in `template` definitions or in `@settings` blocks.
 
 For example in a template:
 
@@ -236,7 +228,7 @@ in a program to machine code, collecting them in a central vtable that gets call
 Because Pax Expressions are pure, side-effect free functions, the Pax runtime can make aggressive optimizations: caching values
 and only recomputing when one of the stated inputs changes.  Expressions are also readily parallelizable.
 
-PAXEL is very similar to at least one existing language: Google's CEL. PAXEL shares the following characteristics with CEL[4]:
+PAXEL is very similar to at least two existing languages: Microsoft's Excel spreadsheet formula language, and Google's Common Expression Language (CEL). PAXEL shares the following characteristics with CEL[3]:
 
 > **memory-safe**: programs cannot access unrelated memory, such as out-of-bounds array indexes or use-after-free pointer dereferences;
 > 
@@ -298,11 +290,7 @@ Pax draws design inspiration from, among others:
 
 [2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the admirable work behind [Piet](https://github.com/linebender/piet).
 
-[3] PAXEL is similar to Google's Common Expression Language (CEL), but CEL was not a suitable fit for Pax due to its footprint — being written in Go, CEL adds
-a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total target footprint of <100KB.  Pax also has subtly distinct goals
-vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this particular domain.
-
-[4] Content modified from https://github.com/google/cel-spec/blob/master/doc/langdef.md, substituting PAXEL for CEL + adjustments for accuracy
+[3] Text modified from source: https://github.com/google/cel-spec/blob/master/doc/langdef.md
 
 ---
 
@@ -419,7 +407,7 @@ Properties can have literal values, like `transform=translate(200,200)` or `fill
 Or values can be dynamic *expressions*, like:
 `transform={translate(200,y_counter) * rotate(self.rotation_counter)}` or `fill={Color::rgba(self.red_amount, self.green_amount, 0%, 100%)}`
 
-The mechanism behind this is in fact an entire language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.[3]
+The mechanism behind this is in fact an entire language, a sub-grammar of Pax called 'Pax Expression Language' or PAXEL for short.[*]
 
 PAXEL expressions have _read-only_ access to the scope of their containing component.
 For example: `self.some_prop` describes "a copy of the data from the attached Rust struct member `self.some_prop`"
@@ -437,6 +425,11 @@ It is in event handlers that you will normally change property values (e.g. `sel
 
 Pax includes a number of built-in lifecycle events like `pre_render` and user interaction events like `on_click` and `on_tap`.
 
+[*] PAXEL is similar to Google's Common Expression Language (CEL), but CEL was not a suitable fit for Pax due to its footprint — being written in Go, CEL adds
+a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total target footprint of <100KB.  Pax also has subtly distinct goals
+vs CEL and is able to fine-tune its syntax to make it as ergonomic as possible for this particular domain.
+
+
 
 ## Appendix B: Description of native rendering approach for text, certain other elements
 
@@ -451,6 +444,9 @@ experience that blends dynamic graphics (e.g. vectors, animations) with native f
 [Visual of DOM "marionette" overlay layer on top of parallaxed graphics layer]
 
 TODO: describe benefits of this approach toward a11y, because e.g. full DOM + content is present in the browser
+
+
+
 
 
 ## Appendix C: Declarative and designable
@@ -492,6 +488,38 @@ description of any visual content, design, prototype, document, production GUI, 
   }
 </Spread>
 ```
+
+
+## Appendix E: Alike and unlike the World Wide Web
+
+
+
+Pax's design draws much inspiration from HTML and CSS. In fact, Pax aims to offer
+a compelling alternative to Web technologies for delivering cross-platform content, graphics, and GUIs.
+
+#### Inspired by the World Wide Web, Pax is:
+
+content-first -- like HTML
+easily machine parsable -- like HTML and CSS
+backwards-compatible -- works with any modern browser
+universal -- compiles to any device as native app
+learnable -- familiar patterns, aims to be easy to pick up
+easily deployed -- wrap any program as a as native app or publish to web (JAM stack friendly)
+
+
+#### What does Pax do differently than the World Wide Web?
+
+built-in expression language -- any property in Pax — like a Rectangle's background color — can be set as an Expression: a spreadsheet-function-like that evaluates dynamically at runtime.  For example, you can react to user inputs or changes in state.
+high performance -- not only are Expressions extremely efficient, Pax programs run as "close-to-the-metal" LLVM or WASM code, without the runtime overhead of a garbage collector or interpreter.  
+predictable layouts -- Pax dreams of being designed. It uses the coordinate system of common design tools as well as predictable rules for alignment and affine transforms.     
+language-agnostic -- built on Rust, can support JS or any other language
+extensible -- built around reusable components, down to the standard library. Rendering targets (2D/3D/etc.) and target platforms (iOS/Android/Windows/etc.)
+compiled -- rather than interpreted.  TODO: describe alternative to `right-click, view source`
+doesn't require a browser or a JavaScript runtime — though Pax is backwards compatible with any modern browser, it can also be packaged as stand-alone native apps for any supported platform.
+designable
+
+
+------
 
 
 ## Get started

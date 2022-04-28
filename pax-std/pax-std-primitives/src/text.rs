@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use serde::{Serialize};
 
-use crate::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform, HostPlatformContext};
+use pax_core::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform, HostPlatformContext};
 use wasm_bindgen::prelude::*;
 
 pub struct Text {

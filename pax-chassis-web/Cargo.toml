@@ -18,7 +18,7 @@ piet-web = "0.5.0"
 #pax-core is sufficient to break wasmpack.  try binary-removing its dependencies for trial & error?
 pax-core = { path = "../pax-core" }
 pax-properties-coproduct = {path = "../pax-properties-coproduct"}
-pax-cartridge-runtime = {path = "../pax-cartridge-runtime"}
+pax-cartridge = {path = "../pax-cartridge"}
 pax-runtime-api = {path = "../pax-runtime-api"}
 
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}

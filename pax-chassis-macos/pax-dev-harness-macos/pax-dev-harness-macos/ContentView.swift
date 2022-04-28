@@ -18,22 +18,22 @@ struct ContentView: View {
 }
 
 struct PaxCanvasViewRepresentable: NSViewRepresentable {
-    typealias NSViewType = CanvasView
+    typealias NSViewType = PaxCanvasView
     
-    func makeNSView(context: Context) -> CanvasView {
-        let view = CanvasView()
+    func makeNSView(context: Context) -> PaxCanvasView {
+        let view = PaxCanvasView()
         //TODO: BG transparency
         return view
     }
     
-    func updateNSView(_ canvas: CanvasView, context: Context) { }
+    func updateNSView(_ canvas: PaxCanvasView, context: Context) { }
 }
 
 
-class CanvasView: NSView {
+class PaxCanvasView: NSView {
     
     var contextContainer : OpaquePointer? = nil
-    var tickWorkItem : DispatchWorkItem? = nil
+    var currentTickWorkItem : DispatchWorkItem? = nil
     
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -52,18 +52,18 @@ class CanvasView: NSView {
             pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
         }
 
-        //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally, which
+        //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which
         //would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
         //This cancellation + shared singleton (`tickWorkItem`) ensures that only one DispatchWorkItem is enqueued at a time.
-        if tickWorkItem != nil {
-            tickWorkItem!.cancel()
+        if currentTickWorkItem != nil {
+            currentTickWorkItem!.cancel()
         }
         
-        tickWorkItem = DispatchWorkItem {
+        currentTickWorkItem = DispatchWorkItem {
             self.setNeedsDisplay(dirtyRect)
             self.displayIfNeeded()
         }
         
-        DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_PERIOD, execute: tickWorkItem!)
+        DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_PERIOD, execute: currentTickWorkItem!)
     }
 }

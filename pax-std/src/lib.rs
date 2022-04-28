@@ -77,7 +77,7 @@ pub mod primitives {
 
     #[derive(Debug)]
     #[pax_primitive("./pax-std-primitives", crate::RectangleInstance)]
-    pub struct RectangleProperties {
+    pub struct Rectangle {
         pub stroke: Box<dyn pax::api::PropertyInstance<types::Stroke>>,
         pub fill: Box<dyn pax::api::PropertyInstance<types::Color>>,
     }
@@ -104,7 +104,7 @@ pub mod primitives {
     //     static ref source_id: String = parser::get_uuid();
     // }
     #[cfg(feature = "parser")]
-    impl RectangleProperties {
+    impl Rectangle {
         pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
             match ctx.visited_source_ids.get(&source_id as &str) {
                 None => {

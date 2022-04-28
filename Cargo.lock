@@ -1662,7 +1662,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "pax-cartridge-runtime"
+name = "pax-cartridge"
 version = "0.1.0"
 dependencies = [
  "pax-core",
@@ -1679,7 +1679,7 @@ dependencies = [
  "core-graphics",
  "lazy_static",
  "mut_static",
- "pax-cartridge-runtime",
+ "pax-cartridge",
  "pax-core",
  "pax-runtime-api",
  "piet",
@@ -1691,7 +1691,7 @@ name = "pax-chassis-web"
 version = "0.0.1"
 dependencies = [
  "console_error_panic_hook",
- "pax-cartridge-runtime",
+ "pax-cartridge",
  "pax-core",
  "pax-properties-coproduct",
  "pax-runtime-api",

@@ -4,12 +4,12 @@ extern crate lazy_static;
 use pax::*;
 use pax::api::{ArgsCoproduct, ArgsRender, Property};
 
-use pax_std::primitives::{Group, RectangleProperties};
+use pax_std::primitives::{Group, Rectangle};
 
 pub mod pax_types {
     pub mod pax_std {
         pub mod primitives {
-            pub use pax_std::primitives::RectangleProperties;
+            pub use pax_std::primitives::Rectangle;
             pub use pax_std::primitives::Group;
         }
         pub mod components {
@@ -113,7 +113,7 @@ impl Root {
                 let mut template_map: HashMap<String, String> = HashMap::new();
 
                 //GENERATE: do for each unique component type found in template
-                let (mut ctx, component_id) = RectangleProperties::parse_to_manifest(ctx);
+                let (mut ctx, component_id) = Rectangle::parse_to_manifest(ctx);
                 template_map.insert("Rectangle".into(), component_id);
                 let (mut ctx, component_id) = Group::parse_to_manifest(ctx);
                 template_map.insert("Group".into(), component_id);

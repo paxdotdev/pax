@@ -12,7 +12,7 @@ use pax_runtime_api::{ArgsCoproduct, PropertyInstance, PropertyLiteral, Size2D, 
 
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
 use pax_example::pax_types::{Root};
-use pax_example::pax_types::pax_std::primitives::{RectangleProperties, Group};
+use pax_example::pax_types::pax_std::primitives::{Rectangle, Group};
 use pax_example::pax_types::pax_std::types::{Color, Stroke, Size, SpreadCellProperties};
 use pax_example::pax_types::pax_std::components::Spread;
 
@@ -251,7 +251,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                         size: Some([Box::new(PropertyLiteral::new(Size::Percent(100.0))), Box::new(PropertyLiteral::new(Size::Percent(100.0)))]),
                         children: Some(Rc::new(RefCell::new(vec![
                             RectangleInstance::instantiate(InstantiationArgs{
-                                properties: PropertiesCoproduct::Rectangle(RectangleProperties {
+                                properties: PropertiesCoproduct::Rectangle(Rectangle {
                                     stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
                                         color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
                                         width: Box::new(PropertyLiteral::new(0.0)),
@@ -278,7 +278,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                 size: None,
                                 children: Some(Rc::new(RefCell::new( vec![
                                     RectangleInstance::instantiate(InstantiationArgs{
-                                        properties: PropertiesCoproduct::Rectangle(RectangleProperties {
+                                        properties: PropertiesCoproduct::Rectangle(Rectangle {
                                             stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
                                         color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
                                         width: Box::new(PropertyLiteral::new(0.0)),
@@ -309,7 +309,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                 compute_properties_fn: None
                             }),
                             RectangleInstance::instantiate(InstantiationArgs{
-                                properties: PropertiesCoproduct::Rectangle(RectangleProperties {
+                                properties: PropertiesCoproduct::Rectangle(Rectangle {
                                     stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
                                         color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
                                         width: Box::new(PropertyLiteral::new(0.0)),

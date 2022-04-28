@@ -2,7 +2,7 @@
 use kurbo::{BezPath};
 use piet::{RenderContext};
 
-use pax_std::primitives::{RectangleProperties};
+use pax_std::primitives::{Rectangle};
 use pax_std::types::ColorVariant;
 
 
@@ -20,7 +20,7 @@ use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size
 /// maybe #[pax primitive]
 pub struct RectangleInstance {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub properties: Rc<RefCell<RectangleProperties>>,
+    pub properties: Rc<RefCell<Rectangle>>,
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
 }
