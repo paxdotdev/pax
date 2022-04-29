@@ -64,4 +64,14 @@ impl RenderNode for Text {
 
         hpc.render_message_queue.push(JsValue::from_serde(&message).unwrap())
     }
+
+
+    fn handle_post_mount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+        todo!(construct message and attach to native_render_queue)
+    }
+
+
+    fn handle_pre_dismount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+        todo!(construct message and attach to native_render_queue)
+    }
 }

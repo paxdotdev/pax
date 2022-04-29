@@ -65,7 +65,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         }
     }
 
-    fn pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         // construct a BezPath of this frame's bounds * its transform,
         // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
         //TODO:  if clipping is TURNED OFF for this Frame, don't do any of this
@@ -88,7 +88,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
         rc.clip(transformed_bez_path);
     }
-    fn post_render(&mut self, _rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_post_render(&mut self, _rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //pop the clipping context from the stack
         rc.restore().unwrap();
     }

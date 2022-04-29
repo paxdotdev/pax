@@ -44,13 +44,16 @@ node_inner_content = { literal_value | expression }
 self_closing_tag = {"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/>"}
 
 //string/inner/char from https://pest.rs/book/examples/json.html
-string = ${ ("\"" ~ inner ~ "\"") | ("'" ~ inner ~ "'") }
+string = ${ ("\"" ~ inner ~ "\"") | ("'" ~ inner ~ "'") | ("`" ~ (inner_templated | inner) ~ "`") }
 inner = @{ char* }
 char = {
     !("\"" | "\\") ~ ANY
     | "\\" ~ ("\"" | "\\" | "/" | "b" | "f" | "n" | "r" | "t")
     | "\\" ~ ("u" ~ ASCII_HEX_DIGIT{4})
 }
+
+inner_templated = { (char* ~ ("{" ~ inner_templated_dynamic ~ "}"))+ }
+inner_templated_dynamic = {char*}
 
 //Describes an atomic symbolic identifier, like `id`, `Engine`, or `some_thing`
 identifier = @{ ASCII_ALPHANUMERIC ~ (ASCII_ALPHANUMERIC | "_")* }

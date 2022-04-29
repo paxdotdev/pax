@@ -66,7 +66,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         }
     }
 
-    fn post_render(&mut self, rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_post_render(&mut self, rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
         (*rtc.runtime).borrow_mut().pop_stack_frame();
     }
 

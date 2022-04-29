@@ -164,6 +164,15 @@ pub mod runtime {
         TextDelete(u64), //node instance ID
         //TODO: form controls
         //TODO: scroll containers
+        EventClick(NativeArgsClick)
+    }
+
+    #[repr(C)]
+    pub struct NativeArgsClick {
+        x: f64,
+        y: f64,
+        //TODO: probably native element id (in case of native element click), offset
+        //TODO: right/middle/left click
     }
 
     #[repr(C)]
@@ -181,8 +190,8 @@ pub mod runtime {
 
     #[repr(C)]
     pub struct TextPropertiesContent {
-        runs: *mut CString, //C-friendly `Vec<CString>`, along with explicit length
-        runs_len: u64,
+        spans: *mut CString, //C-friendly `Vec<CString>`, along with explicit length
+        spans_len: u64,
         commands: *mut TextPropertiesCommand, //C-friendly `Vec<MessageTextPropertiesCommand>`, along with explicit length
         commands_len: u64,
     }
@@ -191,23 +200,11 @@ pub mod runtime {
     pub struct TextPropertiesCommand {
         set_font: Option<CString>,
         set_weight: Option<CString>,
-        set_color: Option<CString>,
+        set_fill_color: Option<CString>,
+        set_stroke_color: Option<CString>,
         set_decoration: Option<CString>,
     }
 
-    #[repr(C)]
-    pub struct TextCreate {}
-
-    #[repr(C)]
-    pub struct TextRead {}
-
-    #[repr(C)]
-    pub struct TextUpdate {
-
-    }
-
-    #[repr(C)]
-    pub struct TextDelete {}
 }
 
 

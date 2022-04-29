@@ -258,7 +258,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         rtc.transform = new_accumulated_transform;
 
         //lifecycle: pre_render for primitives
-        node.borrow_mut().pre_render(rtc, rc);
+        node.borrow_mut().handle_pre_render(rtc, rc);
 
         //lifecycle: pre_render for userland components
         let registry = (*node).borrow().get_handler_registry();
@@ -292,10 +292,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // lifecycle: `render`
         // this is this node's time to do its own rendering, aside
         // from its children.  Its children have already been rendered.
-        node.borrow_mut().render(rtc, rc);
+        node.borrow_mut().handle_render(rtc, rc);
 
         // lifecycle: post_render
-        node.borrow_mut().post_render(rtc, rc);
+        node.borrow_mut().handle_post_render(rtc, rc);
     }
 
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {

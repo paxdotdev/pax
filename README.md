@@ -4,7 +4,7 @@ Pax is a language for cross-platform computer graphics and user interfaces.
 
 Pax can be authored on its own in `.pax` files (in the spirit of `.html` files), or it can _snap on_ to a Rust codebase to create expressive graphical scenes or data-connected GUIs.  In either case, Pax gets compiled to high-performance machine code, compatible with any number of supported devices.
 
-Though Pax has zero dependencies on Web technologies — no WebViews, no JS runtime, no DOM — it aims to achieve the same universality as Web technologies: to run consistently across any device, and to deliver better-than-Web user experiences.
+Though Pax has zero dependencies on Web technologies — no WebViews, no JS runtime, no DOM — it aims to achieve the same universality as Web technologies: to run consistently across any device. Ultimately, Pax aims to deliver better-than-Web user experiences.
 
 #### Use-cases:
 
@@ -250,7 +250,7 @@ PAXEL has a tighter, more specialized scope than CEL and carries a much smaller 
 
 ### What is Pax's footprint?
 
-As of the current authoring, the WASM bundle for a very basic Pax app is about 150kb including several known unnecessary libraries and debug symbols.
+As of the current authoring, the WASM bundle for a very basic Pax app is about 150kb including several known unnecessary libraries, embedded strings, and other cruft.
 100kb should be easily achievable and is a reasonable long-term goal.  <50kb is a stretch-goal.
 
 Baseline memory (RAM) footprint is on the order of 50MB; this has not yet been optimized.

@@ -142,14 +142,15 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// Example use-case: perform side-effects to the drawing context.
     /// This is how [`Frame`] performs clipping, for example.
     /// Occurs in a pre-order traversal of the render tree.
-    fn pre_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_pre_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
         //no-op default implementation
     }
 
     /// Third lifecycle method during each render loop, occurs
     /// AFTER all descendents have been rendered.
-    /// Occurs in a post-order traversal of the render tree.
-    fn render(&self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    /// Occurs in a post-order traversal of the render tree. Most primitives
+    /// are expected to draw their contents to the rendering context during this event.
+    fn handle_render(&self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
         //no-op default implementation
     }
 
@@ -158,10 +159,24 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing context
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
-    fn post_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_post_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
         //no-op default implementation
     }
 
+
+    /// Fires during the tick when a node is first attached to the render tree.  For example,
+    /// this event fires by all nodes on the global first tick, and by all nodes in a subtree
+    /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
+    /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
+    fn handle_post_mount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+        //no-op default implementation
+    }
+
+    /// Fires during element dismount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
+    /// A use-case: send a message to native renderers that a `Text` element should be removed
+    fn handle_pre_dismount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+        //no-op default implementation
+    }
 
 
 }

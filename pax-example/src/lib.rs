@@ -5,7 +5,7 @@ use pax_std::{Spread, Text, Rectangle};
     <Spread cell_count=10 >
         <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
         for i in 0..8 {
-            <Text>{"Index: " + i}</Text>
+            <Text>`Index: {i}`</Text>
             <Rectangle fill=Color::rgba(100%, 0, 100%, 100%) />
         }
         <Rectangle transform={rotate(self.current_rotation)} fill={Color::rgba(0, 100%, 100%, 100%)} />

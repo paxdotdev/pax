@@ -170,14 +170,27 @@ _RIL means Rust Intermediate Language, which is the
     [x] `@for`
     [x] ranges: literal and symbolic
     [x] `@template` block, vs. top-level
-[ ] chassis/native serialization++
-    [ ] message design
-        [ ] components can register messages to be added to global coproduct (a la `PropertiesCoproduct`)
-        [ ] Optimization: allow messages to be categorized `in`/`out`/`both` to reduce generated de/ser logic for footprint. For example: `ClickArgs` may be a `in` event, meaning the dev harness needs only to generate serialization logic and the cartridge need only generate deserialization logic
-    [ ] runtime serialization standard -- JSON? RON? FlatBuffers? consider wasm footprint vs. serialization compute overhead (JSON deserialization is free in footprint, medium-cost in de/ser)
-    [ ] chassis-specific deserialization 
-    [ ] applicability to other direction -- e.g. passing user input, events
+[ ] native rendering ++
+    [x] message design/arch
+    [ ] runtime de/serialization
+        [ ] C structs across FFI
+            [ ] CRUD operations and methods: PoC with `Text`
+            [ ] inbound support: PoC with `Click`
+        [ ] consider JSON for web, alt: ArrayBuffer and manually deserialize the same C structs as chassis-macos
+    [ ] ids
+        [ ] handle monotonic, instance-unique IDs
+            - hand off from compiler to runtime with an embedded (ROM) constant
+            - expose method in engine to generate new id
+            - initial use-case: instance IDs for associating e.g. clipping masks and text instances
+    [ ] text support
+        [ ] handle_post_mount and handle_pre_dismount
+        [ ] trigger mount/dismount lifecycle events in engine, `Conditional`
+    [ ] click support
+        [ ] ray-casting
+        [ ] inbound event arg-wrapping and dispatch
+        [ ] click/jab polyfill
 [ ] dev env ++
+    [ ] support stand-alone .pax files (no rust file); .html use-case
     [ ] support inline (in-file) component def. (as alternative to `#[pax_component_definition]` file path)
     [x] support for different example projects
     [ ] native macOS chassis + dev-harness?
@@ -185,15 +198,12 @@ _RIL means Rust Intermediate Language, which is the
             [x] accepting a CGContext pointer and rendering to it via Piet
             [ ] managing user input channel, e.g. click/touch
             [ ] managing native rendering channel, e.g. form controls, text
-                [ ] Create command -- instantiate, then run `Update` with initial values, probably
-                [ ] Read command (?) -- maybe necessary for grabbing value to attach to payload, e.g. must get textbox value to send with `post_change`
-                [ ] Update command -- for any subset of properties (e.g., text content, transform)
-                [ ] Delete command -- deinstantiate
         [x] mac app dev-harness (written in swift). responsible for:
             [x] granting a piece of real estate (full window of simple mac app) to rendering with a CGContext.
             [x] passing CGContext to pax-chassis-coregraphics
             [x] handling resize
-            [ ] handling basic user input (e.g. click) and text rendering (renderqueue)
+            [ ] handling basic user input (e.g. click)
+            
         [ ] ios app dev-harness (written in swift)
             [ ] (~similar to mac app dev-harness)
             [ ] supporting ios simulator + physical device, however is ergonomic with xcode
@@ -271,6 +281,9 @@ _RIL means Rust Intermediate Language, which is the
 [ ] Palette built-in: perhaps `@palette { optional_nesting: {  } }
 [ ] Path primitive + APIs for animations
 [ ] Ellipse
+[ ] native clipping
+    [ ] pass ClippingMask messages via `mount` lifecycle in `Frame` (etc.); track "clipping stack" in `rtc` and pass list of relevant masks for a given native element (e.g. `Text`) -- "join" clipping mask(s) with native elements by ID on the native side
+    
 ```
 
 
@@ -2180,3 +2193,17 @@ Should they be centralized or should they be decentralized (authored as part of 
 
 Decision: because adding native rendering commands is so _centralized_ -- namely due to the need to update several native runtimes with each change in functionality -- it was thus decided to centralize 
 the definitions of the drawing message structs. 
+
+
+### Text
+
+1. templating live values — naively, something like `<Text>{"Index: " + i}</Text>`.  Problem: doesn't seem like it'll extend well to support styling -- this approach is "all static literal" or "all expression", whereas we probably want a bit more nuance for text.
+   1. Alternatively: `{self.inline} templating, where the contents of {self.inline + "hello"} get interpolated into this string`
+2. inline styling -- at least three potential approaches:  
+   1. class/id/settings, a la HTML (support sub-elements for e.g. `<span id=some_span>`)
+   2. markdown or markdown subset: `**this is bold** and *this is italic {"and dynamic" + "!"}* and [this is a link](https://www.duckduckgo.com/)`
+   3. built-in DSL/primitives for styling: `<b>Hello there!</b> Good to <i>see</i> you!`
+
+Must be able to mix & match, too.
+
+A priori, markdown-esque feels compelling -- in particular, with support for templating 
