@@ -181,13 +181,14 @@ _RIL means Rust Intermediate Language, which is the
         [ ] handle monotonic, instance-unique IDs
             - hand off from compiler to runtime with an embedded (ROM) constant
             - expose method in engine to generate new id
-            - initial use-case: instance IDs for associating e.g. clipping masks and text instances
+            - initial use-case: instance IDs for associating engine <> native Text instances
     [ ] text support
-        [ ] handle_post_mount and handle_pre_dismount
+        [x] handle_post_mount and handle_pre_dismount
         [ ] trigger mount/dismount lifecycle events in engine, `Conditional`
     [ ] click support
         [ ] ray-casting
         [ ] inbound event arg-wrapping and dispatch
+        [ ] sketch out bubbling/canceling, hierarchy needs
         [ ] click/jab polyfill
 [ ] dev env ++
     [ ] support stand-alone .pax files (no rust file); .html use-case
@@ -203,10 +204,6 @@ _RIL means Rust Intermediate Language, which is the
             [x] passing CGContext to pax-chassis-coregraphics
             [x] handling resize
             [ ] handling basic user input (e.g. click)
-            
-        [ ] ios app dev-harness (written in swift)
-            [ ] (~similar to mac app dev-harness)
-            [ ] supporting ios simulator + physical device, however is ergonomic with xcode
         [x] Debugging via LLDB
             [x] support debugging as necessary with macos dev-harness
             [x] IDE configs for each of: userland cartridge; core; std
@@ -283,17 +280,20 @@ _RIL means Rust Intermediate Language, which is the
 [ ] Ellipse
 [ ] native clipping
     [ ] pass ClippingMask messages via `mount` lifecycle in `Frame` (etc.); track "clipping stack" in `rtc` and pass list of relevant masks for a given native element (e.g. `Text`) -- "join" clipping mask(s) with native elements by ID on the native side
-    
+    [ ] Consider whether to support arbitrary (Path) clipping masks as an alternative to `Frame`s' rectilinear ones
 ```
 
 
-## Milestone: form controls
+## Milestone: form controls + iOS
 ```
 [ ] Rich text
 [ ] Dropdown list
 [ ] Text boxes
 [ ] Databinding: event-based changes + two-way binding 
-
+[ ] ios app dev-harness
+    [ ] (~similar to mac app dev-harness)
+    [ ] supporting ios simulator + physical device, however is ergonomic with xcode
+    [ ] CLI hookups
 ```
 
 
@@ -2207,3 +2207,18 @@ the definitions of the drawing message structs.
 Must be able to mix & match, too.
 
 A priori, markdown-esque feels compelling -- in particular, with support for templating 
+
+
+### Click events
+
+Ray-casting: where the user clicks, 0 or more elements will be hit.  The _top-most_ element that is _clickable_ receives the event
+
+An element _higher in the hierarchy_ (ancestor) should be able to suppress descendent events — this is an _override_ setting, and the highest-in-hierarchy (most ancestral) takes precedence
+
+Use-case: when a button is clicked, handle the click with that button, but DON'T also fire the click handler for the container
+Who is responsible for specifying that?  DOM approach is to call `stopPropagation` from the descendant
+But we're really describing behavior of the _ancestor_ -- in a well encapsulated scenario, 
+**the _ancestor_ should be responsible for discerning whether the click was "direct" or "hierarchical" and deciding whether to respond**
+(rather than the desc. saying "just kidding, no event!")
+
+An element _lower_ in the hierarchy may stop propagation imperatively with `stopPropagation()` a la DOM
