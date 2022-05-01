@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -5,8 +6,6 @@ use piet_common::RenderContext;
 use crate::{ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs, HandlerRegistry};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-
-
 
 /// A special "control-flow" primitive, Repeat allows for nodes
 /// to be rendered dynamically per data specified in `data_list`.
@@ -49,54 +48,82 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
+
+        let mut any_changes_to_data_list : bool;
+
         if let Some(data_list) = rtc.compute_vtable_value(self.data_list._get_vtable_id()) {
+            let old_value = self.data_list.get().clone();
             let new_value = if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(v) = data_list { v } else { unreachable!() };
-            self.data_list.set(new_value);
+
+            //if the vec lengths differ, we know there are changes.  If the lengths are the same, then we check each element pairwise for ptr equality.
+            any_changes_to_data_list =
+                old_value.len() != new_value.len() ||
+                {
+                    let mut all_equal = true;
+                    old_value.iter().enumerate().for_each(|(i, ov)| {
+                        all_equal = all_equal && Rc::ptr_eq(ov, &new_value[i]);
+                    });
+                    !all_equal
+                };
+
+            //TODO: this hacked dirty-check shouldn't be necessary once we have more robust dependency-DAG dirty-checking for expressions
+            if any_changes_to_data_list {
+                self.data_list.set(new_value);
+            }
+        } else {
+            //assuming PropertyLiteral -- changes need to be enacted if the length of the data_list changes.
+            //given that there's not currently a way to imperatively set a `Repeat`'s `data_list` property, this may be OK
+            //for now (specifically: catch the case where virtual_children is uninitialized to a literal static value.)
+            //More robustly in the future, this can patch into centralized dirty-check logic.
+            any_changes_to_data_list = self.data_list.get().len() != (*self.virtual_children).borrow().len();
         }
 
-        //any stated children (repeat template members) of Repeat should be forwarded to the "puppeteer" ComponentInstances
-        //so that Slot works as expected (`Conditional` is a special RenderNode, somewhat invisible by intuitive expectations)
-        let forwarded_children = match (*rtc.runtime).borrow_mut().peek_stack_frame() {
-            Some(frame) => {Rc::clone(&(*frame.borrow()).get_unexpanded_adoptees())},
-            None => {Rc::new(RefCell::new(vec![]))},
-        };
+        if any_changes_to_data_list {
 
-        //TODO: cache and be smarter
+            //any stated children (repeat template members) of Repeat should be forwarded to the "puppeteer" ComponentInstances
+            //so that Slot works as expected (`Conditional` is a special RenderNode, somewhat invisible by intuitive expectations)
+            let forwarded_children = match (*rtc.runtime).borrow_mut().peek_stack_frame() {
+                Some(frame) => {Rc::clone(&(*frame.borrow()).get_unexpanded_adoptees())},
+                None => {Rc::new(RefCell::new(vec![]))},
+            };
 
-        let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
+            //unmount all old virtual_children
+            (*(*self.virtual_children).borrow_mut()).iter_mut().for_each(|vc| {
+                (*(*(*vc).borrow_mut())).borrow_mut().recurse_set_mounted(rtc, false);
+            });
+
+            let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
+
+            //reset children:
+            //wrap data_list into repeat_items and attach "puppeteer" RepeatItem component instances that attach
+            //the necessary data as stack frame context
+            self.virtual_children = Rc::new(RefCell::new(
+                self.data_list.get().iter().enumerate().map(|(i, datum)| {
+                    let instance_id = instance_registry.mint_id();
+
+                    let render_node : RenderNodePtr<R> = Rc::new(RefCell::new(
+                        ComponentInstance {
+                            instance_id,
+                            children: Rc::clone(&forwarded_children),
+                            template: Rc::clone(&self.repeated_template),
+                            transform: Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::default()))),
+                            properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(datum), i))),
+                            timeline: None,
+                            handler_registry: None,
+                            compute_properties_fn: Box::new(|props, rtc|{
+                                //no-op since the Repeat RenderNode handles the necessary calc (see `RepeatInstance::compute_properties`)
+                            })
+                        }
+                    ));
+
+                    instance_registry.register(instance_id, Rc::clone(&render_node));
+
+                    render_node
+                }).collect()
+            ));
+        }
 
 
-        //reset children:
-        //wrap data_list into repeat_items and attach "puppeteer" RepeatItem component instances that attach
-        //the necessary data as stack frame context
-        self.virtual_children = Rc::new(RefCell::new(
-            self.data_list.get().iter().enumerate().map(|(i, datum)| {
-                let instance_id = instance_registry.mint_id();
-
-                let render_node : RenderNodePtr<R> = Rc::new(RefCell::new(
-                    ComponentInstance {
-                        instance_id,
-                        children: Rc::clone(&forwarded_children),
-                        template: Rc::clone(&self.repeated_template),
-                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::default()))),
-                        properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(datum), i))),
-                        timeline: None,
-
-                        //Important for Repeat
-                        should_skip_adoption: true,
-
-                        handler_registry: None,
-                        compute_properties_fn: Box::new(|props, rtc|{
-                            //no-op since the Repeat RenderNode handles the necessary calc (see `RepeatInstance::compute_in_place`)
-                        })
-                    }
-                ));
-
-                instance_registry.register(instance_id, Rc::clone(&render_node));
-
-                render_node
-            }).collect()
-        ));
 
         // pax_runtime_api::log(&format!("finished computing repeat properties, virt len: {}", (*self.virtual_children).borrow().len()));
     }
@@ -110,7 +137,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
     fn get_size(&self) -> Option<Size2D> { None }
     fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
-
 
 }
 

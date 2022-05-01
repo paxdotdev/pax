@@ -18,7 +18,6 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub(crate) instance_id: u64,
     pub template: RenderNodePtrList<R>,
     pub children: RenderNodePtrList<R>,
-    pub should_skip_adoption: bool,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
@@ -90,7 +89,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
             properties: Rc::new(RefCell::new(args.properties)),
             compute_properties_fn: args.compute_properties_fn.expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
-            should_skip_adoption: args.should_skip_adoption,
             handler_registry: args.handler_registry,
         }));
 

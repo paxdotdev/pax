@@ -182,8 +182,9 @@ _RIL means Rust Intermediate Language, which is the
             - expose method in engine to generate new id
             - initial use-case: instance IDs for associating engine <> native Text instances
     [ ] text support
-        [x] handle_post_mount and handle_pre_dismount
-        [ ] trigger mount/dismount lifecycle events in engine, `Conditional`
+        [x] handle_post_mount and handle_pre_unmount
+        [x] trigger mount/unmount lifecycle events in engine, `Conditional`, `Repeat`
+        [ ] handle dirty-checking for `Patch` event population
     [ ] click support
         [ ] ray-casting
         [ ] inbound event arg-wrapping and dispatch

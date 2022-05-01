@@ -286,7 +286,7 @@ impl<T> TransitionManager<T> {
     }
 }
 
-/// The Literal form of a Property: a bare literal value
+/// The Literal form of a Property: a bare literal value with support for easing/interpolation
 pub struct PropertyLiteral<T> {
     value: T,
     transition_manager: TransitionManager<T>,
@@ -324,7 +324,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         self.value = value;
     }
 
-    //TODO: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
+    //TODO: when trait fields land in Rust, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
         self.transition_manager.value = Some(self.get().clone());
         &self.transition_manager.queue.clear();

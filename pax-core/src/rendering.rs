@@ -29,10 +29,6 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub children: Option<RenderNodePtrList<R>>,
     pub component_template: Option<RenderNodePtrList<R>>,
 
-    //used in special cases where certain Component instances should not
-    //interfere with Slot <> Adoptee linking, e.g. for the
-    //internals of Repeat
-    pub should_skip_adoption: bool,
 
     //used by Slot
     pub slot_index: Option<Box<dyn PropertyInstance<usize>>>,
@@ -64,16 +60,23 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
-    
+
+    /// For this element and its subtree of rendering elements, mark as mounted in InstanceRegistry
     fn recurse_set_mounted(&mut self, rtc: &mut RenderTreeContext<R>, mounted: bool) {
-        let reg = (*rtc.engine.instance_registry).borrow_mut();
-        if mounted {
-            reg.mark_mounted(self.get_instance_id());
-        } else {
-            reg.mark_unmounted(self.get_instance_id());
+        {
+            if mounted {
+                (*rtc.engine.instance_registry).borrow_mut().mark_mounted(self.get_instance_id());
+            } else {
+                (*rtc.engine.instance_registry).borrow_mut().mark_unmounted(self.get_instance_id());
+                //TODO: might need to fire this here, because unmounted nodes may never get their pass
+                //      at `engine::recurse_render...`.  Note that this doesn't apply to `mounted`, which will get
+                //      triggered on the next tick as a side-effect of rendering
+                self.handle_pre_unmount(rtc);
+            }
         }
+
         for child in (*self.get_rendering_children()).borrow().iter() {
-            (*child).borrow_mut().recurse_set_Mounted(rtc, mounted)
+            (*(*child)).borrow_mut().recurse_set_mounted(rtc, mounted);
         }
     }
 
@@ -187,9 +190,9 @@ pub trait RenderNode<R: 'static + RenderContext>
         //no-op default implementation
     }
 
-    /// Fires during element dismount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
+    /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
-    fn handle_pre_dismount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    fn handle_pre_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
     // Rather than distribute the logic for is_mounted (which is largely duplicative), we can centralize it with a ledger (Set<instance_id>) in the engine

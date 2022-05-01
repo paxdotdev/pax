@@ -79,6 +79,13 @@ pub mod primitives {
         pub fill: Box<dyn pax::api::PropertyInstance<types::Color>>,
     }
 
+
+    // #[pax_primitive("./pax-std-primitives", crate::TextInstance)]
+    // pub struct Text {
+    //     pub stroke: Box<dyn pax::api::PropertyInstance<types::Stroke>>,
+    //     pub fill: Box<dyn pax::api::PropertyInstance<types::Color>>,
+    // }
+
     //
     //TODO: figure out how to de-dupe the imports here vs. the previous pax_primitive!()
     //

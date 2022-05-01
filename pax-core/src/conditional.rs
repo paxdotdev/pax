@@ -47,33 +47,16 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
             let old_value = *self.boolean_expression.get();
             let new_value = if let TypesCoproduct::bool(v) = boolean_expression { v } else { unreachable!() };
 
-            if old_value != new_value {
-                // if new_value {
-                //     //mount event
-                //     // - mark subtree mounted
-                //
-                //     (*self.primitive_children).borrow_mut().iter().for_each(|child| {
-                //         (*(*child)).borrow_mut().recurse_set_mounted(rtc, mounted);
-                //     })
-                //
-                //
-                //     //   lab journal: can we recycle the id?  that is: remove elements (recursively) from mounted_set on dismount, but keep the instance in the instance_map.
-                //     //   When turning back on subtree, visit all nodes and remount (+ register existing ID back into mounted set)
-                // } else {
-                //     //dismount event
-                //     // - mark subtree dismounted
-                //     // - don't fire lifecycle event here -- remove from set, let engine::`recurse_...` handle checking instance_registry and firing event
-                //     (*rtc.engine.instance_registry).borrow_mut().mark_unmounted(
-                //         (*self.primitive_children).borrow().get_instance_id()
-                //     )
-                // }
-
-                //mark subtree with the appropriate `mount` status
-
+            if old_value && !new_value {
+                //mark subtree as `unmounted` -- this will trigger the dismount lifecycle event in the main render loop
+                //Note that it's not required to set_mounted(... true) because the main render loop will automatically
+                //flip that bit if a node is rendered.  In other words: it's important that Conditional not continue
+                //to return unmounted children in `get_rendering_children`, otherwise they will automatically be `mounted` again.
                 (*self.primitive_children).borrow_mut().iter().for_each(|child| {
-                    (*(*child)).borrow_mut().recurse_set_mounted(rtc, new_value);
+                    (*(*child)).borrow_mut().recurse_set_mounted(rtc, false);
                 })
             }
+
             self.boolean_expression.set(new_value);
         }
     }

@@ -26,6 +26,13 @@ impl<R: 'static + RenderContext> Runtime<R> {
         }
     }
 
+    //return current state of native message queue, passing in a freshly initialized queue for next frame
+    pub fn swap_native_message_queue(&mut self) -> VecDeque<pax_message::runtime::Message> {
+        let mut swap_queue = VecDeque::new();
+        std::mem::swap(&mut self.native_message_queue,&mut swap_queue);
+        swap_queue
+    }
+
     pub fn enqueue_native_message(&mut self, msg: pax_message::runtime::Message) {
         self.native_message_queue.push_back(msg);
     }

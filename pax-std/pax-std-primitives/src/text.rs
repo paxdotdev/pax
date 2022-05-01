@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use serde::{Serialize};
 
 use pax_core::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform, HostPlatformContext};
 use wasm_bindgen::prelude::*;
@@ -13,32 +12,8 @@ pub struct Text {
     pub id: String,
 }
 
-/// Simplified data structure used to serialize data for mixed-mode rendering
-#[derive(Serialize)]
-pub struct TextMessage<'a> {
-    kind: MessageKind,
-    id: String,
-    content: Option<&'a String>,
-    transform: Option<[f64; 6]>,
-    bounds: Option<(f64, f64)>,
-}
 
-impl<'a> TextMessage<'a> {
-    pub fn empty(kind: MessageKind, id: String) -> Self {
-        TextMessage {
-            kind,
-            id,
-            content: None,
-            transform: None,
-            bounds: None
-        }
-    }
-}
 
-#[derive(Serialize)]
-pub enum MessageKind {
-    TextMessage,
-}
 
 impl RenderNode for Text {
     fn get_rendering_children(&self) -> RenderNodePtrList {
@@ -47,31 +22,23 @@ impl RenderNode for Text {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
-        let _update_message = TextMessage::empty(MessageKind::TextMessage, self.id.clone());
+
         self.size.borrow_mut().0.compute_in_place(rtc);
         self.size.borrow_mut().1.compute_in_place(rtc);
         self.transform.borrow_mut().compute_in_place(rtc);
     }
     fn render(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
-
-        let message = TextMessage {
-            kind: MessageKind::TextMessage,
-            id: self.id.clone(), //TODO: can we do better than cloning here?
-            content: Some(self.content.get()), //TODO: can we do better than cloning here?
-            transform: Some((rtc.transform * *self.transform.borrow().get_cached_computed_value()).as_coeffs()),
-            bounds: Some(self.get_size_calc(rtc.bounds)),
-        };
-
-        hpc.render_message_queue.push(JsValue::from_serde(&message).unwrap())
+        //no-op -- all native for Text
     }
 
 
-    fn handle_post_mount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        todo!(construct message and attach to native_render_queue)
+    fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
+        (*rtc.engine.runtime).borrow_mut().enqueue_native_message();
+        // todo!(construct message and attach to native_render_queue)
     }
 
 
-    fn handle_pre_dismount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    fn handle_pre_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
         todo!(construct message and attach to native_render_queue)
     }
 }
