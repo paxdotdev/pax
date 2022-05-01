@@ -159,12 +159,14 @@ pub mod runtime {
     #[repr(C)]
     pub enum Message {
         TextCreate(u64), //node instance ID
-        // TextRead(u64),
-        TextUpdate(TextPropertiesPatch),
-        TextDelete(u64), //node instance ID
+        TextUpdate(u64, TextPatch),
+        TextDelete(u64),
+        ClippingCreate(u64),
+        ClippingUpdate(u64, ClippingPatch),
+        ClippingDelete(u64),
         //TODO: form controls
         //TODO: scroll containers
-        EventClick(NativeArgsClick)
+        NativeEventClick(NativeArgsClick)
     }
 
     #[repr(C)]
@@ -176,28 +178,34 @@ pub mod runtime {
     }
 
     #[repr(C)]
-    pub enum TextPropertiesSize {
+    pub struct ClippingPatch {
+        size: Option<[f64; 2]>, //rectangle, top-left @ (0,0)
+        transform: Option<[f64; 6]>,
+    }
+
+    #[repr(C)]
+    pub enum TextSize {
         Auto(),
         Pixels(f64),
     }
 
     #[repr(C)]
-    pub struct TextPropertiesPatch {
-        content: Option<TextPropertiesContent>,
+    pub struct TextPatch {
+        content: Option<TextContent>,
         transform: Option<[f64; 6]>,
-        size: [Option<TextPropertiesSize>; 2],
+        size: [Option<TextSize>; 2],
     }
 
     #[repr(C)]
-    pub struct TextPropertiesContent {
+    pub struct TextContent {
         spans: *mut CString, //C-friendly `Vec<CString>`, along with explicit length
         spans_len: u64,
-        commands: *mut TextPropertiesCommand, //C-friendly `Vec<MessageTextPropertiesCommand>`, along with explicit length
+        commands: *mut TextCommand, //C-friendly `Vec<MessageTextPropertiesCommand>`, along with explicit length
         commands_len: u64,
     }
 
     #[repr(C)]
-    pub struct TextPropertiesCommand {
+    pub struct TextCommand {
         set_font: Option<CString>,
         set_weight: Option<CString>,
         set_fill_color: Option<CString>,

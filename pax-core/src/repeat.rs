@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use piet_common::RenderContext;
-use crate::{HandlerRegistry, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
+use crate::{ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs, HandlerRegistry};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
@@ -14,7 +14,8 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 /// template `n` times, each with an embedded component context (`RepeatItem`)
 /// with an index `i` and a pointer to that relevant datum `data_list[i]`
 pub struct RepeatInstance<R: 'static + RenderContext> {
-    pub children: RenderNodePtrList<R>,
+    pub instance_id: u64,
+    pub repeated_template: RenderNodePtrList<R>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub data_list: Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>,
     pub virtual_children: RenderNodePtrList<R>,
@@ -22,12 +23,17 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
 
 
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
+    fn get_instance_id(&self) -> u64 {
+        self.instance_id
+    }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
 
-        let new_id = pax_runtime_api::mint_unique_id();
+        let mut instance_registry = (*args.instance_registry).borrow_mut();
+        let instance_id  = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(RepeatInstance {
-            children: match args.children {
+            instance_id,
+            repeated_template: match args.children {
                 None => {Rc::new(RefCell::new(vec![]))}
                 Some(children) => children
             },
@@ -36,48 +42,42 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             virtual_children: Rc::new(RefCell::new(vec![]))
         }));
 
-        (*args.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
 
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
-
-        // pax_runtime_api::log(&"computing repeat properties");
         if let Some(data_list) = rtc.compute_vtable_value(self.data_list._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(v) = data_list { v } else { unreachable!() };
             self.data_list.set(new_value);
         }
 
-
-        // let parents_children = match &rtc.inherited_adoptees {
-        //     Some(adoptees) => {
-        //         Rc::clone(adoptees)
-        //     },
-        //     None => {
-        //         Rc::new(RefCell::new(vec![]))
-        //     }
-        // };
-
-
-        //if Repeat has any adoptees, they should be cloned into the ComponentInstances so that Slot works as expected
-        let parents_children = match (*rtc.runtime).borrow_mut().peek_stack_frame() {
+        //any stated children (repeat template members) of Repeat should be forwarded to the "puppeteer" ComponentInstances
+        //so that Slot works as expected (`Conditional` is a special RenderNode, somewhat invisible by intuitive expectations)
+        let forwarded_children = match (*rtc.runtime).borrow_mut().peek_stack_frame() {
             Some(frame) => {Rc::clone(&(*frame.borrow()).get_unexpanded_adoptees())},
             None => {Rc::new(RefCell::new(vec![]))},
         };
+
         //TODO: cache and be smarter
 
+        let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
+
+
         //reset children:
-        //wrap data_list into repeat_items and attach "puppeteer" components that attach
+        //wrap data_list into repeat_items and attach "puppeteer" RepeatItem component instances that attach
         //the necessary data as stack frame context
         self.virtual_children = Rc::new(RefCell::new(
             self.data_list.get().iter().enumerate().map(|(i, datum)| {
+                let instance_id = instance_registry.mint_id();
 
                 let render_node : RenderNodePtr<R> = Rc::new(RefCell::new(
                     ComponentInstance {
-                        children: Rc::clone(&parents_children),
-                        template: Rc::clone(&self.children),
+                        instance_id,
+                        children: Rc::clone(&forwarded_children),
+                        template: Rc::clone(&self.repeated_template),
                         transform: Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::default()))),
                         properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(datum), i))),
                         timeline: None,
@@ -91,6 +91,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                         })
                     }
                 ));
+
+                instance_registry.register(instance_id, Rc::clone(&render_node));
 
                 render_node
             }).collect()

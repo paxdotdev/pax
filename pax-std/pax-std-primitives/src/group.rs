@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use piet_common::RenderContext;
-use pax_core::{HandlerRegistry, InstanceMap, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use pax_core::{HandlerRegistry, InstanceRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
@@ -9,6 +9,7 @@ use pax_runtime_api::{Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
 pub struct GroupInstance<R: RenderContext> {
+    pub instance_id: u64,
     pub primitive_children: RenderNodePtrList<R>,
     pub id: String,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
@@ -16,14 +17,19 @@ pub struct GroupInstance<R: RenderContext> {
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
+    fn get_instance_id(&self) -> u64 {
+        self.instance_id
+    }
 
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.primitive_children)
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        let new_id = pax_runtime_api::mint_unique_id();
+        let mut instance_registry = args.instance_registry.borrow_mut();
+        let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(Self {
+            instance_id,
             primitive_children: match args.children {
                 None => {Rc::new(RefCell::new(vec![]))}
                 Some(children) => children
@@ -33,7 +39,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
             handler_registry: args.handler_registry,
         }));
 
-        args.instance_map.borrow_mut().insert(new_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
 

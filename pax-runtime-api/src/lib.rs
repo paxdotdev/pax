@@ -63,13 +63,6 @@ impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
     }
 }
 
-//keep an eye on perf. here — might be more sensible to use something like
-//a monotonically increasing counter of i32 instead of String UUIDs.  Might require coordinating between
-//code-genned IDs in code-gen and dynamically generated IDs here to avoid dupes.
-pub fn mint_unique_id() -> String {
-    Uuid::new_v4().to_string()
-}
-
 pub enum ArgsCoproduct {
     Render(ArgsRender),
     Click(ArgsClick),

@@ -15,6 +15,7 @@ use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, ArgsCopro
 /// in special applications like `Repeat` where it houses the `RepeatItem`
 /// properties attached to each of Repeat's virtual nodes.
 pub struct ComponentInstance<R: 'static + RenderContext> {
+    pub(crate) instance_id: u64,
     pub template: RenderNodePtrList<R>,
     pub children: RenderNodePtrList<R>,
     pub should_skip_adoption: bool,
@@ -24,9 +25,6 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>,
 }
-
-
-
 
 
 
@@ -44,7 +42,6 @@ fn flatten_adoptees<R: 'static + RenderContext>(adoptees: RenderNodePtrList<R>) 
     });
 
     Rc::new(RefCell::new(running_adoptees))
-
 }
 
 
@@ -53,6 +50,9 @@ fn flatten_adoptees<R: 'static + RenderContext>(adoptees: RenderNodePtrList<R>) 
 
 
 impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
+    fn get_instance_id(&self) -> u64 {
+        self.instance_id
+    }
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.template)
     }
@@ -71,7 +71,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
-        let new_id = pax_runtime_api::mint_unique_id();
+        let mut instance_registry = (*args.instance_registry).borrow_mut();
+        let instance_id = instance_registry.mint_id();
 
         let template = match args.component_template {
             Some(t) => t,
@@ -79,6 +80,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         };
 
         let ret = Rc::new(RefCell::new(ComponentInstance {
+            instance_id,
             template,
             children: match args.children {
                 Some(children) => children,
@@ -92,7 +94,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
             handler_registry: args.handler_registry,
         }));
 
-        (*args.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
 
@@ -108,8 +110,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
 
         //expand adoptees before adding to stack frame.
-        //NOTE: this requires *evaluating properties* for certain RenderNodes,
-        //      namely `should_flatten` nodes like Repeat and Conditional, whose
+        //NOTE: this requires *evaluating properties* for `should_flatten` nodes like Repeat and Conditional, whose
         //      properties must be evaluated before we can know how to handle them as adoptees
         let unexpanded_adoptees = Rc::clone(&self.children);
 

@@ -6,7 +6,7 @@ use std::rc::Rc;
 use kurbo::BezPath;
 use piet::RenderContext;
 
-use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
+use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
 use pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, Size2D};
 
@@ -18,21 +18,32 @@ use pax_runtime_api::{Transform2D, Size, PropertyInstance, Size2D};
 /// a [`Group`] will generally be a more performant and otherwise-equivalent
 /// to [`Frame`], since `[Frame]` creates a clipping mask.
 pub struct FrameInstance<R: RenderContext> {
+    pub instance_id: u64,
     pub children: RenderNodePtrList<R>,
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
+    fn get_instance_id(&self) -> u64 {
+        self.instance_id
+    }
+    
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        //TODO: add to instance_map!
-        Rc::new(RefCell::new(
+
+        let mut instance_registry = args.instance_registry.borrow_mut();
+        let instance_id = instance_registry.mint_id();
+        let ret = Rc::new(RefCell::new(
             Self {
+                instance_id,
                 children: args.children.expect("Frame expects primitive_children, even if empty Vec"),
                 size: Rc::new(RefCell::new(args.size.expect("Frame requires size"))),
                 transform: args.transform,
             }
-        ))
+        ));
+
+        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        ret
     }
 
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
@@ -91,5 +102,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     fn handle_post_render(&mut self, _rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //pop the clipping context from the stack
         rc.restore().unwrap();
+    }
+
+    fn handle_post_mount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+        //send a Create event for a ClippingMask to native renderer
+
+        // pax_message::runtime::ClippingPatch
+        // as long as this fires before compute_properties, the ClippingUpdate(ClippingPatch) _should_ be sent before rendering, as desired
+
+        let msg = pax_message::runtime::Message::ClippingCreate(self.get_instance_id());
+        (*_rtc.runtime).borrow_mut().enqueue_native_message(msg);
     }
 }

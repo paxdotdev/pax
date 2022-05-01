@@ -178,8 +178,7 @@ _RIL means Rust Intermediate Language, which is the
             [ ] inbound support: PoC with `Click`
         [ ] consider JSON for web, alt: ArrayBuffer and manually deserialize the same C structs as chassis-macos
     [ ] ids
-        [ ] handle monotonic, instance-unique IDs
-            - hand off from compiler to runtime with an embedded (ROM) constant
+        [x] handle monotonic, instance-unique IDs
             - expose method in engine to generate new id
             - initial use-case: instance IDs for associating engine <> native Text instances
     [ ] text support
@@ -1198,10 +1197,10 @@ Thus it follows that we want to associate handlers with INSTANCE IDs rather than
 ### on instance IDs, handlers, and control flow
 
 1. inline, compiler-generated literal ids will add to cartridge footprint
-2. handlers need to be able to look up element by ID (instance_map)
+2. handlers need to be able to look up element by ID (instance_registry)
 3. either: a.) IDs are inlined during compilation (e.g. by the mechanism used to join expressions + properties), or b.) generated at runtime
    1. Expression IDs have to be managed at compile-time, to solve vtable functionality within Rust constraints
-   2. instance_map (instance) IDs should probably be managed at runtime, because:
+   2. instance_registry (instance) IDs should probably be managed at runtime, because:
       1. literal inlining takes toll on footprint
       2. dynamic primitives like if/repeat, which may dynamically instantiate children with methods/handlers, _must_ do this at runtime
 
@@ -1221,11 +1220,11 @@ Look up element by id, get `dyn RenderNode`
 could expose `dispatch_event()` on `RenderNode` —
 challenge is passing the right `&mut self` into the registered method call.
 
-Maybe we don't want to resolve RenderNodes with the instance_map at all?
+Maybe we don't want to resolve RenderNodes with the instance_registry at all?
 Can we resolve to the instance of `RootProperties`?
-The answer is probably yes, because properties are stored in an Rc<RefCell<>>, which we can clone into the instance_map
+The answer is probably yes, because properties are stored in an Rc<RefCell<>>, which we can clone into the instance_registry
 
-So: Engine has an id and an event, looks up id in instance_map,
+So: Engine has an id and an event, looks up id in instance_registry,
 gets an Rc<RefCell<PropertiesCoproduct>>
 
 That PropertiesCoproduct needs to be unwrapped so the right
@@ -1366,7 +1365,7 @@ Could technically enumerate also, `@foreach (val, i) in (0..10)` but only useful
 1. currently using `::instantiate` associated functions, as a way to inject side effects (registering instance in instance map.)
 
 An alternative, robust solution is to instantiate more 'imperatively' -- instead of in one big recursive statement (RIL tree), 
-instantiation can occur using vanilla object constructors and manual invocation of side effects (e.g. registration in instance_map)
+instantiation can occur using vanilla object constructors and manual invocation of side effects (e.g. registration in instance_registry)
 
 Roughly, this requires starting from the bottom of the render tree and moving upwards.  For a given leaf node, instantiate its bottom-most sibling, then each successive sibling until all children of the shared parent are instantiated.  
 Recurse upwards until root is instantiated.
@@ -1374,7 +1373,7 @@ Recurse upwards until root is instantiated.
 Disadvantage:  RIL becomes more cumbersome to read, write.  Advantage: cleaner instantiation logic.
 
 Another option: add `instantiate` to RenderNode, thereby firming the contract of what needs to go into instantiation
-(e.g. the instance_map, the handler_registry, and properties)
+(e.g. the instance_registry, the handler_registry, and properties)
 
 *Decision: add `instantiate` to RenderNode*
 
@@ -2211,7 +2210,8 @@ A priori, markdown-esque feels compelling -- in particular, with support for tem
 
 ### Click events
 
-Ray-casting: where the user clicks, 0 or more elements will be hit.  The _top-most_ element that is _clickable_ receives the event
+Ray-casting: where the user clicks, 0 or more elements will be hit by a ray running orthogonally from the point of click through the bottom-most plane of the cartridge.
+The _top-most_ element that is _clickable_ receives the event
 
 An element _higher in the hierarchy_ (ancestor) should be able to suppress descendent events — this is an _override_ setting, and the highest-in-hierarchy (most ancestral) takes precedence
 
@@ -2222,3 +2222,16 @@ But we're really describing behavior of the _ancestor_ -- in a well encapsulated
 (rather than the desc. saying "just kidding, no event!")
 
 An element _lower_ in the hierarchy may stop propagation imperatively with `stopPropagation()` a la DOM
+
+
+
+### Mount events + native elements + repeat
+
+Currently, Repeat naively re-renders the _same instances_ of elements `n` times
+This is problematic specicially for native elements -- each instance that's cloned by Repeat will have the same instance_id,
+which is how native counterparts are keyed & looked up
+
+Seems that Repeat will need to do a less naive clone of elements -- perhaps RenderNode can implement `Clone` or offer `duplicate`, which copies everything but creates a new instance with new ID/etc?
+Each desc. must also be cloned recursively, producing an entirely new subtree
+
+Then, each `RepeatItem` puppeteer gets a fresh subtree, rather than pointers to the same nodes

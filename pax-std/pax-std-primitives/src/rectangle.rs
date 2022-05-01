@@ -6,7 +6,7 @@ use pax_std::primitives::{Rectangle};
 use pax_std::types::ColorVariant;
 
 
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceMap, HandlerRegistry, InstantiationArgs, RenderNodePtr};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr};
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -19,6 +19,7 @@ use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size
 ///
 /// maybe #[pax primitive]
 pub struct RectangleInstance {
+    pub instance_id: u64,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub properties: Rc<RefCell<Rectangle>>,
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
@@ -95,6 +96,10 @@ impl RectangleInstance {
 
 
 impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance {
+    fn get_instance_id(&self) -> u64 {
+        self.instance_id
+    }
+    
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
@@ -102,15 +107,17 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance {
     fn instantiate(ctx: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let properties = if let PropertiesCoproduct::Rectangle(p) = ctx.properties { p } else {unreachable!("Wrong properties type")};
 
-        let new_id = pax_runtime_api::mint_unique_id();
+        let mut instance_registry = (*ctx.instance_registry).borrow_mut();
+        let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(RectangleInstance {
+            instance_id,
             transform: ctx.transform,
             properties: Rc::new(RefCell::new(properties)),
             size: Rc::new(RefCell::new(ctx.size.expect("Rectangle requires a size"))),
             handler_registry: ctx.handler_registry,
         }));
 
-        (*ctx.instance_map).borrow_mut().insert(new_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
 

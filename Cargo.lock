@@ -1653,15 +1653,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pax"
-version = "0.1.0"
-dependencies = [
- "pax-macro",
- "pax-message",
- "pax-runtime-api",
-]
-
-[[package]]
 name = "pax-cartridge"
 version = "0.1.0"
 dependencies = [
@@ -1735,6 +1726,7 @@ version = "0.1.0"
 dependencies = [
  "kurbo",
  "lazy_static",
+ "pax-message",
  "pax-properties-coproduct",
  "pax-runtime-api",
  "piet",
@@ -1749,8 +1741,17 @@ name = "pax-example"
 version = "0.1.0"
 dependencies = [
  "lazy_static",
- "pax",
+ "pax-lang",
  "pax-std",
+]
+
+[[package]]
+name = "pax-lang"
+version = "0.1.0"
+dependencies = [
+ "pax-macro",
+ "pax-message",
+ "pax-runtime-api",
 ]
 
 [[package]]
@@ -1793,7 +1794,8 @@ version = "0.1.0"
 dependencies = [
  "kurbo",
  "lazy_static",
- "pax",
+ "pax-lang",
+ "pax-message",
  "piet",
 ]
 
@@ -1803,6 +1805,7 @@ version = "0.1.0"
 dependencies = [
  "kurbo",
  "pax-core",
+ "pax-message",
  "pax-properties-coproduct",
  "pax-runtime-api",
  "pax-std",

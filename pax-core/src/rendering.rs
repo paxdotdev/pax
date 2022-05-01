@@ -1,3 +1,4 @@
+use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -8,7 +9,7 @@ use pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{ArgsCoproduct, Size, Size2D};
 
-use crate::{RenderTreeContext, HandlerRegistry, InstanceMap};
+use crate::{RenderTreeContext, HandlerRegistry, InstanceRegistry};
 
 use pax_runtime_api::{PropertyInstance, PropertyLiteral};
 
@@ -22,7 +23,7 @@ pub type RenderNodePtrList<R> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
 pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    pub instance_map: Rc<RefCell<InstanceMap<R>>>,
+    pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub size: Option<[Box<dyn PropertyInstance<Size>>;2]>,
     pub children: Option<RenderNodePtrList<R>>,
@@ -63,6 +64,19 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
+    
+    fn recurse_set_mounted(&mut self, rtc: &mut RenderTreeContext<R>, mounted: bool) {
+        let reg = (*rtc.engine.instance_registry).borrow_mut();
+        if mounted {
+            reg.mark_mounted(self.get_instance_id());
+        } else {
+            reg.mark_unmounted(self.get_instance_id());
+        }
+        for child in (*self.get_rendering_children()).borrow().iter() {
+            (*child).borrow_mut().recurse_set_Mounted(rtc, mounted)
+        }
+    }
+
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         None //default no-op
@@ -72,6 +86,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// doesn't have a size (e.g. `Group`)
     fn get_size(&self) -> Option<Size2D>;
 
+    fn get_instance_id(&self) -> u64;
 
     /// TODO:  do we want to track timelines at the RenderNode level
     ///        or at the StackFrame level?
@@ -177,7 +192,12 @@ pub trait RenderNode<R: 'static + RenderContext>
     fn handle_pre_dismount(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
-
+    // Rather than distribute the logic for is_mounted (which is largely duplicative), we can centralize it with a ledger (Set<instance_id>) in the engine
+    // /// reports whether this rendernode has been attached to the render tree through the end of at least one frame
+    // fn is_mounted(&self) -> bool;
+    //
+    // /// sets internal flag for whether node is mounted -- will cause future `is_mounted` calls to return `true`
+    // fn mark_mounted(&mut self);
 
 }
 

@@ -91,7 +91,7 @@ impl Spread {
 //     // let wrapped_properties = Rc::new(RefCell::new(args.properties));
 //     let component: RenderNodePtr = Rc::new(RefCell::new(
 //         ComponentInstance {
-//             template: init_and_retrieve_template(Rc::clone(&args.instance_map)),
+//             template: init_and_retrieve_template(Rc::clone(&args.instance_registry)),
 //             adoptees: args.component_adoptees.expect("adoptees expected for Spread, even if empty vec"),
 //             handler_registry: None,
 //             transform: Transform::default_wrapped(),
@@ -176,14 +176,14 @@ impl Spread {
 //     }
 // }
 
-// fn init_and_retrieve_template(instance_map: Rc<RefCell<InstanceMap>>) -> RenderNodePtrList {
+// fn init_and_retrieve_template(instance_registry: Rc<RefCell<InstanceMap>>) -> RenderNodePtrList {
 //     Rc::new(RefCell::new(
 //         vec![
 //             Rc::new(RefCell::new(
 //                 RepeatInstance::instantiate(InstantiationArgs{
 //                     properties: PropertiesCoproduct::Empty,
 //                     handler_registry: None,
-//                     instance_map: Rc::clone(&instance_map),
+//                     instance_registry: Rc::clone(&instance_registry),
 //                     transform: Transform::default_wrapped(),
 //                     size: None,
 //                     component_template: None,
@@ -191,7 +191,7 @@ impl Spread {
 //                         Frame::instantiate(InstantiationArgs {
 //                             properties: PropertiesCoproduct::Empty,
 //                             handler_registry: None,
-//                             instance_map: Rc::clone(&instance_map),
+//                             instance_registry: Rc::clone(&instance_registry),
 //                             transform: Rc::new(RefCell::new(
 //                                 PropertyExpression {
 //                                     id: "7870505b-27b4-4871-a239-f734db0e5709".to_string(),

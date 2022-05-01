@@ -9,6 +9,7 @@ edition = "2021"
 pax-core = {path = "../../pax-core"}
 pax-std = {path = "../"}
 pax-runtime-api = {path = "../../pax-runtime-api"}
+pax-message = {path = "../../pax-message" }
 pax-properties-coproduct = {path = "../../pax-properties-coproduct"}
 piet = "0.5.0"
 piet-common = "0.5.0"

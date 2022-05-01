@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::ops::Deref;
 use std::rc::Rc;
-use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceMap, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
+use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceRegistry, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 use piet_common::RenderContext;
@@ -196,7 +196,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
     vtable
 }
 
-pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<RefCell<InstanceMap<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
+pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     //Root
     ComponentInstance::instantiate(
         InstantiationArgs{
@@ -217,7 +217,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                     }
                 ]
             }))),
-            instance_map: Rc::clone(&instance_map),
+            instance_registry: Rc::clone(&instance_registry),
             transform: Transform2D::default_wrapped(),
             size: None,
             children: None,
@@ -246,7 +246,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                 ],
                             }
                         ))),
-                        instance_map: Rc::clone(&instance_map),
+                        instance_registry: Rc::clone(&instance_registry),
                         transform: Transform2D::default_wrapped(),
                         size: Some([Box::new(PropertyLiteral::new(Size::Percent(100.0))), Box::new(PropertyLiteral::new(Size::Percent(100.0)))]),
                         children: Some(Rc::new(RefCell::new(vec![
@@ -259,7 +259,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                     fill: Box::new(PropertyLiteral::new(Color::rgba(0.0, 1.0, 1.0, 1.0)))
                                 }),
                                 handler_registry: None,
-                                instance_map: Rc::clone(&instance_map),
+                                instance_registry: Rc::clone(&instance_registry),
                                 transform: Transform2D::default_wrapped(),
                                 size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                 children: None,
@@ -273,20 +273,20 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                             RepeatInstance::instantiate(InstantiationArgs {
                                 properties: PropertiesCoproduct::None,
                                 handler_registry: None,
-                                instance_map: Rc::clone(&instance_map),
+                                instance_registry: Rc::clone(&instance_registry),
                                 transform: Transform2D::default_wrapped(),
                                 size: None,
                                 children: Some(Rc::new(RefCell::new( vec![
                                     RectangleInstance::instantiate(InstantiationArgs{
                                         properties: PropertiesCoproduct::Rectangle(Rectangle {
                                             stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
-                                        color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
-                                        width: Box::new(PropertyLiteral::new(0.0)),
-                                    } )),
+                                                color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
+                                                width: Box::new(PropertyLiteral::new(0.0)),
+                                            })),
                                             fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 0.45, 0.25, 1.0)))
                                         }),
                                         handler_registry: None,
-                                        instance_map: Rc::clone(&instance_map),
+                                        instance_registry: Rc::clone(&instance_registry),
                                         transform: Transform2D::default_wrapped(),
                                         size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                         children: None,
@@ -317,7 +317,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                     fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 1.0, 0.0, 1.0)))
                                 }),
                                 handler_registry: None,
-                                instance_map: Rc::clone(&instance_map),
+                                instance_registry: Rc::clone(&instance_registry),
                                 transform: Rc::new(RefCell::new(PropertyExpression::new("k".to_string()))),
                                 size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                 children: None,
@@ -334,7 +334,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                 RepeatInstance::instantiate(InstantiationArgs {
                                     properties: PropertiesCoproduct::None,
                                     handler_registry: None,
-                                    instance_map: Rc::clone(&instance_map),
+                                    instance_registry: Rc::clone(&instance_registry),
                                     transform: Transform2D::default_wrapped(),
                                     size: None,
                                     component_template: None,
@@ -342,7 +342,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                         FrameInstance::instantiate(InstantiationArgs{
                                             properties: PropertiesCoproduct::None,
                                             handler_registry: None,
-                                            instance_map: Rc::clone(&instance_map),
+                                            instance_registry: Rc::clone(&instance_registry),
                                             transform: Rc::new(RefCell::new(PropertyExpression::new("g".to_string()))),
                                             size: Some([
                                                 Box::new(PropertyExpression::new("h".to_string())),
@@ -352,7 +352,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_map: Rc<R
                                                 SlotInstance::instantiate(InstantiationArgs {
                                                     properties: PropertiesCoproduct::None,
                                                     handler_registry: None,
-                                                    instance_map: Rc::clone(&instance_map),
+                                                    instance_registry: Rc::clone(&instance_registry),
                                                     transform: Transform2D::default_wrapped(),
                                                     size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                                     children: None,

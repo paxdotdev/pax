@@ -14,6 +14,7 @@ piet-web = "0.5.0"
 kurbo = "0.8.3"
 pax-properties-coproduct = { path = "../pax-properties-coproduct"}
 pax-runtime-api = {path = "../pax-runtime-api"}
+pax-message = {path = "../pax-message"}
 lazy_static = "1.4.0"
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 

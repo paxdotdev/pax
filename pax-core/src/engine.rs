@@ -1,6 +1,6 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::env::Args;
 use std::f64::EPSILON;
 use std::rc::Rc;
@@ -37,7 +37,7 @@ pub enum EventMessage {
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
-    pub instance_map: Rc<RefCell<InstanceMap<R>>>, //If the Rc<RefCell<>> is problematic for perf, could revisit this.  Is only a Rc<RefCell<>> to ease the mutability constraints of passing of the instance_map during RIL node instantiation
+    pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>, //If the Rc<RefCell<>> is problematic for perf, could revisit this.  Is only a Rc<RefCell<>> to ease the mutability constraints of passing of the instance_registry during RIL node instantiation
     pub event_message_queue: Vec<(String, EventMessage)>, //(element id, args)
     pub expression_table: HashMap<String, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct> >,
     pub root_component: Rc<RefCell<ComponentInstance<R>>>,
@@ -143,7 +143,50 @@ pub struct HandlerRegistry {
     pub pre_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
 }
 
-pub type InstanceMap<R: 'static + RenderContext> = HashMap<String, RenderNodePtr<R>>;
+pub struct InstanceRegistry<R: 'static + RenderContext> {
+    ///look up RenderNodePtr by id
+    instance_map: HashMap<u64, RenderNodePtr<R>>,
+
+    ///track which elements are currently mounted -- if id is present in set, is mounted
+    mounted_set: HashSet<u64>,
+
+    ///register holding the next value to mint as an id
+    next_id: u64,
+}
+
+impl<R: 'static + RenderContext> InstanceRegistry<R> {
+    pub fn new() -> Self {
+        Self {
+            mounted_set: HashSet::new(),
+            instance_map: HashMap::new(),
+            next_id: 0,
+        }
+    }
+
+    pub fn mint_id(&mut self) -> u64 {
+        let new_id = self.next_id;
+        self.next_id = self.next_id + 1;
+        new_id
+    }
+
+    pub fn register(&mut self, instance_id: u64, node: RenderNodePtr<R>) {
+        self.instance_map.insert(instance_id, node);
+    }
+
+    pub fn mark_mounted(&mut self, id: u64) {
+        self.mounted_set.insert(id);
+    }
+
+    pub fn is_mounted(&self, id: u64) -> bool {
+        self.mounted_set.contains(&id)
+    }
+
+    pub fn mark_unmounted(&mut self, id: u64) {
+        self.mounted_set.remove(&id);
+    }
+
+}
+
 
 impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn new(
@@ -151,12 +194,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         expression_table: HashMap<String, Box<dyn Fn(ExpressionContext<R>)->TypesCoproduct>>,
         logger: pax_runtime_api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
-        instance_map: Rc<RefCell<InstanceMap<R>>>,
+        instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
     ) -> Self {
         pax_runtime_api::register_logger(logger);
         PaxEngine {
             frames_elapsed: 0,
-            instance_map,
+            instance_registry,
             event_message_queue: vec![],
             expression_table,
             runtime: Rc::new(RefCell::new(Runtime::new())),
@@ -182,7 +225,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // 1. compute properties
         // 2. find lowest node (last child of last node), accumulating transform along the way
         // 3. start rendering, from lowest node on-up
-
 
         // let mut hpc = HostPlatformContext {
         //     drawing_context: rc,
@@ -214,9 +256,16 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done with this frame
 
-
         //populate a pointer to this (current) `RenderNode` onto `rtc`
         rtc.node = Rc::clone(&node);
+
+        //fire mount event if this is this node's first frame
+        let id = (*rtc.node).borrow().get_instance_id();
+        let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
+        if !instance_registry.is_mounted(id) {
+            node.borrow_mut().handle_post_mount(rtc);
+            instance_registry.mark_mounted(id);
+        }
 
         //TODO: double-check that this logic should be happening here, vs. after `compute_properties` (where
         //the "current component" will actually push its stack frame.)
@@ -230,7 +279,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         //lifecycle: init_and_calc happens before anything else and
         //           calculates
-        //
         node.borrow_mut().compute_properties(rtc);
         let accumulated_transform = rtc.transform;
         let accumulated_bounds = rtc.bounds;

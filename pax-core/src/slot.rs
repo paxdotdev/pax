@@ -5,7 +5,7 @@ use std::rc::Rc;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, RenderNode, RenderNodePtrList, RenderTreeContext};
+use crate::{InstantiationArgs, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext, HandlerRegistry};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
 
 
@@ -21,6 +21,7 @@ use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
 /// that become the final rendered home of those adoptees.  This same technique
 /// is portable and applicable elsewhere via Slot.
 pub struct SlotInstance<R: 'static + RenderContext> {
+    pub instance_id: u64,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub index: Box<dyn PropertyInstance<usize>>,
     cached_computed_children: RenderNodePtrList<R>,
@@ -28,14 +29,20 @@ pub struct SlotInstance<R: 'static + RenderContext> {
 
 
 impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
-
+    fn get_instance_id(&self) -> u64 {
+        self.instance_id
+    }
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        let new_id = pax_runtime_api::mint_unique_id();
-        Rc::new(RefCell::new(Self {
+        let mut instance_registry = args.instance_registry.borrow_mut();
+        let instance_id = instance_registry.mint_id();
+        let ret  = Rc::new(RefCell::new(Self {
+            instance_id,
             transform: args.transform,
             index: args.slot_index.expect("index required for Slot"),
             cached_computed_children: Rc::new(RefCell::new(vec![]))
-        }))
+        }));
+        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        ret
     }
 
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
