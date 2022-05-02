@@ -53,7 +53,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
                 //flip that bit if a node is rendered.  In other words: it's important that Conditional not continue
                 //to return unmounted children in `get_rendering_children`, otherwise they will automatically be `mounted` again.
                 (*self.primitive_children).borrow_mut().iter().for_each(|child| {
-                    (*(*child)).borrow_mut().recurse_set_mounted(rtc, false);
+                    (*(*child)).borrow_mut().unmount_recursive(rtc, false);
                 })
             }
 

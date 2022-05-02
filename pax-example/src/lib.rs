@@ -4,11 +4,11 @@ use pax_std::{Spread, Text, Rectangle};
 #[pax(
     <Spread cell_count=10 >
         <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
-        for i in self.data {
-            <Text>_Index_: {i.some_member}`</Text>
+        for i in 0..8 {
+            <Text>`_Index_: {i}`</Text>
             <Rectangle on_click=my_click_handler with i fill=Color::rgba(100%, 0, 100%, 100%) />
         }
-        <Rectangle  transform={rotate(self.current_rotation)} fill=Color::rgba(0, 100%, 100%, 100%) />
+        <Rectangle transform={rotate(self.current_rotation)} fill=Color::rgba(0, 100%, 100%, 100%) />
     </Spread>
 
 )]

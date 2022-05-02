@@ -87,9 +87,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 None => {Rc::new(RefCell::new(vec![]))},
             };
 
-            //unmount all old virtual_children
+            //unmount all old virtual_children, permanently (TODO: this can be much-optimized)
             (*(*self.virtual_children).borrow_mut()).iter_mut().for_each(|vc| {
-                (*(*(*vc).borrow_mut())).borrow_mut().recurse_set_mounted(rtc, false);
+                (*(*(*vc).borrow_mut())).borrow_mut().unmount_recursive(rtc, true);
             });
 
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();

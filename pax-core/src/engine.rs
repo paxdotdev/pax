@@ -173,6 +173,10 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.instance_map.insert(instance_id, node);
     }
 
+    pub fn deregister(&mut self, instance_id: u64) {
+        self.instance_map.remove(&instance_id);
+    }
+
     pub fn mark_mounted(&mut self, id: u64) {
         self.mounted_set.insert(id);
     }
