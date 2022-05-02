@@ -1,7 +1,7 @@
 [package]
 name = "pax-chassis-macos"
 edition = "2021"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Zack Brown <zack@inclination.co>"]
 description = "Pax chassis for macOS"
 publish = false

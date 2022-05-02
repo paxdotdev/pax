@@ -1,6 +1,6 @@
 [package]
 name = "pax-example"
-version = "0.1.0"
+version = "0.0.1"
 authors = ["Zack Brown <zack@inclination.co>"]
 edition = "2021"
 
@@ -42,6 +42,6 @@ lazy_static = "*"
 
 #can also try, even though it's deprecated:
 #[replace]
-#"foo:0.1.0" = { git = 'https://github.com/example/foo' }
+#"foo:0.0.1" = { git = 'https://github.com/example/foo' }
 #"bar:1.0.2" = { path = 'my/local/bar' }
 

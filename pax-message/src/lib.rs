@@ -191,13 +191,13 @@ pub mod runtime {
 
     #[repr(C)]
     pub struct TextPatch {
-        content: Option<TextContent>,
+        content: Option<TextContentMessage>,
         transform: Option<[f64; 6]>,
         size: [Option<TextSize>; 2],
     }
 
     #[repr(C)]
-    pub struct TextContent {
+    pub struct TextContentMessage {
         spans: *mut CString, //C-friendly `Vec<CString>`, along with explicit length
         spans_len: u64,
         commands: *mut TextCommand, //C-friendly `Vec<MessageTextPropertiesCommand>`, along with explicit length
