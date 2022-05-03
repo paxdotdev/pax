@@ -6,7 +6,7 @@ Pax can be authored on its own in `.pax` files (in the spirit of `.html` files),
 
 Though Pax has zero dependencies on Web technologies — no WebViews, no JS runtime, no DOM — it aims to achieve the same openness, approachability, and universality as Web technologies.
 
-#### Use-cases:
+### Use-cases:
 
 **Today:**
   - _Write once deploy anywhere_ native GUIs: desktop, mobile, web
@@ -17,8 +17,6 @@ Though Pax has zero dependencies on Web technologies — no WebViews, no JS runt
   - Webpage-style content, documents, articles
   - Interactive cartoons, animations
   - 2D and 3D games, VR experiences
-  
-  
 
 <img src="multi-device-placeholder.png" alt="Two separate renditions wherein a phone, a tablet, and a laptop each display a nebula">
 
@@ -30,7 +28,7 @@ Native techniques are applied maximally, including for text rendering, form cont
 
 ### Ergonomic and fun to use
 
-Inspired by standards like JSX, HTML, SVG, CSS [and others](#inspiration), Pax aims to be intuitive, familiar, and hopefully even fun to write.
+Inspired by [prior art](#inspiration), Pax aims to be intuitive, familiar, and hopefully even fun to write.
 
 Note: until additional host languages (like JavaScript) are supported, any application logic attached to Pax must be written in Rust.
 
@@ -57,7 +55,7 @@ First let's look at some Pax by itself:
 }/>
 ```
 
-You may notice that this code looks a lot like HTML, XAML, or JSX.  The above example will simply show a 100 x 100 pixel red rectangle, centered in the viewport.
+This example will render a 100px x 100px red rectangle, centered in the viewport.  You may notice that this code looks a lot like HTML, XAML, or JSX.  
 
 Here's another example including Rust and interactivity:
 
