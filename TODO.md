@@ -391,6 +391,9 @@ On click, each square performs an animated transformation, e.g. rotation
 ## Backlog
 
 ```
+[ ] Pax Browser
+    - simple desktop app, mostly a dev harness, but also
+      supports 
 [ ] Revisit embedded literal strings across codebase for error messages, to reduce binary footprint (enum? codes?)
 [ ] Reinvestigate Any as an alternative to Coproduct generation
     [ ] would dramatically simplify compiler, code-gen process

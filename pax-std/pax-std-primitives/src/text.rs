@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-
 use pax_core::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform, HostPlatformContext};
 use wasm_bindgen::prelude::*;
 
@@ -10,9 +9,8 @@ pub struct Text {
     pub transform: Rc<RefCell<Transform>>,
     pub size: Size2D,
     pub id: String,
+    pub last_patches: pax_message::runtime::Message::TextPatch,
 }
-
-
 
 impl RenderNode for Text {
     fn get_rendering_children(&self) -> RenderNodePtrList {

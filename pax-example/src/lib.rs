@@ -5,20 +5,20 @@ use pax_std::{Spread, Text, Rectangle};
     <Spread cell_count=10 >
         <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
         for i in 0..8 {
-            <Text>`_Index_: {i}`</Text>
-            <Rectangle on_click=my_click_handler with i fill=Color::rgba(100%, 0, 100%, 100%) />
+            <Group>
+                <Text>`_Index_: {i}`</Text>
+                <Rectangle fill=Color::rgba(100%, 0, 100%, 100%) />
+            </Group>
         }
         <Rectangle transform={rotate(self.current_rotation)} fill=Color::rgba(0, 100%, 100%, 100%) />
     </Spread>
-
 )]
-pub struct Root {
+pub struct HelloWorld {
     pub num_clicks : Property<isize>,
     pub current_rotation: Property<f64>,
-    pub data : Vec<SomeCustomStruct>
 }
 
-impl Root {
+impl HelloWorld {
 
     #[pax_on(PreRender)] //or long-hand: #[pax_on(Lifecycle::PreRender)]
     pub fn handle_pre_render(&mut self, args: ArgsTick) {

@@ -2,19 +2,23 @@
 
 Pax is a language for cross-platform computer graphics and user interfaces.
 
-Pax can be authored on its own in `.pax` files (in the spirit of `.html` files), or it can _snap on_ to a Rust codebase to create expressive graphical scenes or data-connected GUIs.  In either case, Pax gets compiled to high-performance machine code, compatible with any number of supported devices.
+Pax can be authored on its own in `.pax` files (in the spirit of `.html` files), or it can _snap on_ to a Rust codebase for application logic, to create expressive graphical scenes or data-connected GUIs.
 
-Though Pax has zero dependencies on Web technologies — no WebViews, no JS runtime, no DOM — it aims to achieve the same universality as Web technologies: to run consistently across any device. Ultimately, Pax aims to deliver better-than-Web user experiences.
+Though Pax has zero dependencies on Web technologies — no WebViews, no JS runtime, no DOM — it aims to achieve the same openness, approachability, and universality as Web technologies.
+
 
 #### Use-cases:
 
-- Expressive GUIs for: native desktop apps, native mobile apps, high-performance web apps
-- Interactive cartoons and animations
-- Games
-- Webpage-style content, documents, articles
-- Generative and procedural art, digital experimental media
-- Data visualizations
-- Visual design tooling
+**Today:**
+  - _Write once deploy anywhere_ native GUIs: desktop, mobile, web
+  - Webpage-style content, documents, articles
+  - Data visualizations, interactivity
+  - Generative and procedural art, digital experimental media
+
+**Future:**
+  - Interactive cartoons and animations
+  - Games
+  - Visual design tooling
 
 <img src="multi-device-placeholder.png" alt="Two separate renditions wherein a phone, a tablet, and a laptop each display a nebula">
 
@@ -22,19 +26,19 @@ Though Pax has zero dependencies on Web technologies — no WebViews, no JS runt
 
 Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very light-weight. (up to 120FPS rendering, target <100KB runtime disk footprint)
 
-Pax is "write once, deploy everywhere."  Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
+Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
 
 ### Ergonomic and fun to use
 
-Pax was birthed within Rust.  Authoring Pax in the early days will require writing Rust for application logic.  
+Inspired by standards like JSX, HTML, SVG, CSS [and others](#inspiration), Pax aims to be intuitive, familiar, and hopefully even fun to write.
 
-That said, Pax is its own language, separate from Rust, and it aims to achieve ergonomics familiar to GUI designers and developers.  [On the roadmap](TODO.md) is the addition of an optional JavaScript runtime.  This will enable hacking on Pax without writing any Rust.
+Note: until additional host languages (like JavaScript) are supported, any application logic attached to Pax must be written in Rust.
 
 ### Sky's the limit
 
 Pax is designed to extend and support _anything you can imagine_ on a screen — from 2D to 3D to VR/AR, embedded multimedia, and more.
 
-Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_ is to enable art and artists as well as developers.
+Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d'être_ is to enable art and artists alongside developers.
 
 > Note: Today Pax is in alpha, supports GPU-primitive 2D vector graphics, and has working development harnesses for Web (WASM) and native macOS (Swift).  See [the roadmap](TODO.md).
 
@@ -53,8 +57,7 @@ First let's look at some Pax by itself:
 }/>
 ```
 
-
-You'll notice this code looks a lot like HTML, XAML, or JSX.  The above example will simply show a 100 x 100 pixel red rectangle, centered in the viewport.
+You may notice that this code looks a lot like HTML, XAML, or JSX.  The above example will simply show a 100 x 100 pixel red rectangle, centered in the viewport.
 
 Here's another example including Rust and interactivity:
 
@@ -69,7 +72,7 @@ use pax::std::drawing2D::Rectangle;
         anchor(50%, 50%)   * 
         align(50%, 50%)    * 
         rotate(self.theta) 
-    }/>
+    } />
 )]
 pub struct HelloWorld {
     theta: f64,
@@ -140,6 +143,7 @@ class HelloWorld {
 | Native event handling (e.g. Click, Tap) | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
 | Rust as host language                   | ✅ <br/>WASM   | ✅ <br/>LLVM         | ✅ <br/>LLVM       | ✅ <br/>LLVM         | ✅ <br/>LLVM                 | ✅ <br/>LLVM  |
 | JS/TypeScript as host language          | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
+| C++/Python/etc. as host languages       | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
 
 | Legend:             |
 |---------------------|
@@ -162,11 +166,11 @@ class HelloWorld {
 Pax is currently specified by this implementation.
 
 Pax is really an assorted bag of special-purpose languages and a runtime, which as a whole act as an application platform.
-In this way, Pax is arguably similar to the assorted bag of {HTML, JS, CSS, modern web browsers}.
+In this way, Pax is arguably similar to the assorted bag of `{HTML, JavaScript, CSS, Browsers}`.
 
 Pax breaks down into 3 sub-languages:
 
-**1. Template language**
+#### 1. Template language
 Data representing the _content_ of a scene graph or UI tree. 
 Includes a provision for referencing/linking (`id=some_identifier`). 
 Also includes condition/loop logic (`if`, `for`)
@@ -178,7 +182,7 @@ Also includes condition/loop logic (`if`, `for`)
 </Group>
 ```
 
-**2. Settings language**
+#### 2. Settings language
 Data representing the _behavior_ of a scene graph or UI tree.  Similarly to HTML/CSS, settings may be _joined_ to a template by use of IDs and selectors.
 
 ```
@@ -204,11 +208,22 @@ Settings may be freely inlined inside template element declarations, too:
 <Rectangle fill=Color::rgb(100%,0,0) stroke=Stroke {color: Color::rgb(100%,0,0)} />
 ```
 
-**3. Expression language (PAXEL)**
+#### 3. Pax Expression language (PAXEL)
 
-You can create a PAXEL Expression anywhere you can set a settings value, in `template` definitions or in `@settings` blocks.
+```
+<Rectangle transform={
+    rotate(engine.frames_elapsed / 200.0) *
+    translate(in.mouse_x, in.mouse_y)
+}/>
+```
 
-For example in a template:
+If you've used a templating language like JSX before, you might think the code within the braces above `{ ... }` is inline Rust code.  It's not.
+
+That is PAXEL -- part of Pax, a special-purpose language for declaring computed properties in the spirit of spreadsheet formulas.  
+
+You can create a PAXEL Expression anywhere you can declare a settings value, in `template` definitions or in `@settings` blocks.
+
+For example the expression `self.activeColor.adjustBrightness(50%)` might live in a template:
 
 ```
 <Rectangle fill={ self.activeColor.adjustBrightness(50%) } />
@@ -222,11 +237,10 @@ or in a settings block:
 }
 ```
 
-In both cases above, the snippet of PAXEL is `self.activeColor.adjustBrightness(50%)`.  The Pax compiler builds all expressions
-in a program to machine code, collecting them in a central vtable that gets called / evaluated at runtime.
+The Pax compiler builds all expressions to machine code, managing each as its own compiled function in a vtable.
 
 Because Pax Expressions are pure, side-effect free functions, the Pax runtime can make aggressive optimizations: caching values
-and only recomputing when one of the stated inputs changes.  Expressions are also readily parallelizable.
+and only recomputing when one of the stated inputs changes.  Expressions are also readily parallelizable, a prospective future performance optimization.
 
 PAXEL is very similar to at least two existing languages: Microsoft's Excel spreadsheet formula language, and Google's Common Expression Language (CEL). PAXEL shares the following characteristics with CEL[3]:
 
@@ -261,9 +275,7 @@ CPU has not been well profiled (TODO:) but stands to be improved significantly, 
 
 The first versions of Pax were designed and built by [an individual](https://www.github.com/zackbrown), but that individual's desire is for Pax to be community-owned.
 
-Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  
-
-Participation in the non-profit is available to any contributor or sponsor.  [Reach out on Discord](https://discord.gg/4E6tcrtCRb) to learn more.
+Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  [Reach out on Discord](https://discord.gg/4E6tcrtCRb) if you would like to help with the non-profit.
 
 
 ## Inspiration
@@ -517,6 +529,31 @@ extensible -- built around reusable components, down to the standard library. Re
 compiled -- rather than interpreted.  TODO: describe alternative to `right-click, view source`
 doesn't require a browser or a JavaScript runtime — though Pax is backwards compatible with any modern browser, it can also be packaged as stand-alone native apps for any supported platform.
 designable
+
+
+
+
+#### Today and future
+
+**Today** Pax is a GUI language for Rust applications, plus native and web wrappers for easy multi-platform deployment (à la Electron and React Native in the Web world.)  It supports rich 2D graphics and drawing, text, interactions, an intuitive templating language, and platform-native form controls for macOS, iOS, and web browsers.
+
+(Today you can use Pax to create GUIs and dynamic graphics for Rust applications, which can be deployed into native apps for iOS, macOS, and the Web (via WASM.))
+
+**In the future,** Pax aims to be:
+- Language agnostic: support JavaScript/TypeScript/Python/C++ and any number of other host languages
+- (this converges on the Support Matrix, which also communicates "today" vs. "future")
+
+
+
+
+
+## Appendix F: Imagine if...
+
+...HTML/CSS were redesigned from scratch, with a few important paradigm shifts:
+
+- **Any property can be a computed `Expression`**, a spreadsheet-like formula that can perform basic operations and refer to other values.  In practice, this feels like "JSX meets a spreadsheet."  [Read more about PAXEL](#)
+- **Graphics- and GUIs-first,** rather than Documents-first.  Cartesian coordinates, first-class horizontal & vertical alignment, responsive sizing.
+- **Native-first:** transpiles through Rust, which runs everywhere natively inside app wrappers (similar to Electron, React Native — but without JS runtimes.)  Text and form controls are rendered natively; scrolling is handled natively.
 
 
 ------
