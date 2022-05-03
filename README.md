@@ -4,8 +4,9 @@ Pax is a language for cross-platform computer graphics and user interfaces.
 
 Pax can be authored on its own in `.pax` files (in the spirit of `.html` files), or it can _snap on_ to a Rust codebase for application logic, to create expressive graphical scenes or data-connected GUIs.
 
-Though Pax has zero dependencies on Web technologies — no WebViews, no JS runtime, no DOM — it aims to achieve the same openness, approachability, and universality as Web technologies.
+A Pax project may be compiled into native apps for any supported platform, embedded into a browser via WebAssembly, or imported as a library of reusable components into other Pax programs.
 
+Though Pax has zero dependencies on Web technologies — no WebViews, no JS runtime, no DOM — it aims to achieve the same openness, approachability, and universality as Web technologies.
 
 #### Use-cases:
 
