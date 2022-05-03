@@ -216,7 +216,7 @@ Settings may be freely inlined inside template element declarations, too:
 }/>
 ```
 
-If you've used a templating language like JSX before, you might think the code within the braces above `{ ... }` is inline Rust code.  It's not.
+If you've used a templating language like JSX before, you might expect that the code within the braces above `{ ... }` is inline Rust code.  It's not.
 
 That is PAXEL -- part of Pax, a special-purpose language for declaring computed properties in the spirit of spreadsheet formulas.  
 
@@ -255,11 +255,6 @@ PAXEL is very similar to at least two existing languages: Microsoft's Excel spre
 
 PAXEL has a tighter, more specialized scope than CEL and carries a much smaller runtime footprint.
 
-
-### How does Pax work cross-platform?
-
-<img src="how-it-works-placeholder.png" alt="placeholder infographic for how Pax compiles to a cartridge that can be loaded into any number of native runtimes" />
-<!-- TODO: refine; caption -->
 
 ### What is Pax's footprint?
 
@@ -554,6 +549,11 @@ designable
 - **Graphics- and GUIs-first,** rather than Documents-first.  Cartesian coordinates, first-class horizontal & vertical alignment, responsive sizing.
 - **Native-first:** transpiles through Rust, which runs everywhere natively inside app wrappers (similar to Electron, React Native — but without JS runtimes.)  Text and form controls are rendered natively; scrolling is handled natively.
 
+
+## Appendix G: How does Pax work cross-platform?
+
+<img src="how-it-works-placeholder.png" alt="placeholder infographic for how Pax compiles to a cartridge that can be loaded into any number of native runtimes" />
+<!-- TODO: refine; caption -->
 
 ------
 
