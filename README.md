@@ -14,10 +14,10 @@ Though Pax has zero dependencies on Web technologies — no WebViews, no JS runt
   - Generative and procedural art, digital experimental media
 
 **Future:**
-  - Visual design tooling
   - Webpage-style content, documents, articles
-  - Interactive cartoons and animations
-  - 2D/3D games, VR
+  - Interactive cartoons, animations
+  - 2D and 3D games, VR experiences
+  
   
 
 <img src="multi-device-placeholder.png" alt="Two separate renditions wherein a phone, a tablet, and a laptop each display a nebula">
