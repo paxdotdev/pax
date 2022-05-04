@@ -1,17 +1,15 @@
-
 use kurbo::{BezPath};
 use piet::{RenderContext};
 
 use pax_std::primitives::{Rectangle};
 use pax_std::types::ColorVariant;
-
-
 use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr};
+use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, ArgsCoproduct};
+
 use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
-use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, ArgsCoproduct};
 
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
@@ -19,11 +17,12 @@ use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size
 ///
 /// maybe #[pax primitive]
 pub struct RectangleInstance {
-    pub instance_id: u64,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub properties: Rc<RefCell<Rectangle>>,
-    pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    pub instance_id: u64,
+    pub properties: Rc<RefCell<Rectangle>>,
+
+    pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
+    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 }
 
 
@@ -104,17 +103,17 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn instantiate(ctx: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        let properties = if let PropertiesCoproduct::Rectangle(p) = ctx.properties { p } else {unreachable!("Wrong properties type")};
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+        let properties = if let PropertiesCoproduct::Rectangle(p) = args.properties { p } else {unreachable!("Wrong properties type")};
 
-        let mut instance_registry = (*ctx.instance_registry).borrow_mut();
+        let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(RectangleInstance {
             instance_id,
-            transform: ctx.transform,
+            transform: args.transform,
             properties: Rc::new(RefCell::new(properties)),
-            size: Rc::new(RefCell::new(ctx.size.expect("Rectangle requires a size"))),
-            handler_registry: ctx.handler_registry,
+            size: Rc::new(RefCell::new(args.size.expect("Rectangle requires a size"))),
+            handler_registry: args.handler_registry,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);

@@ -174,16 +174,18 @@ _RIL means Rust Intermediate Language, which is the
     [x] message design/arch
     [ ] runtime de/serialization
         [ ] C structs across FFI
+            [x] Logging, strings, message-passing
             [ ] CRUD operations and methods: PoC with `Text`
             [ ] inbound support: PoC with `Click`
         [ ] consider JSON for web, alt: ArrayBuffer and manually deserialize the same C structs as chassis-macos
-    [ ] ids
+    [x] ids
         [x] handle monotonic, instance-unique IDs
             - expose method in engine to generate new id
             - initial use-case: instance IDs for associating engine <> native Text instances
     [ ] text support
         [x] handle_post_mount and handle_pre_unmount
         [x] trigger mount/unmount lifecycle events in engine, `Conditional`, `Repeat`
+        [ ] hook up Text primitive
         [ ] handle dirty-checking for `Patch` event population
     [ ] click support
         [ ] ray-casting
@@ -192,6 +194,7 @@ _RIL means Rust Intermediate Language, which is the
         [ ] click/jab polyfill
 [ ] dev env ++
     [ ] support stand-alone .pax files (no rust file); .html use-case
+        [ ] dep. management -- augment prelude with static dep. list?
     [ ] support inline (in-file) component def. (as alternative to `#[pax_component_definition]` file path)
     [x] support for different example projects
     [ ] native macOS chassis + dev-harness?

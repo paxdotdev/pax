@@ -1,41 +1,103 @@
 use std::cell::RefCell;
+use std::ffi::CString;
 use std::rc::Rc;
 
-use pax_core::{Property, RenderNode, RenderNodePtrList, RenderTreeContext, Size2D, Transform, HostPlatformContext};
-use wasm_bindgen::prelude::*;
+use piet::{RenderContext};
 
-pub struct Text {
-    pub content: Box<dyn Property<String>>,
-    pub transform: Rc<RefCell<Transform>>,
+use pax_std::primitives::{Text};
+use pax_core::{HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use pax_message::runtime::TextPatch;
+use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
+
+pub struct TextInstance {
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    pub instance_id: u64,
+    pub properties: Rc<RefCell<Text>>,
+
     pub size: Size2D,
-    pub id: String,
-    pub last_patches: pax_message::runtime::Message::TextPatch,
+    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+
+    //Used as a cache of last-sent values, for crude dirty-checking.
+    //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
+    last_patches: pax_message::runtime::TextPatch,
 }
 
-impl RenderNode for Text {
-    fn get_rendering_children(&self) -> RenderNodePtrList {
+impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
+    fn get_instance_id(&self) -> u64 {
+        self.instance_id
+    }
+
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+        let properties = if let PropertiesCoproduct::Text(p) = args.properties { p } else {unreachable!("Wrong properties type")};
+
+        let mut instance_registry = (*args.instance_registry).borrow_mut();
+        let instance_id = instance_registry.mint_id();
+        let ret = Rc::new(RefCell::new(TextInstance {
+            instance_id,
+            transform: args.transform,
+            properties: Rc::new(RefCell::new(properties)),
+            size: Rc::new(RefCell::new(args.size.expect("Text requires a size"))),
+            handler_registry: args.handler_registry,
+            last_patches: Default::default()
+        }));
+
+        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        ret
+    }
+    
+    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
-    fn get_transform(&mut self) -> Rc<RefCell<Transform>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext) {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
-        self.size.borrow_mut().0.compute_in_place(rtc);
-        self.size.borrow_mut().1.compute_in_place(rtc);
-        self.transform.borrow_mut().compute_in_place(rtc);
+        let mut new_message : TextPatch = Default::default();
+
+        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        if let Some(content) = rtc.compute_vtable_value(properties.content._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::String(v) = content { v } else { unreachable!() };
+            new_message.content = Some(CString::new(new_value.clone()).unwrap()); //TODO: better error handling?
+            properties.content.set(new_value);
+        }
+
+        let mut size = &mut *self.size.as_ref().borrow_mut();
+
+        if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+            size[0].set(new_value);
+        }
+
+        if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+            size[1].set(new_value);
+        }
+
+        let mut transform = &mut *self.transform.as_ref().borrow_mut();
+        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
+            transform.set(new_value);
+        }
+
+
+
+
     }
 
-    fn render(&self, rtc: &mut RenderTreeContext, hpc: &mut HostPlatformContext) {
+    fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing & transforming text)
     }
 
     fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
-        (*rtc.engine.runtime).borrow_mut().enqueue_native_message();
-        // todo!(construct message and attach to native_render_queue)
+        (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
+            todo!()
+        );
+
     }
 
     fn handle_pre_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        todo!(construct message and attach to native_render_queue)
+        todo!("construct message and attach to native_render_queue")
     }
 }

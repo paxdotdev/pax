@@ -22,13 +22,13 @@ Though Pax has zero dependencies on Web technologies — no WebViews, no JS runt
 
 ### Low-level, fast, and universal
 
-Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very light-weight. (up to 120FPS rendering, target <100KB runtime disk footprint)
+Every program made with Pax compiles via Rust to machine code: Web Assembly in browsers and LLVM for native platforms. It's very fast and very light-weight. (up to 120FPS rendering, as low as 100KB disk footprint)
 
 Native techniques are applied maximally, including for text rendering, form controls, and scrolling.
 
 ### Ergonomic and fun to use
 
-Inspired by [prior art](#inspiration), Pax aims to be intuitive, familiar, and hopefully even fun to write.
+Pax aims to be intuitive, familiar, and hopefully even fun to write.  To achieve this, Pax builds on conventions and ergonomics established by a variety of [prior art](#inspiration).
 
 Note: until additional host languages (like JavaScript) are supported, any application logic attached to Pax must be written in Rust.
 
@@ -73,7 +73,7 @@ use pax::std::drawing2D::Rectangle;
     } />
 )]
 pub struct HelloWorld {
-    theta: f64,
+    theta: Property<f64>,
 }
 
 impl HelloWorld {
@@ -268,7 +268,7 @@ CPU has not been well profiled (TODO:) but stands to be improved significantly, 
 
 The first versions of Pax were designed and built by [an individual](https://www.github.com/zackbrown), but that individual's desire is for Pax to be community-owned.
 
-Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  [Reach out on Discord](https://discord.gg/4E6tcrtCRb) if you would like to help with the non-profit.
+Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  If you would like to participate in the non-profit, [reach out on Discord](https://discord.gg/4E6tcrtCRb).
 
 
 ## Inspiration

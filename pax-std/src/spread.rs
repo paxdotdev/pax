@@ -21,10 +21,6 @@ pub struct Spread {
     pub cell_count: Property<usize>,
     pub gutter_width: Property<Size>,
 
-    //These two data structures act as "sparse maps," where
-    //the first element in the tuple is the index of the cell/gutter to
-    //override and the second is the override value.  In the absence
-    //of overrides (`vec![]`), cells and gutters will divide space evenly.
     pub overrides_cell_size: Property<Vec<(usize, Size)>>,
     pub overrides_gutter_size: Property<Vec<(usize, Size)>>,
 }
@@ -53,6 +49,11 @@ impl Spread {
         let per_cell_space = usable_interior_space / cell_count;
 
         //TODO: account for overrides
+        //The two data structures act as "sparse maps," where
+        //the first element in the tuple is the index of the cell/gutter to
+        //override and the second is the override value.  In the absence
+        //of overrides (`vec![]`), cells and gutters will divide space evenly.
+
         self.computed_layout_spec.set((0..(cell_count as usize)).into_iter().map(|i| {
             match self.direction.get() {
                 SpreadDirection::Horizontal =>

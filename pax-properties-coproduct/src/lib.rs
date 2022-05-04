@@ -10,6 +10,7 @@ pub enum PropertiesCoproduct {
     isize(isize), //used by range for repeat (0..10)
     SpreadCellProperties(pax_example::pax_types::pax_std::types::SpreadCellProperties),
     Rectangle(pax_example::pax_types::pax_std::primitives::Rectangle),
+    Text(pax_example::pax_types::pax_std::primitives::Text),
     Group(pax_example::pax_types::pax_std::primitives::Group),
     Spread(pax_example::pax_types::pax_std::components::Spread),
     Root(pax_example::Root),
@@ -27,6 +28,7 @@ pub enum TypesCoproduct {
     usize(usize), //used by Slot for index
     Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
     Transform2D(pax_example::pax_types::Transform2D),
+    String(String),
     //generated
     Stroke(pax_example::pax_types::pax_std::types::Stroke),
     Color(pax_example::pax_types::pax_std::types::Color),

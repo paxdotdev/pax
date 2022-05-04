@@ -83,8 +83,7 @@ pub mod primitives {
 
     #[pax_primitive("./pax-std-primitives", crate::TextInstance)]
     pub struct Text {
-        pub content: Box<dyn pax::api::PropertyInstance<types::Stroke>>,
-        pub fill: Box<dyn pax::api::PropertyInstance<types::Color>>,
+        pub content: Box<dyn pax::api::PropertyInstance<String>>
     }
 
 

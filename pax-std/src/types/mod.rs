@@ -9,6 +9,12 @@ pub struct Stroke {
     pub width: Box<dyn PropertyInstance<f64>>,
 }
 
+#[pax_type]
+#[derive(Default, Clone)]
+pub struct Text {
+    pub content: Box<dyn PropertyInstance<String>>,
+}
+
 
 #[derive(Clone)]
 #[pax_type]

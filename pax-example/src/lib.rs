@@ -14,7 +14,7 @@ use pax_std::{Spread, Text, Rectangle};
     </Spread>
 )]
 pub struct HelloWorld {
-    pub num_clicks : Property<isize>,
+    pub num_clicks : Property<i64>,
     pub current_rotation: Property<f64>,
 }
 

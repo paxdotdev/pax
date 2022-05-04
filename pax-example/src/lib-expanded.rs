@@ -11,6 +11,7 @@ pub mod pax_types {
         pub mod primitives {
             pub use pax_std::primitives::Rectangle;
             pub use pax_std::primitives::Group;
+            pub use pax_std::primitives::Text;
         }
         pub mod components {
             pub use pax_std::components::Spread;

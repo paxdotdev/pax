@@ -189,20 +189,23 @@ pub mod runtime {
         Pixels(f64),
     }
 
+    #[derive(Default)]
     #[repr(C)]
     pub struct TextPatch {
-        content: Option<TextContentMessage>,
+        pub content: Option<CString>, //See `TextContentMessage` for a sketched-out approach to rich text
         transform: Option<[f64; 6]>,
         size: [Option<TextSize>; 2],
     }
-
-    #[repr(C)]
-    pub struct TextContentMessage {
-        spans: *mut CString, //C-friendly `Vec<CString>`, along with explicit length
-        spans_len: u64,
-        commands: *mut TextCommand, //C-friendly `Vec<MessageTextPropertiesCommand>`, along with explicit length
-        commands_len: u64,
-    }
+    //
+    // #[repr(C)]
+    // pub struct TextContentMessage {
+    //     /// C-friendly `Vec<CString>`, along with explicit length.
+    //     /// In other renderers, these sorts of `spans` are sometimes referred to as `runs`
+    //     spans: *mut CString, //
+    //     spans_len: u64,
+    //     commands: *mut TextCommand, //C-friendly `Vec<MessageTextPropertiesCommand>`, along with explicit length
+    //     commands_len: u64,
+    // }
 
     #[repr(C)]
     pub struct TextCommand {
