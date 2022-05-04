@@ -3,6 +3,7 @@
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::ffi::c_void;
 use std::mem::{ManuallyDrop, transmute};
 use std::os::raw::{c_char, c_uint};
 
@@ -11,9 +12,11 @@ use piet_coregraphics::{CoreGraphicsContext};
 
 use pax_core::{InstanceRegistry, PaxEngine};
 use pax_cartridge;
-use pax_message::runtime::Message;
 
-#[repr(C)] //Exposed to Swift via paxchassismacos.h
+//Re-export all native message types
+pub use pax_message::runtime::*;
+
+//Exposed to Swift via paxchassismacos.h
 pub struct PaxEngineContainer {
     _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
 }
@@ -57,9 +60,11 @@ pub struct PaxMessageQueueContainer {
 }
 
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
-pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext: *mut CGContext, width: f32, height: f32) -> *mut PaxMessageQueueContainer { // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
+pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext: *mut c_void, width: f32, height: f32) -> *mut PaxMessageQueueContainer { // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
     let mut engine = unsafe { Box::from_raw((*bridge_container)._engine) };
-    let ctx = unsafe { &mut *cgContext };
+
+    let pre_cast_cgContext = cgContext as *mut CGContext;
+    let ctx = unsafe { &mut *pre_cast_cgContext };
     let mut render_context = CoreGraphicsContext::new_y_up(ctx, height as f64, None);
     (*engine).set_viewport_size((width as f64, height as f64));
     let messages = (*engine).tick(&mut render_context);
@@ -86,4 +91,4 @@ pub extern "C" fn pax_cleanup_message_queue(queue: *mut Message)  {
     //alt: assign `transmute(queue)` to a local, let it drop
 }
 
-pub use pax_message::runtime::*;
+
