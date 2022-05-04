@@ -53,7 +53,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-
         let mut new_message : TextPatch = Default::default();
 
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
@@ -81,23 +80,21 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
             transform.set(new_value);
         }
 
-
-
-
     }
 
     fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
-        //no-op -- only native rendering for Text (unless/until we support rasterizing & transforming text)
+        //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
     fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            todo!()
+            pax_message::runtime::Message::TextCreate(self.instance_id)
         );
-
     }
 
-    fn handle_pre_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        todo!("construct message and attach to native_render_queue")
+    fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
+        (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
+            pax_message::runtime::Message::TextDelete(self.instance_id)
+        );
     }
 }

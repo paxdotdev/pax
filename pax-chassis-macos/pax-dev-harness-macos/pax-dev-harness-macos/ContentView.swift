@@ -49,7 +49,11 @@ class PaxCanvasView: NSView {
 
             contextContainer = pax_init(swiftLoggerCallback)
         } else {
-            pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
+            
+            let nativeMessageQueue = pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
+
+            
+            pax_cleanup_message_queue(nativeMessageQueue)
         }
 
         //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which

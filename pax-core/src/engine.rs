@@ -5,6 +5,7 @@ use std::env::Args;
 use std::f64::EPSILON;
 use std::rc::Rc;
 
+use pax_message::runtime::Message;
 
 extern crate wee_alloc;
 
@@ -372,10 +373,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         self.viewport_size = new_viewport_size;
     }
 
-    pub fn tick(&mut self, rc: &mut R) {
+    pub fn tick(&mut self, rc: &mut R) -> Vec<Message> {
         rc.clear(None, Color::rgb(1.0, 1.0, 1.0));
         let native_render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
+        native_render_queue
     }
 
 }

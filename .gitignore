@@ -13,5 +13,5 @@ Cargo.lock
 ## VScode project configuration files
 .vscode/
 
-
-**/*.xcuserstate
+pax-chassis-macos/pax-dev-harness-macos/pax-dev-harness-macos.xcodeproj/project.xcworkspace/xcuserdata/**/*
+pax-chassis-macos/pax-dev-harness-macos/pax-dev-harness-macos.xcodeproj/xcuserdata/**/*

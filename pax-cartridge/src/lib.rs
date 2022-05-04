@@ -12,12 +12,12 @@ use pax_runtime_api::{ArgsCoproduct, PropertyInstance, PropertyLiteral, Size2D, 
 
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
 use pax_example::pax_types::{Root};
-use pax_example::pax_types::pax_std::primitives::{Rectangle, Group};
+use pax_example::pax_types::pax_std::primitives::{Rectangle, Group, Text};
 use pax_example::pax_types::pax_std::types::{Color, Stroke, Size, SpreadCellProperties};
 use pax_example::pax_types::pax_std::components::Spread;
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
-use pax_std_primitives::{RectangleInstance, GroupInstance, FrameInstance};
+use pax_std_primitives::{RectangleInstance, GroupInstance, FrameInstance, TextInstance};
 
 
 pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<String, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
@@ -276,26 +276,54 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                 transform: Transform2D::default_wrapped(),
                                 size: None,
                                 children: Some(Rc::new(RefCell::new( vec![
-                                    RectangleInstance::instantiate(InstantiationArgs{
-                                        properties: PropertiesCoproduct::Rectangle(Rectangle {
-                                            stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
-                                                color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
-                                                width: Box::new(PropertyLiteral::new(0.0)),
-                                            })),
-                                            fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 0.45, 0.25, 1.0)))
-                                        }),
+                                    GroupInstance::instantiate(InstantiationArgs {
+                                        properties: PropertiesCoproduct::Group(Group{}),
                                         handler_registry: None,
                                         instance_registry: Rc::clone(&instance_registry),
                                         transform: Transform2D::default_wrapped(),
                                         size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
-                                        children: None,
+                                        children: Some(Rc::new(RefCell::new(vec![
+                                            TextInstance::instantiate(InstantiationArgs {
+                                                properties: PropertiesCoproduct::Text( Text {
+                                                    content: Box::new(PropertyLiteral::new("Hello world".to_string()) )
+                                                }),
+                                                handler_registry: None,
+                                                instance_registry: Rc::clone(&instance_registry),
+                                                transform: Transform2D::default_wrapped(),
+                                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                                                children: None,
+                                                component_template: None,
+                                                slot_index: None,
+                                                repeat_data_list: None,
+                                                conditional_boolean_expression: None,
+                                                compute_properties_fn: None
+                                            }),
+                                            RectangleInstance::instantiate(InstantiationArgs{
+                                                properties: PropertiesCoproduct::Rectangle(Rectangle {
+                                                    stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
+                                                        color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
+                                                        width: Box::new(PropertyLiteral::new(0.0)),
+                                                    })),
+                                                    fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 0.45, 0.25, 1.0)))
+                                                }),
+                                                handler_registry: None,
+                                                instance_registry: Rc::clone(&instance_registry),
+                                                transform: Transform2D::default_wrapped(),
+                                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                                                children: None,
+                                                component_template: None,
+                                                slot_index: None,
+                                                repeat_data_list: None,
+                                                conditional_boolean_expression: None,
+                                                compute_properties_fn: None
+                                            }),
+                                        ]))),
                                         component_template: None,
                                         slot_index: None,
                                         repeat_data_list: None,
                                         conditional_boolean_expression: None,
                                         compute_properties_fn: None
-                                        })
-                                    ]
+                                    })],
                                 ))),
                                 component_template: None,
                                 slot_index: None,

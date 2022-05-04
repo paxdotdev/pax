@@ -273,6 +273,14 @@ _RIL means Rust Intermediate Language, which is the
         [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
 [ ] e2e `pax run`
+[ ] publication to crates.io
+    [x] reserve pax-lang crate on crates.io
+    [ ] update relative paths in all cargo.tomls, point to hard-coded published versions
+    [ ] e2e testing
+[ ] launch collateral
+    [ ] notify allies
+    [ ] ProductHunt launch (+ other channels, incl Reddit communities)
+    [ ] 
 ```
 
 

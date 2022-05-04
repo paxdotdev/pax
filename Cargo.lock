@@ -1672,6 +1672,7 @@ dependencies = [
  "mut_static",
  "pax-cartridge",
  "pax-core",
+ "pax-message",
  "pax-runtime-api",
  "piet",
  "piet-coregraphics",

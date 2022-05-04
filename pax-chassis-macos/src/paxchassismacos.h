@@ -1,5 +1,9 @@
 #include <stdint.h>
 //#import "CoreGraphics/CoreGraphics.h"
 
-const struct PaxChassisMacosBridgeContainer * pax_init(void (swiftLoggerCallback)(const char*));
-const void* pax_tick(const struct PaxChassisMacosBridgeContainer * container, const void * ctx, const float width, const float height);
+
+typedef struct PaxMessageQueueContainer PaxMessageQueueContainer;
+typedef struct SomethingNotHere SomethingNotHere;
+const struct PaxEngineContainer * pax_init(void (swiftLoggerCallback)(const char*));
+const struct PaxMessageQueueContainer * pax_tick(const struct PaxEngineContainer * container, const void * ctx, const float width, const float height);
+const void * pax_cleanup_message_queue(const struct PaxMessageQueueContainer * queue);

@@ -15,6 +15,7 @@ piet = "0.5.0"
 piet-coregraphics = "0.5.0"
 pax-core = { path = "../pax-core" }
 pax-cartridge = {path = "../pax-cartridge"}
+pax-message = {path = "../pax-message"}
 pax-runtime-api = {path = "../pax-runtime-api"}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
