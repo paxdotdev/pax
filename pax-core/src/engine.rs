@@ -5,7 +5,7 @@ use std::env::Args;
 use std::f64::EPSILON;
 use std::rc::Rc;
 
-use pax_message::runtime::Message;
+use pax_message::NativeMessage;
 
 extern crate wee_alloc;
 
@@ -224,7 +224,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     //     Rc::clone(&self.root_component)
     // }
 
-    fn traverse_render_tree(&self, rc: &mut R) -> Vec<pax_message::runtime::Message> {
+    fn traverse_render_tree(&self, rc: &mut R) -> Vec<pax_message::NativeMessage> {
         // Broadly:
         // 1. compute properties
         // 2. find lowest node (last child of last node), accumulating transform along the way
@@ -373,7 +373,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         self.viewport_size = new_viewport_size;
     }
 
-    pub fn tick(&mut self, rc: &mut R) -> Vec<Message> {
+    pub fn tick(&mut self, rc: &mut R) -> Vec<NativeMessage> {
         rc.clear(None, Color::rgb(1.0, 1.0, 1.0));
         let native_render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;

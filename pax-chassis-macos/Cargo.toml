@@ -6,9 +6,13 @@ authors = ["Zack Brown <zack@inclination.co>"]
 description = "Pax chassis for macOS"
 publish = false
 
+[build]
+lto = true
+incremental = false
+
 [lib]
 name = "paxchassismacos"
-crate-type = ["staticlib", "cdylib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 piet = "0.5.0"

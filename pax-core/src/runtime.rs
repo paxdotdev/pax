@@ -15,7 +15,7 @@ use crate::{HandlerRegistry, RenderNodePtr, RenderNodePtrList, RenderTreeContext
 /// for logic that manages scopes and stack frames.
 pub struct Runtime<R: 'static + RenderContext> {
     stack: Vec<Rc<RefCell<StackFrame<R>>>>,
-    native_message_queue: VecDeque<pax_message::runtime::Message>
+    native_message_queue: VecDeque<pax_message::NativeMessage>
 }
 
 impl<R: 'static + RenderContext> Runtime<R> {
@@ -27,13 +27,13 @@ impl<R: 'static + RenderContext> Runtime<R> {
     }
 
     //return current state of native message queue, passing in a freshly initialized queue for next frame
-    pub fn swap_native_message_queue(&mut self) -> VecDeque<pax_message::runtime::Message> {
+    pub fn swap_native_message_queue(&mut self) -> VecDeque<pax_message::NativeMessage> {
         let mut swap_queue = VecDeque::new();
         std::mem::swap(&mut self.native_message_queue,&mut swap_queue);
         swap_queue
     }
 
-    pub fn enqueue_native_message(&mut self, msg: pax_message::runtime::Message) {
+    pub fn enqueue_native_message(&mut self, msg: pax_message::NativeMessage) {
         self.native_message_queue.push_back(msg);
     }
 

@@ -22,7 +22,8 @@ use std::sync::Arc;
 use clap::{App, AppSettings, Arg};
 
 use futures::prelude::*;
-use pax_message::compiletime::*;
+
+use crate::parser::message::*;
 use serde_json::Value;
 use tokio::process::Command;
 use tokio::sync::oneshot;

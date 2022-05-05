@@ -7,7 +7,7 @@ use piet::{RenderContext};
 use pax_std::primitives::{Text};
 use pax_core::{HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_message::runtime::TextPatch;
+use pax_message::TextPatch;
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
 
 pub struct TextInstance {
@@ -20,7 +20,7 @@ pub struct TextInstance {
 
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
-    last_patches: pax_message::runtime::TextPatch,
+    last_patches: pax_message::TextPatch,
 }
 
 impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
@@ -88,13 +88,13 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
 
     fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::runtime::Message::TextCreate(self.instance_id)
+            pax_message::NativeMessage::TextCreate(self.instance_id)
         );
     }
 
     fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::runtime::Message::TextDelete(self.instance_id)
+            pax_message::NativeMessage::TextDelete(self.instance_id)
         );
     }
 }

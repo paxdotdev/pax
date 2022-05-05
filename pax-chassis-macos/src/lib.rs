@@ -14,11 +14,18 @@ use pax_core::{InstanceRegistry, PaxEngine};
 use pax_cartridge;
 
 //Re-export all native message types
-pub use pax_message::runtime::*;
+pub use pax_message::*;
 
 //Exposed to Swift via paxchassismacos.h
 pub struct PaxEngineContainer {
     _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
+}
+
+#[repr(C)]
+pub struct ClippingPatch {
+    pub size_x: Option<TextSize>,
+    pub size_y: Option<TextSize>,
+    pub transform: Option<Affine>,
 }
 
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
@@ -51,11 +58,9 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     Box::into_raw(ManuallyDrop::into_inner(container))
 }
 
-
-
 #[repr(C)] //Exposed to Swift via paxchassismacos.h
 pub struct PaxMessageQueueContainer {
-    queue: *mut [Message],
+    queue: *mut [NativeMessage],
     length: c_uint,
 }
 
@@ -81,12 +86,11 @@ pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext:
     unsafe {(*bridge_container)._engine=  Box::into_raw(engine)};
 
     queue_container
-
 }
 
 
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
-pub extern "C" fn pax_cleanup_message_queue(queue: *mut Message)  {
+pub extern "C" fn pax_cleanup_message_queue(queue: *mut NativeMessage)  {
     drop(unsafe {Box::from_raw(queue)});
     //alt: assign `transmute(queue)` to a local, let it drop
 }

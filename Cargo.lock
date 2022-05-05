@@ -1701,6 +1701,7 @@ dependencies = [
  "actix-files",
  "actix-web",
  "actix-web-actors",
+ "bincode",
  "clap",
  "console_error_panic_hook",
  "futures",
@@ -1767,10 +1768,6 @@ dependencies = [
 [[package]]
 name = "pax-message"
 version = "0.0.1"
-dependencies = [
- "bincode",
- "serde",
-]
 
 [[package]]
 name = "pax-properties-coproduct"

@@ -51,7 +51,7 @@ class PaxCanvasView: NSView {
         } else {
             
             let nativeMessageQueue = pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
-
+    
             
             pax_cleanup_message_queue(nativeMessageQueue)
         }
