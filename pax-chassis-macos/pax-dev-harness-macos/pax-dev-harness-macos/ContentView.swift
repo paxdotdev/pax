@@ -30,10 +30,46 @@ struct PaxCanvasViewRepresentable: NSViewRepresentable {
 }
 
 
+
 class PaxCanvasView: NSView {
     
     var contextContainer : OpaquePointer? = nil
     var currentTickWorkItem : DispatchWorkItem? = nil
+    
+    
+    
+    var textElements : [Int] = []
+    
+    func handleTextCreate(id: Int) {
+        textElements.append(id)
+    }
+    
+    func handleTextUpdate(params: TextUpdate_Body) {
+        
+    }
+    
+    func handleTextDelete(id: Int) {
+//        textElements.removeAll(where: <#T##(Int) throws -> Bool#>)(id)
+    }
+    
+    func processNativeMessageQueue(queue: NativeMessageQueue) {
+        let arr = UnsafeBufferPointer<NativeMessage>(start: queue.msg_ptr, count: Int(queue.length))
+        arr.forEach { msg in
+            switch msg.tag {
+                case TextCreate:
+                    let new_element_id = msg.text_create //element ID
+                    handleTextCreate(id: Int(new_element_id))
+                case TextUpdate:
+                    let update_params = msg.text_update
+                    handleTextUpdate(params: update_params)
+                case TextDelete:
+                    let element_id = msg.text_delete
+                    handleTextDelete(id: Int(element_id))
+                default:
+                    let y = ()
+            }
+        }
+    }
     
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
@@ -51,10 +87,16 @@ class PaxCanvasView: NSView {
         } else {
             
             let nativeMessageQueue = pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
-    
-            
+            processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
 //            pax_cleanup_message_queue(nativeMessageQueue)
         }
+        
+        
+        
+        //Render populated native elements
+        print(textElements)
+        
+        
 
         //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which
         //would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.

@@ -110,7 +110,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         // pax_message::runtime::ClippingPatch
         // as long as this fires before compute_properties, the ClippingUpdate(ClippingPatch) _should_ be sent before rendering, as desired
 
-        let msg = pax_message::NativeMessage::ClippingCreate(self.get_instance_id());
-        (*_rtc.runtime).borrow_mut().enqueue_native_message(msg);
+        // let msg = pax_message::NativeMessage::ClippingCreate(self.get_instance_id());
+        // (*_rtc.runtime).borrow_mut().enqueue_native_message(msg);
     }
 }

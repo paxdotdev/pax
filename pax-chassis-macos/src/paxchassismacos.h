@@ -95,14 +95,10 @@ typedef struct TextCommand {
   const char *set_decoration;
 } TextCommand;
 
-void __pax_message_manifest(struct NativeMessage a,
-                            struct NativeArgsClick b,
-                            struct ClippingPatch c,
-                            struct TextSize d,
-                            struct Affine e,
-                            struct TextPatchMessage f,
-                            struct TextCommand g);
-
+typedef struct NativeMessageQueue {
+  const struct NativeMessage *msg_ptr;
+  uint64_t length;
+} NativeMessageQueue;
 
 
 typedef struct PaxEngineContainer PaxEngineContainer;

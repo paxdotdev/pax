@@ -67,10 +67,12 @@ pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext:
     (*engine).set_viewport_size((width as f64, height as f64));
     let messages = (*engine).tick(&mut render_context);
     let messages_slice = messages.into_boxed_slice();
+    let length = messages_slice.len() as u64;
+
 
     let queue_container  = unsafe{ transmute(Box::new(NativeMessageQueue {
-        msg_ptr: Box::into_raw(messages_slice),
-        length: 0
+        msg_ptr: Box::into_raw(messages_slice) as *const NativeMessage,
+        length,
     }))};
     
     //`Box::into_raw` is our necessary manual clean-up, acting as a trigger to drop all of the RefCell::borrow_mut's throughout the tick lifecycle
@@ -79,11 +81,8 @@ pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext:
     queue_container
 }
 
-
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
 pub extern "C" fn pax_cleanup_message_queue(queue: *mut NativeMessage)  {
     drop(unsafe {Box::from_raw(queue)});
     //alt: assign `transmute(queue)` to a local, let it drop
 }
-
-

@@ -14,6 +14,7 @@ pub extern "C" fn __pax_message_manifest(
     e: Affine,
     f: TextPatchMessage,
     g: TextCommand,
+    h: NativeMessageQueue,
     // ^ New structs get registered here ^
 ) { }
 
@@ -32,7 +33,7 @@ pub enum NativeMessage {
 
 #[repr(C)]
 pub struct NativeMessageQueue {
-    pub msg_ptr: *const [NativeMessage],
+    pub msg_ptr: *const NativeMessage,
     pub length: u64,
 }
 
