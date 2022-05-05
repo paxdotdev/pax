@@ -1,11 +1,44 @@
+// <paxchassismacos.h>
+// Header to expose Rust data & logic via FFI -- if it isn't here, it doesn't exist to Swift.
+// Portions of this code were generated with `cbindgen --lang C`.
+// See `pax-message/src/lib.rs` for more documentation.
+
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
 
+typedef enum COption_CString_Tag {
+  Some_CString,
+  None_CString,
+} COption_CString_Tag;
+
+typedef struct COption_CString {
+  COption_CString_Tag tag;
+  union {
+    struct {
+      char ** some;
+    };
+  };
+} COption_CString;
+
 typedef struct Affine {
   double coefficients[6];
 } Affine;
+
+typedef enum COption_Affine_Tag {
+  Some_Affine,
+  None_Affine,
+} COption_Affine_Tag;
+
+typedef struct COption_Affine {
+  COption_Affine_Tag tag;
+  union {
+    struct {
+      struct Affine some;
+    };
+  };
+} COption_Affine;
 
 typedef enum TextSize_Tag {
   Auto,
@@ -26,12 +59,26 @@ typedef struct TextSize {
   };
 } TextSize;
 
-typedef struct TextPatchMessage {
-  const char *content;
-  const struct Affine *transform;
-  const struct TextSize *size_x;
-  const struct TextSize *size_y;
-} TextPatchMessage;
+typedef enum COption_TextSize_Tag {
+  Some_TextSize,
+  None_TextSize,
+} COption_TextSize_Tag;
+
+typedef struct COption_TextSize {
+  COption_TextSize_Tag tag;
+  union {
+    struct {
+      struct TextSize some;
+    };
+  };
+} COption_TextSize;
+
+typedef struct TextPatch {
+  struct COption_CString content;
+  struct COption_Affine transform;
+  struct COption_TextSize size_x;
+  struct COption_TextSize size_y;
+} TextPatch;
 
 typedef struct ClippingPatch {
   const struct TextSize *size_x;
@@ -56,7 +103,7 @@ typedef enum NativeMessage_Tag {
 
 typedef struct TextUpdate_Body {
   uint64_t _0;
-  struct TextPatchMessage _1;
+  struct TextPatch _1;
 } TextUpdate_Body;
 
 typedef struct ClippingUpdate_Body {

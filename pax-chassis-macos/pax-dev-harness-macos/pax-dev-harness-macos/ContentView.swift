@@ -66,7 +66,7 @@ class PaxCanvasView: NSView {
                     let element_id = msg.text_delete
                     handleTextDelete(id: Int(element_id))
                 default:
-                    let y = ()
+                    ()
             }
         }
     }
@@ -90,7 +90,6 @@ class PaxCanvasView: NSView {
             processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
 //            pax_cleanup_message_queue(nativeMessageQueue)
         }
-        
         
         
         //Render populated native elements

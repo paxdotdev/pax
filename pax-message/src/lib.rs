@@ -6,22 +6,23 @@ use std::os::raw::c_char;
 // otherwise discover "orphan structs" https://github.com/eqrion/cbindgen/issues/596
 // (cbindgen treats only functions as roots when statically crawling codebase)
 #[no_mangle]
-pub extern "C" fn __pax_message_manifest(
+pub extern "C" fn __pax_message_manifest<T>(
     a: NativeMessage,
     b: NativeArgsClick,
     c: ClippingPatch,
     d: TextSize,
     e: Affine,
-    f: TextPatchMessage,
+    // f: TextPatchMessage,
     g: TextCommand,
     h: NativeMessageQueue,
+    i: COption<T>,
     // ^ New structs get registered here ^
 ) { }
 
 #[repr(C)]
 pub enum NativeMessage {
     TextCreate(u64), //node instance ID
-    TextUpdate(u64, TextPatchMessage),
+    TextUpdate(u64, TextPatch),
     TextDelete(u64),
     ClippingCreate(u64),
     ClippingUpdate(u64, ClippingPatch),
@@ -63,23 +64,47 @@ pub struct Affine {
     pub coefficients: [f64;6],
 }
 
-#[derive(Default)]
-pub struct TextPatch {
-    pub content: Option<CString>, //See `TextContentMessage` for a sketched-out approach to rich text
-    pub transform: Option<Affine>,
-    pub size_x: Option<TextSize>,
-    pub size_y: Option<TextSize>,
+#[repr(C)]
+pub enum COption<T> {
+    Some(T),
+    None
 }
+
+impl<T> Default for COption<T> {
+    fn default() -> Self {
+        COption::None
+    }
+}
+
+#[derive(Default)]
+#[repr(C)]
+pub struct TextPatch {
+    pub content: COption<CString>, //See `TextContentMessage` for a sketched-out approach to rich text
+    pub transform: COption<Affine>,
+    pub size_x: COption<TextSize>,
+    pub size_y: COption<TextSize>,
+}
+//
+// impl Into<TextPatchMessage> for TextPatch {
+//     fn into(self) -> TextPatchMessage {
+//         TextPatchMessage {
+//             content: (),
+//             transform: (),
+//             size_x: (),
+//             size_y: ()
+//         }
+//     }
+// }
 
 //TODO: write into() logic from Patch > PatchMessage
-
-#[repr(C)]
-pub struct TextPatchMessage {
-    pub content: *const c_char, //See `TextContentMessage` for a sketched-out approach to rich text
-    pub transform: *const Affine,
-    pub size_x: *const TextSize,
-    pub size_y: *const TextSize,
-}
+//
+// #[repr(C)]
+// pub struct TextPatchMessage {
+//     pub content: *const c_char, //See `TextContentMessage` for a sketched-out approach to rich text
+//     pub transform: *const Affine,
+//     pub size_x: *const TextSize,
+//     pub size_y: *const TextSize,
+// }
 //
 // impl Default for TextPatch {
 //     fn default() -> Self {
