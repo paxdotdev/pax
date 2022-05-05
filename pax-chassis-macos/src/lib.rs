@@ -21,13 +21,6 @@ pub struct PaxEngineContainer {
     _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
 }
 
-#[repr(C)]
-pub struct ClippingPatch {
-    pub size_x: Option<TextSize>,
-    pub size_y: Option<TextSize>,
-    pub transform: Option<Affine>,
-}
-
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
 pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngineContainer {
 
@@ -65,7 +58,7 @@ pub struct PaxMessageQueueContainer {
 }
 
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
-pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext: *mut c_void, width: f32, height: f32) -> *mut PaxMessageQueueContainer { // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
+pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext: *mut c_void, width: f32, height: f32) -> *mut NativeMessageQueue { // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
     let mut engine = unsafe { Box::from_raw((*bridge_container)._engine) };
 
     let pre_cast_cgContext = cgContext as *mut CGContext;
@@ -75,12 +68,10 @@ pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext:
     let messages = (*engine).tick(&mut render_context);
     let messages_slice = messages.into_boxed_slice();
 
-    let ret = PaxMessageQueueContainer {
-        queue: Box::into_raw(messages_slice),
+    let queue_container  = unsafe{ transmute(Box::new(NativeMessageQueue {
+        msg_ptr: Box::into_raw(messages_slice),
         length: 0
-    };
-
-    let queue_container  = unsafe{ transmute(Box::new(ret))};
+    }))};
     
     //`Box::into_raw` is our necessary manual clean-up, acting as a trigger to drop all of the RefCell::borrow_mut's throughout the tick lifecycle
     unsafe {(*bridge_container)._engine=  Box::into_raw(engine)};
