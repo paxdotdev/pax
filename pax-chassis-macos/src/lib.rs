@@ -10,6 +10,9 @@ use std::os::raw::{c_char, c_uint};
 use core_graphics::context::CGContext;
 use piet_coregraphics::{CoreGraphicsContext};
 
+use serde::Serialize;
+use flexbuffers;
+
 use pax_core::{InstanceRegistry, PaxEngine};
 use pax_cartridge;
 
@@ -54,11 +57,6 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     Box::into_raw(ManuallyDrop::into_inner(container))
 }
 
-#[repr(C)] //Exposed to Swift via paxchassismacos.h
-pub struct PaxMessageQueueContainer {
-    queue: *mut [NativeMessage],
-    length: c_uint,
-}
 
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
 pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext: *mut c_void, width: f32, height: f32) -> *mut NativeMessageQueue { // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
@@ -68,14 +66,24 @@ pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext:
     let ctx = unsafe { &mut *pre_cast_cgContext };
     let mut render_context = CoreGraphicsContext::new_y_up(ctx, height as f64, None);
     (*engine).set_viewport_size((width as f64, height as f64));
-    let messages = (*engine).tick(&mut render_context);
-    let messages_slice = messages.into_boxed_slice();
-    let length = messages_slice.len() as u64;
 
+    let messages = (*engine).tick(&mut render_context);
+
+    let wrapped_queue = MessageQueue{messages,};
+    let mut serializer = flexbuffers::FlexbufferSerializer::new();
+
+    //side-effectfully serialize, mutating `serializer`
+    wrapped_queue.serialize(&mut serializer).unwrap();
+
+    let data_buffer = serializer.take_buffer();
+    let length = data_buffer.len();
+
+    let leaked_data : ManuallyDrop<Box<[u8]>> = ManuallyDrop::new(data_buffer.into_boxed_slice());
 
     let queue_container  = unsafe{ transmute(Box::new(NativeMessageQueue {
-        msg_ptr: Box::into_raw(messages_slice) as *const NativeMessage,
-        length,
+        // msg_ptr: Box::into_raw(messages_slice) as *const NativeMessage,
+        data_ptr: Box::into_raw(ManuallyDrop::into_inner(leaked_data)),
+        length: length as u64,
     }))};
     
     //`Box::into_raw` is our necessary manual clean-up, acting as a trigger to drop all of the RefCell::borrow_mut's throughout the tick lifecycle
@@ -85,7 +93,13 @@ pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext:
 }
 
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
-pub extern "C" fn pax_cleanup_message_queue(queue: *mut NativeMessage)  {
-    drop(unsafe {Box::from_raw(queue)});
-    //alt: assign `transmute(queue)` to a local, let it drop
+pub extern "C" fn pax_cleanup_message_queue(queue: *mut NativeMessageQueue)  {
+
+    unsafe {
+        let queue_container = Box::from_raw(queue);
+        let data_buffer = Box::from_raw(queue_container.data_ptr);
+        drop(data_buffer);
+        drop(queue_container);
+    }
+
 }

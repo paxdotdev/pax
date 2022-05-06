@@ -7,7 +7,7 @@ use piet::{RenderContext};
 use pax_std::primitives::{Text};
 use pax_core::{HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_message::{TextPatch,COption};
+use pax_message::{TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
 
 pub struct TextInstance {
@@ -61,18 +61,18 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
             let new_value = if let TypesCoproduct::String(v) = content { v } else { unreachable!() };
             properties.content.set(new_value);
         }
-        let val = CString::new(properties.content.get().clone()).unwrap();
+        let val = properties.content.get();
         let is_new_value = match &self.last_patches.content {
-            COption::Some(cached_value) => {
+            Some(cached_value) => {
                 val.eq(cached_value)
             },
-            COption::None => {
+            None => {
                 true
             },
         };
         if is_new_value {
-            new_message.content = pax_message::COption::Some(val.clone());
-            self.last_patches.content = pax_message::COption::Some(val);
+            new_message.content = Some(val.clone());
+            self.last_patches.content = Some(val.clone());
             has_any_updates = true;
         }
 

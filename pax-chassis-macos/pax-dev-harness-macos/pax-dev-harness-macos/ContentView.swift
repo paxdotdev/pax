@@ -47,49 +47,49 @@ class PaxCanvasView: NSView {
 //      struct COption_TextSize size_x;
 //      struct COption_TextSize size_y;
 //    } TextPatch;
-    
-    func handleTextUpdate(params: TextUpdate_Body) {
-        let instance_id = params._0
-        let patch = params._1
-        
-        let text_node = () //TODO: Look up from pool
-        
-//        switch patch.content.tag {
-//            case Some_CString:
-//                let new_content = String(cString: patch.content.some.pointee!)
-//                print("new content: " + new_content)
-//            default:
-//                ()
-//        }
-    }
+//
+//    func handleTextUpdate(params: TextUpdate_Body) {
+//        let instance_id = params._0
+//        let patch = params._1
+//
+//        let text_node = () //TODO: Look up from pool
+//
+////        switch patch.content.tag {
+////            case Some_CString:
+////                let new_content = String(cString: patch.content.some.pointee!)
+////                print("new content: " + new_content)
+////            default:
+////                ()
+////        }
+//    }
     
     func handleTextDelete(id: Int) {
 //        textElements.removeAll(where: <#T##(Int) throws -> Bool#>)(id)
     }
     
     func processNativeMessageQueue(queue: NativeMessageQueue) {
-        let arr = UnsafeBufferPointer<NativeMessage>(start: queue.msg_ptr, count: Int(queue.length))
-        arr.forEach { msg in
-            switch msg.tag {
-                case TextCreate:
-                    let instance_id = msg.text_create
-                    handleTextCreate(id: Int(instance_id))
-                case TextUpdate:
-                    let update_params = msg.text_update
-                    handleTextUpdate(params: update_params)
-                case TextDelete:
-                    let instance_id = msg.text_delete
-                    handleTextDelete(id: Int(instance_id))
-                case ClippingCreate:
-                    ()
-                case ClippingUpdate:
-                    ()
-                case ClippingDelete:
-                    ()
-                default:
-                    print("unrecognized message type")
-            }
-        }
+//        let arr = UnsafeBufferPointer<NativeMessage>(start: queue.msg_ptr, count: Int(queue.length))
+//        arr.forEach { msg in
+//            switch msg.tag {
+//                case TextCreate:
+//                    let instance_id = msg.text_create
+//                    handleTextCreate(id: Int(instance_id))
+//                case TextUpdate:
+//                    let update_params = msg.text_update
+////                    handleTextUpdate(params: update_params)
+//                case TextDelete:
+//                    let instance_id = msg.text_delete
+//                    handleTextDelete(id: Int(instance_id))
+//                case ClippingCreate:
+//                    ()
+//                case ClippingUpdate:
+//                    ()
+//                case ClippingDelete:
+//                    ()
+//                default:
+//                    print("unrecognized message type")
+//            }
+//        }
     }
     
     override func draw(_ dirtyRect: NSRect) {
