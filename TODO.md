@@ -2253,6 +2253,8 @@ Then, each `RepeatItem` puppeteer gets a fresh subtree, rather than pointers to 
 
 
 ### On tracking & identifying Repeated elements
+May 6 2022
+
 
 1. when an element is instantiated, there's only _one_ instance ID assigned, even if it's repeated 100 times via ancestral `Repeat`s
 2. this is problematic because e.g. there will be only one `Create` event, but 100 `Update` events, all keyed to the same element ID
@@ -2265,4 +2267,17 @@ including reduced list of `RepeatItem` indices retrieved by traversing runtime s
 Does that tuple act as a suitable, drop-in unique id?  
 The major concern would be "stability" -- i.e., could the relationship between "virtual instance" and `(element_id, [list_of_RepeatItem_indices])`
     change in between `mount` and `unmount`?  Namely, if the data source changes, do we expect an un/remount?  Perhaps this can be revisited with the introduction of an explicit `key`?
+
+
+
+TO DECIDE:
+ - worth continuing to chew through FFI?
+ - Or keep a simple bridge, pass serialized bytestream for MQ?
+
+Even if we go with JSON, it's still being passed synchronously
+through shared memory -- the only costs are:
+ - encoding & parsing compute (time, framerate) overhead
+ - encoding & parsing disk footprint (measure `serde`s footprint)
+
+Note that if we standardize on JSON, we get a parser for free on Web, i.e. no additional disk footprint for WASM bundle.
 

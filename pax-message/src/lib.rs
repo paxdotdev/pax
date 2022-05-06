@@ -5,6 +5,7 @@ use std::os::raw::c_char;
 // this hacky function is not meant to be called; it acts as a manifest for `cbindgen`, which would not
 // otherwise discover "orphan structs" https://github.com/eqrion/cbindgen/issues/596
 // (cbindgen treats only functions as roots when statically crawling codebase)
+// Alternatively, it may be possible to register `NativeMessage` as a "custom root" in a cbindgen.toml
 #[no_mangle]
 pub extern "C" fn __pax_message_manifest<T>(
     a: NativeMessage,
