@@ -13,10 +13,13 @@ use piet_coregraphics::{CoreGraphicsContext};
 use pax_core::{InstanceRegistry, PaxEngine};
 use pax_cartridge;
 
-//Re-export all native message types
+//Re-export all native message types; used by Swift via FFI.
+//Note that any types exposed by pax_message must ALSO be added to `paxchassismacos.h`
+//in order to be visible to Swift
 pub use pax_message::*;
 
 //Exposed to Swift via paxchassismacos.h
+#[repr(C)]
 pub struct PaxEngineContainer {
     _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
 }

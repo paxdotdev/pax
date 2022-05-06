@@ -29,14 +29,10 @@ struct PaxCanvasViewRepresentable: NSViewRepresentable {
     func updateNSView(_ canvas: PaxCanvasView, context: Context) { }
 }
 
-
-
 class PaxCanvasView: NSView {
     
     var contextContainer : OpaquePointer? = nil
     var currentTickWorkItem : DispatchWorkItem? = nil
-    
-    
     
     var textElements : [Int] = []
     
@@ -44,8 +40,27 @@ class PaxCanvasView: NSView {
         textElements.append(id)
     }
     
+    
+//    typedef struct TextPatch {
+//      struct COption_CString content;
+//      struct COption_Affine transform;
+//      struct COption_TextSize size_x;
+//      struct COption_TextSize size_y;
+//    } TextPatch;
+    
     func handleTextUpdate(params: TextUpdate_Body) {
+        let instance_id = params._0
+        let patch = params._1
         
+        let text_node = () //TODO: Look up from pool
+        
+//        switch patch.content.tag {
+//            case Some_CString:
+//                let new_content = String(cString: patch.content.some.pointee!)
+//                print("new content: " + new_content)
+//            default:
+//                ()
+//        }
     }
     
     func handleTextDelete(id: Int) {
@@ -57,16 +72,22 @@ class PaxCanvasView: NSView {
         arr.forEach { msg in
             switch msg.tag {
                 case TextCreate:
-                    let new_element_id = msg.text_create //element ID
-                    handleTextCreate(id: Int(new_element_id))
+                    let instance_id = msg.text_create
+                    handleTextCreate(id: Int(instance_id))
                 case TextUpdate:
                     let update_params = msg.text_update
                     handleTextUpdate(params: update_params)
                 case TextDelete:
-                    let element_id = msg.text_delete
-                    handleTextDelete(id: Int(element_id))
-                default:
+                    let instance_id = msg.text_delete
+                    handleTextDelete(id: Int(instance_id))
+                case ClippingCreate:
                     ()
+                case ClippingUpdate:
+                    ()
+                case ClippingDelete:
+                    ()
+                default:
+                    print("unrecognized message type")
             }
         }
     }
@@ -82,6 +103,9 @@ class PaxCanvasView: NSView {
                 let outputString = String(cString: msg!)
                 print(outputString)
             }
+            
+//            print("Sleeping 10 seconds to allow manual debugger attachment...")
+//            sleep(10)
 
             contextContainer = pax_init(swiftLoggerCallback)
         } else {
@@ -93,7 +117,7 @@ class PaxCanvasView: NSView {
         
         
         //Render populated native elements
-        print(textElements)
+//        print(textElements)
         
         
 

@@ -26,11 +26,20 @@ impl<R: 'static + RenderContext> Runtime<R> {
         }
     }
 
+    pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<usize> {
+        let mut indices: Vec<usize> = vec![];
+
+        self.stack.iter().for_each(|frame_wrapped|{
+            if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*frame_wrapped).borrow_mut()).borrow().properties).borrow() {
+                indices.push(*i)
+            }
+        });
+        indices
+    }
+
     //return current state of native message queue, passing in a freshly initialized queue for next frame
     pub fn swap_native_message_queue(&mut self) -> VecDeque<pax_message::NativeMessage> {
-        let mut swap_queue = VecDeque::new();
-        std::mem::swap(&mut self.native_message_queue,&mut swap_queue);
-        swap_queue
+        std::mem::take(&mut self.native_message_queue)
     }
 
     pub fn enqueue_native_message(&mut self, msg: pax_message::NativeMessage) {

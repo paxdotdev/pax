@@ -2250,3 +2250,19 @@ Seems that Repeat will need to do a less naive clone of elements -- perhaps Rend
 Each desc. must also be cloned recursively, producing an entirely new subtree
 
 Then, each `RepeatItem` puppeteer gets a fresh subtree, rather than pointers to the same nodes
+
+
+### On tracking & identifying Repeated elements
+
+1. when an element is instantiated, there's only _one_ instance ID assigned, even if it's repeated 100 times via ancestral `Repeat`s
+2. this is problematic because e.g. there will be only one `Create` event, but 100 `Update` events, all keyed to the same element ID
+
+One hacky possibility: traverse the runtime stack, reading any `RepeatItem` frames and attaching a 'path' to each virtual instance id
+Note that since we're using `int` ids, this will need to be passed as a Vec internally, and either as an int + slice or as a string across native bridge (`"15_0_0_1"`, for example)
+
+can solve "not firing subsequent mounts" for Repeated elements by
+including reduced list of `RepeatItem` indices retrieved by traversing runtime stack
+Does that tuple act as a suitable, drop-in unique id?  
+The major concern would be "stability" -- i.e., could the relationship between "virtual instance" and `(element_id, [list_of_RepeatItem_indices])`
+    change in between `mount` and `unmount`?  Namely, if the data source changes, do we expect an un/remount?  Perhaps this can be revisited with the introduction of an explicit `key`?
+

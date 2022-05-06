@@ -17,7 +17,7 @@ typedef struct COption_CString {
   COption_CString_Tag tag;
   union {
     struct {
-      char ** some;
+      char** some;
     };
   };
 } COption_CString;

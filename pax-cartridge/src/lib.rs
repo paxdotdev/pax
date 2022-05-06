@@ -460,11 +460,6 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                     let new_value = if let TypesCoproduct::isize(v) = new_num_clicks { v } else { unreachable!() };
                     properties.num_clicks.set(new_value);
                 }
-
-                // if let Some(new_deeper_struct) = rtc.get_computed_value(properties.deeper_struct._get_vtable_id()) {
-                //     let new_value = if let TypesCoproduct::DeeperStruct(v) = new_deeper_struct { v } else { unreachable!() };
-                //     properties.deeper_struct.set(new_value);
-                // }
             }))
         }
     )

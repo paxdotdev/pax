@@ -7,7 +7,7 @@ use piet::{RenderContext};
 use pax_std::primitives::{Text};
 use pax_core::{HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_message::TextPatch;
+use pax_message::{TextPatch,COption};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
 
 pub struct TextInstance {
@@ -59,9 +59,21 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         if let Some(content) = rtc.compute_vtable_value(properties.content._get_vtable_id()) {
             let new_value = if let TypesCoproduct::String(v) = content { v } else { unreachable!() };
-            new_message.content = pax_message::COption::Some(CString::new(new_value.clone()).unwrap()); //TODO: better error handling?
-            has_any_updates = true;
             properties.content.set(new_value);
+        }
+        let val = CString::new(properties.content.get().clone()).unwrap();
+        let is_new_value = match &self.last_patches.content {
+            COption::Some(cached_value) => {
+                val.eq(cached_value)
+            },
+            COption::None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.content = pax_message::COption::Some(val.clone());
+            self.last_patches.content = pax_message::COption::Some(val);
+            has_any_updates = true;
         }
 
         let mut size = &mut *self.size.as_ref().borrow_mut();
@@ -69,14 +81,12 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
 
-            has_any_updates = true;
             size[0].set(new_value);
         }
 
         if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
 
-            has_any_updates = true;
             size[1].set(new_value);
         }
 
@@ -84,7 +94,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
 
-            has_any_updates = true;
             transform.set(new_value);
         }
 

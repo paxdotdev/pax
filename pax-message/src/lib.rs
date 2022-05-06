@@ -12,11 +12,10 @@ pub extern "C" fn __pax_message_manifest<T>(
     c: ClippingPatch,
     d: TextSize,
     e: Affine,
-    // f: TextPatchMessage,
-    g: TextCommand,
-    h: NativeMessageQueue,
-    i: COption<T>,
-    // ^ New structs get registered here ^
+    f: TextCommand,
+    g: NativeMessageQueue,
+    h: COption<T>,
+    // ^ New structs must be registered here for cbindgen ^
 ) { }
 
 #[repr(C)]

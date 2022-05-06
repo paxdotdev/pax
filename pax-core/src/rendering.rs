@@ -64,12 +64,13 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// For this element and its subtree of rendering elements, mark as mounted in InstanceRegistry
     fn unmount_recursive(&mut self, rtc: &mut RenderTreeContext<R>, permanent: bool) {
         {
-            (*rtc.engine.instance_registry).borrow_mut().mark_unmounted(self.get_instance_id());
-            //TODO: might need to fire this here, because unmounted nodes may never get their pass
-            //      at `engine::recurse_render...`.  Note that this doesn't apply to `mounted`, which will get
-            //      triggered on the next tick as a side-effect of rendering
+            let repeat_indices = (*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack();
+            (*rtc.engine.instance_registry).borrow_mut().mark_unmounted(self.get_instance_id(), repeat_indices);
+
             self.handle_pre_unmount(rtc);
+
             if permanent {
+                //cleans up memory, otherwise leads to runaway allocations in instance_registry
                 (*rtc.engine.instance_registry).borrow_mut().deregister(self.get_instance_id());
             }
         }

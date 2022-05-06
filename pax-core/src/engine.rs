@@ -149,7 +149,7 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
     instance_map: HashMap<u64, RenderNodePtr<R>>,
 
     ///track which elements are currently mounted -- if id is present in set, is mounted
-    mounted_set: HashSet<u64>,
+    mounted_set: HashSet<(u64, Vec<usize>)>,
 
     ///register holding the next value to mint as an id
     next_id: u64,
@@ -178,16 +178,16 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.instance_map.remove(&instance_id);
     }
 
-    pub fn mark_mounted(&mut self, id: u64) {
-        self.mounted_set.insert(id);
+    pub fn mark_mounted(&mut self, id: u64, repeat_indices: Vec<usize>) {
+        self.mounted_set.insert((id, repeat_indices));
     }
 
-    pub fn is_mounted(&self, id: u64) -> bool {
-        self.mounted_set.contains(&id)
+    pub fn is_mounted(&self, id: u64, repeat_indices: Vec<usize>) -> bool {
+        self.mounted_set.contains(&(id, repeat_indices))
     }
 
-    pub fn mark_unmounted(&mut self, id: u64) {
-        self.mounted_set.remove(&id);
+    pub fn mark_unmounted(&mut self, id: u64, repeat_indices: Vec<usize>) {
+        self.mounted_set.remove(&(id, repeat_indices));
     }
 
 }
@@ -271,17 +271,19 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let id = (*rtc.node).borrow().get_instance_id();
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
 
-            if !instance_registry.is_mounted(id) {
+            //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
+            let repeat_indices = (*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack();
+            if !instance_registry.is_mounted(id, repeat_indices.clone()) { //TODO: make more efficient
                 node.borrow_mut().handle_post_mount(rtc);
-                instance_registry.mark_mounted(id);
+                instance_registry.mark_mounted(id, repeat_indices.clone());
             }
 
             //whether we started the frame mounted or we just mounted, this is important
             //for the unmount logic at the end of this method
-            was_mounted_during_this_frame = instance_registry.is_mounted(id);
+            was_mounted_during_this_frame = instance_registry.is_mounted(id, repeat_indices);
         }
 
-        //TODO: double-check that this logic should be happening here, vs. after `compute_properties` (where
+        //TODO: double-check that this logic should be happening here, vs. after `compute_properties`
         //the "current component" will actually push its stack frame.)
         //peek at the current stack frame and set a scoped playhead position as needed
         match rtc.runtime.borrow_mut().peek_stack_frame() {
