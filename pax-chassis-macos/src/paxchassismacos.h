@@ -23,7 +23,7 @@ typedef struct TextCommand {
 } TextCommand;
 
 typedef struct NativeMessageQueue {
-  const struct NativeMessage *msg_ptr;
+  uint8_t *data_ptr;
   uint64_t length;
 } NativeMessageQueue;
 

@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		140C6AF92825C99C003BACE3 /* FlexBufferBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140C6AF62825C99B003BACE3 /* FlexBufferBuilder.swift */; };
+		140C6AFA2825C99C003BACE3 /* FlexBuffers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140C6AF72825C99B003BACE3 /* FlexBuffers.swift */; };
 		1459D7E4280F2922006391F8 /* libpaxchassismacos.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */; };
 		1459D7E5280F2922006391F8 /* libpaxchassismacos.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		1459D7E8280F2933006391F8 /* libpaxchassismacos.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1459D7E7280F2922006391F8 /* libpaxchassismacos.a */; };
@@ -32,6 +34,9 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		140C6AF62825C99B003BACE3 /* FlexBufferBuilder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FlexBufferBuilder.swift; sourceTree = "<group>"; };
+		140C6AF72825C99B003BACE3 /* FlexBuffers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FlexBuffers.swift; sourceTree = "<group>"; };
+		140C6AF82825C99C003BACE3 /* FlexBuffers.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FlexBuffers.h; sourceTree = "<group>"; };
 		1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libpaxchassismacos.dylib; path = ../../target/debug/libpaxchassismacos.dylib; sourceTree = "<group>"; };
 		1459D7E7280F2922006391F8 /* libpaxchassismacos.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpaxchassismacos.a; path = ../../target/debug/libpaxchassismacos.a; sourceTree = "<group>"; };
 		14965C0127FE3D0F00A38CA1 /* pax-dev-harness-macos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "pax-dev-harness-macos.app"; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -84,6 +89,9 @@
 		14965C0327FE3D0F00A38CA1 /* pax-dev-harness-macos */ = {
 			isa = PBXGroup;
 			children = (
+				140C6AF62825C99B003BACE3 /* FlexBufferBuilder.swift */,
+				140C6AF82825C99C003BACE3 /* FlexBuffers.h */,
+				140C6AF72825C99B003BACE3 /* FlexBuffers.swift */,
 				14965C0427FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift */,
 				14965C0627FE3D0F00A38CA1 /* ContentView.swift */,
 				14965C0827FE3D1100A38CA1 /* Assets.xcassets */,
@@ -187,8 +195,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				140C6AFA2825C99C003BACE3 /* FlexBuffers.swift in Sources */,
 				14965C0727FE3D0F00A38CA1 /* ContentView.swift in Sources */,
 				14965C0527FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift in Sources */,
+				140C6AF92825C99C003BACE3 /* FlexBufferBuilder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
