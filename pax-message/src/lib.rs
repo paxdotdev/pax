@@ -10,7 +10,7 @@ use serde::{Serialize};
 #[derive(Serialize)]
 pub enum NativeMessage {
     TextCreate(u64), //node instance ID
-    TextUpdate(u64, TextPatch),
+    TextUpdate(TextPatch),
     TextDelete(u64),
     // ClippingCreate(u64),
     // ClippingUpdate(u64, ClippingPatch),
@@ -59,6 +59,7 @@ pub enum TextSize {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct TextPatch {
+    pub id: u64,
     pub content: Option<String>, //See `TextContentMessage` for a sketched-out approach to rich text
     pub transform: Option<[f64; 6]>,
     pub size_x: Option<TextSize>,

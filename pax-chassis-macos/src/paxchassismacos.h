@@ -38,4 +38,4 @@ struct NativeMessageQueue *pax_tick(struct PaxEngineContainer *bridge_container,
                                           float width,
                                           float height);
 
-void pax_cleanup_message_queue(struct NativeMessage *queue);
+void pax_cleanup_message_queue(struct NativeMessageQueue *queue);

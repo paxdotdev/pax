@@ -54,6 +54,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let mut new_message : TextPatch = Default::default();
+        new_message.id = rtc.get_dynamic_id(&self.instance_id);
         let mut has_any_updates = false;
 
         let mut properties = &mut *self.properties.as_ref().borrow_mut();

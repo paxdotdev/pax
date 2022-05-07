@@ -121,6 +121,11 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
         None
     }
 
+    // Traverse runtime stack, accumulate RepeatItem indices
+    pub fn get_dynamic_id(&self, id: u64) {
+        get
+    }
+
     //both Expressions and Timelines store their evaluators in the same vtable
     pub fn compute_vtable_value(&self, vtable_id: Option<&str>) -> Option<TypesCoproduct> {
 

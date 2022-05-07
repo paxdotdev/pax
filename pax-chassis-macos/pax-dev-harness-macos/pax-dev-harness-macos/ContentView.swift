@@ -29,6 +29,21 @@ struct PaxCanvasViewRepresentable: NSViewRepresentable {
     func updateNSView(_ canvas: PaxCanvasView, context: Context) { }
 }
 
+class TextUpdatePatch {
+    
+    var id: UInt64
+    var content: String?
+    
+    init(fb: FlxbReference) {
+        fb.de
+        self.id = fb["id"]!.asUInt64!
+        self.content = fb["content"]?.asString
+        if(self.content != nil) {
+            print(String(format: "new content for %d: %@", self.id, self.content!))
+        }
+    }
+}
+
 class PaxCanvasView: NSView {
     
     var contextContainer : OpaquePointer? = nil
@@ -39,7 +54,6 @@ class PaxCanvasView: NSView {
     func handleTextCreate(id: UInt64) {
         textElements.append(id)
     }
-    
     
 //    typedef struct TextPatch {
 //      struct COption_CString content;
@@ -64,8 +78,8 @@ class PaxCanvasView: NSView {
 //    }
     
     
-    func handleTextUpdate( id: UInt64) {
-        print(id)
+    func handleTextUpdate(patch: TextUpdatePatch) {
+        print(String(format: "Handling update for %d", patch.id))
     }
     
     func handleTextDelete(id: Int) {
@@ -75,9 +89,9 @@ class PaxCanvasView: NSView {
     func processNativeMessageQueue(queue: NativeMessageQueue) {
         
         let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
-        let fb = FlexBuffer.decode(data: Data.init(buffer: buffer))!
+        let root = FlexBuffer.decode(data: Data.init(buffer: buffer))!
         
-        fb["messages"]?.asVector?.makeIterator().forEach( { message in
+        root["messages"]?.asVector?.makeIterator().forEach( { message in
             print(message.debugDescription)
             
             let textCreateMessage = message["TextCreate"]
@@ -87,7 +101,7 @@ class PaxCanvasView: NSView {
             
             let textUpdateMessage = message["TextUpdate"]
             if textUpdateMessage != nil {
-                handleTextUpdate(id: textUpdateMessage!.asUInt64!)
+                handleTextUpdate(patch: TextUpdatePatch(fb: textUpdateMessage!))
             }
             
             //^ Add new message-receive handlers here ^
@@ -115,7 +129,7 @@ class PaxCanvasView: NSView {
             
             let nativeMessageQueue = pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
             processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
-//            pax_cleanup_message_queue(nativeMessageQueue)
+            pax_cleanup_message_queue(nativeMessageQueue)
         }
         
         

@@ -177,6 +177,7 @@ _RIL means Rust Intermediate Language, which is the
             [x] Logging, strings, message-passing
             [ ] CRUD operations and methods: PoC with `Text`
             [ ] inbound support: PoC with `Click`
+            [x] flexbuffers instead of fat c structs
         [ ] consider JSON for web, alt: ArrayBuffer and manually deserialize the same C structs as chassis-macos
     [x] ids
         [x] handle monotonic, instance-unique IDs
