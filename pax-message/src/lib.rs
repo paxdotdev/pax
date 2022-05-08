@@ -45,25 +45,19 @@ pub struct NativeArgsClick {
 //
 // #[repr(C)]
 // pub struct ClippingPatch {
-//     pub size_x: Option<TextSize>,
-//     pub size_y: Option<TextSize>,
+//     pub size_x: Option<f64>,
+//     pub size_y: Option<f64>,
 //     pub transform: Option<Affine>,
 // }
-
-#[derive(Serialize)]
-pub enum TextSize {
-    Auto(),
-    Pixels(f64),
-}
 
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct TextPatch {
     pub id_chain: Vec<u64>,
     pub content: Option<String>, //See `TextContentMessage` for a sketched-out approach to rich text
-    pub transform: Option<[f64; 6]>,
-    pub size_x: Option<TextSize>,
-    pub size_y: Option<TextSize>,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
 }
 
 

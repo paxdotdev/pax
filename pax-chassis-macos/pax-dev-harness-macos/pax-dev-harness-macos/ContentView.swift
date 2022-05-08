@@ -9,11 +9,72 @@ import SwiftUI
 
 let FPS = 60.0                   //Hz
 let REFRESH_PERIOD = 1.0 / FPS   //seconds between frames (e.g. 16.667 for 60Hz)
+var tick = 0
+
+//var textElements
+
+
+class TextElements: ObservableObject {
+    static let singleton : TextElements = TextElements()
+    
+    @Published var elements : [[UInt64]: TextElement] = [:]
+    
+    func add(element: TextElement) {
+        self.elements[element.id_chain] = element
+    }
+    func remove(id: [UInt64]) {
+        self.elements.removeValue(forKey: id)
+    }
+}
 
 struct ContentView: View {
     var body: some View {
-        PaxCanvasViewRepresentable()
-            .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+        ZStack {
+            PaxCanvasViewRepresentable()
+                .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+            NativeRenderingLayer()
+        }
+    }
+}
+
+
+struct NativeRenderingLayer: View {
+    
+    @ObservedObject var textElements : TextElements = TextElements.singleton
+  
+    var body: some View {
+ 
+        ForEach(Array(textElements.elements.values), id: \.id_chain) { textElement in
+//            let textElement = textElements[key]!
+            Text(textElement.content)
+                .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
+                .background(Color.red)
+                .transformEffect(CGAffineTransform.init(
+                    a: CGFloat(textElement.transform[0]),
+                    b: CGFloat(textElement.transform[1]),
+                    c: CGFloat(textElement.transform[2]),
+                    d: CGFloat(textElement.transform[3]),
+                    tx: CGFloat(textElement.transform[4]),
+                    ty: CGFloat(textElement.transform[5])
+                ))
+        }
+        
+//        ForEach(0..<keys.count) { index in
+//            let key = keys[index]
+//            let textElement = textElements[key]!
+//            Text(textElement.content)
+//                .frame(width: 100.0, height: 100.0, alignment: .topLeading)
+//                .background(Color.red)
+//                .transformEffect(CGAffineTransform.init(
+//                    a: CGFloat(textElement.transform[0]),
+//                    b: CGFloat(textElement.transform[1]),
+//                    c: CGFloat(textElement.transform[2]),
+//                    d: CGFloat(textElement.transform[3]),
+//                    tx: CGFloat(textElement.transform[4]),
+//                    ty: CGFloat(textElement.transform[5])
+//                ))
+//        }
+        
     }
 }
 
@@ -29,71 +90,48 @@ struct PaxCanvasViewRepresentable: NSViewRepresentable {
     func updateNSView(_ canvas: PaxCanvasView, context: Context) { }
 }
 
-class TextCreatePatch {
-    var id_chain: [UInt64]
-    
-    init(fb:FlxbReference) {
-        self.id_chain = fb.asVector!.makeIterator().map({ fb in
-            fb.asUInt64!
-        })
-    }
-
-}
-
-class TextUpdatePatch {
-    var id_chain: [UInt64]
-    var content: String?
-    
-    init(fb: FlxbReference) {
-//        fb.de
-        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
-            fb.asUInt64!
-        })
-        self.content = fb["content"]?.asString
-        if(self.content != nil) {
-//            print(String(format: "new content for %d: %@", self.id_chain, self.content!))
-        }
-    }
-}
 
 class PaxCanvasView: NSView {
+    
+    @ObservedObject var textElements = TextElements.singleton
     
     var contextContainer : OpaquePointer? = nil
     var currentTickWorkItem : DispatchWorkItem? = nil
     
-    var textElements : [[UInt64]] = [[]]
     
-    func handleTextCreate(patch: TextCreatePatch) {
-        textElements.append(patch.id_chain)
+    
+    func handleTextCreate(patch: TextIdPatch) {
+        textElements.add(element: TextElement.make_default(id_chain: patch.id_chain))
     }
     
     func handleTextUpdate(patch: TextUpdatePatch) {
 //        print(String(format: "Handling update for %d", patch.id_chain))
     }
     
-    func handleTextDelete(id: Int) {
+    func handleTextDelete(patch: TextIdPatch) {
 //        textElements.removeAll(where: <#T##(Int) throws -> Bool#>)(id)
     }
     
     func processNativeMessageQueue(queue: NativeMessageQueue) {
-        
-//        var x : [[UInt64]: String] = [:]
-//        x[[1,2,3]] = "Hello"
 
         let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
         let root = FlexBuffer.decode(data: Data.init(buffer: buffer))!
 
         root["messages"]?.asVector?.makeIterator().forEach( { message in
-//            print(message.debugDescription)
 
             let textCreateMessage = message["TextCreate"]
             if textCreateMessage != nil {
-                handleTextCreate(patch: TextCreatePatch(fb: textCreateMessage!))
+                handleTextCreate(patch: TextIdPatch(fb: textCreateMessage!))
             }
 
             let textUpdateMessage = message["TextUpdate"]
             if textUpdateMessage != nil {
                 handleTextUpdate(patch: TextUpdatePatch(fb: textUpdateMessage!))
+            }
+            
+            let textDeleteMessage = message["TextDelete"]
+            if textDeleteMessage != nil {
+                handleTextDelete(patch: TextIdPatch(fb: textDeleteMessage!))
             }
 
             //^ Add new message-receive handlers here ^
@@ -140,6 +178,7 @@ class PaxCanvasView: NSView {
         currentTickWorkItem = DispatchWorkItem {
             self.setNeedsDisplay(dirtyRect)
             self.displayIfNeeded()
+            tick = tick + 1
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_PERIOD, execute: currentTickWorkItem!)

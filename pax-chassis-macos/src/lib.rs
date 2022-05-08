@@ -59,6 +59,7 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     Box::into_raw(ManuallyDrop::into_inner(container))
 }
 
+/// Destroy `engine` and clean up the `ManuallyDrop` container surround it.
 #[no_mangle]
 pub extern "C" fn pax_dealloc_engine(_container: *mut PaxEngineContainer) {
     //TODO: support deallocing the engine container, particularly for when we need to support elegant clean-up from attached harness
