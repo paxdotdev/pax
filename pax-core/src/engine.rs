@@ -122,8 +122,24 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     }
 
     // Traverse runtime stack, accumulate RepeatItem indices
-    pub fn get_dynamic_id(&self, id: u64) {
-        get
+
+
+    /// Get an `id_chain` for this element, an array of `u64` used collectively as a single unique ID across native bridges.
+    /// Specifically, the ID chain represents not only the instance ID, but the indices of each RepeatItem found by a traversal
+    /// of the runtime stack.
+    ///
+    /// The need for this emerges from the fact that `Repeat`ed elements share a single underlying
+    /// `instance`, where that instantiation happens once at init-time — specifically, it does not happen
+    /// when `Repeat`ed elements are added and removed to the render tree.  10 apparent rendered elements may share the same `instance_id` -- which doesn't work as a unique key for native renderers
+    /// that are expected to render and update 10 distinct elements.
+    ///
+    /// Thus, the `id_chain` is used as a unique key, first the `instance_id` (which will increase monotonically through the lifetime of the program),
+    /// then each RepeatItem index through a traversal of the stack frame.  Thus, each virtually `Repeat`ed element
+    /// gets its own unique ID in the form of an "address" through any nested `Repeat`-ancestors.
+    pub fn get_id_chain(&self, id: u64) -> Vec<u64> {
+        let mut indices = (*self.runtime).borrow().get_list_of_repeat_indicies_from_stack();
+        indices.insert(0, id);
+        indices
     }
 
     //both Expressions and Timelines store their evaluators in the same vtable
@@ -154,7 +170,7 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
     instance_map: HashMap<u64, RenderNodePtr<R>>,
 
     ///track which elements are currently mounted -- if id is present in set, is mounted
-    mounted_set: HashSet<(u64, Vec<usize>)>,
+    mounted_set: HashSet<(u64, Vec<u64>)>,
 
     ///register holding the next value to mint as an id
     next_id: u64,
@@ -183,15 +199,15 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.instance_map.remove(&instance_id);
     }
 
-    pub fn mark_mounted(&mut self, id: u64, repeat_indices: Vec<usize>) {
+    pub fn mark_mounted(&mut self, id: u64, repeat_indices: Vec<u64>) {
         self.mounted_set.insert((id, repeat_indices));
     }
 
-    pub fn is_mounted(&self, id: u64, repeat_indices: Vec<usize>) -> bool {
+    pub fn is_mounted(&self, id: u64, repeat_indices: Vec<u64>) -> bool {
         self.mounted_set.contains(&(id, repeat_indices))
     }
 
-    pub fn mark_unmounted(&mut self, id: u64, repeat_indices: Vec<usize>) {
+    pub fn mark_unmounted(&mut self, id: u64, repeat_indices: Vec<u64>) {
         self.mounted_set.remove(&(id, repeat_indices));
     }
 

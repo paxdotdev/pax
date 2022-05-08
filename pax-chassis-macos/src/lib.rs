@@ -1,11 +1,10 @@
-#![allow(non_snake_case)]
-//Non-snake-case is used to help denote foreign structs, e.g. from Swift via C
+#![allow(non_snake_case)] //Non-snake-case is used here to help denote foreign structs, e.g. from Swift via C
 
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::ffi::c_void;
 use std::mem::{ManuallyDrop, transmute};
-use std::os::raw::{c_char, c_uint};
+use std::os::raw::{c_char};
 
 use core_graphics::context::CGContext;
 use piet_coregraphics::{CoreGraphicsContext};
@@ -21,19 +20,20 @@ use pax_cartridge;
 //in order to be visible to Swift
 pub use pax_message::*;
 
-//Exposed to Swift via paxchassismacos.h
-#[repr(C)]
+/// Container data structure for PaxEngine, aggregated to support passing across C bridge
+#[repr(C)] //Exposed to Swift via paxchassismacos.h
 pub struct PaxEngineContainer {
     _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
+    //TODO: since that has become a single field, this data structure should be retired and `*mut PaxEngine` should be passed directly.
 }
 
+/// Allocate an instance of the Pax engine, with a specified root component from the loaded `pax_cartridge`.
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
 pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngineContainer {
 
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
     //engine can be passed back to Swift via the C (FFI) bridge
-    //This could presumably be cleaned up but for now the engine will exist
-    //on the heap for the lifetime of the containing process.
+    //This could presumably be cleaned up -- see `pax_dealloc_engine`
     let instance_registry : Rc<RefCell<InstanceRegistry<CoreGraphicsContext<'static>>>> = Rc::new(RefCell::new(InstanceRegistry::new()));
     let root_component_instance = pax_cartridge::instantiate_root_component(Rc::clone(&instance_registry));
     let expression_table = pax_cartridge::instantiate_expression_table();
@@ -50,6 +50,8 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
         )
     );
 
+    //TODO: since PaxEngineContainer got trimmed down to one struct member, we should probably just unwrap this to a single
+    //      ManuallyDrop<Box<>>, which will also make dealloc simpler.
     let container = ManuallyDrop::new(Box::new(PaxEngineContainer {
         _engine: Box::into_raw(ManuallyDrop::into_inner(engine)),
     }));
@@ -57,7 +59,14 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     Box::into_raw(ManuallyDrop::into_inner(container))
 }
 
+#[no_mangle]
+pub extern "C" fn pax_dealloc_engine(_container: *mut PaxEngineContainer) {
+    //TODO: support deallocing the engine container, particularly for when we need to support elegant clean-up from attached harness
+}
 
+/// Perform full tick of engine, including property computation, lifecycle event handling, and rendering side-effects.
+/// Returns a message queue of native rendering actions encoded as a Flexbuffer via FFI to Swift.
+/// The returned message queue requires explicit deallocation: `pax_deallocate_message_queue`
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
 pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext: *mut c_void, width: f32, height: f32) -> *mut NativeMessageQueue { // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
     let mut engine = unsafe { Box::from_raw((*bridge_container)._engine) };
@@ -92,8 +101,10 @@ pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext:
     queue_container
 }
 
+/// Required manual cleanup callback from Swift after reading a frame's message queue.
+/// If this is not called after `pax_tick` is invoked, we will have a memory leak.
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
-pub extern "C" fn pax_cleanup_message_queue(queue: *mut NativeMessageQueue)  {
+pub extern "C" fn pax_dealloc_message_queue(queue: *mut NativeMessageQueue)  {
 
     unsafe {
         let queue_container = Box::from_raw(queue);

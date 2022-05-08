@@ -26,12 +26,15 @@ impl<R: 'static + RenderContext> Runtime<R> {
         }
     }
 
-    pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<usize> {
-        let mut indices: Vec<usize> = vec![];
+    // TODO: this value could be cached on stackframes, registered & cached during engine rendertree traversal (specifically: when stackframes are pushed)
+    //       This would make id_chain resolution essentially free, O(1) instead of O(log(n))
+    //       Profile first to understand the impact before optimizing
+    pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u64> {
+        let mut indices: Vec<u64> = vec![];
 
         self.stack.iter().for_each(|frame_wrapped|{
             if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*frame_wrapped).borrow_mut()).borrow().properties).borrow() {
-                indices.push(*i)
+                indices.push(*i as u64)
             }
         });
         indices
@@ -74,18 +77,18 @@ impl<R: 'static + RenderContext> Runtime<R> {
         );
     }
 
-    /// Handles special-cases like `@for`/`Repeat`, where properties for the
+    /// Handles special-cases like `for`/`Repeat`, where properties for the
     /// control flow primitive need to be computed out-of-lifecycle, and where nested child elements
     /// need to be treated as top-level elements.
-    /// For example, for `<Spread><Ellipse />@for i in (0..3){ <Rectangle /> }</Spread>`,
+    /// For example, for `<Spread><Ellipse />for i in (0..3){ <Rectangle /> }</Spread>`,
     /// without this special handling `Spread` will receive only two adoptees: the `Ellipse` and the `Repeat` node
-    /// created by `@for`.  In other words `@for`s children need to be treated as `<Spread>`s children,
+    /// created by `for`.  In other words `for`s children need to be treated as `<Spread>`s children,
     /// and this processing allows that to happpen.
-    /// Note that this must be recursive to handle nested cases of flattening, for example nested `@for` loops
+    /// Note that this must be recursive to handle nested cases of flattening, for example nested `for` loops
     pub fn process__should_flatten__adoptees_recursive(adoptee: &RenderNodePtr<R>, rtc: &mut RenderTreeContext<R>) -> Vec<RenderNodePtr<R>> {
         let mut adoptee_borrowed = (**adoptee).borrow_mut();
         if adoptee_borrowed.should_flatten() {
-            //1. this is an @if or @for (etc.) — it needs its properties computed
+            //1. this is an `if` or `for` (etc.) — it needs its properties computed
             //   in order for its children to be correct
             adoptee_borrowed.compute_properties(rtc);
             //2. recurse into top-level should_flatten() nodes
@@ -144,7 +147,6 @@ impl<R: 'static + RenderContext> StackFrame<R> {
 
     // Traverses stack recursively `n` times to retrieve
     // Unchecked: will throw a runtime error if there are fewer than `n` descendants to traverse.
-    // TODO: more elegant error handling?
     pub fn nth_descendant(&self, n: isize) -> Rc<RefCell<StackFrame<R>>> {
         assert!(n > 0);
         self.nth_descendant_recursive(n, 0)

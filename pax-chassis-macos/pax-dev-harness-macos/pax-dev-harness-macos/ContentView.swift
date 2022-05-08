@@ -29,17 +29,29 @@ struct PaxCanvasViewRepresentable: NSViewRepresentable {
     func updateNSView(_ canvas: PaxCanvasView, context: Context) { }
 }
 
-class TextUpdatePatch {
+class TextCreatePatch {
+    var id_chain: [UInt64]
     
-    var id: UInt64
+    init(fb:FlxbReference) {
+        self.id_chain = fb.asVector!.makeIterator().map({ fb in
+            fb.asUInt64!
+        })
+    }
+
+}
+
+class TextUpdatePatch {
+    var id_chain: [UInt64]
     var content: String?
     
     init(fb: FlxbReference) {
-        fb.de
-        self.id = fb["id"]!.asUInt64!
+//        fb.de
+        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
+            fb.asUInt64!
+        })
         self.content = fb["content"]?.asString
         if(self.content != nil) {
-            print(String(format: "new content for %d: %@", self.id, self.content!))
+//            print(String(format: "new content for %d: %@", self.id_chain, self.content!))
         }
     }
 }
@@ -49,37 +61,14 @@ class PaxCanvasView: NSView {
     var contextContainer : OpaquePointer? = nil
     var currentTickWorkItem : DispatchWorkItem? = nil
     
-    var textElements : [UInt64] = []
+    var textElements : [[UInt64]] = [[]]
     
-    func handleTextCreate(id: UInt64) {
-        textElements.append(id)
+    func handleTextCreate(patch: TextCreatePatch) {
+        textElements.append(patch.id_chain)
     }
     
-//    typedef struct TextPatch {
-//      struct COption_CString content;
-//      struct COption_Affine transform;
-//      struct COption_TextSize size_x;
-//      struct COption_TextSize size_y;
-//    } TextPatch;
-//
-//    func handleTextUpdate(params: TextUpdate_Body) {
-//        let instance_id = params._0
-//        let patch = params._1
-//
-//        let text_node = () //TODO: Look up from pool
-//
-////        switch patch.content.tag {
-////            case Some_CString:
-////                let new_content = String(cString: patch.content.some.pointee!)
-////                print("new content: " + new_content)
-////            default:
-////                ()
-////        }
-//    }
-    
-    
     func handleTextUpdate(patch: TextUpdatePatch) {
-        print(String(format: "Handling update for %d", patch.id))
+//        print(String(format: "Handling update for %d", patch.id_chain))
     }
     
     func handleTextDelete(id: Int) {
@@ -88,22 +77,25 @@ class PaxCanvasView: NSView {
     
     func processNativeMessageQueue(queue: NativeMessageQueue) {
         
+//        var x : [[UInt64]: String] = [:]
+//        x[[1,2,3]] = "Hello"
+
         let buffer = UnsafeBufferPointer<UInt8>(start: queue.data_ptr!, count: Int(queue.length))
         let root = FlexBuffer.decode(data: Data.init(buffer: buffer))!
-        
+
         root["messages"]?.asVector?.makeIterator().forEach( { message in
-            print(message.debugDescription)
-            
+//            print(message.debugDescription)
+
             let textCreateMessage = message["TextCreate"]
             if textCreateMessage != nil {
-                handleTextCreate(id: textCreateMessage!.asUInt64!)
+                handleTextCreate(patch: TextCreatePatch(fb: textCreateMessage!))
             }
-            
+
             let textUpdateMessage = message["TextUpdate"]
             if textUpdateMessage != nil {
                 handleTextUpdate(patch: TextUpdatePatch(fb: textUpdateMessage!))
             }
-            
+
             //^ Add new message-receive handlers here ^
         })
         
@@ -129,7 +121,7 @@ class PaxCanvasView: NSView {
             
             let nativeMessageQueue = pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
             processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
-            pax_cleanup_message_queue(nativeMessageQueue)
+            pax_dealloc_message_queue(nativeMessageQueue)
         }
         
         

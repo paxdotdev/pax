@@ -54,7 +54,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let mut new_message : TextPatch = Default::default();
-        new_message.id = rtc.get_dynamic_id(&self.instance_id);
+        new_message.id_chain = rtc.get_id_chain(self.instance_id);
         let mut has_any_updates = false;
 
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
@@ -100,7 +100,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
 
         if has_any_updates {
             (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-                pax_message::NativeMessage::TextUpdate(self.instance_id, new_message)
+                pax_message::NativeMessage::TextUpdate(new_message)
             );
         }
 
@@ -111,14 +111,16 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
     }
 
     fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
+        let id_chain = rtc.get_id_chain(self.instance_id);
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::NativeMessage::TextCreate(self.instance_id)
+            pax_message::NativeMessage::TextCreate(id_chain)
         );
     }
 
     fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
+        let id_chain = rtc.get_id_chain(self.instance_id);
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::NativeMessage::TextDelete(self.instance_id)
+            pax_message::NativeMessage::TextDelete(id_chain)
         );
     }
 }
