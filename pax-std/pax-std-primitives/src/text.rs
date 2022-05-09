@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::ffi::CString;
 use std::rc::Rc;
+use std::collections::HashMap;
 
 use piet::{RenderContext};
 
@@ -20,7 +21,9 @@ pub struct TextInstance {
 
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
-    last_patches: pax_message::TextPatch,
+    //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
+    //      shares this last_patches cache
+    last_patches: HashMap<Vec<u64>, pax_message::TextPatch>,
 }
 
 impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
@@ -87,15 +90,25 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
     }
 
     fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
+
+
+
         let mut new_message : TextPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
+        if ! self.last_patches.contains_key(&new_message.id_chain) {
+            let mut patch = TextPatch::default();
+            patch.id_chain = new_message.id_chain.clone();
+            self.last_patches.insert(new_message.id_chain.clone(), patch);
+        }
+        let last_patch = self.last_patches.get_mut( &new_message.id_chain).unwrap();
         let mut has_any_updates = false;
+
 
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         let val = properties.content.get();
-        let is_new_value = match &self.last_patches.content {
+        let is_new_value = match &last_patch.content {
             Some(cached_value) => {
-                val.eq(cached_value)
+                !val.eq(cached_value)
             },
             None => {
                 true
@@ -103,14 +116,14 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
         };
         if is_new_value {
             new_message.content = Some(val.clone());
-            self.last_patches.content = Some(val.clone());
+            last_patch.content = Some(val.clone());
             has_any_updates = true;
         }
 
         let val = size_calc.0;
-        let is_new_value = match &self.last_patches.size_x {
+        let is_new_value = match &last_patch.size_x {
             Some(cached_value) => {
-                val.eq(cached_value)
+                !val.eq(cached_value)
             },
             None => {
                 true
@@ -118,14 +131,14 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
         };
         if is_new_value {
             new_message.size_x = Some(val.clone());
-            self.last_patches.size_x = Some(val.clone());
+            last_patch.size_x = Some(val.clone());
             has_any_updates = true;
         }
 
         let val = size_calc.1;
-        let is_new_value = match &self.last_patches.size_y {
+        let is_new_value = match &last_patch.size_y {
             Some(cached_value) => {
-                val.eq(cached_value)
+                !val.eq(cached_value)
             },
             None => {
                 true
@@ -133,23 +146,24 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
         };
         if is_new_value {
             new_message.size_y = Some(val.clone());
-            self.last_patches.size_y = Some(val.clone());
+            last_patch.size_y = Some(val.clone());
             has_any_updates = true;
         }
 
-
-        let val = transform_coeffs;
-        let is_new_value = match &self.last_patches.transform {
-            Some(cached_value) => {
-                val.eq(cached_value)
+        let latest_transform = transform_coeffs;
+        let is_new_transform = match &last_patch.transform {
+            Some(cached_transform) => {
+                latest_transform.iter().enumerate().any(|(i,elem)|{
+                    *elem != cached_transform[i]
+                })
             },
             None => {
                 true
             },
         };
-        if is_new_value {
-            new_message.transform = Some(val.clone());
-            self.last_patches.transform = Some(val.clone());
+        if is_new_transform {
+            new_message.transform = Some(latest_transform.clone());
+            last_patch.transform = Some(latest_transform.clone());
             has_any_updates = true;
         }
 
@@ -163,6 +177,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
     fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
+
 
     fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
         let id_chain = rtc.get_id_chain(self.instance_id);

@@ -285,8 +285,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //populate a pointer to this (current) `RenderNode` onto `rtc`
         rtc.node = Rc::clone(&node);
 
-        let mut was_mounted_during_this_frame: bool;
-
         //fire mount event if this is this node's first frame
         {
             let id = (*rtc.node).borrow().get_instance_id();
@@ -299,9 +297,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 instance_registry.mark_mounted(id, repeat_indices.clone());
             }
 
-            //whether we started the frame mounted or we just mounted, this is important
-            //for the unmount logic at the end of this method
-            was_mounted_during_this_frame = instance_registry.is_mounted(id, repeat_indices);
         }
 
         //TODO: double-check that this logic should be happening here, vs. after `compute_properties`
@@ -382,16 +377,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // lifecycle: post_render
         node.borrow_mut().handle_post_render(rtc, rc);
 
-        //fire unmount event if this node was mounted for any part of this frame but is now unmounted
-        //Note: this logic may be unnecessary, in light of firing `handle_pre_unmount` from `recurse_set_mounted`, combined
-        //with the fact that an element unmounted on this frame should never be visited by recurse_traverse_render_tree
-        // {
-        //     let id = (*rtc.node).borrow().get_instance_id();
-        //     let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
-        //     if was_mounted_during_this_frame && !instance_registry.is_mounted(id) {
-        //         node.borrow_mut().handle_pre_unmount(rtc);
-        //     }
-        // }
     }
 
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {

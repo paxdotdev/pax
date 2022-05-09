@@ -45,18 +45,21 @@ struct NativeRenderingLayer: View {
     var body: some View {
         ZStack{
             ForEach(Array(self.textElements.elements.values), id: \.id_chain) { textElement in
-                Text(textElement.content)
-                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
-//                    .position(CGPoint(x:200.0, y:200.0))
-                    .background(Color.red)
-    //                .transformEffect(CGAffineTransform.init(
-    //                    a: CGFloat(textElement.transform[0]),
-    //                    b: CGFloat(textElement.transform[1]),
-    //                    c: CGFloat(textElement.transform[2]),
-    //                    d: CGFloat(textElement.transform[3]),
-    //                    tx: CGFloat(textElement.transform[4]),
-    //                    ty: CGFloat(textElement.transform[5])
-    //                ))
+                
+                Group {
+                    Text(textElement.content)
+                        .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
+                        .background(Color.red)
+                }.position(x: CGFloat(textElement.size_x) / 2.0, y: CGFloat(textElement.size_y) / 2.0)//.frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
+//                    .transformEffect(CGAffineTransform.init(
+//                        a: CGFloat(textElement.transform[0]),
+//                        b: CGFloat(textElement.transform[1]),
+//                        c: CGFloat(textElement.transform[2]),
+//                        d: CGFloat(textElement.transform[3]),
+//                        tx: CGFloat(textElement.transform[4]),
+//                        ty: CGFloat(textElement.transform[5])
+//                    ))
+                
             }
         }
         

@@ -161,7 +161,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     ///
     /// An implementor of `compute_native_patches` is responsible for determining which properties if any have changed
     /// (e.g. by keeping a local patch object as a cache of last known values.)
-    fn compute_native_patches(&mut self, _rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
         //no-op default implementation
     }
 

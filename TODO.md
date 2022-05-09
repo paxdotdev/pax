@@ -2282,3 +2282,16 @@ through shared memory -- the only costs are:
 
 Note that if we standardize on JSON, we get a parser for free on Web, i.e. no additional disk footprint for WASM bundle.
 
+
+(Update 5/9/22: decided to go with FlexBuffer for macOS/iOS bridge, probably will rely on wasm_bindgen for wasm)
+
+
+### On native rendering, design
+
+Consider a `Text` element nested under two repeats, each covering `(0..3)`
+There will be 9 `Text` elements rendered to screen.
+
+Core rendering will include _only one_ `Text` instance, and on each render loop
+its properties will be updated in-place before it's rendered to screen.
+
+HOWEVER -- rendering of text across the native bridge requires an awareness of  
