@@ -43,20 +43,21 @@ struct NativeRenderingLayer: View {
     @ObservedObject var textElements : TextElements = TextElements.singleton
   
     var body: some View {
- 
-        ForEach(Array(textElements.elements.values), id: \.id_chain) { textElement in
-//            let textElement = textElements[key]!
-            Text(textElement.content)
-                .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
-                .background(Color.red)
-                .transformEffect(CGAffineTransform.init(
-                    a: CGFloat(textElement.transform[0]),
-                    b: CGFloat(textElement.transform[1]),
-                    c: CGFloat(textElement.transform[2]),
-                    d: CGFloat(textElement.transform[3]),
-                    tx: CGFloat(textElement.transform[4]),
-                    ty: CGFloat(textElement.transform[5])
-                ))
+        ZStack{
+            ForEach(Array(self.textElements.elements.values), id: \.id_chain) { textElement in
+                Text(textElement.content)
+                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
+//                    .position(CGPoint(x:200.0, y:200.0))
+                    .background(Color.red)
+    //                .transformEffect(CGAffineTransform.init(
+    //                    a: CGFloat(textElement.transform[0]),
+    //                    b: CGFloat(textElement.transform[1]),
+    //                    c: CGFloat(textElement.transform[2]),
+    //                    d: CGFloat(textElement.transform[3]),
+    //                    tx: CGFloat(textElement.transform[4]),
+    //                    ty: CGFloat(textElement.transform[5])
+    //                ))
+            }
         }
         
 //        ForEach(0..<keys.count) { index in
@@ -96,20 +97,19 @@ class PaxCanvasView: NSView {
     @ObservedObject var textElements = TextElements.singleton
     
     var contextContainer : OpaquePointer? = nil
-    var currentTickWorkItem : DispatchWorkItem? = nil
-    
-    
+    var currentTickWorkItem : DispatchWorkItem? = nil    
     
     func handleTextCreate(patch: TextIdPatch) {
-        textElements.add(element: TextElement.make_default(id_chain: patch.id_chain))
+        textElements.add(element: TextElement.makeDefault(id_chain: patch.id_chain))
     }
     
     func handleTextUpdate(patch: TextUpdatePatch) {
-//        print(String(format: "Handling update for %d", patch.id_chain))
+        textElements.elements[patch.id_chain]?.applyPatch(patch: patch)
+        textElements.objectWillChange.send()
     }
     
     func handleTextDelete(patch: TextIdPatch) {
-//        textElements.removeAll(where: <#T##(Int) throws -> Bool#>)(id)
+        textElements.remove(id: patch.id_chain)
     }
     
     func processNativeMessageQueue(queue: NativeMessageQueue) {

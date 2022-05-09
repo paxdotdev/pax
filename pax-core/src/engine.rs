@@ -338,6 +338,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let new_accumulated_transform = accumulated_transform * node_computed_transform;
 
+        node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds.clone(), new_accumulated_transform.as_coeffs().to_vec());
+
         rtc.bounds = new_accumulated_bounds;
         rtc.transform = new_accumulated_transform;
 

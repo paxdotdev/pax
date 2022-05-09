@@ -155,6 +155,16 @@ pub trait RenderNode<R: 'static + RenderContext>
         //no-op default implementation
     }
 
+    /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
+    /// Called by engine after `compute_properties`, passed calculated size and transform matrix coefficients for convenience
+    /// Expected to induce side-effects (if appropriate) via enqueueing messages to the native message queue
+    ///
+    /// An implementor of `compute_native_patches` is responsible for determining which properties if any have changed
+    /// (e.g. by keeping a local patch object as a cache of last known values.)
+    fn compute_native_patches(&mut self, _rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
+        //no-op default implementation
+    }
+
     /// Second lifecycle method during each render loop, occurs AFTER
     /// properties have been computed, but BEFORE rendering
     /// Example use-case: perform side-effects to the drawing context.

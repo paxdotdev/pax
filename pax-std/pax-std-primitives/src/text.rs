@@ -5,7 +5,7 @@ use std::rc::Rc;
 use piet::{RenderContext};
 
 use pax_std::primitives::{Text};
-use pax_core::{HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use pax_core::{ComputableTransform, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
@@ -53,29 +53,14 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut new_message : TextPatch = Default::default();
-        new_message.id_chain = rtc.get_id_chain(self.instance_id);
-        let mut has_any_updates = false;
+
 
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         if let Some(content) = rtc.compute_vtable_value(properties.content._get_vtable_id()) {
             let new_value = if let TypesCoproduct::String(v) = content { v } else { unreachable!() };
             properties.content.set(new_value);
         }
-        let val = properties.content.get();
-        let is_new_value = match &self.last_patches.content {
-            Some(cached_value) => {
-                val.eq(cached_value)
-            },
-            None => {
-                true
-            },
-        };
-        if is_new_value {
-            new_message.content = Some(val.clone());
-            self.last_patches.content = Some(val.clone());
-            has_any_updates = true;
-        }
+
 
         let mut size = &mut *self.size.as_ref().borrow_mut();
 
@@ -98,12 +83,81 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
             transform.set(new_value);
         }
 
+
+    }
+
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
+        let mut new_message : TextPatch = Default::default();
+        new_message.id_chain = rtc.get_id_chain(self.instance_id);
+        let mut has_any_updates = false;
+
+        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        let val = properties.content.get();
+        let is_new_value = match &self.last_patches.content {
+            Some(cached_value) => {
+                val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.content = Some(val.clone());
+            self.last_patches.content = Some(val.clone());
+            has_any_updates = true;
+        }
+
+        let val = size_calc.0;
+        let is_new_value = match &self.last_patches.size_x {
+            Some(cached_value) => {
+                val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.size_x = Some(val.clone());
+            self.last_patches.size_x = Some(val.clone());
+            has_any_updates = true;
+        }
+
+        let val = size_calc.1;
+        let is_new_value = match &self.last_patches.size_y {
+            Some(cached_value) => {
+                val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.size_y = Some(val.clone());
+            self.last_patches.size_y = Some(val.clone());
+            has_any_updates = true;
+        }
+
+
+        let val = transform_coeffs;
+        let is_new_value = match &self.last_patches.transform {
+            Some(cached_value) => {
+                val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.transform = Some(val.clone());
+            self.last_patches.transform = Some(val.clone());
+            has_any_updates = true;
+        }
+
         if has_any_updates {
             (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
                 pax_message::NativeMessage::TextUpdate(new_message)
             );
         }
-
     }
 
     fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
