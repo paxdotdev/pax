@@ -38,6 +38,20 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
     input
 }
 
+
+// Exactly like `#[pax()]`, except specifies that the attached component is intended to be mounted at
+// the root of an app-contained cartridge
+#[proc_macro_attribute]
+pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let _ = args;
+    let _ = input;
+
+    //TODO: idempotent pax-macro-coordination startup
+    //Handle incremental compilation
+
+    input
+}
+
 #[proc_macro_attribute]
 pub fn pax_on(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let _ = args;

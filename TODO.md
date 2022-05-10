@@ -2287,6 +2287,7 @@ Note that if we standardize on JSON, we get a parser for free on Web, i.e. no ad
 
 
 ### On native rendering, design
+May 9 2022
 
 Consider a `Text` element nested under two repeats, each covering `(0..3)`
 There will be 9 `Text` elements rendered to screen.
@@ -2294,4 +2295,18 @@ There will be 9 `Text` elements rendered to screen.
 Core rendering will include _only one_ `Text` instance, and on each render loop
 its properties will be updated in-place before it's rendered to screen.
 
-HOWEVER -- rendering of text across the native bridge requires an awareness of  
+HOWEVER -- rendering of text across the native bridge requires an awareness of each
+of the virtual elements associated with a given instance.  For example, `Text` is responsible
+for tracking "last-sent update patches" for each of its virtual elements, tracked by
+a `HashMap<Vec<u64>, TextPatch>`
+
+
+
+### On "media queries"
+
+Sometimes content will need to be styled separately for different platforms,
+for example text might need to be tweaked to be a little larger for
+an iPhone version of an app.
+
+Similarly to the CSS approach of media queries, we can enable per-platform
+per-screen-size, or even per-

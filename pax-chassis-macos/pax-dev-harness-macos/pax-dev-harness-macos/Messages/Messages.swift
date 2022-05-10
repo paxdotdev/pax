@@ -8,7 +8,9 @@
 import Foundation
 import SwiftUI
 
-class TextIdPatch {
+
+/// Agnostic of the type of element, this patch contains only an `id_chain` field, suitable for looking up a NativeElement (e.g. for deletion)
+class IdPatch {
     var id_chain: [UInt64]
     
     init(fb:FlxbReference) {
@@ -16,23 +18,24 @@ class TextIdPatch {
             fb.asUInt64!
         })
     }
-
 }
 
+
+/// Represents a native Text element, as received by message patches from Pax core
 class TextElement {
-    internal init(id_chain: [UInt64], content: String, transform: [Float], size_x: Float, size_y: Float) {
+    var id_chain: [UInt64]
+    var content: String
+    var transform: [Float]
+    var size_x: Float
+    var size_y: Float
+    
+    init(id_chain: [UInt64], content: String, transform: [Float], size_x: Float, size_y: Float) {
         self.id_chain = id_chain
         self.content = content
         self.transform = transform
         self.size_x = size_x
         self.size_y = size_y
     }
-    
-    public var id_chain: [UInt64]
-    public var content: String
-    public var transform: [Float]
-    public var size_x: Float
-    public var size_y: Float
     
     static func makeDefault(id_chain: [UInt64]) -> TextElement {
         TextElement(id_chain: id_chain, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0)
@@ -53,17 +56,18 @@ class TextElement {
         if patch.size_y != nil {
             self.size_y = patch.size_y!
         }
-
     }
 }
 
+
+
+/// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
 class TextUpdatePatch {
     var id_chain: [UInt64]
     var content: String?
     var transform: [Float]?
     var size_x: Float?
     var size_y: Float?
-
     
     init(fb: FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in

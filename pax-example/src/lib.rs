@@ -1,7 +1,7 @@
 use pax::*;
 use pax_std::{Spread, Text, Rectangle};
 
-#[pax(
+#[pax_root(
     <Spread cell_count=10 >
         <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
         for i in 0..8 {

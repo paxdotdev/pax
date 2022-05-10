@@ -20,6 +20,43 @@ use pax_example::pax_types::pax_std::components::Spread;
 use pax_std_primitives::{RectangleInstance, GroupInstance, FrameInstance, TextInstance};
 
 
+const JABBERWOCKY : &str = r#"
+’Twas brillig, and the slithy toves
+Did gyre and gimble in the wabe:
+All mimsy were the borogoves,
+And the mome raths outgrabe.
+
+“Beware the Jabberwock, my son!
+The jaws that bite, the claws that catch!
+Beware the Jubjub bird, and shun
+The frumious Bandersnatch!”
+
+He took his vorpal sword in hand;
+Long time the manxome foe he sought—
+So rested he by the Tumtum tree
+And stood awhile in thought.
+
+And, as in uffish thought he stood,
+The Jabberwock, with eyes of flame,
+Came whiffling through the tulgey wood,
+And burbled as it came!
+
+One, two! One, two! And through and through
+The vorpal blade went snicker-snack!
+He left it dead, and with its head
+He went galumphing back.
+
+“And hast thou slain the Jabberwock?
+Come to my arms, my beamish boy!
+O frabjous day! Callooh! Callay!”
+He chortled in his joy.
+
+’Twas brillig, and the slithy toves
+Did gyre and gimble in the wabe:
+All mimsy were the borogoves,
+And the mome raths outgrabe.
+"#;
+
 pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<String, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
     let mut vtable: HashMap<String, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
@@ -285,7 +322,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         children: Some(Rc::new(RefCell::new(vec![
                                             TextInstance::instantiate(InstantiationArgs {
                                                 properties: PropertiesCoproduct::Text( Text {
-                                                    content: Box::new(PropertyLiteral::new("Hello world".to_string()) )
+                                                    content: Box::new(PropertyLiteral::new(JABBERWOCKY.to_string()) )
                                                 }),
                                                 handler_registry: None,
                                                 instance_registry: Rc::clone(&instance_registry),
@@ -333,24 +370,53 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                 conditional_boolean_expression: None,
                                 compute_properties_fn: None
                             }),
-                            RectangleInstance::instantiate(InstantiationArgs{
-                                properties: PropertiesCoproduct::Rectangle(Rectangle {
-                                    stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
-                                        color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
-                                        width: Box::new(PropertyLiteral::new(0.0)),
-                                    } )),
-                                    fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 1.0, 0.0, 1.0)))
-                                }),
+                            GroupInstance::instantiate(InstantiationArgs {
+                                properties: PropertiesCoproduct::Group(Group {}),
                                 handler_registry: None,
                                 instance_registry: Rc::clone(&instance_registry),
                                 transform: Rc::new(RefCell::new(PropertyExpression::new("k".to_string()))),
                                 size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
-                                children: None,
+                                children: Some(Rc::new(RefCell::new(vec![
+                                    TextInstance::instantiate(InstantiationArgs {
+                                        properties: PropertiesCoproduct::Text( Text {
+                                            content: Box::new(PropertyLiteral::new(JABBERWOCKY.to_string()) )
+                                        }),
+                                        handler_registry: None,
+                                        instance_registry: Rc::clone(&instance_registry),
+                                        transform: Transform2D::default_wrapped(),
+                                        size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                                        children: None,
+                                        component_template: None,
+                                        slot_index: None,
+                                        repeat_data_list: None,
+                                        conditional_boolean_expression: None,
+                                        compute_properties_fn: None
+                                    }),
+                                    RectangleInstance::instantiate(InstantiationArgs{
+                                        properties: PropertiesCoproduct::Rectangle(Rectangle {
+                                            stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
+                                                color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
+                                                width: Box::new(PropertyLiteral::new(0.0)),
+                                            } )),
+                                            fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 1.0, 0.0, 1.0)))
+                                        }),
+                                        handler_registry: None,
+                                        instance_registry: Rc::clone(&instance_registry),
+                                        transform: Transform2D::default_wrapped(),
+                                        size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                                        children: None,
+                                        component_template: None,
+                                        slot_index: None,
+                                        repeat_data_list: None,
+                                        conditional_boolean_expression: None,
+                                        compute_properties_fn: None
+                                    }),
+                                ]))),
                                 component_template: None,
                                 slot_index: None,
                                 repeat_data_list: None,
                                 conditional_boolean_expression: None,
-                                compute_properties_fn: None
+                                compute_properties_fn: None,
                             }),
                         ]))),
                         component_template: Some(Rc::new(RefCell::new(

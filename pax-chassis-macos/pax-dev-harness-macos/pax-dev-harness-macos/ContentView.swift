@@ -7,12 +7,8 @@
 
 import SwiftUI
 
-let FPS = 60.0                   //Hz
+let FPS = 70.0                   //Hz
 let REFRESH_PERIOD = 1.0 / FPS   //seconds between frames (e.g. 16.667 for 60Hz)
-var tick = 0
-
-//var textElements
-
 
 class TextElements: ObservableObject {
     static let singleton : TextElements = TextElements()
@@ -46,8 +42,9 @@ struct NativeRenderingLayer: View {
     func getPositionedTextGroup(textElement: TextElement) -> some View {
         return Group {
             Text(textElement.content)
+                .foregroundColor(Color.black)
+                .textSelection(.enabled)
                 .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
-                .background(Color.red)
         }
         .position(x: CGFloat(textElement.size_x) / 2.0, y: CGFloat(textElement.size_y) / 2.0)
         .transformEffect(CGAffineTransform.init(
@@ -58,11 +55,48 @@ struct NativeRenderingLayer: View {
             tx: CGFloat(textElement.transform[4]),
             ty: CGFloat(textElement.transform[5])
         ))
+
+
+//
+//
+//            Group {
+//                Text(textElement.content)
+//                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
+//                    .foregroundColor(Color.black)
+////                    .background(Color.red) //debug, view bounding box
+//            }
+//            .transformEffect(CGAffineTransform.init(
+//                a: CGFloat(textElement.transform[0]),
+//                b: CGFloat(textElement.transform[1]),
+//                c: CGFloat(textElement.transform[2]),
+//                d: CGFloat(textElement.transform[3]),
+//                tx: CGFloat(textElement.transform[4]),
+//                ty: CGFloat(textElement.transform[5])
+//            ))
+//        }.mask(Rectangle().frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)).position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+//            .aspectRatio(contentMode: .fill)
+//            .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading).background(Color.red)
+//            .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+//            .transformEffect(CGAffineTransform.init(
+//                a: CGFloat(1),
+//                b: CGFloat(0),
+//                c: CGFloat(0),
+//                d: CGFloat(1),
+//                tx: CGFloat(textElement.transform[4]),
+//                ty: CGFloat(textElement.transform[5])
+//            )).clipped()// //correct for "center anchor" in SwiftUI
     }
   
     var body: some View {
         ZStack{
+            
+            //for each clipping container
+            // instantiate container, then instantiate all of its direct descendants
+            //   if its descendants include another clipping container, recurse
+            //finally, render the set of elements without a clipping container
             ForEach(Array(self.textElements.elements.values), id: \.id_chain) { textElement in
+                
+                
                 
                 getPositionedTextGroup(textElement: textElement)
                 //
@@ -109,7 +143,7 @@ class PaxCanvasView: NSView {
     var contextContainer : OpaquePointer? = nil
     var currentTickWorkItem : DispatchWorkItem? = nil    
     
-    func handleTextCreate(patch: TextIdPatch) {
+    func handleTextCreate(patch: IdPatch) {
         textElements.add(element: TextElement.makeDefault(id_chain: patch.id_chain))
     }
     
@@ -118,7 +152,7 @@ class PaxCanvasView: NSView {
         textElements.objectWillChange.send()
     }
     
-    func handleTextDelete(patch: TextIdPatch) {
+    func handleTextDelete(patch: IdPatch) {
         textElements.remove(id: patch.id_chain)
     }
     
@@ -131,7 +165,7 @@ class PaxCanvasView: NSView {
 
             let textCreateMessage = message["TextCreate"]
             if textCreateMessage != nil {
-                handleTextCreate(patch: TextIdPatch(fb: textCreateMessage!))
+                handleTextCreate(patch: IdPatch(fb: textCreateMessage!))
             }
 
             let textUpdateMessage = message["TextUpdate"]
@@ -141,7 +175,7 @@ class PaxCanvasView: NSView {
             
             let textDeleteMessage = message["TextDelete"]
             if textDeleteMessage != nil {
-                handleTextDelete(patch: TextIdPatch(fb: textDeleteMessage!))
+                handleTextDelete(patch: IdPatch(fb: textDeleteMessage!))
             }
 
             //^ Add new message-receive handlers here ^
@@ -188,7 +222,6 @@ class PaxCanvasView: NSView {
         currentTickWorkItem = DispatchWorkItem {
             self.setNeedsDisplay(dirtyRect)
             self.displayIfNeeded()
-            tick = tick + 1
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + REFRESH_PERIOD, execute: currentTickWorkItem!)
