@@ -9,12 +9,12 @@ use serde::{Serialize};
 
 #[derive(Serialize)]
 pub enum NativeMessage {
-    TextCreate(Vec<u64>), //node instance ID
+    TextCreate(Vec<u64>), //node instance ID, "id_chain"
     TextUpdate(TextPatch),
     TextDelete(Vec<u64>),
-    // ClippingCreate(u64),
-    // ClippingUpdate(u64, ClippingPatch),
-    // ClippingDelete(u64),
+    FrameCreate(Vec<u64>),
+    FrameUpdate(FramePatch),
+    FrameDelete(Vec<u64>),
     //TODO: form controls
     //TODO: scroll containers
 
@@ -42,13 +42,16 @@ pub struct NativeArgsClick {
     //TODO: probably native element id (in case of native element click), offset
     //TODO: right/middle/left click
 }
-//
-// #[repr(C)]
-// pub struct ClippingPatch {
-//     pub size_x: Option<f64>,
-//     pub size_y: Option<f64>,
-//     pub transform: Option<Affine>,
-// }
+
+
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct FramePatch {
+    pub id_chain: Vec<u64>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+    pub transform: Option<Vec<f64>>,
+}
 
 #[derive(Default, Serialize)]
 #[repr(C)]
@@ -58,6 +61,12 @@ pub struct TextPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+}
+
+
+pub struct AnyCreatePatch {
+    pub id_chain: Vec<u64>,
+    pub clipping_ids: Vec<Vec<u64>>,
 }
 
 

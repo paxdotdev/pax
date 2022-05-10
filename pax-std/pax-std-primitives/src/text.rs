@@ -91,8 +91,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
 
     fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
 
-
-
         let mut new_message : TextPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
         if ! self.last_patches.contains_key(&new_message.id_chain) {

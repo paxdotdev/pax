@@ -2303,10 +2303,12 @@ a `HashMap<Vec<u64>, TextPatch>`
 
 
 ### On "media queries"
+May 10 2022
 
 Sometimes content will need to be styled separately for different platforms,
 for example text might need to be tweaked to be a little larger for
 an iPhone version of an app.
 
 Similarly to the CSS approach of media queries, we can enable per-platform
-per-screen-size, or even per-
+per-screen-size, or even per-`Expression` (dynamically evaluated triggers)
+

@@ -332,16 +332,18 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         };
 
         let new_accumulated_transform = accumulated_transform * node_computed_transform;
+        rtc.bounds = new_accumulated_bounds.clone();
+        rtc.transform = new_accumulated_transform.clone();
 
-        node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds.clone(), new_accumulated_transform.as_coeffs().to_vec());
 
-        rtc.bounds = new_accumulated_bounds;
-        rtc.transform = new_accumulated_transform;
+        //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
+        //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
+        node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec());
 
         //lifecycle: pre_render for primitives
         node.borrow_mut().handle_pre_render(rtc, rc);
 
-        //lifecycle: pre_render for userland components
+        //Fire userland `pax_on(PreRender)` handlers
         let registry = (*node).borrow().get_handler_registry();
         if let Some(registry) = registry {
             //grab Rc of properties from stack frame; pass to type-specific handler
@@ -369,7 +371,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             //TODO: for dependency management, return computed values from subtree above
         });
 
-        // lifecycle: `render`
+        // lifecycle: render
         // this is this node's time to do its own rendering, aside
         // from its children.  Its children have already been rendered.
         node.borrow_mut().handle_render(rtc, rc);

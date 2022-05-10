@@ -2,6 +2,7 @@ use core::option::Option;
 use core::option::Option::Some;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::collections::HashMap;
 
 use kurbo::BezPath;
 use piet::RenderContext;
@@ -9,6 +10,7 @@ use piet::RenderContext;
 use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
 use pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, Size2D};
+use pax_message::FramePatch;
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
 /// like [`Group`], except [`Frame`] has the option of clipping rendering outside
@@ -22,6 +24,8 @@ pub struct FrameInstance<R: RenderContext> {
     pub children: RenderNodePtrList<R>,
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+
+    last_patches: HashMap<Vec<u64>, FramePatch>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
@@ -39,11 +43,78 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
                 children: args.children.expect("Frame expects primitive_children, even if empty Vec"),
                 size: Rc::new(RefCell::new(args.size.expect("Frame requires size"))),
                 transform: args.transform,
+                last_patches: HashMap::new(),
             }
         ));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
+    }
+
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
+
+        let mut new_message : FramePatch = Default::default();
+        new_message.id_chain = rtc.get_id_chain(self.instance_id);
+        if ! self.last_patches.contains_key(&new_message.id_chain) {
+            let mut patch = FramePatch::default();
+            patch.id_chain = new_message.id_chain.clone();
+            self.last_patches.insert(new_message.id_chain.clone(),patch);
+        }
+        let last_patch = self.last_patches.get_mut( &new_message.id_chain).unwrap();
+        let mut has_any_updates = false;
+
+        let val = size_calc.0;
+        let is_new_value = match &last_patch.size_x {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.size_x = Some(val.clone());
+            last_patch.size_x = Some(val.clone());
+            has_any_updates = true;
+        }
+
+        let val = size_calc.1;
+        let is_new_value = match &last_patch.size_y {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.size_y = Some(val.clone());
+            last_patch.size_y = Some(val.clone());
+            has_any_updates = true;
+        }
+
+        let latest_transform = transform_coeffs;
+        let is_new_transform = match &last_patch.transform {
+            Some(cached_transform) => {
+                latest_transform.iter().enumerate().any(|(i,elem)|{
+                    *elem != cached_transform[i]
+                })
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_transform {
+            new_message.transform = Some(latest_transform.clone());
+            last_patch.transform = Some(latest_transform.clone());
+            has_any_updates = true;
+        }
+
+        if has_any_updates {
+            (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
+                pax_message::NativeMessage::FrameUpdate(new_message)
+            );
+        }
     }
 
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
@@ -104,13 +175,18 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         rc.restore().unwrap();
     }
 
-    fn handle_post_mount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        //send a Create event for a ClippingMask to native renderer
-
-        // pax_message::runtime::ClippingPatch
-        // as long as this fires before compute_properties, the ClippingUpdate(ClippingPatch) _should_ be sent before rendering, as desired
-
-        // let msg = pax_message::NativeMessage::ClippingCreate(self.get_instance_id());
-        // (*_rtc.runtime).borrow_mut().enqueue_native_message(msg);
+    fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
+        let id_chain = rtc.get_id_chain(self.instance_id);
+        (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
+            pax_message::NativeMessage::FrameCreate(id_chain)
+        );
     }
+
+    fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
+        let id_chain = rtc.get_id_chain(self.instance_id);
+        (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
+            pax_message::NativeMessage::FrameDelete(id_chain)
+        );
+    }
+
 }

@@ -23,6 +23,19 @@ class TextElements: ObservableObject {
     }
 }
 
+class FrameElements: ObservableObject {
+    static let singleton : FrameElements = FrameElements()
+    
+    @Published var elements : [[UInt64]: FrameElement] = [:]
+    
+    func add(element: FrameElement) {
+        self.elements[element.id_chain] = element
+    }
+    func remove(id: [UInt64]) {
+        self.elements.removeValue(forKey: id)
+    }
+}
+
 struct ContentView: View {
     var body: some View {
         ZStack {
@@ -90,35 +103,16 @@ struct NativeRenderingLayer: View {
     var body: some View {
         ZStack{
             
+            //Clipping algo:
             //for each clipping container
             // instantiate container, then instantiate all of its direct descendants
             //   if its descendants include another clipping container, recurse
             //finally, render the set of elements without a clipping container
             ForEach(Array(self.textElements.elements.values), id: \.id_chain) { textElement in
-                
-                
-                
                 getPositionedTextGroup(textElement: textElement)
-                //
-                
             }
         }
         
-//        ForEach(0..<keys.count) { index in
-//            let key = keys[index]
-//            let textElement = textElements[key]!
-//            Text(textElement.content)
-//                .frame(width: 100.0, height: 100.0, alignment: .topLeading)
-//                .background(Color.red)
-//                .transformEffect(CGAffineTransform.init(
-//                    a: CGFloat(textElement.transform[0]),
-//                    b: CGFloat(textElement.transform[1]),
-//                    c: CGFloat(textElement.transform[2]),
-//                    d: CGFloat(textElement.transform[3]),
-//                    tx: CGFloat(textElement.transform[4]),
-//                    ty: CGFloat(textElement.transform[5])
-//                ))
-//        }
         
     }
 }
@@ -139,11 +133,12 @@ struct PaxCanvasViewRepresentable: NSViewRepresentable {
 class PaxCanvasView: NSView {
     
     @ObservedObject var textElements = TextElements.singleton
+    @ObservedObject var frameElements = FrameElements.singleton
     
     var contextContainer : OpaquePointer? = nil
     var currentTickWorkItem : DispatchWorkItem? = nil    
     
-    func handleTextCreate(patch: IdPatch) {
+    func handleTextCreate(patch: AnyCreatePatch) {
         textElements.add(element: TextElement.makeDefault(id_chain: patch.id_chain))
     }
     
@@ -152,8 +147,21 @@ class PaxCanvasView: NSView {
         textElements.objectWillChange.send()
     }
     
-    func handleTextDelete(patch: IdPatch) {
+    func handleTextDelete(patch: AnyDeletePatch) {
         textElements.remove(id: patch.id_chain)
+    }
+    
+    func handleFrameCreate(patch: AnyCreatePatch) {
+        frameElements.add(element: FrameElement.makeDefault(id_chain: patch.id_chain))
+    }
+    
+    func handleFrameUpdate(patch: FrameUpdatePatch) {
+        frameElements.elements[patch.id_chain]?.applyPatch(patch: patch)
+        frameElements.objectWillChange.send()
+    }
+    
+    func handleFrameDelete(patch: AnyDeletePatch) {
+        frameElements.remove(id: patch.id_chain)
     }
     
     func processNativeMessageQueue(queue: NativeMessageQueue) {
@@ -165,7 +173,7 @@ class PaxCanvasView: NSView {
 
             let textCreateMessage = message["TextCreate"]
             if textCreateMessage != nil {
-                handleTextCreate(patch: IdPatch(fb: textCreateMessage!))
+                handleTextCreate(patch: AnyCreatePatch(fb: textCreateMessage!))
             }
 
             let textUpdateMessage = message["TextUpdate"]
@@ -175,7 +183,22 @@ class PaxCanvasView: NSView {
             
             let textDeleteMessage = message["TextDelete"]
             if textDeleteMessage != nil {
-                handleTextDelete(patch: IdPatch(fb: textDeleteMessage!))
+                handleTextDelete(patch: AnyDeletePatch(fb: textDeleteMessage!))
+            }
+            
+            let frameCreateMessage = message["FrameCreate"]
+            if frameCreateMessage != nil {
+                handleFrameCreate(patch: AnyCreatePatch(fb: frameCreateMessage!))
+            }
+
+            let frameUpdateMessage = message["FrameUpdate"]
+            if frameUpdateMessage != nil {
+                handleFrameUpdate(patch: FrameUpdatePatch(fb: frameUpdateMessage!))
+            }
+            
+            let frameDeleteMessage = message["FrameDelete"]
+            if frameDeleteMessage != nil {
+                handleFrameDelete(patch: AnyDeletePatch(fb: frameDeleteMessage!))
             }
 
             //^ Add new message-receive handlers here ^
@@ -206,12 +229,6 @@ class PaxCanvasView: NSView {
             pax_dealloc_message_queue(nativeMessageQueue)
         }
         
-        
-        //Render populated native elements
-//        print(textElements)
-        
-        
-
         //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which
         //would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
         //This cancellation + shared singleton (`tickWorkItem`) ensures that only one DispatchWorkItem is enqueued at a time.
