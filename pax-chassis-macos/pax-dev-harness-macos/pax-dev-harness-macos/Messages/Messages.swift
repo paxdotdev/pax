@@ -44,21 +44,23 @@ class AnyDeletePatch {
 /// Represents a native Text element, as received by message patches from Pax core
 class TextElement {
     var id_chain: [UInt64]
+    var clipping_ids: [[UInt64]]
     var content: String
     var transform: [Float]
     var size_x: Float
     var size_y: Float
     
-    init(id_chain: [UInt64], content: String, transform: [Float], size_x: Float, size_y: Float) {
+    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float) {
         self.id_chain = id_chain
+        self.clipping_ids = clipping_ids
         self.content = content
         self.transform = transform
         self.size_x = size_x
         self.size_y = size_y
     }
     
-    static func makeDefault(id_chain: [UInt64]) -> TextElement {
-        TextElement(id_chain: id_chain, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0)
+    static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
+        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0)
     }
     
     func applyPatch(patch: TextUpdatePatch) {

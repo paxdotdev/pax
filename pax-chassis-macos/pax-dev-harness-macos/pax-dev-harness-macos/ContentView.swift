@@ -34,6 +34,9 @@ class FrameElements: ObservableObject {
     func remove(id: [UInt64]) {
         self.elements.removeValue(forKey: id)
     }
+    func get(id: [UInt64]) -> FrameElement? {
+        return self.elements[id]
+    }
 }
 
 struct ContentView: View {
@@ -50,24 +53,54 @@ struct ContentView: View {
 struct NativeRenderingLayer: View {
     
     @ObservedObject var textElements : TextElements = TextElements.singleton
+    @ObservedObject var frameElements : FrameElements = FrameElements.singleton
+    
+    
+    func getClippingMask(clippingIds: [[UInt64]]) -> some View {
+        
+        var elements : [FrameElement] = []
+        
+        clippingIds.makeIterator().forEach( { id_chain in
+            elements.insert(self.frameElements.elements[id_chain]!, at: 0)
+        })
+        
+        return ZStack { ForEach(elements, id: \.id_chain) { frameElement in
+            Rectangle()
+                .frame(width: CGFloat(frameElement.size_x), height: CGFloat(frameElement.size_y))
+                .position(x: CGFloat(frameElement.size_x / 2.0), y: CGFloat(frameElement.size_y / 2.0))
+                .transformEffect(CGAffineTransform.init(
+                    a: CGFloat(frameElement.transform[0]),
+                    b: CGFloat(frameElement.transform[1]),
+                    c: CGFloat(frameElement.transform[2]),
+                    d: CGFloat(frameElement.transform[3]),
+                    tx: CGFloat(frameElement.transform[4]),
+                    ty: CGFloat(frameElement.transform[5]))
+                )
+
+        } }
+    }
     
     
     func getPositionedTextGroup(textElement: TextElement) -> some View {
         return Group {
-            Text(textElement.content)
-                .foregroundColor(Color.black)
-                .textSelection(.enabled)
-                .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
-        }
-        .position(x: CGFloat(textElement.size_x) / 2.0, y: CGFloat(textElement.size_y) / 2.0)
-        .transformEffect(CGAffineTransform.init(
-            a: CGFloat(textElement.transform[0]),
-            b: CGFloat(textElement.transform[1]),
-            c: CGFloat(textElement.transform[2]),
-            d: CGFloat(textElement.transform[3]),
-            tx: CGFloat(textElement.transform[4]),
-            ty: CGFloat(textElement.transform[5])
-        ))
+            Group {
+                Text(textElement.content)
+                    .foregroundColor(Color.black)
+                    .textSelection(.enabled)
+                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
+                    .position(x: CGFloat(textElement.size_x) / 2.0, y: CGFloat(textElement.size_y) / 2.0)
+                    .transformEffect(CGAffineTransform.init(
+                        a: CGFloat(textElement.transform[0]),
+                        b: CGFloat(textElement.transform[1]),
+                        c: CGFloat(textElement.transform[2]),
+                        d: CGFloat(textElement.transform[3]),
+                        tx: CGFloat(textElement.transform[4]),
+                        ty: CGFloat(textElement.transform[5])
+                    ))
+            }
+            .mask(
+                getClippingMask(clippingIds: textElement.clipping_ids)
+            )
 
 
 //
@@ -77,16 +110,30 @@ struct NativeRenderingLayer: View {
 //                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
 //                    .foregroundColor(Color.black)
 ////                    .background(Color.red) //debug, view bounding box
-//            }
-//            .transformEffect(CGAffineTransform.init(
+//            }.transformEffect(CGAffineTransform.init(
 //                a: CGFloat(textElement.transform[0]),
 //                b: CGFloat(textElement.transform[1]),
 //                c: CGFloat(textElement.transform[2]),
 //                d: CGFloat(textElement.transform[3]),
 //                tx: CGFloat(textElement.transform[4]),
-//                ty: CGFloat(textElement.transform[5])
-//            ))
-//        }.mask(Rectangle().frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)).position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+//                ty: CGFloat(textElement.transform[5]))
+//            ).mask(
+//                ForEach(Array(self.frameElements.elements.values), id: \.id_chain) { frameElement in
+//                    Rectangle()
+//                        .size(width: CGFloat(frameElement.size_x), height: CGFloat(frameElement.size_y))
+//                        .position(x: CGFloat(frameElement.size_x / 2.0), y: CGFloat(frameElement.size_y / 2.0))
+//                        .transformEffect(CGAffineTransform.init(
+//                            a: CGFloat(frameElement.transform[0]),
+//                            b: CGFloat(frameElement.transform[1]),
+//                            c: CGFloat(frameElement.transform[2]),
+//                            d: CGFloat(frameElement.transform[3]),
+//                            tx: CGFloat(frameElement.transform[4]),
+//                            ty: CGFloat(frameElement.transform[5]))
+//                        )
+//
+//                }
+//            )
+        }
 //            .aspectRatio(contentMode: .fill)
 //            .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading).background(Color.red)
 //            .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
@@ -139,7 +186,7 @@ class PaxCanvasView: NSView {
     var currentTickWorkItem : DispatchWorkItem? = nil    
     
     func handleTextCreate(patch: AnyCreatePatch) {
-        textElements.add(element: TextElement.makeDefault(id_chain: patch.id_chain))
+        textElements.add(element: TextElement.makeDefault(id_chain: patch.id_chain, clipping_ids: patch.clipping_ids))
     }
     
     func handleTextUpdate(patch: TextUpdatePatch) {
