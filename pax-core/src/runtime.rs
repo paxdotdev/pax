@@ -15,13 +15,20 @@ use crate::{HandlerRegistry, RenderNodePtr, RenderNodePtrList, RenderTreeContext
 /// for logic that manages scopes and stack frames.
 pub struct Runtime<R: 'static + RenderContext> {
     stack: Vec<Rc<RefCell<StackFrame<R>>>>,
+
+    /// Tracks the native ids (id_chain)s of clipping instances
+    /// When a node is mounted, it may consult the clipping stack too see which clipping instances are relevant to it
+    /// This list of `id_chain`s is passed along eith ****Create, in order to associate with the appropriate clipping elements on the native side
+    clipping_stack: Vec<Vec<u64>>,
+
     native_message_queue: VecDeque<pax_message::NativeMessage>
 }
 
 impl<R: 'static + RenderContext> Runtime<R> {
     pub fn new() -> Self {
         Runtime {
-            stack: Vec::new(),
+            stack: vec![],
+            clipping_stack: vec![],
             native_message_queue: VecDeque::new(),
         }
     }
@@ -77,6 +84,18 @@ impl<R: 'static + RenderContext> Runtime<R> {
         );
     }
 
+    pub fn push_clipping_stack_id(&mut self, id_chain: Vec<u64>) {
+        self.clipping_stack.push(id_chain);
+    }
+
+    pub fn pop_clipping_stack_id(&mut self) {
+        self.clipping_stack.pop();
+    }
+
+    pub fn get_current_clipping_ids(&self) -> Vec<Vec<u64>> {
+        self.clipping_stack.clone()
+    }
+
     /// Handles special-cases like `for`/`Repeat`, where properties for the
     /// control flow primitive need to be computed out-of-lifecycle, and where nested child elements
     /// need to be treated as top-level elements.
@@ -109,6 +128,10 @@ impl<R: 'static + RenderContext> Runtime<R> {
 /// prospective [`Slot`] consumption, and `properties` for
 /// runtime evaluation, e.g. of Expressions.  StackFrames also track
 /// timeline playhead position.
+///
+/// `Component`s push StackFrames when mounting and pop them when unmounting, thus providing a
+/// hierarchical store of node-relevant data that can be bound to symbols, e.g. in expressions.
+/// Note that `RepeatItem`s also push `StackFrame`s, because `RepeatItem` uses a `Component` internally.
 pub struct StackFrame<R: 'static + RenderContext>
 {
     adoptees: RenderNodePtrList<R>,

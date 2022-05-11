@@ -8,7 +8,7 @@ use piet::{RenderContext};
 use pax_std::primitives::{Text};
 use pax_core::{ComputableTransform, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_message::{TextPatch};
+use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
 
 pub struct TextInstance {
@@ -178,9 +178,15 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
 
 
     fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
+
+        let clipping_ids = rtc.runtime.borrow().get_current_clipping_ids();
+
         let id_chain = rtc.get_id_chain(self.instance_id);
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::NativeMessage::TextCreate(id_chain)
+            pax_message::NativeMessage::TextCreate(AnyCreatePatch{
+                id_chain,
+                clipping_ids,
+            })
         );
     }
 

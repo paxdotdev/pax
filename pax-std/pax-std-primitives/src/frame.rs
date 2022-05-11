@@ -10,7 +10,7 @@ use piet::RenderContext;
 use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
 use pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, Size2D};
-use pax_message::FramePatch;
+use pax_message::{AnyCreatePatch, FramePatch};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
 /// like [`Group`], except [`Frame`] has the option of clipping rendering outside
@@ -178,8 +178,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
         let id_chain = rtc.get_id_chain(self.instance_id);
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::NativeMessage::FrameCreate(id_chain)
+            pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
+                id_chain: id_chain.clone(),
+                clipping_ids: vec![]
+            })
         );
+
+        (*rtc.runtime).borrow_mut().push_clipping_stack_id(id_chain);
     }
 
     fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
@@ -187,6 +192,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
             pax_message::NativeMessage::FrameDelete(id_chain)
         );
+
+        (*rtc.runtime).borrow_mut().pop_clipping_stack_id();
     }
 
 }

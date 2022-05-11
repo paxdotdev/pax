@@ -9,10 +9,10 @@ use serde::{Serialize};
 
 #[derive(Serialize)]
 pub enum NativeMessage {
-    TextCreate(Vec<u64>), //node instance ID, "id_chain"
+    TextCreate(AnyCreatePatch), //node instance ID, "id_chain"
     TextUpdate(TextPatch),
     TextDelete(Vec<u64>),
-    FrameCreate(Vec<u64>),
+    FrameCreate(AnyCreatePatch),
     FrameUpdate(FramePatch),
     FrameDelete(Vec<u64>),
     //TODO: form controls
@@ -64,6 +64,7 @@ pub struct TextPatch {
 }
 
 
+#[derive(Serialize)]
 pub struct AnyCreatePatch {
     pub id_chain: Vec<u64>,
     pub clipping_ids: Vec<Vec<u64>>,

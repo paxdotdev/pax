@@ -2310,5 +2310,61 @@ for example text might need to be tweaked to be a little larger for
 an iPhone version of an app.
 
 Similarly to the CSS approach of media queries, we can enable per-platform
-per-screen-size, or even per-`Expression` (dynamically evaluated triggers)
+per-screen-size, or even per-`Expression` (boolean return values)
 
+```
+@settings {
+    @macos, @ios: {
+        #some_element: {
+            ...
+        }
+        ...
+    }
+    
+    @windows: {
+        #some_element: {
+            ...
+        }
+        ...
+    } 
+}
+```
+
+or 
+
+```
+@settings {
+    {screen.width < 500px}: {
+        #some_element: {
+            ...
+        }
+        ...
+    }
+    {self.condensed_mode}: {
+        ...
+    }
+    {self.is_active}: {
+        ...
+    }
+}
+```
+
+Perhaps this final syntax would best suit an explicit `if`?
+
+
+```
+@settings {
+    if screen.width < 500px {
+        #some_element: {
+            ...
+        }
+        ...
+    }
+    if self.condensed_mode {
+        ...
+    }
+    if self.is_active {
+        ...
+    }
+}
+```

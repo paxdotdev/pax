@@ -13,14 +13,14 @@ import SwiftUI
 class AnyCreatePatch {
     var id_chain: [UInt64]
     /// Used for clipping -- each `[UInt64]` is an `id_chain` for an associated clipping mask (`Frame`)
-    var frame_ids: [[UInt64]]
+    var clipping_ids: [[UInt64]]
     
     init(fb:FlxbReference) {
-        self.id_chain = fb.asVector!.makeIterator().map({ fb in
+        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
             fb.asUInt64!
         })
         
-        self.frame_ids = fb.asVector!.makeIterator().map({ fb in
+        self.clipping_ids = fb["clipping_ids"]!.asVector!.makeIterator().map({ fb in
             fb.asVector!.makeIterator().map({ fb in
                 fb.asUInt64!
             })

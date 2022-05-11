@@ -9,26 +9,17 @@ use pax_message::NativeMessage;
 
 extern crate wee_alloc;
 
-// Use `wee_alloc` as the global allocator.
+// Use `wee_alloc` as the global allocator, to reduce runtime disk footprint.
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
-use kurbo::{
-    BezPath,
-    Point,
-    Vec2,
-};
 use piet_common::RenderContext;
-use piet_web::WebRenderContext;
 
-use crate::{Affine, ComponentInstance, Color, Error, ComputableTransform, RenderNodePtr, StrokeInstance, StrokeStyle, RenderNode, ExpressionContext, PropertyExpression, RenderNodePtrList};
+use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList};
 use crate::runtime::{Runtime};
-//TODO: make the JsValue render_message_queue platform agnostic and remove this dep —
-//      (probably translate to JsValue at the pax-chassis-web layer instead of here.)
-use wasm_bindgen::JsValue;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, Interpolatable, PropertyInstance, TransitionManager, TransitionQueueEntry};
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, Interpolatable, TransitionManager};
 
 pub enum EventMessage {
     Tick(ArgsRender),
@@ -38,17 +29,13 @@ pub enum EventMessage {
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
-    pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>, //If the Rc<RefCell<>> is problematic for perf, could revisit this.  Is only a Rc<RefCell<>> to ease the mutability constraints of passing of the instance_registry during RIL node instantiation
-    pub event_message_queue: Vec<(String, EventMessage)>, //(element id, args)
+    pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
     pub expression_table: HashMap<String, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct> >,
     pub root_component: Rc<RefCell<ComponentInstance<R>>>,
-    //NOTE: to support multiple concurrent "root components," e.g. for multi-stage authoring, this could simply be made an array of `root_components`
     pub runtime: Rc<RefCell<Runtime<R>>>,
     viewport_size: (f64, f64),
 }
 
-
-// #[derive(Clone)]
 pub struct RenderTreeContext<'a, R: 'static + RenderContext>
 {
     pub engine: &'a PaxEngine<R>,
@@ -75,6 +62,7 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
 }
 
 impl<'a, R: RenderContext> Into<ArgsRender> for RenderTreeContext<'a, R> {
+
 
     fn into(self) -> ArgsRender {
         // possible approach to enabling "auto cell count" in `Spread`, for example:
@@ -103,13 +91,11 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
                 if let None = current_transition.global_frame_started {
                     current_transition.global_frame_started = Some(self.engine.frames_elapsed);
                 }
-                //[0,1]
                 let progress = (self.engine.frames_elapsed as f64 - current_transition.global_frame_started.unwrap() as f64) / (current_transition.duration_frames as f64);
                 return if progress >= 1.0 { //TODO -- minus some epsilon for float imprecision?
                     tm.queue.pop_front();
                     self.compute_eased_value(Some(tm))
                 } else {
-
                     let new_value = current_transition.curve.interpolate(&current_transition.starting_value, &current_transition.ending_value, progress);
                     tm.value = Some(new_value.clone());
                     tm.value.clone()
@@ -120,9 +106,6 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
         }
         None
     }
-
-    // Traverse runtime stack, accumulate RepeatItem indices
-
 
     /// Get an `id_chain` for this element, an array of `u64` used collectively as a single unique ID across native bridges.
     /// Specifically, the ID chain represents not only the instance ID, but the indices of each RepeatItem found by a traversal
@@ -226,7 +209,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         PaxEngine {
             frames_elapsed: 0,
             instance_registry,
-            event_message_queue: vec![],
             expression_table,
             runtime: Rc::new(RefCell::new(Runtime::new())),
             root_component: root_component_instance,
@@ -234,27 +216,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
-    // #[cfg(feature="designtime")]
-    // fn get_root_component(&self) -> Rc<RefCell<Component>> {
-    //     //For development, retrieve dynamic render tree from dev server
-    //     designtime.get_root_component()
-    // }
-    // #[cfg(not(feature="designtime"))]
-    // fn get_root_component(&self) -> Rc<RefCell<ComponentInstance>> {
-    //     //For production, retrieve "baked in" render tree
-    //     Rc::clone(&self.root_component)
-    // }
-
     fn traverse_render_tree(&self, rc: &mut R) -> Vec<pax_message::NativeMessage> {
-        // Broadly:
+        //Broadly:
         // 1. compute properties
         // 2. find lowest node (last child of last node), accumulating transform along the way
         // 3. start rendering, from lowest node on-up
-
-        // let mut hpc = HostPlatformContext {
-        //     drawing_context: rc,
-        //     render_message_queue: Vec::new(),
-        // };
 
         let cast_component_rc : RenderNodePtr<R> = self.root_component.clone();
 
@@ -275,8 +241,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     }
 
     fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R, node: RenderNodePtr<R>)  {
-        // Recurse:
+        //Recurse:
         //  - compute properties for this node
+        //  - fire lifecycle events for this node
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
@@ -296,7 +263,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 node.borrow_mut().handle_post_mount(rtc);
                 instance_registry.mark_mounted(id, repeat_indices.clone());
             }
-
         }
 
         //TODO: double-check that this logic should be happening here, vs. after `compute_properties`
@@ -335,7 +301,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         rtc.bounds = new_accumulated_bounds.clone();
         rtc.transform = new_accumulated_transform.clone();
 
-
         //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
         //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
         node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec());
@@ -371,12 +336,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             //TODO: for dependency management, return computed values from subtree above
         });
 
-        // lifecycle: render
-        // this is this node's time to do its own rendering, aside
-        // from its children.  Its children have already been rendered.
+        //lifecycle: render
+        //this is this node's time to do its own rendering, aside
+        //from its children.  Its children have already been rendered.
         node.borrow_mut().handle_render(rtc, rc);
 
-        // lifecycle: post_render
+        //lifecycle: post_render
         node.borrow_mut().handle_post_render(rtc, rc);
 
     }

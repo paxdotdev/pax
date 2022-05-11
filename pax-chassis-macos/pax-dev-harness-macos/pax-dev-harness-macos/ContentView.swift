@@ -188,6 +188,7 @@ class PaxCanvasView: NSView {
             
             let frameCreateMessage = message["FrameCreate"]
             if frameCreateMessage != nil {
+                //NOTE: using AnyDeletePatch as a hack -- frames can only be associated with other frames so they're treated
                 handleFrameCreate(patch: AnyCreatePatch(fb: frameCreateMessage!))
             }
 
