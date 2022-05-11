@@ -5,6 +5,9 @@ extern crate serde;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
+//TODO: feature-flag, only for Web builds
+use wasm_bindgen::prelude::*;
+
 use serde::{Serialize};
 
 #[derive(Serialize)]
@@ -19,9 +22,10 @@ pub enum NativeMessage {
     //TODO: scroll containers
 
     // TODO: perhaps handle input events in a separate struct, to minimize
-    //       de/serialization boilerplate
+    //       de/serialization boilerplate (which affects footprint)
     // NativeEventClick(NativeArgsClick)
 }
+
 
 #[repr(C)]
 pub struct NativeMessageQueue {
@@ -65,19 +69,20 @@ pub struct TextPatch {
 
 
 #[derive(Serialize)]
+#[repr(C)]
 pub struct AnyCreatePatch {
     pub id_chain: Vec<u64>,
     pub clipping_ids: Vec<Vec<u64>>,
 }
 
-
-#[repr(C)]
-pub struct TextCommand {
-    pub set_font: Option<String>,
-    pub set_weight: Option<String>,
-    pub set_fill_color: Option<String>,
-    pub set_stroke_color: Option<String>,
-    pub set_decoration: Option<String>,
-}
+// Possible approach to heterogeneous rich text:
+// #[repr(C)]
+// pub struct TextCommand {
+//     pub set_font: Option<String>,
+//     pub set_weight: Option<String>,
+//     pub set_fill_color: Option<String>,
+//     pub set_stroke_color: Option<String>,
+//     pub set_decoration: Option<String>,
+// }
 
 

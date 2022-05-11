@@ -48,7 +48,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
-
         let mut any_changes_to_data_list : bool;
 
         if let Some(data_list) = rtc.compute_vtable_value(self.data_list._get_vtable_id()) {
@@ -71,7 +70,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 self.data_list.set(new_value);
             }
         } else {
-            //assuming PropertyLiteral -- changes need to be enacted if the length of the data_list changes.
+            //Assuming PropertyLiteral -- changes need to be enacted if the length of the data_list changes.
             //given that there's not currently a way to imperatively set a `Repeat`'s `data_list` property, this may be OK
             //for now (specifically: catch the case where virtual_children is uninitialized to a literal static value.)
             //More robustly in the future, this can patch into centralized dirty-check logic.
@@ -80,8 +79,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
         if any_changes_to_data_list {
 
-            //any stated children (repeat template members) of Repeat should be forwarded to the "puppeteer" ComponentInstances
-            //so that Slot works as expected (`Conditional` is a special RenderNode, somewhat invisible by intuitive expectations)
+            //Any stated children (repeat template members) of Repeat should be forwarded to the `RepeatItem`-wrapped `ComponentInstance`s
+            //so that `Slot` works as expected
             let forwarded_children = match (*rtc.runtime).borrow_mut().peek_stack_frame() {
                 Some(frame) => {Rc::clone(&(*frame.borrow()).get_unexpanded_adoptees())},
                 None => {Rc::new(RefCell::new(vec![]))},
@@ -95,7 +94,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
 
             //reset children:
-            //wrap data_list into repeat_items and attach "puppeteer" RepeatItem component instances that attach
+            //wrap data_list into `RepeatItems`, which attach
             //the necessary data as stack frame context
             self.virtual_children = Rc::new(RefCell::new(
                 self.data_list.get().iter().enumerate().map(|(i, datum)| {

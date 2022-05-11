@@ -1752,10 +1752,13 @@ dependencies = [
  "console_error_panic_hook",
  "pax-cartridge",
  "pax-core",
+ "pax-message",
  "pax-properties-coproduct",
  "pax-runtime-api",
  "piet",
  "piet-web",
+ "serde",
+ "serde_json",
  "wasm-bindgen",
  "web-sys",
 ]
@@ -1838,6 +1841,7 @@ version = "0.0.1"
 dependencies = [
  "serde",
  "serde_json",
+ "wasm-bindgen",
 ]
 
 [[package]]

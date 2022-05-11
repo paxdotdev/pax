@@ -41,7 +41,7 @@
 		140C6AFD28276BCD003BACE3 /* Messages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Messages.swift; sourceTree = "<group>"; };
 		1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libpaxchassismacos.dylib; path = ../../target/debug/libpaxchassismacos.dylib; sourceTree = "<group>"; };
 		1459D7E7280F2922006391F8 /* libpaxchassismacos.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpaxchassismacos.a; path = ../../target/debug/libpaxchassismacos.a; sourceTree = "<group>"; };
-		14965C0127FE3D0F00A38CA1 /* pax-dev-harness-macos.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "pax-dev-harness-macos.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		14965C0127FE3D0F00A38CA1 /* Pax macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pax macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		14965C0427FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pax_dev_harness_macosApp.swift; sourceTree = "<group>"; };
 		14965C0627FE3D0F00A38CA1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		14965C0827FE3D1100A38CA1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -101,7 +101,7 @@
 		14965C0227FE3D0F00A38CA1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				14965C0127FE3D0F00A38CA1 /* pax-dev-harness-macos.app */,
+				14965C0127FE3D0F00A38CA1 /* Pax macOS.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -144,9 +144,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		14965C0027FE3D0F00A38CA1 /* pax-dev-harness-macos */ = {
+		14965C0027FE3D0F00A38CA1 /* Pax macOS */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 14965C1027FE3D1100A38CA1 /* Build configuration list for PBXNativeTarget "pax-dev-harness-macos" */;
+			buildConfigurationList = 14965C1027FE3D1100A38CA1 /* Build configuration list for PBXNativeTarget "Pax macOS" */;
 			buildPhases = (
 				14965BFD27FE3D0F00A38CA1 /* Sources */,
 				14965BFE27FE3D0F00A38CA1 /* Frameworks */,
@@ -157,9 +157,9 @@
 			);
 			dependencies = (
 			);
-			name = "pax-dev-harness-macos";
+			name = "Pax macOS";
 			productName = "pax-dev-harness-macos";
-			productReference = 14965C0127FE3D0F00A38CA1 /* pax-dev-harness-macos.app */;
+			productReference = 14965C0127FE3D0F00A38CA1 /* Pax macOS.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -192,7 +192,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				14965C0027FE3D0F00A38CA1 /* pax-dev-harness-macos */,
+				14965C0027FE3D0F00A38CA1 /* Pax macOS */,
 			);
 		};
 /* End PBXProject section */
@@ -427,7 +427,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		14965C1027FE3D1100A38CA1 /* Build configuration list for PBXNativeTarget "pax-dev-harness-macos" */ = {
+		14965C1027FE3D1100A38CA1 /* Build configuration list for PBXNativeTarget "Pax macOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				14965C1127FE3D1100A38CA1 /* Debug */,

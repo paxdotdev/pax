@@ -36,6 +36,12 @@ pub struct PaxEngine<R: 'static + RenderContext> {
     viewport_size: (f64, f64),
 }
 
+
+pub struct ExpressionVTable<R: RenderContext + 'static> {
+    inner_map: HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
+    dependency_graph: HashMap<u64, Vec<u64>>,
+}
+
 pub struct RenderTreeContext<'a, R: 'static + RenderContext>
 {
     pub engine: &'a PaxEngine<R>,

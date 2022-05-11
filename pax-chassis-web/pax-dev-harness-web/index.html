@@ -2,9 +2,9 @@
 <html lang="en">
     <head>
         <meta charset="utf-8">
-        <title>disco taps</title>
+        <title>Pax Web</title>
         <style>
-            html, body, #mount, canvas, #mixed-mode-layer {
+            html, body, #mount, canvas, #native-layer {
                 margin: 0;
                 padding: 0;
                 width: 100%;
@@ -16,7 +16,7 @@
                 position: relative;
             }
 
-            #mixed-mode-layer, #canvas {
+            #native-layer, #canvas {
                 position: absolute;
                 right: 0;
                 bottom: 0;
@@ -24,11 +24,14 @@
                 top: 0;
             }
 
-            #mixed-mode-layer {
+            #native-layer {
             }
 
-            .mixed-mode-element {
+            .native-element {
                 position: absolute;
+                transform-origin: top left;
+                white-space: pre-wrap;
+                overflow: hidden;
             }
         </style>
     </head>

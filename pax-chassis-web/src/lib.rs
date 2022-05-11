@@ -7,29 +7,14 @@ use std::rc::Rc;
 use std::cell::RefCell;
 
 use piet_web::WebRenderContext;
+use serde::Serialize;
 
 use pax_core::{InstanceRegistry, PaxEngine};
+use pax_message::NativeMessage;
 
+use serde_json;
 
-
-
-
-
-
-
-
-
-// fn browser_window() -> web_sys::Window {
-//     web_sys::window().expect("no global `window` exists")
-// }
-
-// fn request_animation_frame(f: &Closure<dyn FnMut()>) {
-//     browser_window()
-//         .request_animation_frame(f.as_ref().unchecked_ref())
-//         .expect("should register `requestAnimationFrame` OK");
-// }
-
-// Console.log support
+// Console.log support, piped from `pax::log`
 #[wasm_bindgen]
 extern "C" {
     // Use `js_namespace` here to bind `console.log(..)` instead of just
@@ -62,10 +47,6 @@ pub struct PaxChassisWeb {
     drawing_context: WebRenderContext<'static>,
 }
 
-// lazy_static! {
-//     static ref ENGINE: Rc<RefCell<PaxEngine<WebRenderContext>>> = Rc::new();
-// }
-
 #[wasm_bindgen]
 impl PaxChassisWeb {
     //called from JS, this is essentially `main`
@@ -92,8 +73,7 @@ impl PaxChassisWeb {
         let dpr = window.device_pixel_ratio();
         let width = canvas.offset_width() as f64 * dpr;
         let height = canvas.offset_height() as f64 * dpr;
-        //TODO:  update these values on window resize
-        //       future:  update these values on _element_ resize
+
         canvas.set_width(width as u32);
         canvas.set_height(height as u32);
 
@@ -115,30 +95,20 @@ impl PaxChassisWeb {
         {
             let closure = Closure::wrap(Box::new(move |_event: web_sys::Event| {
                 let mut engine = engine_cloned.borrow_mut();
-
                 let inner_window = web_sys::window().unwrap();
-                // let inner_canvas = inner_window
-                //     .document()
-                //     .unwrap()
-                //     .get_element_by_id("canvas")
-                //     .unwrap()
-                //     .dyn_into::<HtmlCanvasElement>()
-                //     .unwrap();
-                // let inner_context = inner_canvas
-                //     .get_context("2d")
-                //     .unwrap()
-                //     .unwrap()
-                //     .dyn_into::<web_sys::CanvasRenderingContext2d>()
-                //     .unwrap();
 
                 //inner_width and inner_height already account for device pixel ratio.
                 let width = inner_window.inner_width().unwrap().as_f64().unwrap();
                 let height = inner_window.inner_height().unwrap().as_f64().unwrap();
+
+                //handle window resize
                 let _ = canvas.set_attribute("width", format!("{}",width).as_str());
                 let _ = canvas.set_attribute("height", format!("{}",height).as_str());
                 engine.set_viewport_size((width, height));
             }) as Box<dyn FnMut(_)>);
             let inner_window = web_sys::window().unwrap();
+
+            //attach handler closure to DOM `window` `resize` event
             let _ = inner_window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref());
             closure.forget();
         }
@@ -149,8 +119,10 @@ impl PaxChassisWeb {
         }
     }
 
-    //TODO: accept array of input messages, e.g. representing changes in user/input state
-    pub fn tick(&mut self) {
-        self.engine.borrow_mut().tick(&mut self.drawing_context);
+    pub fn tick(&mut self) -> String {
+        let message_queue = self.engine.borrow_mut().tick(&mut self.drawing_context);
+        //Note that this approach likely carries some CPU overhead, but may be suitable.
+        //See zb lab journal `On robust message-passing to web` May 11 2022
+        serde_json::to_string(&message_queue).unwrap()
     }
 }

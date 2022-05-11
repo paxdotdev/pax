@@ -20,8 +20,7 @@ use pax_example::pax_types::pax_std::components::Spread;
 use pax_std_primitives::{RectangleInstance, GroupInstance, FrameInstance, TextInstance};
 
 
-const JABBERWOCKY : &str = r#"
-’Twas brillig, and the slithy toves
+const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves
 Did gyre and gimble in the wabe:
 All mimsy were the borogoves,
 And the mome raths outgrabe.
@@ -113,21 +112,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
     //`@for (elem, i) in computed_layout_spec {`
     vtable.insert("f".to_string(), Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
 
-        //get computed_layout_spec, which is a Vec<Rc<SpreadCellProperties>>
-        //map (enumerate) its elements as elem into (elem, i),
-
-        // let computed_layout_spec = : Vec<SpreadCellProperties>
-
-
-        //#[allow(non_snake_case)]
-        // let computed_layout_spec = if let PropertiesCoproduct::Root(p) = &*(*(*(*ec.stack_frame).borrow().get_scope()).borrow().properties).borrow() {
-        //     *p.current_rotation.get()
-        // } else { unreachable!() };
-
-
         //note this unwrapping is nested inside the `if let`, rather than flatted into a single assignment.
-        //This is necessary for the non-clonable `Vec` in this case, and might need/want to be applied across codegen
-        //(nesting instead of implicit cloning, e.g. of primitive types)
+        //This is necessary for the non-clonable `Vec` in this case, and might need/want to be applied to codegen template (that is: nesting instead of implicit cloning, e.g. of primitive types)
         #[allow(non_snake_case)]
         if let PropertiesCoproduct::Spread(p) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let computed_layout_spec = p.computed_layout_spec.get();

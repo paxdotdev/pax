@@ -61,17 +61,22 @@ pub trait RenderNode<R: 'static + RenderContext>
     fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
 
-    /// For this element and its subtree of rendering elements, mark as mounted in InstanceRegistry
+    /// For this element and its subtree of rendering elements, mark as unmounted in InstanceRegistry
+    /// If `permanent` is passed (namely, if this is not a "transient" unmount such as for `Conditional`), then
+    /// the instance is permanently removed from the instance_registry
     fn unmount_recursive(&mut self, rtc: &mut RenderTreeContext<R>, permanent: bool) {
         {
             let repeat_indices = (*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack();
-            (*rtc.engine.instance_registry).borrow_mut().mark_unmounted(self.get_instance_id(), repeat_indices);
+            let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
+            if instance_registry.is_mounted(self.get_instance_id(), repeat_indices.clone()) {
+                instance_registry.mark_unmounted(self.get_instance_id(), repeat_indices);
+            }
 
             self.handle_pre_unmount(rtc);
 
             if permanent {
                 //cleans up memory, otherwise leads to runaway allocations in instance_registry
-                (*rtc.engine.instance_registry).borrow_mut().deregister(self.get_instance_id());
+                instance_registry.deregister(self.get_instance_id());
             }
         }
 
@@ -79,7 +84,6 @@ pub trait RenderNode<R: 'static + RenderContext>
             (*(*child)).borrow_mut().unmount_recursive(rtc, permanent);
         }
     }
-
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         None //default no-op

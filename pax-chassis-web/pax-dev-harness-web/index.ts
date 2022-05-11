@@ -2,17 +2,8 @@
 // const rust = import('./dist/pax_chassis_web');
 import {PaxChassisWeb} from './dist/pax_chassis_web';
 
-//
-// async function getWasm() {
-//
-// }
-// console.log("JS loaded");
-// rust
-//   .then(m => m.run())
-//   .catch(console.error);
-
-const MIXED_MODE_LAYER_ID = "mixed-mode-layer";
-const MIXED_MODE_ELEMENT_CLASS = "mixed-mode-element";
+const NATIVE_OVERLAY_ID = "native-overlay";
+const NATIVE_ELEMENT_CLASS = "native-element";
 
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
@@ -30,7 +21,7 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
 
     //Create layer for mixed-mode rendering
     let mixedModeLayer = document.createElement("div");
-    mixedModeLayer.id = MIXED_MODE_LAYER_ID;
+    mixedModeLayer.id = NATIVE_OVERLAY_ID;
 
     //Create canvas element for piet drawing
     let canvas = document.createElement("canvas");
@@ -46,42 +37,132 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
+function escapeHtml(content: string){
+    return new Option(content).innerHTML;
+}
+
 function renderLoop (chassis: PaxChassisWeb) {
-     chassis.tick();
-     //TODO: process messages
+     let messages : string = chassis.tick();
+     messages = JSON.parse(messages);
+     // @ts-ignore
+     processMessages(messages);
+     //messages.length > 0 && Math.random() < 0.05 &&  console.log(messages);
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 let doneOnce = false;
+
+
+
+
+
+class NativeElementPool {
+    private textNodes : any = {};
+    private clippingNodes : any = {};
+
+    addTextNode(id_chain: number[], clipping_ids: number[][]) {
+        console.assert(id_chain != null);
+        let newNode = document.createElement("div");
+        console.assert(this.textNodes["id_chain"] === undefined);
+        // @ts-ignore
+        this.textNodes[id_chain] = newNode;
+        newNode.setAttribute("class", NATIVE_ELEMENT_CLASS)
+
+        //TODO: instead of nativeLayer, get a reference to the correct clipping container
+        let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
+        nativeLayer?.appendChild(newNode);
+    }
+
+    updateTextNode(patch: TextUpdatePatch) {
+        //@ts-ignore
+        window.textNodes = this.textNodes;
+        // @ts-ignore
+        let existingNode = this.textNodes[patch.id_chain];
+        console.assert(existingNode !== undefined);
+
+        if (patch.content != null) {
+            existingNode.innerText = patch.content;
+        }
+        if (patch.size_x != null) {
+            existingNode.style.width = patch.size_x + "px";
+        }
+        if (patch.size_y != null) {
+            existingNode.style.height = patch.size_y + "px";
+        }
+        if (patch.transform != null) {
+            existingNode.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+        //     span.innerText = msg.content;
+        //
+        //     span.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
+        //     span.style.backgroundColor = "red";
+        //     span.style.width = msg.bounds[0] + "px";
+        //     span.style.height = msg.bounds[1] + "px";
+
+    }
+
+    removeTextNode(id_chain: number[]) {
+        let oldNode = this.textNodes.get(id_chain);
+        console.assert(oldNode !== undefined);
+        this.textNodes.delete(id_chain);
+
+        //TODO: instead of nativeLayer, get a reference to the correct clipping container
+        let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
+        nativeLayer?.removeChild(oldNode);
+    }
+
+}
+
+//Type-safe wrappers around JSON representation
+class TextUpdatePatch {
+    public id_chain: number[];
+    public content?: string;
+    public size_x?: number;
+    public size_y?: number;
+    public transform?: number[];
+    constructor(jsonMessage: any) {
+        this.id_chain = jsonMessage["id_chain"];
+        this.content = jsonMessage["content"];
+        this.size_x = jsonMessage["size_x"];
+        this.size_y = jsonMessage["size_y"];
+        this.transform = jsonMessage["transform"];
+    }
+}
+
+
+let nativePool = new NativeElementPool();
+
 function processMessages(messages: any[]) {
-    // console.log("Got messages", messages);
 
-    //TODO:  mount relative+absolute layer on top of render context
-    //       create DOM elements (pooled) for each supported message type
-    messages?.forEach((msg) => {
-        // console.log("Trying to pack: ", packAffineCoeffsIntoMatrix3DString(msg.transform));
-        switch(msg.kind) {
-            case "TextMessage":
-                let span = getOrCreateSpan(msg.id);
+    messages?.forEach((unwrapped_msg) => {
 
-                //TODO: must dirty-check before applying updates
-                //      a.) dirty-check in engine, send updates instead of
-                //          per-frame states
-                //          - new events:
-                //              1.) upsert element by id: create if new, update properties
-                //              2.) //todo: remove element, e.g. for $if and $repeat
+        // if (Math.random() < .1) console.log(unwrapped_msg)
+        if(unwrapped_msg["TextCreate"]) {
+            let msg = unwrapped_msg["TextCreate"]
+
+            let id_chain = msg["id_chain"];
+            let clipping_ids = msg["clipping_ids"];
+
+            nativePool.addTextNode(id_chain, clipping_ids);
+
+        }else if (unwrapped_msg["TextUpdate"]){
+            let msg = unwrapped_msg["TextUpdate"]
+
+            nativePool.updateTextNode(new TextUpdatePatch(msg));
 
 
-                // track an "upsert frame" while updating properties, filling sparse
-                // Option<>al structs with new values.  Expose this sparse struct
-                // for message-passing (the upsert frame happens to be exactly the message struct)
-                if (!span.style.transform) {
-                    span.innerText = msg.content;
-
-                    span.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
-                    span.style.backgroundColor = "red";
-                    span.style.width = msg.bounds[0] + "px";
-                    span.style.height = msg.bounds[1] + "px";
-                }
+            // track an "upsert frame" while updating properties, filling sparse
+            // Option<>al structs with new values.  Expose this sparse struct
+            // for message-passing (the upsert frame happens to be exactly the message struct)
+            // if (!span.style.transform) {
+            //     span.innerText = msg.content;
+            //
+            //     span.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
+            //     span.style.backgroundColor = "red";
+            //     span.style.width = msg.bounds[0] + "px";
+            //     span.style.height = msg.bounds[1] + "px";
+            // }
+        }else if (unwrapped_msg["TextDelete"]) {
+            let msg = unwrapped_msg["TextDelete"];
         }
     })
 }
@@ -127,32 +208,6 @@ function packAffineCoeffsIntoMatrix3DString(coeffs: number[]) : string {
         1
     ].join(",") + ")";
 }
-
-//TODO:  handle removal, recycling if needed
-//TODO:  handle updating, not thrashing DOM without changes
-let spanPool : {[id:string]:HTMLSpanElement} = {}
-function getOrCreateSpan(id: number) : HTMLSpanElement {
-    return spanPool[id] || (()=>{
-        spanPool[id] = document.createElement("span");
-        spanPool[id].setAttribute("class", MIXED_MODE_ELEMENT_CLASS)
-        let mixedModeLayer = document.querySelector("#" + MIXED_MODE_LAYER_ID);
-        mixedModeLayer?.appendChild(spanPool[id]);
-        return spanPool[id];
-    })()
-}
-
-
-
-//TODO:  traverse through render_message_queue after each engine tick
-//       render those messages as appropriate
-
-
-//TODO:  should we port the request_animation_frame => tick logic
-//       to live in ts instead of rust?
-//       1. it's far cleaner to invoke rAF from TS
-//       2. it should make it clean/clear how to pass data (tick() returns the MQ,
-//          ... Can even receive an MQ for inbounds/input `tick(inbound_mq)`)
-
 
 
 // Wasm + TS Bootstrapping boilerplate

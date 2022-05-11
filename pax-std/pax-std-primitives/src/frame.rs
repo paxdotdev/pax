@@ -188,10 +188,21 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     }
 
     fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let id_chain = rtc.get_id_chain(self.instance_id);
-        (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::NativeMessage::FrameDelete(id_chain)
-        );
+
+        // The following, sending a `FrameDelete` message, was unplugged in desperation on May 11 2022
+        // There was a bug wherein a flood of `FrameDelete` messages was getting
+        // sent across the native bridge, causing debugging & performance concerns.
+        // After investigating, zb's best hypothesis was that the flood of `Deletes`
+        // was being triggered by the less-than-ideal hard-coded `Repeat` logic (for preparing its data list)
+        // which destroys its list each tick when calculating an expression for its datalist.
+        // In short: it's expected that expression lazy-evaluation will fix this "bug", and hopefully
+        // by the time we actually need `Frame` removal from native (maybe never!  might just cause some memory bloat)
+        // then we can freely send FrameDelete messages without headaches.
+        //
+        // let id_chain = rtc.get_id_chain(self.instance_id);
+        // (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
+        //     pax_message::NativeMessage::FrameDelete(id_chain)
+        // );
 
         (*rtc.runtime).borrow_mut().pop_clipping_stack_id();
     }
