@@ -173,12 +173,12 @@ _RIL means Rust Intermediate Language, which is the
 [ ] native rendering ++
     [x] message design/arch
     [ ] runtime de/serialization
-        [ ] C structs across FFI
+        [x] Data across FFI
+            [x] explore raw C structs (decided: brittle)
             [x] Logging, strings, message-passing
-            [ ] CRUD operations and methods: PoC with `Text`
-            [ ] inbound support: PoC with `Click`
+            [x] CRUD operations and methods: PoC with `Text`
             [x] flexbuffers instead of fat c structs
-        [ ] consider JSON for web, alt: ArrayBuffer and manually deserialize the same C structs as chassis-macos
+                - Might want to revisit one day for fixed schema, might reduce Swift boilerplate?
     [x] ids
         [x] handle monotonic, instance-unique IDs
             - expose method in engine to generate new id
@@ -187,9 +187,18 @@ _RIL means Rust Intermediate Language, which is the
         [x] handle_post_mount and handle_pre_unmount
         [x] trigger mount/unmount lifecycle events in engine, `Conditional`, `Repeat`
         [ ] hook up Text primitive
-        [ ] handle dirty-checking for `Patch` event population
+            [x] macOS
+            [ ] web -- reattach with updated messaging model
+            [ ] basic API pass: content, color, font, textSize
+        [x] handle dirty-checking for `Patch` event population
+    [ ] native clipping support
+        [x] rectilinear-affine frames
+        [x] support macOS
+        [ ] support Web
+            - div with overflow: hidden
+            - position div correctly; might require decomposing affine transforms or remultiplying by some inverse component
     [ ] click support
-        [ ] ray-casting
+        [ ] simple 2D ray-casting
         [ ] inbound event arg-wrapping and dispatch
         [ ] sketch out bubbling/canceling, hierarchy needs
         [ ] click/jab polyfill
@@ -202,7 +211,7 @@ _RIL means Rust Intermediate Language, which is the
         [x] pax-chassis-macos (written in rust). responsible for:
             [x] accepting a CGContext pointer and rendering to it via Piet
             [ ] managing user input channel, e.g. click/touch
-            [ ] managing native rendering channel, e.g. form controls, text
+            [x] managing native rendering channel, e.g. form controls, text
         [x] mac app dev-harness (written in swift). responsible for:
             [x] granting a piece of real estate (full window of simple mac app) to rendering with a CGContext.
             [x] passing CGContext to pax-chassis-coregraphics
@@ -243,19 +252,17 @@ _RIL means Rust Intermediate Language, which is the
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
-[ ] expression compilation
-    [ ] expression string => RIL generation
-    [ ] symbol resolution & code-gen, incl. shadowing with `@for`
-    [ ] binding event handlers
-[ ] control flow
-    [ ] @for
-        [ ] parse declaration `i`, `(i)`, `(i, elem)`
-        [ ] handle range literals 0..10 
-        [ ] shuttle data into RepeatInstance via Manifest
-    [ ] @if
-[ ] user input
-    [ ] mouse click
-    [ ] scroll (maybe polyfill touch/mousewheel?)
+    [ ] expression compilation
+        [ ] expression string => RIL generation
+        [ ] symbol resolution & code-gen, incl. shadowing with `@for`
+        [ ] binding event handlers
+    [ ] control flow
+        [ ] for
+            [ ] parse declaration `i`, `(i)`, `(i, elem)`
+            [ ] handle range literals 0..10 
+            [ ] shuttle data into RepeatInstance via Manifest
+        [ ] if
+            [ ] parse condition, handle as expression
 [ ] compiler codegen
     [ ] codegen Cargo.toml + solution for patching
         [x] manual
@@ -284,7 +291,6 @@ _RIL means Rust Intermediate Language, which is the
     [ ] 
 ```
 
-
 ## Milestone: drawing++
 ```
 [ ] Palette built-in: perhaps `@palette { optional_nesting: {  } }
@@ -310,7 +316,6 @@ _RIL means Rust Intermediate Language, which is the
 
 
 ## Milestone: capabilities++
-
 ```
 [ ] asset management -- enables fonts and images
     [ ] decide on approach: bundle into binary or work with chassis/dev-harness for bundling
@@ -347,7 +352,6 @@ On click, each square performs an animated transformation, e.g. rotation
     [ ] rust/JS divide
         [ ] Sandwich TS and rust (as current,) or
         [ ] handle all cartridge work from rust, incl. generation of public API
-    
 [ ] Event capture and transmission
     [ ] Map inputs through chassis, native events (mouse, touch)
         [ ] PoC with Web
@@ -373,8 +377,6 @@ On click, each square performs an animated transformation, e.g. rotation
     [-] Patch ExpressionTable into cartridge à la PropertyCoproduct
 ```
 
-
-
 ## Milestone: embedded UI components
 (instead of full-window Electron/Expo-like wrappers)
 
@@ -399,10 +401,12 @@ On click, each square performs an animated transformation, e.g. rotation
 ```
 
 
-
 ## Backlog
 
 ```
+[ ] "Media queries"
+    [ ] built-ins for platforms (`@macos, @web`)
+    [ ] `if` for dynamic application of properties, also responsive/screen-size concerns
 [ ] Pax Browser
     - simple desktop app, mostly a dev harness, but also
       supports 
