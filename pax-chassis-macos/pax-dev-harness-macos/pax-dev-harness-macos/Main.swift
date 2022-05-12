@@ -1,5 +1,5 @@
 //
-//  pax_dev_harness_macosApp.swift
+//  Main.swift
 //  pax-dev-harness-macos
 //
 //  Created by Zachary Brown on 4/6/22.
@@ -11,7 +11,7 @@ import SwiftUI
 struct pax_dev_harness_macosApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            PaxView()
         }
     }
 }

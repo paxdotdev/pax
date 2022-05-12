@@ -13,8 +13,8 @@
 		1459D7E4280F2922006391F8 /* libpaxchassismacos.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */; };
 		1459D7E5280F2922006391F8 /* libpaxchassismacos.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		1459D7E8280F2933006391F8 /* libpaxchassismacos.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1459D7E7280F2922006391F8 /* libpaxchassismacos.a */; };
-		14965C0527FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14965C0427FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift */; };
-		14965C0727FE3D0F00A38CA1 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14965C0627FE3D0F00A38CA1 /* ContentView.swift */; };
+		14965C0527FE3D0F00A38CA1 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14965C0427FE3D0F00A38CA1 /* Main.swift */; };
+		14965C0727FE3D0F00A38CA1 /* PaxView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14965C0627FE3D0F00A38CA1 /* PaxView.swift */; };
 		14965C0927FE3D1100A38CA1 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14965C0827FE3D1100A38CA1 /* Assets.xcassets */; };
 		14965C0C27FE3D1100A38CA1 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14965C0B27FE3D1100A38CA1 /* Preview Assets.xcassets */; };
 		14965C1E2805EAFD00A38CA1 /* libresolv.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 14965C1D2805EAF500A38CA1 /* libresolv.tbd */; platformFilter = maccatalyst; };
@@ -42,8 +42,8 @@
 		1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libpaxchassismacos.dylib; path = ../../target/debug/libpaxchassismacos.dylib; sourceTree = "<group>"; };
 		1459D7E7280F2922006391F8 /* libpaxchassismacos.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpaxchassismacos.a; path = ../../target/debug/libpaxchassismacos.a; sourceTree = "<group>"; };
 		14965C0127FE3D0F00A38CA1 /* Pax macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pax macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		14965C0427FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = pax_dev_harness_macosApp.swift; sourceTree = "<group>"; };
-		14965C0627FE3D0F00A38CA1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		14965C0427FE3D0F00A38CA1 /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Main.swift; sourceTree = "<group>"; };
+		14965C0627FE3D0F00A38CA1 /* PaxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaxView.swift; sourceTree = "<group>"; };
 		14965C0827FE3D1100A38CA1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		14965C0B27FE3D1100A38CA1 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		14965C0D27FE3D1100A38CA1 /* pax_dev_harness_macos.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = pax_dev_harness_macos.entitlements; sourceTree = "<group>"; };
@@ -79,14 +79,6 @@
 			path = FlexBuffers;
 			sourceTree = "<group>";
 		};
-		140C6AFC28276BBA003BACE3 /* Messages */ = {
-			isa = PBXGroup;
-			children = (
-				140C6AFD28276BCD003BACE3 /* Messages.swift */,
-			);
-			path = Messages;
-			sourceTree = "<group>";
-		};
 		14965BF827FE3D0F00A38CA1 = {
 			isa = PBXGroup;
 			children = (
@@ -109,10 +101,10 @@
 		14965C0327FE3D0F00A38CA1 /* pax-dev-harness-macos */ = {
 			isa = PBXGroup;
 			children = (
-				140C6AFC28276BBA003BACE3 /* Messages */,
 				140C6AFB28276B89003BACE3 /* FlexBuffers */,
-				14965C0427FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift */,
-				14965C0627FE3D0F00A38CA1 /* ContentView.swift */,
+				14965C0427FE3D0F00A38CA1 /* Main.swift */,
+				140C6AFD28276BCD003BACE3 /* Messages.swift */,
+				14965C0627FE3D0F00A38CA1 /* PaxView.swift */,
 				14965C0827FE3D1100A38CA1 /* Assets.xcassets */,
 				14965C0D27FE3D1100A38CA1 /* pax_dev_harness_macos.entitlements */,
 				14965C0A27FE3D1100A38CA1 /* Preview Content */,
@@ -215,9 +207,9 @@
 			buildActionMask = 2147483647;
 			files = (
 				140C6AFA2825C99C003BACE3 /* FlexBuffers.swift in Sources */,
-				14965C0727FE3D0F00A38CA1 /* ContentView.swift in Sources */,
+				14965C0727FE3D0F00A38CA1 /* PaxView.swift in Sources */,
 				140C6AFE28276BCD003BACE3 /* Messages.swift in Sources */,
-				14965C0527FE3D0F00A38CA1 /* pax_dev_harness_macosApp.swift in Sources */,
+				14965C0527FE3D0F00A38CA1 /* Main.swift in Sources */,
 				140C6AF92825C99C003BACE3 /* FlexBufferBuilder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

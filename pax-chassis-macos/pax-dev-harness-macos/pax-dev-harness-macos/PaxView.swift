@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-let FPS = 70.0                   //Hz
+let FPS = 70.0                   //Hz, ceiling
 let REFRESH_PERIOD = 1.0 / FPS   //seconds between frames (e.g. 16.667 for 60Hz)
 
 class TextElements: ObservableObject {
@@ -39,7 +39,7 @@ class FrameElements: ObservableObject {
     }
 }
 
-struct ContentView: View {
+struct PaxView: View {
     var body: some View {
         ZStack {
             PaxCanvasViewRepresentable()
@@ -49,12 +49,10 @@ struct ContentView: View {
     }
 }
 
-
 struct NativeRenderingLayer: View {
     
     @ObservedObject var textElements : TextElements = TextElements.singleton
     @ObservedObject var frameElements : FrameElements = FrameElements.singleton
-    
     
     func getClippingMask(clippingIds: [[UInt64]]) -> some View {
         
@@ -76,10 +74,8 @@ struct NativeRenderingLayer: View {
                     tx: CGFloat(frameElement.transform[4]),
                     ty: CGFloat(frameElement.transform[5]))
                 )
-
         } }
     }
-    
     
     func getPositionedTextGroup(textElement: TextElement) -> some View {
         return Group {
@@ -101,65 +97,15 @@ struct NativeRenderingLayer: View {
             .mask(
                 getClippingMask(clippingIds: textElement.clipping_ids)
             )
-
-
-//
-//
-//            Group {
-//                Text(textElement.content)
-//                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
-//                    .foregroundColor(Color.black)
-////                    .background(Color.red) //debug, view bounding box
-//            }.transformEffect(CGAffineTransform.init(
-//                a: CGFloat(textElement.transform[0]),
-//                b: CGFloat(textElement.transform[1]),
-//                c: CGFloat(textElement.transform[2]),
-//                d: CGFloat(textElement.transform[3]),
-//                tx: CGFloat(textElement.transform[4]),
-//                ty: CGFloat(textElement.transform[5]))
-//            ).mask(
-//                ForEach(Array(self.frameElements.elements.values), id: \.id_chain) { frameElement in
-//                    Rectangle()
-//                        .size(width: CGFloat(frameElement.size_x), height: CGFloat(frameElement.size_y))
-//                        .position(x: CGFloat(frameElement.size_x / 2.0), y: CGFloat(frameElement.size_y / 2.0))
-//                        .transformEffect(CGAffineTransform.init(
-//                            a: CGFloat(frameElement.transform[0]),
-//                            b: CGFloat(frameElement.transform[1]),
-//                            c: CGFloat(frameElement.transform[2]),
-//                            d: CGFloat(frameElement.transform[3]),
-//                            tx: CGFloat(frameElement.transform[4]),
-//                            ty: CGFloat(frameElement.transform[5]))
-//                        )
-//
-//                }
-//            )
         }
-//            .aspectRatio(contentMode: .fill)
-//            .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading).background(Color.red)
-//            .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
-//            .transformEffect(CGAffineTransform.init(
-//                a: CGFloat(1),
-//                b: CGFloat(0),
-//                c: CGFloat(0),
-//                d: CGFloat(1),
-//                tx: CGFloat(textElement.transform[4]),
-//                ty: CGFloat(textElement.transform[5])
-//            )).clipped()// //correct for "center anchor" in SwiftUI
     }
   
     var body: some View {
         ZStack{
-            
-            //Clipping algo:
-            //for each clipping container
-            // instantiate container, then instantiate all of its direct descendants
-            //   if its descendants include another clipping container, recurse
-            //finally, render the set of elements without a clipping container
             ForEach(Array(self.textElements.elements.values), id: \.id_chain) { textElement in
                 getPositionedTextGroup(textElement: textElement)
             }
         }
-        
         
     }
 }
@@ -235,7 +181,6 @@ class PaxCanvasView: NSView {
             
             let frameCreateMessage = message["FrameCreate"]
             if frameCreateMessage != nil {
-                //NOTE: using AnyDeletePatch as a hack -- frames can only be associated with other frames so they're treated
                 handleFrameCreate(patch: AnyCreatePatch(fb: frameCreateMessage!))
             }
 
@@ -280,6 +225,7 @@ class PaxCanvasView: NSView {
         //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which
         //would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
         //This cancellation + shared singleton (`tickWorkItem`) ensures that only one DispatchWorkItem is enqueued at a time.
+        //TODO: revisit looping mechanism, especially around target framerate
         if currentTickWorkItem != nil {
             currentTickWorkItem!.cancel()
         }

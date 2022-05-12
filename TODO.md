@@ -172,6 +172,7 @@ _RIL means Rust Intermediate Language, which is the
     [x] `@template` block, vs. top-level
 [ ] native rendering ++
     [x] message design/arch
+    [ ] revisit macos loop timer?  (keep timestamps, target exact FPS, able to know when frames are dropped)
     [ ] runtime de/serialization
         [x] Data across FFI
             [x] explore raw C structs (decided: brittle)

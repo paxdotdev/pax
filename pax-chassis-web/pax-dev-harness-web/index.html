@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <title>Pax Web</title>
         <style>
-            html, body, #mount, canvas, #native-layer {
+            html, body, #mount, canvas, #native-overlay {
                 margin: 0;
                 padding: 0;
                 width: 100%;
@@ -16,7 +16,11 @@
                 position: relative;
             }
 
-            #native-layer, #canvas {
+            #clipping-layer {
+                position: absolute;
+            }
+
+            #native-overlay, #clipping-layer, #canvas {
                 position: absolute;
                 right: 0;
                 bottom: 0;
@@ -24,15 +28,18 @@
                 top: 0;
             }
 
-            #native-layer {
+            .native-element-container {
+                clip-path: url(#hello-clip);
+                position: absolute;   
             }
-
             .native-element {
+
                 position: absolute;
                 transform-origin: top left;
                 white-space: pre-wrap;
                 overflow: hidden;
-                clip-path: polygon(0px 0px, 100px 100px, 0px 100px);
+                
+                /* clip-path: polygon(0px 0px, 100px 100px, 0px 100px); */
                 /*clip-path: inset(10px 20px 30px 40px);*/
             }
         </style>

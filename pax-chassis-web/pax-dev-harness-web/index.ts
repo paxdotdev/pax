@@ -4,6 +4,9 @@ import {PaxChassisWeb} from './dist/pax_chassis_web';
 
 const NATIVE_OVERLAY_ID = "native-overlay";
 const NATIVE_ELEMENT_CLASS = "native-element";
+const CANVAS_ID = "canvas";
+const CLIPPING_LAYER_ID = "clipping-layer";
+const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
@@ -15,23 +18,53 @@ const NATIVE_ELEMENT_CLASS = "native-element";
 //This ID mechanism will also likely knock out most of the work for DOM element pooling/recycling
 
 function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
-    console.log("All modules loaded");
-
     let mount = document.querySelector("#mount"); // TODO: make more general; see approach used by Vue & React
 
-    //Create layer for mixed-mode rendering
-    let mixedModeLayer = document.createElement("div");
-    mixedModeLayer.id = NATIVE_OVERLAY_ID;
+    //Create layer for native (DOM) rendering
+    let nativeLayer = document.createElement("div");
+    nativeLayer.id = NATIVE_OVERLAY_ID;
 
-    //Create canvas element for piet drawing
+    //Create canvas element for piet drawing.
+    //Note that width and height are set by the chassis each frame.
     let canvas = document.createElement("canvas");
-    canvas.id = "canvas";
+    canvas.id = CANVAS_ID;
 
-    //Attach canvas to mount: first-applied is lowest
+    //Create clipping layer (SVG) for native element clipping.
+    //Note that width and height are set by the chassis each frame.
+    let clippingLayer = document.createElementNS(SVG_NAMESPACE, "svg");
+    clippingLayer.id = CLIPPING_LAYER_ID;
+
+    let helloClip = document.createElementNS(SVG_NAMESPACE,"clipPath");
+    // helloClip.setAttributeNS(null, "id", "hello-clip")
+    helloClip.id = "hello-clip";
+
+    //<circle cx="100" cy="100" r="40"/> 
+    let helloClipContents = document.createElementNS(SVG_NAMESPACE,"circle");
+    helloClipContents.setAttributeNS(null,"cx", "0");
+    helloClipContents.setAttributeNS(null,"cy", "0");
+    helloClipContents.setAttributeNS(null,"r", "500");
+
+
+    // let helloContents = document.createElementNS(SVG_NAMESPACE,"circle");
+    // helloContents.setAttributeNS(null,"cx", "200");
+    // helloContents.setAttributeNS(null,"cy", "200");
+    // helloContents.setAttributeNS(null,"r", "500");
+    // helloContents.setAttributeNS(null,"fill", "red");
+    // helloContents.setAttributeNS(null,"color", "red");
+    // helloContents.setAttributeNS(null,"stroke", "red");
+
+    helloClip.appendChild(helloClipContents);
+    clippingLayer.appendChild(helloClip);
+    // clippingLayer.appendChild(helloContents);
+
+    //Attach layers to mount
+    //FIRST-APPLIED IS LOWEST
+
+    mount?.appendChild(clippingLayer);
     mount?.appendChild(canvas);
-    mount?.appendChild(mixedModeLayer);
+    mount?.appendChild(nativeLayer);
+    
 
-    // <canvas id="canvas"></canvas>
     let chassis = wasmMod.PaxChassisWeb.new();
 
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
@@ -46,20 +79,19 @@ function renderLoop (chassis: PaxChassisWeb) {
      messages = JSON.parse(messages);
      // @ts-ignore
      processMessages(messages);
-     //messages.length > 0 && Math.random() < 0.05 &&  console.log(messages);
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
-let doneOnce = false;
 
 
 class NativeElementPool {
     private textNodes : any = {};
     private clippingNodes : any = {};
 
-
-
     textCreate(patch: AnyCreatePatch) {
         console.assert(patch.id_chain != null);
+        let newNodeContainer = document.createElement("div");
+        newNodeContainer.setAttribute("class", "native-element-container");
+
         let newNode = document.createElement("div");
         console.assert(this.textNodes["id_chain"] === undefined);
         // @ts-ignore
@@ -68,7 +100,8 @@ class NativeElementPool {
 
         //TODO: instead of nativeLayer, get a reference to the correct clipping container
         let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
-        nativeLayer?.appendChild(newNode);
+        newNodeContainer.appendChild(newNode);
+        nativeLayer?.appendChild(newNodeContainer);
     }
 
     textUpdate(patch: TextUpdatePatch) {
@@ -90,13 +123,6 @@ class NativeElementPool {
         if (patch.transform != null) {
             existingNode.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
-        //     span.innerText = msg.content;
-        //
-        //     span.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
-        //     span.style.backgroundColor = "red";
-        //     span.style.width = msg.bounds[0] + "px";
-        //     span.style.height = msg.bounds[1] + "px";
-
     }
 
     textDelete(id_chain: number[]) {
@@ -109,53 +135,44 @@ class NativeElementPool {
         nativeLayer?.removeChild(oldNode);
     }
 
-
     frameCreate(patch: AnyCreatePatch) {
-        console.assert(patch.id_chain != null);
-        let newNode = document.createElement("div");
-        console.assert(this.textNodes["id_chain"] === undefined);
-        // @ts-ignore
-        this.textNodes[patch.id_chain] = newNode;
-        newNode.setAttribute("class", NATIVE_ELEMENT_CLASS)
+        // console.assert(patch.id_chain != null);
+        // let newNode = document.createElement("div");
+        // console.assert(this.textNodes["id_chain"] === undefined);
+        // // @ts-ignore
+        // this.textNodes[patch.id_chain] = newNode;
+        // newNode.setAttribute("class", NATIVE_ELEMENT_CLASS)
 
-        //TODO: instead of nativeLayer, get a reference to the correct clipping container
-        let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
-        nativeLayer?.appendChild(newNode);
+        // //TODO: instead of nativeLayer, get a reference to the correct clipping container
+        // let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
+        // nativeLayer?.appendChild(newNode);
     }
 
     frameUpdate(patch: FrameUpdatePatch) {
-        //@ts-ignore
-        window.textNodes = this.textNodes;
         // @ts-ignore
-        let existingNode = this.textNodes[patch.id_chain];
-        console.assert(existingNode !== undefined);
+        // let existingNode = this.textNodes[patch.id_chain];
+        // console.assert(existingNode !== undefined);
 
-        if (patch.size_x != null) {
-            existingNode.style.width = patch.size_x + "px";
-        }
-        if (patch.size_y != null) {
-            existingNode.style.height = patch.size_y + "px";
-        }
-        if (patch.transform != null) {
-            existingNode.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
-        }
-        //     span.innerText = msg.content;
-        //
-        //     span.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
-        //     span.style.backgroundColor = "red";
-        //     span.style.width = msg.bounds[0] + "px";
-        //     span.style.height = msg.bounds[1] + "px";
+        // if (patch.size_x != null) {
+        //     existingNode.style.width = patch.size_x + "px";
+        // }
+        // if (patch.size_y != null) {
+        //     existingNode.style.height = patch.size_y + "px";
+        // }
+        // if (patch.transform != null) {
+        //     existingNode.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        // }
 
     }
 
     frameDelete(id_chain: number[]) {
-        let oldNode = this.textNodes.get(id_chain);
-        console.assert(oldNode !== undefined);
-        this.textNodes.delete(id_chain);
+        // let oldNode = this.textNodes.get(id_chain);
+        // console.assert(oldNode !== undefined);
+        // this.textNodes.delete(id_chain);
 
-        //TODO: instead of nativeLayer, get a reference to the correct clipping container
-        let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
-        nativeLayer?.removeChild(oldNode);
+        // //TODO: instead of nativeLayer, get a reference to the correct clipping container
+        // let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
+        // nativeLayer?.removeChild(oldNode);
     }
 
 }
