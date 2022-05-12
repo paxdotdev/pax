@@ -2389,3 +2389,44 @@ One approach:
  - Use SVG: generate a representation of clipping masks hierarchically in "yet another layer"
     of SVG, superimposed (likely invisibly), point to individual nodes 
     see: https://css-tricks.com/clipping-masking-css/#aa-using-clip-path-with-an-svg-defined-clippath
+
+    Note, the above appears viable, though wrapper divs are required to contain each `clipPath`,
+    and those wrapper divs will need to be managed by the chassis.  See PoC:
+
+```
+<div id="outer">
+  <div id="inner">
+    <img src="https://s3-us-west-2.amazonaws.com/s.cdpn.io/3/Harry-Potter-1-.jpg" alt="">
+  </div>
+</div>
+
+<svg width="0" height="0">
+  <defs>
+    <clipPath id="myClip" >
+      <circle cx="100" cy="100" r="40"/> 
+    </clipPath>
+    <clipPath id="myClip2">
+      <circle cx="70" cy="70" r="40"/>
+    </clipPath>       
+  </defs>
+</svg>
+
+<style>
+  img {
+  width: 120px;
+  margin: 20px;
+}
+
+#outer{
+  clip-path: url(#myClip);
+}
+
+#inner {
+  clip-path: url(#myClip2);
+}
+
+body, html {
+  height: 100%;
+}
+</style>
+```

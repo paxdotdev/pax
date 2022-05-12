@@ -208,44 +208,21 @@ function processMessages(messages: any[]) {
         // if (Math.random() < .1) console.log(unwrapped_msg)
         if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
-
             nativePool.textCreate(new AnyCreatePatch(msg));
-
         }else if (unwrapped_msg["TextUpdate"]){
             let msg = unwrapped_msg["TextUpdate"]
-
             nativePool.textUpdate(new TextUpdatePatch(msg));
-
-
-            // track an "upsert frame" while updating properties, filling sparse
-            // Option<>al structs with new values.  Expose this sparse struct
-            // for message-passing (the upsert frame happens to be exactly the message struct)
-            // if (!span.style.transform) {
-            //     span.innerText = msg.content;
-            //
-            //     span.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
-            //     span.style.backgroundColor = "red";
-            //     span.style.width = msg.bounds[0] + "px";
-            //     span.style.height = msg.bounds[1] + "px";
-            // }
         }else if (unwrapped_msg["TextDelete"]) {
             let msg = unwrapped_msg["TextDelete"];
-
             nativePool.frameDelete(msg["id_chain"])
         } else if(unwrapped_msg["FrameCreate"]) {
             let msg = unwrapped_msg["FrameCreate"]
-
-            let id_chain = msg["id_chain"];
-            let clipping_ids = msg["clipping_ids"];
-
             nativePool.frameCreate(new AnyCreatePatch(msg));
         }else if (unwrapped_msg["FrameUpdate"]){
             let msg = unwrapped_msg["FrameUpdate"]
-
             nativePool.frameUpdate(new FrameUpdatePatch(msg));
         }else if (unwrapped_msg["FrameDelete"]) {
             let msg = unwrapped_msg["FrameDelete"];
-
             nativePool.frameDelete(msg["id_chain"])
         }
     })
