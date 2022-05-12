@@ -52,19 +52,18 @@ function renderLoop (chassis: PaxChassisWeb) {
 let doneOnce = false;
 
 
-
-
-
 class NativeElementPool {
     private textNodes : any = {};
     private clippingNodes : any = {};
 
-    addTextNode(id_chain: number[], clipping_ids: number[][]) {
-        console.assert(id_chain != null);
+
+
+    textCreate(patch: AnyCreatePatch) {
+        console.assert(patch.id_chain != null);
         let newNode = document.createElement("div");
         console.assert(this.textNodes["id_chain"] === undefined);
         // @ts-ignore
-        this.textNodes[id_chain] = newNode;
+        this.textNodes[patch.id_chain] = newNode;
         newNode.setAttribute("class", NATIVE_ELEMENT_CLASS)
 
         //TODO: instead of nativeLayer, get a reference to the correct clipping container
@@ -72,7 +71,7 @@ class NativeElementPool {
         nativeLayer?.appendChild(newNode);
     }
 
-    updateTextNode(patch: TextUpdatePatch) {
+    textUpdate(patch: TextUpdatePatch) {
         //@ts-ignore
         window.textNodes = this.textNodes;
         // @ts-ignore
@@ -100,7 +99,56 @@ class NativeElementPool {
 
     }
 
-    removeTextNode(id_chain: number[]) {
+    textDelete(id_chain: number[]) {
+        let oldNode = this.textNodes.get(id_chain);
+        console.assert(oldNode !== undefined);
+        this.textNodes.delete(id_chain);
+
+        //TODO: instead of nativeLayer, get a reference to the correct clipping container
+        let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
+        nativeLayer?.removeChild(oldNode);
+    }
+
+
+    frameCreate(patch: AnyCreatePatch) {
+        console.assert(patch.id_chain != null);
+        let newNode = document.createElement("div");
+        console.assert(this.textNodes["id_chain"] === undefined);
+        // @ts-ignore
+        this.textNodes[patch.id_chain] = newNode;
+        newNode.setAttribute("class", NATIVE_ELEMENT_CLASS)
+
+        //TODO: instead of nativeLayer, get a reference to the correct clipping container
+        let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
+        nativeLayer?.appendChild(newNode);
+    }
+
+    frameUpdate(patch: FrameUpdatePatch) {
+        //@ts-ignore
+        window.textNodes = this.textNodes;
+        // @ts-ignore
+        let existingNode = this.textNodes[patch.id_chain];
+        console.assert(existingNode !== undefined);
+
+        if (patch.size_x != null) {
+            existingNode.style.width = patch.size_x + "px";
+        }
+        if (patch.size_y != null) {
+            existingNode.style.height = patch.size_y + "px";
+        }
+        if (patch.transform != null) {
+            existingNode.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+        //     span.innerText = msg.content;
+        //
+        //     span.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
+        //     span.style.backgroundColor = "red";
+        //     span.style.width = msg.bounds[0] + "px";
+        //     span.style.height = msg.bounds[1] + "px";
+
+    }
+
+    frameDelete(id_chain: number[]) {
         let oldNode = this.textNodes.get(id_chain);
         console.assert(oldNode !== undefined);
         this.textNodes.delete(id_chain);
@@ -128,6 +176,28 @@ class TextUpdatePatch {
     }
 }
 
+class FrameUpdatePatch {
+    public id_chain: number[];
+    public size_x?: number;
+    public size_y?: number;
+    public transform?: number[];
+    constructor(jsonMessage: any) {
+        this.id_chain = jsonMessage["id_chain"];
+        this.size_x = jsonMessage["size_x"];
+        this.size_y = jsonMessage["size_y"];
+        this.transform = jsonMessage["transform"];
+    }
+}
+
+class AnyCreatePatch {
+    public id_chain: number[];
+    public clipping_ids: number[][];
+    constructor(jsonMessage: any) {
+        this.id_chain = jsonMessage["id_chain"];
+        this.clipping_ids = jsonMessage["clipping_ids"];
+    }
+}
+
 
 let nativePool = new NativeElementPool();
 
@@ -139,15 +209,12 @@ function processMessages(messages: any[]) {
         if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
 
-            let id_chain = msg["id_chain"];
-            let clipping_ids = msg["clipping_ids"];
-
-            nativePool.addTextNode(id_chain, clipping_ids);
+            nativePool.textCreate(new AnyCreatePatch(msg));
 
         }else if (unwrapped_msg["TextUpdate"]){
             let msg = unwrapped_msg["TextUpdate"]
 
-            nativePool.updateTextNode(new TextUpdatePatch(msg));
+            nativePool.textUpdate(new TextUpdatePatch(msg));
 
 
             // track an "upsert frame" while updating properties, filling sparse
@@ -163,6 +230,23 @@ function processMessages(messages: any[]) {
             // }
         }else if (unwrapped_msg["TextDelete"]) {
             let msg = unwrapped_msg["TextDelete"];
+
+            nativePool.frameDelete(msg["id_chain"])
+        } else if(unwrapped_msg["FrameCreate"]) {
+            let msg = unwrapped_msg["FrameCreate"]
+
+            let id_chain = msg["id_chain"];
+            let clipping_ids = msg["clipping_ids"];
+
+            nativePool.frameCreate(new AnyCreatePatch(msg));
+        }else if (unwrapped_msg["FrameUpdate"]){
+            let msg = unwrapped_msg["FrameUpdate"]
+
+            nativePool.frameUpdate(new FrameUpdatePatch(msg));
+        }else if (unwrapped_msg["FrameDelete"]) {
+            let msg = unwrapped_msg["FrameDelete"];
+
+            nativePool.frameDelete(msg["id_chain"])
         }
     })
 }

@@ -2372,3 +2372,20 @@ Perhaps this final syntax would best suit an explicit `if`?
     }
 }
 ```
+
+
+
+### On native clipping, web
+
+One approach:
+ - keep a hierarchy of `div` with overflow: hidden -- these are stacked within each other
+    and allow adding child nodes that benefit from the clipping.  Note that the transformation of each
+    nested element will need to compensate for the transform of its descendants (because each nesting sets a new origin, managed by browser)
+    Thus, there's inherent inefficiency to this approach -- many unnecessary matrix calculations
+
+ - calculate the clipping bounds manually via aggregate intersection of clipping rects; use CSS `clip-path` with a `polygon` value
+    This extends very well to non-rectilinear masks (unlike nested `overflow: hidden` divs)
+
+ - Use SVG: generate a representation of clipping masks hierarchically in "yet another layer"
+    of SVG, superimposed (likely invisibly), point to individual nodes 
+    see: https://css-tricks.com/clipping-masking-css/#aa-using-clip-path-with-an-svg-defined-clippath

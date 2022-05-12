@@ -177,10 +177,14 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
 
     fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
         let id_chain = rtc.get_id_chain(self.instance_id);
+
+        //though macOS and iOS don't need this ancestry chain for clipping, Web does
+        let clipping_ids = rtc.runtime.borrow().get_current_clipping_ids();
+
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
             pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
                 id_chain: id_chain.clone(),
-                clipping_ids: vec![]
+                clipping_ids,
             })
         );
 
