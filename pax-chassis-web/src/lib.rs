@@ -63,7 +63,7 @@ impl PaxChassisWeb {
             .unwrap()
             .dyn_into::<HtmlCanvasElement>()
             .unwrap();
-
+        //
         let clipping_layer = window
             .document()
             .unwrap()

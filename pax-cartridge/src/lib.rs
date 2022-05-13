@@ -216,6 +216,18 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
         )
     }));
 
+    //Text content
+    vtable.insert("l".to_string(), Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+            let x = (*ec.engine).borrow();
+            (Rc::clone(datum), *i)
+        } else { unreachable!("epsilon") };
+
+        return TypesCoproduct::String(
+            format!("Index: {}", i)
+        );
+    }));
+
     vtable
 }
 
@@ -308,7 +320,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         children: Some(Rc::new(RefCell::new(vec![
                                             TextInstance::instantiate(InstantiationArgs {
                                                 properties: PropertiesCoproduct::Text( Text {
-                                                    content: Box::new(PropertyLiteral::new(JABBERWOCKY.to_string()) )
+                                                    content: Box::new(PropertyExpression::new("l".to_string()) )
                                                 }),
                                                 handler_registry: None,
                                                 instance_registry: Rc::clone(&instance_registry),

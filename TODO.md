@@ -2431,3 +2431,19 @@ body, html {
 }
 </style>
 ```
+
+
+
+### Cartridge properties
+May 12 2022
+
+Certain properties make sense to expose at the root of a given cartridge.
+
+These should be reasonably straight-forward to support.  Probably they can be declared in some sort of
+manifest file, e.g. a .paxrc/pax.json/pax.toml/pax.yaml.  Alternatively, these could be 
+managed within the pax language, with the added benefit of dynamic evaluation (e.g. for updating title content, bg color, maybe even framerate)
+
+Some examples:
+ - Background color (or transparency)
+ - Title label for app cartridges (e.g. HTML title, macOS title bar)
+ - Target frame rate

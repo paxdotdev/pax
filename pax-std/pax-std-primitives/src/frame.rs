@@ -169,10 +169,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         let transformed_bez_path = transform * bez_path;
         rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
         rc.clip(transformed_bez_path);
+
+        let id_chain = rtc.get_id_chain(self.instance_id);
+        (*rtc.runtime).borrow_mut().push_clipping_stack_id(id_chain);
     }
-    fn handle_post_render(&mut self, _rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_post_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //pop the clipping context from the stack
         rc.restore().unwrap();
+
+        (*rtc.runtime).borrow_mut().pop_clipping_stack_id();
     }
 
     fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
@@ -188,7 +193,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
             })
         );
 
-        (*rtc.runtime).borrow_mut().push_clipping_stack_id(id_chain);
     }
 
     fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
@@ -208,7 +212,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         //     pax_message::NativeMessage::FrameDelete(id_chain)
         // );
 
-        (*rtc.runtime).borrow_mut().pop_clipping_stack_id();
+
     }
 
 }
