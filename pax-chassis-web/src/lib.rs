@@ -88,6 +88,7 @@ impl PaxChassisWeb {
 
         clipping_layer.set_attribute("width", &format!("{}", width));
         clipping_layer.set_attribute("height", &format!("{}", height));
+        clipping_layer.set_attribute("viewBox", &format!("0 0 {} {}", width, height));
 
         let _ = context.scale(dpr, dpr);
 
