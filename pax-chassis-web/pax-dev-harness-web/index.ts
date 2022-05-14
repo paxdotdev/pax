@@ -3,11 +3,22 @@
 import {PaxChassisWeb} from './dist/pax_chassis_web';
 
 const NATIVE_OVERLAY_ID = "native-overlay";
-const NATIVE_ELEMENT_CLASS = "native-element";
-const TRANSFORM_NODE_CLASS = "native-transform-element";
 const CANVAS_ID = "canvas";
 const CLIPPING_LAYER_ID = "clipping-layer";
+
+const NATIVE_ROOT_CLASS = "native-root";
+const NATIVE_CLIPPING_CLASS = "native-clipping";
+const NATIVE_TRANSFORM_CLASS = "native-transform";
+const NATIVE_LEAF_CLASS = "native-leaf";
+
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+
+
+//0. `.native-root` root: assign width & height, "root div {}" CSS
+//1. `.native-clipping` apply clipping masks, BEFORE TRANSFORM (at the origin still)
+//2. `.native-transform` apply transform node: apply transform (transforms mask & element together)
+//3. `.native-leaf` apply native node, rendering content
+
 
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
@@ -126,31 +137,34 @@ class NativeElementPool {
         //Perhaps the transform element has to be inside the clipping masks...
         //Perhaps the clipping containers are all full-width & -height (or overflow visible), and the transform node is INSIDE the 
 
-//0. `.native-element-root` root: assign width & height, "root div {}" CSS
-//1. `.native-element-clipping` apply clipping masks, BEFORE TRANSFORM (at the origin still)
-//2. `.native-element-transform` apply transform node: apply transform (transforms mask & element together)
-//3. `.native-element-leaf` apply native node, rendering content
-
+//0. `.native-root` root: assign width & height, "root div {}" CSS
+//1. `.native-clipping` apply clipping masks, BEFORE TRANSFORM (at the origin still)
+//2. `.native-transform` apply transform node: apply transform (transforms mask & element together)
+//3. `.native-leaf` apply native node, rendering content
 
         let runningChain = document.createElement("div")
-        runningChain.setAttribute("class", NATIVE_ELEMENT_CLASS)
+        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
+
+        let transformNode = document.createElement("div");
+        transformNode.setAttribute("class", NATIVE_TRANSFORM_CLASS);
+        transformNode.appendChild(runningChain);
+        runningChain = transformNode;
 
         patch.clipping_ids.forEach((id_chain) => {
             let newNode = document.createElement("div")
-            newNode.setAttribute("class", "clipping-container")
+            newNode.setAttribute("class", NATIVE_CLIPPING_CLASS)
             let path = `url(#${getStringIdFromClippingId(id_chain).replace("\"", "")})`;
-            newNode.style.clipPath = "url(#hello-clip)";//path;///"url(#hello-clip)";
+            newNode.style.clipPath = path;///"url(#hello-clip)";
 
             newNode.appendChild(runningChain)
             runningChain = newNode
         });        
 
-        let transformNode = document.createElement("div");
-        transformNode.setAttribute("class", TRANSFORM_NODE_CLASS);
-
-        transformNode.appendChild(runningChain);
-        runningChain = transformNode;
-
+        let rootNode = document.createElement("div");
+        rootNode.setAttribute("class", NATIVE_ROOT_CLASS);
+        rootNode.appendChild(runningChain);
+        runningChain = rootNode;
+        
         //TODO: instead of nativeLayer, get a reference to the correct clipping container
         let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
 
@@ -160,9 +174,6 @@ class NativeElementPool {
         this.textNodes[patch.id_chain] = runningChain;
     }
 
-
-    
-
     textUpdate(patch: TextUpdatePatch) {
 
         //@ts-ignore
@@ -171,9 +182,12 @@ class NativeElementPool {
         let root = this.textNodes[patch.id_chain];
         console.assert(root !== undefined);
 
-        let selector = "." + NATIVE_ELEMENT_CLASS;
-        let leaf = root.matches(selector) ? root : root.querySelector(selector);
-
+        let leaf_selector = "." + NATIVE_LEAF_CLASS;
+        let transform_selector = "." + NATIVE_TRANSFORM_CLASS;
+        let clipping_selector = "." + NATIVE_CLIPPING_CLASS;
+        let leaf = root.matches(leaf_selector) ? root : root.querySelector(leaf_selector);
+        let transform = root.matches(transform_selector) ? root : root.querySelector(transform_selector);
+        
         //Note: applied to ROOT
         if (patch.size_x != null) {
             root.style.width = patch.size_x + "px";
@@ -181,10 +195,11 @@ class NativeElementPool {
         if (patch.size_y != null) {
             root.style.height = patch.size_y + "px";
         }
+        
+        //Note: applied to TRANSFORM
         if (patch.transform != null) {
-            root.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            transform.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
-
 
         //Note: applied to LEAF
         if (patch.content != null) {
@@ -226,23 +241,19 @@ class NativeElementPool {
         console.assert(existingNode !== undefined);
 
         if (patch.size_x != null) {
-
             existingNode.setAttributeNS(null, "width", patch.size_x);
         }
         if (patch.size_y != null) {
-
             existingNode.setAttributeNS(null, "height", patch.size_y);
-            
         }
         if (patch.transform != null) {
             // existingNode.setAttributeNS(null, "x", patch.transform[4]);
             // existingNode.setAttributeNS(null, "y", patch.transform[5]);
-            // existingNode.setAttributeNS(null, "transform", packAffineCoeffsIntoMatrix2DString(patch.transform));
+            existingNode.setAttributeNS(null, "transform", packAffineCoeffsIntoMatrix2DString(patch.transform));
             // existingNode.x = patch.transform[5];
             // existingNode.style.y = patch.transform[6];
             // existingNode.style.transform = packAffineCoeffsIntoMatrix2DString(patch.transform);
         }
-
     }
 
     frameDelete(id_chain: number[]) {
@@ -254,7 +265,6 @@ class NativeElementPool {
         // let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
         // nativeLayer?.removeChild(oldNode);
     }
-
 }
 
 //Type-safe wrappers around JSON representation

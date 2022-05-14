@@ -28,26 +28,33 @@
                 left: 0;
             }
 
-            .clipping-container {
+            .native-root {
                 position: absolute;
+                transform: translateZ(1)
             }
 
-            .native-transform-element div {
+            .native-root div {
                 width: 100%;
                 height: 100%;
                 position: absolute;
             }
 
-            .native-element {
+            .native-clipping {
+                position: absolute;
+            }
+
+            .native-transform {
+                position: absolute;
+                transform-origin: top left;                
+            }
+
+            .native-leaf {
                 white-space: pre-wrap;
                 overflow: hidden;
             }
 
-            .native-transform-element {
-                position: relative;
-                transform-origin: top left;                
+            
 
-            }
         </style>
     </head>
     <body>
