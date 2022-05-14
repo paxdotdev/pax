@@ -12,7 +12,7 @@ use pax_std::{Spread, Text, Rectangle};
         }
         <Group transform={rotate(self.current_rotation)}>
             <Text>{JABBERWOCKY}</Text>
-            <Rectangle  fill=Color::rgba(0, 100%, 100%, 100%) />
+            <Rectangle fill=Color::rgba(0, 100%, 100%, 100%) />
         </Group>
     </Spread>
 )]

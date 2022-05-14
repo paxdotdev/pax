@@ -85,10 +85,10 @@ impl PaxChassisWeb {
 
         canvas.set_width(width as u32);
         canvas.set_height(height as u32);
-
-        clipping_layer.set_attribute("width", &format!("{}", width));
-        clipping_layer.set_attribute("height", &format!("{}", height));
-        clipping_layer.set_attribute("viewBox", &format!("0 0 {} {}", width, height));
+        //
+        // clipping_layer.set_attribute("width", &format!("{}", width / dpr));
+        // clipping_layer.set_attribute("height", &format!("{}", height / dpr));
+        // clipping_layer.set_attribute("viewBox", &format!("0 0 {} {}", width / dpr, height / dpr));
 
         let _ = context.scale(dpr, dpr);
 
@@ -117,9 +117,9 @@ impl PaxChassisWeb {
                 //handle window resize
                 let _ = canvas.set_attribute("width", format!("{}",width).as_str());
                 let _ = canvas.set_attribute("height", format!("{}",height).as_str());
-
-                let _ = clipping_layer.set_attribute("width", format!("{}",width).as_str());
-                let _ = clipping_layer.set_attribute("height", format!("{}",height).as_str());
+                //
+                // let _ = clipping_layer.set_attribute("width", format!("{}",width).as_str());
+                // let _ = clipping_layer.set_attribute("height", format!("{}",height).as_str());
 
                 engine.set_viewport_size((width, height));
             }) as Box<dyn FnMut(_)>);

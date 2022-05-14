@@ -4,6 +4,7 @@ import {PaxChassisWeb} from './dist/pax_chassis_web';
 
 const NATIVE_OVERLAY_ID = "native-overlay";
 const NATIVE_ELEMENT_CLASS = "native-element";
+const TRANSFORM_NODE_CLASS = "native-transform-element";
 const CANVAS_ID = "canvas";
 const CLIPPING_LAYER_ID = "clipping-layer";
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
@@ -100,40 +101,55 @@ class NativeElementPool {
         console.assert(patch.clipping_ids != null);
 
         // Native elements + clipping:
-        // Consider a native element `C` underneath two clipping elements `A` and `B`
+        // Consider a native element `N` underneath two clipping elements `A` and `B` and a transform container `T`
+        //
+        //  T (root)
+        //  |
         //  A
         //  |
         //  B
         //  | 
-        //  C
+        //  N
+        //
         // We must create a chain of nodes representing the clipping hierarchy, where our actual
-        // native element is the leaf (terminus) of that chain (C)
-        // The root (beginning, A) of the chain will have the dynamic transform and size _of the native element_ applied to it
+        // native element is the leaf (terminus) of that chain (N)
+        // The root (beginning, T) of the chain will have the dynamic transform and size _of the native element_ applied to it
         // Each nested node will simply fill its container 100%, with no additional dynamic transform
-        // Any "native operations", e.g. updating text content, happen to the terminus/leaf node (C)
+        // Any "native operations", e.g. updating text content, happen to the terminus/leaf node (N)
+        //
+        // T must exist separately from `A` because if clipping element `A` is both a `clipPath` and a `transform` node, it applies the clip-path
+        // pre-transform (and then transforms the element as if the transform occurred at the origin), which is not the expected behavior.
         //
         // Clip paths are assigned by CSS selector only (no lookup into `clippingNodes`).  Clipping ID is strictly
         // derivable from a clipping `id_chain`
+
+        //Perhaps the transform element has to be inside the clipping masks...
+        //Perhaps the clipping containers are all full-width & -height (or overflow visible), and the transform node is INSIDE the 
+
+//0. `.native-element-root` root: assign width & height, "root div {}" CSS
+//1. `.native-element-clipping` apply clipping masks, BEFORE TRANSFORM (at the origin still)
+//2. `.native-element-transform` apply transform node: apply transform (transforms mask & element together)
+//3. `.native-element-leaf` apply native node, rendering content
+
 
         let runningChain = document.createElement("div")
         runningChain.setAttribute("class", NATIVE_ELEMENT_CLASS)
 
         patch.clipping_ids.forEach((id_chain) => {
-            // console.log("assinging clipping id", id_chain)
             let newNode = document.createElement("div")
             newNode.setAttribute("class", "clipping-container")
             let path = `url(#${getStringIdFromClippingId(id_chain).replace("\"", "")})`;
-            // newNode.style.clipPath = path;
+            newNode.style.clipPath = "url(#hello-clip)";//path;///"url(#hello-clip)";
 
             newNode.appendChild(runningChain)
             runningChain = newNode
         });        
 
-        let nativeNode = document.createElement("div");
-        console.assert(this.textNodes["id_chain"] == null);
-        
-        nativeNode.setAttribute("class", NATIVE_ELEMENT_CLASS)
+        let transformNode = document.createElement("div");
+        transformNode.setAttribute("class", TRANSFORM_NODE_CLASS);
 
+        transformNode.appendChild(runningChain);
+        runningChain = transformNode;
 
         //TODO: instead of nativeLayer, get a reference to the correct clipping container
         let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
@@ -143,6 +159,9 @@ class NativeElementPool {
         // @ts-ignore
         this.textNodes[patch.id_chain] = runningChain;
     }
+
+
+    
 
     textUpdate(patch: TextUpdatePatch) {
 
@@ -155,10 +174,7 @@ class NativeElementPool {
         let selector = "." + NATIVE_ELEMENT_CLASS;
         let leaf = root.matches(selector) ? root : root.querySelector(selector);
 
-        if (patch.content != null) {
-            //Note: applied to LEAF
-            leaf.innerText = patch.content;
-        }
+        //Note: applied to ROOT
         if (patch.size_x != null) {
             root.style.width = patch.size_x + "px";
         }
@@ -167,6 +183,12 @@ class NativeElementPool {
         }
         if (patch.transform != null) {
             root.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+
+
+        //Note: applied to LEAF
+        if (patch.content != null) {
+            leaf.innerText = patch.content;
         }
     }
 
@@ -184,8 +206,8 @@ class NativeElementPool {
         console.assert(patch.id_chain != null);
         let newNode = document.createElementNS(SVG_NAMESPACE, "clipPath");
         let innerNode = document.createElementNS(SVG_NAMESPACE, "rect");
-        innerNode.setAttributeNS(SVG_NAMESPACE, "x", "0");
-        innerNode.setAttributeNS(SVG_NAMESPACE, "y", "0");
+        innerNode.setAttributeNS(null, "x", "0");
+        innerNode.setAttributeNS(null, "y", "0");
         newNode.id = getStringIdFromClippingId(patch.id_chain);
 
         newNode.appendChild(innerNode);
@@ -205,17 +227,17 @@ class NativeElementPool {
 
         if (patch.size_x != null) {
 
-            existingNode.setAttributeNS(SVG_NAMESPACE, "width", patch.size_x);
+            existingNode.setAttributeNS(null, "width", patch.size_x);
         }
         if (patch.size_y != null) {
 
-            existingNode.setAttributeNS(SVG_NAMESPACE, "height", patch.size_y);
+            existingNode.setAttributeNS(null, "height", patch.size_y);
             
         }
         if (patch.transform != null) {
-            existingNode.setAttributeNS(SVG_NAMESPACE, "x", patch.transform[4]);
-            existingNode.setAttributeNS(SVG_NAMESPACE, "y", patch.transform[5]);
-            // existingNode.setAttributeNS(SVG_NAMESPACE, "transform", packAffineCoeffsIntoMatrix2DString(patch.transform));
+            // existingNode.setAttributeNS(null, "x", patch.transform[4]);
+            // existingNode.setAttributeNS(null, "y", patch.transform[5]);
+            // existingNode.setAttributeNS(null, "transform", packAffineCoeffsIntoMatrix2DString(patch.transform));
             // existingNode.x = patch.transform[5];
             // existingNode.style.y = patch.transform[6];
             // existingNode.style.transform = packAffineCoeffsIntoMatrix2DString(patch.transform);
