@@ -111,51 +111,13 @@ class NativeElementPool {
         console.assert(patch.id_chain != null);
         console.assert(patch.clipping_ids != null);
 
-        //`mount`
-        //  `svg-container`
-        //    `svg_9_9` transform (CSS matrix3d, not SVG transform)
-        //        `clip_9_9` clipPath container
-        //            `rect` or `path`, actual clipping area
-        //  `canvas`
-        //  `native-overlay`
-        //      `root` absolute size
-        //      `clip-host` (or `scroll-host`)
-        //      `clip-host` (or `scroll-host`)
-        //      `transform-host`
-        //      ..
-        //      `leaf`
-
         let runningChain = document.createElement("div")
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-
-        let transformNode = document.createElement("div");
-        transformNode.setAttribute("class", NATIVE_TRANSFORM_CLASS);
-        transformNode.appendChild(runningChain);
-        runningChain = transformNode;
-
-
-        //TODO: handle scrollhosts just like cliphosts
-        patch.clipping_ids.forEach((id_chain) => {
-            let newNode = document.createElement("div")
-            newNode.setAttribute("class", NATIVE_CLIPPING_CLASS)
-            let path = `url(#${getStringIdFromClippingId(CLIP_PREFIX, id_chain)})`;
-            newNode.style.clipPath = path;///"url(#hello-clip)";
-
-            newNode.appendChild(runningChain)
-            runningChain = newNode
-        });        
-
-        
-        
-        let rootNode = document.createElement("div");
-        rootNode.setAttribute("class", NATIVE_ROOT_CLASS);
-        rootNode.appendChild(runningChain);
-        runningChain = rootNode;
         
         //TODO: instead of nativeLayer, get a reference to the correct clipping container
-        let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
+        let attachPoint = getAttachPointFromClippingIds(patch.clipping_ids);
 
-        nativeLayer?.appendChild(runningChain);
+        attachPoint?.appendChild(runningChain);
 
         // @ts-ignore
         this.textNodes[patch.id_chain] = runningChain;
@@ -166,32 +128,19 @@ class NativeElementPool {
         //@ts-ignore
         window.textNodes = this.textNodes;
         // @ts-ignore
-        let root = this.textNodes[patch.id_chain];
-        console.assert(root !== undefined);
+        let leaf = this.textNodes[patch.id_chain];
+        console.assert(leaf !== undefined);
 
-        let leaf_selector = "." + NATIVE_LEAF_CLASS;
-        let transform_selector = "." + NATIVE_TRANSFORM_CLASS;
-        let clip_selector = "." + NATIVE_CLIPPING_CLASS;
-        
-        let leaf = root.matches(leaf_selector) ? root : root.querySelector(leaf_selector);
-        let clip = root.matches(clip_selector) ? root : root.querySelector(clip_selector);
-        let transform = root.matches(transform_selector) ? root : root.querySelector(transform_selector);
-        
-        //Note: applied to ROOT
         if (patch.size_x != null) {
-            root.style.width = patch.size_x + "px";
+            leaf.style.width = patch.size_x + "px";
         }
         if (patch.size_y != null) {
-            root.style.height = patch.size_y + "px";
+            leaf.style.height = patch.size_y + "px";
         }
         if (patch.transform != null) {
-            let transformString = packAffineCoeffsIntoMatrix3DString(patch.transform);
-            // root.style.transform = transformString
-            transform.style.transform = transformString;
-            // root.style.transform = "";
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
 
-        //Note: applied to LEAF
         if (patch.content != null) {
             leaf.innerText = patch.content;
         }
@@ -211,37 +160,16 @@ class NativeElementPool {
         console.assert(patch.id_chain != null);
         console.assert(this.clippingNodes["id_chain"] === undefined);
 
-        //  `svg-container`
-        //    `svg_9_9` transform (CSS matrix3d, not SVG transform)
-        //        `clip_9_9` clipPath container
-        //            `rect` or `path`, actual clipping area
+        let attachPoint = getAttachPointFromClippingIds(patch.clipping_ids);
 
-        // let newSvgHost = document.createElementNS(SVG_NAMESPACE, "svg");
-        // newSvgHost.id = getStringIdFromClippingId(SVG_PREFIX, patch.id_chain);
+        let newClip = document.createElement("div");
+        newClip.id = getStringIdFromClippingId("clip", patch.id_chain);
+        newClip.classList.add("native-clipping")
 
-        let newClipPath = document.createElementNS(SVG_NAMESPACE, "clipPath");
-        newClipPath.id = getStringIdFromClippingId(CLIP_PREFIX,patch.id_chain);
-
-        let newRawPath = document.createElementNS(SVG_NAMESPACE, "path");
-        let command = "M 0 0";
-        newRawPath.setAttributeNS(null, "d", command);
-
-        // @ts-ignore
-        this.clippingNodes[patch.id_chain] = newClipPath;
-
-        let clippingContainer = document.querySelector("#" + CLIPPING_CONTAINER_ID);
-
-        newClipPath.appendChild(newRawPath);
-        clippingContainer?.appendChild(newClipPath);
+        attachPoint!.appendChild(newClip);
     }
 
     frameUpdate(patch: FrameUpdatePatch) {
-        //@ts-ignore
-        let svgHost = this.clippingNodes[patch.id_chain];
-        console.assert(svgHost !== undefined);
-
-        let rawPath = svgHost.querySelector('path');
-
         //@ts-ignore
         let cacheContainer : FrameUpdatePatch = this.clippingValueCache[patch.id_chain] || new FrameUpdatePatch();
 
@@ -260,8 +188,11 @@ class NativeElementPool {
         }
 
         if (shouldRedraw) {
-            let command = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!);
-            rawPath.setAttributeNS(null, "d", command);
+            let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
+            let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+            node.style.clipPath = polygonDef;
+            //@ts-ignore
+            node.style.webkitClipPath = polygonDef;
         }
         //@ts-ignore
         this.clippingValueCache[patch.id_chain] = cacheContainer;
@@ -328,6 +259,17 @@ function getQuadClipPathCommand(width: number, height: number, transform: number
     let command = `M ${point0[0]} ${point0[1]} L ${point1[0]} ${point1[1]} L ${point2[0]} ${point2[1]} L ${point3[0]} ${point3[1]} Z`
     return command;
 }
+
+function getQuadClipPolygonCommand(width: number, height: number, transform: number[]) {
+    let point0 = affineMultiply([0, 0], transform);
+    let point1 = affineMultiply([width, 0], transform);
+    let point2 = affineMultiply([width, height], transform);
+    let point3 = affineMultiply([0, height], transform);
+
+    let polygon = `polygon(${point0[0]}px ${point0[1]}px, ${point1[0]}px ${point1[1]}px, ${point2[0]}px ${point2[1]}px, ${point3[0]}px ${point3[1]}px)`
+    return polygon;
+}
+
 
 let nativePool = new NativeElementPool();
 
@@ -412,6 +354,20 @@ function packAffineCoeffsIntoMatrix2DString(coeffs: number[]) : string {
         coeffs[4].toFixed(6),
         coeffs[5].toFixed(6),
     ].join(",") + ")";
+}
+
+function getAttachPointFromClippingIds(clipping_ids: number[][]) {
+    // If there's a clipping context, attach to it.  Otherwise, attach directly to the native element layer.
+    let attachPoint = (() => {
+        if (clipping_ids.length > 0) {
+            let clippingLeaf = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, clipping_ids[clipping_ids.length - 1]));
+            console.assert(clippingLeaf != null);
+            return clippingLeaf
+        }else {
+            return document.querySelector("#" + NATIVE_OVERLAY_ID)
+        }
+    })();
+    return attachPoint;
 }
 
 
