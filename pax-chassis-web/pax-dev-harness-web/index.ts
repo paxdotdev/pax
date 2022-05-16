@@ -18,27 +18,6 @@ const CLIP_PREFIX = "clip"
 const SVG_PREFIX = "svg"
 
 
-
-//`mount`
-//  `svg-container`
-//    `svg_9_9` transform (CSS matrix3d, not SVG transform)
-//        `clip_9_9` clipPath container
-//            `rect` or `path`, actual clipping area
-//  `canvas`
-//  `native-overlay`
-//      `root` transform, absolute size
-//      `clip-host` (or `scroll-host`)
-//      `clip-host` (or `scroll-host`)
-//      ..
-//      `leaf`
-
-// On native element create:
-//  create root, create n clip-hosts with relational ID selectors, create leaf, attach to native-overlay
-// On native element update:
-//  apply updated transform and size to `root`
-// On frame create:
-//  add a new `svg` element, with a `clip` element and a `rect` element; attach to `svg-container`
-
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
 //  - global (screen) coordinates
@@ -61,11 +40,8 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     canvas.id = CANVAS_ID;
 
     //Create clipping layer (SVG) for native element clipping.
-    //Note that width and height are set by the chassis each frame.
-    let clippingContainer = document.createElement("div");
+    let clippingContainer = document.createElementNS(SVG_NAMESPACE, "svg");
     clippingContainer.id = CLIPPING_CONTAINER_ID;
-
-
     
     
     //Attach layers to mount
@@ -95,13 +71,16 @@ function renderLoop (chassis: PaxChassisWeb) {
      // @ts-ignore
      processMessages(messages);
 
-//      document.querySelectorAll('.native-clipping').forEach((node : any)=>{ 
-//          let r = node.style.clipPath + "";
-//          node.style.clipPath = "";
-//          node.offsetWidth;
-//          node.style.clipPath = r; 
-
-//     })
+    //  document.querySelectorAll('.native-clipping').forEach((node : any)=>{ 
+    //     //  let r = node.style.clipPath + "";
+    //     //  node.style.clipPath = "";
+    //     //  node.offsetWidth;
+    //     //  node.style.clipPath = r; 
+    //     let y = node.offsetWidth
+    //     let x = node.getBoundingClientRect();
+    //     if(Math.random() < .01)
+    //         console.log(x)
+    // })
 
 //     document.querySelectorAll('rect').forEach((node : any)=>{ 
 //         let r = node.getAttribute("transform");
@@ -110,6 +89,13 @@ function renderLoop (chassis: PaxChassisWeb) {
 //         node.setAttributeNS(null, "transform", r);
 
 //    })
+
+// document.querySelectorAll('path').forEach((node : any)=>{ 
+//     let r = node.getAttribute("d");
+//     node.setAttributeNS(null, "d", "");
+//     node.offsetWidth;
+//     node.setAttributeNS(null, "d", r);
+// })
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
      
 }
@@ -119,6 +105,7 @@ function renderLoop (chassis: PaxChassisWeb) {
 class NativeElementPool {
     private textNodes : any = {};
     private clippingNodes : any = {};
+    private clippingValueCache : any = {};
 
     textCreate(patch: AnyCreatePatch) {
         console.assert(patch.id_chain != null);
@@ -141,6 +128,11 @@ class NativeElementPool {
         let runningChain = document.createElement("div")
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
 
+        let transformNode = document.createElement("div");
+        transformNode.setAttribute("class", NATIVE_TRANSFORM_CLASS);
+        transformNode.appendChild(runningChain);
+        runningChain = transformNode;
+
 
         //TODO: handle scrollhosts just like cliphosts
         patch.clipping_ids.forEach((id_chain) => {
@@ -153,13 +145,8 @@ class NativeElementPool {
             runningChain = newNode
         });        
 
-
-        let transformNode = document.createElement("div");
-        transformNode.setAttribute("class", NATIVE_TRANSFORM_CLASS);
-        transformNode.appendChild(runningChain);
-        runningChain = transformNode;
         
-
+        
         let rootNode = document.createElement("div");
         rootNode.setAttribute("class", NATIVE_ROOT_CLASS);
         rootNode.appendChild(runningChain);
@@ -198,7 +185,10 @@ class NativeElementPool {
             root.style.height = patch.size_y + "px";
         }
         if (patch.transform != null) {
-            transform.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            let transformString = packAffineCoeffsIntoMatrix3DString(patch.transform);
+            // root.style.transform = transformString
+            transform.style.transform = transformString;
+            // root.style.transform = "";
         }
 
         //Note: applied to LEAF
@@ -226,25 +216,23 @@ class NativeElementPool {
         //        `clip_9_9` clipPath container
         //            `rect` or `path`, actual clipping area
 
-        let newSvgHost = document.createElementNS(SVG_NAMESPACE, "svg");
-        newSvgHost.id = getStringIdFromClippingId(SVG_PREFIX, patch.id_chain);
+        // let newSvgHost = document.createElementNS(SVG_NAMESPACE, "svg");
+        // newSvgHost.id = getStringIdFromClippingId(SVG_PREFIX, patch.id_chain);
 
         let newClipPath = document.createElementNS(SVG_NAMESPACE, "clipPath");
         newClipPath.id = getStringIdFromClippingId(CLIP_PREFIX,patch.id_chain);
 
-        let newRawPath = document.createElementNS(SVG_NAMESPACE, "rect");
-        newRawPath.setAttributeNS(null, "x", "40");
-        newRawPath.setAttributeNS(null, "y", "0");
-
+        let newRawPath = document.createElementNS(SVG_NAMESPACE, "path");
+        let command = "M 0 0";
+        newRawPath.setAttributeNS(null, "d", command);
 
         // @ts-ignore
-        this.clippingNodes[patch.id_chain] = newSvgHost;
+        this.clippingNodes[patch.id_chain] = newClipPath;
 
         let clippingContainer = document.querySelector("#" + CLIPPING_CONTAINER_ID);
 
         newClipPath.appendChild(newRawPath);
-        newSvgHost.appendChild(newClipPath)
-        clippingContainer?.appendChild(newSvgHost);
+        clippingContainer?.appendChild(newClipPath);
     }
 
     frameUpdate(patch: FrameUpdatePatch) {
@@ -252,24 +240,31 @@ class NativeElementPool {
         let svgHost = this.clippingNodes[patch.id_chain];
         console.assert(svgHost !== undefined);
 
-        let rawPath = svgHost.querySelector('rect'); //TODO: support `path`, etc. here.
+        let rawPath = svgHost.querySelector('path');
 
+        //@ts-ignore
+        let cacheContainer : FrameUpdatePatch = this.clippingValueCache[patch.id_chain] || new FrameUpdatePatch();
+
+        let shouldRedraw = false;
         if (patch.size_x != null) {
-            rawPath.setAttributeNS(null, "width", patch.size_x);
+            shouldRedraw = true;
+            cacheContainer.size_x = patch.size_x
         }
         if (patch.size_y != null) {
-            rawPath.setAttributeNS(null, "height", patch.size_y);
+            shouldRedraw = true;
+            cacheContainer.size_y = patch.size_y
         }
         if (patch.transform != null) {
-            // existingNode.setAttributeNS(null, "x", patch.transform[4]);
-            // existingNode.setAttributeNS(null, "y", patch.transform[5]);
-            svgHost.style.width = patch.size_x + "px";
-            svgHost.style.height = patch.size_y + "px";
-            // svgHost.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
-            // existingNode.x = patch.transform[5];
-            // existingNode.style.y = patch.transform[6];
-            // existingNode.style.transform = packAffineCoeffsIntoMatrix2DString(patch.transform);
+            shouldRedraw = true;
+            cacheContainer.transform = patch.transform;
         }
+
+        if (shouldRedraw) {
+            let command = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!);
+            rawPath.setAttributeNS(null, "d", command);
+        }
+        //@ts-ignore
+        this.clippingValueCache[patch.id_chain] = cacheContainer;
     }
 
     frameDelete(id_chain: number[]) {
@@ -300,15 +295,17 @@ class TextUpdatePatch {
 }
 
 class FrameUpdatePatch {
-    public id_chain: number[];
+    public id_chain?: number[];
     public size_x?: number;
     public size_y?: number;
     public transform?: number[];
     constructor(jsonMessage: any) {
-        this.id_chain = jsonMessage["id_chain"];
-        this.size_x = jsonMessage["size_x"];
-        this.size_y = jsonMessage["size_y"];
-        this.transform = jsonMessage["transform"];
+        if(jsonMessage != null) { 
+            this.id_chain = jsonMessage["id_chain"];
+            this.size_x = jsonMessage["size_x"];
+            this.size_y = jsonMessage["size_y"];
+            this.transform = jsonMessage["transform"];
+        }
     }
 }
 
@@ -321,6 +318,16 @@ class AnyCreatePatch {
     }
 }
 
+
+function getQuadClipPathCommand(width: number, height: number, transform: number[]) {
+    let point0 = affineMultiply([0, 0], transform);
+    let point1 = affineMultiply([width, 0], transform);
+    let point2 = affineMultiply([width, height], transform);
+    let point3 = affineMultiply([0, height], transform);
+
+    let command = `M ${point0[0]} ${point0[1]} L ${point1[0]} ${point1[1]} L ${point2[0]} ${point2[1]} L ${point3[0]} ${point3[1]} Z`
+    return command;
+}
 
 let nativePool = new NativeElementPool();
 
@@ -405,6 +412,35 @@ function packAffineCoeffsIntoMatrix2DString(coeffs: number[]) : string {
         coeffs[4].toFixed(6),
         coeffs[5].toFixed(6),
     ].join(",") + ")";
+}
+
+
+
+//Required due to Safari bug, unable to clip DOM elements to SVG=>`transform: matrix(...)` elements; see https://bugs.webkit.org/show_bug.cgi?id=126207
+//  and repro in this repo: `878576bf0e9`
+//Work-around is to manually affine-multiply coordinates of relevant elements and plot as `Path`s (without `transform`) in SVG.
+//
+//For the point V [x,y]
+//And the affine coefficients in column-major order, (a,b,c,d,e,f) representing the matrix M:
+//  | a c e |
+//  | b d f |
+//  | 0 0 1 |
+//Return the product `V * M`
+// Given a matrix A∈ℝm×n and vector x∈ℝn the matrix-vector multiplication of A and x is defined as
+// Ax:=x1a∗,1+x2a∗,2+⋯+xna∗,n
+// where a∗,i is the ith column vector of A.
+function affineMultiply(point: number[], matrix: number[]) : number[] {
+    let x = point[0];
+    let y = point[1];
+    let a = matrix[0];
+    let b = matrix[1];
+    let c = matrix[2];
+    let d = matrix[3];
+    let e = matrix[4];
+    let f = matrix[5];
+    let xOut = a*x + c*y + e;
+    let yOut = b*x + d*y + f;
+    return [xOut, yOut];
 }
 
 

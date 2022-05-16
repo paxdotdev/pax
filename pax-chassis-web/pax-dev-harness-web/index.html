@@ -23,23 +23,22 @@
             }
 
             #clipping-container {
-                position: relative;
+                position: absolute;
                 top: 0;
                 left: 0;
-            }
-
-            #clipping-container svg {
-                position: absolute
             }
 
             #native-overlay {
                 position: absolute;
                 top: 0;
                 left: 0;
+                
             }
 
             .native-root {
                 position: absolute;
+                transform-origin: top left;     
+                
             }
 
             .native-root div {
@@ -54,12 +53,13 @@
 
             .native-clipping {
                 position: absolute;
-                transform-origin: top left; 
+                
             }
 
             .native-leaf {
                 white-space: pre-wrap;
                 overflow: hidden;
+                
             }
 
             
