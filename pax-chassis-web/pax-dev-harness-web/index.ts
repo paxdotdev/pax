@@ -5,7 +5,7 @@ import {PaxChassisWeb} from './dist/pax_chassis_web';
 const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_ID = "native-overlay";
 const CANVAS_ID = "canvas";
-const CLIPPING_LAYER_ID = "clipping-layer";
+const CLIPPING_CONTAINER_ID = "clipping-container";
 
 const NATIVE_ROOT_CLASS = "native-root";
 const NATIVE_CLIPPING_CLASS = "native-clipping";
@@ -14,12 +14,30 @@ const NATIVE_LEAF_CLASS = "native-leaf";
 
 const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 
+const CLIP_PREFIX = "clip"
+const SVG_PREFIX = "svg"
 
-//0. `.native-root` root: assign width & height, "root div {}" CSS
-//1. `.native-clipping` apply clipping masks, BEFORE TRANSFORM (at the origin still)
-//2. `.native-transform` apply transform node: apply transform (transforms mask & element together)
-//3. `.native-leaf` apply native node, rendering content
 
+
+//`mount`
+//  `svg-container`
+//    `svg_9_9` transform (CSS matrix3d, not SVG transform)
+//        `clip_9_9` clipPath container
+//            `rect` or `path`, actual clipping area
+//  `canvas`
+//  `native-overlay`
+//      `root` transform, absolute size
+//      `clip-host` (or `scroll-host`)
+//      `clip-host` (or `scroll-host`)
+//      ..
+//      `leaf`
+
+// On native element create:
+//  create root, create n clip-hosts with relational ID selectors, create leaf, attach to native-overlay
+// On native element update:
+//  apply updated transform and size to `root`
+// On frame create:
+//  add a new `svg` element, with a `clip` element and a `rect` element; attach to `svg-container`
 
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
@@ -44,13 +62,15 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
 
     //Create clipping layer (SVG) for native element clipping.
     //Note that width and height are set by the chassis each frame.
-    let clippingLayer = document.createElementNS(SVG_NAMESPACE, "svg");
-    clippingLayer.id = CLIPPING_LAYER_ID;
+    let clippingContainer = document.createElement("div");
+    clippingContainer.id = CLIPPING_CONTAINER_ID;
+
+
+    
     
     //Attach layers to mount
     //FIRST-APPLIED IS LOWEST
-
-    mount?.appendChild(clippingLayer);
+    mount?.appendChild(clippingContainer);
     mount?.appendChild(canvas);
     mount?.appendChild(nativeLayer);
     
@@ -60,8 +80,8 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
-function getStringIdFromClippingId(id_chain: number[]) {
-    return "clip_" + id_chain.join("_");
+function getStringIdFromClippingId(prefix: string, id_chain: number[]) {
+    return prefix + "_" + id_chain.join("_");
 }
 
 function escapeHtml(content: string){
@@ -104,28 +124,41 @@ class NativeElementPool {
         console.assert(patch.id_chain != null);
         console.assert(patch.clipping_ids != null);
 
-        //0. `.native-root` root: assign width & height, "root div {}" CSS
-        //1. `.native-clipping` apply clipping masks, BEFORE TRANSFORM (at the origin still)
-        //2. `.native-transform` apply transform node: apply transform (transforms mask & element together)
-        //3. `.native-leaf` apply native node, rendering content
+        //`mount`
+        //  `svg-container`
+        //    `svg_9_9` transform (CSS matrix3d, not SVG transform)
+        //        `clip_9_9` clipPath container
+        //            `rect` or `path`, actual clipping area
+        //  `canvas`
+        //  `native-overlay`
+        //      `root` absolute size
+        //      `clip-host` (or `scroll-host`)
+        //      `clip-host` (or `scroll-host`)
+        //      `transform-host`
+        //      ..
+        //      `leaf`
 
         let runningChain = document.createElement("div")
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
 
-        let transformNode = document.createElement("div");
-        transformNode.setAttribute("class", NATIVE_TRANSFORM_CLASS);
-        transformNode.appendChild(runningChain);
-        runningChain = transformNode;
 
+        //TODO: handle scrollhosts just like cliphosts
         patch.clipping_ids.forEach((id_chain) => {
             let newNode = document.createElement("div")
             newNode.setAttribute("class", NATIVE_CLIPPING_CLASS)
-            let path = `url(#${getStringIdFromClippingId(id_chain).replace("\"", "")})`;
+            let path = `url(#${getStringIdFromClippingId(CLIP_PREFIX, id_chain)})`;
             newNode.style.clipPath = path;///"url(#hello-clip)";
 
             newNode.appendChild(runningChain)
             runningChain = newNode
         });        
+
+
+        let transformNode = document.createElement("div");
+        transformNode.setAttribute("class", NATIVE_TRANSFORM_CLASS);
+        transformNode.appendChild(runningChain);
+        runningChain = transformNode;
+        
 
         let rootNode = document.createElement("div");
         rootNode.setAttribute("class", NATIVE_ROOT_CLASS);
@@ -151,8 +184,10 @@ class NativeElementPool {
 
         let leaf_selector = "." + NATIVE_LEAF_CLASS;
         let transform_selector = "." + NATIVE_TRANSFORM_CLASS;
-        let clipping_selector = "." + NATIVE_CLIPPING_CLASS;
+        let clip_selector = "." + NATIVE_CLIPPING_CLASS;
+        
         let leaf = root.matches(leaf_selector) ? root : root.querySelector(leaf_selector);
+        let clip = root.matches(clip_selector) ? root : root.querySelector(clip_selector);
         let transform = root.matches(transform_selector) ? root : root.querySelector(transform_selector);
         
         //Note: applied to ROOT
@@ -162,8 +197,6 @@ class NativeElementPool {
         if (patch.size_y != null) {
             root.style.height = patch.size_y + "px";
         }
-        
-        //Note: applied to TRANSFORM
         if (patch.transform != null) {
             transform.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
@@ -186,37 +219,53 @@ class NativeElementPool {
 
     frameCreate(patch: AnyCreatePatch) {
         console.assert(patch.id_chain != null);
-        let newNode = document.createElementNS(SVG_NAMESPACE, "clipPath");
-        let innerNode = document.createElementNS(SVG_NAMESPACE, "rect");
-        innerNode.setAttributeNS(null, "x", "0");
-        innerNode.setAttributeNS(null, "y", "0");
-        newNode.id = getStringIdFromClippingId(patch.id_chain);
-
-        newNode.appendChild(innerNode);
-
         console.assert(this.clippingNodes["id_chain"] === undefined);
-        // @ts-ignore
-        this.clippingNodes[patch.id_chain] = newNode;
 
-        let clippingLayer = document.querySelector("#" + CLIPPING_LAYER_ID);
-        clippingLayer?.appendChild(newNode);
+        //  `svg-container`
+        //    `svg_9_9` transform (CSS matrix3d, not SVG transform)
+        //        `clip_9_9` clipPath container
+        //            `rect` or `path`, actual clipping area
+
+        let newSvgHost = document.createElementNS(SVG_NAMESPACE, "svg");
+        newSvgHost.id = getStringIdFromClippingId(SVG_PREFIX, patch.id_chain);
+
+        let newClipPath = document.createElementNS(SVG_NAMESPACE, "clipPath");
+        newClipPath.id = getStringIdFromClippingId(CLIP_PREFIX,patch.id_chain);
+
+        let newRawPath = document.createElementNS(SVG_NAMESPACE, "rect");
+        newRawPath.setAttributeNS(null, "x", "40");
+        newRawPath.setAttributeNS(null, "y", "0");
+
+
+        // @ts-ignore
+        this.clippingNodes[patch.id_chain] = newSvgHost;
+
+        let clippingContainer = document.querySelector("#" + CLIPPING_CONTAINER_ID);
+
+        newClipPath.appendChild(newRawPath);
+        newSvgHost.appendChild(newClipPath)
+        clippingContainer?.appendChild(newSvgHost);
     }
 
     frameUpdate(patch: FrameUpdatePatch) {
         //@ts-ignore
-        let existingNode = this.clippingNodes[patch.id_chain].firstChild;
-        console.assert(existingNode !== undefined);
+        let svgHost = this.clippingNodes[patch.id_chain];
+        console.assert(svgHost !== undefined);
+
+        let rawPath = svgHost.querySelector('rect'); //TODO: support `path`, etc. here.
 
         if (patch.size_x != null) {
-            existingNode.setAttributeNS(null, "width", patch.size_x);
+            rawPath.setAttributeNS(null, "width", patch.size_x);
         }
         if (patch.size_y != null) {
-            existingNode.setAttributeNS(null, "height", patch.size_y);
+            rawPath.setAttributeNS(null, "height", patch.size_y);
         }
         if (patch.transform != null) {
             // existingNode.setAttributeNS(null, "x", patch.transform[4]);
             // existingNode.setAttributeNS(null, "y", patch.transform[5]);
-            existingNode.setAttributeNS(null, "transform", packAffineCoeffsIntoMatrix2DString(patch.transform));
+            svgHost.style.width = patch.size_x + "px";
+            svgHost.style.height = patch.size_y + "px";
+            // svgHost.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
             // existingNode.x = patch.transform[5];
             // existingNode.style.y = patch.transform[6];
             // existingNode.style.transform = packAffineCoeffsIntoMatrix2DString(patch.transform);

@@ -64,13 +64,13 @@ impl PaxChassisWeb {
             .dyn_into::<HtmlCanvasElement>()
             .unwrap();
         //
-        let clipping_layer = window
-            .document()
-            .unwrap()
-            .get_element_by_id("clipping-layer")
-            .unwrap()
-            .dyn_into::<SvgElement>()
-            .unwrap();
+        // let clipping_layer = window
+        //     .document()
+        //     .unwrap()
+        //     .get_element_by_id("clipping-container")
+        //     .unwrap()
+        //     .dyn_into::<SvgElement>()
+        //     .unwrap();
 
         let context : web_sys::CanvasRenderingContext2d = canvas
             .get_context("2d")
