@@ -173,7 +173,7 @@ _RIL means Rust Intermediate Language, which is the
 [ ] native rendering ++
     [x] message design/arch
     [ ] revisit macos loop timer?  (keep timestamps, target exact FPS, able to know when frames are dropped)
-    [ ] runtime de/serialization
+    [x] runtime de/serialization
         [x] Data across FFI
             [x] explore raw C structs (decided: brittle)
             [x] Logging, strings, message-passing
@@ -187,22 +187,26 @@ _RIL means Rust Intermediate Language, which is the
     [ ] text support
         [x] handle_post_mount and handle_pre_unmount
         [x] trigger mount/unmount lifecycle events in engine, `Conditional`, `Repeat`
-        [ ] hook up Text primitive
+        [ ] hook up Text primitive + API
             [x] macOS
-            [ ] web -- reattach with updated messaging model
+            [x] web -- reattach with updated messaging model
             [ ] basic API pass: content, color, font, textSize
         [x] handle dirty-checking for `Patch` event population
     [ ] native clipping support
         [x] rectilinear-affine frames
         [x] support macOS
         [ ] support Web
-            - div with overflow: hidden
-            - position div correctly; might require decomposing affine transforms or remultiplying by some inverse component
     [ ] click support
         [ ] simple 2D ray-casting
+            [ ] Handle clipped content? (i.e. check within accumulated clip bounds as well as object bounds)
+        [ ] handle clicks on native elements (at least, global coords)
         [ ] inbound event arg-wrapping and dispatch
         [ ] sketch out bubbling/canceling, hierarchy needs
         [ ] click/jab polyfill
+    [ ] PoC scrolling
+        [ ] native scrolling container, passes scroll events / position to engine
+        [ ] bounds for scrolling container passed to chassis by engine
+        [ ] attach native content inside native scroll container
 [ ] dev env ++
     [ ] support stand-alone .pax files (no rust file); .html use-case
         [ ] dep. management -- augment prelude with static dep. list?

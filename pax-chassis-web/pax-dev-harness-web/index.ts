@@ -2,6 +2,7 @@
 // const rust = import('./dist/pax_chassis_web');
 import {PaxChassisWeb} from './dist/pax_chassis_web';
 
+const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_ID = "native-overlay";
 const CANVAS_ID = "canvas";
 const CLIPPING_LAYER_ID = "clipping-layer";
@@ -30,7 +31,7 @@ const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
 //This ID mechanism will also likely knock out most of the work for DOM element pooling/recycling
 
 function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
-    let mount = document.querySelector("#mount"); // TODO: make more general; see approach used by Vue & React
+    let mount = document.querySelector("#" + MOUNT_ID); // TODO: make more general; see approach used by Vue & React
 
     //Create layer for native (DOM) rendering
     let nativeLayer = document.createElement("div");
@@ -45,31 +46,7 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     //Note that width and height are set by the chassis each frame.
     let clippingLayer = document.createElementNS(SVG_NAMESPACE, "svg");
     clippingLayer.id = CLIPPING_LAYER_ID;
-
-    let helloClip = document.createElementNS(SVG_NAMESPACE,"clipPath");
-    // helloClip.setAttributeNS(SVG_NAMESPACE, "clipPathUnits", "objectBoundingBox");
-
-    helloClip.id = "hello-clip";
-
-    //<circle cx="100" cy="100" r="40"/> 
-    let helloClipContents = document.createElementNS(SVG_NAMESPACE,"circle");
-    helloClipContents.setAttributeNS(null,"cx", "0");
-    helloClipContents.setAttributeNS(null,"cy", "0");
-    helloClipContents.setAttributeNS(null,"r", "500");
-
-
-    // let helloContents = document.createElementNS(SVG_NAMESPACE,"circle");
-    // helloContents.setAttributeNS(null,"cx", "200");
-    // helloContents.setAttributeNS(null,"cy", "200");
-    // helloContents.setAttributeNS(null,"r", "500");
-    // helloContents.setAttributeNS(null,"fill", "red");
-    // helloContents.setAttributeNS(null,"color", "red");
-    // helloContents.setAttributeNS(null,"stroke", "red");
-
-    helloClip.appendChild(helloClipContents);
-    clippingLayer.appendChild(helloClip);
-    // clippingLayer.appendChild(helloContents);
-
+    
     //Attach layers to mount
     //FIRST-APPLIED IS LOWEST
 
@@ -97,6 +74,22 @@ function renderLoop (chassis: PaxChassisWeb) {
 
      // @ts-ignore
      processMessages(messages);
+
+//      document.querySelectorAll('.native-clipping').forEach((node : any)=>{ 
+//          let r = node.style.clipPath + "";
+//          node.style.clipPath = "";
+//          node.offsetWidth;
+//          node.style.clipPath = r; 
+
+//     })
+
+//     document.querySelectorAll('rect').forEach((node : any)=>{ 
+//         let r = node.getAttribute("transform");
+//         node.setAttributeNS(null, "transform", "");
+//         node.offsetWidth;
+//         node.setAttributeNS(null, "transform", r);
+
+//    })
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
      
 }
@@ -111,36 +104,10 @@ class NativeElementPool {
         console.assert(patch.id_chain != null);
         console.assert(patch.clipping_ids != null);
 
-        // Native elements + clipping:
-        // Consider a native element `N` underneath two clipping elements `A` and `B` and a transform container `T`
-        //
-        //  T (root)
-        //  |
-        //  A
-        //  |
-        //  B
-        //  | 
-        //  N
-        //
-        // We must create a chain of nodes representing the clipping hierarchy, where our actual
-        // native element is the leaf (terminus) of that chain (N)
-        // The root (beginning, T) of the chain will have the dynamic transform and size _of the native element_ applied to it
-        // Each nested node will simply fill its container 100%, with no additional dynamic transform
-        // Any "native operations", e.g. updating text content, happen to the terminus/leaf node (N)
-        //
-        // T must exist separately from `A` because if clipping element `A` is both a `clipPath` and a `transform` node, it applies the clip-path
-        // pre-transform (and then transforms the element as if the transform occurred at the origin), which is not the expected behavior.
-        //
-        // Clip paths are assigned by CSS selector only (no lookup into `clippingNodes`).  Clipping ID is strictly
-        // derivable from a clipping `id_chain`
-
-        //Perhaps the transform element has to be inside the clipping masks...
-        //Perhaps the clipping containers are all full-width & -height (or overflow visible), and the transform node is INSIDE the 
-
-//0. `.native-root` root: assign width & height, "root div {}" CSS
-//1. `.native-clipping` apply clipping masks, BEFORE TRANSFORM (at the origin still)
-//2. `.native-transform` apply transform node: apply transform (transforms mask & element together)
-//3. `.native-leaf` apply native node, rendering content
+        //0. `.native-root` root: assign width & height, "root div {}" CSS
+        //1. `.native-clipping` apply clipping masks, BEFORE TRANSFORM (at the origin still)
+        //2. `.native-transform` apply transform node: apply transform (transforms mask & element together)
+        //3. `.native-leaf` apply native node, rendering content
 
         let runningChain = document.createElement("div")
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
