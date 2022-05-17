@@ -289,11 +289,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //get the size of this node (calc'd or otherwise) and use
         //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
         //and for this node itself (e.g. for specifying the size of a Rectangle node)
-        let new_accumulated_bounds = node.borrow_mut().get_size_calc(accumulated_bounds);
+        let new_accumulated_bounds = node.borrow_mut().compute_size_within_bounds(accumulated_bounds);
 
         let node_computed_transform = {
             let mut node_borrowed = rtc.node.borrow_mut();
-            let node_size = node_borrowed.get_size_calc(accumulated_bounds);
+            let node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
             let components = node_borrowed.get_transform().borrow_mut().get()
             .compute_transform_matrix(
                 node_size,

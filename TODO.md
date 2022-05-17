@@ -2482,4 +2482,11 @@ store this modified tree.  Update the `Group`s transform (with an imperative `se
 The native layer will handle its own positioning of native elements within the scroller
 
 On native side:
- - attach a ScrollView and content view; attach native 
+ - attach a ScrollView and content view; attach native
+
+It would be particularly nice to calculate the
+`InnerPane`s size automatically.  This could be tracked
+by engine during traversal, alongside how it currently tracks
+`accumulated_bounds` for layout calculation.  That is:
+a render
+

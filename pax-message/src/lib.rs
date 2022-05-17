@@ -12,14 +12,16 @@ use serde::{Serialize};
 
 #[derive(Serialize)]
 pub enum NativeMessage {
-    TextCreate(AnyCreatePatch), //node instance ID, "id_chain"
+    TextCreate(AnyCreatePatch),
     TextUpdate(TextPatch),
-    TextDelete(Vec<u64>),
+    TextDelete(Vec<u64>), //node instance ID, "id_chain"
     FrameCreate(AnyCreatePatch),
     FrameUpdate(FramePatch),
     FrameDelete(Vec<u64>),
+    ScrollerCreate(AnyCreatePatch),
+    ScrollerUpdate(ScrollerPatch),
+    ScrollerDelete(Vec<u64>),
     //TODO: form controls
-    //TODO: scroll containers
 
     // TODO: perhaps handle input events in a separate struct, to minimize
     //       de/serialization boilerplate (which affects footprint)
@@ -60,6 +62,16 @@ pub struct FramePatch {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct TextPatch {
+    pub id_chain: Vec<u64>,
+    pub content: Option<String>, //See `TextContentMessage` for a sketched-out approach to rich text
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+}
+
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct ScrollerPatch {
     pub id_chain: Vec<u64>,
     pub content: Option<String>, //See `TextContentMessage` for a sketched-out approach to rich text
     pub transform: Option<Vec<f64>>,

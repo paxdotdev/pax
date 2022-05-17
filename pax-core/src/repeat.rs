@@ -134,7 +134,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         Rc::clone(&self.virtual_children)
     }
     fn get_size(&self) -> Option<Size2D> { None }
-    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
+    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
 }

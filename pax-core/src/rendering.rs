@@ -18,12 +18,10 @@ use pax_runtime_api::{PropertyInstance, PropertyLiteral};
 pub type RenderNodePtr<R> = Rc<RefCell<dyn RenderNode<R>>>;
 pub type RenderNodePtrList<R> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
 
-
-
-pub struct PrimitiveArgs {
-
+pub struct ScrollerArgs {
+    pub size_inner_pane: [Box<dyn PropertyInstance<Size>>;2],
+    pub axes_enabled: [Box<dyn PropertyInstance<bool>>;2],
 }
-
 
 pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub properties: PropertiesCoproduct,
@@ -34,7 +32,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub children: Option<RenderNodePtrList<R>>,
     pub component_template: Option<RenderNodePtrList<R>>,
 
-    pub frame_scroll_axes_enabled: Option<[Box<dyn PropertyInstance<bool>>;2]>,
+    pub scroller_args: Option<ScrollerArgs>,
 
     /// used by Slot
     pub slot_index: Option<Box<dyn PropertyInstance<usize>>>,
@@ -99,22 +97,13 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// doesn't have a size (e.g. `Group`)
     fn get_size(&self) -> Option<Size2D>;
 
+    /// Returns unique integer ID of this RenderNode instance.  Note that
+    /// individual rendered elements may share an instance_id, for example
+    /// inside of `Repeat`.  See also `RenderTreeContext::get_id_chain`, which enables globally
+    /// unique node addressing in the context of an in-progress render tree traversal.
     fn get_instance_id(&self) -> u64;
 
-    /// TODO:  do we want to track timelines at the RenderNode level
-    ///        or at the StackFrame level?
-    ///
-    ///        for example, when evaluating compute_in_place for a ProeprtyValueTimeline,
-    ///        does the rtc.timeline_playhead_position get populated by
-    ///        recursing through RenderNodes, or by traversing StackFrames?
-    ///
-    ///        instinctively, the latter — most RenderNodes don't mess with timelines,
-    ///        and currently `having a timeline` == `having a stackframe`
-
-    /// Returns a Timeline if this render node specifies one,
-    // fn get_timeline(&self) -> Option<Timeline> {None}
-
-    /// Rarely needed:  Used for exotic tree traversals, e.g. for `Spread` > `Repeat` > `Rectangle`
+    /// Used for exotic tree traversals, e.g. for `Spread` > `Repeat` > `Rectangle`
     /// where the repeated `Rectangle`s need to be be considered direct children of `Spread`.
     /// `Repeat` overrides `should_flatten` to return true, which `Engine` interprets to mean "ignore this
     /// node and consume its children" during traversal.
@@ -130,7 +119,7 @@ pub trait RenderNode<R: 'static + RenderContext>
 
     /// Returns the size of this node in pixels, requiring
     /// parent bounds for calculation of `Percent` values
-    fn get_size_calc(&self, bounds: (f64, f64)) -> (f64, f64) {
+    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         match self.get_size() {
             None => bounds,
             Some(size_raw) => {
@@ -215,12 +204,6 @@ pub trait RenderNode<R: 'static + RenderContext>
     fn handle_pre_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
-    // Rather than distribute the logic for is_mounted (which is largely duplicative), we can centralize it with a ledger (Set<instance_id>) in the engine
-    // /// reports whether this rendernode has been attached to the render tree through the end of at least one frame
-    // fn is_mounted(&self) -> bool;
-    //
-    // /// sets internal flag for whether node is mounted -- will cause future `is_mounted` calls to return `true`
-    // fn mark_mounted(&mut self);
 
 }
 

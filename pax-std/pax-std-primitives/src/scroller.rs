@@ -12,17 +12,11 @@ use pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, PropertyLiteral, Size2D};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 
-/// A primitive that gathers children underneath a single render node with a shared base transform,
-/// like [`Group`], except [`Scroller`] has the option of clipping rendering outside
-/// of its bounds.
-///
-/// If clipping or the option of clipping is not required,
-/// a [`Group`] will generally be a more performant and otherwise-equivalent
-/// to [`Scroller`], since `[Scroller]` creates a clipping mask.
+/// Similar to `Frame`, but includes an additional
 pub struct ScrollerInstance<R: RenderContext> {
     pub instance_id: u64,
     pub children: RenderNodePtrList<R>,
-    pub size_content: Size2D,
+    pub size_inner_pane: Size2D,
     pub size_frame: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub scrollX: Box<dyn PropertyInstance<bool>>,
@@ -42,9 +36,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         //      children (here, in Inst.Args) to that `Group`.  Finally, `set` the `transform` of that Group to
         //      update the `translation` mandated by scroll events.
 
-        let mut scroll_args = args.frame_scroll_axes_enabled.unwrap();
-        let scrollX = std::mem::replace(&mut scroll_args[0], Box::new(PropertyLiteral::new(false)));
-        let scrollY = std::mem::replace(&mut scroll_args[1], Box::new(PropertyLiteral::new(false)));
+        let mut scroller_args = args.scroller_args.unwrap(); // Scroller args required
+        let mut inner_pane_size = scroller_args.size_inner_pane;
+        let mut axes_enabled = scroller_args.axes_enabled;
+        let scrollX = std::mem::replace(&mut axes_enabled[0], Box::new(PropertyLiteral::new(false)));
+        let scrollY = std::mem::replace(&mut axes_enabled[1], Box::new(PropertyLiteral::new(false)));
 
         let mut instance_registry = args.instance_registry.borrow_mut();
         let instance_id = instance_registry.mint_id();
@@ -52,7 +48,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             Self {
                 instance_id,
                 children: args.children.expect("Scroller expects primitive_children, even if empty Vec"),
-                size_content: Rc::new(RefCell::new(args.size.expect("Scroller requires size_content"))),
+                size_inner_pane: Rc::new(RefCell::new(inner_pane_size)),
                 size_frame: Rc::new(RefCell::new(args.size.expect("Scroller requires size_frame"))),
                 transform: args.transform,
                 scrollX,
@@ -136,13 +132,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     }
 
     fn get_size(&self) -> Option<Size2D> {
-        Some(Rc::clone(&self.size))
+        Some(Rc::clone(&self.size_frame))
     }
 
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut size = &mut *self.size.as_ref().borrow_mut();
+        let mut size = &mut *self.size_frame.as_ref().borrow_mut();
 
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
