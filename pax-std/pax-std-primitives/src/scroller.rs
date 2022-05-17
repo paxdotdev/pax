@@ -10,39 +10,53 @@ use piet::RenderContext;
 use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
 use pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, PropertyLiteral, Size2D};
-use pax_message::{AnyCreatePatch, FramePatch};
+use pax_message::{AnyCreatePatch, ScrollerPatch};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
-/// like [`Group`], except [`Frame`] has the option of clipping rendering outside
+/// like [`Group`], except [`Scroller`] has the option of clipping rendering outside
 /// of its bounds.
 ///
 /// If clipping or the option of clipping is not required,
 /// a [`Group`] will generally be a more performant and otherwise-equivalent
-/// to [`Frame`], since `[Frame]` creates a clipping mask.
-pub struct FrameInstance<R: RenderContext> {
+/// to [`Scroller`], since `[Scroller]` creates a clipping mask.
+pub struct ScrollerInstance<R: RenderContext> {
     pub instance_id: u64,
     pub children: RenderNodePtrList<R>,
-    pub size: Size2D,
+    pub size_content: Size2D,
+    pub size_frame: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub scrollX: Box<dyn PropertyInstance<bool>>,
+    pub scrollY: Box<dyn PropertyInstance<bool>>,
 
-    last_patches: HashMap<Vec<u64>, FramePatch>,
+    last_patches: HashMap<Vec<u64>, ScrollerPatch>,
 }
 
-impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
+impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }
-    
+
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+
+        //TODO: instantiate a `Group`, store it as a private field on the instance struct; attach the provided
+        //      children (here, in Inst.Args) to that `Group`.  Finally, `set` the `transform` of that Group to
+        //      update the `translation` mandated by scroll events.
+
+        let mut scroll_args = args.frame_scroll_axes_enabled.unwrap();
+        let scrollX = std::mem::replace(&mut scroll_args[0], Box::new(PropertyLiteral::new(false)));
+        let scrollY = std::mem::replace(&mut scroll_args[1], Box::new(PropertyLiteral::new(false)));
 
         let mut instance_registry = args.instance_registry.borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(
             Self {
                 instance_id,
-                children: args.children.expect("Frame expects primitive_children, even if empty Vec"),
-                size: Rc::new(RefCell::new(args.size.expect("Frame requires size"))),
+                children: args.children.expect("Scroller expects primitive_children, even if empty Vec"),
+                size_content: Rc::new(RefCell::new(args.size.expect("Scroller requires size_content"))),
+                size_frame: Rc::new(RefCell::new(args.size.expect("Scroller requires size_frame"))),
                 transform: args.transform,
+                scrollX,
+                scrollY,
                 last_patches: HashMap::new(),
             }
         ));
@@ -53,10 +67,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
 
     fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
 
-        let mut new_message : FramePatch = Default::default();
+        let mut new_message : ScrollerPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
         if ! self.last_patches.contains_key(&new_message.id_chain) {
-            let mut patch = FramePatch::default();
+            let mut patch = ScrollerPatch::default();
             patch.id_chain = new_message.id_chain.clone();
             self.last_patches.insert(new_message.id_chain.clone(),patch);
         }
@@ -112,7 +126,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
 
         if has_any_updates {
             (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-                pax_message::NativeMessage::FrameUpdate(new_message)
+                pax_message::NativeMessage::ScrollerUpdate(new_message)
             );
         }
     }
@@ -150,7 +164,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         // construct a BezPath of this frame's bounds * its transform,
         // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
-        //TODO:  if clipping is TURNED OFF for this Frame, don't do any of this
+        //TODO:  if clipping is TURNED OFF for this Scroller, don't do any of this
 
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounds;
@@ -187,7 +201,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         let clipping_ids = rtc.runtime.borrow().get_current_clipping_ids();
 
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
+            pax_message::NativeMessage::ScrollerCreate(AnyCreatePatch {
                 id_chain: id_chain.clone(),
                 clipping_ids,
             })
@@ -197,19 +211,19 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
 
     fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
 
-        // The following, sending a `FrameDelete` message, was unplugged in desperation on May 11 2022
-        // There was a bug wherein a flood of `FrameDelete` messages was getting
+        // The following, sending a `ScrollerDelete` message, was unplugged in desperation on May 11 2022
+        // There was a bug wherein a flood of `ScrollerDelete` messages was getting
         // sent across the native bridge, causing debugging & performance concerns.
         // After investigating, zb's best hypothesis was that the flood of `Deletes`
         // was being triggered by the less-than-ideal hard-coded `Repeat` logic (for preparing its data list)
         // which destroys its list each tick when calculating an expression for its datalist.
         // In short: it's expected that expression lazy-evaluation will fix this "bug", and hopefully
-        // by the time we actually need `Frame` removal from native (maybe never!  might just cause some memory bloat)
-        // then we can freely send FrameDelete messages without headaches.
+        // by the time we actually need `Scroller` removal from native (maybe never!  might just cause some memory bloat)
+        // then we can freely send ScrollerDelete messages without headaches.
         //
         // let id_chain = rtc.get_id_chain(self.instance_id);
         // (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-        //     pax_message::NativeMessage::FrameDelete(id_chain)
+        //     pax_message::NativeMessage::ScrollerDelete(id_chain)
         // );
 
 

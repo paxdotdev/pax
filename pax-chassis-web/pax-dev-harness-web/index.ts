@@ -49,7 +49,6 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     mount?.appendChild(clippingContainer);
     mount?.appendChild(canvas);
     mount?.appendChild(nativeLayer);
-    
 
     let chassis = wasmMod.PaxChassisWeb.new();
 
@@ -70,34 +69,7 @@ function renderLoop (chassis: PaxChassisWeb) {
 
      // @ts-ignore
      processMessages(messages);
-
-    //  document.querySelectorAll('.native-clipping').forEach((node : any)=>{ 
-    //     //  let r = node.style.clipPath + "";
-    //     //  node.style.clipPath = "";
-    //     //  node.offsetWidth;
-    //     //  node.style.clipPath = r; 
-    //     let y = node.offsetWidth
-    //     let x = node.getBoundingClientRect();
-    //     if(Math.random() < .01)
-    //         console.log(x)
-    // })
-
-//     document.querySelectorAll('rect').forEach((node : any)=>{ 
-//         let r = node.getAttribute("transform");
-//         node.setAttributeNS(null, "transform", "");
-//         node.offsetWidth;
-//         node.setAttributeNS(null, "transform", r);
-
-//    })
-
-// document.querySelectorAll('path').forEach((node : any)=>{ 
-//     let r = node.getAttribute("d");
-//     node.setAttributeNS(null, "d", "");
-//     node.offsetWidth;
-//     node.setAttributeNS(null, "d", r);
-// })
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
-     
 }
 
     

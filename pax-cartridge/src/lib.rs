@@ -20,6 +20,7 @@ use pax_example::pax_types::pax_std::components::Spread;
 use pax_std_primitives::{RectangleInstance, GroupInstance, FrameInstance, TextInstance};
 
 
+
 const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves
 Did gyre and gimble in the wabe:
 All mimsy were the borogoves,
@@ -282,7 +283,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                             }
                         ))),
                         instance_registry: Rc::clone(&instance_registry),
-                        transform: Transform2D::default_wrapped(),
+                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::rotate(0.0)))),
                         size: Some([Box::new(PropertyLiteral::new(Size::Percent(100.0))), Box::new(PropertyLiteral::new(Size::Percent(100.0)))]),
                         children: Some(Rc::new(RefCell::new(vec![
                             GroupInstance::instantiate(InstantiationArgs {
@@ -302,6 +303,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                         children: None,
                                         component_template: None,
+                                        frame_scroll_axes_enabled: None,
                                         slot_index: None,
                                         repeat_data_list: None,
                                         conditional_boolean_expression: None,
@@ -321,6 +323,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                         children: None,
                                         component_template: None,
+                                        frame_scroll_axes_enabled: None,
                                         slot_index: None,
                                         repeat_data_list: None,
                                         conditional_boolean_expression: None,
@@ -328,6 +331,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                     }),
                                 ]))),
                                 component_template: None,
+                                frame_scroll_axes_enabled: None,
                                 slot_index: None,
                                 repeat_data_list: None,
                                 conditional_boolean_expression: None,
@@ -357,6 +361,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                 size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                                 children: None,
                                                 component_template: None,
+                                                frame_scroll_axes_enabled: None,
                                                 slot_index: None,
                                                 repeat_data_list: None,
                                                 conditional_boolean_expression: None,
@@ -376,6 +381,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                 size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                                 children: None,
                                                 component_template: None,
+                                                frame_scroll_axes_enabled: None,
                                                 slot_index: None,
                                                 repeat_data_list: None,
                                                 conditional_boolean_expression: None,
@@ -383,6 +389,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                             }),
                                         ]))),
                                         component_template: None,
+                                        frame_scroll_axes_enabled: None,
                                         slot_index: None,
                                         repeat_data_list: None,
                                         conditional_boolean_expression: None,
@@ -390,6 +397,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                     })
                                 ]))),
                                 component_template: None,
+                                frame_scroll_axes_enabled: None,
                                 slot_index: None,
                                 repeat_data_list: Some(Box::new(PropertyLiteral::new((0..8).into_iter().map(|i|{
                                     Rc::new(PropertiesCoproduct::isize(i))
@@ -414,6 +422,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                         children: None,
                                         component_template: None,
+                                        frame_scroll_axes_enabled: None,
                                         slot_index: None,
                                         repeat_data_list: None,
                                         conditional_boolean_expression: None,
@@ -433,6 +442,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                         children: None,
                                         component_template: None,
+                                        frame_scroll_axes_enabled: None,
                                         slot_index: None,
                                         repeat_data_list: None,
                                         conditional_boolean_expression: None,
@@ -440,6 +450,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                     }),
                                 ]))),
                                 component_template: None,
+                                frame_scroll_axes_enabled: None,
                                 slot_index: None,
                                 repeat_data_list: None,
                                 conditional_boolean_expression: None,
@@ -474,6 +485,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                     size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
                                                     children: None,
                                                     component_template: None,
+                                                    frame_scroll_axes_enabled: None,
                                                     slot_index: Some(Box::new(PropertyExpression::new("j".to_string()))),
                                                     repeat_data_list: None,
                                                     conditional_boolean_expression: None,
@@ -481,6 +493,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                 }),
                                             ]))),
                                             component_template: None,
+                                            frame_scroll_axes_enabled: Some([Box::new(PropertyLiteral::new(true)),Box::new(PropertyLiteral::new(true))]),
                                             slot_index: None,
                                             repeat_data_list: None,
                                             conditional_boolean_expression: None,
@@ -491,9 +504,11 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                     repeat_data_list: Some(Box::new(PropertyExpression::new("f".to_string()))),
                                     conditional_boolean_expression: None,
                                     compute_properties_fn: None,
+                                    frame_scroll_axes_enabled: None
                                 }),
                             ]
                         ))),
+                        frame_scroll_axes_enabled: None,
                         slot_index: None,
                         repeat_data_list: None,
                         conditional_boolean_expression: None,
@@ -535,6 +550,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                 //End Spread
 
             ]))),
+            frame_scroll_axes_enabled: None,
             slot_index: None,
             repeat_data_list: None,
             conditional_boolean_expression: None,

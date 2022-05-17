@@ -31,7 +31,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
         self.instance_id
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let properties = if let PropertiesCoproduct::Text(p) = args.properties { p } else {unreachable!("Wrong properties type")};
 
         let mut instance_registry = (*args.instance_registry).borrow_mut();

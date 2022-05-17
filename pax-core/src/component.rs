@@ -69,7 +69,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         (*rtc.runtime).borrow_mut().pop_stack_frame();
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
+    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
 

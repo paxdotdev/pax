@@ -2,15 +2,14 @@
 
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
-use web_sys::{window, SvgElement, HtmlCanvasElement};
+use web_sys::{window, HtmlCanvasElement};
 use std::rc::Rc;
 use std::cell::RefCell;
 
 use piet_web::WebRenderContext;
-use serde::Serialize;
 
 use pax_core::{InstanceRegistry, PaxEngine};
-use pax_message::NativeMessage;
+
 
 use serde_json;
 
@@ -63,14 +62,6 @@ impl PaxChassisWeb {
             .unwrap()
             .dyn_into::<HtmlCanvasElement>()
             .unwrap();
-        //
-        // let clipping_layer = window
-        //     .document()
-        //     .unwrap()
-        //     .get_element_by_id("clipping-container")
-        //     .unwrap()
-        //     .dyn_into::<SvgElement>()
-        //     .unwrap();
 
         let context : web_sys::CanvasRenderingContext2d = canvas
             .get_context("2d")
@@ -85,10 +76,6 @@ impl PaxChassisWeb {
 
         canvas.set_width(width as u32);
         canvas.set_height(height as u32);
-        //
-        // clipping_layer.set_attribute("width", &format!("{}", width / dpr));
-        // clipping_layer.set_attribute("height", &format!("{}", height / dpr));
-        // clipping_layer.set_attribute("viewBox", &format!("0 0 {} {}", width / dpr, height / dpr));
 
         let _ = context.scale(dpr, dpr);
 
@@ -117,9 +104,6 @@ impl PaxChassisWeb {
                 //handle window resize
                 let _ = canvas.set_attribute("width", format!("{}",width).as_str());
                 let _ = canvas.set_attribute("height", format!("{}",height).as_str());
-                //
-                // let _ = clipping_layer.set_attribute("width", format!("{}",width).as_str());
-                // let _ = clipping_layer.set_attribute("height", format!("{}",height).as_str());
 
                 engine.set_viewport_size((width, height));
             }) as Box<dyn FnMut(_)>);

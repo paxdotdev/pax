@@ -20,6 +20,11 @@ pub type RenderNodePtrList<R> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
 
 
 
+pub struct PrimitiveArgs {
+
+}
+
+
 pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
@@ -29,8 +34,9 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub children: Option<RenderNodePtrList<R>>,
     pub component_template: Option<RenderNodePtrList<R>>,
 
+    pub frame_scroll_axes_enabled: Option<[Box<dyn PropertyInstance<bool>>;2]>,
 
-    //used by Slot
+    /// used by Slot
     pub slot_index: Option<Box<dyn PropertyInstance<usize>>>,
 
     ///used by Repeat

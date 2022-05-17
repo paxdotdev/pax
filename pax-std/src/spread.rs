@@ -81,7 +81,7 @@ impl Spread {
 //
 // impl RenderNode for SpreadInstance {
 
-// pub fn instantiate(args: InstantiationArgs) -> Self {
+// pub fn instantiate(mut args: InstantiationArgs) -> Self {
 //     //Component must be accessible so that we can unwrap its properties
 //     //Template is a "higher template" that belongs to Spread, not Component —
 //     //  this is the root of Spread's own rendering, and is what should be returned
@@ -164,7 +164,7 @@ impl Spread {
 //         Rc::clone(&self.inner_component)
 //     }
 //
-//     fn instantiate(args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
+//     fn instantiate(mut args: InstantiationArgs) -> Rc<RefCell<Self>> where Self: Sized {
 //         todo!()
 //     }
 //

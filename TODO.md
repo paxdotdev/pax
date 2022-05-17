@@ -192,13 +192,13 @@ _RIL means Rust Intermediate Language, which is the
             [x] web -- reattach with updated messaging model
             [ ] basic API pass: content, color, font, textSize
         [x] handle dirty-checking for `Patch` event population
-    [ ] native clipping support
+    [x] native clipping support
         [x] rectilinear-affine frames
         [x] support macOS
-        [ ] support Web
+        [x] support Web
     [ ] click support
         [ ] simple 2D ray-casting
-            [ ] Handle clipped content? (i.e. check within accumulated clip bounds as well as object bounds)
+            [ ] Handle clipped content? and scrolled content? (i.e. check within accumulated clip bounds as well as object bounds)
         [ ] handle clicks on native elements (at least, global coords)
         [ ] inbound event arg-wrapping and dispatch
         [ ] sketch out bubbling/canceling, hierarchy needs
@@ -2451,3 +2451,35 @@ Some examples:
  - Background color (or transparency)
  - Title label for app cartridges (e.g. HTML title, macOS title bar)
  - Target frame rate
+
+### On scrolling
+May 16 2022
+
+Scrolling: a clipping frame, with a translatable view underneath
+Also, native elements potentially nested (including other frames or even, maybe, other scrollviews (pending exploration of behavior for nested scrolling))
+
+Is this a primitive?  Or a component?
+On macos, the atomic instantiation is 1. scrollview, plus 2. Content view —
+suggesting it isn't reasonable to separate the two.
+
+Frame
+    - size, transform
+Content
+    - transform (translate x/y)
+
+In SwiftUI, this is a View with a specified size (plus any relevant, positioned native elements like Text)
+On Web, this is a div with invisible background and fixed width/height, containing any relevant native elements like Text, inside another div with `overflow-x/y: auto/hidden;` for the frame
+
+content_size
+frame_size
+scroll_x
+scroll_y
+transform
+children
+
+When instantiated, inject a `Group` above the passed-in `children`, and
+store this modified tree.  Update the `Group`s transform (with an imperative `set`) when scroll changes are notified, by input events.  
+The native layer will handle its own positioning of native elements within the scroller
+
+On native side:
+ - attach a ScrollView and content view; attach native 
