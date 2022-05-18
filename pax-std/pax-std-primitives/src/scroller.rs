@@ -12,11 +12,18 @@ use pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, PropertyLiteral, Size2D};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 
-/// Similar to `Frame`, but includes an additional
+/// A combination of a clipping area (nearly identical to a `Frame`,) and an
+/// inner panel that can be scrolled on zero or more axes.  `Scroller` coordinates with each chassis to
+/// create native scrolling containers, which pass native scroll events back to Engine.  In turn,
+/// `Scroller` translates its children to reflect the current scroll position.
+/// When both scrolling axes are disabled, `Scroller` acts exactly like a `Frame`, with a possibly-
+/// transformed `Group` surrounding its contents.
 pub struct ScrollerInstance<R: RenderContext> {
     pub instance_id: u64,
     pub children: RenderNodePtrList<R>,
-    pub size_inner_pane: Size2D,
+    //Note that size_inner_pane must be a float value -- no percentages supported
+    //because the inner pane is independent of any container, thus must have a concrete pixel size
+    pub size_inner_pane: Rc<RefCell<[Box<dyn PropertyInstance<f64>>;2]>>,
     pub size_frame: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub scrollX: Box<dyn PropertyInstance<bool>>,
@@ -37,7 +44,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         //      update the `translation` mandated by scroll events.
 
         let mut scroller_args = args.scroller_args.unwrap(); // Scroller args required
-        let mut inner_pane_size = scroller_args.size_inner_pane;
+        let mut size_inner_pane = scroller_args.size_inner_pane;
         let mut axes_enabled = scroller_args.axes_enabled;
         let scrollX = std::mem::replace(&mut axes_enabled[0], Box::new(PropertyLiteral::new(false)));
         let scrollY = std::mem::replace(&mut axes_enabled[1], Box::new(PropertyLiteral::new(false)));
@@ -48,7 +55,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             Self {
                 instance_id,
                 children: args.children.expect("Scroller expects primitive_children, even if empty Vec"),
-                size_inner_pane: Rc::new(RefCell::new(inner_pane_size)),
+                size_inner_pane: Rc::new(RefCell::new(size_inner_pane)),
                 size_frame: Rc::new(RefCell::new(args.size.expect("Scroller requires size_frame"))),
                 transform: args.transform,
                 scrollX,
@@ -61,7 +68,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         ret
     }
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>) {
 
         let mut new_message : ScrollerPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
@@ -73,8 +80,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         let last_patch = self.last_patches.get_mut( &new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
-        let val = size_calc.0;
-        let is_new_value = match &last_patch.size_x {
+        let val = computed_size.0;
+        let is_new_value = match &last_patch.size_frame_x {
             Some(cached_value) => {
                 !val.eq(cached_value)
             },
@@ -83,13 +90,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             },
         };
         if is_new_value {
-            new_message.size_x = Some(val.clone());
-            last_patch.size_x = Some(val.clone());
+            new_message.size_frame_x = Some(val.clone());
+            last_patch.size_frame_x = Some(val.clone());
             has_any_updates = true;
         }
 
-        let val = size_calc.1;
-        let is_new_value = match &last_patch.size_y {
+        let val = computed_size.1;
+        let is_new_value = match &last_patch.size_frame_y {
             Some(cached_value) => {
                 !val.eq(cached_value)
             },
@@ -98,10 +105,41 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             },
         };
         if is_new_value {
-            new_message.size_y = Some(val.clone());
-            last_patch.size_y = Some(val.clone());
+            new_message.size_frame_y = Some(val.clone());
+            last_patch.size_frame_y = Some(val.clone());
             has_any_updates = true;
         }
+
+        let val = *(*self.size_inner_pane).borrow()[0].get();
+        let is_new_value = match &last_patch.size_frame_x {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.size_frame_x = Some(val.clone());
+            last_patch.size_frame_x = Some(val.clone());
+            has_any_updates = true;
+        }
+
+        let val = *(*self.size_inner_pane).borrow()[1].get();
+        let is_new_value = match &last_patch.size_frame_y {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.size_frame_y = Some(val.clone());
+            last_patch.size_frame_y = Some(val.clone());
+            has_any_updates = true;
+        }
+
 
         let latest_transform = transform_coeffs;
         let is_new_transform = match &last_patch.transform {

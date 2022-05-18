@@ -1,5 +1,7 @@
 #![allow(non_snake_case)] //Non-snake-case is used here to help denote foreign structs, e.g. from Swift via C
 
+extern crate core;
+
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::ffi::c_void;
@@ -11,6 +13,7 @@ use piet_coregraphics::{CoreGraphicsContext};
 
 use serde::Serialize;
 use flexbuffers;
+use flexbuffers::{Buffer, DeserializationError, Reader};
 
 use pax_core::{InstanceRegistry, PaxEngine};
 use pax_cartridge;
@@ -65,6 +68,25 @@ pub extern "C" fn pax_dealloc_engine(_container: *mut PaxEngineContainer) {
     //TODO: support deallocing the engine container, particularly for when we need to support elegant clean-up from attached harness
 }
 
+/// Send `interrupt`s from the chassis, for example: user input
+#[no_mangle]
+pub extern "C" fn pax_interrupt(buffer: *mut [u8]) {
+    let slice = unsafe { buffer.as_ref().unwrap() };
+
+    // let root = Reader::get_root(slice);
+    //
+    let x: Result<NativeInterrupt, DeserializationError> = flexbuffers::from_slice(slice);
+    let interrupt = x.unwrap();
+
+
+    match interrupt {
+        NativeInterrupt::Click(_) => {
+            pax_runtime_api::log("Got click in Rust!");
+        }
+        NativeInterrupt::Scroll(_) => {}
+    }
+}
+
 /// Perform full tick of engine, including property computation, lifecycle event handling, and rendering side-effects.
 /// Returns a message queue of native rendering actions encoded as a Flexbuffer via FFI to Swift.
 /// The returned message queue requires explicit deallocation: `pax_deallocate_message_queue`
@@ -91,7 +113,6 @@ pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext:
     let leaked_data : ManuallyDrop<Box<[u8]>> = ManuallyDrop::new(data_buffer.into_boxed_slice());
 
     let queue_container  = unsafe{ transmute(Box::new(NativeMessageQueue {
-        // msg_ptr: Box::into_raw(messages_slice) as *const NativeMessage,
         data_ptr: Box::into_raw(ManuallyDrop::into_inner(leaked_data)),
         length: length as u64,
     }))};

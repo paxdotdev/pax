@@ -19,7 +19,7 @@ pub type RenderNodePtr<R> = Rc<RefCell<dyn RenderNode<R>>>;
 pub type RenderNodePtrList<R> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
 
 pub struct ScrollerArgs {
-    pub size_inner_pane: [Box<dyn PropertyInstance<Size>>;2],
+    pub size_inner_pane: [Box<dyn PropertyInstance<f64>>;2],
     pub axes_enabled: [Box<dyn PropertyInstance<bool>>;2],
 }
 
@@ -160,7 +160,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     ///
     /// An implementor of `compute_native_patches` is responsible for determining which properties if any have changed
     /// (e.g. by keeping a local patch object as a cache of last known values.)
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>) {
         //no-op default implementation
     }
 

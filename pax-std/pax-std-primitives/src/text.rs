@@ -89,7 +89,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
 
     }
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, size_calc: (f64, f64), transform_coeffs: Vec<f64>) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>) {
 
         let mut new_message : TextPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
@@ -118,7 +118,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
             has_any_updates = true;
         }
 
-        let val = size_calc.0;
+        let val = computed_size.0;
         let is_new_value = match &last_patch.size_x {
             Some(cached_value) => {
                 !val.eq(cached_value)
@@ -133,7 +133,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
             has_any_updates = true;
         }
 
-        let val = size_calc.1;
+        let val = computed_size.1;
         let is_new_value = match &last_patch.size_y {
             Some(cached_value) => {
                 !val.eq(cached_value)

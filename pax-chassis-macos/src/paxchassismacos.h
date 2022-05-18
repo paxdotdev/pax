@@ -18,6 +18,8 @@ struct PaxEngineContainer *pax_init(void (*logger)(const char*));
 
 void pax_dealloc_engine(struct PaxEngineContainer * container);
 
+void pax_interrupt(const void * interrupt);
+
 struct NativeMessageQueue *pax_tick(struct PaxEngineContainer *bridge_container,
                                           void *cgContext,
                                           float width,

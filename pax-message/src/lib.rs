@@ -23,9 +23,13 @@ pub enum NativeMessage {
     ScrollerDelete(Vec<u64>),
     //TODO: form controls
 
-    // TODO: perhaps handle input events in a separate struct, to minimize
-    //       de/serialization boilerplate (which affects footprint)
-    // NativeEventClick(NativeArgsClick)
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub enum NativeInterrupt {
+    Click(ClickInterruptArgs),
+    Scroll(ScrollInterruptArgs),
 }
 
 
@@ -41,11 +45,21 @@ pub struct MessageQueue {
     pub messages: Vec<NativeMessage>,
 }
 
+#[derive(Deserialize)]
 #[repr(C)]
-pub struct NativeArgsClick {
+pub struct ClickInterruptArgs {
     pub x: f64,
     pub y: f64,
-    //TODO: probably native element id (in case of native element click), offset
+
+    //TODO: right/middle/left click
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct ScrollInterruptArgs {
+    pub id_chain: Vec<u64>,
+    pub delta_x: f64,
+    pub delta_y: f64,
     //TODO: right/middle/left click
 }
 
@@ -73,10 +87,13 @@ pub struct TextPatch {
 #[repr(C)]
 pub struct ScrollerPatch {
     pub id_chain: Vec<u64>,
-    pub content: Option<String>, //See `TextContentMessage` for a sketched-out approach to rich text
+    pub size_frame_x: Option<f64>,
+    pub size_frame_y: Option<f64>,
+    pub size_inner_pane_x: Option<f64>,
+    pub size_inner_pane_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
-    pub size_x: Option<f64>,
-    pub size_y: Option<f64>,
+    pub scroll_x: Option<bool>,
+    pub scroll_y: Option<bool>,
 }
 
 

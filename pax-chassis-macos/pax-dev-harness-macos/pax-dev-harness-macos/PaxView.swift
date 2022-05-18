@@ -45,7 +45,22 @@ struct PaxView: View {
             PaxCanvasViewRepresentable()
                 .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
             NativeRenderingLayer()
-        }
+        }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
+            
+            let buffer = try! FlexBufferBuilder.fromJSON(String(format: "{\"ClickInterruptArgs\": {\"x\": %d, \"y\": %d} }"))
+            
+            
+            buffer.data.withUnsafeBytes({ptr in
+                                
+                pax_interrupt(ptr.baseAddress)
+
+            })
+            
+            
+            
+            
+            print(dragGesture.location.x)
+        })
     }
 }
 
