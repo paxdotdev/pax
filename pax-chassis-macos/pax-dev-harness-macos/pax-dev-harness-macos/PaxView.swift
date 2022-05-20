@@ -182,6 +182,8 @@ class PaxCanvasView: NSView {
         let root = FlexBuffer.decode(data: Data.init(buffer: buffer))!
 
         root["messages"]?.asVector?.makeIterator().forEach( { message in
+            
+            print(message.debugDescription)
 
             let textCreateMessage = message["TextCreate"]
             if textCreateMessage != nil {

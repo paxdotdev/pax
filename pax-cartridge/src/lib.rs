@@ -222,19 +222,52 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("epsilon") };
+        } else { unreachable!("eta") };
 
         return TypesCoproduct::String(
             format!("Index: {}", i)
         );
     }));
 
+    vtable.insert("m".to_string(), Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+            let x = (*ec.engine).borrow();
+            (Rc::clone(datum), *i)
+        } else { unreachable!("theta") };
+
+        return TypesCoproduct::Color(
+            Color::rgba(0.2 * (i as f64), 0.0, 0.75, 1.0)
+        );
+    }));
+
+    vtable.insert("n".to_string(), Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+            let x = (*ec.engine).borrow();
+            (Rc::clone(datum), *i)
+        } else { unreachable!("iota") };
+
+
+        return TypesCoproduct::Transform2D(
+            Transform2D::align(Size::Percent(0.0), Size::Percent(i as f64 * 12.5))
+        );
+    }));
+
+    // {Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)}
+    vtable.insert("o".to_string(), Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+            let x = (*ec.engine).borrow();
+            (Rc::clone(datum), *i)
+        } else { unreachable!("theta") };
+
+        return TypesCoproduct::Color(
+            Color::rgba(1.0, 1.0 - (i as f64 * 0.125), i as f64 * 0.125, 1.0)
+        );
+    }));
     vtable
 }
 
 
 pub fn instantiate_component_stacker<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
-
     args.component_template = Some(Rc::new(RefCell::new(
         vec![
             RepeatInstance::instantiate(InstantiationArgs {
@@ -439,7 +472,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                                 color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
                                                                 width: Box::new(PropertyLiteral::new(0.0)),
                                                             })),
-                                                            fill: Box::new(PropertyLiteral::new(Color::rgba(0.20, 0.45, 1.0, 1.0)))
+                                                            fill: Box::new(PropertyExpression::new("m".to_string()))
                                                         }),
                                                         handler_registry: None,
                                                         instance_registry: Rc::clone(&instance_registry),
@@ -503,8 +536,8 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                 }),
                                                 handler_registry: None,
                                                 instance_registry: Rc::clone(&instance_registry),
-                                                transform: Transform2D::default_wrapped(),
-                                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                                                transform: Rc::new(RefCell::new(PropertyExpression::new("n".to_string()))),
+                                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Pixel(30.0)).into()]),
                                                 children: None,
                                                 component_template: None,
                                                 scroller_args: None,
@@ -519,7 +552,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                         color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
                                                         width: Box::new(PropertyLiteral::new(0.0)),
                                                     })),
-                                                    fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 0.45, 0.25, 1.0)))
+                                                    fill: Box::new(PropertyExpression::new("o".to_string())),
                                                 }),
                                                 handler_registry: None,
                                                 instance_registry: Rc::clone(&instance_registry),

@@ -10,15 +10,15 @@ use pax_std::{Stacker, Text, Rectangle};
         </Stacker>
 
         for i in 0..8 {
-            <Group transform={align(50%, 50%)}>
+            <Group transform={align(0%, (i * 12.5)%)}>
                 <Text>`Index: {i}`</Text>
-                <Rectangle fill=Color::rgba(100%, 0, 100%, 100%) />
+                <Rectangle fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
             </Group>
         }
 
         <Group transform={rotate(self.current_rotation)}>
             <Text>{JABBERWOCKY}</Text>
-            <Rectangle fill=Color::rgba(0, 100%, 100%, 100%) />
+            <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
         </Group>
     </Stacker>
 )]

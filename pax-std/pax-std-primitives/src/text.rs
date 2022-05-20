@@ -200,9 +200,12 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     }
 
     fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let id_chain = rtc.get_id_chain(self.instance_id);
-        (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::NativeMessage::TextDelete(id_chain)
-        );
+
+        // unplugged in desperation, search codebase for "unplugged in desperation"
+
+        // let id_chain = rtc.get_id_chain(self.instance_id);
+        // (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
+        //     pax_message::NativeMessage::TextDelete(id_chain)
+        // );
     }
 }
