@@ -1,6 +1,7 @@
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
+use std::collections::HashMap;
 use piet_common::RenderContext;
 
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
@@ -23,7 +24,7 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>,
-    pub tab_cache: Option<Rc<TabCache<R>>>,
+    pub tab_cache: TabCache<R>,
     // pub rtc: Option<RenderTreeContext<R>>,
 }
 
@@ -53,11 +54,9 @@ fn flatten_adoptees<R: 'static + RenderContext>(adoptees: RenderNodePtrList<R>) 
 impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
 
 
-    fn set_tab_cache(&mut self, cache: TabCache<R>) {
-        self.tab_cache = Some(Rc::new(cache));
-    }
-    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>> {
-        self.tab_cache.clone()
+
+    fn get_tab_cache(&mut self) -> &mut TabCache<R> {
+        &mut self.tab_cache
     }
 
     fn get_instance_id(&self) -> u64 {
@@ -101,7 +100,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
             compute_properties_fn: args.compute_properties_fn.expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
             handler_registry: args.handler_registry,
-            tab_cache: None,
+            tab_cache: TabCache::new(),
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);

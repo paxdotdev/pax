@@ -24,18 +24,16 @@ pub struct FrameInstance<R: 'static + RenderContext> {
     pub children: RenderNodePtrList<R>,
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub tab_cache: Option<Rc<TabCache<R>>>,
+    tab_cache: TabCache<R>,
 
     last_patches: HashMap<Vec<u64>, FramePatch>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
 
-    fn set_tab_cache(&mut self, cache: TabCache<R>) {
-        self.tab_cache = Some(Rc::new(cache));
-    }
-    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>> {
-        self.tab_cache.clone()
+
+    fn get_tab_cache(&mut self) -> &mut TabCache<R> {
+        &mut self.tab_cache
     }
 
     fn get_instance_id(&self) -> u64 {
@@ -53,7 +51,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
                 size: Rc::new(RefCell::new(args.size.expect("Frame requires size"))),
                 transform: args.transform,
                 last_patches: HashMap::new(),
-                tab_cache: None,
+                tab_cache: TabCache::new(),
             }
         ));
 

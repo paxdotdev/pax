@@ -2601,7 +2601,19 @@ So for us, these boil down to "fire first," (à la Capture)
 
 
 
-#### React Native
+
+### Node cache & tab cache
+
+Instead of `get_rendering_subtree_flattened`:
+
+ - during engine traversal, for each "virtual element" rendered, add to a global cache of
+   - id_chain
+   - RenderNodePtr
+   - parent RenderNodePtr
+   - (computed properties? (PropertiesCoproduct))
 
 
-#### Flutter
+ - during `interrupts`, consult this populated cache of "virtual elements", e.g. for hit-testing
+
+
+Maybe this belongs in the `instance_registry`?

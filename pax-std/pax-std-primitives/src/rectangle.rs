@@ -23,7 +23,7 @@ pub struct RectangleInstance<R: 'static + RenderContext> {
 
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub tab_cache: Option<Rc<TabCache<R>>>,
+    tab_cache: TabCache<R>,
 }
 
 
@@ -97,11 +97,9 @@ impl RectangleInstance {
 
 impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 
-    fn set_tab_cache(&mut self, cache: TabCache<R>) {
-        self.tab_cache = Some(Rc::new(cache));
-    }
-    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>> {
-        self.tab_cache.clone()
+
+    fn get_tab_cache(&mut self) -> &mut TabCache<R> {
+        &mut self.tab_cache
     }
 
     fn get_instance_id(&self) -> u64 {
@@ -123,7 +121,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
             properties: Rc::new(RefCell::new(properties)),
             size: Rc::new(RefCell::new(args.size.expect("Rectangle requires a size"))),
             handler_registry: args.handler_registry,
-            tab_cache: None,
+            tab_cache: TabCache::new(),
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);

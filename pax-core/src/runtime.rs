@@ -21,9 +21,10 @@ pub struct Runtime<R: 'static + RenderContext> {
     stack: Vec<Rc<RefCell<StackFrame<R>>>>,
 
     /// Tracks the native ids (id_chain)s of clipping instances
-    /// When a node is mounted, it may consult the clipping stack too see which clipping instances are relevant to it
-    /// This list of `id_chain`s is passed along eith ****Create, in order to associate with the appropriate clipping elements on the native side
+    /// When a node is mounted, it may consult the clipping stack to see which clipping instances are relevant to it
+    /// This list of `id_chain`s is passed along with `**Create`, in order to associate with the appropriate clipping elements on the native side
     clipping_stack: Vec<Vec<u64>>,
+    
 
     native_message_queue: VecDeque<pax_message::NativeMessage>
 }

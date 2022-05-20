@@ -49,6 +49,7 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext>
     pub bounds: (f64, f64),
     pub runtime: Rc<RefCell<Runtime<R>>>,
     pub node: RenderNodePtr<R>,
+    pub parent: Option<RenderNodePtr<R>>,
     pub timeline_playhead_position: usize,
     pub inherited_adoptees: Option<RenderNodePtrList<R>>,
 }
@@ -61,6 +62,7 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             bounds: self.bounds.clone(),
             runtime: Rc::clone(&self.runtime),
             node: Rc::clone(&self.node),
+            parent: self.parent.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
             inherited_adoptees: self.inherited_adoptees.clone(),
         }
@@ -154,9 +156,22 @@ pub struct HandlerRegistry {
     pub pre_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
 }
 
+pub struct VirtualNode<R: 'static + RenderContext> {
+    id_chain: Vec<u64>,
+    parent_virtual_node: Option<Rc<VirtualNode<R>>>,
+    instance_node: RenderNodePtr<R>,
+    tab: TransformAndBounds,
+}
+
 pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///look up RenderNodePtr by id
     instance_map: HashMap<u64, RenderNodePtr<R>>,
+
+    ///a cache of "actual elements" visited by rendertree traversal,
+    ///intended to be cleared at the beginning of each frame and populated
+    ///with each node visited.  This enables post-facto operations on nodes with
+    ///otherwise ephemeral calculations, e.g. the descendants of `Repeat` instances.
+    virtual_node_cache: HashMap<Vec<u64>, Rc<VirtualNode<R>>>,
 
     ///track which elements are currently mounted -- if id is present in set, is mounted
     mounted_set: HashSet<(u64, Vec<u64>)>,
@@ -170,6 +185,7 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         Self {
             mounted_set: HashSet::new(),
             instance_map: HashMap::new(),
+            virtual_node_cache: HashMap::new(),
             next_id: 0,
         }
     }
@@ -236,6 +252,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             bounds: self.viewport_size,
             runtime: self.runtime.clone(),
             node: Rc::clone(&cast_component_rc),
+            parent: None,
             timeline_playhead_position: self.frames_elapsed,
             inherited_adoptees: None,
         };
@@ -338,6 +355,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         children.borrow_mut().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
+            new_rtc.parent = Some(Rc::clone(&node));
             &self.recurse_traverse_render_tree(&mut new_rtc, rc, Rc::clone(child));
             //TODO: for dependency management, return computed values from subtree above
         });
@@ -356,18 +374,21 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         //Can we do better than clipping_ids?  Perhaps where we `push_clipping_stack`, we should also pass `tab`
         // todo!("get computed `tabs` from ancestral clips");
-        let ancestral_clipping_tabs = vec![];
-        let parent = None;
+
         let tab = TransformAndBounds {
             transform: rtc.transform.clone(),
             bounds: rtc.bounds.clone(),
         };
 
-        node.borrow_mut().set_tab_cache(TabCache {
-            ancestral_clipping_tabs,
-            tab,
-            parent,
-        })
+        let mut node_borrowed = node.borrow_mut();
+        let id_chain = rtc.get_id_chain(node_borrowed.get_instance_id());
+        let cache = node_borrowed.get_tab_cache();
+        let parent = rtc.parent.clone();
+
+        cache.tabs.insert(id_chain.clone(), tab);
+        cache.parents.insert(id_chain, parent);
+
+
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
@@ -377,17 +398,18 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn get_topmost_element_beneath_ray(&self, ray: (f64, f64)) {
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
-        //Next: check whether ancestral clipping bounds are satisfied
+        //Next: check whether ancestral clipping bounds (hit_test) are satisfied
         //Finally: check whether element itself satisfies hit_test(ray)
 
         //Instead of storing a pointer to `last_rtc`, we should store a custom
         //struct with exactly the fields we need for ray-casting
 
         //Need:
-        // - Cached computed transform `: Affine`, inverted
-        // - Pointer to parent, for bubbling
-        // - Vec of ancestral:  (clipping bounds, inverted matrix)
-        // -
+        // - Cached computed transform `: Affine`
+        // - Pointer to parent:
+        //     for bubbling, i.e. propagating event
+        //     for finding ancestral clipping containers
+        //
 
 
 

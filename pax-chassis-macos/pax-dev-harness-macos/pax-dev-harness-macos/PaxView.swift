@@ -183,8 +183,6 @@ class PaxCanvasView: NSView {
 
         root["messages"]?.asVector?.makeIterator().forEach( { message in
             
-            print(message.debugDescription)
-
             let textCreateMessage = message["TextCreate"]
             if textCreateMessage != nil {
                 handleTextCreate(patch: AnyCreatePatch(fb: textCreateMessage!))

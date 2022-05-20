@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use kurbo::{Affine, Point};
@@ -48,6 +49,9 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
 }
 
 
+//TODO: don't use this!
+//      Instead: keep
+
 fn recurse_get_rendering_subtree_flattened<R: 'static + RenderContext>(children: RenderNodePtrList<R>) -> Vec<RenderNodePtr<R>> {
     //For each node:
     // - push self to list
@@ -77,9 +81,23 @@ pub struct TransformAndBounds {
 
 /// "Transform And Bounds" — a helper struct for storing necessary data for event propagation and ray casting
 pub struct TabCache<R: 'static + RenderContext> {
-    pub tab: TransformAndBounds,
-    pub parent: Option<RenderNodePtr<R>>,
-    pub ancestral_clipping_tabs: Vec<TransformAndBounds>
+    //TODO:  probably pub tabs: HashMap<Vec<u64>, TransformAndBounds>,
+    pub tabs: HashMap<Vec<u64>, TransformAndBounds>,
+    pub parents: HashMap<Vec<u64>, Option<RenderNodePtr<R>>>,
+}
+
+impl<R: 'static + RenderContext> TabCache<R> {
+    pub fn new() -> Self {
+        Self {
+            tabs: HashMap::new(),
+            parents: HashMap::new(),
+        }
+    }
+
+    pub fn clear(&mut self) {
+        self.tabs = HashMap::new();
+        self.parents = HashMap::new();
+    }
 }
 
 
@@ -144,8 +162,7 @@ pub trait RenderNode<R: 'static + RenderContext>
         Rc::new(RefCell::new(ret))
     }
 
-    fn set_tab_cache(&mut self, cache: TabCache<R>);
-    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>>;
+    fn get_tab_cache(&mut self) -> &mut TabCache<R>;
 
     ///Determines whether the provided ray, orthogonal to the view plane,
     ///intersects this rendernode.
