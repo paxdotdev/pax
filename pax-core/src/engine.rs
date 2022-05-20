@@ -399,7 +399,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         }
 
-        pax_runtime_api::log(&format!("Click received; coordinates ({},{}); casting ray into pool of {} nodes", (*nodes_ordered).borrow().len(), ray.0, ray.1));
+        pax_runtime_api::log(&format!("Click received; coordinates ({},{}); casting ray into pool of {} nodes", ray.0, ray.1, (*nodes_ordered).borrow().len()));
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
