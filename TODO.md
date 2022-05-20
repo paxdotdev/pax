@@ -2490,3 +2490,118 @@ by engine during traversal, alongside how it currently tracks
 `accumulated_bounds` for layout calculation.  That is:
 a render
 
+
+
+### On hit-testing, ray casting
+May 18 2022
+
+
+Should groups be bindable to events?
+    yes.  the logical behavior is "if any of this group's contents
+    pass hit-test, then the group passes hit-test"
+
+
+
+Capture/Bubble with override control
+OR: "top-down" control, where a parent may prevent a child from
+    handling certain events
+
+
+
+
+Another take:
+
+
+Find top-most element underneath ray -- this is the target.
+
+
+Traverse ancestors to check if any `absorb(Click)`
+    - if so, the topmost-such element receives the `Click` event insteadx
+Dispatch event to its 
+ancestors
+
+
+
+### Survey of event mechanisms
+2022-05-19
+
+#### Web/DOM
+
+`Capture` phase and `Bubble` phase -- every dispatched event first fires in `Capture` from root -> target, the fires again in `Bubble` from target -> root.
+Any element may stopPropagation
+
+See https://developer.mozilla.org/en-US/docs/Web/API/Document_Object_Model/Examples#example_5_event_propagation
+
+Pros: this allows fine-grained control of event cancellation; familiar to web devs
+Cons: little clumsy; not well encapsulated'
+
+
+#### Qt
+
+See https://www.learnqt.guide/events/working-with-events/#event-propagation
+
+> Qt will try to propagate the event up the parent child relationship chain until it finds a handler willing to deal with the event. If that handler is not found, then the event is discarded or fully ignored.
+
+`accept()` and `ignore()` allow multiple handlers for a given event --
+to `accept()` is to suppress further handlers, whereas to `ignore` allows
+ancestors also to process the event.
+
+
+#### Xamarin
+
+Uses imperative `GestureRecognizers`, attached to specific instances
+(Similar to SwiftUI!)
+
+XAML example:
+```
+<Image Source="tapped.jpg">
+    <Image.GestureRecognizers>
+        <TapGestureRecognizer
+                Tapped="OnTapGestureRecognizerTapped"
+                NumberOfTapsRequired="2" />
+  </Image.GestureRecognizers>
+</Image>
+```
+
+Is there any sort of propagation?  Looks like manual piping only:
+e.g. `Command="{Binding Source={x:Reference AlertsListView},
+Path=BindingContext.YourCommandName}"`
+See: https://stackoverflow.com/questions/68178176/nested-grid-tapgesturerecognizer-not-working
+and: https://social.msdn.microsoft.com/Forums/en-US/e7dd1b34-0283-4a2b-8df5-dab879b57efd/listview-with-mvvm-tapgesturerecognizer-not-working?forum=xamarinforms
+
+We can do better than this!!
+
+
+#### SwiftUI
+
+
+Event collisions may be:
+`Simultaneous`, `Sequenced`, `Exclusive`
+
+> While working with gesture recognizers, we might find ourselves having multiple gestures recognizers on the same view. And for such situations, we need exactly to know how those interact with each other. SwiftUI allows us to handle such cases in three-way: Simultaneous, Sequenced, Exclusive.
+
+See: https://dreamcraft.io/posts/swiftui-mixing-gesture
+
+
+Note that this requires explicit coordination between declarations,
+which might not work well with encapsulated components
+
+THAT SAID -- these three modes excellently describe the families
+of use-cases for handling collisions.  
+
+Perhaps these can be 
+built upon in a more declarative, encapsulation-friendly way:
+`Simultaneous`, `Sequenced`, `Exclusive`
+
+(Note that in a single-threaded environment, `Simultaneous`
+and `Sequenced` are... technically the same thing.  it seems that
+SwiftUI offers the distinction as a specific provision for e.g. combining `Zooming` and `Panning` in an intuitive way.)
+
+So for us, these boil down to "fire first," (à la Capture)
+
+
+
+#### React Native
+
+
+#### Flutter

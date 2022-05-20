@@ -47,21 +47,25 @@ struct PaxView: View {
             NativeRenderingLayer()
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
             
-            let buffer = try! FlexBufferBuilder.fromJSON(String(format: "{\"ClickInterruptArgs\": {\"x\": %d, \"y\": %d} }"))
+            let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f} }", dragGesture.location.x, dragGesture.location.y);
+            let buffer = try! FlexBufferBuilder.fromJSON(json)
             
             
             buffer.data.withUnsafeBytes({ptr in
-                                
-                pax_interrupt(ptr.baseAddress)
-
+                var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
+                
+                withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
+                    pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+                }
+                
             })
-            
-            
-            
-            
-            print(dragGesture.location.x)
         })
     }
+}
+
+
+class PaxEngineContainer {
+    static var paxEngineContainer : OpaquePointer? = nil
 }
 
 struct NativeRenderingLayer: View {
@@ -97,7 +101,7 @@ struct NativeRenderingLayer: View {
             Group {
                 Text(textElement.content)
                     .foregroundColor(Color.black)
-                    .textSelection(.enabled)
+//                    .textSelection(.enabled)
                     .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
                     .position(x: CGFloat(textElement.size_x) / 2.0, y: CGFloat(textElement.size_y) / 2.0)
                     .transformEffect(CGAffineTransform.init(
@@ -143,7 +147,7 @@ class PaxCanvasView: NSView {
     @ObservedObject var textElements = TextElements.singleton
     @ObservedObject var frameElements = FrameElements.singleton
     
-    var contextContainer : OpaquePointer? = nil
+    
     var currentTickWorkItem : DispatchWorkItem? = nil    
     
     func handleTextCreate(patch: AnyCreatePatch) {
@@ -219,7 +223,7 @@ class PaxCanvasView: NSView {
         guard let context = NSGraphicsContext.current else { return }
         var cgContext = context.cgContext
         
-        if contextContainer == nil {
+        if PaxEngineContainer.paxEngineContainer == nil {
             let swiftLoggerCallback : @convention(c) (UnsafePointer<CChar>?) -> () = {
                 (msg) -> () in
                 let outputString = String(cString: msg!)
@@ -229,10 +233,10 @@ class PaxCanvasView: NSView {
 //            print("Sleeping 10 seconds to allow manual debugger attachment...")
 //            sleep(10)
 
-            contextContainer = pax_init(swiftLoggerCallback)
+            PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
         } else {
             
-            let nativeMessageQueue = pax_tick(contextContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
+            let nativeMessageQueue = pax_tick(PaxEngineContainer.paxEngineContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
             processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
             pax_dealloc_message_queue(nativeMessageQueue)
         }

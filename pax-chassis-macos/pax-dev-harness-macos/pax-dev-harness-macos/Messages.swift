@@ -25,7 +25,6 @@ class AnyCreatePatch {
                 fb.asUInt64!
             })
         })
-        print(self.clipping_ids)
     }
 }
 

@@ -33,10 +33,16 @@ pub enum NativeInterrupt {
 }
 
 
+
+#[repr(C)]
+pub struct InterruptBuffer {
+    pub data_ptr: *const u8,
+    pub length: u64,
+}
+
 #[repr(C)]
 pub struct NativeMessageQueue {
-    pub data_ptr: *mut [u8], //JSON
-    // pub msg_ptr: *const NativeMessage,
+    pub data_ptr: *mut [u8],
     pub length: u64,
 }
 

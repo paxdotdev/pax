@@ -1,4 +1,3 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -48,6 +47,23 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub compute_properties_fn: Option<Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>>,
 }
 
+
+fn recurse_get_rendering_subtree_flattened<R: 'static + RenderContext>(children: RenderNodePtrList<R>) -> Vec<RenderNodePtr<R>> {
+    //For each node:
+    // - push self to list
+    // - push children (recursively) to list,
+    // - (next)
+    let mut ret = vec![];
+
+    (*children).borrow().iter().for_each(|child|{
+        ret.push(Rc::clone(child));
+
+        let new_children = (**child).borrow().get_rendering_children();
+        ret.append(&mut recurse_get_rendering_subtree_flattened(new_children));
+    });
+
+    ret
+}
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
 /// T: a member of PropertiesCoproduct, representing the type of the set of properites
@@ -88,6 +104,24 @@ pub trait RenderNode<R: 'static + RenderContext>
             (*(*child)).borrow_mut().unmount_recursive(rtc, permanent);
         }
     }
+
+
+
+
+    /// Recursively collects all nodes from subtree into a single
+    /// list, **exclusive of the current node.** (This is due to Rc<RefCell<>>/ownership constraints)
+    /// This list is ordered descending by z-index and is appropriate at least for 2D raycasting.
+    fn get_rendering_subtree_flattened(&self) -> RenderNodePtrList<R> {
+
+        //push each child to the front of the running list, bottom-first
+        //(so that top-most elements are always at the front)
+
+        let children = self.get_rendering_children();
+        let ret = recurse_get_rendering_subtree_flattened(children);
+
+        Rc::new(RefCell::new(ret))
+    }
+
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         None //default no-op

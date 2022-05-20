@@ -53,8 +53,6 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
         )
     );
 
-    //TODO: since PaxEngineContainer got trimmed down to one struct member, we should probably just unwrap this to a single
-    //      ManuallyDrop<Box<>>, which will also make dealloc simpler.
     let container = ManuallyDrop::new(Box::new(PaxEngineContainer {
         _engine: Box::into_raw(ManuallyDrop::into_inner(engine)),
     }));
@@ -68,31 +66,48 @@ pub extern "C" fn pax_dealloc_engine(_container: *mut PaxEngineContainer) {
     //TODO: support deallocing the engine container, particularly for when we need to support elegant clean-up from attached harness
 }
 
+
 /// Send `interrupt`s from the chassis, for example: user input
+/// Note that in any single-threaded environemnt, these interrupts will happen
+/// synchronously between engine ticks, allowing for safe unwrapping / borrowing
+/// of engine and runtime here.  In short: this happens between ticks.
 #[no_mangle]
-pub extern "C" fn pax_interrupt(buffer: *mut [u8]) {
-    let slice = unsafe { buffer.as_ref().unwrap() };
+pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffer: *const InterruptBuffer) {
+    let mut engine = unsafe { Box::from_raw((*engine_container)._engine) };
+    // let slice = unsafe { buffer.as_ref().unwrap() };
 
-    // let root = Reader::get_root(slice);
-    //
-    let x: Result<NativeInterrupt, DeserializationError> = flexbuffers::from_slice(slice);
-    let interrupt = x.unwrap();
+    let length : u64 = unsafe {
+        (*buffer).length
+            .try_into()
+            .unwrap() // length negative or overflowed
+    };
 
+    let slice = unsafe {
+        if (*buffer).data_ptr.is_null() {
+            &mut []
+        } else {
+            std::slice::from_raw_parts((*buffer).data_ptr, length.try_into().unwrap())
+        }
+    };
 
+    let interrupt_wrapped: Result<NativeInterrupt, DeserializationError> = flexbuffers::from_slice(slice);
+    let interrupt = interrupt_wrapped.unwrap();
     match interrupt {
-        NativeInterrupt::Click(_) => {
-            pax_runtime_api::log("Got click in Rust!");
+        NativeInterrupt::Click(args) => {
+            pax_runtime_api::log(&format!("Got click in Rust! ({},{})", args.x, args.y));
         }
         NativeInterrupt::Scroll(_) => {}
     }
+
+    unsafe {(*engine_container)._engine=  Box::into_raw(engine)};
 }
 
 /// Perform full tick of engine, including property computation, lifecycle event handling, and rendering side-effects.
 /// Returns a message queue of native rendering actions encoded as a Flexbuffer via FFI to Swift.
 /// The returned message queue requires explicit deallocation: `pax_deallocate_message_queue`
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
-pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext: *mut c_void, width: f32, height: f32) -> *mut NativeMessageQueue { // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
-    let mut engine = unsafe { Box::from_raw((*bridge_container)._engine) };
+pub extern "C" fn pax_tick(engine_container: *mut PaxEngineContainer, cgContext: *mut c_void, width: f32, height: f32) -> *mut NativeMessageQueue { // note that f32 is essentially `CFloat`, per: https://doc.rust-lang.org/std/os/raw/type.c_float.html
+    let mut engine = unsafe { Box::from_raw((*engine_container)._engine) };
 
     let pre_cast_cgContext = cgContext as *mut CGContext;
     let ctx = unsafe { &mut *pre_cast_cgContext };
@@ -118,7 +133,7 @@ pub extern "C" fn pax_tick(bridge_container: *mut PaxEngineContainer, cgContext:
     }))};
     
     //`Box::into_raw` is our necessary manual clean-up, acting as a trigger to drop all of the RefCell::borrow_mut's throughout the tick lifecycle
-    unsafe {(*bridge_container)._engine=  Box::into_raw(engine)};
+    unsafe {(*engine_container)._engine=  Box::into_raw(engine)};
 
     queue_container
 }

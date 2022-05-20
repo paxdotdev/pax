@@ -42,6 +42,17 @@ Ultimately, Pax is aimed at enabling visual creative tooling — Pax's _raison d
 
 <img src="fast-ergonomic-sky-placeholder.png" alt="A surrealistic painting of a computer chip; A pastel sunrise over a city made of checkboxes, dropdown lists, buttons, and mouse pointers" />
 
+## Features
+ - Robust 2D layout engine
+Animation showing nesting / resizing containers,
+changing layouts and colors
+[View example | Download macOS app example]
+ - Native text and basic styling
+Animation showing various strings, fading, "typing", transforming
+[View example | Download macOS app example]
+ - Animations
+Animation of
+[View example | Download macOS app example]
 
 ## Basic example
 

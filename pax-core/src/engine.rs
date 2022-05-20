@@ -15,7 +15,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use piet_common::RenderContext;
 
-use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList};
+use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode};
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
@@ -352,10 +352,27 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
     }
 
+    /// Simple 2D raycasting: the coordinates of the ray represent a
+    /// ray running orthogonally to the view plane, interesecting at
+    /// the specified point `ray`.  Areas outside of clipping bounds will
+    /// not register a `hit`, nor will elements that suppress input events.
+    pub fn get_topmost_element_beneath_ray(&self, ray: (f64, f64)) {
+        //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
+        //First: check whether events are suppressed
+        //Next: check whether ancestral clipping bounds are satisfied
+        //Finally: check whether element itself satisfies hit_test(ray)
+
+        let nodes_ordered = (*self.root_component).borrow().get_rendering_subtree_flattened();
+
+    }
+
+    /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
         self.viewport_size = new_viewport_size;
     }
 
+    /// Workhorse method to advance rendering and property calculation by one discrete tick
+    /// Expected to be called up to 60-120 times/second.
     pub fn tick(&mut self, rc: &mut R) -> Vec<NativeMessage> {
         rc.clear(None, Color::rgb(1.0, 1.0, 1.0));
         let native_render_queue = self.traverse_render_tree(rc);

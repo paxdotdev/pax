@@ -12,15 +12,20 @@ typedef struct NativeMessageQueue {
   uint64_t length;
 } NativeMessageQueue;
 
+typedef struct InterruptBuffer {
+  const void *data_ptr;
+  uint64_t length;
+} InterruptBuffer;
+
 typedef struct PaxEngineContainer PaxEngineContainer;
 
 struct PaxEngineContainer *pax_init(void (*logger)(const char*));
 
 void pax_dealloc_engine(struct PaxEngineContainer * container);
 
-void pax_interrupt(const void * interrupt);
+void pax_interrupt(struct PaxEngineContainer *engine_container, const void * interrupt);
 
-struct NativeMessageQueue *pax_tick(struct PaxEngineContainer *bridge_container,
+struct NativeMessageQueue *pax_tick(struct PaxEngineContainer *engine_container,
                                           void *cgContext,
                                           float width,
                                           float height);
