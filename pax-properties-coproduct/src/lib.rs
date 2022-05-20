@@ -8,11 +8,11 @@ pub enum PropertiesCoproduct {
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     //generated
     isize(isize), //used by range for repeat (0..10)
-    SpreadCellProperties(pax_example::pax_types::pax_std::types::SpreadCellProperties),
+    StackerCellProperties(pax_example::pax_types::pax_std::types::StackerCellProperties),
     Rectangle(pax_example::pax_types::pax_std::primitives::Rectangle),
     Text(pax_example::pax_types::pax_std::primitives::Text),
     Group(pax_example::pax_types::pax_std::primitives::Group),
-    Spread(pax_example::pax_types::pax_std::components::Spread),
+    Stacker(pax_example::pax_types::pax_std::components::Stacker),
     Root(pax_example::Root),
 
 }
@@ -33,8 +33,8 @@ pub enum TypesCoproduct {
     Stroke(pax_example::pax_types::pax_std::types::Stroke),
     Color(pax_example::pax_types::pax_std::types::Color),
     Size(pax_example::pax_types::pax_std::types::Size),
-    SpreadDirection(pax_example::pax_types::pax_std::types::SpreadDirection),
-    Vec_SpreadCellProperties_(Vec<pax_example::pax_types::pax_std::types::SpreadCellProperties>),
+    StackerDirection(pax_example::pax_types::pax_std::types::StackerDirection),
+    Vec_StackerCellProperties_(Vec<pax_example::pax_types::pax_std::types::StackerCellProperties>),
     Vec_LPAREN_usize_COMMA_Size_RPAREN(Vec<(usize, pax_example::pax_types::pax_std::types::Size)>),
 }
 

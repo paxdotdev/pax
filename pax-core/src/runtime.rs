@@ -103,9 +103,9 @@ impl<R: 'static + RenderContext> Runtime<R> {
     /// Handles special-cases like `for`/`Repeat`, where properties for the
     /// control flow primitive need to be computed out-of-lifecycle, and where nested child elements
     /// need to be treated as top-level elements.
-    /// For example, for `<Spread><Ellipse />for i in (0..3){ <Rectangle /> }</Spread>`,
-    /// without this special handling `Spread` will receive only two adoptees: the `Ellipse` and the `Repeat` node
-    /// created by `for`.  In other words `for`s children need to be treated as `<Spread>`s children,
+    /// For example, for `<Stacker><Ellipse />for i in (0..3){ <Rectangle /> }</Stacker>`,
+    /// without this special handling `Stacker` will receive only two adoptees: the `Ellipse` and the `Repeat` node
+    /// created by `for`.  In other words `for`s children need to be treated as `<Stacker>`s children,
     /// and this processing allows that to happpen.
     /// Note that this must be recursive to handle nested cases of flattening, for example nested `for` loops
     pub fn process__should_flatten__adoptees_recursive(adoptee: &RenderNodePtr<R>, rtc: &mut RenderTreeContext<R>) -> Vec<RenderNodePtr<R>> {

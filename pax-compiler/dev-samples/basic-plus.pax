@@ -1,7 +1,7 @@
 //Comments are supported
 
 @template {
-    <Spread id="main-spread"> //Comments work at end of line
+    <Stacker id="main-stacker"> //Comments work at end of line
         <Rectangle id="rect-1" onclick=@handle_click />
         <Rectangle id="rect-2" /> /* inline comments work anywhere whitespace does */
         <Group>
@@ -10,12 +10,12 @@
             }
             <Rectangle id="rect-3" fill=@{ x == 5 } />
         </Group>
-    </Spread>
+    </Stacker>
 }
 
 @settings {
 
-    #main-spread {
+    #main-stacker {
         cell_count: 3
         orientation: Orientation::Vertical
         gutter_width: 5px

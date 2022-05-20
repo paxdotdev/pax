@@ -18,29 +18,29 @@ pub struct Text {
 
 #[derive(Clone)]
 #[pax_type]
-pub struct SpreadCellProperties {
+pub struct StackerCellProperties {
     pub x_px: f64,
     pub y_px: f64,
     pub width_px: f64,
     pub height_px: f64,
 }
 
-/// Simple way to represent whether a spread should render
+/// Simple way to represent whether a stacker should render
 /// vertically or horizontally
 #[pax_type]
 #[derive(Clone)]
-pub enum SpreadDirection {
+pub enum StackerDirection {
     Vertical,
     Horizontal,
 }
 
-impl Default for SpreadDirection {
+impl Default for StackerDirection {
     fn default() -> Self {
-        SpreadDirection::Horizontal
+        StackerDirection::Horizontal
     }
 }
 
-impl Interpolatable for SpreadDirection {}
+impl Interpolatable for StackerDirection {}
 
 
 #[pax_type]

@@ -14,14 +14,14 @@ pub mod pax_types {
             pub use pax_std::primitives::Text;
         }
         pub mod components {
-            pub use pax_std::components::Spread;
+            pub use pax_std::components::Stacker;
         }
         pub mod types {
-            pub use pax_std::types::SpreadCellProperties;
+            pub use pax_std::types::StackerCellProperties;
             pub use pax_std::types::Color;
             pub use pax_std::types::Stroke;
             pub use pax_std::types::Size;
-            pub use pax_std::types::SpreadDirection;
+            pub use pax_std::types::StackerDirection;
         }
     }
     pub use pax::api::Transform2D;

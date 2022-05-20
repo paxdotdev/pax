@@ -6,18 +6,20 @@ use std::collections::HashMap;
 use piet::{RenderContext};
 
 use pax_std::primitives::{Text};
-use pax_core::{ComputableTransform, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use pax_core::{ComputableTransform, TabCache, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
 
-pub struct TextInstance {
+pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_id: u64,
     pub properties: Rc<RefCell<Text>>,
 
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+
+    pub tab_cache: Option<Rc<TabCache<R>>>,
 
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
@@ -26,7 +28,15 @@ pub struct TextInstance {
     last_patches: HashMap<Vec<u64>, pax_message::TextPatch>,
 }
 
-impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
+impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
+
+    fn set_tab_cache(&mut self, cache: TabCache<R>) {
+        self.tab_cache = Some(Rc::new(cache));
+    }
+    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>> {
+        self.tab_cache.clone()
+    }
+
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }
@@ -42,7 +52,8 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
             properties: Rc::new(RefCell::new(properties)),
             size: Rc::new(RefCell::new(args.size.expect("Text requires a size"))),
             handler_registry: args.handler_registry,
-            last_patches: Default::default()
+            last_patches: Default::default(),
+            tab_cache: None,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -100,7 +111,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
         }
         let last_patch = self.last_patches.get_mut( &new_message.id_chain).unwrap();
         let mut has_any_updates = false;
-
 
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         let val = properties.content.get();
@@ -175,7 +185,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
     fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
-
 
     fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
 

@@ -1,4 +1,4 @@
-<Spread id="main-spread">
+<Stacker id="main-stacker">
     <Rectangle id="rect-1" onclick=@handle_click />
     <Rectangle id="rect-2" />
     <Group>
@@ -7,10 +7,10 @@
         }
         <Rectangle id="rect-3" />
     </Group>
-</Spread>
+</Stacker>
 
 @settings {
-    #main-spread {
+    #main-stacker {
         cell_count: 3
         orientation: Orientation::Vertical
         gutter_width: 5px

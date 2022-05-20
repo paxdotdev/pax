@@ -15,7 +15,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use piet_common::RenderContext;
 
-use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode};
+use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode, TabCache, TransformAndBounds};
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
@@ -37,7 +37,7 @@ pub struct PaxEngine<R: 'static + RenderContext> {
 }
 
 
-pub struct ExpressionVTable<R: RenderContext + 'static> {
+pub struct ExpressionVTable<R: 'static + RenderContext> {
     inner_map: HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
     dependency_graph: HashMap<u64, Vec<u64>>,
 }
@@ -62,7 +62,7 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             runtime: Rc::clone(&self.runtime),
             node: Rc::clone(&self.node),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
-            inherited_adoptees: self.inherited_adoptees.clone()
+            inherited_adoptees: self.inherited_adoptees.clone(),
         }
     }
 }
@@ -71,7 +71,7 @@ impl<'a, R: RenderContext> Into<ArgsRender> for RenderTreeContext<'a, R> {
 
 
     fn into(self) -> ArgsRender {
-        // possible approach to enabling "auto cell count" in `Spread`, for example:
+        // possible approach to enabling "auto cell count" in `Stacker`, for example:
         // let adoptee_count = {
         //     let stack_frame = (*(*self.runtime).borrow().peek_stack_frame().expect("Component required")).borrow();
         //     if stack_frame.has_adoptees() {
@@ -350,6 +350,24 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //lifecycle: post_render
         node.borrow_mut().handle_post_render(rtc, rc);
 
+        //`rtc` is cached for use by hit-testing and other `interrupt`-driven logic
+        // node.borrow_mut().set_latest_render_tree_context(rtc.clone());
+        let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
+
+        //Can we do better than clipping_ids?  Perhaps where we `push_clipping_stack`, we should also pass `tab`
+        // todo!("get computed `tabs` from ancestral clips");
+        let ancestral_clipping_tabs = vec![];
+        let parent = None;
+        let tab = TransformAndBounds {
+            transform: rtc.transform.clone(),
+            bounds: rtc.bounds.clone(),
+        };
+
+        node.borrow_mut().set_tab_cache(TabCache {
+            ancestral_clipping_tabs,
+            tab,
+            parent,
+        })
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
@@ -362,8 +380,26 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //Next: check whether ancestral clipping bounds are satisfied
         //Finally: check whether element itself satisfies hit_test(ray)
 
+        //Instead of storing a pointer to `last_rtc`, we should store a custom
+        //struct with exactly the fields we need for ray-casting
+
+        //Need:
+        // - Cached computed transform `: Affine`, inverted
+        // - Pointer to parent, for bubbling
+        // - Vec of ancestral:  (clipping bounds, inverted matrix)
+        // -
+
+
+
         let nodes_ordered = (*self.root_component).borrow().get_rendering_subtree_flattened();
 
+        for node in (*nodes_ordered).borrow().iter() {
+            // pax_runtime_api::log(&(**node).borrow().get_instance_id().to_string())
+
+
+        }
+
+        pax_runtime_api::log(&format!("Click received; coordinates ({},{}); casting ray into pool of {} nodes", (*nodes_ordered).borrow().len(), ray.0, ray.1));
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes

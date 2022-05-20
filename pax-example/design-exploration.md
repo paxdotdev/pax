@@ -17,14 +17,14 @@
 
 
 <html>
-    <spread>
+    <stacker>
         <repeat data-list={{
             || -> Vec<Rc<PropertiesCoproduct />
             //... no.
                 }}>
             <rectangle fill={{}}>
         </repeat>
-    </spread>
+    </stacker>
 </html>
 
 //is there a better, shorter name for `component`?
@@ -51,13 +51,13 @@ Alphabet of injectables:
 
 
 #template!
-<spread>
+<stacker>
     <repeat data-list={{this.panels}}>
         |datum| {
             <rectangle fill={{Color.hsla(datum.bg_fill)}} />
         }
     </repeat>
-</spread>
+</stacker>
 
 #template-src!("./path/to/src.html")
 
@@ -65,22 +65,22 @@ Alphabet of injectables:
 
 
 #template!
-<spread>
+<stacker>
     @foreach (panel in panels) {
         <rectangle fill={{Color.hsla(panel.bg_fill)}} />
     }
-</spread>
+</stacker>
 
 
 
 
 
 #template!(
-<spread id="outer-spread">
+<stacker id="outer-stacker">
     @foreach (panel in panels) {
         <rectangle fill={{Color.hsla(panel.bg_fill)}} />
     }
-</spread>
+</stacker>
 )
 
 
@@ -89,7 +89,7 @@ Alphabet of injectables:
 
 // Properties:  can be inlined or declared alongside
 #properties!(
-    #outer-spread {
+    #outer-stacker {
         size: (Size::Percent(100.0),Size::Percent(100.0))
         transform: || {}
         direction:
@@ -102,7 +102,7 @@ Alphabet of injectables:
 // What about in rust, outside of macro:
 
 properties: [ //Vec<PropertiesCoproduct>
-    #join!(#outer-spread) { //automatically determine that this is a SpreadProperties
+    #join!(#outer-stacker) { //automatically determine that this is a StackerProperties
 
     }
 ]
@@ -122,16 +122,16 @@ That is, three total parsers:
 ```
 
 #template!(
-    <Spread id="outer-spread">
+    <Stacker id="outer-stacker">
         <Rectangle id="rect-0" />
         <Rectangle id="rect-1" />
         <Rectangle id="rect-2" />
-    </Spread>
+    </Stacker>
 )
 
 
 #properties!(
-    #outer-spread {
+    #outer-stacker {
         size: 50px, (dash) => {
             dash.height
         }px, //expression syntax is JS-lambda-like,
@@ -161,7 +161,7 @@ That is, three total parsers:
 
 
 #properties!(
-    #outer-spread {
+    #outer-stacker {
         size: (50px, (dash) => {
             dash.height
         }px), //expression syntax is JS-lambda-like,
@@ -196,15 +196,15 @@ It's important to have auto-complete here.  We'll want to parse
 
 ```rust
 #template!(
-    <Spread id="outer-spread">
+    <Stacker id="outer-stacker">
         <Rectangle id="rect-0" width=@{num_clicks * 20} />
         <Rectangle id="rect-1" />
         <Rectangle id="rect-2" />
-    </Spread>
+    </Stacker>
 )
 
 #properties!(
-    #outer-spread {
+    #outer-stacker {
         
     }
 )

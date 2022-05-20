@@ -2,8 +2,9 @@ use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
 
+
 use piet_common::RenderContext;
-use crate::{ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs, HandlerRegistry};
+use crate::{ComponentInstance, TabCache, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs, HandlerRegistry};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
@@ -18,10 +19,19 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub data_list: Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>,
     pub virtual_children: RenderNodePtrList<R>,
+    pub tab_cache: Option<Rc<TabCache<R>>>,
 }
 
 
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
+
+    fn set_tab_cache(&mut self, cache: TabCache<R>) {
+        self.tab_cache = Some(Rc::new(cache));
+    }
+    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>> {
+        self.tab_cache.clone()
+    }
+
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }
@@ -38,7 +48,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             },
             transform: args.transform,
             data_list: args.repeat_data_list.unwrap(),
-            virtual_children: Rc::new(RefCell::new(vec![]))
+            virtual_children: Rc::new(RefCell::new(vec![])),
+            tab_cache: None,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -111,7 +122,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                             handler_registry: None,
                             compute_properties_fn: Box::new(|props, rtc|{
                                 //no-op since the Repeat RenderNode handles the necessary calc (see `RepeatInstance::compute_properties`)
-                            })
+                            }),
+                            tab_cache: None,
                         }
                     ));
 

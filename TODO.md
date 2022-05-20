@@ -19,7 +19,7 @@
     [x] summonables
     [x] built-in vars like frame count
     [x] MVP rust closures + manifest of deps
-[x] Spreads (née Stacks)
+[x] Stackers (née Stacks)
     [x] Decide `primitive` vs. userland `components`
     `components`
     [x] Internal template mechanism for components
@@ -36,7 +36,7 @@
 [x] Refactors
     [x] Bundle Transform into "sugary transform," incl. anchor & align; consider a separate transform_matrix property
     [x] Is there a way to better-DRY the shared logic across render-nodes?
-e.g. check out the `get_size` methods for Frame and Spread
+e.g. check out the `get_size` methods for Frame and Stacker
     [x] Maybe related to above:  can we DRY the default properties for a render node?
 Perhaps a macro is the answer?
     Same with `scale`
@@ -47,14 +47,14 @@ Perhaps a macro is the answer?
     [x] Evaluate whether to refactor the `unsafe` + PolymorphicType/PolymorphicData approach in expressions + scope data storage
 ```
 
-## Milestone: Spread
+## Milestone: Stacker
 
 ```
 [x] decide on API design, expected GUI experience
     - Direction (horiz/vert)
     - Gutter
     - Cell widths
-[x] expose a Spread element for consumption by engine
+[x] expose a Stacker element for consumption by engine
 [x] accept children, just like primitives e.g. `Group`
 [x] author an internal template, incl. `slot`ing children and `repeating` inputs
     <Frame repeat=self.children transform=get_transform(i)>
@@ -67,7 +67,7 @@ Perhaps a macro is the answer?
     [x] Clipping
 [x] Slot
 [x] Repeat
-    [x] "flattening yield" to support <Spread><Repeat n=5><Rect>...
+    [x] "flattening yield" to support <Stacker><Repeat n=5><Rect>...
     [x] scopes:
         [x] `i`, `datum`
         [x] braced templating {} ? or otherwise figure out `eval`
@@ -144,16 +144,16 @@ _RIL means Rust Intermediate Language, which is the
 
 ```
 [x] Spend some cycles ideating demo deliverables/storyboard
-[x] Port Spread to be a pure component
+[x] Port Stacker to be a pure component
     [x] figure out importing mechanism for core and/or other std primitives
         [x] Group, Slot (e.g. from Core)
         [x] Frame (e.g. from std — though if easier could just move to Core)
-    [x] port spread logic; design expression/method approach
+    [x] port stacker logic; design expression/method approach
         [-] pure expressions + helpers?
         [x] on_pre_render + manual dirty checking?
             [x] decision: no dirty checking at all for right now; expose imperative dirty-check API only when implementing dirty checking for Expressions
     [x] hook in existing layout calc logic
-[x] Import and use Spread in Root example
+[x] Import and use Stacker in Root example
     [x] update example .pax as needed along the way
     [x] "expand the proof" of generated code & make it work manually
 ```
@@ -843,7 +843,7 @@ whether to add aliases like `.x`, `.y`,
 ### On `compute_in_place` for generated userland components
 2022-02-08
 
-Using `Spread` as a reference, `compute_in_place` manually iterates over
+Using `Stacker` as a reference, `compute_in_place` manually iterates over
 properties and calls `compute_in_place`.
 
 We don't want users to worry about this; we want to autogenerate the `compute_in_place` code for
@@ -856,7 +856,7 @@ One possibility:  expose an iterator that returns a sequence of Box<dyn Property
 Another possibility: separate the `rtc` across a trait boundary, allowing a similar maneuver
 as `dyn ComputableProperty` in Engine
 
-Note also: `Spread` created its own RenderNode as its subtree root, with a single child `Component`
+Note also: `Stacker` created its own RenderNode as its subtree root, with a single child `Component`
 Should this be the general approach?  Is there a benefit to doing this?
 (beyond the necessary ability to write `compute_in_place` logic for arbitrary properties,
 though note that this could be generalized by exposing an iterator over
@@ -1425,7 +1425,7 @@ the conceptual surface area.
  - Repeat (repeating a template, a la a stamp)
  - Component (instantiates an instance based on a template, a la a stamp)
 
-*Adoptees:* conceptually sound with Spread, via slots
+*Adoptees:* conceptually sound with Stacker, via slots
  - fits in the same struct `RenderNodePtrList`
  - instead of an "average case tree," Adoptees are an "expected case list"
  - Sequence of siblings is relevant (beyond z-indexing); used to pluck adoptees away into whatever context
@@ -1433,9 +1433,9 @@ the conceptual surface area.
 *Children:* a.k.a. "primitive children," the intuitive
 "XML children" of certain elements that deal with children,
 such as Group, Frame, and more.
-Note that adoptees are a special form of children — Spread's
-`children` (per the `Component` `template` definition that declares that Spread)
-are dealt with by Spread as adoptees.  
+Note that adoptees are a special form of children — Stacker's
+`children` (per the `Component` `template` definition that declares that Stacker)
+are dealt with by Stacker as adoptees.  
 
 Tangential observation: the `Component` has no way of knowing whether
 the children it's passing will be dealt with as `adoptees` or `primitive children`.
@@ -1482,14 +1482,14 @@ This works but is a bit inelegant.  Options:
 
   
 
-### on spread, "primitive components"
+### on stacker, "primitive components"
 
-after tangling with porting Spread as a primitive, decided 
+after tangling with porting Stacker as a primitive, decided 
 to stop for now:
 
 It's not a great use-case to encourage (primitive + component, lots of ugliness incl. manual expression unrolling)
 
-Instead, this is a great use-case for bundling spread.pax and spread.rs into an importable package, via pax-std
+Instead, this is a great use-case for bundling stacker.pax and stacker.rs into an importable package, via pax-std
 
 Can "manually unroll" the code for importing in pax-std in order to "derive the codegen proof"
 
@@ -1602,10 +1602,10 @@ Decision: port to Size, panic if px value is passed
 ### on dirty-checking, userland API
 2022-03-04
 
-Spread needs to update its cached computed layout as a function of its ~six properties:
+Stacker needs to update its cached computed layout as a function of its ~six properties:
 
-pub computed_layout_spec: Vec<Rc<SpreadCellProperties>>,
-pub direction:  Box<dyn pax::api::Property<SpreadDirection>>,
+pub computed_layout_spec: Vec<Rc<StackerCellProperties>>,
+pub direction:  Box<dyn pax::api::Property<StackerDirection>>,
 pub cell_count: Box<dyn pax::api::Property<usize>>,
 pub gutter_width: Box<dyn pax::api::Property<pax::api::Size>>,
 pub overrides_cell_size: Option(Vec<(usize, pax::api::Size)>),
@@ -1627,7 +1627,7 @@ Add to `dyn Property`
 
 and `_mark_not_fresh()` — but when is this called?
 
-As a consumer, Spread wants to know whether a value is "fresh" in order
+As a consumer, Stacker wants to know whether a value is "fresh" in order
 to determine whether to proceed with a calculation.
 
 Specifically, `fresh` here means "does it have a new value since last tick," presumably
@@ -1686,7 +1686,7 @@ Thus, to define a custom RenderNode, one must provide:
 
 *Another use-case:*
 
-a userland component def (e.g. Spread) may want to access not only the current node's
+a userland component def (e.g. Stacker) may want to access not only the current node's
 `properties`, but also it's built-ins like `size` or maybe even `transform`.
 
 What does that API look like?
@@ -1698,8 +1698,8 @@ pub fn handle_prerender(&mut self, args: ArgsRender) {
         let bounds = args.bounds;
 
         let active_bound = match *self.direction.get() {
-            SpreadDirection::Horizontal => bounds.0,
-            SpreadDirection::Vertical => bounds.1
+            StackerDirection::Horizontal => bounds.0,
+            StackerDirection::Vertical => bounds.1
         };
 
         let gutter_calc = match *self.gutter_width.get() {
@@ -1713,7 +1713,7 @@ pub fn handle_prerender(&mut self, args: ArgsRender) {
 ```
 
 The key question: What is `self` here?
-Is it the API object?  It would be the easiest to author (`impl Spread { ... }`)
+Is it the API object?  It would be the easiest to author (`impl Stacker { ... }`)
 Let's say it's the API object.  Can we also have the Properties available on that API object?
 (This would suggest that the PropertiesObject and the API object are the same thing.
 This would further suggest that RectangleProperties -> Rectangle, and that the user is responsible
@@ -1729,8 +1729,8 @@ So, we can reduce our surface area to:
 
 (cont. 2022-03-07)
 
-SO: when declaring a component instance, say `Root` or `Spread` —
-1. we're declaring the `Properties + API` object (`Root` and `Spread`, with a series of `Box<dyn pax::api::Property<some_type>>` properties
+SO: when declaring a component instance, say `Root` or `Stacker` —
+1. we're declaring the `Properties + API` object (`Root` and `Stacker`, with a series of `Box<dyn pax::api::Property<some_type>>` properties
 2. there will be auto-generated Instance impl (or Factory, or boilerplate instantiation code)
    1. On this point — which is best?  Probably generation of Factory/Instance, both for consistency (easing codegen reqs) and for footprint (presumably lower footprint)_
 3. 
@@ -1752,9 +1752,9 @@ So that _something_ should probably be a `Vec<Rc<PropertiesCoproduct>>`.  This m
 remap from `computed_layout_spec` — i.e. whatever is the type of each element of that array — into a PropertiesCoproduct.
 
 More specifically, the compiler needs to know what variant of the PropertiesCoproduct enum to wrap each element
-into.  In the Spread case, it's `PropertiesCoproduct::SpreadCellProperty(elem)`
+into.  In the Stacker case, it's `PropertiesCoproduct::StackerCellProperty(elem)`
 
-How can we know what type `SpreadCellProperty` should be?  One option is to make it static, i.e. for 
+How can we know what type `StackerCellProperty` should be?  One option is to make it static, i.e. for 
 `B` in `@for A in B` to be a statically knowable symbol, present in the current scope.
 
 One version of this constraint would be to ensure the symbol is a `Property`.  Another could
@@ -1958,16 +1958,16 @@ Certain `should_flatten` elements, namely `if` (`Conditional`) and `for` (`Repea
 need to hoist their children as a sequence of adoptees, in lieu of themselves as singular nodes, e.g.
 
 ```
-<Spread>
+<Stacker>
     @for i in (0..10) {
         //shadowed scope (component) adds `i` here
         <Rectangle>
     }
     <Ellipse>
-</Spread>
+</Stacker>
 ```
 
-Spread should have 11 adoptees in this case
+Stacker should have 11 adoptees in this case
 
 Possibly a wrinkle: the computation of `Repeat`'s children
 (via `data_list`) might come later in the lifecycle than assignment
@@ -1986,7 +1986,7 @@ and `Component` can pass its `children` if specified to the StackFrame that it c
 Unpacking `should_flatten` nodes can happen at this stage, and this probably requires a linear traversal of top-level child nodes.
 
 
-Spread's template in the example above might be something like:
+Stacker's template in the example above might be something like:
 
 ```
 
@@ -2005,9 +2005,9 @@ Stepping back briefly...
 Conceptually, when we expose slots, we're opening a "slot".  We're allowing two nodes
 to be connected in our graph, a `child` (to become `adoptee`) passed to a Component, and to a contained `Slot`, which mounts that `adoptee` as its own `child`.
 
-Spread introduces an additional `Component` into the mix, underneath `Repeat`.
+Stacker introduces an additional `Component` into the mix, underneath `Repeat`.
 There seem to be some cases where we want to traverse parent nodes
-for adoptees, and other cases where we don't (e.g. a Spread
+for adoptees, and other cases where we don't (e.g. a Stacker
 with insufficient adoptees should render empty cells, not the surplus adoptees that were
 passed somewhere higher in the render tree.)
 
@@ -2022,11 +2022,11 @@ lifecycle management, though. (will those adoptees be pushed at the
 right time?)
 
 ```
-<Spread>
+<Stacker>
     @for i in (0..10) {
         <Rectangle/>
     }
-</Spread>
+</Stacker>
 ```
 
 Could the `pre_render` hook be useful here?  Properties have already been computed:
@@ -2113,12 +2113,12 @@ Consider the following Pax program:
 ```
 Root's template: [stack frame ⍺ for Root]
 A <Rectangle />
-B <Spread>
+B <Stacker>
 C     <Ellipse />
 D     <Path />
-- </Spread>
+- </Stacker>
   
-  Spread's template: [stack frame β for Spread]
+  Stacker's template: [stack frame β for Stacker]
 E <Repeat> // [stack frames γ0-γn for n RepeatItems]
 F     <Frame>
 G        <Placeholder>
@@ -2137,7 +2137,7 @@ stack frames γ0-γn:
   
 ```
 
-Note that get_rendering_children for Spread will return E, so we first need to
+Note that get_rendering_children for Stacker will return E, so we first need to
 first visit B's non-rendering children, C and D
 
 To pull this off[1], we will need to perform two separate passes of the render tree.

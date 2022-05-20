@@ -1,20 +1,26 @@
 use pax::*;
-use pax_std::{Spread, Text, Rectangle};
+use pax_std::{Stacker, Text, Rectangle};
 
 #[pax_root(
-    <Spread cell_count=10 >
-        <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
+    <Stacker cell_count=10 >
+        <Stacker cell_count=5 direction=Vertical >
+            for i in 0..5 {
+                <Rectangle fill={Color::rgba((i * 20)%, 0, 100%, 100%)} />
+            }
+        </Stacker>
+
         for i in 0..8 {
-            <Group>
+            <Group transform={align(50%, 50%)}>
                 <Text>`Index: {i}`</Text>
                 <Rectangle fill=Color::rgba(100%, 0, 100%, 100%) />
             </Group>
         }
+
         <Group transform={rotate(self.current_rotation)}>
             <Text>{JABBERWOCKY}</Text>
             <Rectangle fill=Color::rgba(0, 100%, 100%, 100%) />
         </Group>
-    </Spread>
+    </Stacker>
 )]
 pub struct HelloWorld {
     pub num_clicks : Property<i64>,
@@ -25,8 +31,6 @@ impl HelloWorld {
 
     #[pax_on(PreRender)] //or long-hand: #[pax_on(Lifecycle::PreRender)]
     pub fn handle_pre_render(&mut self, args: ArgsTick) {
-
-
         if args.frames_elapsed % 180 == 0 {
             //every 3s
             pax::log(&format!("pax::log from frame {}", args.frames_elapsed));

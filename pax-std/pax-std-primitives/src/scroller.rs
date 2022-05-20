@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use kurbo::BezPath;
 use piet::RenderContext;
 
-use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
+use pax_core::{RenderNode, TabCache, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
 use pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, PropertyLiteral, Size2D};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
@@ -18,7 +18,7 @@ use pax_message::{AnyCreatePatch, ScrollerPatch};
 /// `Scroller` translates its children to reflect the current scroll position.
 /// When both scrolling axes are disabled, `Scroller` acts exactly like a `Frame`, with a possibly-
 /// transformed `Group` surrounding its contents.
-pub struct ScrollerInstance<R: RenderContext> {
+pub struct ScrollerInstance<R: 'static + RenderContext> {
     pub instance_id: u64,
     pub children: RenderNodePtrList<R>,
     //Note that size_inner_pane must be a float value -- no percentages supported
@@ -29,10 +29,20 @@ pub struct ScrollerInstance<R: RenderContext> {
     pub scrollX: Box<dyn PropertyInstance<bool>>,
     pub scrollY: Box<dyn PropertyInstance<bool>>,
 
+    pub tab_cache: Option<Rc<TabCache<R>>>,
+
     last_patches: HashMap<Vec<u64>, ScrollerPatch>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
+
+    fn set_tab_cache(&mut self, cache: TabCache<R>) {
+        self.tab_cache = Some(Rc::new(cache));
+    }
+    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>> {
+        self.tab_cache.clone()
+    }
+
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }
@@ -61,6 +71,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
                 scrollX,
                 scrollY,
                 last_patches: HashMap::new(),
+                tab_cache: None,
             }
         ));
 

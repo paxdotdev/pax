@@ -2,11 +2,11 @@ use std::rc::Rc;
 use pax::*;
 use pax::api::{Size2D, Size, ArgsRender, Property};
 use crate::primitives::Frame;
-use crate::types::{SpreadDirection, SpreadCellProperties};
+use crate::types::{StackerDirection, StackerCellProperties};
 
 /// A layout component which renders a series of nodes either
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
-/// each node.  Spreads can be stacked inside of each other, horizontally
+/// each node.  Stackers can be stacked inside of each other, horizontally
 /// and vertically, alongside `Transform.align` and `Transform.anchor` to achieve any 2D layout.
 #[pax(
     for (elem, i) in self.computed_layout_spec {
@@ -15,9 +15,9 @@ use crate::types::{SpreadDirection, SpreadCellProperties};
         </Frame>
     }
 )]
-pub struct Spread {
-    pub computed_layout_spec: Property<Vec<Rc<SpreadCellProperties>>>,
-    pub direction: Property<SpreadDirection>,
+pub struct Stacker {
+    pub computed_layout_spec: Property<Vec<Rc<StackerCellProperties>>>,
+    pub direction: Property<StackerDirection>,
     pub cell_count: Property<usize>,
     pub gutter_width: Property<Size>,
 
@@ -25,7 +25,7 @@ pub struct Spread {
     pub overrides_gutter_size: Property<Vec<(usize, Size)>>,
 }
 
-impl Spread {
+impl Stacker {
 
     #[pax_on(pre_render)]
     pub fn handle_pre_render(&mut self, args: ArgsRender) {
@@ -34,8 +34,8 @@ impl Spread {
         let bounds = args.bounds;
 
         let active_bound = match *self.direction.get() {
-            SpreadDirection::Horizontal => bounds.0,
-            SpreadDirection::Vertical => bounds.1
+            StackerDirection::Horizontal => bounds.0,
+            StackerDirection::Vertical => bounds.1
         };
 
         let gutter_calc = match *self.gutter_width.get() {
@@ -56,15 +56,15 @@ impl Spread {
 
         self.computed_layout_spec.set((0..(cell_count as usize)).into_iter().map(|i| {
             match self.direction.get() {
-                SpreadDirection::Horizontal =>
-                    Rc::new(SpreadCellProperties {
+                StackerDirection::Horizontal =>
+                    Rc::new(StackerCellProperties {
                         height_px: bounds.1,
                         width_px: per_cell_space,
                         x_px: ((i) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
                         y_px: 0.0,
                     }),
-                SpreadDirection::Vertical =>
-                    Rc::new(SpreadCellProperties {
+                StackerDirection::Vertical =>
+                    Rc::new(StackerCellProperties {
                         height_px: per_cell_space,
                         width_px: bounds.0,
                         x_px: 0.0,
@@ -79,21 +79,21 @@ impl Spread {
 }
 
 //
-// impl RenderNode for SpreadInstance {
+// impl RenderNode for StackerInstance {
 
 // pub fn instantiate(mut args: InstantiationArgs) -> Self {
 //     //Component must be accessible so that we can unwrap its properties
-//     //Template is a "higher template" that belongs to Spread, not Component —
-//     //  this is the root of Spread's own rendering, and is what should be returned
+//     //Template is a "higher template" that belongs to Stacker, not Component —
+//     //  this is the root of Stacker's own rendering, and is what should be returned
 //     //  by get_children.
 //
-//     // let properties = if let PropertiesCoproduct::Spread(p) = args.properties { p } else {unreachable!("wrong type")};
+//     // let properties = if let PropertiesCoproduct::Stacker(p) = args.properties { p } else {unreachable!("wrong type")};
 //
 //     // let wrapped_properties = Rc::new(RefCell::new(args.properties));
 //     let component: RenderNodePtr = Rc::new(RefCell::new(
 //         ComponentInstance {
 //             template: init_and_retrieve_template(Rc::clone(&args.instance_registry)),
-//             adoptees: args.component_adoptees.expect("adoptees expected for Spread, even if empty vec"),
+//             adoptees: args.component_adoptees.expect("adoptees expected for Stacker, even if empty vec"),
 //             handler_registry: None,
 //             transform: Transform::default_wrapped(),
 //             properties: Rc::new(RefCell::new(PropertiesCoproduct::Empty)),
@@ -105,11 +105,11 @@ impl Spread {
 //         Rc::clone(&component)
 //     ]));
 //
-//     let properties = if let PropertiesCoproduct::Spread(p) = args.properties { p } else {unreachable!("wrong type")};
+//     let properties = if let PropertiesCoproduct::Stacker(p) = args.properties { p } else {unreachable!("wrong type")};
 //
-//     SpreadInstance {
+//     StackerInstance {
 //         inner_component: template,
-//         size: Rc::new(RefCell::new(args.size.expect("Spread requires size"))),
+//         size: Rc::new(RefCell::new(args.size.expect("Stacker requires size"))),
 //         transform: args.transform,
 //         properties: Rc::new(RefCell::new(properties)),
 //         _cached_computed_layout_spec: vec![]
@@ -118,18 +118,18 @@ impl Spread {
 //
 //     fn get_rendering_children(&self) -> RenderNodePtrList {
 //         // return the root of the internal template here — as long
-//         // as we capture refs to (c) and (d) below during Spread's `render` or `pre_render` fn,
+//         // as we capture refs to (c) and (d) below during Stacker's `render` or `pre_render` fn,
 //         // we can happily let rendering just take its course,
 //         // recursing through the subtree starting with (e).
 //         //
 //         // example application render tree
 //         //          a( root )
 //         //              |
-//         //          b( Spread )
+//         //          b( Stacker )
 //         //         /          \
 //         //    c( Rect )      d( Rect )
 //         //
-//         // example Spread (component) template render tree
+//         // example Stacker (component) template render tree
 //         //          e( root )
 //         //              |         //  expanded:
 //         //          f( Repeat  .. //  n=2 )
@@ -142,7 +142,7 @@ impl Spread {
 //         // [a b e f g h c i j d]
 //         //
 //         // a: load the application root Group
-//         // b: found a Spread, start rendering it
+//         // b: found a Stacker, start rendering it
 //         //    get its children from the Engine (get_children)
 //         //    — these are the `adoptees` that will be passed to `Slot`
 //         //    and they need to be tracked.
@@ -150,8 +150,8 @@ impl Spread {
 //         //    when rendering.  We can keep a stack of prefab "scopes," allowing `slot`'s render
 //         //    function to handily grab a reference to `adoptees[i]` when needed.  The stack
 //         //    enables components to nest among themselves
-//         // e: is Spread::render()
-//         // f: first child of Spread — it's a Repeat;
+//         // e: is Stacker::render()
+//         // f: first child of Stacker — it's a Repeat;
 //         //    loop twice, first passing rendering onto a Frame (g), waiting for it to return,
 //         //    then passing onto the next Frame (i)
 //         // g: render the containing frame in the correct position,
@@ -225,9 +225,9 @@ impl Spread {
 //     //             Repeat {
 //     //                 data_list: Box::new(PropertyExpression {
 //     //                     cached_value: vec![],
-//     //                     evaluator: SpreadPropertiesInjector {variadic_evaluator: |properties: Rc<RefCell<SpreadProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
+//     //                     evaluator: StackerPropertiesInjector {variadic_evaluator: |properties: Rc<RefCell<StackerProperties>>| -> Vec<Rc<PropertiesCoproduct>> {
 //     //                         properties.borrow()._cached_computed_layout_spec.iter()
-//     //                             .map(|scp|{Rc::new(PropertiesCoproduct::SpreadCell(Rc::clone(scp)))}).collect()
+//     //                             .map(|scp|{Rc::new(PropertiesCoproduct::StackerCell(Rc::clone(scp)))}).collect()
 //     //                     }}
 //     //                 }),
 //     //                 template: Rc::new(RefCell::new(vec![
@@ -238,7 +238,7 @@ impl Spread {
 //     //                                     cached_value: Size::Pixel(100.0),
 //     //                                     evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size {
 //     //                                         match &*scope.borrow().datum {
-//     //                                             PropertiesCoproduct::SpreadCell(sc) => {
+//     //                                             PropertiesCoproduct::StackerCell(sc) => {
 //     //                                                 Size::Pixel(sc.width_px)
 //     //                                             },
 //     //                                             _ => panic!("Unknown property coproduct")
@@ -249,7 +249,7 @@ impl Spread {
 //     //                                     cached_value: Size::Pixel(100.0),
 //     //                                     evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> Size {
 //     //                                         match &*scope.borrow().datum {
-//     //                                             PropertiesCoproduct::SpreadCell(sc) => {
+//     //                                             PropertiesCoproduct::StackerCell(sc) => {
 //     //                                                 Size::Pixel(sc.height_px)
 //     //                                             },
 //     //                                             _ => panic!("Unknown property coproduct")
@@ -264,7 +264,7 @@ impl Spread {
 //     //                                                 cached_value: 0.0,
 //     //                                                 evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
 //     //                                                     match &*scope.borrow().datum {
-//     //                                                         PropertiesCoproduct::SpreadCell(sc) => {
+//     //                                                         PropertiesCoproduct::StackerCell(sc) => {
 //     //                                                             sc.x_px
 //     //                                                         },
 //     //                                                         _ => panic!("Unknown property coproduct")
@@ -275,7 +275,7 @@ impl Spread {
 //     //                                                 cached_value: 0.0,
 //     //                                                 evaluator: RepeatInjector {variadic_evaluator: |scope: Rc<RefCell<RepeatItem>>| -> f64 {
 //     //                                                     match &*scope.borrow().datum {
-//     //                                                         PropertiesCoproduct::SpreadCell(sc) => {
+//     //                                                         PropertiesCoproduct::StackerCell(sc) => {
 //     //                                                             sc.y_px
 //     //                                                         },
 //     //                                                         _ => panic!("Unknown property coproduct")
@@ -343,13 +343,13 @@ impl Spread {
 /* END FUTURE CODEGEN VIA MACRO */
 /* MORE CODEGEN? */
 
-// struct SpreadPropertiesInjector<T> {
-//     pub variadic_evaluator: fn(scope: Rc<RefCell<SpreadProperties>>) -> T,
+// struct StackerPropertiesInjector<T> {
+//     pub variadic_evaluator: fn(scope: Rc<RefCell<StackerProperties>>) -> T,
 // }
 //
-// impl<T> SpreadPropertiesInjector<T> {}
+// impl<T> StackerPropertiesInjector<T> {}
 //
-// impl<T> Evaluator<T> for SpreadPropertiesInjector<T> {
+// impl<T> Evaluator<T> for StackerPropertiesInjector<T> {
 //     fn inject_and_evaluate(&self, ic: &InjectionContext) -> T {
 //         //TODO:CODEGEN
 //
@@ -360,7 +360,7 @@ impl Spread {
 //         let properties = Rc::clone(  &scope_borrowed.properties );
 //
 //         let unwrapped_properties = match &*properties.borrow() {
-//             PropertiesCoproduct::Spread(rs) => {
+//             PropertiesCoproduct::Stacker(rs) => {
 //                 Rc::clone(rs)
 //             },
 //             _ => {
@@ -446,7 +446,7 @@ impl Spread {
 //
 // let repeat_properties = Rc::clone(
 //     properties_as_any
-//     .downcast_ref::<Rc<RepeatProperties<SpreadCellProperties>>>()
+//     .downcast_ref::<Rc<RepeatProperties<StackerCellProperties>>>()
 //     .unwrap()
 // );
 
@@ -532,7 +532,7 @@ impl Spread {
 // Are we back to union-typed
 //
 // Yet another possible direction:  make each stack frame a big fat union type, that is:
-// for all polymorphic "scope shapes" in an application (e.g. RepeatProperties, SpreadProperties)
+// for all polymorphic "scope shapes" in an application (e.g. RepeatProperties, StackerProperties)
 // build a single mega-structure that contains memory (a field) for every one of those scopes
 // and attach an instance of that mega-structure to each stack frame.
 // Then:  each component knows how to pack and unpack its specific "scope shape"

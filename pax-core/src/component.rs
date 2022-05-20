@@ -4,14 +4,14 @@ use std::rc::Rc;
 use piet_common::RenderContext;
 
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime, LifecycleNode};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime, LifecycleNode, TabCache};
 
 use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `adoptees` and
 /// `PropertiesCoproduct` object.  `Component` is used at the root of
-/// applications, at the root of reusable components like `Spread`, and
+/// applications, at the root of reusable components like `Stacker`, and
 /// in special applications like `Repeat` where it houses the `RepeatItem`
 /// properties attached to each of Repeat's virtual nodes.
 pub struct ComponentInstance<R: 'static + RenderContext> {
@@ -23,6 +23,8 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>,
+    pub tab_cache: Option<Rc<TabCache<R>>>,
+    // pub rtc: Option<RenderTreeContext<R>>,
 }
 
 
@@ -49,6 +51,15 @@ fn flatten_adoptees<R: 'static + RenderContext>(adoptees: RenderNodePtrList<R>) 
 
 
 impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
+
+
+    fn set_tab_cache(&mut self, cache: TabCache<R>) {
+        self.tab_cache = Some(Rc::new(cache));
+    }
+    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>> {
+        self.tab_cache.clone()
+    }
+
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }
@@ -90,6 +101,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
             compute_properties_fn: args.compute_properties_fn.expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
             handler_registry: args.handler_registry,
+            tab_cache: None,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);

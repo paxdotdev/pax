@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use kurbo::{Affine};
+use kurbo::{Affine, Point};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 use pax_properties_coproduct::PropertiesCoproduct;
@@ -64,6 +64,26 @@ fn recurse_get_rendering_subtree_flattened<R: 'static + RenderContext>(children:
 
     ret
 }
+
+
+
+/// Stores the computed transform and the pre-transform bounding box (where the
+/// other corner is the origin).  Useful for ray-casting, along with
+pub struct TransformAndBounds {
+    pub transform: Affine,
+    pub bounds: (f64, f64),
+}
+
+
+/// "Transform And Bounds" — a helper struct for storing necessary data for event propagation and ray casting
+pub struct TabCache<R: 'static + RenderContext> {
+    pub tab: TransformAndBounds,
+    pub parent: Option<RenderNodePtr<R>>,
+    pub ancestral_clipping_tabs: Vec<TransformAndBounds>
+}
+
+
+
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
 /// T: a member of PropertiesCoproduct, representing the type of the set of properites
@@ -100,6 +120,8 @@ pub trait RenderNode<R: 'static + RenderContext>
             }
         }
 
+
+
         for child in (*self.get_rendering_children()).borrow().iter() {
             (*(*child)).borrow_mut().unmount_recursive(rtc, permanent);
         }
@@ -122,6 +144,29 @@ pub trait RenderNode<R: 'static + RenderContext>
         Rc::new(RefCell::new(ret))
     }
 
+    fn set_tab_cache(&mut self, cache: TabCache<R>);
+    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>>;
+
+    ///Determines whether the provided ray, orthogonal to the view plane,
+    ///intersects this rendernode.
+    fn ray_hit_test(&self, ray: (f64, f64)) -> bool {
+
+        //Get computed transform -- invert it, multiple `ray` by inverted matrix
+        // then decide if transformed ray is inside the pre-transformed bounds.
+        // Rectilinear bounding boxes are supported here as a default; nodes may
+        // override for more specific behavior (e.g. for an ellipse or path)
+        //
+        // let rtc = self.get_latest_render_tree_context();
+        //
+        // let inverted_transform = rtc.transform.inverse();
+        //
+        // let x = inverted_transform * Point::new(ray.0, ray.1);
+
+        //TODO: load already-computed
+
+        // let transform_computed = (*self.get_transform()).borrow().get().
+        false
+    }
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
         None //default no-op
@@ -137,8 +182,8 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// unique node addressing in the context of an in-progress render tree traversal.
     fn get_instance_id(&self) -> u64;
 
-    /// Used for exotic tree traversals, e.g. for `Spread` > `Repeat` > `Rectangle`
-    /// where the repeated `Rectangle`s need to be be considered direct children of `Spread`.
+    /// Used for exotic tree traversals, e.g. for `Stacker` > `Repeat` > `Rectangle`
+    /// where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.
     /// `Repeat` overrides `should_flatten` to return true, which `Engine` interprets to mean "ignore this
     /// node and consume its children" during traversal.
     ///

@@ -1,14 +1,14 @@
-<Spread id="main-spread">
+<Stacker id="main-stacker">
     <Rectangle id="rect-1" />
     <Rectangle id="rect-2" />
     <Group>
         <Text id="label" content="Hello!" />
         <Rectangle id="rect-3" />
     </Group>
-</Spread>
+</Stacker>
 
 @settings {
-    #main-spread {
+    #main-stacker {
         cell_count: 3
         orientation: Orientation::Vertical
         gutter_width: 5px

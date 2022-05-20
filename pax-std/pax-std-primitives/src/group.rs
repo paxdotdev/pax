@@ -1,22 +1,31 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use piet_common::RenderContext;
-use pax_core::{HandlerRegistry, InstanceRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use pax_core::{HandlerRegistry, TabCache, InstanceRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
-pub struct GroupInstance<R: RenderContext> {
+pub struct GroupInstance<R: 'static + RenderContext> {
     pub instance_id: u64,
     pub primitive_children: RenderNodePtrList<R>,
     pub id: String,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    pub tab_cache: Option<Rc<TabCache<R>>>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
+
+    fn set_tab_cache(&mut self, cache: TabCache<R>) {
+        self.tab_cache = Some(Rc::new(cache));
+    }
+    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>> {
+        self.tab_cache.clone()
+    }
+
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }
@@ -37,6 +46,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
             id: "".to_string(),
             transform: args.transform,
             handler_registry: args.handler_registry,
+            tab_cache: None,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);

@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use kurbo::BezPath;
 use piet::RenderContext;
 
-use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
+use pax_core::{RenderNode, TabCache, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
 use pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, PropertyLiteral, Size2D};
 use pax_message::{AnyCreatePatch, FramePatch};
@@ -19,16 +19,25 @@ use pax_message::{AnyCreatePatch, FramePatch};
 /// If clipping or the option of clipping is not required,
 /// a [`Group`] will generally be a more performant and otherwise-equivalent
 /// to [`Frame`], since `[Frame]` creates a clipping mask.
-pub struct FrameInstance<R: RenderContext> {
+pub struct FrameInstance<R: 'static + RenderContext> {
     pub instance_id: u64,
     pub children: RenderNodePtrList<R>,
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub tab_cache: Option<Rc<TabCache<R>>>,
 
     last_patches: HashMap<Vec<u64>, FramePatch>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
+
+    fn set_tab_cache(&mut self, cache: TabCache<R>) {
+        self.tab_cache = Some(Rc::new(cache));
+    }
+    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>> {
+        self.tab_cache.clone()
+    }
+
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }
@@ -44,6 +53,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
                 size: Rc::new(RefCell::new(args.size.expect("Frame requires size"))),
                 transform: args.transform,
                 last_patches: HashMap::new(),
+                tab_cache: None,
             }
         ));
 
@@ -150,7 +160,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         // construct a BezPath of this frame's bounds * its transform,
         // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
-        //TODO:  if clipping is TURNED OFF for this Frame, don't do any of this
 
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounds;

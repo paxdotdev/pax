@@ -5,7 +5,7 @@ use std::rc::Rc;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext, HandlerRegistry};
+use crate::{InstantiationArgs, TabCache, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext, HandlerRegistry};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
 
 
@@ -14,10 +14,10 @@ use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
 /// an adoptee can be rendered.  Slot relies on `adoptees` being present
 /// on the [`Runtime`] stack and will not render any content if there are no `adoptees` found.
 ///
-/// Consider a Spread:  the owner of a Spread passes the Spread some nodes to render
-/// inside the cells of the Spread.  To the owner of the Spread, those nodes might seem like
-/// "children," but to the Spread they are "adoptees" — children provided from
-/// the outside.  Inside Spread's template, there are a number of Slots — this primitive —
+/// Consider a Stacker:  the owner of a Stacker passes the Stacker some nodes to render
+/// inside the cells of the Stacker.  To the owner of the Stacker, those nodes might seem like
+/// "children," but to the Stacker they are "adoptees" — children provided from
+/// the outside.  Inside Stacker's template, there are a number of Slots — this primitive —
 /// that become the final rendered home of those adoptees.  This same technique
 /// is portable and applicable elsewhere via Slot.
 pub struct SlotInstance<R: 'static + RenderContext> {
@@ -25,10 +25,19 @@ pub struct SlotInstance<R: 'static + RenderContext> {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub index: Box<dyn PropertyInstance<usize>>,
     cached_computed_children: RenderNodePtrList<R>,
+    pub tab_cache: Option<Rc<TabCache<R>>>,
 }
 
 
 impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
+
+    fn set_tab_cache(&mut self, cache: TabCache<R>) {
+        self.tab_cache = Some(Rc::new(cache));
+    }
+    fn get_tab_cache(&self) -> Option<Rc<TabCache<R>>> {
+        self.tab_cache.clone()
+    }
+
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }
@@ -39,7 +48,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
             instance_id,
             transform: args.transform,
             index: args.slot_index.expect("index required for Slot"),
-            cached_computed_children: Rc::new(RefCell::new(vec![]))
+            cached_computed_children: Rc::new(RefCell::new(vec![])),
+            tab_cache: None,
         }));
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret

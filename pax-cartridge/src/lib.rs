@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::ops::Deref;
 use std::rc::Rc;
-use pax_core::{ComponentInstance, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceRegistry, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
+use pax_core::{ComponentInstance, RenderNodePtr, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceRegistry, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 use piet_common::RenderContext;
@@ -13,8 +13,8 @@ use pax_runtime_api::{ArgsCoproduct, PropertyInstance, PropertyLiteral, Size2D, 
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
 use pax_example::pax_types::{Root};
 use pax_example::pax_types::pax_std::primitives::{Rectangle, Group, Text};
-use pax_example::pax_types::pax_std::types::{Color, Stroke, Size, SpreadCellProperties};
-use pax_example::pax_types::pax_std::components::Spread;
+use pax_example::pax_types::pax_std::types::{Color, Stroke, Size, StackerCellProperties};
+use pax_example::pax_types::pax_std::components::Stacker;
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
 use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};
@@ -116,13 +116,13 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
         //note this unwrapping is nested inside the `if let`, rather than flatted into a single assignment.
         //This is necessary for the non-clonable `Vec` in this case, and might need/want to be applied to codegen template (that is: nesting instead of implicit cloning, e.g. of primitive types)
         #[allow(non_snake_case)]
-        if let PropertiesCoproduct::Spread(p) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+        if let PropertiesCoproduct::Stacker(p) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let computed_layout_spec = p.computed_layout_spec.get();
             return TypesCoproduct::Vec_Rc_PropertiesCoproduct___(computed_layout_spec.iter().enumerate().map(|(i,e)|{
                 let cloned = Rc::clone(e);
                 //TODO: there should be a way to pull off this re-wrapping without cloning the data structure (below).  One option is to deal with raw refs to the datum (we
                 //are guaranteed immutable reads for this data, after all.)
-                let rewrapped = PropertiesCoproduct::SpreadCellProperties((*cloned).clone());
+                let rewrapped = PropertiesCoproduct::StackerCellProperties((*cloned).clone());
                 Rc::new(rewrapped)
             }).collect());
         } else { unreachable!() };
@@ -135,7 +135,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
             (Rc::clone(datum), *i)
         } else { unreachable!("alpha") };
 
-        let datum_cast = if let PropertiesCoproduct::SpreadCellProperties(d)= &*datum {d} else {unreachable!("beta")};
+        let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!("beta")};
 
         return TypesCoproduct::Transform2D(
             Transform2D::translate(datum_cast.x_px, datum_cast.y_px)
@@ -153,7 +153,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
             (Rc::clone(datum), *i)
         } else { unreachable!("gamma") };
 
-        let datum_cast = if let PropertiesCoproduct::SpreadCellProperties(d)= &*datum {d} else {unreachable!("epsilon")};
+        let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!("epsilon")};
         // (*ec.engine.runtime).borrow().log(&format!("evaling layout width {}", datum_cast.width_px));
         return TypesCoproduct::Size(
             Size::Pixel(datum_cast.width_px)
@@ -167,7 +167,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
             (Rc::clone(datum), *i)
         } else { unreachable!("delta") };
 
-        let datum_cast = if let PropertiesCoproduct::SpreadCellProperties(d)= &*datum {d} else {unreachable!()};
+        let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!()};
 
         return TypesCoproduct::Size(
             Size::Pixel(datum_cast.height_px)
@@ -232,6 +232,299 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
     vtable
 }
 
+
+fn instantiate_component_stacker<R: 'static + RenderContext>(mut args: InstantiationArgs<R>, instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>>  {
+    ComponentInstance::instantiate(
+    InstantiationArgs {
+        properties: PropertiesCoproduct::Stacker(Stacker {
+            computed_layout_spec: Default::default(),
+            direction: Default::default(),
+            cell_count: Box::new(PropertyLiteral::new(10)),
+            gutter_width: Box::new(PropertyLiteral::new(Size::Pixel(5.0))),
+            overrides_cell_size: Default::default(),
+            overrides_gutter_size: Default::default(),
+        }),
+        handler_registry: Some(Rc::new(RefCell::new(
+            HandlerRegistry {
+                click_handlers: vec![],
+                pre_render_handlers: vec![
+                    |properties,args|{
+                        let properties = &mut *properties.as_ref().borrow_mut();
+                        let properties = if let PropertiesCoproduct::Stacker(p) = properties {p} else {unreachable!()};
+                        Stacker::handle_pre_render(properties, args);
+                    }
+                ],
+            }
+        ))),
+        instance_registry: Rc::clone(&instance_registry),
+        transform: Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::rotate(0.0)))),
+        size: Some([Box::new(PropertyLiteral::new(Size::Percent(100.0))), Box::new(PropertyLiteral::new(Size::Percent(100.0)))]),
+        children: Some(Rc::new(RefCell::new(vec![
+            GroupInstance::instantiate(InstantiationArgs {
+                properties: PropertiesCoproduct::Group(Group{}),
+                handler_registry: None,
+                instance_registry: Rc::clone(&instance_registry),
+                transform: Transform2D::default_wrapped(),
+                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                children: Some(Rc::new(RefCell::new(vec![
+                    TextInstance::instantiate(InstantiationArgs {
+                        properties: PropertiesCoproduct::Text( Text {
+                            content: Box::new(PropertyLiteral::new("Hello".to_string()) )
+                        }),
+                        handler_registry: None,
+                        instance_registry: Rc::clone(&instance_registry),
+                        transform: Transform2D::default_wrapped(),
+                        size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                        children: None,
+                        component_template: None,
+                        scroller_args: None,
+                        slot_index: None,
+                        repeat_data_list: None,
+                        conditional_boolean_expression: None,
+                        compute_properties_fn: None
+                    }),
+                    RectangleInstance::instantiate(InstantiationArgs{
+                        properties: PropertiesCoproduct::Rectangle(Rectangle {
+                            stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
+                                color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
+                                width: Box::new(PropertyLiteral::new(0.0)),
+                            })),
+                            fill: Box::new(PropertyLiteral::new(Color::rgba(0.20, 0.45, 1.0, 1.0)))
+                        }),
+                        handler_registry: None,
+                        instance_registry: Rc::clone(&instance_registry),
+                        transform: Transform2D::default_wrapped(),
+                        size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                        children: None,
+                        component_template: None,
+                        scroller_args: None,
+                        slot_index: None,
+                        repeat_data_list: None,
+                        conditional_boolean_expression: None,
+                        compute_properties_fn: None
+                    }),
+                ]))),
+                component_template: None,
+                scroller_args: None,
+                slot_index: None,
+                repeat_data_list: None,
+                conditional_boolean_expression: None,
+                compute_properties_fn: None
+            }),
+            RepeatInstance::instantiate(InstantiationArgs {
+                properties: PropertiesCoproduct::None,
+                handler_registry: None,
+                instance_registry: Rc::clone(&instance_registry),
+                transform: Transform2D::default_wrapped(),
+                size: None,
+                children: Some(Rc::new(RefCell::new( vec![
+                    GroupInstance::instantiate(InstantiationArgs {
+                        properties: PropertiesCoproduct::Group(Group{}),
+                        handler_registry: None,
+                        instance_registry: Rc::clone(&instance_registry),
+                        transform: Transform2D::default_wrapped(),
+                        size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                        children: Some(Rc::new(RefCell::new(vec![
+                            TextInstance::instantiate(InstantiationArgs {
+                                properties: PropertiesCoproduct::Text( Text {
+                                    content: Box::new(PropertyExpression::new("l".to_string()) )
+                                }),
+                                handler_registry: None,
+                                instance_registry: Rc::clone(&instance_registry),
+                                transform: Transform2D::default_wrapped(),
+                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                                children: None,
+                                component_template: None,
+                                scroller_args: None,
+                                slot_index: None,
+                                repeat_data_list: None,
+                                conditional_boolean_expression: None,
+                                compute_properties_fn: None
+                            }),
+                            RectangleInstance::instantiate(InstantiationArgs{
+                                properties: PropertiesCoproduct::Rectangle(Rectangle {
+                                    stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
+                                        color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
+                                        width: Box::new(PropertyLiteral::new(0.0)),
+                                    })),
+                                    fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 0.45, 0.25, 1.0)))
+                                }),
+                                handler_registry: None,
+                                instance_registry: Rc::clone(&instance_registry),
+                                transform: Transform2D::default_wrapped(),
+                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                                children: None,
+                                component_template: None,
+                                scroller_args: None,
+                                slot_index: None,
+                                repeat_data_list: None,
+                                conditional_boolean_expression: None,
+                                compute_properties_fn: None
+                            }),
+                        ]))),
+                        component_template: None,
+                        scroller_args: None,
+                        slot_index: None,
+                        repeat_data_list: None,
+                        conditional_boolean_expression: None,
+                        compute_properties_fn: None
+                    })
+                ]))),
+                component_template: None,
+                scroller_args: None,
+                slot_index: None,
+                repeat_data_list: Some(Box::new(PropertyLiteral::new((0..8).into_iter().map(|i|{
+                    Rc::new(PropertiesCoproduct::isize(i))
+                }).collect()))),
+                conditional_boolean_expression: None,
+                compute_properties_fn: None
+            }),
+            GroupInstance::instantiate(InstantiationArgs {
+                properties: PropertiesCoproduct::Group(Group {}),
+                handler_registry: None,
+                instance_registry: Rc::clone(&instance_registry),
+                transform: Rc::new(RefCell::new(PropertyExpression::new("k".to_string()))),
+                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                children: Some(Rc::new(RefCell::new(vec![
+                    TextInstance::instantiate(InstantiationArgs {
+                        properties: PropertiesCoproduct::Text( Text {
+                            content: Box::new(PropertyLiteral::new(JABBERWOCKY.to_string()) )
+                        }),
+                        handler_registry: None,
+                        instance_registry: Rc::clone(&instance_registry),
+                        transform: Transform2D::default_wrapped(),
+                        size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                        children: None,
+                        component_template: None,
+                        scroller_args: None,
+                        slot_index: None,
+                        repeat_data_list: None,
+                        conditional_boolean_expression: None,
+                        compute_properties_fn: None
+                    }),
+                    RectangleInstance::instantiate(InstantiationArgs{
+                        properties: PropertiesCoproduct::Rectangle(Rectangle {
+                            stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
+                                color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
+                                width: Box::new(PropertyLiteral::new(0.0)),
+                            } )),
+                            fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 1.0, 0.0, 1.0)))
+                        }),
+                        handler_registry: None,
+                        instance_registry: Rc::clone(&instance_registry),
+                        transform: Transform2D::default_wrapped(),
+                        size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                        children: None,
+                        component_template: None,
+                        scroller_args: None,
+                        slot_index: None,
+                        repeat_data_list: None,
+                        conditional_boolean_expression: None,
+                        compute_properties_fn: None
+                    }),
+                ]))),
+                component_template: None,
+                scroller_args: None,
+                slot_index: None,
+                repeat_data_list: None,
+                conditional_boolean_expression: None,
+                compute_properties_fn: None,
+            }),
+        ]))),
+        component_template: Some(Rc::new(RefCell::new(
+            vec![
+                RepeatInstance::instantiate(InstantiationArgs {
+                    properties: PropertiesCoproduct::None,
+                    handler_registry: None,
+                    instance_registry: Rc::clone(&instance_registry),
+                    transform: Transform2D::default_wrapped(),
+                    size: None,
+                    component_template: None,
+                    children: Some(Rc::new(RefCell::new(vec![
+                        FrameInstance::instantiate(InstantiationArgs{
+                            properties: PropertiesCoproduct::None,
+                            handler_registry: None,
+                            instance_registry: Rc::clone(&instance_registry),
+                            transform: Rc::new(RefCell::new(PropertyExpression::new("g".to_string()))),
+                            size: Some([
+                                Box::new(PropertyExpression::new("h".to_string())),
+                                Box::new(PropertyExpression::new("i".to_string())),
+                            ]),
+                            children: Some(Rc::new(RefCell::new(vec![
+                                SlotInstance::instantiate(InstantiationArgs {
+                                    properties: PropertiesCoproduct::None,
+                                    handler_registry: None,
+                                    instance_registry: Rc::clone(&instance_registry),
+                                    transform: Transform2D::default_wrapped(),
+                                    size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),
+                                    children: None,
+                                    component_template: None,
+                                    scroller_args: None,
+                                    slot_index: Some(Box::new(PropertyExpression::new("j".to_string()))),
+                                    repeat_data_list: None,
+                                    conditional_boolean_expression: None,
+                                    compute_properties_fn: None
+                                }),
+                            ]))),
+                            component_template: None,
+                            scroller_args: None,
+                            slot_index: None,
+                            repeat_data_list: None,
+                            conditional_boolean_expression: None,
+                            compute_properties_fn: None
+                        }),
+                    ]))),
+                    slot_index: None,
+                    repeat_data_list: Some(Box::new(PropertyExpression::new("f".to_string()))),
+                    conditional_boolean_expression: None,
+                    compute_properties_fn: None,
+                    scroller_args: None
+                }),
+            ]
+        ))),
+        scroller_args: None,
+        slot_index: None,
+        repeat_data_list: None,
+        conditional_boolean_expression: None,
+        compute_properties_fn: Some(Box::new(|properties, rtc|{
+            let properties = &mut *properties.as_ref().borrow_mut();
+            let properties = if let PropertiesCoproduct::Stacker(p) = properties {p} else {unreachable!()};
+
+            // if let Some(new_value) = rtc.get_eased_value(properties.direction._get_transition_manager()) {
+            //     properties.direction.set(new_value);
+            // }else
+            if let Some(new_value) = rtc.compute_vtable_value(properties.direction._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::StackerDirection(v) = new_value { v } else { unreachable!() };
+                properties.direction.set(new_value);
+            }
+
+            if let Some(new_value) = rtc.compute_vtable_value(properties.cell_count._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::usize(v) = new_value { v } else { unreachable!() };
+                properties.cell_count.set(new_value);
+            }
+
+            if let Some(new_value) = rtc.compute_vtable_value(properties.gutter_width._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::Size(v) = new_value { v } else { unreachable!() };
+                properties.gutter_width.set(new_value);
+            }
+
+            if let Some(new_value) = rtc.compute_vtable_value(properties.overrides_cell_size._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::Vec_LPAREN_usize_COMMA_Size_RPAREN(v) = new_value { v } else { unreachable!() };
+                properties.overrides_cell_size.set(new_value);
+            }
+
+            if let Some(new_value) = rtc.compute_vtable_value(properties.overrides_gutter_size._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::Vec_LPAREN_usize_COMMA_Size_RPAREN(v) = new_value { v } else { unreachable!() };
+                properties.overrides_gutter_size.set(new_value);
+            }
+
+        }))
+    }
+    )
+}
+
+
+
 pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     //Root
     ComponentInstance::instantiate(
@@ -259,10 +552,11 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
             children: None,
             component_template: Some(Rc::new(RefCell::new(vec![
 
-                //Spread
+
+                //Stacker
                 ComponentInstance::instantiate(
                     InstantiationArgs {
-                        properties: PropertiesCoproduct::Spread(Spread {
+                        properties: PropertiesCoproduct::Stacker(Stacker {
                             computed_layout_spec: Default::default(),
                             direction: Default::default(),
                             cell_count: Box::new(PropertyLiteral::new(10)),
@@ -276,8 +570,8 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                 pre_render_handlers: vec![
                                     |properties,args|{
                                         let properties = &mut *properties.as_ref().borrow_mut();
-                                        let properties = if let PropertiesCoproduct::Spread(p) = properties {p} else {unreachable!()};
-                                        Spread::handle_pre_render(properties, args);
+                                        let properties = if let PropertiesCoproduct::Stacker(p) = properties {p} else {unreachable!()};
+                                        Stacker::handle_pre_render(properties, args);
                                     }
                                 ],
                             }
@@ -514,13 +808,13 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                         conditional_boolean_expression: None,
                         compute_properties_fn: Some(Box::new(|properties, rtc|{
                             let properties = &mut *properties.as_ref().borrow_mut();
-                            let properties = if let PropertiesCoproduct::Spread(p) = properties {p} else {unreachable!()};
+                            let properties = if let PropertiesCoproduct::Stacker(p) = properties {p} else {unreachable!()};
 
                             // if let Some(new_value) = rtc.get_eased_value(properties.direction._get_transition_manager()) {
                             //     properties.direction.set(new_value);
                             // }else
                             if let Some(new_value) = rtc.compute_vtable_value(properties.direction._get_vtable_id()) {
-                                let new_value = if let TypesCoproduct::SpreadDirection(v) = new_value { v } else { unreachable!() };
+                                let new_value = if let TypesCoproduct::StackerDirection(v) = new_value { v } else { unreachable!() };
                                 properties.direction.set(new_value);
                             }
 
@@ -547,7 +841,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                         }))
                     }
                 ),
-                //End Spread
+                //End Stacker
 
             ]))),
             scroller_args: None,
