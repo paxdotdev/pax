@@ -249,7 +249,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
-    fn traverse_render_tree(&self, rc: &mut R) -> Vec<pax_message::NativeMessage> {
+    fn hydrate_render_tree(&self, rc: &mut R) -> Vec<pax_message::NativeMessage> {
         //Broadly:
         // 1. compute properties
         // 2. find lowest node (last child of last node), accumulating transform along the way
@@ -268,13 +268,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             inherited_adoptees: None,
         };
 
-        self.recurse_traverse_render_tree(&mut rtc, rc, Rc::clone(&cast_component_rc));
+        self.recurse_hydrate_render_tree(&mut rtc, rc, Rc::clone(&cast_component_rc));
 
         let native_render_queue = (*self.runtime).borrow_mut().swap_native_message_queue();
         native_render_queue.into()
     }
 
-    fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R, node: RenderNodePtr<R>)  {
+    fn recurse_hydrate_render_tree(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R, node: RenderNodePtr<R>)  {
         //Recurse:
         //  - compute properties for this node
         //  - fire lifecycle events for this node
@@ -363,8 +363,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let children = node.borrow_mut().get_rendering_children();
 
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
-        // Calculate hydrated_node BEFORE processing children, so that it may be added as a pointer
-        // Add to instance_registry AFTER processing children, so that
+
         let hydrated_node = Rc::new(HydratedNode {
             tab: TransformAndBounds {
                 bounds: new_accumulated_bounds.clone(),
@@ -382,7 +381,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
             new_rtc.parent_hydrated_node = Some(Rc::clone(&hydrated_node));
-            &self.recurse_traverse_render_tree(&mut new_rtc, rc, Rc::clone(child));
+            &self.recurse_hydrate_render_tree(&mut new_rtc, rc, Rc::clone(child));
             //TODO: for dependency management, return computed values from subtree above
         });
 
@@ -439,7 +438,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn tick(&mut self, rc: &mut R) -> Vec<NativeMessage> {
         rc.clear(None, Color::rgb(1.0, 1.0, 1.0));
         (*self.instance_registry).borrow_mut().reset_hydrated_node_cache();
-        let native_render_queue = self.traverse_render_tree(rc);
+        let native_render_queue = self.hydrate_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue
     }
