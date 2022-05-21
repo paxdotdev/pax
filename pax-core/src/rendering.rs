@@ -158,24 +158,16 @@ pub trait RenderNode<R: 'static + RenderContext>
     // }
 
     ///Determines whether the provided ray, orthogonal to the view plane,
-    ///intersects this rendernode.
-    fn ray_hit_test(&self, ray: (f64, f64)) -> bool {
+    ///intersects this rendernode. `tab` must also be passed because these are specific
+    ///to a HydratedNode
+    fn ray_hit_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
 
-        //Get computed transform -- invert it, multiple `ray` by inverted matrix
-        // then decide if transformed ray is inside the pre-transformed bounds.
-        // Rectilinear bounding boxes are supported here as a default; nodes may
-        // override for more specific behavior (e.g. for an ellipse or path)
-        //
-        // let rtc = self.get_latest_render_tree_context();
-        //
-        // let inverted_transform = rtc.transform.inverse();
-        //
-        // let x = inverted_transform * Point::new(ray.0, ray.1);
+        let inverted_transform = tab.transform.inverse();
+        let transformed_ray = inverted_transform * Point {x:ray.0,y:ray.1};
 
-        //TODO: load already-computed
-
-        // let transform_computed = (*self.get_transform()).borrow().get().
-        false
+        //Default implementation: rectilinear bounding hull
+        transformed_ray.x > 0.0 && transformed_ray.y > 0.0
+            && transformed_ray.x < tab.bounds.0 && transformed_ray.y < tab.bounds.1
     }
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {

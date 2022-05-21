@@ -3,6 +3,9 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::env::Args;
 use std::f64::EPSILON;
 use std::rc::Rc;
+use std::thread::sleep;
+use std::time::Duration;
+use kurbo::Point;
 
 use pax_message::NativeMessage;
 
@@ -170,7 +173,7 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///intended to be cleared at the beginning of each frame and populated
     ///with each node visited.  This enables post-facto operations on nodes with
     ///otherwise ephemeral calculations, e.g. the descendants of `Repeat` instances.
-    hydrated_node_cache: HashMap<Vec<u64>, Rc<HydratedNode<R>>>,
+    hydrated_node_cache: Vec<Rc<HydratedNode<R>>>,
 
     ///track which elements are currently mounted -- if id is present in set, is mounted
     mounted_set: HashSet<(u64, Vec<u64>)>,
@@ -184,7 +187,7 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         Self {
             mounted_set: HashSet::new(),
             instance_map: HashMap::new(),
-            hydrated_node_cache: HashMap::new(),
+            hydrated_node_cache: vec![],
             next_id: 0,
         }
     }
@@ -216,16 +219,13 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
     }
 
     pub fn reset_hydrated_node_cache(&mut self) {
-        self.hydrated_node_cache = HashMap::new();
+        self.hydrated_node_cache = vec![];
     }
 
     pub fn add_to_hydrated_node_cache(&mut self, hydrated_node: Rc<HydratedNode<R>>) {
-        self.hydrated_node_cache.insert(hydrated_node.id_chain.clone(), hydrated_node);
+        self.hydrated_node_cache.push(hydrated_node);
     }
 
-    pub fn get_hydrated_node_cache(&self) -> &HashMap<Vec<u64>, Rc<HydratedNode<R>>> {
-        &self.hydrated_node_cache
-    }
 
 }
 
@@ -398,7 +398,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     /// ray running orthogonally to the view plane, interesecting at
     /// the specified point `ray`.  Areas outside of clipping bounds will
     /// not register a `hit`, nor will elements that suppress input events.
-    pub fn get_topmost_element_beneath_ray(&self, ray: (f64, f64)) {
+    pub fn get_topmost_hydrated_element_beneath_ray(&self, ray: (f64, f64)) -> Option<Rc<HydratedNode<R>>> {
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
@@ -414,18 +414,40 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //     for finding ancestral clipping containers
         //
 
+        let nodes_ordered : Vec<Rc<HydratedNode<R>>> = (*self.instance_registry).borrow()
+            .hydrated_node_cache.iter().rev()
+            .map(|rc|{
+                Rc::clone(rc)
+            }).collect();
 
-        let nodes_ordered : Vec<Rc<HydratedNode<R>>> = (*self.instance_registry).borrow().hydrated_node_cache.values().map(|rc|{Rc::clone(rc)}).collect();
+        let mut sizes = vec![];
 
-        // let nodes_ordered = (*self.root_component).borrow().get_rendering_subtree_flattened();
-
+        // let ray = Point {x: ray.0,y: ray.1};
+        let mut ret : Option<Rc<HydratedNode<R>>> = None;
         for node in nodes_ordered {
             // pax_runtime_api::log(&(**node).borrow().get_instance_id().to_string())
 
 
+            if (*node.instance_node).borrow().ray_hit_test(&ray, &node.tab) {
+                let size = (*(*node).instance_node).borrow().get_size();
+                sizes.push(size);
+                pax_runtime_api::log(&format!("HIT NODE!! {:?}", node.id_chain));
+
+                //We only care about the topmost node getting hit, and the element
+                //pool is ordered by z-index so we can just return
+                //from the entire function when we find the first hitting node
+                ret = Some(Rc::clone(&node));
+                break;
+            }
         }
 
-        pax_runtime_api::log(&format!("Click received; coordinates ({},{})", ray.0, ray.1));
+
+        sleep(Duration::from_micros(1));
+
+        ret
+
+
+        // pax_runtime_api::log(&format!("Click received; coordinates ({},{})", ray.0, ray.1));
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes

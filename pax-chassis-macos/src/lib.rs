@@ -94,7 +94,7 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
     let interrupt = interrupt_wrapped.unwrap();
     match interrupt {
         NativeInterrupt::Click(args) => {
-            engine.get_topmost_element_beneath_ray((args.x, args.y));
+            engine.get_topmost_hydrated_element_beneath_ray((args.x, args.y));
             //TODO: dispatch click
         }
         NativeInterrupt::Scroll(_) => {}
