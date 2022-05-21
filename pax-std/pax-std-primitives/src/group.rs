@@ -14,15 +14,13 @@ pub struct GroupInstance<R: 'static + RenderContext> {
     pub id: String,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
-    tab_cache: TabCache<R>,
+
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
 
 
-    fn get_tab_cache(&mut self) -> &mut TabCache<R> {
-        &mut self.tab_cache
-    }
+
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -44,7 +42,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
             id: "".to_string(),
             transform: args.transform,
             handler_registry: args.handler_registry,
-            tab_cache: TabCache::new(),
+
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);

@@ -26,16 +26,14 @@ pub struct SlotInstance<R: 'static + RenderContext> {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub index: Box<dyn PropertyInstance<usize>>,
     cached_computed_children: RenderNodePtrList<R>,
-    tab_cache: TabCache<R>,
+
 }
 
 
 impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
 
 
-    fn get_tab_cache(&mut self) -> &mut TabCache<R> {
-        &mut self.tab_cache
-    }
+
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -48,7 +46,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
             transform: args.transform,
             index: args.slot_index.expect("index required for Slot"),
             cached_computed_children: Rc::new(RefCell::new(vec![])),
-            tab_cache: TabCache::new(),
+
         }));
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret

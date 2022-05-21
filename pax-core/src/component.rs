@@ -24,7 +24,7 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>,
-    pub tab_cache: TabCache<R>,
+
     // pub rtc: Option<RenderTreeContext<R>>,
 }
 
@@ -55,9 +55,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
 
 
 
-    fn get_tab_cache(&mut self) -> &mut TabCache<R> {
-        &mut self.tab_cache
-    }
+
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -100,7 +98,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
             compute_properties_fn: args.compute_properties_fn.expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
             handler_registry: args.handler_registry,
-            tab_cache: TabCache::new(),
+
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -121,16 +119,16 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         //expand adoptees before adding to stack frame.
         //NOTE: this requires *evaluating properties* for `should_flatten` nodes like Repeat and Conditional, whose
         //      properties must be evaluated before we can know how to handle them as adoptees
-        let unexpanded_adoptees = Rc::clone(&self.children);
+        let unflattened_adoptees = Rc::clone(&self.children);
 
-        let expanded_adoptees = Rc::new(RefCell::new(
-            (*unexpanded_adoptees).borrow().iter().map(|adoptee| {
+        let flattened_adoptees = Rc::new(RefCell::new(
+            (*unflattened_adoptees).borrow().iter().map(|adoptee| {
                 Runtime::process__should_flatten__adoptees_recursive(adoptee, rtc)
             }).flatten().collect()
         ));
 
         (*rtc.runtime).borrow_mut().push_stack_frame(
-            expanded_adoptees,
+            flattened_adoptees,
             Rc::clone(&self.properties),
             self.timeline.clone(),
         );

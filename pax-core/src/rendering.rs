@@ -138,31 +138,24 @@ pub trait RenderNode<R: 'static + RenderContext>
             }
         }
 
-
-
         for child in (*self.get_rendering_children()).borrow().iter() {
             (*(*child)).borrow_mut().unmount_recursive(rtc, permanent);
         }
     }
 
-
-
-
-    /// Recursively collects all nodes from subtree into a single
-    /// list, **exclusive of the current node.** (This is due to Rc<RefCell<>>/ownership constraints)
-    /// This list is ordered descending by z-index and is appropriate at least for 2D raycasting.
-    fn get_rendering_subtree_flattened(&self) -> RenderNodePtrList<R> {
-
-        //push each child to the front of the running list, bottom-first
-        //(so that top-most elements are always at the front)
-
-        let children = self.get_rendering_children();
-        let ret = recurse_get_rendering_subtree_flattened(children);
-
-        Rc::new(RefCell::new(ret))
-    }
-
-    fn get_tab_cache(&mut self) -> &mut TabCache<R>;
+    // /// Recursively collects all nodes from subtree into a single
+    // /// list, **exclusive of the current node.** (This is due to Rc<RefCell<>>/ownership constraints)
+    // /// This list is ordered descending by z-index and is appropriate at least for 2D raycasting.
+    // fn get_rendering_subtree_flattened(&self) -> RenderNodePtrList<R> {
+    //
+    //     //push each child to the front of the running list, bottom-first
+    //     //(so that top-most elements are always at the front)
+    //
+    //     let children = self.get_rendering_children();
+    //     let ret = recurse_get_rendering_subtree_flattened(children);
+    //
+    //     Rc::new(RefCell::new(ret))
+    // }
 
     ///Determines whether the provided ray, orthogonal to the view plane,
     ///intersects this rendernode.

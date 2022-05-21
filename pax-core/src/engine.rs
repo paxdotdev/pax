@@ -49,7 +49,7 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext>
     pub bounds: (f64, f64),
     pub runtime: Rc<RefCell<Runtime<R>>>,
     pub node: RenderNodePtr<R>,
-    pub parent: Option<RenderNodePtr<R>>,
+    pub parent_virtual_node: Option<Rc<VirtualNode<R>>>,
     pub timeline_playhead_position: usize,
     pub inherited_adoptees: Option<RenderNodePtrList<R>>,
 }
@@ -62,7 +62,7 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             bounds: self.bounds.clone(),
             runtime: Rc::clone(&self.runtime),
             node: Rc::clone(&self.node),
-            parent: self.parent.clone(),
+            parent_virtual_node: self.parent_virtual_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
             inherited_adoptees: self.inherited_adoptees.clone(),
         }
@@ -216,6 +216,18 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.mounted_set.remove(&(id, repeat_indices));
     }
 
+    pub fn reset_virtual_node_cache(&mut self) {
+        self.virtual_node_cache = HashMap::new();
+    }
+
+    pub fn add_to_virtual_node_cache(&mut self, virtual_node: Rc<VirtualNode<R>>) {
+        self.virtual_node_cache.insert(virtual_node.id_chain.clone(), virtual_node);
+    }
+
+    pub fn get_virtual_node_cache(&self) -> &HashMap<Vec<u64>, Rc<VirtualNode<R>>> {
+        &self.virtual_node_cache
+    }
+
 }
 
 
@@ -252,7 +264,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             bounds: self.viewport_size,
             runtime: self.runtime.clone(),
             node: Rc::clone(&cast_component_rc),
-            parent: None,
+            parent_virtual_node: None,
             timeline_playhead_position: self.frames_elapsed,
             inherited_adoptees: None,
         };
@@ -351,42 +363,60 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let children = node.borrow_mut().get_rendering_children();
 
+        let tab = TransformAndBounds {
+            transform: rtc.transform.clone(),
+            bounds: rtc.bounds.clone(),
+        };
+
+        let virtual_node : Rc<VirtualNode<R>>;
+        { // Closure to manage `node_borrowed`
+            let mut node_borrowed = node.borrow_mut();
+            let id_chain = rtc.get_id_chain(node_borrowed.get_instance_id());
+            virtual_node = Rc::new(VirtualNode {
+                tab,
+                id_chain,
+                instance_node: Rc::clone(&node),
+                parent_virtual_node: rtc.parent_virtual_node.clone(),
+            });
+
+            (*rtc.engine.instance_registry).borrow_mut().add_to_virtual_node_cache(Rc::clone(&virtual_node));
+        }
+
         //keep recursing through children
         children.borrow_mut().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
-            new_rtc.parent = Some(Rc::clone(&node));
+            new_rtc.parent_virtual_node = Some(Rc::clone(&virtual_node));
             &self.recurse_traverse_render_tree(&mut new_rtc, rc, Rc::clone(child));
             //TODO: for dependency management, return computed values from subtree above
         });
 
         //lifecycle: render
         //this is this node's time to do its own rendering, aside
-        //from its children.  Its children have already been rendered.
+        //from the rendering of its children. Its children have already been rendered.
         node.borrow_mut().handle_render(rtc, rc);
 
         //lifecycle: post_render
         node.borrow_mut().handle_post_render(rtc, rc);
 
-        //`rtc` is cached for use by hit-testing and other `interrupt`-driven logic
-        // node.borrow_mut().set_latest_render_tree_context(rtc.clone());
-        let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
+
+        // todo!("cache ")
+
+
+
+        //
+        // let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
 
         //Can we do better than clipping_ids?  Perhaps where we `push_clipping_stack`, we should also pass `tab`
         // todo!("get computed `tabs` from ancestral clips");
 
-        let tab = TransformAndBounds {
-            transform: rtc.transform.clone(),
-            bounds: rtc.bounds.clone(),
-        };
 
-        let mut node_borrowed = node.borrow_mut();
-        let id_chain = rtc.get_id_chain(node_borrowed.get_instance_id());
-        let cache = node_borrowed.get_tab_cache();
-        let parent = rtc.parent.clone();
 
-        cache.tabs.insert(id_chain.clone(), tab);
-        cache.parents.insert(id_chain, parent);
+        // let cache = node_borrowed.get_tab_cache();
+        // let parent = rtc.parent.clone();
+        //
+        // cache.tabs.insert(id_chain.clone(), tab);
+        // cache.parents.insert(id_chain, parent);
 
 
     }
@@ -412,16 +442,17 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //
 
 
+        let nodes_ordered : Vec<Rc<VirtualNode<R>>> = (*self.instance_registry).borrow().virtual_node_cache.values().map(|rc|{Rc::clone(rc)}).collect();
 
-        let nodes_ordered = (*self.root_component).borrow().get_rendering_subtree_flattened();
+        // let nodes_ordered = (*self.root_component).borrow().get_rendering_subtree_flattened();
 
-        for node in (*nodes_ordered).borrow().iter() {
+        for node in nodes_ordered {
             // pax_runtime_api::log(&(**node).borrow().get_instance_id().to_string())
 
 
         }
 
-        pax_runtime_api::log(&format!("Click received; coordinates ({},{}); casting ray into pool of {} nodes", ray.0, ray.1, (*nodes_ordered).borrow().len()));
+        pax_runtime_api::log(&format!("Click received; coordinates ({},{})", ray.0, ray.1));
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
@@ -433,6 +464,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     /// Expected to be called up to 60-120 times/second.
     pub fn tick(&mut self, rc: &mut R) -> Vec<NativeMessage> {
         rc.clear(None, Color::rgb(1.0, 1.0, 1.0));
+        (*self.instance_registry).borrow_mut().reset_virtual_node_cache();
         let native_render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue

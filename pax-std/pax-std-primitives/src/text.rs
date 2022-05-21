@@ -11,7 +11,7 @@ use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
 
-pub struct TextInstance<R: 'static + RenderContext> {
+pub struct TextInstance {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
     pub instance_id: u64,
     pub properties: Rc<RefCell<Text>>,
@@ -19,7 +19,7 @@ pub struct TextInstance<R: 'static + RenderContext> {
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 
-    tab_cache: TabCache<R>,
+
 
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
@@ -28,12 +28,10 @@ pub struct TextInstance<R: 'static + RenderContext> {
     last_patches: HashMap<Vec<u64>, pax_message::TextPatch>,
 }
 
-impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
+impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
 
 
-    fn get_tab_cache(&mut self) -> &mut TabCache<R> {
-        &mut self.tab_cache
-    }
+
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -51,7 +49,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             size: Rc::new(RefCell::new(args.size.expect("Text requires a size"))),
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
-            tab_cache: TabCache::new(),
+
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);

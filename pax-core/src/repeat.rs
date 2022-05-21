@@ -20,16 +20,14 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub data_list: Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>,
     pub virtual_children: RenderNodePtrList<R>,
-    tab_cache: TabCache<R>,
+
 }
 
 
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
 
-    fn get_tab_cache(&mut self) -> &mut TabCache<R> {
-        &mut self.tab_cache
-    }
+
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -48,7 +46,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             transform: args.transform,
             data_list: args.repeat_data_list.unwrap(),
             virtual_children: Rc::new(RefCell::new(vec![])),
-            tab_cache: TabCache::new(),
+
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -92,7 +90,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             //Any stated children (repeat template members) of Repeat should be forwarded to the `RepeatItem`-wrapped `ComponentInstance`s
             //so that `Slot` works as expected
             let forwarded_children = match (*rtc.runtime).borrow_mut().peek_stack_frame() {
-                Some(frame) => {Rc::clone(&(*frame.borrow()).get_unexpanded_adoptees())},
+                Some(frame) => {Rc::clone(&(*frame.borrow()).get_unflattened_adoptees())},
                 None => {Rc::new(RefCell::new(vec![]))},
             };
 
@@ -122,7 +120,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                             compute_properties_fn: Box::new(|props, rtc|{
                                 //no-op since the Repeat RenderNode handles the necessary calc (see `RepeatInstance::compute_properties`)
                             }),
-                            tab_cache: TabCache::new(),
+
                         }
                     ));
 

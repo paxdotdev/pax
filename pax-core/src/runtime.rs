@@ -11,9 +11,6 @@ use pax_runtime_api::{Timeline};
 use crate::{HandlerRegistry, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 
 
-
-
-
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, this is a home
 /// for logic that manages scopes and stack frames.
@@ -24,8 +21,6 @@ pub struct Runtime<R: 'static + RenderContext> {
     /// When a node is mounted, it may consult the clipping stack to see which clipping instances are relevant to it
     /// This list of `id_chain`s is passed along with `**Create`, in order to associate with the appropriate clipping elements on the native side
     clipping_stack: Vec<Vec<u64>>,
-    
-
     native_message_queue: VecDeque<pax_message::NativeMessage>
 }
 
@@ -79,12 +74,12 @@ impl<R: 'static + RenderContext> Runtime<R> {
 
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Slot` and a scope that includes the PropertiesCoproduct of the associated Component
-    pub fn push_stack_frame(&mut self, expanded_adoptees: RenderNodePtrList<R>, properties: Rc<RefCell<PropertiesCoproduct>>, timeline: Option<Rc<RefCell<Timeline>>>) {
+    pub fn push_stack_frame(&mut self, flattened_adoptees: RenderNodePtrList<R>, properties: Rc<RefCell<PropertiesCoproduct>>, timeline: Option<Rc<RefCell<Timeline>>>) {
         let parent = self.peek_stack_frame();
 
         self.stack.push(
             Rc::new(RefCell::new(
-                StackFrame::new(expanded_adoptees, properties, parent, timeline)
+                StackFrame::new(flattened_adoptees, properties, parent, timeline)
             ))
         );
     }
@@ -193,7 +188,7 @@ impl<R: 'static + RenderContext> StackFrame<R> {
         Rc::clone(&self.properties)
     }
 
-    pub fn get_unexpanded_adoptees(&self) -> RenderNodePtrList<R> {
+    pub fn get_unflattened_adoptees(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.adoptees)
     }
 

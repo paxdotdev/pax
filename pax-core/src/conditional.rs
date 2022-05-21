@@ -17,15 +17,13 @@ pub struct ConditionalInstance<R: 'static + RenderContext> {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub boolean_expression: Box<dyn PropertyInstance<bool>>,
     pub empty_children: RenderNodePtrList<R>,
-    tab_cache: TabCache<R>,
+
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
 
 
-    fn get_tab_cache(&mut self) -> &mut TabCache<R> {
-        &mut self.tab_cache
-    }
+
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -43,7 +41,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
             transform: args.transform,
             boolean_expression: args.conditional_boolean_expression.expect("Conditional requires boolean_expression"),
             empty_children: Rc::new(RefCell::new(vec![])),
-            tab_cache: TabCache::new(),
+
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
