@@ -109,6 +109,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
         )
     }));
 
+    //Note: this is probably the source of most (all?) of instance churn
     //this expression handles re-packing `data_list` for
     //`@for (elem, i) in computed_layout_spec {`
     vtable.insert("f".to_string(), Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
@@ -595,7 +596,18 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         properties: PropertiesCoproduct::Text( Text {
                                             content: Box::new(PropertyLiteral::new(JABBERWOCKY.to_string()) )
                                         }),
-                                        handler_registry: None,
+                                        handler_registry: Some(Rc::new(RefCell::new(
+                                            HandlerRegistry {
+                                                click_handlers: vec![
+                                                    |properties, args|{
+                                                        let properties = &mut *properties.as_ref().borrow_mut();
+                                                        let properties = if let PropertiesCoproduct::Root(p) = properties {p} else {unreachable!()};
+                                                        Root::handle_click(properties, args);
+                                                    }
+                                                ],
+                                                pre_render_handlers: vec![],
+                                            }
+                                        ))),
                                         instance_registry: Rc::clone(&instance_registry),
                                         transform: Transform2D::default_wrapped(),
                                         size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Percent(100.0)).into()]),

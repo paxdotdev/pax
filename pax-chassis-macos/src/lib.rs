@@ -22,6 +22,7 @@ use pax_cartridge;
 //Note that any types exposed by pax_message must ALSO be added to `paxchassismacos.h`
 //in order to be visible to Swift
 pub use pax_message::*;
+use pax_runtime_api::ArgsClick;
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via paxchassismacos.h
@@ -94,7 +95,14 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
     let interrupt = interrupt_wrapped.unwrap();
     match interrupt {
         NativeInterrupt::Click(args) => {
-            engine.get_topmost_hydrated_element_beneath_ray((args.x, args.y));
+            let prospective_hit = engine.get_topmost_hydrated_element_beneath_ray((args.x, args.y));
+            match prospective_hit {
+                Some(topmost_node) => {
+                    let args_click = ArgsClick {x: args.x , y: args.y};
+                    topmost_node.dispatch_click(args_click);
+                },
+                _ => {},
+            };
             //TODO: dispatch click
         }
         NativeInterrupt::Scroll(_) => {}

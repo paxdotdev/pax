@@ -88,8 +88,8 @@ pub struct ArgsRender {
 /// where the mousedown occurred.
 #[derive(Clone)]
 pub struct ArgsClick {
-    x: f64,
-    y: f64,
+    pub x: f64,
+    pub y: f64,
 }
 
 /// A Jab describes either a "click" (mousedown followed by mouseup), OR a
@@ -98,8 +98,8 @@ pub struct ArgsClick {
 /// when you want the same behavior for both to be contained in one place.
 #[derive(Clone)]
 pub struct ArgsJab {
-    x: f64,
-    y: f64,
+    pub x: f64,
+    pub y: f64,
 }
 
 /// A Size value that can be either a concrete pixel value

@@ -162,7 +162,21 @@ pub struct HydratedNode<R: 'static + RenderContext> {
     id_chain: Vec<u64>,
     parent_hydrated_node: Option<Rc<HydratedNode<R>>>,
     instance_node: RenderNodePtr<R>,
+    properties: Rc<RefCell<PropertiesCoproduct>>,
     tab: TransformAndBounds,
+}
+
+impl<R: 'static + RenderContext> HydratedNode<R> {
+    pub fn dispatch_click(&self, args_click: ArgsClick) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            (*registry).borrow().click_handlers.iter().for_each(|handler|{
+                handler(Rc::clone(&self.properties), args_click.clone());
+            })
+        }
+        if let Some(parent) = &self.parent_hydrated_node {
+            parent.dispatch_click(args_click);
+        }
+    }
 }
 
 pub struct InstanceRegistry<R: 'static + RenderContext> {
@@ -223,6 +237,7 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
     }
 
     pub fn add_to_hydrated_node_cache(&mut self, hydrated_node: Rc<HydratedNode<R>>) {
+        //Note: ray-casting requires that these nodes are sorted by z-index
         self.hydrated_node_cache.push(hydrated_node);
     }
 
@@ -362,9 +377,15 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let children = node.borrow_mut().get_rendering_children();
 
-        let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
 
+
+        let properties = if let Some(stack_frame) = rtc.runtime.borrow_mut().peek_stack_frame() {
+            stack_frame.borrow().get_properties()
+        } else {unreachable!()};
+
+        let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
         let hydrated_node = Rc::new(HydratedNode {
+            properties,
             tab: TransformAndBounds {
                 bounds: new_accumulated_bounds.clone(),
                 transform: new_accumulated_transform.clone(),
@@ -374,6 +395,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             parent_hydrated_node: rtc.parent_hydrated_node.clone(),
         });
 
+        //Note: ray-casting requires that the hydrated_node_cache is sorted by z-index,
+        //so the order in which `add_to_hydrated_node_cache` is invoked vs. descendants is important
         (*rtc.engine.instance_registry).borrow_mut().add_to_hydrated_node_cache(Rc::clone(&hydrated_node));
 
         //keep recursing through children
@@ -434,20 +457,14 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 pax_runtime_api::log(&format!("HIT NODE!! {:?}", node.id_chain));
 
                 //We only care about the topmost node getting hit, and the element
-                //pool is ordered by z-index so we can just return
-                //from the entire function when we find the first hitting node
+                //pool is ordered by z-index so we can just resolve the whole
+                //calculation when we find the first matching node
                 ret = Some(Rc::clone(&node));
                 break;
             }
         }
 
-
-        sleep(Duration::from_micros(1));
-
         ret
-
-
-        // pax_runtime_api::log(&format!("Click received; coordinates ({},{})", ray.0, ray.1));
     }
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
