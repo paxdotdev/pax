@@ -2617,3 +2617,22 @@ Instead of `get_rendering_subtree_flattened`:
 
 
 Maybe this belongs in the `instance_registry`?
+
+
+(cont. May 21)
+
+Nomenclature for "expanded" or "virtual" nodes,
+vs. "base" or "instance" or "concrete" nodes
+
+ex.
+`VirtualNode {}`
+`parent_hydrated_node`
+`hydrated_node_cache: HashMap<Vec<u64>, Rc<VirtualNode<R>>>,`
+
+Problematically, `virtual` could arguably be applied to both the `raw instance` and any `virtual` nodes
+
+`aggregated`?  `expanded`?  `hydrated`? `filled`?
+`unfolded`?
+
+`hydrated node` vs `instance node` ?  trying it on
+

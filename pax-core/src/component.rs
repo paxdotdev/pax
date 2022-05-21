@@ -29,32 +29,11 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
 }
 
 
-
-fn flatten_adoptees<R: 'static + RenderContext>(adoptees: RenderNodePtrList<R>) -> RenderNodePtrList<R> {
-    let mut running_adoptees : Vec<RenderNodePtr<R>> = vec![];
-
-    (*adoptees).borrow_mut().iter().for_each(|node|{
-        let node_borrowed = (**node).borrow();
-        if node_borrowed.should_flatten() {
-            let children = (*node_borrowed).get_rendering_children();
-            (*children).borrow().iter().for_each(|child|{running_adoptees.push(Rc::clone(child))});
-        } else {
-            running_adoptees.push(Rc::clone(node));
-        }
-    });
-
-    Rc::new(RefCell::new(running_adoptees))
-}
-
-
 //TODO:
 //  - track internal playhead for this component
 
 
 impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
-
-
-
 
 
     fn get_instance_id(&self) -> u64 {

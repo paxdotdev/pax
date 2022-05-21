@@ -1,4 +1,3 @@
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::env::Args;
@@ -49,7 +48,7 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext>
     pub bounds: (f64, f64),
     pub runtime: Rc<RefCell<Runtime<R>>>,
     pub node: RenderNodePtr<R>,
-    pub parent_virtual_node: Option<Rc<VirtualNode<R>>>,
+    pub parent_hydrated_node: Option<Rc<HydratedNode<R>>>,
     pub timeline_playhead_position: usize,
     pub inherited_adoptees: Option<RenderNodePtrList<R>>,
 }
@@ -62,7 +61,7 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             bounds: self.bounds.clone(),
             runtime: Rc::clone(&self.runtime),
             node: Rc::clone(&self.node),
-            parent_virtual_node: self.parent_virtual_node.clone(),
+            parent_hydrated_node: self.parent_hydrated_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
             inherited_adoptees: self.inherited_adoptees.clone(),
         }
@@ -137,7 +136,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     pub fn compute_vtable_value(&self, vtable_id: Option<&str>) -> Option<TypesCoproduct> {
 
         if let Some(id) = vtable_id {
-            if let Some(evaluator) = self.engine.expression_table.borrow().get(id) {
+            if let Some(evaluator) = self.engine.expression_table.get(id) {
                 let ec = ExpressionContext {
                     engine: self.engine,
                     stack_frame: Rc::clone(&(*self.runtime).borrow_mut().peek_stack_frame().unwrap()),
@@ -156,9 +155,9 @@ pub struct HandlerRegistry {
     pub pre_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
 }
 
-pub struct VirtualNode<R: 'static + RenderContext> {
+pub struct HydratedNode<R: 'static + RenderContext> {
     id_chain: Vec<u64>,
-    parent_virtual_node: Option<Rc<VirtualNode<R>>>,
+    parent_hydrated_node: Option<Rc<HydratedNode<R>>>,
     instance_node: RenderNodePtr<R>,
     tab: TransformAndBounds,
 }
@@ -171,7 +170,7 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///intended to be cleared at the beginning of each frame and populated
     ///with each node visited.  This enables post-facto operations on nodes with
     ///otherwise ephemeral calculations, e.g. the descendants of `Repeat` instances.
-    virtual_node_cache: HashMap<Vec<u64>, Rc<VirtualNode<R>>>,
+    hydrated_node_cache: HashMap<Vec<u64>, Rc<HydratedNode<R>>>,
 
     ///track which elements are currently mounted -- if id is present in set, is mounted
     mounted_set: HashSet<(u64, Vec<u64>)>,
@@ -185,7 +184,7 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         Self {
             mounted_set: HashSet::new(),
             instance_map: HashMap::new(),
-            virtual_node_cache: HashMap::new(),
+            hydrated_node_cache: HashMap::new(),
             next_id: 0,
         }
     }
@@ -216,16 +215,16 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.mounted_set.remove(&(id, repeat_indices));
     }
 
-    pub fn reset_virtual_node_cache(&mut self) {
-        self.virtual_node_cache = HashMap::new();
+    pub fn reset_hydrated_node_cache(&mut self) {
+        self.hydrated_node_cache = HashMap::new();
     }
 
-    pub fn add_to_virtual_node_cache(&mut self, virtual_node: Rc<VirtualNode<R>>) {
-        self.virtual_node_cache.insert(virtual_node.id_chain.clone(), virtual_node);
+    pub fn add_to_hydrated_node_cache(&mut self, hydrated_node: Rc<HydratedNode<R>>) {
+        self.hydrated_node_cache.insert(hydrated_node.id_chain.clone(), hydrated_node);
     }
 
-    pub fn get_virtual_node_cache(&self) -> &HashMap<Vec<u64>, Rc<VirtualNode<R>>> {
-        &self.virtual_node_cache
+    pub fn get_hydrated_node_cache(&self) -> &HashMap<Vec<u64>, Rc<HydratedNode<R>>> {
+        &self.hydrated_node_cache
     }
 
 }
@@ -264,7 +263,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             bounds: self.viewport_size,
             runtime: self.runtime.clone(),
             node: Rc::clone(&cast_component_rc),
-            parent_virtual_node: None,
+            parent_hydrated_node: None,
             timeline_playhead_position: self.frames_elapsed,
             inherited_adoptees: None,
         };
@@ -363,30 +362,26 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let children = node.borrow_mut().get_rendering_children();
 
-        let tab = TransformAndBounds {
-            transform: rtc.transform.clone(),
-            bounds: rtc.bounds.clone(),
-        };
+        let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
+        // Calculate hydrated_node BEFORE processing children, so that it may be added as a pointer
+        // Add to instance_registry AFTER processing children, so that
+        let hydrated_node = Rc::new(HydratedNode {
+            tab: TransformAndBounds {
+                bounds: new_accumulated_bounds.clone(),
+                transform: new_accumulated_transform.clone(),
+            },
+            id_chain: id_chain.clone(),
+            instance_node: Rc::clone(&node),
+            parent_hydrated_node: rtc.parent_hydrated_node.clone(),
+        });
 
-        let virtual_node : Rc<VirtualNode<R>>;
-        { // Closure to manage `node_borrowed`
-            let mut node_borrowed = node.borrow_mut();
-            let id_chain = rtc.get_id_chain(node_borrowed.get_instance_id());
-            virtual_node = Rc::new(VirtualNode {
-                tab,
-                id_chain,
-                instance_node: Rc::clone(&node),
-                parent_virtual_node: rtc.parent_virtual_node.clone(),
-            });
-
-            (*rtc.engine.instance_registry).borrow_mut().add_to_virtual_node_cache(Rc::clone(&virtual_node));
-        }
+        (*rtc.engine.instance_registry).borrow_mut().add_to_hydrated_node_cache(Rc::clone(&hydrated_node));
 
         //keep recursing through children
         children.borrow_mut().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
-            new_rtc.parent_virtual_node = Some(Rc::clone(&virtual_node));
+            new_rtc.parent_hydrated_node = Some(Rc::clone(&hydrated_node));
             &self.recurse_traverse_render_tree(&mut new_rtc, rc, Rc::clone(child));
             //TODO: for dependency management, return computed values from subtree above
         });
@@ -398,27 +393,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         //lifecycle: post_render
         node.borrow_mut().handle_post_render(rtc, rc);
-
-
-        // todo!("cache ")
-
-
-
-        //
-        // let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
-
-        //Can we do better than clipping_ids?  Perhaps where we `push_clipping_stack`, we should also pass `tab`
-        // todo!("get computed `tabs` from ancestral clips");
-
-
-
-        // let cache = node_borrowed.get_tab_cache();
-        // let parent = rtc.parent.clone();
-        //
-        // cache.tabs.insert(id_chain.clone(), tab);
-        // cache.parents.insert(id_chain, parent);
-
-
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
@@ -442,7 +416,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //
 
 
-        let nodes_ordered : Vec<Rc<VirtualNode<R>>> = (*self.instance_registry).borrow().virtual_node_cache.values().map(|rc|{Rc::clone(rc)}).collect();
+        let nodes_ordered : Vec<Rc<HydratedNode<R>>> = (*self.instance_registry).borrow().hydrated_node_cache.values().map(|rc|{Rc::clone(rc)}).collect();
 
         // let nodes_ordered = (*self.root_component).borrow().get_rendering_subtree_flattened();
 
@@ -464,7 +438,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     /// Expected to be called up to 60-120 times/second.
     pub fn tick(&mut self, rc: &mut R) -> Vec<NativeMessage> {
         rc.clear(None, Color::rgb(1.0, 1.0, 1.0));
-        (*self.instance_registry).borrow_mut().reset_virtual_node_cache();
+        (*self.instance_registry).borrow_mut().reset_hydrated_node_cache();
         let native_render_queue = self.traverse_render_tree(rc);
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue
