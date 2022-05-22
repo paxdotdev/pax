@@ -588,23 +588,12 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                     HandlerRegistry {
                                     click_handlers: vec![
                                         |stack_frame, args|{
-                                            // const STACK_FRAME_OFFSET : isize = 2;
-                                            // let SCOPED_STACK_FRAME = (*stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
-                                            //
-                                            // let mut properties = SCOPED_STACK_FRAME.deref().borrow().get_properties();
-                                            // let mut properties = (*properties).borrow_mut();
-                                            //
-
-
                                             const STACK_FRAME_OFFSET : isize = 2;
                                             let SCOPED_STACK_FRAME = (*stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
 
                                             let properties = SCOPED_STACK_FRAME.deref().borrow().get_properties();
                                             let properties = &mut *(*properties).borrow_mut();
-
                                             let properties = if let PropertiesCoproduct::Root(p) = properties {p} else {unreachable!()};
-
-                                            // let mut properties = if let PropertiesCoproduct::Root(p) = &mut properties {p} else {unreachable!()};
                                             Root::handle_click(properties, args);
                                         }
                                     ],
