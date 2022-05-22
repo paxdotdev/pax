@@ -172,7 +172,6 @@ _RIL means Rust Intermediate Language, which is the
     [x] `@template` block, vs. top-level
 [ ] native rendering ++
     [x] message design/arch
-    [ ] revisit macos loop timer?  (keep timestamps, target exact FPS, able to know when frames are dropped)
     [x] runtime de/serialization
         [x] Data across FFI
             [x] explore raw C structs (decided: brittle)
@@ -197,31 +196,27 @@ _RIL means Rust Intermediate Language, which is the
         [x] support macOS
         [x] support Web
     [ ] click support
-        [ ] simple 2D ray-casting
-            [ ] Handle clipped content? and scrolled content? (i.e. check within accumulated clip bounds as well as object bounds)
-        [ ] handle clicks on native elements (at least, global coords)
-        [ ] inbound event arg-wrapping and dispatch
-        [ ] sketch out bubbling/canceling, hierarchy needs
-        [ ] click/jab polyfill
-    [ ] PoC scrolling
-        [ ] native scrolling container, passes scroll events / position to engine
-        [ ] bounds for scrolling container passed to chassis by engine
-        [ ] attach native content inside native scroll container
+        [x] simple 2D ray-casting
+            [x] Handle clipped content? and scrolled content? (i.e. check within accumulated clip bounds as well as object bounds)
+        [x] inbound event arg-wrapping and dispatch
+            [x] macos
+            [ ] web
+        [x] sketch out bubbling/canceling, hierarchy needs
 [ ] dev env ++
     [ ] support stand-alone .pax files (no rust file); .html use-case
         [ ] dep. management -- augment prelude with static dep. list?
-    [ ] support inline (in-file) component def. (as alternative to `#[pax_component_definition]` file path)
+    [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
     [x] support for different example projects
-    [ ] native macOS chassis + dev-harness?
+    [x] native macOS chassis + dev-harness
         [x] pax-chassis-macos (written in rust). responsible for:
             [x] accepting a CGContext pointer and rendering to it via Piet
-            [ ] managing user input channel, e.g. click/touch
+            [x] managing user input channel, e.g. click/touch
             [x] managing native rendering channel, e.g. form controls, text
         [x] mac app dev-harness (written in swift). responsible for:
             [x] granting a piece of real estate (full window of simple mac app) to rendering with a CGContext.
             [x] passing CGContext to pax-chassis-coregraphics
             [x] handling resize
-            [ ] handling basic user input (e.g. click)
+            [x] handling basic user input (e.g. click)
         [x] Debugging via LLDB
             [x] support debugging as necessary with macos dev-harness
             [x] IDE configs for each of: userland cartridge; core; std
@@ -293,7 +288,6 @@ _RIL means Rust Intermediate Language, which is the
 [ ] launch collateral
     [ ] notify allies
     [ ] ProductHunt launch (+ other channels, incl Reddit communities)
-    [ ] 
 ```
 
 ## Milestone: drawing++
@@ -307,16 +301,33 @@ _RIL means Rust Intermediate Language, which is the
 ```
 
 
-## Milestone: form controls + iOS
+## Milestone: form controls
 ```
+[ ] revisit macos loop timer?  (keep timestamps, target exact FPS, able to know when frames are dropped)
+    [ ] handle clicks on native elements (at least, global coords)
+[ ] Scrolling
+    [ ] native scrolling container, passes scroll events / position to engine
+    [ ] bounds for scrolling container passed to chassis by engine
+    [ ] attach native content inside native scroll container
 [ ] Rich text
 [ ] Dropdown list
 [ ] Text boxes
-[ ] Databinding: event-based changes + two-way binding 
-[ ] ios app dev-harness
-    [ ] (~similar to mac app dev-harness)
-    [ ] supporting ios simulator + physical device, however is ergonomic with xcode
-    [ ] CLI hookups
+[ ] Databinding: event-based changes + two-way binding
+```
+
+## Milestone: iOS & Linux
+```
+[ ] Linux/GTK dev-harness & chassis 
+    [ ] support `NativeMessage`s for all primitives and `std`
+    [ ] dev-harness
+[ ] ios app dev-harness & chassis
+    [ ] support `NativeMessage`s for all primitives and `std`
+    [ ] extract shared logic with macOS dev harness
+    [ ] support ios simulator / physical device
+    [ ] CLI hookups (--target)
+[ ] Touch support
+    [ ] tap / swipe support
+    [ ] `jab` event, for "click or tap"
 ```
 
 

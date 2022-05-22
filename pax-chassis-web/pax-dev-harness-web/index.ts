@@ -5,18 +5,11 @@ import {PaxChassisWeb} from './dist/pax_chassis_web';
 const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_ID = "native-overlay";
 const CANVAS_ID = "canvas";
-const CLIPPING_CONTAINER_ID = "clipping-container";
 
-const NATIVE_ROOT_CLASS = "native-root";
-const NATIVE_CLIPPING_CLASS = "native-clipping";
-const NATIVE_TRANSFORM_CLASS = "native-transform";
 const NATIVE_LEAF_CLASS = "native-leaf";
-
-const SVG_NAMESPACE = "http://www.w3.org/2000/svg";
+const NATIVE_CLIPPING_CLASS = "native-clipping";
 
 const CLIP_PREFIX = "clip"
-const SVG_PREFIX = "svg"
-
 
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
@@ -39,14 +32,9 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     let canvas = document.createElement("canvas");
     canvas.id = CANVAS_ID;
 
-    //Create clipping layer (SVG) for native element clipping.
-    let clippingContainer = document.createElementNS(SVG_NAMESPACE, "svg");
-    clippingContainer.id = CLIPPING_CONTAINER_ID;
-    
     
     //Attach layers to mount
     //FIRST-APPLIED IS LOWEST
-    mount?.appendChild(clippingContainer);
     mount?.appendChild(canvas);
     mount?.appendChild(nativeLayer);
 
@@ -71,8 +59,6 @@ function renderLoop (chassis: PaxChassisWeb) {
      processMessages(messages);
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
-
-    
 
 class NativeElementPool {
     private textNodes : any = {};
@@ -136,7 +122,7 @@ class NativeElementPool {
 
         let newClip = document.createElement("div");
         newClip.id = getStringIdFromClippingId("clip", patch.id_chain);
-        newClip.classList.add("native-clipping")
+        newClip.classList.add(NATIVE_CLIPPING_CLASS);
 
         attachPoint!.appendChild(newClip);
     }
@@ -161,10 +147,17 @@ class NativeElementPool {
 
         if (shouldRedraw) {
             let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
-            let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-            node.style.clipPath = polygonDef;
+            
+            // Fallback and/or perf optimizer: `polygon` instead of `path`.
+            // let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+            // node.style.clipPath = polygonDef;
+            // //@ts-ignore
+            // node.style.webkitClipPath = polygonDef;
+
+            let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+            node.style.clipPath = pathDef;
             //@ts-ignore
-            node.style.webkitClipPath = polygonDef;
+            node.style.webkitClipPath = pathDef;
         }
         //@ts-ignore
         this.clippingValueCache[patch.id_chain] = cacheContainer;
@@ -228,19 +221,20 @@ function getQuadClipPathCommand(width: number, height: number, transform: number
     let point2 = affineMultiply([width, height], transform);
     let point3 = affineMultiply([0, height], transform);
 
-    let command = `M ${point0[0]} ${point0[1]} L ${point1[0]} ${point1[1]} L ${point2[0]} ${point2[1]} L ${point3[0]} ${point3[1]} Z`
+    let command = `path('M ${point0[0]} ${point0[1]} L ${point1[0]} ${point1[1]} L ${point2[0]} ${point2[1]} L ${point3[0]} ${point3[1]} Z')`
     return command;
 }
 
-function getQuadClipPolygonCommand(width: number, height: number, transform: number[]) {
-    let point0 = affineMultiply([0, 0], transform);
-    let point1 = affineMultiply([width, 0], transform);
-    let point2 = affineMultiply([width, height], transform);
-    let point3 = affineMultiply([0, height], transform);
+//Rectilinear-affine alternative to `clip-path: path(...)` clipping.  Might be faster than `path`
+// function getQuadClipPolygonCommand(width: number, height: number, transform: number[]) {
+//     let point0 = affineMultiply([0, 0], transform);
+//     let point1 = affineMultiply([width, 0], transform);
+//     let point2 = affineMultiply([width, height], transform);
+//     let point3 = affineMultiply([0, height], transform);
 
-    let polygon = `polygon(${point0[0]}px ${point0[1]}px, ${point1[0]}px ${point1[1]}px, ${point2[0]}px ${point2[1]}px, ${point3[0]}px ${point3[1]}px)`
-    return polygon;
-}
+//     let polygon = `polygon(${point0[0]}px ${point0[1]}px, ${point1[0]}px ${point1[1]}px, ${point2[0]}px ${point2[1]}px, ${point3[0]}px ${point3[1]}px)`
+//     return polygon;
+// }
 
 
 let nativePool = new NativeElementPool();
@@ -341,8 +335,6 @@ function getAttachPointFromClippingIds(clipping_ids: number[][]) {
     })();
     return attachPoint;
 }
-
-
 
 //Required due to Safari bug, unable to clip DOM elements to SVG=>`transform: matrix(...)` elements; see https://bugs.webkit.org/show_bug.cgi?id=126207
 //  and repro in this repo: `878576bf0e9`
