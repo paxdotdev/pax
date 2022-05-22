@@ -57,7 +57,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
 
     /// Can never hit a Group directly -- can only hit elements inside of it.
     /// Events can still be propagated to a group.
-    fn ray_hit_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
+    fn ray_cast_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
         false
     }
 

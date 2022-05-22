@@ -160,7 +160,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     ///Determines whether the provided ray, orthogonal to the view plane,
     ///intersects this rendernode. `tab` must also be passed because these are specific
     ///to a HydratedNode
-    fn ray_hit_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
+    fn ray_cast_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
 
         let inverted_transform = tab.transform.inverse();
         let transformed_ray = inverted_transform * Point {x:ray.0,y:ray.1};
@@ -172,6 +172,12 @@ pub trait RenderNode<R: 'static + RenderContext>
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         None //default no-op
+    }
+
+    /// Used at least by ray-casting; only nodes that clip content (and thus should
+    /// not allow outside content to respond to ray-casting) should return true
+    fn is_clipping(&self) -> bool {
+        false
     }
 
     /// Returns the size of this node, or `None` if this node

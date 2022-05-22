@@ -57,6 +57,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         ret
     }
 
+    fn is_clipping(&self) -> bool {
+        true
+    }
+
     fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>) {
 
         let mut new_message : FramePatch = Default::default();

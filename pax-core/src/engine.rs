@@ -449,15 +449,31 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             // pax_runtime_api::log(&(**node).borrow().get_instance_id().to_string())
 
 
-            if (*node.instance_node).borrow().ray_hit_test(&ray, &node.tab) {
-
-                // pax_runtime_api::log(&format!("HIT NODE! {:?}", node.id_chain));
+            if (*node.instance_node).borrow().ray_cast_test(&ray, &node.tab) {
 
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole
                 //calculation when we find the first matching node
-                ret = Some(Rc::clone(&node));
-                break;
+
+                let mut ancestral_clipping_bounds_are_satisfied = true;
+                let mut parent : Option<Rc<HydratedNode<R>>> = node.parent_hydrated_node.clone();
+
+                loop {
+                    if let Some(unwrapped_parent) = parent {
+                        if (*unwrapped_parent.instance_node).borrow().is_clipping() && !(*unwrapped_parent.instance_node).borrow().ray_cast_test(&ray, &unwrapped_parent.tab) {
+                            ancestral_clipping_bounds_are_satisfied = false;
+                            break;
+                        }
+                        parent = unwrapped_parent.parent_hydrated_node.clone();
+                    } else {
+                        break;
+                    }
+                }
+
+                if ancestral_clipping_bounds_are_satisfied {
+                    ret = Some(Rc::clone(&node));
+                    break;
+                }
             }
         }
 
