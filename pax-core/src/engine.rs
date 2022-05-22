@@ -105,6 +105,9 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
                 }
                 let progress = (self.engine.frames_elapsed as f64 - current_transition.global_frame_started.unwrap() as f64) / (current_transition.duration_frames as f64);
                 return if progress >= 1.0 { //TODO -- minus some epsilon for float imprecision?
+                    let new_value = current_transition.curve.interpolate(&current_transition.starting_value, &current_transition.ending_value, progress);
+                    tm.value = Some(new_value.clone());
+
                     tm.queue.pop_front();
                     self.compute_eased_value(Some(tm))
                 } else {
