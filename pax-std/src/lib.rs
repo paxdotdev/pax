@@ -37,9 +37,11 @@ pub mod primitives {
     #[cfg(feature = "parser")]
     use std::{env, fs};
     use std::rc::Rc;
+    use pax::api::SizePixels;
     #[cfg(feature = "parser")]
     use pax::internal::message::{ComponentDefinition, PaxManifest, SettingsLiteralBlockDefinition, SettingsValueDefinition};
     use crate::types;
+    use crate::types::{Color, Font};
     #[cfg(feature = "parser")]
     lazy_static! {
         static ref source_id: String = parser::create_uuid();
@@ -83,7 +85,9 @@ pub mod primitives {
 
     #[pax_primitive("./pax-std-primitives", crate::TextInstance)]
     pub struct Text {
-        pub content: Box<dyn pax::api::PropertyInstance<String>>
+        pub content: Box<dyn pax::api::PropertyInstance<String>>,
+        pub font: Box<dyn pax::api::PropertyInstance<Font>>,
+        pub fill: Box<dyn pax::api::PropertyInstance<Color>>,
     }
 
 

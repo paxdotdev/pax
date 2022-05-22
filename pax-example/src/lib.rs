@@ -10,8 +10,8 @@ use pax_std::{Stacker, Text, Rectangle};
         </Stacker>
 
         for i in 0..8 {
-            <Group transform={align(0%, (i * 12.5)%)}>
-                <Text>`Index: {i}`</Text>
+            <Group>
+                <Text id=index_text>`Index: {i}`</Text>
                 <Rectangle fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
             </Group>
         }
@@ -21,6 +21,18 @@ use pax_std::{Stacker, Text, Rectangle};
             <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
         </Group>
     </Stacker>
+
+    @settings {
+        #index_text {
+            transform: { align(0%, (i * 12.5)%) }
+            font: {
+                family: "Real Text Pro",
+                variant: "Demibold",
+                size: {(20 + (i * 5))px},
+            }
+            fill: Color::rgba()
+        }
+    }
 )]
 pub struct HelloWorld {
     pub num_clicks : Property<i64>,

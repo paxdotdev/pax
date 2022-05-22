@@ -1,5 +1,5 @@
 use pax::*;
-use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable};
+use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 
 
 #[pax_type]
@@ -45,16 +45,104 @@ impl Interpolatable for StackerDirection {}
 
 #[pax_type]
 #[derive(Clone)]
+pub struct Font {
+    pub family: Box<dyn pax::api::PropertyInstance<String>>,
+    pub variant: Box<dyn pax::api::PropertyInstance<String>>,
+    pub size: Box<dyn pax::api::PropertyInstance<SizePixels>>,
+}
+impl Into<FontMessage> for &Font {
+    fn into(self) -> FontMessage {
+        FontMessage {
+             family: self.family.get().clone(),
+             variant: self.variant.get().clone(),
+             size: self.size.get().0,
+        }
+    }
+}
+
+impl PartialEq<FontMessage> for Font {
+    fn eq(&self, other: &FontMessage) -> bool {
+
+        self.family.get().eq(&other.family) &&
+            self.variant.get().eq(&other.variant) &&
+            self.size.get().eq(&other.size)
+
+        //unequal if any of patch's fields are empty or if any
+        //non-empty field does not match `self`'s stored values
+        //
+        // if matches!(&other.family, Some(family) if family.eq(self.family.get())) {
+        //     //we good fam
+        // } else {
+        //     return false;
+        // }
+        //
+        // if matches!(&other.variant, Some(variant) if variant.eq(self.variant.get())) {
+        //     //we good fam
+        // }else {
+        //     return false;
+        // }
+        //
+        // if matches!(&other.size, Some(size) if size.eq(self.size.get())) {
+        //     //we good fam
+        // }else {
+        //     return false;
+        // }
+
+        // true
+    }
+}
+
+impl Default for Font {
+    fn default() -> Self {
+        Self {
+            family: Box::new(PropertyLiteral::new("Courier New".to_string())),
+            variant: Box::new(PropertyLiteral::new("Regular".to_string())),
+            size: Box::new(PropertyLiteral::new(SizePixels(14.0))),
+        }
+    }
+}
+impl Interpolatable for Font {}
+
+
+
+#[pax_type]
+#[derive(Clone)]
 pub struct Color{
     pub color_variant: ColorVariant,
 }
 impl Default for Color {
     fn default() -> Self {
         Self {
-            color_variant: ColorVariant::Rgba([1.0, 0.0, 0.0, 1.0])
+            color_variant: ColorVariant::Rgba([0.0, 0.0, 1.0, 1.0])
         }
     }
 }
+// impl PartialEq<ColorRGBAPatch> for Color {
+//     fn eq(&self, other: &ColorRGBAPatch) -> bool {
+//         //unequal if any of patch's fields are empty or if any
+//         //non-empty field does not match `self`'s stored values
+//
+//         if matches!(&other.family, Some(family) if family.eq(self.family.get())) {
+//             //we good fam
+//         } else {
+//             return false;
+//         }
+//
+//         if matches!(&other.variant, Some(variant) if variant.eq(self.variant.get())) {
+//             //we good fam
+//         }else {
+//             return false;
+//         }
+//
+//         if matches!(&other.size, Some(size) if size.eq(self.size.get())) {
+//             //we good fam
+//         }else {
+//             return false;
+//         }
+//
+//         true
+//     }
+// }
 
 impl Interpolatable for Color {
     //TODO: Colors can be meaningfully interpolated.
@@ -87,3 +175,4 @@ pub enum ColorVariant {
 
 #[pax_type]
 pub use pax::api::Size;
+use pax_message::{ColorRGBAPatch, FontMessage};

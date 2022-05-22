@@ -10,7 +10,6 @@ use piet_web::WebRenderContext;
 
 use pax_core::{InstanceRegistry, PaxEngine};
 
-
 use serde_json;
 use pax_message::NativeInterrupt;
 use pax_runtime_api::ArgsClick;

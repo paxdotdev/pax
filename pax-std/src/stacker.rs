@@ -39,7 +39,7 @@ impl Stacker {
         };
 
         let gutter_calc = match *self.gutter_width.get() {
-            Size::Pixel(px) => px,
+            Size::Pixels(px) => px,
             Size::Percent(pct) => active_bound * (pct / 100.0),
         };
 

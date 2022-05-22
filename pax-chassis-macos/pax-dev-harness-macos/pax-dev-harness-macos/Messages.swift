@@ -49,18 +49,22 @@ class TextElement {
     var transform: [Float]
     var size_x: Float
     var size_y: Float
+    var font: Font
+    var fill: Color
     
-    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float) {
+    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: Font, fill: Color) {
         self.id_chain = id_chain
         self.clipping_ids = clipping_ids
         self.content = content
         self.transform = transform
         self.size_x = size_x
         self.size_y = size_y
+        self.font = font
+        self.fill = fill
     }
     
     static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
-        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0)
+        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontFactory.makeDefault(), fill: Color(.black))
     }
     
     func applyPatch(patch: TextUpdatePatch) {
@@ -78,6 +82,12 @@ class TextElement {
         if patch.size_y != nil {
             self.size_y = patch.size_y!
         }
+        if patch.font != nil {
+            self.font = patch.font!
+        }
+        if patch.fill != nil {
+            self.fill = patch.fill!
+        }
     }
 }
 
@@ -90,7 +100,10 @@ class TextUpdatePatch {
     var transform: [Float]?
     var size_x: Float?
     var size_y: Float?
-    
+
+    var font: Font?
+    var fill: Color?
+
     init(fb: FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
             fb.asUInt64!
@@ -101,10 +114,41 @@ class TextUpdatePatch {
         })
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
+        if fb["font"] != nil && !fb["font"]!.isNull {
+            self.font = FontFactory.makeFromFb(fb: fb["font"]!)
+        }
+        if fb["fill"] != nil && !fb["fill"]!.isNull {
+            
+            self.fill = Color(
+                red: Double(fb["fill"]!["r"]!.asFloat!),
+                green: Double(fb["fill"]!["g"]!.asFloat!),
+                blue: Double(fb["fill"]!["b"]!.asFloat!),
+                opacity: Double(fb["fill"]!["a"]!.asFloat!)
+            )
+        }
     }
 }
 
-
+class FontFactory {
+//    var family: String
+//    var variant: String
+//    var size: Float
+    
+    static func makeFromFb(fb: FlxbReference) -> Font {
+        var suffix = ""
+        if fb["variant"] != nil && !fb["variant"]!.isNull && fb["variant"]!.asString! != "Regular" {
+            suffix = " " + fb["variant"]!.asString!
+        }
+        return Font.custom(String(fb["family"]!.asString! + suffix), size: CGFloat(fb["size"]!.asFloat!))
+    }
+    
+    
+    static func makeDefault() -> Font {
+        return Font.custom("Courier New", size: 14)
+//        Font()
+//        return Font(family: "Courier New", variant: "Regular", size: 14)
+    }
+}
 
 
 

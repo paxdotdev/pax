@@ -27,8 +27,6 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     let nativeLayer = document.createElement("div");
     nativeLayer.id = NATIVE_OVERLAY_ID;
 
-    
-
     //Create canvas element for piet drawing.
     //Note that width and height are set by the chassis each frame.
     let canvas = document.createElement("canvas");
@@ -40,8 +38,8 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     mount?.appendChild(canvas);
     mount?.appendChild(nativeLayer);
 
+    //Initialize chassis & engine
     let chassis = wasmMod.PaxChassisWeb.new();
-
 
     //Handle click events on native layer
     nativeLayer.addEventListener('click', (evt) => {
@@ -54,7 +52,7 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
         chassis.interrupt(JSON.stringify(event));
     }, true);
 
-
+    //Kick off render loop
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 

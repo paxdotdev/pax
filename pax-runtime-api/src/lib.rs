@@ -103,12 +103,30 @@ pub struct ArgsJab {
 }
 
 /// A Size value that can be either a concrete pixel value
-/// or a percent of parent bounds.  Note that this may be more precisely
-/// called a Dimension or a SizeDimension, but Size was initially chosen for brevity.
+/// or a percent of parent bounds.
 #[derive(Copy, Clone)]
 pub enum Size {
-    Pixel(f64),
+    Pixels(f64),
     Percent(f64),
+}
+
+#[derive(Copy, Clone)]
+pub struct SizePixels(pub f64);
+impl Default for SizePixels {
+    fn default() -> Self {
+        Self(150.0)
+    }
+}
+
+impl PartialEq<f64> for SizePixels {
+    fn eq(&self, other: &f64) -> bool {
+        self.0 == *other
+    }
+}
+impl PartialEq<SizePixels> for f64 {
+    fn eq(&self, other: &SizePixels) -> bool {
+        other.0 == *self
+    }
 }
 
 /// Coproduct for storing various kinds of function pointer,
@@ -148,24 +166,24 @@ impl Mul for Size {
 
     fn mul(self, rhs: Self) -> Self::Output {
         match self {
-            Size::Pixel(px0) => {
+            Size::Pixels(px0) => {
                 match rhs {
                     //multiplying two pixel values adds them,
                     //in the sense of multiplying two affine translations.
                     //this might be wildly unexpected in some cases, so keep an eye on this and
                     //revisit whether to support Percent values in anchor calcs (could rescind)
-                    Size::Pixel(px1) => {
-                        Size::Pixel(px0 + px1)
+                    Size::Pixels(px1) => {
+                        Size::Pixels(px0 + px1)
                     }
                     Size::Percent(pc1) => {
-                        Size::Pixel(px0 * pc1)
+                        Size::Pixels(px0 * pc1)
                     }
                 }
             }
             Size::Percent(pc0) => {
                 match rhs {
-                    Size::Pixel(px1) => {
-                        Size::Pixel(pc0 * px1)
+                    Size::Pixels(px1) => {
+                        Size::Pixels(pc0 * px1)
                     }
                     Size::Percent(pc1) => {
                         Size::Percent(pc0 * pc1)

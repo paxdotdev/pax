@@ -19,6 +19,7 @@ pub mod pax_types {
         pub mod types {
             pub use pax_std::types::StackerCellProperties;
             pub use pax_std::types::Color;
+            pub use pax_std::types::Font;
             pub use pax_std::types::Stroke;
             pub use pax_std::types::Size;
             pub use pax_std::types::StackerDirection;

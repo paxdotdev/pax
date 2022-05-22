@@ -8,12 +8,12 @@ use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 use piet_common::RenderContext;
 
-use pax_runtime_api::{ArgsCoproduct, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
+use pax_runtime_api::{ArgsCoproduct, SizePixels, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 
 //generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
 use pax_example::pax_types::{Root};
 use pax_example::pax_types::pax_std::primitives::{Rectangle, Group, Text};
-use pax_example::pax_types::pax_std::types::{Color, Stroke, Size, StackerCellProperties, StackerDirection};
+use pax_example::pax_types::pax_std::types::{Color, Font, Stroke, Size, StackerCellProperties, StackerDirection};
 use pax_example::pax_types::pax_std::components::Stacker;
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
@@ -157,7 +157,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
         let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!("epsilon")};
         // (*ec.engine.runtime).borrow().log(&format!("evaling layout width {}", datum_cast.width_px));
         return TypesCoproduct::Size(
-            Size::Pixel(datum_cast.width_px)
+            Size::Pixels(datum_cast.width_px)
         )
     }));
 
@@ -171,7 +171,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
         let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!()};
 
         return TypesCoproduct::Size(
-            Size::Pixel(datum_cast.height_px)
+            Size::Pixels(datum_cast.height_px)
         )
     }));
 
@@ -407,7 +407,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                             computed_layout_spec: Default::default(),
                             direction: Default::default(),
                             cell_count: Box::new(PropertyLiteral::new(10)),
-                            gutter_width: Box::new(PropertyLiteral::new(Size::Pixel(5.0))),
+                            gutter_width: Box::new(PropertyLiteral::new(Size::Pixels(5.0))),
                             overrides_cell_size: Default::default(),
                             overrides_gutter_size: Default::default(),
                         }),
@@ -424,7 +424,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         computed_layout_spec: Default::default(),
                                         direction: Box::new(PropertyLiteral::new(StackerDirection::Vertical)),
                                         cell_count: Box::new(PropertyLiteral::new(5)),
-                                        gutter_width: Box::new(PropertyLiteral::new(Size::Pixel(5.0))),
+                                        gutter_width: Box::new(PropertyLiteral::new(Size::Pixels(5.0))),
                                         overrides_cell_size: Default::default(),
                                         overrides_gutter_size: Default::default(),
                                     }),
@@ -450,7 +450,9 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                     children: Some(Rc::new(RefCell::new(vec![
                                                         TextInstance::instantiate(InstantiationArgs {
                                                             properties: PropertiesCoproduct::Text( Text {
-                                                                content: Box::new(PropertyLiteral::new("Hello".to_string()) )
+                                                                content: Box::new(PropertyLiteral::new("Hello".to_string()) ),
+                                                                fill: Box::new(PropertyLiteral::new(Color::rgba(1.0,1.0,1.0,1.0))),
+                                                                font: Box::new(PropertyLiteral::new(Default::default()))
                                                             }),
                                                             handler_registry: None,
                                                             instance_registry: Rc::clone(&instance_registry),
@@ -530,12 +532,18 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         children: Some(Rc::new(RefCell::new(vec![
                                             TextInstance::instantiate(InstantiationArgs {
                                                 properties: PropertiesCoproduct::Text( Text {
-                                                    content: Box::new(PropertyExpression::new("l".to_string()) )
+                                                    content: Box::new(PropertyExpression::new("l".to_string()) ),
+                                                    fill: Box::new(PropertyLiteral::new(Color::rgba(1.0,0.0,0.0,1.0))),
+                                                    font: Box::new(PropertyLiteral::new(Font {
+                                                        family: Box::new(PropertyLiteral::new("Real Head Pro".to_string())),
+                                                        variant: Box::new(PropertyLiteral::new("Black".to_string())),
+                                                        size: Box::new(PropertyLiteral::new(SizePixels(26.0))),
+                                                    })),
                                                 }),
                                                 handler_registry: None,
                                                 instance_registry: Rc::clone(&instance_registry),
                                                 transform: Rc::new(RefCell::new(PropertyExpression::new("n".to_string()))),
-                                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Pixel(30.0)).into()]),
+                                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Pixels(30.0)).into()]),
                                                 children: None,
                                                 component_template: None,
                                                 scroller_args: None,
@@ -606,7 +614,9 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                 children: Some(Rc::new(RefCell::new(vec![
                                     TextInstance::instantiate(InstantiationArgs {
                                         properties: PropertiesCoproduct::Text( Text {
-                                            content: Box::new(PropertyLiteral::new(JABBERWOCKY.to_string()) )
+                                            content: Box::new(PropertyLiteral::new(JABBERWOCKY.to_string()) ),
+                                            fill: Box::new(PropertyLiteral::new(Color::rgba(1.0,0.0,0.0,1.0))),
+                                            font: Box::new(PropertyLiteral::new(Default::default()))
                                         }),
                                         handler_registry: None,
                                         instance_registry: Rc::clone(&instance_registry),

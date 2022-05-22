@@ -124,6 +124,36 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
+        let val = properties.font.get();
+        let is_new_value = match &last_patch.font {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.font = Some(val.into());
+            last_patch.font = Some(val.into());
+            has_any_updates = true;
+        }
+
+        // let val = properties.fill.get();
+        // let is_new_value = match &last_patch.fill {
+        //     Some(cached_value) => {
+        //         !val.eq(cached_value)
+        //     },
+        //     None => {
+        //         true
+        //     },
+        // };
+        // if is_new_value {
+        //     new_message.fill = Some(val.into());
+        //     last_patch.fill = Some(val.into());
+        //     has_any_updates = true;
+        // }
+
         let val = computed_size.0;
         let is_new_value = match &last_patch.size_x {
             Some(cached_value) => {

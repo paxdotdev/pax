@@ -195,12 +195,12 @@ _RIL means Rust Intermediate Language, which is the
         [x] rectilinear-affine frames
         [x] support macOS
         [x] support Web
-    [ ] click support
+    [x] click support
         [x] simple 2D ray-casting
             [x] Handle clipped content? and scrolled content? (i.e. check within accumulated clip bounds as well as object bounds)
         [x] inbound event arg-wrapping and dispatch
             [x] macos
-            [ ] web
+            [x] web
         [x] sketch out bubbling/canceling, hierarchy needs
 [ ] dev env ++
     [ ] support stand-alone .pax files (no rust file); .html use-case
@@ -292,6 +292,7 @@ _RIL means Rust Intermediate Language, which is the
 
 ## Milestone: drawing++
 ```
+[ ] Opacity (likely built-in property alongside `transform`, `size` -- it accumulates down render tree)
 [ ] Palette built-in: perhaps `@palette { optional_nesting: {  } }
 [ ] Path primitive + APIs for animations
 [ ] Ellipse

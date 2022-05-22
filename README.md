@@ -3,7 +3,7 @@
 Pax is a language for cross-platform computer graphics and user interfaces.
 
 User Interface Description Language, inspired by Hardware Description Languages — _design_ and _declare_
-
+Cross-platform runtime, UIs, interactions, inspired by World Wide Web
 
 Pax can be authored on its own in `.pax` files (in the spirit of `.html` files), or it can _snap on_ to a Rust codebase for application logic.  Pax compiles into stand-alone native apps for all supported platforms.
 

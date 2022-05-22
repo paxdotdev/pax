@@ -212,7 +212,7 @@ pub trait RenderNode<R: 'static + RenderContext>
             Some(size_raw) => {
                 (
                     match size_raw.borrow()[0].get() {
-                        Size::Pixel(width) => {
+                        Size::Pixels(width) => {
                             *width
                         },
                         Size::Percent(width) => {
@@ -220,7 +220,7 @@ pub trait RenderNode<R: 'static + RenderContext>
                         }
                     },
                     match size_raw.borrow()[1].get() {
-                        Size::Pixel(height) => {
+                        Size::Pixels(height) => {
                             *height
                         },
                         Size::Percent(height) => {
@@ -317,7 +317,7 @@ impl ComputableTransform for Transform2D {
                 Affine::translate(
                     (
                         match anchor[0] {
-                            Size::Pixel(x) => {
+                            Size::Pixels(x) => {
                                 -x
                             },
                             Size::Percent(x) => {
@@ -325,7 +325,7 @@ impl ComputableTransform for Transform2D {
                             },
                         },
                         match anchor[1] {
-                            Size::Pixel(y) => {
+                            Size::Pixels(y) => {
                                 -y
                             },
                             Size::Percent(y) => {

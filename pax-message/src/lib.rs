@@ -87,7 +87,27 @@ pub struct TextPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub font: Option<FontMessage>,
+    pub fill: Option<ColorRGBAPatch>, //TODO: more robust Fill support
 }
+
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct FontMessage {
+    pub family: String,
+    pub variant: String,
+    pub size: f64,
+}
+
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct ColorRGBAPatch {
+    pub r: f64,
+    pub g: f64,
+    pub b: f64,
+    pub a: f64,
+}
+
 
 #[derive(Default, Serialize)]
 #[repr(C)]

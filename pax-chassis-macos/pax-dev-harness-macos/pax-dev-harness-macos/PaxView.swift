@@ -100,8 +100,8 @@ struct NativeRenderingLayer: View {
         return Group {
             Group {
                 Text(textElement.content)
-                    .foregroundColor(Color.black)
-//                    .textSelection(.enabled)
+                    .foregroundColor(textElement.fill)
+                    .font(textElement.font)
                     .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
                     .position(x: CGFloat(textElement.size_x) / 2.0, y: CGFloat(textElement.size_y) / 2.0)
                     .transformEffect(CGAffineTransform.init(
