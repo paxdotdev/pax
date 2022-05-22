@@ -7,6 +7,8 @@ use std::thread::sleep;
 use std::time::Duration;
 use kurbo::Point;
 
+
+
 use pax_message::NativeMessage;
 
 extern crate wee_alloc;
@@ -17,7 +19,7 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use piet_common::RenderContext;
 
-use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode, TabCache, TransformAndBounds};
+use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode, TabCache, TransformAndBounds, StackFrame};
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
@@ -153,8 +155,8 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 }
 
 #[derive(Default)]
-pub struct HandlerRegistry {
-    pub click_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsClick)>,
+pub struct HandlerRegistry<R: 'static + RenderContext> {
+    pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsClick)>,
     pub pre_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
 }
 
@@ -162,7 +164,7 @@ pub struct HydratedNode<R: 'static + RenderContext> {
     id_chain: Vec<u64>,
     parent_hydrated_node: Option<Rc<HydratedNode<R>>>,
     instance_node: RenderNodePtr<R>,
-    properties: Rc<RefCell<PropertiesCoproduct>>,
+    stack_frame: Rc<RefCell<crate::StackFrame<R>>>,
     tab: TransformAndBounds,
 }
 
@@ -170,7 +172,7 @@ impl<R: 'static + RenderContext> HydratedNode<R> {
     pub fn dispatch_click(&self, args_click: ArgsClick) {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             (*registry).borrow().click_handlers.iter().for_each(|handler|{
-                handler(Rc::clone(&self.properties), args_click.clone());
+                handler(Rc::clone(&self.stack_frame), args_click.clone());
             })
         }
         if let Some(parent) = &self.parent_hydrated_node {
@@ -333,10 +335,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
         //and for this node itself (e.g. for specifying the size of a Rectangle node)
         let new_accumulated_bounds = node.borrow_mut().compute_size_within_bounds(accumulated_bounds);
-
+        let mut node_size : (f64, f64) = (0.0, 0.0);
         let node_computed_transform = {
             let mut node_borrowed = rtc.node.borrow_mut();
-            let node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
+            node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
             let components = node_borrowed.get_transform().borrow_mut().get()
             .compute_transform_matrix(
                 node_size,
@@ -379,15 +381,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
 
 
-        let properties = if let Some(stack_frame) = rtc.runtime.borrow_mut().peek_stack_frame() {
-            stack_frame.borrow().get_properties()
-        } else {unreachable!()};
-
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
         let hydrated_node = Rc::new(HydratedNode {
-            properties,
+            stack_frame: rtc.runtime.borrow_mut().peek_stack_frame().unwrap(),
             tab: TransformAndBounds {
-                bounds: new_accumulated_bounds.clone(),
+                bounds: node_size,
                 transform: new_accumulated_transform.clone(),
             },
             id_chain: id_chain.clone(),
@@ -395,9 +393,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             parent_hydrated_node: rtc.parent_hydrated_node.clone(),
         });
 
-        //Note: ray-casting requires that the hydrated_node_cache is sorted by z-index,
-        //so the order in which `add_to_hydrated_node_cache` is invoked vs. descendants is important
-        (*rtc.engine.instance_registry).borrow_mut().add_to_hydrated_node_cache(Rc::clone(&hydrated_node));
 
         //keep recursing through children
         children.borrow_mut().iter().rev().for_each(|child| {
@@ -407,6 +402,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             &self.recurse_hydrate_render_tree(&mut new_rtc, rc, Rc::clone(child));
             //TODO: for dependency management, return computed values from subtree above
         });
+
+        //Note: ray-casting requires that the hydrated_node_cache is sorted by z-index,
+        //so the order in which `add_to_hydrated_node_cache` is invoked vs. descendants is important
+        (*rtc.engine.instance_registry).borrow_mut().add_to_hydrated_node_cache(Rc::clone(&hydrated_node));
+
 
         //lifecycle: render
         //this is this node's time to do its own rendering, aside
@@ -438,12 +438,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //
 
         let nodes_ordered : Vec<Rc<HydratedNode<R>>> = (*self.instance_registry).borrow()
-            .hydrated_node_cache.iter().rev()
+            .hydrated_node_cache.iter()
             .map(|rc|{
                 Rc::clone(rc)
             }).collect();
-
-        let mut sizes = vec![];
 
         // let ray = Point {x: ray.0,y: ray.1};
         let mut ret : Option<Rc<HydratedNode<R>>> = None;
@@ -452,9 +450,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
 
             if (*node.instance_node).borrow().ray_hit_test(&ray, &node.tab) {
-                let size = (*(*node).instance_node).borrow().get_size();
-                sizes.push(size);
-                pax_runtime_api::log(&format!("HIT NODE!! {:?}", node.id_chain));
+
+                // pax_runtime_api::log(&format!("HIT NODE! {:?}", node.id_chain));
 
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole

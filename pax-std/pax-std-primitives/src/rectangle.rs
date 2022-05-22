@@ -16,8 +16,8 @@ use std::rc::Rc;
 /// by `size`, transformed by `transform`
 ///
 /// maybe #[pax primitive]
-pub struct RectangleInstance {
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+pub struct RectangleInstance<R: 'static + RenderContext> {
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u64,
     pub properties: Rc<RefCell<Rectangle>>,
 
@@ -95,7 +95,7 @@ impl RectangleInstance {
 
 
 
-impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance {
+impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 
 
 
@@ -126,7 +126,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance {
         ret
     }
 
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
             Some(registry) => {
                 Some(Rc::clone(registry))

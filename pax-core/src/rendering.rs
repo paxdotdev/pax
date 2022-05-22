@@ -25,7 +25,7 @@ pub struct ScrollerArgs {
 
 pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub properties: PropertiesCoproduct,
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub size: Option<[Box<dyn PropertyInstance<Size>>;2]>,
@@ -170,7 +170,7 @@ pub trait RenderNode<R: 'static + RenderContext>
             && transformed_ray.x < tab.bounds.0 && transformed_ray.y < tab.bounds.1
     }
 
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         None //default no-op
     }
 

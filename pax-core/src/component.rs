@@ -19,7 +19,7 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub(crate) instance_id: u64,
     pub template: RenderNodePtrList<R>,
     pub children: RenderNodePtrList<R>,
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
@@ -43,7 +43,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         Rc::clone(&self.template)
     }
 
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
             Some(registry) => {
                 Some(Rc::clone(&registry))

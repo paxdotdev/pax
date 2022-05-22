@@ -11,8 +11,8 @@ use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
 
-pub struct TextInstance {
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+pub struct TextInstance<R: 'static + RenderContext> {
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u64,
     pub properties: Rc<RefCell<Text>>,
 
@@ -28,7 +28,7 @@ pub struct TextInstance {
     last_patches: HashMap<Vec<u64>, pax_message::TextPatch>,
 }
 
-impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance {
+impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
 
 

@@ -385,13 +385,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                 current_rotation: Box::new(PropertyLiteral::new(0.0)),
             }),
             handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                click_handlers: vec![
-                    |properties, args|{
-                        let properties = &mut *properties.as_ref().borrow_mut();
-                        let properties = if let PropertiesCoproduct::Root(p) = properties {p} else {unreachable!()};
-                        Root::handle_click(properties, args);
-                    }
-                ],
+                click_handlers: vec![],
                 pre_render_handlers: vec![
                     |properties,args|{
                         let properties = &mut *properties.as_ref().borrow_mut();
@@ -593,9 +587,24 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                 handler_registry: Some(Rc::new(RefCell::new(
                                     HandlerRegistry {
                                     click_handlers: vec![
-                                        |properties, args|{
-                                            let properties = &mut *properties.as_ref().borrow_mut();
+                                        |stack_frame, args|{
+                                            // const STACK_FRAME_OFFSET : isize = 2;
+                                            // let SCOPED_STACK_FRAME = (*stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
+                                            //
+                                            // let mut properties = SCOPED_STACK_FRAME.deref().borrow().get_properties();
+                                            // let mut properties = (*properties).borrow_mut();
+                                            //
+
+
+                                            const STACK_FRAME_OFFSET : isize = 2;
+                                            let SCOPED_STACK_FRAME = (*stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
+
+                                            let properties = SCOPED_STACK_FRAME.deref().borrow().get_properties();
+                                            let properties = &mut *(*properties).borrow_mut();
+
                                             let properties = if let PropertiesCoproduct::Root(p) = properties {p} else {unreachable!()};
+
+                                            // let mut properties = if let PropertiesCoproduct::Root(p) = &mut properties {p} else {unreachable!()};
                                             Root::handle_click(properties, args);
                                         }
                                     ],

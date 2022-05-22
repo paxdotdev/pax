@@ -13,7 +13,7 @@ pub struct GroupInstance<R: 'static + RenderContext> {
     pub primitive_children: RenderNodePtrList<R>,
     pub id: String,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub handler_registry: Option<Rc<RefCell<HandlerRegistry>>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
 
 }
 
@@ -46,7 +46,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
         ret
     }
 
-    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry>>> {
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
             Some(registry) => {
                 Some(Rc::clone(&registry))
