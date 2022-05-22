@@ -12,6 +12,8 @@ use pax_core::{InstanceRegistry, PaxEngine};
 
 
 use serde_json;
+use pax_message::NativeInterrupt;
+use pax_runtime_api::ArgsClick;
 
 // Console.log support, piped from `pax::log`
 #[wasm_bindgen]
@@ -118,6 +120,27 @@ impl PaxChassisWeb {
             engine: engine_container,
             drawing_context: render_context,
         }
+    }
+
+    pub fn interrupt(&mut self, native_interrupt: String) {
+        let x : NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
+        match x {
+            NativeInterrupt::Click(args) => {
+                pax_runtime_api::log(&format!("got click at {},{}",args.x,args.y));
+                let prospective_hit = (*self.engine).borrow().get_topmost_hydrated_element_beneath_ray((args.x, args.y));
+                match prospective_hit {
+                    Some(topmost_node) => {
+                        let args_click = ArgsClick {x: args.x , y: args.y};
+                        topmost_node.dispatch_click(args_click);
+                    },
+                    _ => {},
+                };
+            },
+            NativeInterrupt::Scroll(_) => {
+                unimplemented!()
+            }
+        }
+
     }
 
     pub fn tick(&mut self) -> String {

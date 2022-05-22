@@ -103,7 +103,6 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
                 },
                 _ => {},
             };
-            //TODO: dispatch click
         }
         NativeInterrupt::Scroll(_) => {}
     }
