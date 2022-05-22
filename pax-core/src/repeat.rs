@@ -56,14 +56,14 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
-        let mut any_changes_to_data_list : bool;
+        let mut is_dirty : bool;
 
         if let Some(data_list) = rtc.compute_vtable_value(self.data_list._get_vtable_id()) {
             let old_value = self.data_list.get().clone();
             let new_value = if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(v) = data_list { v } else { unreachable!() };
 
             //if the vec lengths differ, we know there are changes.  If the lengths are the same, then we check each element pairwise for ptr equality.
-            any_changes_to_data_list =
+            is_dirty =
                 old_value.len() != new_value.len() ||
                 {
                     let mut all_equal = true;
@@ -73,19 +73,20 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                     !all_equal
                 };
 
+
             //TODO: this hacked dirty-check shouldn't be necessary once we have more robust dependency-DAG dirty-checking for expressions
-            if any_changes_to_data_list {
+            if is_dirty {
                 self.data_list.set(new_value);
             }
         } else {
-            //Assuming PropertyLiteral -- changes need to be enacted if the length of the data_list changes.
-            //given that there's not currently a way to imperatively set a `Repeat`'s `data_list` property, this may be OK
-            //for now (specifically: catch the case where virtual_children is uninitialized to a literal static value.)
-            //More robustly in the future, this can patch into centralized dirty-check logic.
-            any_changes_to_data_list = self.data_list.get().len() != (*self.virtual_children).borrow().len();
+            //TODO: probably need better dirty-checking for PropertyLiteral; might be able to
+            //      patch into dirty-watching system
+            is_dirty = self.data_list.get().len() != (*self.virtual_children).borrow().len();
         }
 
-        if any_changes_to_data_list {
+        if is_dirty {
+
+            // pax_runtime_api::log("CHANGES TO DATA LIST!");
 
             //Any stated children (repeat template members) of Repeat should be forwarded to the `RepeatItem`-wrapped `ComponentInstance`s
             //so that `Slot` works as expected
@@ -100,6 +101,14 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             });
 
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
+
+
+            //What if...
+            //Once a node is allocated (initialized) it doesn't get uninitialized.
+            // (it gets stored in a field of `RepeatInstance`)
+            //So, a node's `RepeatItem` instance storage never shrinks. (for now)
+            //Then... could we possibly `.set` each property individually? instead of
+            //instantiating a whole new component?
 
             //reset children:
             //wrap data_list into `RepeatItems`, which attach
@@ -123,6 +132,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
                         }
                     ));
+
 
                     instance_registry.register(instance_id, Rc::clone(&render_node));
 

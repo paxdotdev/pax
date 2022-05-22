@@ -77,7 +77,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
             compute_properties_fn: args.compute_properties_fn.expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
             handler_registry: args.handler_registry,
-
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
