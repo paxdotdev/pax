@@ -170,7 +170,7 @@ _RIL means Rust Intermediate Language, which is the
     [x] `@for`
     [x] ranges: literal and symbolic
     [x] `@template` block, vs. top-level
-[ ] native rendering ++
+[x] native rendering ++
     [x] message design/arch
     [x] runtime de/serialization
         [x] Data across FFI
@@ -183,13 +183,13 @@ _RIL means Rust Intermediate Language, which is the
         [x] handle monotonic, instance-unique IDs
             - expose method in engine to generate new id
             - initial use-case: instance IDs for associating engine <> native Text instances
-    [ ] text support
+    [x] text support
         [x] handle_post_mount and handle_pre_unmount
         [x] trigger mount/unmount lifecycle events in engine, `Conditional`, `Repeat`
-        [ ] hook up Text primitive + API
+        [x] hook up Text primitive + API
             [x] macOS
             [x] web -- reattach with updated messaging model
-            [ ] basic API pass: content, color, font, textSize
+            [x] basic API pass: content, color, font, textSize
         [x] handle dirty-checking for `Patch` event population
     [x] native clipping support
         [x] rectilinear-affine frames
@@ -202,10 +202,7 @@ _RIL means Rust Intermediate Language, which is the
             [x] macos
             [x] web
         [x] sketch out bubbling/canceling, hierarchy needs
-[ ] dev env ++
-    [ ] support stand-alone .pax files (no rust file); .html use-case
-        [ ] dep. management -- augment prelude with static dep. list?
-    [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
+[x] dev env ++
     [x] support for different example projects
     [x] native macOS chassis + dev-harness
         [x] pax-chassis-macos (written in rust). responsible for:
@@ -221,7 +218,11 @@ _RIL means Rust Intermediate Language, which is the
             [x] support debugging as necessary with macos dev-harness
             [x] IDE configs for each of: userland cartridge; core; std
 [ ] `pax-compiler`
-    [ ] update manifest-populating logic to latest parser defs
+    [ ] support stand-alone .pax files (no rust file); .html use-case
+        [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
+    [ ] dep. management -- augment prelude with static dep. list?
+    [ ] update .pest and manifest-populating logic to latest language spec
+        [ ] 
     [x] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
         [-] NOTE: provisionally, this whole group is solved as not necessary, in light of the "parser binary" feature-flagged approach
         [x] science: determine how macros behave, caching of expansion, incremental compilation
@@ -290,31 +291,47 @@ _RIL means Rust Intermediate Language, which is the
     [ ] ProductHunt launch (+ other channels, incl Reddit communities)
 ```
 
-## Milestone: drawing++
-```
-[ ] Opacity (likely built-in property alongside `transform`, `size` -- it accumulates down render tree)
-[ ] Palette built-in: perhaps `@palette { optional_nesting: {  } }
-[ ] Path primitive + APIs for animations
-[ ] Ellipse
-[ ] native clipping
-    [ ] pass ClippingMask messages via `mount` lifecycle in `Frame` (etc.); track "clipping stack" in `rtc` and pass list of relevant masks for a given native element (e.g. `Text`) -- "join" clipping mask(s) with native elements by ID on the native side
-    [ ] Consider whether to support arbitrary (Path) clipping masks as an alternative to `Frame`s' rectilinear ones
-```
-
 
 ## Milestone: form controls
 ```
-[ ] revisit macos loop timer?  (keep timestamps, target exact FPS, able to know when frames are dropped)
-    [ ] handle clicks on native elements (at least, global coords)
 [ ] Scrolling
     [ ] native scrolling container, passes scroll events / position to engine
     [ ] bounds for scrolling container passed to chassis by engine
     [ ] attach native content inside native scroll container
-[ ] Rich text
+[ ] `Text` upgrades:
+    [ ] alignment horizontal within bounding box
+    [ ] alignment vertical within bounding box
+    [ ] auto-sizing?  (makes for super-easy alignment; requires letting OS render one frame, possibly off-screen, then applying that calculation.  Requires `interrupt` from chassis after size is measured.
+[ ] Rich text display (Possibly support markdown as authoring format)
 [ ] Dropdown list
-[ ] Text boxes
+[ ] Data transfer
+    [ ] Upload/open control?
+    [ ] save/download control?
+[ ] Text input boxes
+    [ ] single-line
+    [ ] multi-line?
+    [ ] rich text?
 [ ] Databinding: event-based changes + two-way binding
 ```
+
+
+## Milestone: drawing++
+```
+[ ] Image primitive
+    [ ] Bitmap support: .png, .jpg, maybe .svg, serialize as base64 and include encoding so that chassis can make sense of it
+    [ ] API: how to support assets? check out `include_bytes!`
+[ ] Gradient fills: shapes, text
+
+[ ] Opacity (likely built-in property alongside `transform`, `size` -- it accumulates down render tree)
+[ ] Palette built-in: perhaps `@palette { optional_nesting: {  } }
+[ ] Path primitive + APIs for animations
+[ ] Mask primitive (a Clipping primitive that allows a `Path` definition for bounds, instead of a rectangle)
+[ ] Ellipse
+[ ] macOS chassis improvements:
+    [ ] Revisit loop timer?  (keep timestamps, target exact FPS, able to know when frames are dropped)
+    [ ] 
+```
+
 
 ## Milestone: iOS & Linux
 ```

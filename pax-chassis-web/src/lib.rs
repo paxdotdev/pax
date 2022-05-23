@@ -125,7 +125,6 @@ impl PaxChassisWeb {
         let x : NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
         match x {
             NativeInterrupt::Click(args) => {
-                pax_runtime_api::log(&format!("got click at {},{}",args.x,args.y));
                 let prospective_hit = (*self.engine).borrow().get_topmost_hydrated_element_beneath_ray((args.x, args.y));
                 match prospective_hit {
                     Some(topmost_node) => {
@@ -139,7 +138,6 @@ impl PaxChassisWeb {
                 unimplemented!()
             }
         }
-
     }
 
     pub fn tick(&mut self) -> String {
@@ -148,4 +146,5 @@ impl PaxChassisWeb {
         //See zb lab journal `On robust message-passing to web` May 11 2022
         serde_json::to_string(&message_queue).unwrap()
     }
+
 }

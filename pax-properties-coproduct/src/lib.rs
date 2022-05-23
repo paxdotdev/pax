@@ -28,6 +28,7 @@ pub enum TypesCoproduct {
     usize(usize), //used by Slot for index
     Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
     Transform2D(pax_example::pax_types::Transform2D),
+    SizePixels(pax_example::pax_types::SizePixels),
     String(String),
     //generated
     Stroke(pax_example::pax_types::pax_std::types::Stroke),

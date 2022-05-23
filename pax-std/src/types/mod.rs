@@ -50,45 +50,46 @@ pub struct Font {
     pub variant: Box<dyn pax::api::PropertyInstance<String>>,
     pub size: Box<dyn pax::api::PropertyInstance<SizePixels>>,
 }
-impl Into<FontMessage> for &Font {
-    fn into(self) -> FontMessage {
-        FontMessage {
-             family: self.family.get().clone(),
-             variant: self.variant.get().clone(),
-             size: self.size.get().0,
+impl Into<FontPatch> for &Font {
+    fn into(self) -> FontPatch {
+        FontPatch {
+             family: Some(self.family.get().clone()),
+             variant: Some(self.variant.get().clone()),
+             size: Some(self.size.get().0),
         }
     }
 }
 
-impl PartialEq<FontMessage> for Font {
-    fn eq(&self, other: &FontMessage) -> bool {
+impl PartialEq<FontPatch> for Font {
+    fn eq(&self, other: &FontPatch) -> bool {
 
-        self.family.get().eq(&other.family) &&
-            self.variant.get().eq(&other.variant) &&
-            self.size.get().eq(&other.size)
+        // For case of `FontMessage`, without optional fields
+        // self.family.get().eq(&other.family) &&
+        //     self.variant.get().eq(&other.variant) &&
+        //     self.size.get().eq(&other.size)
 
         //unequal if any of patch's fields are empty or if any
         //non-empty field does not match `self`'s stored values
-        //
-        // if matches!(&other.family, Some(family) if family.eq(self.family.get())) {
-        //     //we good fam
-        // } else {
-        //     return false;
-        // }
-        //
-        // if matches!(&other.variant, Some(variant) if variant.eq(self.variant.get())) {
-        //     //we good fam
-        // }else {
-        //     return false;
-        // }
-        //
-        // if matches!(&other.size, Some(size) if size.eq(self.size.get())) {
-        //     //we good fam
-        // }else {
-        //     return false;
-        // }
 
-        // true
+        if matches!(&other.family, Some(family) if family.eq(self.family.get())) {
+            //we good fam
+        } else {
+            return false;
+        }
+
+        if matches!(&other.variant, Some(variant) if variant.eq(self.variant.get())) {
+            //we good fam
+        }else {
+            return false;
+        }
+
+        if matches!(&other.size, Some(size) if size.eq(self.size.get())) {
+            //we good fam
+        }else {
+            return false;
+        }
+
+        true
     }
 }
 
@@ -117,32 +118,59 @@ impl Default for Color {
         }
     }
 }
-// impl PartialEq<ColorRGBAPatch> for Color {
-//     fn eq(&self, other: &ColorRGBAPatch) -> bool {
-//         //unequal if any of patch's fields are empty or if any
-//         //non-empty field does not match `self`'s stored values
-//
-//         if matches!(&other.family, Some(family) if family.eq(self.family.get())) {
-//             //we good fam
-//         } else {
-//             return false;
-//         }
-//
-//         if matches!(&other.variant, Some(variant) if variant.eq(self.variant.get())) {
-//             //we good fam
-//         }else {
-//             return false;
-//         }
-//
-//         if matches!(&other.size, Some(size) if size.eq(self.size.get())) {
-//             //we good fam
-//         }else {
-//             return false;
-//         }
-//
-//         true
-//     }
-// }
+impl Into<ColorVariantMessage> for &Color {
+    fn into(self) -> ColorVariantMessage {
+        match self.color_variant {
+            ColorVariant::Hlca(channels) => {
+                ColorVariantMessage::Hlca(channels)
+            },
+            ColorVariant::Rgba(channels) => {
+                ColorVariantMessage::Rgba(channels)
+            }
+        }
+    }
+}
+impl PartialEq<ColorVariantMessage> for Color {
+    fn eq(&self, other: &ColorVariantMessage) -> bool {
+
+        match self.color_variant {
+            ColorVariant::Hlca(channels_self) => {
+                if matches!(other, ColorVariantMessage::Hlca(channels_other) if channels_other.eq(&channels_self)) {
+                    return true;
+                }
+            },
+            ColorVariant::Rgba(channels_self) => {
+                if matches!(other, ColorVariantMessage::Rgba(channels_other) if channels_other.eq(&channels_self)) {
+                    return true;
+                }
+            }
+        }
+        false
+
+        //unequal if any of patch's fields are empty or if any
+        //non-empty field does not match `self`'s stored values
+        //
+        // if matches!(&other.family, Some(family) if family.eq(self.family.get())) {
+        //     //we good fam
+        // } else {
+        //     return false;
+        // }
+        //
+        // if matches!(&other.variant, Some(variant) if variant.eq(self.variant.get())) {
+        //     //we good fam
+        // }else {
+        //     return false;
+        // }
+        //
+        // if matches!(&other.size, Some(size) if size.eq(self.size.get())) {
+        //     //we good fam
+        // }else {
+        //     return false;
+        // }
+        //
+        // true
+    }
+}
 
 impl Interpolatable for Color {
     //TODO: Colors can be meaningfully interpolated.
@@ -175,4 +203,4 @@ pub enum ColorVariant {
 
 #[pax_type]
 pub use pax::api::Size;
-use pax_message::{ColorRGBAPatch, FontMessage};
+use pax_message::{ColorVariantMessage, FontPatch};

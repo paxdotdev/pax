@@ -26,6 +26,7 @@ pub mod pax_types {
         }
     }
     pub use pax::api::Transform2D;
+    pub use pax::api::SizePixels;
 
     pub use crate::Root;
 }

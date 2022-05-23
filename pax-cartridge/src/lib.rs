@@ -226,7 +226,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
         } else { unreachable!("eta") };
 
         return TypesCoproduct::String(
-            format!("Index: {}", i)
+            format!("{}", i)
         );
     }));
 
@@ -246,10 +246,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
         } else { unreachable!("iota") };
-
-
         return TypesCoproduct::Transform2D(
-            Transform2D::align(Size::Percent(0.0), Size::Percent(i as f64 * 12.5))
+            Transform2D::anchor(Size::Percent(0.0), Size::Percent(i as f64 * 14.286)) *
+            Transform2D::align(Size::Percent(0.0), Size::Percent(i as f64 * 14.286))
         );
     }));
 
@@ -258,12 +257,25 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<Str
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("theta") };
+        } else { unreachable!("kappa") };
 
         return TypesCoproduct::Color(
             Color::rgba(1.0, 1.0 - (i as f64 * 0.125), i as f64 * 0.125, 1.0)
         );
     }));
+
+    // {(20 + (i * 5))px}
+    vtable.insert("p".to_string(), Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+            let x = (*ec.engine).borrow();
+            (Rc::clone(datum), *i)
+        } else { unreachable!("lambda") };
+
+        return TypesCoproduct::SizePixels(
+            SizePixels(20.0 + (i as f64 * 5.0))
+        );
+    }));
+
     vtable
 }
 
@@ -452,7 +464,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                             properties: PropertiesCoproduct::Text( Text {
                                                                 content: Box::new(PropertyLiteral::new("Hello".to_string()) ),
                                                                 fill: Box::new(PropertyLiteral::new(Color::rgba(1.0,1.0,1.0,1.0))),
-                                                                font: Box::new(PropertyLiteral::new(Default::default()))
+                                                                font: Default::default(),
                                                             }),
                                                             handler_registry: None,
                                                             instance_registry: Rc::clone(&instance_registry),
@@ -533,17 +545,17 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                             TextInstance::instantiate(InstantiationArgs {
                                                 properties: PropertiesCoproduct::Text( Text {
                                                     content: Box::new(PropertyExpression::new("l".to_string()) ),
-                                                    fill: Box::new(PropertyLiteral::new(Color::rgba(1.0,0.0,0.0,1.0))),
-                                                    font: Box::new(PropertyLiteral::new(Font {
+                                                    fill: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,1.0))),
+                                                    font: Font {
                                                         family: Box::new(PropertyLiteral::new("Real Head Pro".to_string())),
-                                                        variant: Box::new(PropertyLiteral::new("Black".to_string())),
-                                                        size: Box::new(PropertyLiteral::new(SizePixels(26.0))),
-                                                    })),
+                                                        variant: Box::new(PropertyLiteral::new("Light".to_string())),
+                                                        size: Box::new(PropertyExpression::new("p".to_string())),
+                                                    },
                                                 }),
                                                 handler_registry: None,
                                                 instance_registry: Rc::clone(&instance_registry),
                                                 transform: Rc::new(RefCell::new(PropertyExpression::new("n".to_string()))),
-                                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Pixels(30.0)).into()]),
+                                                size: Some([PropertyLiteral::new(Size::Percent(100.0)).into(),PropertyLiteral::new(Size::Pixels(55.0)).into()]),
                                                 children: None,
                                                 component_template: None,
                                                 scroller_args: None,
@@ -615,8 +627,8 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                     TextInstance::instantiate(InstantiationArgs {
                                         properties: PropertiesCoproduct::Text( Text {
                                             content: Box::new(PropertyLiteral::new(JABBERWOCKY.to_string()) ),
-                                            fill: Box::new(PropertyLiteral::new(Color::rgba(1.0,0.0,0.0,1.0))),
-                                            font: Box::new(PropertyLiteral::new(Default::default()))
+                                            fill: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,1.0))),
+                                            font: Default::default(),
                                         }),
                                         handler_registry: None,
                                         instance_registry: Rc::clone(&instance_registry),

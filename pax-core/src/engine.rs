@@ -11,11 +11,14 @@ use kurbo::Point;
 
 use pax_message::NativeMessage;
 
-extern crate wee_alloc;
-
+// extern crate wee_alloc;
+//
 // Use `wee_alloc` as the global allocator, to reduce runtime disk footprint.
-#[global_allocator]
-static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
+// NOTE: unplugged May 23 2022 due to suspected source of memory leak + crash on Web.
+//      See: https://github.com/yewstack/yew-wasm-pack-template/issues/11
+//      Also: disk footprint dropped (favorably) by about 1Kb when switching back to default allocator...
+// #[global_allocator]
+// static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 use piet_common::RenderContext;
 

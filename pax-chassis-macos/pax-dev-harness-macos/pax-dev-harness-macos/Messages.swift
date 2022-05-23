@@ -49,22 +49,22 @@ class TextElement {
     var transform: [Float]
     var size_x: Float
     var size_y: Float
-    var font: Font
+    var font_spec: FontSpec
     var fill: Color
     
-    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: Font, fill: Color) {
+    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: FontSpec, fill: Color) {
         self.id_chain = id_chain
         self.clipping_ids = clipping_ids
         self.content = content
         self.transform = transform
         self.size_x = size_x
         self.size_y = size_y
-        self.font = font
+        self.font_spec = font
         self.fill = fill
     }
     
     static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
-        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontFactory.makeDefault(), fill: Color(.black))
+        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontSpec(), fill: Color(.black))
     }
     
     func applyPatch(patch: TextUpdatePatch) {
@@ -82,9 +82,9 @@ class TextElement {
         if patch.size_y != nil {
             self.size_y = patch.size_y!
         }
-        if patch.font != nil {
-            self.font = patch.font!
-        }
+        
+        self.font_spec.applyPatch(fb: patch.fontBuffer)
+        
         if patch.fill != nil {
             self.fill = patch.fill!
         }
@@ -101,7 +101,7 @@ class TextUpdatePatch {
     var size_x: Float?
     var size_y: Float?
 
-    var font: Font?
+    var fontBuffer: FlxbReference
     var fill: Color?
 
     init(fb: FlxbReference) {
@@ -114,41 +114,94 @@ class TextUpdatePatch {
         })
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
-        if fb["font"] != nil && !fb["font"]!.isNull {
-            self.font = FontFactory.makeFromFb(fb: fb["font"]!)
-        }
+        self.fontBuffer =  fb["font"]!
+
         if fb["fill"] != nil && !fb["fill"]!.isNull {
             
-            self.fill = Color(
-                red: Double(fb["fill"]!["r"]!.asFloat!),
-                green: Double(fb["fill"]!["g"]!.asFloat!),
-                blue: Double(fb["fill"]!["b"]!.asFloat!),
-                opacity: Double(fb["fill"]!["a"]!.asFloat!)
-            )
+            
+            if fb["fill"]!["Rgba"] != nil && !fb["fill"]!["Rgba"]!.isNull {
+                let stub = fb["fill"]!["Rgba"]!
+                self.fill = Color(
+                    red: Double(stub[0]!.asFloat!),
+                    green: Double(stub[1]!.asFloat!),
+                    blue: Double(stub[2]!.asFloat!),
+                    opacity: Double(stub[3]!.asFloat!)
+                )
+            } else {
+                let stub = fb["fill"]!["Hlca"]!
+                self.fill = Color(
+                    hue: Double(stub[0]!.asFloat!),
+                    saturation: Double(stub[1]!.asFloat!),
+                    brightness: Double(stub[2]!.asFloat!),
+                    opacity: Double(stub[3]!.asFloat!)
+                )
+            }
         }
     }
 }
 
-class FontFactory {
-//    var family: String
-//    var variant: String
-//    var size: Float
+
+class FontSpec {
+    var family: String
+    var variant: String
+    var size: Float
+    var cachedFont: Font?
     
-    static func makeFromFb(fb: FlxbReference) -> Font {
-        var suffix = ""
-        if fb["variant"] != nil && !fb["variant"]!.isNull && fb["variant"]!.asString! != "Regular" {
-            suffix = " " + fb["variant"]!.asString!
+    func applyPatch(fb: FlxbReference) {
+        if fb["variant"] != nil && !fb["variant"]!.isNull {
+            self.variant = fb["variant"]!.asString!
         }
-        return Font.custom(String(fb["family"]!.asString! + suffix), size: CGFloat(fb["size"]!.asFloat!))
+        if fb["family"] != nil && !fb["family"]!.isNull {
+            self.family = fb["family"]!.asString!
+        }
+        if fb["size"] != nil && !fb["size"]!.isNull {
+            self.size = fb["size"]!.asFloat!
+        }
+        
+        self.cachedFont = self.intoFont()
     }
     
+    init() {
+        self.family = "Courier New"
+        self.variant = "Regular"
+        self.size = 14.0
+        self.cachedFont = self.intoFont()
+    }
     
-    static func makeDefault() -> Font {
-        return Font.custom("Courier New", size: 14)
-//        Font()
-//        return Font(family: "Courier New", variant: "Regular", size: 14)
+    private func intoFont() -> Font {
+        var suffix = ""
+        if self.variant != "Regular" {
+            suffix = " " + self.variant
+        }
+        return Font.custom(String(self.family + suffix), size: CGFloat(self.size))
     }
 }
+//
+//class FontFactory {
+////    var family: String
+////    var variant: String
+////    var size: Float
+//
+//    func applyPatch(fb: FlxbReference) -> Font {
+//        print("MAKING FONT")
+//        print(fb.debugDescription)
+//
+//
+//
+//        var suffix = ""
+//        if fb["variant"] != nil && !fb["variant"]!.isNull { && fb["variant"]!.asString! != "Regular" {
+//            suffix = " " + fb["variant"]!.asString!
+//        }
+//        return Font.custom(String(fb["family"]!.asString! + suffix), size: CGFloat(fb["size"]!.asFloat!))
+//    }
+//
+//
+//    static func makeDefault() -> Font {
+//        return Font.custom("Courier New", size: 14)
+////        Font()
+////        return Font(family: "Courier New", variant: "Regular", size: 14)
+//    }
+//}
 
 
 

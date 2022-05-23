@@ -117,7 +117,11 @@ impl Default for SizePixels {
         Self(150.0)
     }
 }
-
+impl Into<f64> for &SizePixels {
+    fn into(self) -> f64 {
+        self.0
+    }
+}
 impl PartialEq<f64> for SizePixels {
     fn eq(&self, other: &f64) -> bool {
         self.0 == *other

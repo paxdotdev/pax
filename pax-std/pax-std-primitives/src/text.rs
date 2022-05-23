@@ -71,6 +71,20 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             properties.content.set(new_value);
         }
 
+        if let Some(size) = rtc.compute_vtable_value(properties.font.size._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::SizePixels(v) = size { v } else { unreachable!() };
+            properties.font.size.set(new_value);
+        }
+
+        if let Some(family) = rtc.compute_vtable_value(properties.font.family._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::String(v) = family { v } else { unreachable!() };
+            properties.font.family.set(new_value);
+        }
+
+        if let Some(variant) = rtc.compute_vtable_value(properties.font.variant._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::String(v) = variant { v } else { unreachable!() };
+            properties.font.variant.set(new_value);
+        }
 
         let mut size = &mut *self.size.as_ref().borrow_mut();
 
@@ -92,6 +106,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
             transform.set(new_value);
         }
+
 
 
     }
@@ -124,8 +139,8 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
-        let val = properties.font.get();
-        let is_new_value = match &last_patch.font {
+        let val = properties.font.size.get();
+        let is_new_value = match &last_patch.font.size {
             Some(cached_value) => {
                 !val.eq(cached_value)
             },
@@ -134,25 +149,56 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             },
         };
         if is_new_value {
-            new_message.font = Some(val.into());
-            last_patch.font = Some(val.into());
+            new_message.font.size = Some(val.into());
+            last_patch.font.size = Some(val.into());
             has_any_updates = true;
         }
 
-        // let val = properties.fill.get();
-        // let is_new_value = match &last_patch.fill {
-        //     Some(cached_value) => {
-        //         !val.eq(cached_value)
-        //     },
-        //     None => {
-        //         true
-        //     },
-        // };
-        // if is_new_value {
-        //     new_message.fill = Some(val.into());
-        //     last_patch.fill = Some(val.into());
-        //     has_any_updates = true;
-        // }
+        let val = properties.font.family.get();
+        let is_new_value = match &last_patch.font.family {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.font.family = Some(val.into());
+            last_patch.font.family = Some(val.into());
+            has_any_updates = true;
+        }
+
+        let val = properties.font.variant.get();
+        let is_new_value = match &last_patch.font.variant {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.font.variant = Some(val.into());
+            last_patch.font.variant = Some(val.into());
+            has_any_updates = true;
+        }
+
+
+        let val = properties.fill.get();
+        let is_new_value = match &last_patch.fill {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.fill = Some(val.into());
+            last_patch.fill = Some(val.into());
+            has_any_updates = true;
+        }
 
         let val = computed_size.0;
         let is_new_value = match &last_patch.size_x {

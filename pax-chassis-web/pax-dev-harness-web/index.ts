@@ -31,7 +31,6 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     //Note that width and height are set by the chassis each frame.
     let canvas = document.createElement("canvas");
     canvas.id = CANVAS_ID;
-
     
     //Attach layers to mount
     //FIRST-APPLIED IS LOWEST
@@ -70,6 +69,7 @@ function renderLoop (chassis: PaxChassisWeb) {
 
      // @ts-ignore
      processMessages(messages);
+     messages;
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
@@ -110,6 +110,33 @@ class NativeElementPool {
         }
         if (patch.transform != null) {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+
+        if (patch.fill != null) {
+            let newValue = "";
+            if(patch.fill.Rgba != null) {
+                let p = patch.fill.Rgba;
+                newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
+            } else {
+                let p = patch.fill.Hsla!;
+                newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
+            }
+            leaf.style.color = newValue;
+        }
+
+        let suffix = ""
+        if (patch.font.variant != null) {
+            if(patch.font.variant != "Regular") {
+                suffix = " " + patch.font.variant
+            }
+        }
+
+        if (patch.font.family != null) {
+            leaf.style.fontFamily = patch.font.family + suffix
+        }
+
+        if (patch.font.size != null) {
+            leaf.style.fontSize = patch.font.size + "px"
         }
 
         if (patch.content != null) {
@@ -162,15 +189,16 @@ class NativeElementPool {
             let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
             
             // Fallback and/or perf optimizer: `polygon` instead of `path`.
-            // let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-            // node.style.clipPath = polygonDef;
-            // //@ts-ignore
-            // node.style.webkitClipPath = polygonDef;
-
-            let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-            node.style.clipPath = pathDef;
+            let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+            node.style.clipPath = polygonDef;
             //@ts-ignore
-            node.style.webkitClipPath = pathDef;
+            node.style.webkitClipPath = polygonDef;
+
+            // PoC arbitrary path clipping (noticeably poorer perf in Firefox at time of authoring)
+            // let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+            // node.style.clipPath = pathDef;
+            // //@ts-ignore
+            // node.style.webkitClipPath = pathDef;
         }
         //@ts-ignore
         this.clippingValueCache[patch.id_chain] = cacheContainer;
@@ -194,13 +222,29 @@ class TextUpdatePatch {
     public size_x?: number;
     public size_y?: number;
     public transform?: number[];
+    public font: FontGroup;
+    public fill: ColorGroup;
     constructor(jsonMessage: any) {
+        this.font = jsonMessage["font"];
+        this.fill = jsonMessage["fill"];
         this.id_chain = jsonMessage["id_chain"];
         this.content = jsonMessage["content"];
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
     }
+}
+
+class ColorGroup {
+    Hsla?: number[];
+    Rgba?: number[];
+}
+
+
+class FontGroup {
+    public family?: string;
+    public variant?: string;
+    public size?: number;
 }
 
 class FrameUpdatePatch {
@@ -227,27 +271,26 @@ class AnyCreatePatch {
     }
 }
 
-
-function getQuadClipPathCommand(width: number, height: number, transform: number[]) {
-    let point0 = affineMultiply([0, 0], transform);
-    let point1 = affineMultiply([width, 0], transform);
-    let point2 = affineMultiply([width, height], transform);
-    let point3 = affineMultiply([0, height], transform);
-
-    let command = `path('M ${point0[0]} ${point0[1]} L ${point1[0]} ${point1[1]} L ${point2[0]} ${point2[1]} L ${point3[0]} ${point3[1]} Z')`
-    return command;
-}
-
-//Rectilinear-affine alternative to `clip-path: path(...)` clipping.  Might be faster than `path`
-// function getQuadClipPolygonCommand(width: number, height: number, transform: number[]) {
+// function getQuadClipPathCommand(width: number, height: number, transform: number[]) {
 //     let point0 = affineMultiply([0, 0], transform);
 //     let point1 = affineMultiply([width, 0], transform);
 //     let point2 = affineMultiply([width, height], transform);
 //     let point3 = affineMultiply([0, height], transform);
 
-//     let polygon = `polygon(${point0[0]}px ${point0[1]}px, ${point1[0]}px ${point1[1]}px, ${point2[0]}px ${point2[1]}px, ${point3[0]}px ${point3[1]}px)`
-//     return polygon;
+//     let command = `path('M ${point0[0]} ${point0[1]} L ${point1[0]} ${point1[1]} L ${point2[0]} ${point2[1]} L ${point3[0]} ${point3[1]} Z')`
+//     return command;
 // }
+
+//Rectilinear-affine alternative to `clip-path: path(...)` clipping.  Might be faster than `path`
+function getQuadClipPolygonCommand(width: number, height: number, transform: number[]) {
+    let point0 = affineMultiply([0, 0], transform);
+    let point1 = affineMultiply([width, 0], transform);
+    let point2 = affineMultiply([width, height], transform);
+    let point3 = affineMultiply([0, height], transform);
+
+    let polygon = `polygon(${point0[0]}px ${point0[1]}px, ${point1[0]}px ${point1[1]}px, ${point2[0]}px ${point2[1]}px, ${point3[0]}px ${point3[1]}px)`
+    return polygon;
+}
 
 let nativePool = new NativeElementPool();
 
