@@ -1,7 +1,6 @@
 use pax::*;
 use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 
-
 #[pax_type]
 #[derive(Clone)]
 pub struct Stroke {
@@ -82,8 +81,6 @@ impl Default for Font {
 }
 impl Interpolatable for Font {}
 
-
-
 #[pax_type]
 #[derive(Clone)]
 pub struct Color{
@@ -127,7 +124,10 @@ impl PartialEq<ColorVariantMessage> for Color {
 }
 
 impl Interpolatable for Color {
-    //TODO: Colors can be meaningfully interpolated.
+    //TODO: Colors can be meaningfully interpolated, thus
+    //      we should include interpolation logic here
+    //      (Note that piet::Color offers a `to_rgba` method, probably
+    //      useful to establish a common color space)
 }
 
 impl Color {

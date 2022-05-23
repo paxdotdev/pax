@@ -10,6 +10,7 @@ use tokio::sync::mpsc::{Sender, Receiver, UnboundedReceiver};
 use tokio_stream::wrappers::{ReceiverStream};
 
 mod parser;
+mod templates;
 mod server;
 
 use std::io::Error;
@@ -45,14 +46,16 @@ async fn main() -> Result<(), Error> {
                 .about("Run the Pax project from the current working directory in a demo harness")
                 .arg(
                     Arg::with_name("path")
+                        .short("p")
+                        .long("path")
                         .takes_value(true)
                         .default_value(".")
-                        .index(1)
                 )
                 .arg(
                     Arg::with_name("target")
                         .short("t")
                         .long("target")
+                        .default_value("web")
                         .help("Specify the target platform on which to run.  Will run in platform-specific demo harness.")
                         .takes_value(true),
                 ),
@@ -61,16 +64,17 @@ async fn main() -> Result<(), Error> {
 
     match matches.subcommand() {
         ("run", Some(args)) => {
-            let target = "web";
+            //Default to web -- perhaps the ideal would be to discover host
+            //platform and run appropriate native harness.  Web is a suitable,
+            //sane default for now.
 
-            if args.is_present("target") {
-                unimplemented!("Target currently hard-coded for web.  TODO: support other platforms")
-            }
+            let target = args.value_of("target").unwrap().to_lowercase();
+
 
             let path = args.value_of("path").unwrap(); //default value "."
 
             perform_run(RunContext{
-                target: target.into(), 
+                target: target,
                 path: path.into(), 
                 handle: Handle::current(),
             }).await?;
@@ -233,7 +237,8 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with the `chassis-app` appropriate for the specified platform
 async fn perform_run(ctx: RunContext) -> Result<(), Error> {
-    
+
+    println!("Performing run");
     //see pax-compiler-sequence-diagram.png
 
     let macro_coordination_tcp_port= get_open_tcp_port();
@@ -246,24 +251,28 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
         run_macro_coordination_server(red_phone_rx, payload_tx, macro_coordination_tcp_port)
     );
 
-    let cargo_parser_future = Command::new("cargo").current_dir(ctx.path).arg("build")
-        .spawn().expect("failed to execute cargo build").wait_with_output();
+    let cargo_parser_future = Command::new("cargo").current_dir(&ctx.path)
+        .arg("run")
+        .arg("--features")
+        .arg("parser")
+        .spawn().expect("failed to execute cargo run parser").wait_with_output();
 
     let mut cargo_exit_code : i32 = -1;
 
-
+    //Execute `cargo build` on specified path; wait on result
     select! {
         _ = macro_coordination_handle => {
             panic!("Macro coordination thread failed or crashed before receiving data.")
         }
         exit_code = cargo_parser_future => {
-            cargo_exit_code = exit_code.expect("failed to capture exit code").status.code().unwrap();
+            cargo_exit_code = exit_code.unwrap().status.code().unwrap();
         }
     }
 
     //TODO: cp lib.rs to .pax.manifest.rs
-
     //TODO: clean up .pax.manifest.rs
+
+    templates::compile_and_mount_template_directory("./templates/parser-bin-harness/");
 
     println!("Waiting 15 seconds for messages...");
     thread::sleep(Duration::from_secs(15));

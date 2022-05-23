@@ -284,6 +284,13 @@ _RIL means Rust Intermediate Language, which is the
         [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
 [ ] e2e `pax run`
+[ ] documentation pass
+    [ ] clean up codebase; reduce warnings
+    [ ] README pass & updates
+    [ ] Consider writing guides:
+        [ ] Walk through building one or more examples (e.g. show reusable components, expressions, loops, lifecycle event handlers)
+        [ ] Pipeline of compiling a project
+        [ ] Writing a primitive
 [ ] publication to crates.io
     [x] reserve pax-lang crate on crates.io
     [ ] update relative paths in all cargo.tomls, point to hard-coded published versions
@@ -343,7 +350,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] Bitmap support: .png, .jpg, maybe .svg, serialize as base64 and include encoding so that chassis can make sense of it
     [ ] API: how to support assets? check out `include_bytes!`
 [ ] Gradient fills: shapes, text
-
+[ ] Support interpolating Colors; see: `impl Interpolatable for Color {` ... 
 [ ] Opacity (likely built-in property alongside `transform`, `size` -- it accumulates down render tree)
 [ ] Palette built-in: perhaps `@palette { optional_nesting: {  } }
 [ ] Path primitive + APIs for animations
@@ -351,7 +358,7 @@ _RIL means Rust Intermediate Language, which is the
 [ ] Ellipse
 [ ] macOS chassis improvements:
     [ ] Revisit loop timer?  (keep timestamps, target exact FPS, able to know when frames are dropped)
-    [ ] 
+ 
 ```
 
 
