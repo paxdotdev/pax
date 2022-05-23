@@ -2,7 +2,7 @@
 name = "pax-chassis-macos"
 edition = "2021"
 version = "0.0.1"
-authors = ["Zack Brown <zack@inclination.co>"]
+authors = ["Zack Brown <zack@pax-lang.org>"]
 description = "Pax chassis for macOS"
 publish = false
 

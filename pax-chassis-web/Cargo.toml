@@ -1,7 +1,7 @@
 [package]
 name = "pax-chassis-web"
 version = "0.0.1"
-authors = ["Zack Brown <zack@inclination.co>"]
+authors = ["Zack Brown <zack@pax-lang.org>"]
 edition = "2021"
 
 [lib]
