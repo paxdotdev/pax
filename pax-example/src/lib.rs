@@ -12,7 +12,7 @@ use pax_std::{Stacker, Text, Rectangle};
         for i in 0..8 {
             <Group>
                 <Text id=index_text>`Index: {i}`</Text>
-                <Rectangle fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
+                <Rectangle stroke={} fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
             </Group>
         }
 

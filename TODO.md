@@ -220,7 +220,7 @@ _RIL means Rust Intermediate Language, which is the
 [ ] `pax-compiler`
     [ ] support stand-alone .pax files (no rust file); .html use-case
         [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
-    [ ] dep. management -- augment prelude with static dep. list?
+    
     [ ] update .pest and manifest-populating logic to latest language spec
         [ ] 
     [x] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
@@ -253,6 +253,8 @@ _RIL means Rust Intermediate Language, which is the
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
+    [ ] dep. management -- augment prelude with static dep. list?
+        [ ] Support static constants?  e.g. JABBERWOCKY use-case
     [ ] expression compilation
         [ ] expression string => RIL generation
         [ ] symbol resolution & code-gen, incl. shadowing with `@for`

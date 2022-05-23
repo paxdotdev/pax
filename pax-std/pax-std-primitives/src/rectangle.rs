@@ -119,9 +119,14 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
-        if let Some(stroke) = rtc.compute_vtable_value(properties.stroke._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Stroke(v) = stroke { v } else { unreachable!() };
-            properties.stroke.set(new_value);
+        if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.width._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::f64(v) = stroke_width { v } else { unreachable!() };
+            properties.stroke.width.set(new_value);
+        }
+
+        if let Some(stroke_color) = rtc.compute_vtable_value(properties.stroke.color._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Color(v) = stroke_color { v } else { unreachable!() };
+            properties.stroke.color.set(new_value);
         }
 
         if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()) {
@@ -180,7 +185,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 
         let color = properties.fill.get().to_piet_color();
         rc.fill(transformed_bez_path, &color);
-        rc.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), **&properties.stroke.get().width.get());
+        rc.stroke(duplicate_transformed_bez_path, &properties.stroke.color.get().to_piet_color(), **&properties.stroke.width.get());
 
 
     }

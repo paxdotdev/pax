@@ -77,7 +77,7 @@ pub mod primitives {
 
     #[pax_primitive("./pax-std-primitives", crate::RectangleInstance)]
     pub struct Rectangle {
-        pub stroke: Box<dyn pax::api::PropertyInstance<types::Stroke>>,
+        pub stroke: types::Stroke,
         pub fill: Box<dyn pax::api::PropertyInstance<types::Color>>,
     }
 
@@ -86,7 +86,7 @@ pub mod primitives {
     #[pax_primitive("./pax-std-primitives", crate::TextInstance)]
     pub struct Text {
         pub content: Box<dyn pax::api::PropertyInstance<String>>,
-        pub font: Font,
+        pub font: types::Font,
         pub fill: Box<dyn pax::api::PropertyInstance<Color>>,
     }
 
