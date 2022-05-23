@@ -13,7 +13,7 @@ impl Property<f64> for PropertyTimeline {
         &self.cached_evaluated_value
     }
 
-    fn _get_vtable_id(&self) -> Option<&str> {
+    fn _get_vtable_id(&self) -> Option<u64> {
         Some(self.id.as_str())
     }
 

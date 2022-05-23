@@ -11,7 +11,6 @@ use pax_runtime_api::{Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
 pub struct GroupInstance<R: 'static + RenderContext> {
     pub instance_id: u64,
     pub primitive_children: RenderNodePtrList<R>,
-    pub id: String,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
 
@@ -36,7 +35,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
                 None => {Rc::new(RefCell::new(vec![]))}
                 Some(children) => children
             },
-            id: "".to_string(),
             transform: args.transform,
             handler_registry: args.handler_registry,
 
