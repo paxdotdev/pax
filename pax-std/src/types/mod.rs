@@ -6,7 +6,7 @@ use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 #[derive(Default, Clone)]
 pub struct Stroke {
     pub color: Box<dyn PropertyInstance<Color>>,
-    pub width: Box<dyn PropertyInstance<f64>>,
+    pub width: Box<dyn PropertyInstance<SizePixels>>,
 }
 
 #[pax_type]

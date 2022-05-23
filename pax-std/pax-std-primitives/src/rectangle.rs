@@ -120,7 +120,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.width._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::f64(v) = stroke_width { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width { v } else { unreachable!() };
             properties.stroke.width.set(new_value);
         }
 
@@ -185,7 +185,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 
         let color = properties.fill.get().to_piet_color();
         rc.fill(transformed_bez_path, &color);
-        rc.stroke(duplicate_transformed_bez_path, &properties.stroke.color.get().to_piet_color(), **&properties.stroke.width.get());
+        rc.stroke(duplicate_transformed_bez_path, &properties.stroke.color.get().to_piet_color(), *&properties.stroke.width.get().into());
 
 
     }
