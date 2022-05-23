@@ -319,9 +319,9 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
             properties: PropertiesCoproduct::Root(Root {
                 //these values are code-genned by pax-compiler.  If not provided, pax-compiler
                 //can inject Default::default.  If the rust compiler throws an error,
-                //that is the user's responsibility.
+                //that is the author's responsibility.
                 num_clicks: Default::default(),
-                current_rotation: Box::new(PropertyLiteral::new(0.0)),
+                current_rotation: Default::default(),
             }),
             handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
                 click_handlers: vec![],

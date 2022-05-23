@@ -3,10 +3,18 @@ use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 
 
 #[pax_type]
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Stroke {
     pub color: Box<dyn PropertyInstance<Color>>,
     pub width: Box<dyn PropertyInstance<SizePixels>>,
+}
+impl Default for Stroke {
+    fn default() -> Self {
+        Self {
+            color: Box::new(PropertyLiteral::new(Default::default())),
+            width: Box::new(PropertyLiteral::new(SizePixels(0.0))),
+        }
+    }
 }
 
 #[pax_type]
@@ -14,7 +22,6 @@ pub struct Stroke {
 pub struct Text {
     pub content: Box<dyn PropertyInstance<String>>,
 }
-
 
 #[derive(Clone)]
 #[pax_type]
@@ -25,8 +32,6 @@ pub struct StackerCellProperties {
     pub height_px: f64,
 }
 
-/// Simple way to represent whether a stacker should render
-/// vertically or horizontally
 #[pax_type]
 #[derive(Clone)]
 pub enum StackerDirection {
@@ -39,7 +44,6 @@ impl Default for StackerDirection {
         StackerDirection::Horizontal
     }
 }
-
 impl Interpolatable for StackerDirection {}
 
 
@@ -62,37 +66,11 @@ impl Into<FontPatch> for &Font {
 
 impl PartialEq<FontPatch> for Font {
     fn eq(&self, other: &FontPatch) -> bool {
-
-        // For case of `FontMessage`, without optional fields
-        // self.family.get().eq(&other.family) &&
-        //     self.variant.get().eq(&other.variant) &&
-        //     self.size.get().eq(&other.size)
-
-        //unequal if any of patch's fields are empty or if any
-        //non-empty field does not match `self`'s stored values
-
-        if matches!(&other.family, Some(family) if family.eq(self.family.get())) {
-            //we good fam
-        } else {
-            return false;
-        }
-
-        if matches!(&other.variant, Some(variant) if variant.eq(self.variant.get())) {
-            //we good fam
-        }else {
-            return false;
-        }
-
-        if matches!(&other.size, Some(size) if size.eq(self.size.get())) {
-            //we good fam
-        }else {
-            return false;
-        }
-
-        true
+        matches!(&other.family, Some(family) if family.eq(self.family.get()))
+            && matches!(&other.variant, Some(variant) if variant.eq(self.variant.get()))
+            && matches!(&other.size, Some(size) if size.eq(self.size.get()))
     }
 }
-
 impl Default for Font {
     fn default() -> Self {
         Self {
@@ -132,7 +110,6 @@ impl Into<ColorVariantMessage> for &Color {
 }
 impl PartialEq<ColorVariantMessage> for Color {
     fn eq(&self, other: &ColorVariantMessage) -> bool {
-
         match self.color_variant {
             ColorVariant::Hlca(channels_self) => {
                 if matches!(other, ColorVariantMessage::Hlca(channels_other) if channels_other.eq(&channels_self)) {
@@ -146,29 +123,6 @@ impl PartialEq<ColorVariantMessage> for Color {
             }
         }
         false
-
-        //unequal if any of patch's fields are empty or if any
-        //non-empty field does not match `self`'s stored values
-        //
-        // if matches!(&other.family, Some(family) if family.eq(self.family.get())) {
-        //     //we good fam
-        // } else {
-        //     return false;
-        // }
-        //
-        // if matches!(&other.variant, Some(variant) if variant.eq(self.variant.get())) {
-        //     //we good fam
-        // }else {
-        //     return false;
-        // }
-        //
-        // if matches!(&other.size, Some(size) if size.eq(self.size.get())) {
-        //     //we good fam
-        // }else {
-        //     return false;
-        // }
-        //
-        // true
     }
 }
 
