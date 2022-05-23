@@ -121,12 +121,12 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
             let computed_layout_spec = p.computed_layout_spec.get();
             return TypesCoproduct::Vec_Rc_PropertiesCoproduct___(computed_layout_spec.iter().enumerate().map(|(i,e)|{
                 let cloned = Rc::clone(e);
-                //TODO: there should be a way to pull off this re-wrapping without cloning the data structure (below).  One option is to deal with raw refs to the datum (we
-                //are guaranteed immutable reads for this data, after all.)
+
+                //TODO: there should be a way to pull off this re-wrapping without cloning the data structure (below).
                 let rewrapped = PropertiesCoproduct::StackerCellProperties((*cloned).clone());
                 Rc::new(rewrapped)
             }).collect());
-        } else { unreachable!() };
+        } else { unreachable!(0) };
 
     }));
 
@@ -134,28 +134,24 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("alpha") };
+        } else { unreachable!(1) };
 
         let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!("beta")};
 
         return TypesCoproduct::Transform2D(
             Transform2D::translate(datum_cast.x_px, datum_cast.y_px)
         )
-
     }));
 
     //Frame size x
     vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        // const STACK_FRAME_OFFSET : isize = 1;
-        // let STARTING_FRAME = (*ec.stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
-        // pax_runtime_api::log(&format!("h: {:?}", &*(*(*STARTING_FRAME).borrow().get_properties()).borrow()));
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("gamma") };
+        } else { unreachable!(2) };
 
         let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!("epsilon")};
-        // (*ec.engine.runtime).borrow().log(&format!("evaling layout width {}", datum_cast.width_px));
+
         return TypesCoproduct::Size(
             Size::Pixels(datum_cast.width_px)
         )
@@ -166,7 +162,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("delta") };
+        } else { unreachable!(3) };
 
         let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!()};
 
@@ -180,7 +176,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("epsilon") };
+        } else { unreachable!(4) };
 
         return TypesCoproduct::usize(
             i
@@ -190,26 +186,15 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
     vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         #[allow(non_snake_case)]
 
-        //example of pulling property from parent
-        // let this_frame = (*ec.stack_frame).borrow();
-        // let an0_frame = this_frame.parent.as_ref().unwrap();
-        // let an0_frame_borrowed = (**an0_frame).borrow();
-        // let properties = &*(*an0_frame_borrowed.properties).borrow();
-        //
-        // let current_rotation = if let PropertiesCoproduct::Root(p) = properties {
-        //     *p.current_rotation.get() + 1.4
-        // } else { unreachable!() };
         const STACK_FRAME_OFFSET : isize = 2;
         let SCOPED_STACK_FRAME = (*ec.stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
 
         let properties = SCOPED_STACK_FRAME.deref().borrow().get_properties();
         let properties = &*(*properties).borrow();
 
-        // pax_runtime_api::log(&format!("Properties: {:?}", properties));
         let current_rotation = if let PropertiesCoproduct::Root(p) = properties {
-            // pax_runtime_api::log( &format!("current_rotation: {}", p.current_rotation.get()));
             *p.current_rotation.get() as f64
-        } else { unreachable!("zeta") };
+        } else { unreachable!(5) };
 
         TypesCoproduct::Transform2D(
             Transform2D::anchor(Size::Percent(50.0), Size::Percent(50.0))
@@ -221,9 +206,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
     //Text content
     vtable.insert(6, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
-            let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("eta") };
+        } else { unreachable!(6) };
 
         return TypesCoproduct::String(
             format!("{}", i)
@@ -232,9 +216,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
 
     vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
-            let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("theta") };
+        } else { unreachable!(7) };
 
         return TypesCoproduct::Color(
             Color::rgba(0.2 * (i as f64), 0.0, 0.75, 1.0)
@@ -243,9 +226,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
 
     vtable.insert(8, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
-            let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("iota") };
+        } else { unreachable!(8) };
         return TypesCoproduct::Transform2D(
             Transform2D::anchor(Size::Percent(0.0), Size::Percent(i as f64 * 14.286)) *
             Transform2D::align(Size::Percent(0.0), Size::Percent(i as f64 * 14.286))
@@ -255,9 +237,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
     // {Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)}
     vtable.insert(9, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
-            let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("kappa") };
+        } else { unreachable!(9) };
 
         return TypesCoproduct::Color(
             Color::rgba(1.0, 1.0 - (i as f64 * 0.125), i as f64 * 0.125, 1.0)
@@ -267,9 +248,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
     // {(20 + (i * 5))px}
     vtable.insert(10, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
-            let x = (*ec.engine).borrow();
             (Rc::clone(datum), *i)
-        } else { unreachable!("lambda") };
+        } else { unreachable!(10) };
 
         return TypesCoproduct::SizePixels(
             SizePixels(20.0 + (i as f64 * 5.0))
@@ -278,7 +258,6 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
 
     vtable
 }
-
 
 pub fn instantiate_component_stacker<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
     args.component_template = Some(Rc::new(RefCell::new(
@@ -481,7 +460,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                         RectangleInstance::instantiate(InstantiationArgs{
                                                             properties: PropertiesCoproduct::Rectangle(Rectangle {
                                                                 stroke: Box::new(PropertyLiteral::new( pax_example::pax_types::pax_std::types::Stroke{
-                                                                    color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
+                                                                    color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,1.0))),
                                                                     width: Box::new(PropertyLiteral::new(0.0)),
                                                                 })),
                                                                 fill: Box::new(PropertyExpression::new(7))

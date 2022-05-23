@@ -20,19 +20,13 @@ pub struct RectangleInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u64,
     pub properties: Rc<RefCell<Rectangle>>,
-
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-
 }
 
 
 
-
-
-
 //Generate via #[pax]
-
 
 
 #[cfg(feature="parser")]
@@ -84,21 +78,7 @@ impl RectangleInstance {
 }
 
 
-//what if PropertyLiteral/PropertyExpression were stored as an enum Property::Literal(literal value) or
-//Property::Expression() instead of as traits — would this resolve the issue of
-//can't call compute_in_place on property
-//because it's only implemented for ComputedProperty
-//even though we _know_ we will have a ComputedProperty,
-//the compiler doesn't know this.
-//`unsafe` may be one way out!
-//
-
-
-
 impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
-
-
-
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id

@@ -314,6 +314,26 @@ _RIL means Rust Intermediate Language, which is the
 [ ] Databinding: event-based changes + two-way binding
 ```
 
+## Milestone: iOS & Linux
+```
+[ ] Refactor ABI/FFI layer - Do before adding new targets, so that porting work & waste are reduced
+    [ ] flexbuffers -> flatbuffers, with schema
+    [ ] Port `pax-message/../lib.rs` to a Flexbuffer schema + codegenned Rust
+    [ ] Update macOS messaging layers to support
+    [ ] (Profile overhead of JSON serializing+parsing for Web; decide whether additional footprint cost is worth embedding a flatbuffer reader) 
+[ ] Linux/GTK dev-harness & chassis 
+    [ ] support `NativeMessage`s for all primitives and `std`
+    [ ] dev-harness
+[ ] ios app dev-harness & chassis
+    [ ] support `NativeMessage`s for all primitives and `std`
+    [ ] extract shared logic with macOS dev harness
+    [ ] support ios simulator / physical device
+    [ ] CLI hookups (--target)
+[ ] Touch support
+    [ ] tap / swipe support
+    [ ] `jab` event, for "click or tap"
+```
+
 
 ## Milestone: drawing++
 ```
@@ -333,20 +353,7 @@ _RIL means Rust Intermediate Language, which is the
 ```
 
 
-## Milestone: iOS & Linux
-```
-[ ] Linux/GTK dev-harness & chassis 
-    [ ] support `NativeMessage`s for all primitives and `std`
-    [ ] dev-harness
-[ ] ios app dev-harness & chassis
-    [ ] support `NativeMessage`s for all primitives and `std`
-    [ ] extract shared logic with macOS dev harness
-    [ ] support ios simulator / physical device
-    [ ] CLI hookups (--target)
-[ ] Touch support
-    [ ] tap / swipe support
-    [ ] `jab` event, for "click or tap"
-```
+
 
 
 ## Milestone: capabilities++
