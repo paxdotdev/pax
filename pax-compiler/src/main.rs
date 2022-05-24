@@ -24,13 +24,14 @@ use clap::{App, AppSettings, Arg};
 
 use futures::prelude::*;
 
-use crate::parser::message::*;
+// use crate::parser::message::*;
 use serde_json::Value;
 use tokio::process::Command;
 use tokio::sync::oneshot;
 use tokio_serde::SymmetricallyFramed;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use tokio_serde::formats::*;
+use ::parser::PaxManifest;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -228,7 +229,7 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
     //             break;
     //         },
     //         Poll::Pending => {},
-    //     }        
+    //     }
     // }
 
     Ok(())
@@ -239,6 +240,7 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
 async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     println!("Performing run");
+
     //see pax-compiler-sequence-diagram.png
 
     let macro_coordination_tcp_port= get_open_tcp_port();
@@ -252,10 +254,10 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     );
 
     let cargo_parser_future = Command::new("cargo").current_dir(&ctx.path)
-        .arg("run")
+        .arg("build")
         .arg("--features")
         .arg("parser")
-        .spawn().expect("failed to execute cargo run parser").wait_with_output();
+        .spawn().expect("failed to execute cargo build parser").wait_with_output();
 
     let mut cargo_exit_code : i32 = -1;
 
@@ -304,7 +306,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     // // What about OS pipes?  the message passing is very simple — no risk of
     // // deadlocks as long as the message-passing is one-way
-    
+
 
     // ctx.ProcessCargo = Some(start_cargo_process(macro_coordination_tcp_port));
 
@@ -354,7 +356,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     // ctx.MacroCoordinationThread = Some(macro_coordination::start_server());
     // /*
     // Option A: dump to an append-only file; load that file after compilation
-    // Option B: open a simple HTTP server 
+    // Option B: open a simple HTTP server
     // */
 
 
@@ -366,11 +368,11 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
 
     // //TODO: start cargo build
-    // // ctx.CargoBuildThread = Some(start_cargo_build_thread())    
+    // // ctx.CargoBuildThread = Some(start_cargo_build_thread())
 
 
     // //Await completion of both threads
-    
+
     // //TODO: perform any necessary codegen, incl. patched Cargo.toml, into temp dir
     // //TODO: run cargo build again; generate .wasm (or other platform-native lib)
     // //TODO: start websocket server

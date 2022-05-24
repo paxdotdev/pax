@@ -9,7 +9,7 @@ edition = "2021"
 #
 [lib]
 name = "parser"
-path = "src/parser.rs"
+path = "src/parser/mod.rs"
 
 
 [features]
@@ -22,7 +22,7 @@ cbor = ["serde"]
 pax-message = { path = "../pax-message" } 
 pest = "2.1.3"
 pest_derive = "2.1.0"
-include_dir = "0.7.2"
+include_dir = {version = "0.7.2", features = ["glob"]}
 lazy_static = "1.4.0"
 clap = "2.33.3"
 tera = "1"
