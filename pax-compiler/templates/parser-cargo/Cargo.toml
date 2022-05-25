@@ -1,0 +1,14 @@
+{{original_contents_cleaned}}
+
+[[bin]]
+name = "parser"
+path = "src/lib.rs"
+required-features = ["parser"]
+
+[features]
+{{original_features}}
+parser = ["pax-std/parser"]
+
+[dependencies]
+{{original_dependencies}}
+pax-compiler = {path = "../pax-compiler"}

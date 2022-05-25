@@ -1958,6 +1958,7 @@ name = "pax-example"
 version = "0.0.1"
 dependencies = [
  "lazy_static",
+ "pax-compiler",
  "pax-lang",
  "pax-std",
 ]
@@ -1966,6 +1967,7 @@ dependencies = [
 name = "pax-lang"
 version = "0.0.1"
 dependencies = [
+ "pax-compiler",
  "pax-macro",
  "pax-message",
  "pax-runtime-api",
@@ -2012,6 +2014,7 @@ version = "0.0.1"
 dependencies = [
  "kurbo",
  "lazy_static",
+ "pax-compiler",
  "pax-lang",
  "pax-message",
  "piet",

@@ -16,6 +16,7 @@ kurbo = "0.8.3"
 pax = {package="pax-lang", path = "../pax-lang"}
 pax-message = {path = "../pax-message"}
 lazy_static = "*"
+pax-compiler = {path="../pax-compiler"}
 
 [features]
 parser = []

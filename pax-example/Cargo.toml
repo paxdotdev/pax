@@ -14,10 +14,10 @@ path = "src/lib-expanded.rs"
 
 
 ### GENERATE
-#[[bin]]
-#name = "parser"
-#path = "src/lib-expanded.rs"
-#required-features = ["parser"]
+[[bin]]
+name = "parser"
+path = "src/lib-expanded.rs"
+required-features = ["parser"]
 ### END GENERATE
 
 [features]
@@ -28,7 +28,7 @@ parser = ["pax-std/parser"]
 [dependencies]
 pax = {package="pax-lang", path = "../pax-lang"}
 pax-std = {path = "../pax-std"}
-#pax-compiler = {path = "../pax-compiler"}
+pax-compiler = {path = "../pax-compiler"}
 ### REMOVE once lazy_static pascal_identifier hack is removed from manually expanded prototype macros
 lazy_static = "*"
 #

@@ -9,4 +9,5 @@ edition = "2021"
 pax-macro = {path="../pax-macro"}
 pax-message = {path="../pax-message"}
 pax-runtime-api = {path="../pax-runtime-api"}
+pax-compiler = {path="../pax-compiler"}
 

@@ -11,7 +11,7 @@ use std::rc::Rc;
 use pest::iterators::{Pair, Pairs};
 use uuid::Uuid;
 
-mod message;
+pub mod message;
 pub use message::*;
 
 #[derive(Parser)]

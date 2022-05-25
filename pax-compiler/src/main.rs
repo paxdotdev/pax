@@ -18,6 +18,7 @@ use std::task::{Poll, Context};
 use std::{thread::{Thread, self}, time::Duration};
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
+use std::path::Path;
 use std::sync::Arc;
 
 use clap::{App, AppSettings, Arg};
@@ -56,6 +57,9 @@ async fn main() -> Result<(), Error> {
                     Arg::with_name("target")
                         .short("t")
                         .long("target")
+                        //Default to web -- perhaps the ideal would be to discover host
+                        //platform and run appropriate native harness.  Web is a suitable,
+                        //sane default for now.
                         .default_value("web")
                         .help("Specify the target platform on which to run.  Will run in platform-specific demo harness.")
                         .takes_value(true),
@@ -65,21 +69,15 @@ async fn main() -> Result<(), Error> {
 
     match matches.subcommand() {
         ("run", Some(args)) => {
-            //Default to web -- perhaps the ideal would be to discover host
-            //platform and run appropriate native harness.  Web is a suitable,
-            //sane default for now.
 
             let target = args.value_of("target").unwrap().to_lowercase();
-
-
-            let path = args.value_of("path").unwrap(); //default value "."
+            let path = args.value_of("path").unwrap().to_string(); //default value "."
 
             perform_run(RunContext{
-                target: target,
-                path: path.into(), 
+                target,
+                path,
                 handle: Handle::current(),
             }).await?;
-
 
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
@@ -203,7 +201,6 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
         // });
 
 
-
     }
 
 
@@ -235,11 +232,47 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
     Ok(())
 }
 
+
+async fn run_generate_parser_cargo(working_dir: &str, output_dir: &str) {
+
+}
+
+async fn get_pax_folder(working_dir: &str) -> String {
+    let mut working_path = std::path::Path::new(working_dir).join(".pax");
+    std::fs::create_dir_all( &working_path);
+    working_path.to_str().unwrap().into()
+}
+
+async fn get_pax_temp_folder(working_dir: &str) -> String {
+
+    let temp = Path::new(&get_pax_folder(working_dir).await).join("tmp");
+    std::fs::create_dir_all( &temp);
+    temp.to_str().unwrap().into()
+}
+
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with the `chassis-app` appropriate for the specified platform
 async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     println!("Performing run");
+
+
+    let tmp_dir =  get_pax_folder(&ctx.path).await;
+
+    //0. (Gen "parsing rust files" for stand-alone .pax files
+    //1. Gen patched cargo.toml inside @/.pax/tmp
+    let parser_cargo_path = run_generate_parser_cargo(&ctx.path, &tmp_dir);
+
+    //2. Build host project: `--features parser`, output `parser binary` into tmp
+    //3. start parser coordination server (awaiting output message) -- note, this could also be done with stdio
+    //4. Run compiled `parser binary` from tmp, which reports back to parser coordination server
+    //5. After PaxManifest is received by main thread, shut down parser coordination server
+    //6. Codegen:
+    //   - Properties Coproduct
+    //   - Cartridge
+    //   - Cargo.toml (including patches for Properties Coproduct & Cartridge)
+    //7. Build one more time, pointing to the above Cargo.toml
+    //8. Attach the built lib to the appropriate chassis, just like with pax-example
 
     //see pax-compiler-sequence-diagram.png
 
@@ -253,7 +286,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
         run_macro_coordination_server(red_phone_rx, payload_tx, macro_coordination_tcp_port)
     );
 
-    let cargo_parser_future = Command::new("cargo").current_dir(&ctx.path)
+    let cargo_build_parser_future = Command::new("cargo").current_dir(&ctx.path)
         .arg("build")
         .arg("--features")
         .arg("parser")
@@ -266,7 +299,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
         _ = macro_coordination_handle => {
             panic!("Macro coordination thread failed or crashed before receiving data.")
         }
-        exit_code = cargo_parser_future => {
+        exit_code = cargo_build_parser_future => {
             cargo_exit_code = exit_code.unwrap().status.code().unwrap();
         }
     }
