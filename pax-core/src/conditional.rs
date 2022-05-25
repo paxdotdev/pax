@@ -22,9 +22,6 @@ pub struct ConditionalInstance<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
 
-
-
-
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }

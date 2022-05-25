@@ -19,8 +19,6 @@ pub struct TextInstance<R: 'static + RenderContext> {
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 
-
-
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
@@ -29,9 +27,6 @@ pub struct TextInstance<R: 'static + RenderContext> {
 }
 
 impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
-
-
-
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -106,8 +101,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
             transform.set(new_value);
         }
-
-
 
     }
 
