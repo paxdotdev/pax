@@ -13,9 +13,11 @@ mod parser;
 mod templates;
 mod server;
 
+use templates::*;
+
 use std::io::Error;
 use std::task::{Poll, Context};
-use std::{thread::{Thread, self}, time::Duration};
+use std::{fs, thread::{Thread, self}, time::Duration};
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::path::Path;
@@ -24,15 +26,43 @@ use std::sync::Arc;
 use clap::{App, AppSettings, Arg};
 
 use futures::prelude::*;
+use include_dir::{Dir, include_dir};
 
 // use crate::parser::message::*;
 use serde_json::Value;
+use tera::Tera;
 use tokio::process::Command;
 use tokio::sync::oneshot;
 use tokio_serde::SymmetricallyFramed;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use tokio_serde::formats::*;
 use ::parser::PaxManifest;
+
+
+
+use toml_edit::{Document, value};
+
+
+fn tryout() {
+    let toml = r#"
+        "hello" = 'toml!' # comment
+        ['a'.b]
+    "#;
+    let mut doc = toml.parse::<Document>().expect("invalid doc");
+
+    assert_eq!(doc.to_string(), toml);
+    // let's add a new key/value pair inside a.b: c = {d = "hello"}
+    doc["a"]["b"]["c"]["d"] = value("hello");
+    // autoformat inline table a.b.c: { d = "hello" }
+    doc["a"]["b"]["c"].as_inline_table_mut().map(|t| t.fmt());
+    let expected = r#"
+        "hello" = 'toml!' # comment
+        ['a'.b]
+        c = { d = "hello" }
+    "#;
+    assert_eq!(doc.to_string(), expected);
+}
+
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -233,22 +263,73 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
 }
 
 
-async fn run_generate_parser_cargo(working_dir: &str, output_dir: &str) {
 
+struct RunHelpers {}
+impl RunHelpers {
+
+
+    pub fn generate_parser_cargo(working_dir: &str, output_dir: &str) -> String {
+        //Load existing Cargo.toml
+        //Parse with toml parser -- pull `features` and `dependencies` into `original_features` and `original_dependencies`.  Serialize the rest into `original_contents_cleaned`.
+
+        let existing_cargo_contents = fs::read_to_string(
+            Path::new(&working_dir)
+                .join("Cargo.toml")
+        ).expect(&("Couldn't find Cargo.toml in specified directory: ".to_string() + working_dir));
+
+        let mut parsed_existing_cargo = existing_cargo_contents.parse::<Document>().expect("invalid TOML document -- verify the Cargo.toml in the specified working directory");
+
+        let mut original_dependencies = &parsed_existing_cargo["dependencies"];
+
+        //Remove any existing entries that we're going to add, to ensure no duplicates
+        match original_dependencies.into_table() {
+            Ok(mut original_dependencies_table) => {
+                //These entries must exist in the parser-cargo `template`, too
+                original_dependencies_table.remove("lazy_static");
+                original_dependencies_table.remove("pax-compiler");
+            },
+            _ => {}
+        }
+
+        let original_dependencies = &original_dependencies.to_string();
+        let original_features = parsed_existing_cargo["features"].to_string();
+        parsed_existing_cargo.remove("dependencies");
+        parsed_existing_cargo.remove("features");
+        let original_contents_cleaned = parsed_existing_cargo.to_string();
+
+        //Populate template data structure; compile template
+        let cpa = TemplateArgsParserCargo {
+            original_contents_cleaned,
+            original_features,
+            original_dependencies,
+        };
+
+        let template_parser_cargo = TEMPLATE_DIR.get_file("parser-cargo/Cargo.toml").unwrap().contents_utf8().unwrap();
+
+
+        let x = Tera::one_off(&template_parser_cargo, &tera::Context::from_serialize(cpa).unwrap(), false);
+        println!("{}", x.as_ref().unwrap());
+
+        //Generate templated Cargo.toml into output_dir; return full path to that file
+
+
+
+        x.unwrap()
+    }
 }
-
-async fn get_pax_folder(working_dir: &str) -> String {
+fn get_pax_directory(working_dir: &str) -> String {
     let mut working_path = std::path::Path::new(working_dir).join(".pax");
     std::fs::create_dir_all( &working_path);
     working_path.to_str().unwrap().into()
 }
-
-async fn get_pax_temp_folder(working_dir: &str) -> String {
-
-    let temp = Path::new(&get_pax_folder(working_dir).await).join("tmp");
-    std::fs::create_dir_all( &temp);
-    temp.to_str().unwrap().into()
+const TMP_DIRECTORY_NAME: &str = "tmp";
+fn get_pax_tmp_directory(working_dir: &str) -> String {
+    let tmp = Path::new(&get_pax_directory(working_dir)).join(TMP_DIRECTORY_NAME);
+    std::fs::create_dir_all( &tmp);
+    tmp.to_str().unwrap().into()
 }
+
+static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with the `chassis-app` appropriate for the specified platform
@@ -256,14 +337,15 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     println!("Performing run");
 
-
-    let tmp_dir =  get_pax_folder(&ctx.path).await;
+    let tmp_dir =  get_pax_tmp_directory(&ctx.path);
 
     //0. (Gen "parsing rust files" for stand-alone .pax files
-    //1. Gen patched cargo.toml inside @/.pax/tmp
-    let parser_cargo_path = run_generate_parser_cargo(&ctx.path, &tmp_dir);
+    //1. Gen parser-bin Cargo.toml inside @/.pax/tmp
+    let parser_cargo_path = RunHelpers::generate_parser_cargo(&ctx.path, &tmp_dir);
 
-    //2. Build host project: `--features parser`, output `parser binary` into tmp
+    //2. Build host project with specified cargo file: `--features parser`, output `parser binary` into tmp
+
+
     //3. start parser coordination server (awaiting output message) -- note, this could also be done with stdio
     //4. Run compiled `parser binary` from tmp, which reports back to parser coordination server
     //5. After PaxManifest is received by main thread, shut down parser coordination server

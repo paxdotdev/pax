@@ -17,8 +17,6 @@ exclude = [
     "pax-example",
     "pax-std",
     "pax-chassis-macos/pax-dev-harness-macos",
-    "pax-example/.pax-manual/patches/pax-cartridge",
-    "pax-example/.pax-manual/patches/pax-properties-coproduct",
 ]
 
 

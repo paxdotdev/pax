@@ -2,7 +2,7 @@
 extern crate lazy_static;
 
 use pax::*;
-use pax::api::{ArgsCoproduct, ArgsRender, Property, ArgsClick};
+use pax::api::{ArgsCoproduct, ArgsRender, Property, ArgsClick, EasingCurve};
 
 use pax_std::primitives::{Group, Rectangle};
 
@@ -39,15 +39,10 @@ pub struct Root {
 
 impl Root {
     pub fn handle_pre_render(&mut self, args: ArgsRender) {
-
         if args.frames_elapsed % 180 == 0 {
             //every 3s
             pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
-            // let new_rotation = self.current_rotation.get() + (2.0 * std::f64::consts::PI);
-            // self.current_rotation.ease_to(new_rotation, 120, EasingCurve::InOutBack );
-            // self.current_rotation.ease_to_later(0.0, 1, EasingCurve::Linear );
         }
-
     }
 
     pub fn handle_click(&mut self, args: ArgsClick) {
@@ -73,7 +68,6 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 #[cfg(feature = "parser")]
 use pax::internal::message::{SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
-use crate::api::EasingCurve;
 #[cfg(feature = "parser")]
 lazy_static! {
     static ref source_id: String = parser::get_uuid();

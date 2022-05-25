@@ -1,5 +1,7 @@
 use pax::*;
-use pax_std::{Stacker, Text, Rectangle};
+use pax::api::{EasingCurve, ArgsRender, ArgsClick};
+use pax_std::primitives::{Text, Rectangle};
+use pax_std::components::{Stacker};
 
 #[pax_root(
     <Stacker cell_count=10 >
@@ -11,7 +13,7 @@ use pax_std::{Stacker, Text, Rectangle};
 
         for i in 0..8 {
             <Group>
-                <Text id=index_text>`Index: {i}`</Text>
+                <Text id=index_text>"Index: {i}"</Text>
                 <Rectangle stroke={} fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
             </Group>
         }
@@ -42,20 +44,17 @@ pub struct HelloWorld {
 impl HelloWorld {
 
     #[pax_on(PreRender)] //or long-hand: #[pax_on(Lifecycle::PreRender)]
-    pub fn handle_pre_render(&mut self, args: ArgsTick) {
+    pub fn handle_pre_render(&mut self, args: ArgsRender) {
         if args.frames_elapsed % 180 == 0 {
             //every 3s
             pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
-            let new_rotation = self.current_rotation.get() + (2.0 * f64::PI());
-            self.current_rotation.ease_to(new_rotation, 120, EasingCurve::InOutBack );
-            self.current_rotation.ease_to_later(0.0, 1, EasingCurve::Linear );
         }
     }
 
     pub fn handle_click(&mut self, args: ArgsClick) {
         let new_rotation = self.current_rotation.get() + (2.0 * std::f64::consts::PI);
         self.current_rotation.ease_to(new_rotation, 120, EasingCurve::InOutBack );
-        self.current_rotation.ease_to_later(0.0, 1, EasingCurve::Linear );
+        self.current_rotation.ease_to_later(0.0, 40, EasingCurve::OutBack );
     }
 }
 

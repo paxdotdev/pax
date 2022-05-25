@@ -4,6 +4,7 @@ use walkdir::WalkDir;
 use std::fs;
 use fs::create_dir_all;
 
+use serde_derive::Serialize;
 use std::path::Path;
 
 use std::env::temp_dir;
@@ -15,6 +16,15 @@ use tera::{Context, Tera};
 
 static ROOT_PATH : &str = "$CARGO_MANIFEST_DIR/templates";
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
+
+
+
+#[derive(Serialize)]
+pub struct TemplateArgsParserCargo {
+    pub original_contents_cleaned: String,
+    pub original_features: String,
+    pub original_dependencies: String,
+}
 
 // Given the provided `template_sub_dir` (relative to @/templates), build the template directory
 // and return a String path to the temp directory on disk where the template is built
