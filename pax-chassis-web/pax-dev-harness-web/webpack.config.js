@@ -17,11 +17,14 @@ module.exports = {
       ]
     },
   resolve: {
-    extensions: [ '.tsx', '.ts', '.js', '.wasm' ]
+    extensions: [ '.tsx', '.html', '.ts', '.js', '.wasm' ]
+  },
+  devServer: {
+    host: '0.0.0.0',
   },
   entry: './index.ts',
   output: {
-    path: path.resolve(__dirname),
+    path: path.join(path.resolve(__dirname), 'dist'),
     filename: 'index.js',
   },
   plugins: [

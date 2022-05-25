@@ -526,7 +526,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
         let value = match raw_value.as_rule() {
             Rule::string => {AttributeValueDefinition::String(raw_value.as_str().to_string())},
             Rule::expression => {AttributeValueDefinition::Expression(raw_value.as_str().to_string())},
-            _ => {unreachable!(raw_value.as_str())}
+            _ => {unreachable!("{}", raw_value.as_str())}
         };
         (key, value)
     }).collect();

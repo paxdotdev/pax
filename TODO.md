@@ -150,13 +150,45 @@ _RIL means Rust Intermediate Language, which is the
         [x] Frame (e.g. from std — though if easier could just move to Core)
     [x] port stacker logic; design expression/method approach
         [-] pure expressions + helpers?
-        [x] on_pre_render + manual dirty checking?
+        [x] on_will_render + manual dirty checking?
             [x] decision: no dirty checking at all for right now; expose imperative dirty-check API only when implementing dirty checking for Expressions
     [x] hook in existing layout calc logic
 [x] Import and use Stacker in Root example
     [x] update example .pax as needed along the way
     [x] "expand the proof" of generated code & make it work manually
 ```
+
+
+## Milestone: clickable square
+
+```
+[x] Action API
+    [x] state management (.get/.set/etc.)
+    [-] hooks into dirty-update system, to support expression dirty-watching
+    [x] Instantiation, reference management, enum ID + addressing for method definitions &
+        invocations
+    [x] tween/dynamic timeline API
+[x] revisit chassis-web implementation
+    [x] rust/JS divide
+        [x] Sandwich TS and rust (as current,) or
+        [x] handle all cartridge work from rust, incl. generation of public API
+[x] Event capture and transmission
+    [x] Map inputs through chassis, native events (mouse, touch)
+        [x] PoC with Web
+        [x] PoC with macOS
+    [x] tick event e2e
+    [x] Message queue in runtime
+    [x] Ray-casting? probably
+    [x] Message bubbling/capture or similar solution
+[x] Expressions
+    [x] Write ExpressionTable harness, incl. mechanisms for:
+        [x] vtable storage & lookup
+        [x] Return value passing & caching
+    [-] Sketch out design for parallelized expression computation (e.g. in WebWorkers)
+    [-] Patch ExpressionTable into cartridge à la PropertyCoproduct
+```
+
+
 
 ## Milestone: OSS release
 
@@ -184,7 +216,7 @@ _RIL means Rust Intermediate Language, which is the
             - expose method in engine to generate new id
             - initial use-case: instance IDs for associating engine <> native Text instances
     [x] text support
-        [x] handle_post_mount and handle_pre_unmount
+        [x] handle_did_mount and handle_will_unmount
         [x] trigger mount/unmount lifecycle events in engine, `Conditional`, `Repeat`
         [x] hook up Text primitive + API
             [x] macOS
@@ -217,12 +249,78 @@ _RIL means Rust Intermediate Language, which is the
         [x] Debugging via LLDB
             [x] support debugging as necessary with macos dev-harness
             [x] IDE configs for each of: userland cartridge; core; std
-[ ] `pax-compiler`
-    [ ] support stand-alone .pax files (no rust file); .html use-case
-        [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
-    
-    [ ] update .pest and manifest-populating logic to latest language spec
-        [ ] 
+[ ] compiler + codegen
+    [-] codegen Cargo.toml + solution for patching
+    Note: decided to require manual Cargo setup for launch (solved by `generate` use-case)
+        [x] manual
+        [-] automated + file generation
+        [-] Note use-case: pax-std also needs the same feature flags + deps.  Would be nice to automate!
+    [x] .pax folder
+        [x] manual .pax folder 'proof'
+        [x] codegen + templating logic
+    [x] generate `pub mod pax_reexports` via `pax_root` -- tricky because full parse is required to
+        know how to build this tree.  Either: do a full parse during macro eval (possible! pending confirmation that parse_to_manifest can be called at macro-expansion time) or
+        do some codegen/patching on the userland project (icky)
+        (Tentative decision: refactor macro-time parse logic; probably do a full parse; return necessary dep strings along with pascal_identifiers)
+        Escape hatch if the above doesn't work: use include_str!() along with a file that contains
+        [x] Refactor parsing logic -- maybe start clean?
+            [x] De-risk: verify ability to call macro-generated code at compile-time (parse_to_manifest)
+            [x] Parse all of, recursively:
+                [x] Template
+                [x] Properties:
+                    [x] Property key
+                    [x] Property type, full module (import) path
+                        [x] This will be tricky... either
+                            [-] static analysis on the whole source file, looking for a `use ... KEYWORD` statement and infer paths
+                            [-] dynamic analysis -- some kind of rustc API.....?
+                            [x] dynamic analysis: `parse_to_manifest`-style `get_module_path`, called by parser
+                                [x] parser returns fully qualified types in manifest by dynamically calling `get_module_path` on each discovered type during parsing
+                                [x] refactor: punch `parser` features through all necessary Cargo.tomls — `impl PropertyManifestable` manually for `Size` and `Size2D`
+                                [-] refactor: instead of `scoped_resolvable_types`, might need to `impl PropertyManifestable` for concrete nested generic types, e.g.
+                                    instead of Vec::get_property_manifest and Rc::get_property_manifest, Vec<Rc<StackerCellProperties>>::get_property_manifest
+                                    -- this addresses compiler error `cannot infer type T for Rc<T>` (non-viable approach)
+                                        [x] Alternatively: hard-code a list of prelude types; treat as blacklist for re-exporting
+                                            -- note that this adds additional complexity/weakness around "global identifier" constraints, i.e. that as currently implemented, there can be no userland `**::**::Rc` or `**::**::Vec`  
+                            [-] Require fully qualified types inside Property<...>, like `Property<crate::SomeType>` or `Property<pax::api::Color>`  
+                            [-] Make Property types `Pathable` or similar, which exposes a method `get_module_path()` that invoked `module_path!()` internally
+                                Then -- `pax` macro can invoke `get_module_path()` just like `parse_to_manifest`
+                                (Evaluated at compiletime) `Color::_get_module_path()`
+                                    ^ wrong -- this would be evaluated at `parser bin`-time
+                                Which returns `pax_runtime_api::Color`
+                                Which gets codegenned into `pub mod pax_reexports`
+                                Checksum: does this resolve at the right time
+                                MAYBE we still need two phases:  one that parses template and property types, which allows codegen of `get_module_path` and `parse_to_manifest`
+                                                                 and another that runs the parser bin
+        [x] Codegen`.pax/reexports.partial.rs`
+            [x] Basic logic
+            [x] Filter prelude
+            [x] fix bug: using `ctx` for property_manifests (maybe only a bug in primitives)
+            [x] Hook up primitives + types
+                -- possibly recycle logic that checks for `Property<...>`
+            [x] fix bug: prelude types not showing up in PropertyManifests
+                -- perhaps each propertymanifest should have:
+                    -- fully qualified atomic types
+                        -- for `pub mod pax_reexports`
+                        -- for recursive calls to `get_property_manifest`
+                        -- for TypesCoproduct generation
+                        -- for cartridge codegen (imports)
+                    -- In each of the above, it should be reasonable to handle prelude vs. imported types separately
+                    -- Also: should this be called something else, like `dependencies` or `imports`? Instead of `PropertyManifests`.
+                    -- What about `properties`?  For design tooling, will definitely be necessary.  Is it worth shimming `dependencies` into 
+                       -- maybe `get_property_manifest` should just be `get_property_dependencies` ??
+        [-] include_str!() `.pax/reexports.partial.rs` _at compile-time_ in macro logic
+            -- the goal is for this types re-export to be present at the root of the *userland project* by the time
+            the chassis is attached / compiled
+            [-] might need to "create if doesn't exist," or otherwise guard the lifecycle of the include_str! per best practice
+                -- a likely-viable approach: feature-gate two complementary `pax_root` macros, across binary values `is parser`
+                   parser mode passes an empty string; prod mode assumes presence of .pax/reexports.partial.rs and hard-code-includes it
+            [x] solution: write another macro, gated behind `not(feature="parser")`, which gets
+                passed `env!("CARGO_MANIFEST_DIR")`
+    [x] parser bin logic finish-line
+        [x] macro
+    [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
+    [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
+    [x] update .pest and manifest-populating logic to latest language spec
     [x] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
         [-] NOTE: provisionally, this whole group is solved as not necessary, in light of the "parser binary" feature-flagged approach
         [x] science: determine how macros behave, caching of expansion, incremental compilation
@@ -234,15 +332,15 @@ _RIL means Rust Intermediate Language, which is the
     [x] architecture
         [x] compiler seq. diagram 
         [x] dependency diagram
-    [ ] two-stage compilation process
+    [x] two-stage compilation process
         [x] thread/process/IPC chassis
         [x] parser cargo feature
         [x] bin-running harness to execute parser (see https://stackoverflow.com/questions/62180215/renaming-main-rs-and-using-with-cargo)
-        [ ] TCP message passing
+        [-] TCP message passing (using stdio for now)
             [x] de/serialization for manifest
                 [x] maybe normalize SelectorLiteralBlockDefinitions, if Serde can't elegantly de/serialize it
                 [x] or de-normalize TemplateNodeDefinition!
-            [ ] coordination of TCP client/server from compiler main thread
+            [-] coordination of TCP client/server from compiler main thread
         [x] parse and load .pax files
             [x] load file via macro
             [x] generate the parser bin logic via macro
@@ -252,13 +350,66 @@ _RIL means Rust Intermediate Language, which is the
             [x] (start with templates only)
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
-    [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
-    [ ] dep. management -- augment prelude with static dep. list?
-        [ ] Support static constants?  e.g. JABBERWOCKY use-case
+    [-] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
+        [x] Alternatively: back out of async, given stdio for passing data from parser 
+    [x] generate & embed reexports
+        [x] parse properties into manifest
+        [x] bundle pax_reexports into nested mods
+        [x] load reexports.partial.rs into userland project
+    [ ] introduce `pax-cli`, import compiler to be a dep
+        [ ] `pax demo`?
+        [ ] `pax create` with TODO
+    [ ] generate properties coproduct
+        [x] retrieve userland crate name (e.g. `pax-example`) and identifier (e.g. `pax_example`) 
+            [-] alternatively, hard-code a single dependency, something like "host", which always points to "../.." (relative to ".pax/properties-coproduct")
+                -- don't think the above will work; cargo needs a symbol that maps to the target Cargo.toml
+        [x] patch / generate Cargo.toml
+            [x] include `pax-example = {path="../../"}`
+                -- where `pax-example` is the userland crate name
+        [ ] PropertiesCoproduct
+            -- coproduct of ComponentName
+            [ ] run through Tera template, iterating over dependencies
+        [ ] TypesCoproduct
+            -- coproduct of all types from PropertyDefinitions 
+            [x] if necessary, supporting type parsing & inference work for TypesCoproduct
+            [ ] run through Tera template
+    [ ] generate cartridge definition
+        [ ] prelude / hard-coded template
+        [ ] imports via `pax_example::pax_reexports::*`
+        [ ] consts
+            -- perhaps decorate with `#[pax_const]`; copy tokens? or refer to orig?  consider component/namespace reqs
+        [ ] expression vtable (see also: expression compilation)
+        [ ] component factories
+            [ ] compute_properties_fn generation
+            [ ] `instantiate_root_component`
+            [ ] `properties: PropertiesCoproduct::Stacker(Stacker {...})`
+            [ ] PropertiesLiteral vs. PropertiesExpression generation
+    [ ] generate / patch chassis cargo.toml
+    [ ] hook up `pax_on` and basic lifecycle events
+        [ ] possibly worth considering design for async while doing this
     [ ] expression compilation
+        [ ] fully qualified resolution of expression symbols, e.g. `Transform2d`
+            [ ] Alternatively: don't support arbitrary imports yet:
+                [ ] Support referring to `T` for any Property<T> (already parsed + resolvable)
+                [ ] Import Transform2d::*, Color::*, and a few others via prelude
+                    -- Note that each prelude import prohibits any other top-level symbols with colliding names; increases DX snafu likelihood via compiler errors
         [ ] expression string => RIL generation
+            [ ] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
+            [ ] grouping of units, e.g. `(5 + 10)%` 
+            [ ] boolean ops: `==`, `&&`, and `||`
+            [ ] parenthetical grouping  `(.*)`
+            [ ] Literals for strings, bools, ints, floats
+            [ ] Nested object references + injected context
+                [ ] incantation for deriving values from scope
+                [ ] type-matching
+                [ ] Numeric type management, type inference / casting
+        [ ] Dependency tracking & dirty-watching
+            [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender`
+            [ ] address use-case of `Property<Vec<T>>`, inserting/changing an element without setting the whole
+                entity.  Might want to offer a `get_mut` API (keep an eye on async / ownership concerns)
+                -- In fact, probably address this on the heels of a Property -> channel refactor, as the implications for this
+                intersection are significant  
         [ ] symbol resolution & code-gen, incl. shadowing with `@for`
-        [ ] binding event handlers
     [ ] control flow
         [ ] for
             [ ] parse declaration `i`, `(i)`, `(i, elem)`
@@ -266,33 +417,43 @@ _RIL means Rust Intermediate Language, which is the
             [ ] shuttle data into RepeatInstance via Manifest
         [ ] if
             [ ] parse condition, handle as expression
-[ ] compiler codegen
-    [ ] codegen Cargo.toml + solution for patching
-        [x] manual
-        [ ] automated + file generation
-    [ ] parser bin logic finish-line
-        [ ] macro
-    [ ] codegen PropertiesCoproduct
-        [x] manual
-        [ ] if necessary, supporting type parsing & inference work for TypesCoproduct
-        [ ] hook into compiler lifecycle
-            [ ] handle deleted files (e.g. if there's a `shadow/whatever.rs` but not a `whatever.rs`, then compiler should prune `shadow/whatever.rs`)
-    [ ] serialize to RIL
-        [ ] normalize manifest, or efficient JIT traversal
-            [ ] stack Settings fragments (settings-selector-blocks and inline properties on top of defaults)
-        [ ] codegen RIL into source via `#[pax]` macro, to enable vanilla run-via-cargo (well, pax-compiler, but maybe there's still a path to bare cargo!)
-        [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
-    [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
+        [ ] slot
+            [ ] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
+[x] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
 [ ] e2e `pax run`
+[ ] documentation pass
+    [ ] clean up codebase; reduce warnings
+    [ ] README pass & updates
+    [ ] Consider writing guides:
+        [ ] Walk through building one or more examples (e.g. show reusable components, expressions, loops, lifecycle event handlers)
+        [ ] Pipeline of compiling a project
+        [ ] Writing a primitive
 [ ] publication to crates.io
     [x] reserve pax-lang crate on crates.io
     [ ] update relative paths in all cargo.tomls, point to hard-coded published versions
+    [ ] publish all crates
     [ ] e2e testing
-[ ] launch collateral
-    [ ] notify allies
-    [ ] ProductHunt launch (+ other channels, incl Reddit communities)
 ```
 
+
+## Milestone: usability & functionality++
+```
+[ ] `pax build` for distributable binaries
+[ ] Support async
+    [ ] `Property` => channels 'smart object'; disposable `mut self` => lifecycle methods (support async lifecycle event handlers)
+    [ ] Pencil out error handling (userland)
+[ ] usable error messages
+    [ ] compiletime (macro) errors:
+        [ ] write to stderr? or other pipe/file/channel readable by `pax-compiler`
+    [ ] parsetime errors:
+        [ ] pax syntax errors
+            [ ]
+[ ] `with` + event bindings
+    [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
+    [ ] grammar+parser support
+    [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
+    [ ] multiple variables in tuple `(i,j,k)` 
+```
 
 ## Milestone: form controls
 ```
@@ -343,7 +504,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] Bitmap support: .png, .jpg, maybe .svg, serialize as base64 and include encoding so that chassis can make sense of it
     [ ] API: how to support assets? check out `include_bytes!`
 [ ] Gradient fills: shapes, text
-
+[ ] Support interpolating Colors; see: `impl Interpolatable for Color {` ... 
 [ ] Opacity (likely built-in property alongside `transform`, `size` -- it accumulates down render tree)
 [ ] Palette built-in: perhaps `@palette { optional_nesting: {  } }
 [ ] Path primitive + APIs for animations
@@ -351,15 +512,14 @@ _RIL means Rust Intermediate Language, which is the
 [ ] Ellipse
 [ ] macOS chassis improvements:
     [ ] Revisit loop timer?  (keep timestamps, target exact FPS, able to know when frames are dropped)
-    [ ] 
+ 
 ```
-
-
 
 
 
 ## Milestone: capabilities++
 ```
+[ ] support stand-alone .pax files (no rust file); .html use-case
 [ ] asset management -- enables fonts and images
     [ ] decide on approach: bundle into binary or work with chassis/dev-harness for bundling
     [ ] support async/http assets, relative paths + configurable prefix path, absolute paths, http/https
@@ -374,51 +534,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] Sizing / clipping API (e.g. cover, or anchor + stretch/maintain/fill/target-width/target-height/etc.)
 ```
 
-## Milestone: clickable square
-Three "clickable squares" with independent event handlers, state
-On click, each square performs an animated transformation, e.g. rotation
 
-```
-[ ] compiler updates
-    [ ] `with`
-        [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
-        [ ] grammar+parser support
-        [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
-        [ ] multiple variables in tuple `(i,j,k)`
-[ ] Action API
-    [x] state management (.get/.set/etc.)
-    [ ] hooks into dirty-update system, for expression updates
-    [x] Instantiation, reference management, enum ID + addressing for method definitions &
-        invocations
-    [x] tween/dynamic timeline API
-[ ] revisit chassis-web implementation
-    [ ] rust/JS divide
-        [ ] Sandwich TS and rust (as current,) or
-        [ ] handle all cartridge work from rust, incl. generation of public API
-[ ] Event capture and transmission
-    [ ] Map inputs through chassis, native events (mouse, touch)
-        [ ] PoC with Web
-    [x] tick event e2e
-    [x] Message queue in runtime
-    [ ] Ray-casting? probably
-    [ ] Message bubbling/capture or similar solution
-[ ] Expressions
-    [ ] Transpile expressions to Rust (or choose another compilation strategy)
-        [ ] boolean ops: `==`, `&&`, and `||`
-        [ ] parenthetical grouping  `(.*)`
-        [ ] Literals for strings, bools, ints, floats
-        [ ] Nested object references + injected context
-            [ ] incantation for deriving values from scope
-            [ ] type-matching
-            [ ] Numeric type management, casting
-    [x] Write ExpressionTable harness, incl. mechanisms for:
-        [x] vtable storage & lookup
-        [ ] Dependency tracking & dirty-watching
-            [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender`
-        [x] Return value passing & caching
-    [ ] Sketch out design for parallelized expression computation (e.g. in WebWorkers)
-    [-] Patch ExpressionTable into cartridge à la PropertyCoproduct
-```
 
 ## Milestone: embedded UI components
 (instead of full-window Electron/Expo-like wrappers)
@@ -554,16 +670,16 @@ Seems like `designtime` is the key.  Not needed for runtime
 (action value setting can be a different concern with a lighter footprint)
 
 Two flavors of instantiating Definitions:
- - transpiling into RIL (hard-coded N/PIT; once & done) (where "N/PIT" means the "Node/Property Instance Tree")
- - dynamic traversal into N/PIT for designtime
+- transpiling into RIL (hard-coded N/PIT; once & done) (where "N/PIT" means the "Node/Property Instance Tree")
+- dynamic traversal into N/PIT for designtime
     - accept changes in definitions
-      - special handling for Expressions/exptable
+        - special handling for Expressions/exptable
     - separate definitions from values (e.g. maybe `patch`es for each?)
-       Note: e.g. `Root` vs. `RootPatch` already does this; Root is a "value" container (can rep. patch)
-       Perhaps start with use-case:  we need to `Patch`-stack in order to assemble sparse property
-       DEFINITIONS from pax, e.g.
+      Note: e.g. `Root` vs. `RootPatch` already does this; Root is a "value" container (can rep. patch)
+      Perhaps start with use-case:  we need to `Patch`-stack in order to assemble sparse property
+      DEFINITIONS from pax, e.g.
     - Do we really need to worry about values at all?  Those are already handled well by the runtime.
-       when a user changes
+      when a user changes
 
 One wrinkle re: managing the patch-stacking logic in the designtime:
 this would require dynamic evaluation in order to generate RIL.
@@ -572,15 +688,15 @@ generatable directly from a PaxManifest. (Is this true?
 is this some sort of purity-for-purity's-sake situation?)
 
 Perhaps it isn't so bad for the compiler to load the cartridge + designtime in order
-to traverse the manifest => 
+to traverse the manifest =>
 
 1. normalize PaxManifest (into a single traversable tree with inline property values as frames of the bare structs, ready for RIL
-   1. This requires collapsing stacked values, probably in a way that's distinct from the way the designtime does it (designtime deals in stacks of patches, vs RIL transpiler dealing with a normalized tree)
-   2. This also requires transpiling + "blank"ing in an Expression table
-   3. This also requires knowing property schema in the Manifest!  Thus far this hasn't been a thing.
-      1. Need a way to universally qualify types, a la module_path!() [this might be tricky!]
-      2. Alternatively, could do another bin-conversion trick a la parser, and rely on macros to make sense of property types on-the-fly
-         1. (Note: it will be important to know property schema eventually, not least to expose to design tool)
+    1. This requires collapsing stacked values, probably in a way that's distinct from the way the designtime does it (designtime deals in stacks of patches, vs RIL transpiler dealing with a normalized tree)
+    2. This also requires transpiling + "blank"ing in an Expression table
+    3. This also requires knowing property schema in the Manifest!  Thus far this hasn't been a thing.
+        1. Need a way to universally qualify types, a la module_path!() [this might be tricky!]
+        2. Alternatively, could do another bin-conversion trick a la parser, and rely on macros to make sense of property types on-the-fly
+            1. (Note: it will be important to know property schema eventually, not least to expose to design tool)
 
 Conclusion: further dynamic evaluation is unideal; requires more compilation loops
 
@@ -590,7 +706,7 @@ Conclusion: further dynamic evaluation is unideal; requires more compilation loo
 transpile @ {x + 5} into |&properties| -> { &properties.x + 5 } along with glue/injection logic,
 dirty-handling logic, and vtable-like logic for storing & retrieving function (references)
 
-handle type resolution as much as necessary; let rustc complain about type mismatches/etc. 
+handle type resolution as much as necessary; let rustc complain about type mismatches/etc.
 
 Expressions need to be dealt with in a few ways:
 - parsed from 1. a template attribute, 2. a settings value (recursively within settings tree)
@@ -600,29 +716,29 @@ Expressions need to be dealt with in a few ways:
 
 
 - originally was thinking of a central vtable a la propertiescoproduct
-  - this would make hot reloading easier (just replace the expressions sub-cartridge) — but it makes referencing difficult
-    - maybe referencing isn't difficult with implicit return types!!
+    - this would make hot reloading easier (just replace the expressions sub-cartridge) — but it makes referencing difficult
+        - maybe referencing isn't difficult with implicit return types!!
 - am now thinking that each file generates its own expanded macros (via #[pax])
-  - during compiler codegen phase, expressions are transpiled, surrounded by glue, and tagged/ID'd
-  - for RIL, weave a code-genned pointer between a property instance and function (known from manifest)
-    - e.g. `background_color: PropertyExpression(&expression_table.ae25534efc)`
-  - for dynamic resolution, e.g. in designtime -
-    - First of all, what does dynamic resolution mean?
-      - It starts with a compiled cartridge + `designtime` feature, (already including RIL binary?) — which must already have an expression table compiled! (or capable of having it async loaded, FFI/etc.)
-      - Then, a user changes the value of a property from a literal to an expression, or changes the definition of a current expression
-      - Now, we must: 1. transpile the expression values to RIL, 
+    - during compiler codegen phase, expressions are transpiled, surrounded by glue, and tagged/ID'd
+    - for RIL, weave a code-genned pointer between a property instance and function (known from manifest)
+        - e.g. `background_color: PropertyExpression(&expression_table.ae25534efc)`
+    - for dynamic resolution, e.g. in designtime -
+        - First of all, what does dynamic resolution mean?
+            - It starts with a compiled cartridge + `designtime` feature, (already including RIL binary?) — which must already have an expression table compiled! (or capable of having it async loaded, FFI/etc.)
+            - Then, a user changes the value of a property from a literal to an expression, or changes the definition of a current expression
+            - Now, we must: 1. transpile the expression values to RIL,
 - if it yet becomes the case that we need to deal with explicitly stated return types on the expression lambdas:
-  - expose fully qualified types in `pax_exports`, then track fully qualified import paths (e.g. pax_std::exports::foo) in manifest
-  - expose naked functions at the root of codegenned `expression_table`, like  
+    - expose fully qualified types in `pax_exports`, then track fully qualified import paths (e.g. pax_std::exports::foo) in manifest
+    - expose naked functions at the root of codegenned `expression_table`, like
 ```
 pub fn x(input: isize) -> isize {
     input + 6
 }
 ```
 - (cont.)
-  - where the return type of the codegenned function is fully qualified via the nested-mod re-exports trick
-  - (and where primitive types are enumerated & special-cased)
-  - This likely also requires registering `DeeperStruct`s, e.g. via `#[pax struct]`
+    - where the return type of the codegenned function is fully qualified via the nested-mod re-exports trick
+    - (and where primitive types are enumerated & special-cased)
+    - This likely also requires registering `DeeperStruct`s, e.g. via `#[pax struct]`
 
 
 ### helpers, injectables
@@ -643,8 +759,8 @@ pub fn hue_shift() {
 2022-01-31
 
 How is the generated RIL consumed?
- - Chassis reaches into cartridge and calls a method to get root component instance(s)
- - Chassis then passes instance to the Engine to start rendering
+- Chassis reaches into cartridge and calls a method to get root component instance(s)
+- Chassis then passes instance to the Engine to start rendering
 
 
 Is this the right time to rethink instance management? Could fix the
@@ -653,7 +769,7 @@ mess of Rc<RefCell<>> going on in core.
 Broadly, instances could be stored centrally in some Vec<dyn RenderNode> (or hash)
 This instance pool allows for safe passing of &mut throughout core
 
-Finally, RIL can instantiate via this instance pool 
+Finally, RIL can instantiate via this instance pool
 
 ...
 
@@ -670,22 +786,22 @@ SO: for RIL, proceed with on-the-fly Rc<RefCell<>> instantiations, just like PoC
 2022-02-02
 
 Despite moderately careful planning, we've ended up with a circular dependency between:
- - userland cartridge
- - core
- - properties-coproduct
- - userland cartridge (to wrap properties types)
+- userland cartridge
+- core
+- properties-coproduct
+- userland cartridge (to wrap properties types)
 
 Ideas for mitigation:
- - codegen RootProperties _into_ pax-properties-coproduct instead of inline to the source file
-   - Main drawback: this requires "ghosting" every type, annotating each subtype (or globally unique type name manifest)
-   - Note also: the codegenned logic will depend on `runtime`, via `timeline` (at least) (`timeline` -> `Property` -> `RenderTreeContext` -> `Runtime` -> `Stack` -> `StackFrame` -> `PropertiesCoproduct`)
-     - Could separate Timeline from Property, maybe — or revisit `compute_in_place` to see if something other than `RenderTreeContext` could be injected
- - Slight variation: generate a separate cartridge/blank project `pax-cartridge`
- - Split common dependencies from `core` & `cartridge` into `runtime` — it can be a leaf-node dependency of both, allowing common data structures/exchange
-   - Some """driver""" logic may even need to jump over to cartridge, e.g. `Scope` and its dependants
- - If all of `runtime.rs` logic is moved into PropertiesCoproduct — this might be fixed!
-   - (plus Timeline, plus Property... plus RenderTreeContext?)
-   - (plus ComponentInstance...)
+- codegen RootProperties _into_ pax-properties-coproduct instead of inline to the source file
+    - Main drawback: this requires "ghosting" every type, annotating each subtype (or globally unique type name manifest)
+    - Note also: the codegenned logic will depend on `runtime`, via `timeline` (at least) (`timeline` -> `Property` -> `RenderTreeContext` -> `Runtime` -> `Stack` -> `StackFrame` -> `PropertiesCoproduct`)
+        - Could separate Timeline from Property, maybe — or revisit `compute_in_place` to see if something other than `RenderTreeContext` could be injected
+- Slight variation: generate a separate cartridge/blank project `pax-cartridge`
+- Split common dependencies from `core` & `cartridge` into `runtime` — it can be a leaf-node dependency of both, allowing common data structures/exchange
+    - Some """driver""" logic may even need to jump over to cartridge, e.g. `Scope` and its dependants
+- If all of `runtime.rs` logic is moved into PropertiesCoproduct — this might be fixed!
+    - (plus Timeline, plus Property... plus RenderTreeContext?)
+    - (plus ComponentInstance...)
 
 As a broader strategy, could step back and look at the architecture of Engine,
 more carefully drawing boundaries between Runtime, Property, Timeline, Core, and PropertiesCoproduct
@@ -694,59 +810,59 @@ more carefully drawing boundaries between Runtime, Property, Timeline, Core, and
 2022-02-06
 
 In userland, e.g. an Action, properties:
- - can read properties programmatically with .get()
- - can set properties programmatically with .set()
+- can read properties programmatically with .get()
+- can set properties programmatically with .set()
     - not v0, but would be nice to have a path to someday setting values other than literal values, e.g.
       to create Expressions and Timelines at runtime
-In engine, properties:
- - need to `compute_in_place` (whether literal, timeline, or expression)
- - need to represent whether a property is literal, timeline, or expression
- - need to `read` the current (cached) value
- - need to instantiate with a starting value
- - need to support runtime mutations via userland `.set()`, plus accurate up-to-the-frame value retrieval via `.get()`
- - have dependencies on engine, via InjectionContext and `compute_in_place` parameters
+      In engine, properties:
+- need to `compute_in_place` (whether literal, timeline, or expression)
+- need to represent whether a property is literal, timeline, or expression
+- need to `read` the current (cached) value
+- need to instantiate with a starting value
+- need to support runtime mutations via userland `.set()`, plus accurate up-to-the-frame value retrieval via `.get()`
+- have dependencies on engine, via InjectionContext and `compute_in_place` parameters
 
 Further: PropertiesCoproduct frames need to encapsulate Properties *instances* (the engine variant, if there are two variants)
-        which suggests a dependency on Engine wherever {}Properties are generated
+which suggests a dependency on Engine wherever {}Properties are generated
 
 Are these Properties data structures the same or different?  The rubber meets the road in RIL —
 are the macro-generated RootProperties/RectangleProperties and PropertiesCoproduct entities the same?
 
-Note it's easier to generate RectangleProperties alongside Rectangle in cartridge-userland, but 
+Note it's easier to generate RectangleProperties alongside Rectangle in cartridge-userland, but
 with an engine dependency they seem to need to exist in fully code-genned cartridge-runtime...
 
 One possible tool to share the core Property definition is to split Property, PropertyLiteral,
-PropertyExpression, and PropertyTimeline into pax_runtime_api (importable by both Engine & userland) — 
+PropertyExpression, and PropertyTimeline into pax_runtime_api (importable by both Engine & userland) —
 then to write traits/impls that allow engine to `compute_in_place` and `read`
 
 *^ proceeding with this strategy*
 
 #### Re: Transform as a Property —
- - Transform has a special method in the rendering lifecycle, `compute_matrix_in_place`.
- - This is called in a subtly different context than `compute_in_place` for computableproperties — namely, it's called with the context of calculated hierarchical bounds (container size, etc.)
- - Further, every RenderNode is expected to manage Transform, via get_transform
- - Ergonomically, it would be ideal to treat any of the sub-properties of Transform as a plain Property,
- - e.g. so that rotation.z can be an expression while scale[x,y] are literal values
- - (Further, there seems to be no reason this can't continue recursively, with the `operations` API)
+- Transform has a special method in the rendering lifecycle, `compute_matrix_in_place`.
+- This is called in a subtly different context than `compute_in_place` for computableproperties — namely, it's called with the context of calculated hierarchical bounds (container size, etc.)
+- Further, every RenderNode is expected to manage Transform, via get_transform
+- Ergonomically, it would be ideal to treat any of the sub-properties of Transform as a plain Property,
+- e.g. so that rotation.z can be an expression while scale[x,y] are literal values
+- (Further, there seems to be no reason this can't continue recursively, with the `operations` API)
 
 Question: given the above, should `transform` be expected as a member of `{}Properties`, or should we hoist it to be a top-level property of `{}Instance`?
- - In the world where it's hoisted to be an `Instance` property:
-   - We can still `compute_in_place` by special-casing `.transform` whenever we handle `compute_in_place` for properties — 
-   - that is, `.properties.compute_in_place()` and `.transform.compute_in_place()`.  To spell out further: `transform` is treated as a `ComputableProperty` in the engine
-   - in every way except for being part of the PropertiesCoproduct.
- - This also suggests an opaque-to-user special-handling of Transform during compilation.  Namely,
-   - the user addresses Transform just as they would any Property, e.g. through Settings and through
-   - runtime .get/.set APIs.  However — in RIL and engine (.transform.set), Transform is special cased
+- In the world where it's hoisted to be an `Instance` property:
+    - We can still `compute_in_place` by special-casing `.transform` whenever we handle `compute_in_place` for properties —
+    - that is, `.properties.compute_in_place()` and `.transform.compute_in_place()`.  To spell out further: `transform` is treated as a `ComputableProperty` in the engine
+    - in every way except for being part of the PropertiesCoproduct.
+- This also suggests an opaque-to-user special-handling of Transform during compilation.  Namely,
+    - the user addresses Transform just as they would any Property, e.g. through Settings and through
+    - runtime .get/.set APIs.  However — in RIL and engine (.transform.set), Transform is special cased
 
 
 ### Transform API
 2022-02-07
 
 What's a reasonable & ergonomic API for transforms, which:
- - is terse & expressive in PAXEL
- - is terse & expressive in the action API
- - is thorough and enables specifying arbitrary transform order 
- - 
+- is terse & expressive in PAXEL
+- is terse & expressive in the action API
+- is thorough and enables specifying arbitrary transform order
+-
 Some ideas —
 
 #### Array for operation sequence, enums for declaring operations
@@ -874,7 +990,7 @@ This would act as an affine translation, after anchor and align calculation but 
 Currently it's not necessary because `translate` is effectively equivalent.
 
 If `position` were added, given that it's purely ergonomic (approachability), consider
-whether to add aliases like `.x`, `.y`, 
+whether to add aliases like `.x`, `.y`,
 
 
 
@@ -900,8 +1016,8 @@ Should this be the general approach?  Is there a benefit to doing this?
 though note that this could be generalized by exposing an iterator over
 
 two options:
-    - expose RenderTreeContext via pax_runtime_api, untangle as needed, e.g. through traits or closure-passing
-    - codegen `compute_properties_fn` closures in RIL, cartridge-runtime; add properties intelligence to parser
+- expose RenderTreeContext via pax_runtime_api, untangle as needed, e.g. through traits or closure-passing
+- codegen `compute_properties_fn` closures in RIL, cartridge-runtime; add properties intelligence to parser
 
 For the former, conceptually it's a tough split.  the RenderTreeContext is squarely conceptually attached to the runtime.
 The reason for the attachment is fundamentally to access StackFrame & Scope, which are used for runtime calculations (e.g. of Expressions)
@@ -911,7 +1027,7 @@ Thus, and given that property schemas will need to be understood by the parser e
 We need a fn:
 ```
 compute_properties_fn: |mut properties: PropertiesCoproduct, rtc: &RenderTreeContext|{
-    if let PropertiesCoproduct::Root(mut properties_cast) = properties {
+    if let PropertiesCoproduct::HelloWorld(mut properties_cast) = properties {
         //Note: this is code-genned based on parsed knowlege of the properties
         //      of `Root`
         properties_cast.deeper_struct.compute_in_place(rtc);
@@ -923,7 +1039,7 @@ compute_properties_fn: |mut properties: PropertiesCoproduct, rtc: &RenderTreeCon
 
 This requires only knowing property names, not even types/import paths (extra easy)
 
-Update: achieved apparently functional `compute_in_place` 
+Update: achieved apparently functional `compute_in_place`
 Next steps: pencil in second rectangle
 — then bite of expressions with manually written harness code, because there's a potential design dead end
 here if we hit a wall with wiring up Expressions, Properties, Scopes, etc.
@@ -935,11 +1051,11 @@ expressions will be transpiled to Rust — so some semantics will likely
 carry over, e.g. symbol names, :: for namespace access or associated functions, etc.
 
 dependency graph: via expressions, properties may depend on other properties
-Expressions may also depend on globals/constants like @frames_elapsed 
+Expressions may also depend on globals/constants like @frames_elapsed
 future/theoretical: expressions may depend on descendents' values, via selector (`@('#abc').num_clicks
-Expressions may depend on other 'helper' expressions, or perhaps vanilla 
+Expressions may depend on other 'helper' expressions, or perhaps vanilla
 functions that handle their own dirty-notifications
-Expressions may have no dependencies, e.g. @{ 1+1 } 
+Expressions may have no dependencies, e.g. @{ 1+1 }
 
 Numeric literals need special handling re: float & ints
 Should cast implicitly between int/float when necessary
@@ -984,21 +1100,21 @@ Color::rgba(
 ```
 
 ### Journey of an expression
-2022-02-09 
+2022-02-09
 
 1. authored in .pax
 2. parsed by parser; lives as string in Definition object, passed from parser binary to compiler
 3. transpiled by compiler —> String (of Rust code, ready for cartridge runtime)
 4. codegenned into cartridge runtime, as closure in ExpressionTable
 
-In RIl (cartridge runtime), 
+In RIl (cartridge runtime),
 
 
 
 ### More dependency graph untangling
 2022-02-10
 
-*Property can't depend on Engine*, due to 
+*Property can't depend on Engine*, due to
 the inverted dependency relationship between
 cartridge and engine.  This is not news, but is worth pointing out
 as the crux of this issue.
@@ -1012,28 +1128,28 @@ a scope that has access to the necessary bits of `rtc`
 Probably solid approach A:
 - remove `compute_in_place`
 - give every Property a UUID — register
-    uuid -> &property (maybe ComputedProperty!) in a global hashmap
-    instead of compute_in_place, look up
-    a given property in each of 
-    `expression` global map and `timeline`
-    global map.  if present, evaluate.
-    What does evaluate mean here?  It means
-    storing a cached computed value 
+  uuid -> &property (maybe ComputedProperty!) in a global hashmap
+  instead of compute_in_place, look up
+  a given property in each of
+  `expression` global map and `timeline`
+  global map.  if present, evaluate.
+  What does evaluate mean here?  It means
+  storing a cached computed value
 - instead of `compute_in_place`...
-(this might run into the same problem with dep. graph, trait side-loading)
+  (this might run into the same problem with dep. graph, trait side-loading)
 
 
 **Probably solid approach B:**
 
 - keep `compute_in_place`, but pass it a `dyn`
-object, e.g. of a simple `Receiver` object (probably `impl Receiver for CarbonEngine`)
+  object, e.g. of a simple `Receiver` object (probably `impl Receiver for CarbonEngine`)
 
 - pass the property's string ID to that receiver object
-when evaluating compute_in_place
+  when evaluating compute_in_place
 
 - `Receiver` (probably Engine) pops from this stack
-(or removes from singular register) of string ID, uses that string ID to route `rtc`
-to the right table & Fn for evaluation (Expression, Timeline)
+  (or removes from singular register) of string ID, uses that string ID to route `rtc`
+  to the right table & Fn for evaluation (Expression, Timeline)
 
 
 
@@ -1041,7 +1157,7 @@ Re: storing the ExpressionTable — there's a wrinkle in that each return type f
 type signature.  Either we can give a PropertiesCoproduct treatment to return types — or MAYBE we can give a PropertiesCoproduct treatment to the `Fn`s themselves.
 
 static HashMap<String, ExpressionLambdaCoproduct> {
-    "aef132": ExpressionLambdaCoproduct::
+"aef132": ExpressionLambdaCoproduct::
 }
 
 ```
@@ -1084,7 +1200,7 @@ a separate coproduct for "return types"
 
 That said — do they converge, in theory, on the same idea?  There's no provision or need for
 "all properties of a component" to be expressed as a single Expression, but certainly each
-individual property can be.  
+individual property can be.
 
 Further, for compound property types like Stroke, there's a need to
 express the "aggregate type" as an individual expressible Property in addition (as a mutaully exclusive option)
@@ -1109,7 +1225,7 @@ smaller in memory footprint + bandwidth, possibly also in computational wrapping
 in CPU cache)
 
 As an important use-case, consider the Path (i.e. arbitrary bezier/segment/gap sequence)
- — it can be represented either as: a series of nodes and segment-type specifiers, or a series of "drawing commands" (a la SVG)
+— it can be represented either as: a series of nodes and segment-type specifiers, or a series of "drawing commands" (a la SVG)
 In design-tool land, it would be nice to be able to "direct select" a path point and express any of its properties individually — additionally,
 it would be nice to support "shape tweening" between two arbitrary `Path` values
 
@@ -1127,7 +1243,7 @@ it would be nice to support "shape tweening" between two arbitrary `Path` values
 }
 ```
 
-This verbose (if as minimal as possible) description of points feels ergonomically similar to Timeline.  Consider this similarity when 
+This verbose (if as minimal as possible) description of points feels ergonomically similar to Timeline.  Consider this similarity when
 locking in API design...
 
 
@@ -1135,8 +1251,8 @@ locking in API design...
 2022-02-12
 
 need to nail down:
- - syntax in pax
- - userland API, ease of getting/setting values (rename Property::cache_value to `set`?)
+- syntax in pax
+- userland API, ease of getting/setting values (rename Property::cache_value to `set`?)
 
 built-in lifecycle events: onclick, ontap, ontick
 
@@ -1155,7 +1271,7 @@ nature of the decorated symbol (i.e. that @handle_click will magically (via code
 args into a complete statement in RIL)
 
 What about binding to methods on descendents?  Perhaps `@('#some-id').some_fn` (with a hat-tip to jQuery) allows
-for nested access.  Note that this extends to referring to desc. properties as well! 
+for nested access.  Note that this extends to referring to desc. properties as well!
 
 
 #### Journey of an Action
@@ -1164,17 +1280,17 @@ for nested access.  Note that this extends to referring to desc. properties as w
 2. bound to an element a la a property, e.g.: `<Group onclick=@handle_click>` or `@settings{#some-group : { onclick=@handle_click }}`
 3. parsed, pulled into manifest: templatenodedefinition `x` binds event `y` to function (handler) `z`
 4. generated into RIL to handle this runtime story:
-   1. user clicks on screen
-   2. hits either:
-      1. native element (e.g. in Slots or mixed mode content) 
-      2. or virtual element (canvas)
-   3. for virtual elements, ray-cast location of click, find top element
-   4. dispatch click event (add to message queue for relevant element(s))
-      1. DECIDE: capture/bubble or something better? Might be able to avoid needing a `capture` phase if parents can add (essentially) `pointer-events: none` to children, deferring within-hitbox events to themselves (parents)
-      2. What other events may be dispatched?  Tick, tap, mouseover, etc. — but what about custom events?
-      3. This probably is a responsibility of RenderNode, and might offer a robust default impl. for common events.
-   5. each tick, process message queue for each element.  Take a look at the lifecycle/event order here, e.g. which of `tick` vs. `click` etc. happen first (intuitively, a click's handler should fire BEFORE the next click)
-   
+    1. user clicks on screen
+    2. hits either:
+        1. native element (e.g. in Slots or mixed mode content)
+        2. or virtual element (canvas)
+    3. for virtual elements, ray-cast location of click, find top element
+    4. dispatch click event (add to message queue for relevant element(s))
+        1. DECIDE: capture/bubble or something better? Might be able to avoid needing a `capture` phase if parents can add (essentially) `pointer-events: none` to children, deferring within-hitbox events to themselves (parents)
+        2. What other events may be dispatched?  Tick, tap, mouseover, etc. — but what about custom events?
+        3. This probably is a responsibility of RenderNode, and might offer a robust default impl. for common events.
+    5. each tick, process message queue for each element.  Take a look at the lifecycle/event order here, e.g. which of `tick` vs. `click` etc. happen first (intuitively, a click's handler should fire BEFORE the next click)
+
 
 Generated RIL needs to accept a polymorphic arg, e.g. EventClick or EventTick (args coproduct?), unwrap it,
 and bind its values to a method call on the instance itself (`pub fn handle_click(&mut self, args: ArgsClick)`)
@@ -1230,14 +1346,14 @@ in message queue but will be unhandled.)
 Should handlers support being attached at runtime?  probably not, at least
 while Rust is only supported language. (how to add without recompilation?)
 
-**Click -> Chassis -> Engine queue (with known element id) 
+**Click -> Chassis -> Engine queue (with known element id)
 Every tick, process queue — if the ASSOCIATED ELEMENT (via id from engine queue)
 has a REGISTERED HANDLER (via .pax, or in the future perhaps added at runtime)
 then TRIGGER the registered handler with chassis-generated args**
 
 Chassis: set up native listener, instantiate relevant engine struct with data, enqueue in engine
 Engine: each tick, before rendering, process event queue; dispatch events on RenderNodes
-RenderNode: default impl dispatch: unwrap (match) arg/event type, 
+RenderNode: default impl dispatch: unwrap (match) arg/event type,
 check for any local registered handlers (&fn), fire if present (in order registered)
 
 What about tick handlers?  tick is a little "special" because of how voluminous the events are
@@ -1262,10 +1378,10 @@ Thus it follows that we want to associate handlers with INSTANCE IDs rather than
 1. inline, compiler-generated literal ids will add to cartridge footprint
 2. handlers need to be able to look up element by ID (instance_registry)
 3. either: a.) IDs are inlined during compilation (e.g. by the mechanism used to join expressions + properties), or b.) generated at runtime
-   1. Expression IDs have to be managed at compile-time, to solve vtable functionality within Rust constraints
-   2. instance_registry (instance) IDs should probably be managed at runtime, because:
-      1. literal inlining takes toll on footprint
-      2. dynamic primitives like if/repeat, which may dynamically instantiate children with methods/handlers, _must_ do this at runtime
+    1. Expression IDs have to be managed at compile-time, to solve vtable functionality within Rust constraints
+    2. instance_registry (instance) IDs should probably be managed at runtime, because:
+        1. literal inlining takes toll on footprint
+        2. dynamic primitives like if/repeat, which may dynamically instantiate children with methods/handlers, _must_ do this at runtime
 
 HandlerRegistry<T> must be associated with e.g. RectangleProperties (<T>),
 because that type T will need to be injected as `&mut self` when calling
@@ -1325,9 +1441,9 @@ codegen a reference to the StackFrame owner's Properties
 (namely Component/RepeatItem properties)
 
 Then:
- - de-genericize HandlerRegistry; populate with the wrapped/codegenned closures described above
- - add `get_handler_registry() -> &HandlerRegistry` to `trait RenderNode`
- - now, engine can ask a RenderNode for its HandlerRegistry, check if a given event type is registered, and dispatch the handlers if so
+- de-genericize HandlerRegistry; populate with the wrapped/codegenned closures described above
+- add `get_handler_registry() -> &HandlerRegistry` to `trait RenderNode`
+- now, engine can ask a RenderNode for its HandlerRegistry, check if a given event type is registered, and dispatch the handlers if so
 
 Re: tick, the same check can be made during properties comp (pre-`compute_in_place`, perhaps, so that any side-effects will be accounted for in the immediate next render)
 in other words, `tick` is really `pre`-`tick`, esp. notable if `pre`/`post` tick handlers are later introduced.
@@ -1351,16 +1467,16 @@ consider the template fragment:
 
 
 when creating new scopes for @for, we have two major options:
-    - Angular-style: replace scope.  would require kludgy re-passing of data into repeatable structs, far from ideal
-    - more robust: additive (shadowed) scopes (req. dupe management and dynamic resolution up stack frame)
-        specifically, `for` adds to scope, vs. component definitions resetting scope (cannot access ancestors' scopes, certainly not implicitly)
-        duplicate symbol management: check at compile-time whether symbol names are available in shadowing scopes
+- Angular-style: replace scope.  would require kludgy re-passing of data into repeatable structs, far from ideal
+- more robust: additive (shadowed) scopes (req. dupe management and dynamic resolution up stack frame)
+specifically, `for` adds to scope, vs. component definitions resetting scope (cannot access ancestors' scopes, certainly not implicitly)
+duplicate symbol management: check at compile-time whether symbol names are available in shadowing scopes
 
 
 logic to resolve symbol (e.g. `rect.fill`) to backing value:
-    - determine whether `rect` is in current scope:
-        - resolve value via `rtc` with statically baked lookup logic (code-genned)
-        -
+- determine whether `rect` is in current scope:
+- resolve value via `rtc` with statically baked lookup logic (code-genned)
+-
 
 
 For enumeration:
@@ -1401,8 +1517,8 @@ This comes with a decision: *all declared IDs must be known at compile-time.*
 Quick sidebar: this brings us to commit to `id` as non-unique (or to supporting `class`)
 
 Is runtime application of SettingsLiteralBlock going to be important regardless? It's solved for the `Repeat` case.  Will we someday want
-to support imperative node addition, with the expectation that new nodes matching existing selectors will be applied the 
-relevant settings block?  This requires adding selector-matching logic in the runtime, as well as storing SettingsLiteralBlocks 
+to support imperative node addition, with the expectation that new nodes matching existing selectors will be applied the
+relevant settings block?  This requires adding selector-matching logic in the runtime, as well as storing SettingsLiteralBlocks
 separately in runtime (as opposed to current flattening/inlining)
 
 Since all known use-cases are currently handled by pre-authoring (declarative) tree permutations, this question and
@@ -1413,7 +1529,7 @@ One other sidebar — since IDs are guaranteed to be static, they may as well be
 
 
 
-`@foreach i in (0..10) ` 
+`@foreach i in (0..10) `
 
 
 Support literal ranges, both exclusive and inclusive `(0..=10)`
@@ -1427,7 +1543,7 @@ Could technically enumerate also, `@foreach (val, i) in (0..10)` but only useful
 
 1. currently using `::instantiate` associated functions, as a way to inject side effects (registering instance in instance map.)
 
-An alternative, robust solution is to instantiate more 'imperatively' -- instead of in one big recursive statement (RIL tree), 
+An alternative, robust solution is to instantiate more 'imperatively' -- instead of in one big recursive statement (RIL tree),
 instantiation can occur using vanilla object constructors and manual invocation of side effects (e.g. registration in instance_registry)
 
 Roughly, this requires starting from the bottom of the render tree and moving upwards.  For a given leaf node, instantiate its bottom-most sibling, then each successive sibling until all children of the shared parent are instantiated.  
@@ -1459,21 +1575,21 @@ Refer to the following comment copied from the definition of `RenderNode`:
 Perhaps it is worth revisiting these concepts in order to compact
 the conceptual surface area.
 
-*Template:* conceptually sound with 
- - Repeat (repeating a template, a la a stamp)
- - Component (instantiates an instance based on a template, a la a stamp)
+*Template:* conceptually sound with
+- Repeat (repeating a template, a la a stamp)
+- Component (instantiates an instance based on a template, a la a stamp)
 
 *Adoptees:* conceptually sound with Stacker, via slots
- - fits in the same struct `RenderNodePtrList`
- - instead of an "average case tree," Adoptees are an "expected case list"
- - Sequence of siblings is relevant (beyond z-indexing); used to pluck adoptees away into whatever context
+- fits in the same struct `RenderNodePtrList`
+- instead of an "average case tree," Adoptees are an "expected case list"
+- Sequence of siblings is relevant (beyond z-indexing); used to pluck adoptees away into whatever context
 
 *Children:* a.k.a. "primitive children," the intuitive
 "XML children" of certain elements that deal with children,
 such as Group, Frame, and more.
 Note that adoptees are a special form of children — Stacker's
 `children` (per the `Component` `template` definition that declares that Stacker)
-are dealt with by Stacker as adoptees.  
+are dealt with by Stacker as adoptees.
 
 Tangential observation: the `Component` has no way of knowing whether
 the children it's passing will be dealt with as `adoptees` or `primitive children`.
@@ -1498,10 +1614,10 @@ rather than "birthed" internally (a la a template)
 
 Is there a case where `adoptees` doesn't make sense to describe children?
 For `Group`, for example, it's awkward.  Group also doesn't use slots.
-So: 
- - `children` are for primitives, e.g. for a `Group` and its contents
- - `adoptees` are specific to `Component` instances (because `StackFrame` is req'd.) that use `Slot`s
- - `template` is specific to `Component` instances
+So:
+- `children` are for primitives, e.g. for a `Group` and its contents
+- `adoptees` are specific to `Component` instances (because `StackFrame` is req'd.) that use `Slot`s
+- `template` is specific to `Component` instances
 
 
 
@@ -1518,11 +1634,11 @@ This works but is a bit inelegant.  Options:
 - generate the built-in `{}Properties` structs inside pax-cartridge,
   where they can be imported to PropertiesCoproduct (see RectangleProperties)
 
-  
+
 
 ### on stacker, "primitive components"
 
-after tangling with porting Stacker as a primitive, decided 
+after tangling with porting Stacker as a primitive, decided
 to stop for now:
 
 It's not a great use-case to encourage (primitive + component, lots of ugliness incl. manual expression unrolling)
@@ -1644,7 +1760,7 @@ Stacker needs to update its cached computed layout as a function of its ~six pro
 
 pub computed_layout_spec: Vec<Rc<StackerCellProperties>>,
 pub direction:  Box<dyn pax::api::Property<StackerDirection>>,
-pub cell_count: Box<dyn pax::api::Property<usize>>,
+pub cells: Box<dyn pax::api::Property<usize>>,
 pub gutter_width: Box<dyn pax::api::Property<pax::api::Size>>,
 pub overrides_cell_size: Option(Vec<(usize, pax::api::Size)>),
 pub overrides_gutter_size: Option(Vec<(usize, pax::api::Size)>),
@@ -1653,7 +1769,7 @@ pub overrides_gutter_size: Option(Vec<(usize, pax::api::Size)>),
 As a single expression? (probably requires functional list operators in PAXEL, like `map`, as well
 as lambdas)
 ```
-(0..cell_count).map(|i|{
+(0..cells).map(|i|{
     
 })
 ```
@@ -1706,9 +1822,9 @@ wrapped in `Box<dyn Property>` (though technically not necessarily so, e.g. perh
 
 *A use-case,* perhaps not perfectly served by the existing ontology, is an
 object that can be:
-    1. easily declared with low conceptual overhead
-    2. imported and used in templates in other files.  
-E.g. just `Rectangle`, not `RectangleProperties` or `RectangleInstance`.  
+1. easily declared with low conceptual overhead
+2. imported and used in templates in other files.  
+E.g. just `Rectangle`, not `RectangleProperties` or `RectangleInstance`.
 
 This feels adjacent to `Stroke` vs. `StrokeProperties`, but it's re: a RenderNode
 rather than a PropertiesObject.  Should there thus be an "API Instance", but
@@ -1718,7 +1834,7 @@ Thus, to define a custom RenderNode, one must provide:
 
 1. the API object, or at least symbol name (Rectangle)
 2. the Properties object
-3. `Instance`: if primitive, the `impl RenderNode for ...`, else `ComponentInstance` 
+3. `Instance`: if primitive, the `impl RenderNode for ...`, else `ComponentInstance`
 
 ---
 
@@ -1761,7 +1877,7 @@ for wrapping properties in Box<pax::api::Property<>> — or that the `pax` macro
 So, we can reduce our surface area to:
 1. Instance object (RenderNode), e.g. `RectangleInstance`
 2. Properties object + API object, e.g. `Rectangle`.  Properties must be wrapped in Box<dyn Property>, even if by macro.
-3. `DeeperStruct`-style nested literal objects.  These must be wrapped in `Box<dyn Property>`. 
+3. `DeeperStruct`-style nested literal objects.  These must be wrapped in `Box<dyn Property>`.
 
 
 
@@ -1770,8 +1886,8 @@ So, we can reduce our surface area to:
 SO: when declaring a component instance, say `Root` or `Stacker` —
 1. we're declaring the `Properties + API` object (`Root` and `Stacker`, with a series of `Box<dyn pax::api::Property<some_type>>` properties
 2. there will be auto-generated Instance impl (or Factory, or boilerplate instantiation code)
-   1. On this point — which is best?  Probably generation of Factory/Instance, both for consistency (easing codegen reqs) and for footprint (presumably lower footprint)_
-3. 
+    1. On this point — which is best?  Probably generation of Factory/Instance, both for consistency (easing codegen reqs) and for footprint (presumably lower footprint)_
+3.
 
 
 
@@ -1792,11 +1908,11 @@ remap from `computed_layout_spec` — i.e. whatever is the type of each element 
 More specifically, the compiler needs to know what variant of the PropertiesCoproduct enum to wrap each element
 into.  In the Stacker case, it's `PropertiesCoproduct::StackerCellProperty(elem)`
 
-How can we know what type `StackerCellProperty` should be?  One option is to make it static, i.e. for 
+How can we know what type `StackerCellProperty` should be?  One option is to make it static, i.e. for
 `B` in `@for A in B` to be a statically knowable symbol, present in the current scope.
 
 One version of this constraint would be to ensure the symbol is a `Property`.  Another could
-include its ability to be a method call (we can know the return types of methods from the parser via macros) 
+include its ability to be a method call (we can know the return types of methods from the parser via macros)
 
 Is it the case we will only want to support `static property` symbols and `static method calls`?
 (more dynamic collections could be computed in event handlers...)  so, yes!
@@ -1813,7 +1929,7 @@ Let's walk through how that gets unwrapped, as a sanity check.
 Repeat will create a `Component` instance mounted with `PropertiesCoproduct::SomeDiscoveredType(datum)` as its `properties`.
 Inside any expression with access to this scope, a member may be invoked, any symbol...
 
-*The compiler is responsible once again for resolving that symbol (or throwing an error if it 
+*The compiler is responsible once again for resolving that symbol (or throwing an error if it
 cannot be resolved) and then generating the correct "invocation" code to bind that symbol*
 
 
@@ -1849,7 +1965,7 @@ just returns the Properties object.  If there's a `@for i in (0..3)`, any event
 handler bound instead of that loop should have access to an {`i`} union {`...current_properties`}
 
 
-#### embed metadata 
+#### embed metadata
 
 probably by a special syntax around handler binding
 (maybe just embed index? but what about nested `for`s?)
@@ -1888,7 +2004,7 @@ something like:
 ^ this one is pretty nice, or:
 `on_click=@{self.some_method < i,j,k }`
 (pipe feels a bit more conventional...
-this is adjacent to currying, but 
+this is adjacent to currying, but
 
 this would codegen a closure that "summons" `i` via the
 same codegen logic used elsewhere in compiler, then
@@ -1912,13 +2028,13 @@ the method signature of `call_method`, `rustc` will complain)
 `(fn a b) ** c -> (fn a b c)`
 
 
-a distinction -- currying is unary — from a given (likely nested) function, 
+a distinction -- currying is unary — from a given (likely nested) function,
 
 #### on `ref` use-cases
 
 The `with` functionality may also support
 React-style `ref` functionality, if we choose
-to enable it.  
+to enable it.
 
 For example:
 `on_click=@some_handler with some_rect_id` where `some_rect_id` is `<Rectangle id=some_rect_id>`
@@ -1956,7 +2072,7 @@ impl Hello {
 Is this a special case of grouping?  
 It's roughly like minting a component, without a stack frame
 Could easily be managed in a design tool as such, while maintaining
-compatibility with hand-coding 
+compatibility with hand-coding
 
 ~complet? comp? precomp?~
 Let's go with *stencil* for now. [edit: precomp might be better, c.f. After Effects]
@@ -1992,7 +2108,7 @@ The compiler can weave this together in the same fashion that it handles `with`
 ### on adoptees
 2022-03-17
 
-Certain `should_flatten` elements, namely `if` (`Conditional`) and `for` (`Repeat`), 
+Certain `should_flatten` elements, namely `if` (`Conditional`) and `for` (`Repeat`),
 need to hoist their children as a sequence of adoptees, in lieu of themselves as singular nodes, e.g.
 
 ```
@@ -2013,13 +2129,13 @@ of adoptees. (Update: this was indeed a wrinkle, fixed by adding a manual comput
 of adoptees' properties when they are `should_flatten` (namely for `if`, `for`))
 
 Also take note that `Repeat` wraps each element in its own
-`Component`, which will take a stack frame and which currently 
+`Component`, which will take a stack frame and which currently
 
 Stack frames are pushed/popped on each tick
 
 Expose `pop_adoptee() -> Option<RenderNodePtr>` on `StackFrame` (and maybe `nth_adoptee()`)
 StackFrame greedily traverses upward seeking the next `adoptee` to pop.
-`adoptees` become strictly an implementation detail, meaning the field can be eliminated 
+`adoptees` become strictly an implementation detail, meaning the field can be eliminated
 and `Component` can pass its `children` if specified to the StackFrame that it creates.  
 Unpacking `should_flatten` nodes can happen at this stage, and this probably requires a linear traversal of top-level child nodes.
 
@@ -2028,7 +2144,7 @@ Stacker's template in the example above might be something like:
 
 ```
 
-@for i in self.cell_count {
+@for i in self.cells {
     <Frame transform=@{self.get_transform(i)}>
         <Slot index=@i />
     </Frame>
@@ -2049,7 +2165,7 @@ for adoptees, and other cases where we don't (e.g. a Stacker
 with insufficient adoptees should render empty cells, not the surplus adoptees that were
 passed somewhere higher in the render tree.)
 
-We could pipe adoptees explicily, e.g. Repeat hand-picks an 
+We could pipe adoptees explicily, e.g. Repeat hand-picks an
 adoptee for each ComponentInstance, attaches it to that stack frame,
 and we go on our merry way.
 
@@ -2067,18 +2183,18 @@ right time?)
 </Stacker>
 ```
 
-Could the `pre_render` hook be useful here?  Properties have already been computed:
+Could the `will_render` hook be useful here?  Properties have already been computed:
 for **this node, but not for its children** (e.g. Repeat)
-So no, `pre_render` probably won't be helpful as it sits.
+So no, `will_render` probably won't be helpful as it sits.
 
 
 Probably our best bet is for the lookup to be dynamic on StackFrame itself.
 
 1. register children to StackFrame `adoptees` naively, no unpacking
-2. expose `nth_adoptee` on StackFrame, which 
-   1. somehow knows when to stop traversing stack upwards to seek adoptee list (special flag on componentinstance => stackframe ? hard-coded in Repeat where it instantiates Compoennt, for example), and
-   2. expands `should_flatten` nodes to compute its index lookup. naively, this can start O(n)
-3. 
+2. expose `nth_adoptee` on StackFrame, which
+    1. somehow knows when to stop traversing stack upwards to seek adoptee list (special flag on componentinstance => stackframe ? hard-coded in Repeat where it instantiates Compoennt, for example), and
+    2. expands `should_flatten` nodes to compute its index lookup. naively, this can start O(n)
+3.
 Where `nth_adoptee` checks all nodes for `should_flatten`, grabbing
 a
 
@@ -2094,12 +2210,12 @@ Twofold problem:
 
 1. comment (@pax `<Rectangle ...>`)
 2. JSX-style approach, extend JS/TS as a language.  Note: with a subtly different syntax, either:
-   1. adjust Pax's template syntax to conform with JSX, or:
-   2. fork JSX extensions (for build tooling, code editors) to support Pax
+    1. adjust Pax's template syntax to conform with JSX, or:
+    2. fork JSX extensions (for build tooling, code editors) to support Pax
 
 It's probably worth _embracing_ the distinction that Pax is a separate language (without closure access or side effects in `render` fn)
 
-It's also probably worth embracing the advantage of strong typing (i.e. not worry about vanilla JS support; instead focus on TS support,) even if it diminishes the shorter-term reach of Pax.  
+It's also probably worth embracing the advantage of strong typing (i.e. not worry about vanilla JS support; instead focus on TS support,) even if it diminishes the shorter-term reach of Pax.
 
 There is almost certainly room in the world for more robustly built, strongly typed UIs.
 
@@ -2111,24 +2227,24 @@ There is almost certainly room in the world for more robustly built, strongly ty
 2022-03-27
 
 1. find UI root (for app cartridge).  find explicit export roots (for app/lib cartridges). for each of these roots:
-   1. parse template, discover dependencies, gen parser bin logic (`parse_to_manifest` and friends)
-   2. Execute parser bin:
-      1. call each root's `parse_to_manifest`, load *template*, *settings*, and *expressions* into manifest, phone home to compiler server
-      2. for each dep, recurse and call that dep's parse_to_manifest
-      3. finish when compiler server has all manifest info
+    1. parse template, discover dependencies, gen parser bin logic (`parse_to_manifest` and friends)
+    2. Execute parser bin:
+        1. call each root's `parse_to_manifest`, load *template*, *settings*, and *expressions* into manifest, phone home to compiler server
+        2. for each dep, recurse and call that dep's parse_to_manifest
+        3. finish when compiler server has all manifest info
 3. transpile expressions into vtable-ready function bodies (as String), parts:
-   1. invocation:
-       1. importing symbols and binding values, crawling up stack as necessary
-       2. casting as necessary, for types with known conversion paths (rely on Rust's `Into`?)
-   2. execution:
-       1. transpile PAXEL logic to Rust logic
+    1. invocation:
+        1. importing symbols and binding values, crawling up stack as necessary
+        2. casting as necessary, for types with known conversion paths (rely on Rust's `Into`?)
+    2. execution:
+        1. transpile PAXEL logic to Rust logic
 5. Generate pax-cartridge for app cartridges only:
-   1. Generate expression vtable
-   2. Generate timeline vtable
-   3. Generate expression dependency graph ("ROM")
-   4. Generate component instance factories
-   5. Generate root component instance tree
-      
+    1. Generate expression vtable
+    2. Generate timeline vtable
+    3. Generate expression dependency graph ("ROM")
+    4. Generate component instance factories
+    5. Generate root component instance tree
+
 
 
 
@@ -2180,7 +2296,7 @@ first visit B's non-rendering children, C and D
 
 To pull this off[1], we will need to perform two separate passes of the render tree.
 
-The first will be to perform properties computation, and it will recurse via `get_adopted_children` 
+The first will be to perform properties computation, and it will recurse via `get_adopted_children`
 and `get_template_children`.
 
 The second pass will be a rendering pass, which will recurse by `get_rendering_children`
@@ -2253,22 +2369,22 @@ with a path to implementing for 3rd party types as well
 
 Should they be centralized or should they be decentralized (authored as part of reusable components)
 
-Decision: because adding native rendering commands is so _centralized_ -- namely due to the need to update several native runtimes with each change in functionality -- it was thus decided to centralize 
-the definitions of the drawing message structs. 
+Decision: because adding native rendering commands is so _centralized_ -- namely due to the need to update several native runtimes with each change in functionality -- it was thus decided to centralize
+the definitions of the drawing message structs.
 
 
 ### Text
 
 1. templating live values — naively, something like `<Text>{"Index: " + i}</Text>`.  Problem: doesn't seem like it'll extend well to support styling -- this approach is "all static literal" or "all expression", whereas we probably want a bit more nuance for text.
-   1. Alternatively: `{self.inline} templating, where the contents of {self.inline + "hello"} get interpolated into this string`
-2. inline styling -- at least three potential approaches:  
-   1. class/id/settings, a la HTML (support sub-elements for e.g. `<span id=some_span>`)
-   2. markdown or markdown subset: `**this is bold** and *this is italic {"and dynamic" + "!"}* and [this is a link](https://www.duckduckgo.com/)`
-   3. built-in DSL/primitives for styling: `<b>Hello there!</b> Good to <i>see</i> you!`
+    1. Alternatively: `{self.inline} templating, where the contents of {self.inline + "hello"} get interpolated into this string`
+2. inline styling -- at least three potential approaches:
+    1. class/id/settings, a la HTML (support sub-elements for e.g. `<span id=some_span>`)
+    2. markdown or markdown subset: `**this is bold** and *this is italic {"and dynamic" + "!"}* and [this is a link](https://www.duckduckgo.com/)`
+    3. built-in DSL/primitives for styling: `<b>Hello there!</b> Good to <i>see</i> you!`
 
 Must be able to mix & match, too.
 
-A priori, markdown-esque feels compelling -- in particular, with support for templating 
+A priori, markdown-esque feels compelling -- in particular, with support for templating
 
 
 ### Click events
@@ -2280,7 +2396,7 @@ An element _higher in the hierarchy_ (ancestor) should be able to suppress desce
 
 Use-case: when a button is clicked, handle the click with that button, but DON'T also fire the click handler for the container
 Who is responsible for specifying that?  DOM approach is to call `stopPropagation` from the descendant
-But we're really describing behavior of the _ancestor_ -- in a well encapsulated scenario, 
+But we're really describing behavior of the _ancestor_ -- in a well encapsulated scenario,
 **the _ancestor_ should be responsible for discerning whether the click was "direct" or "hierarchical" and deciding whether to respond**
 (rather than the desc. saying "just kidding, no event!")
 
@@ -2314,18 +2430,18 @@ can solve "not firing subsequent mounts" for Repeated elements by
 including reduced list of `RepeatItem` indices retrieved by traversing runtime stack
 Does that tuple act as a suitable, drop-in unique id?  
 The major concern would be "stability" -- i.e., could the relationship between "virtual instance" and `(element_id, [list_of_RepeatItem_indices])`
-    change in between `mount` and `unmount`?  Namely, if the data source changes, do we expect an un/remount?  Perhaps this can be revisited with the introduction of an explicit `key`?
+change in between `mount` and `unmount`?  Namely, if the data source changes, do we expect an un/remount?  Perhaps this can be revisited with the introduction of an explicit `key`?
 
 
 
 TO DECIDE:
- - worth continuing to chew through FFI?
- - Or keep a simple bridge, pass serialized bytestream for MQ?
+- worth continuing to chew through FFI?
+- Or keep a simple bridge, pass serialized bytestream for MQ?
 
 Even if we go with JSON, it's still being passed synchronously
 through shared memory -- the only costs are:
- - encoding & parsing compute (time, framerate) overhead
- - encoding & parsing disk footprint (measure `serde`s footprint)
+- encoding & parsing compute (time, framerate) overhead
+- encoding & parsing disk footprint (measure `serde`s footprint)
 
 Note that if we standardize on JSON, we get a parser for free on Web, i.e. no additional disk footprint for WASM bundle.
 
@@ -2377,7 +2493,7 @@ per-screen-size, or even per-`Expression` (boolean return values)
 }
 ```
 
-or 
+or
 
 ```
 @settings {
@@ -2421,20 +2537,20 @@ Perhaps this final syntax would best suit an explicit `if`?
 ### On native clipping, web
 
 One approach:
- - keep a hierarchy of `div` with overflow: hidden -- these are stacked within each other
-    and allow adding child nodes that benefit from the clipping.  Note that the transformation of each
-    nested element will need to compensate for the transform of its descendants (because each nesting sets a new origin, managed by browser)
-    Thus, there's inherent inefficiency to this approach -- many unnecessary matrix calculations
+- keep a hierarchy of `div` with overflow: hidden -- these are stacked within each other
+  and allow adding child nodes that benefit from the clipping.  Note that the transformation of each
+  nested element will need to compensate for the transform of its descendants (because each nesting sets a new origin, managed by browser)
+  Thus, there's inherent inefficiency to this approach -- many unnecessary matrix calculations
 
- - calculate the clipping bounds manually via aggregate intersection of clipping rects; use CSS `clip-path` with a `polygon` value
-    This extends very well to non-rectilinear masks (unlike nested `overflow: hidden` divs)
+- calculate the clipping bounds manually via aggregate intersection of clipping rects; use CSS `clip-path` with a `polygon` value
+  This extends very well to non-rectilinear masks (unlike nested `overflow: hidden` divs)
 
- - Use SVG: generate a representation of clipping masks hierarchically in "yet another layer"
-    of SVG, superimposed (likely invisibly), point to individual nodes 
-    see: https://css-tricks.com/clipping-masking-css/#aa-using-clip-path-with-an-svg-defined-clippath
+- Use SVG: generate a representation of clipping masks hierarchically in "yet another layer"
+  of SVG, superimposed (likely invisibly), point to individual nodes
+  see: https://css-tricks.com/clipping-masking-css/#aa-using-clip-path-with-an-svg-defined-clippath
 
-    Note, the above appears viable, though wrapper divs are required to contain each `clipPath`,
-    and those wrapper divs will need to be managed by the chassis.  See PoC:
+  Note, the above appears viable, though wrapper divs are required to contain each `clipPath`,
+  and those wrapper divs will need to be managed by the chassis.  See PoC:
 
 ```
 <div id="outer">
@@ -2482,13 +2598,13 @@ May 12 2022
 Certain properties make sense to expose at the root of a given cartridge.
 
 These should be reasonably straight-forward to support.  Probably they can be declared in some sort of
-manifest file, e.g. a .paxrc/pax.json/pax.toml/pax.yaml.  Alternatively, these could be 
+manifest file, e.g. a .paxrc/pax.json/pax.toml/pax.yaml.  Alternatively, these could be
 managed within the pax language, with the added benefit of dynamic evaluation (e.g. for updating title content, bg color, maybe even framerate)
 
 Some examples:
- - Background color (or transparency)
- - Title label for app cartridges (e.g. HTML title, macOS title bar)
- - Target frame rate
+- Background color (or transparency)
+- Title label for app cartridges (e.g. HTML title, macOS title bar)
+- Target frame rate
 
 ### On scrolling
 May 16 2022
@@ -2501,9 +2617,9 @@ On macos, the atomic instantiation is 1. scrollview, plus 2. Content view —
 suggesting it isn't reasonable to separate the two.
 
 Frame
-    - size, transform
+- size, transform
 Content
-    - transform (translate x/y)
+- transform (translate x/y)
 
 In SwiftUI, this is a View with a specified size (plus any relevant, positioned native elements like Text)
 On Web, this is a div with invisible background and fixed width/height, containing any relevant native elements like Text, inside another div with `overflow-x/y: auto/hidden;` for the frame
@@ -2520,7 +2636,7 @@ store this modified tree.  Update the `Group`s transform (with an imperative `se
 The native layer will handle its own positioning of native elements within the scroller
 
 On native side:
- - attach a ScrollView and content view; attach native
+- attach a ScrollView and content view; attach native
 
 It would be particularly nice to calculate the
 `InnerPane`s size automatically.  This could be tracked
@@ -2535,14 +2651,14 @@ May 18 2022
 
 
 Should groups be bindable to events?
-    yes.  the logical behavior is "if any of this group's contents
-    pass hit-test, then the group passes hit-test"
+yes.  the logical behavior is "if any of this group's contents
+pass hit-test, then the group passes hit-test"
 
 
 
 Capture/Bubble with override control
 OR: "top-down" control, where a parent may prevent a child from
-    handling certain events
+handling certain events
 
 
 
@@ -2554,8 +2670,8 @@ Find top-most element underneath ray -- this is the target.
 
 
 Traverse ancestors to check if any `absorb(Click)`
-    - if so, the topmost-such element receives the `Click` event insteadx
-Dispatch event to its 
+- if so, the topmost-such element receives the `Click` event insteadx
+Dispatch event to its
 ancestors
 
 
@@ -2625,9 +2741,9 @@ Note that this requires explicit coordination between declarations,
 which might not work well with encapsulated components
 
 THAT SAID -- these three modes excellently describe the families
-of use-cases for handling collisions.  
+of use-cases for handling collisions.
 
-Perhaps these can be 
+Perhaps these can be
 built upon in a more declarative, encapsulation-friendly way:
 `Simultaneous`, `Sequenced`, `Exclusive`
 
@@ -2644,14 +2760,14 @@ So for us, these boil down to "fire first," (à la Capture)
 
 Instead of `get_rendering_subtree_flattened`:
 
- - during engine traversal, for each "virtual element" rendered, add to a global cache of
-   - id_chain
-   - RenderNodePtr
-   - parent RenderNodePtr
-   - (computed properties? (PropertiesCoproduct))
+- during engine traversal, for each "virtual element" rendered, add to a global cache of
+    - id_chain
+    - RenderNodePtr
+    - parent RenderNodePtr
+    - (computed properties? (PropertiesCoproduct))
 
 
- - during `interrupts`, consult this populated cache of "virtual elements", e.g. for hit-testing
+- during `interrupts`, consult this populated cache of "virtual elements", e.g. for hit-testing
 
 
 Maybe this belongs in the `instance_registry`?
@@ -2673,4 +2789,173 @@ Problematically, `virtual` could arguably be applied to both the `raw instance` 
 `unfolded`?
 
 `hydrated node` vs `instance node` ?  trying it on
+
+
+
+
+### Async methods
+
+Use-case: load some data over HTTP; set a local Property; don't block rendering thread
+Problem: without support for threading certain methods (or all methods...?), the only way to achieve something like
+HTTP loading would require blocking the rendering thread
+
+Reading:
+
+- https://internals.rust-lang.org/t/how-to-define-async-methods-without-capturing-lifetime-of-self/10708
+
+  > There is no way to annotate an async fn to not capture a lifetime in it, and inferring that would go against Rust's current philosophy that function signature's should be able to be relied on independently of the body (other than auto-trait leakage in RPIT).
+  >
+  > You can instead make bar a normal fn returning an impl Future and use an async block to define it:
+  > ... (see above link)
+
+Approaches:
+
+1. Channel for properties (or parallel version of `SelfChannel`)
+
+```rust
+
+#[pax(
+    <AnimatedBanner>{banner_message}</AnimatedBanner>
+)]
+pub struct HelloWorld {
+    pub banner_message : Property<String>,
+}
+
+impl HelloWorld {
+    
+    #[pax_on(PostMount)]
+    pub async fn lifecycle_load_banner_message(self) {
+        let data = do_http_things().await.unwrap();
+        self.banner_message.set(data.new_message)
+    }
+    
+}
+
+
+// Alt: make `Property` itself alias a channel-brokering object, with same `.set` API, but without
+// `&mut self` or even `&self` requirements
+
+```
+Work:
+[ ] Refactor `Property<T>` definition to be a channel container rather than raw `Box<>`s
+[ ] Figure out where to store the canonical, owned data (Perhaps an Rc<RefCell<>>?)
+[ ] Refactor `example` etc. to deal with `self`, and prove ability to spawn "disposable selfs" in dispatch logic
+(create a basket of channels, along with listening/data-gathering & cleanup logic, plus patch data)
+
+Perhaps each `PropertyChannel` instance has two modes:
+1. "zergling" | "drone" where it's simply a broadcaster
+   (this is the "mode" that is baked into the cloned "channel basket" cloned instances)
+2. "hatchery" | "hive" where it knows how to
+    1. spawn baskets
+    2. listen to its spawned baskets for updates
+    3. store canonical data, and patch that data via updates from `zerglings`
+
+
+2. Callback?
+
+```rust
+
+
+pub async fn do_async_things() {
+    fetch_http_data().await //T = DataType with member `server_message`
+}
+
+impl HelloWorld {
+    
+    #[pax_on(PreMount)]
+    pub fn mount(&mut self) {
+        pax::async(do_async_things, self::http_callback);
+    }
+    
+    pub fn http_callback(&mut self, args: ArgsCallback<DataType>) {
+        self.message.set(args.data.server_message)
+    }
+    
+}
+
+
+
+```
+
+
+
+## Archived lab journal from from pax-macro/.../lib.rs
+Probably authored early 2022
+//zb lab journal:
+//   This file including trick does NOT force the compiler to visit every macro.
+//   Instead, it (arguably more elegantly) forces Cargo to dirty-detect changes
+//   in the linked pax file by inlining that pax file into the .rs file.
+//   This is subtly different vs. our needs.
+
+//   One way to handle this is with an idempotent file registry — the challenge is
+//   how do entries get removed from the registry?
+
+//   Another possibility is static analysis
+
+//   Another possibility is a static registry — instead of phoning home over TCP,
+//   each macro generates a snippet that registers the pax parsing task via code.
+//   When the cartridge is run (with the `designtime` feature), that registry
+//   is exposed to the compiler, which is then able to determine which files to parse.
+//   This works in tandem with the dirty-watching trick borrowed from Pest —
+//   the "static registry" assignment will exist IFF the macro is live.
+//
+//   Note: possibly problematically, this "dynamic evaluation" of the manifest requires
+//         happening BEFORE the second cargo build, meaning the binary is run once (with blanks),
+//         evaluated to pass its macro manifest, then patched+recompiled before ACTUALLY running
+//   Perhaps this deserves a separate feature vs. `designtime`
+//   Alternatively:  is there a way to fundamentally clean this up?
+
+//   Another possibility: keep a manifest manually, e.g. in JSON or XML or YAML
+
+// v0? ----
+// Keep a .manifest.json alongside each pax file — the #[pax] macro can write to the companion file
+// for each pax file that it finds, and it can encode the relevant information for that file (e.g. component name)
+// The compiler can just naively look for all .pax.manifest files in the src/ dir
+//
+//Along with the "force dirty-watch" trick borrowed from Pest, this technique ensures that .manifest.json can
+//stay current with any change.
+//
+//Sanity check that we can accomplish our goals here
+// 1. generate PropertiesCoproduct for subsequent compilation,
+// - codegen a PropertiesCoproduct lib.rs+crate that imports the target crate's exported members
+// - codegen a "patched" Cargo.toml,
+// 2. choose which .pax files to parse, and which ComponentDefinitions to associate a given .pax file with
+// - refer to manifests for precise fs paths to .pax files
+//
+// Limitation: only one Pax component can be registered per file
+// Refinement: can store a duplicate structure of .pax.manifest files inside the local .pax directory
+//             that is, instead of alongside the source files in userland
+// Finally: this could be evolved into an automated, "double pass" compilation, where `pax-compiler` orchestrates
+//          fancy metaprogramming and message-passing (thinking: a special feature flag for the first pass, which
+//          aggregates data and hands off to the second pass which operates under the `designtime` feature.)
+//
+// To recap: - during initial & standard compilation, generate .pax/manifests/{mimic structure of src/}file.manifest
+//           - before designtime compilation: generate pax-properties-coproduct, Cargo.toml
+//           - parse pax files and prepare data for dump
+//              (Advantages of waiting until cartridge is running:
+//                [will fail parsing more gracefully; will better transition to compiler-side RIL generation])
+//           - perform second compilation; load resulting lib into demo chassis
+//           - dump parsed data to demo chassis; start running
+//             [Refinement: in the future when RIL is generated, this initial dump could be avoided]
+//
+// twist! might not be able to reliably get FS path from inside macros (see proc_macro_span unstable feature, since 2018)
+//    Spitballing a possible approach using multi-stage compilation:
+//     - macro generates functions behind a special feature "stage-0" that perform a TCP phone-home:
+//          - call file!() at runtime, allowing reliable resolution
+//          - pass file path for .pax file
+//          - pass struct path (& module? TBD but probably std::module_path) for properties coproduct generation
+
+// 1. compile cartridge with `parser` feature
+//  - each #[pax] macro
+//  ? how do files get into the tree?  Can we rely on the root file & its imports?
+//    note that resolving our deps requires traversing Component templates — this probably means
+//    we need to parse the templates *at this phase* so that each macro can 'phone home' for `parser`
+//    i.e. unroll dependencies from Pax into Rust so that the compiler can visit all the necessary files
+//  - THEN - either by evaling logic as a side-effect of importing (is this possible?) or by
+//    conventionally importing a certain-named entity that abides by a certain impl (and calling a known method)
+//    then each macro communicates its relevant data: file path, module path, name (and later: methods, properties)
+
+// Then too... if we're going to be parsing the pax tree in order to determine which modules to resolve, maybe we don't need
+// a separate manifest-generating step after all?  (Except we still need to generate the PropertiesCoproduct).
+
 

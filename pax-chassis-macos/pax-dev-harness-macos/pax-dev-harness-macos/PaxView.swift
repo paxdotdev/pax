@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-let FPS = 70.0                   //Hz, ceiling
+let FPS = 85.0                   //Hz, ceiling
 let REFRESH_PERIOD = 1.0 / FPS   //seconds between frames (e.g. 16.667 for 60Hz)
 
 class TextElements: ObservableObject {
@@ -40,10 +40,13 @@ class FrameElements: ObservableObject {
 }
 
 struct PaxView: View {
+    
+    var canvasView : some View = PaxCanvasViewRepresentable()
+        .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+    
     var body: some View {
         ZStack {
-            PaxCanvasViewRepresentable()
-                .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+            self.canvasView
             NativeRenderingLayer()
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
             
@@ -230,9 +233,6 @@ class PaxCanvasView: NSView {
                 let outputString = String(cString: msg!)
                 print(outputString)
             }
-            
-//            print("Sleeping 10 seconds to allow manual debugger attachment...")
-//            sleep(10)
 
             PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
         } else {

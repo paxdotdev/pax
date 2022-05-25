@@ -1,25 +1,35 @@
 use pax::*;
-use pax_std::{Stacker, Text, Rectangle};
+use pax_std::{Stacker, Text, Rectangle, StackerDirection};
 
 #[pax_root(
+    //Fill screen with ten even columns
     <Stacker cell_count=10 >
-        <Stacker cell_count=5 direction=Vertical >
+
+        //First column: split into five rows
+        <Stacker cell_count=5 direction=StackerDirection::Vertical >
             for i in 0..5 {
-                <Rectangle fill={Color::rgba((i * 20)%, 0, 100%, 100%)} />
+                <Rectangle fill={
+                    rgb((i * 20)%, 0, 100%)
+                }/>
             }
         </Stacker>
 
+        //Middle eight columns
         for i in 0..8 {
             <Group>
-                <Text id=index_text>`Index: {i}`</Text>
-                <Rectangle stroke={} fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
+                <Text id=index_text>{i}</Text>
+                <Rectangle fill={
+                    rgb(100%, (100 - (i * 12.5))%,(i * 12.5)%)
+                }/>
             </Group>
         }
 
+        //Final column: clickable, animated
         <Group @click=self.handle_click transform={rotate(self.current_rotation)}>
             <Text>{JABBERWOCKY}</Text>
-            <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
+            <Rectangle fill=rgb(100%, 100%, 0) />
         </Group>
+
     </Stacker>
 
     @settings {
@@ -28,27 +38,24 @@ use pax_std::{Stacker, Text, Rectangle};
             font: {
                 family: "Real Text Pro",
                 variant: "Demibold",
-                size: {(20 + (i * 5))px},
+                size: {( 20 + (i * 5))px},
             }
-            fill: Color::rgba()
+            fill: rgb(0,0,0)
         }
     }
 )]
-pub struct HelloWorld {
+pub struct Jabberwocky {
     pub num_clicks : Property<i64>,
     pub current_rotation: Property<f64>,
 }
 
-impl HelloWorld {
+impl Jabberwocky {
 
-    #[pax_on(PreRender)] //or long-hand: #[pax_on(Lifecycle::PreRender)]
-    pub fn handle_pre_render(&mut self, args: ArgsTick) {
+    #[pax_on(WillRender)] 
+    pub fn handle_will_render(&mut self, args: ArgsTick) {
         if args.frames_elapsed % 180 == 0 {
             //every 3s
             pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
-            let new_rotation = self.current_rotation.get() + (2.0 * f64::PI());
-            self.current_rotation.ease_to(new_rotation, 120, EasingCurve::InOutBack );
-            self.current_rotation.ease_to_later(0.0, 1, EasingCurve::Linear );
         }
     }
 
