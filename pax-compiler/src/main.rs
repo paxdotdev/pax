@@ -282,7 +282,7 @@ impl RunHelpers {
         let mut original_dependencies = &parsed_existing_cargo["dependencies"];
 
         //Remove any existing entries that we're going to add, to ensure no duplicates
-        match original_dependencies.into_table() {
+        match original_dependencies.to_owned().into_table() {
             Ok(mut original_dependencies_table) => {
                 //These entries must exist in the parser-cargo `template`, too
                 original_dependencies_table.remove("lazy_static");
@@ -291,8 +291,11 @@ impl RunHelpers {
             _ => {}
         }
 
-        let original_dependencies = &original_dependencies.to_string();
-        let original_features = parsed_existing_cargo["features"].to_string();
+        let original_dependencies = original_dependencies.to_string().clone();
+        let original_features = match parsed_existing_cargo.get("features") {
+            Some(feats) => {feats.to_string()},
+            _ => {"".to_string()}
+        };
         parsed_existing_cargo.remove("dependencies");
         parsed_existing_cargo.remove("features");
         let original_contents_cleaned = parsed_existing_cargo.to_string();

@@ -9,9 +9,8 @@ edition = "2021"
 piet-common = "0.5.0"
 pax-core = {path = "../pax-core"}
 pax-example = {path = "../pax-example"}
-pax-std-primitives = {path = "../pax-std/pax-std-primitives"}
 pax-runtime-api = {path = "../pax-runtime-api"}
-pax-properties-coproduct = {path="../pax-properties-coproduct"}
+#pax-properties-coproduct = {path="../pax-properties-coproduct"}
 
-[patch.'file://../pax-properties-coproduct']
-pax-properties-coproduct = {path = "./pax-properties-coproduct"}
+#[patch.'file:///Users/zack/code/pax-lang/pax-properties-coproduct']
+#pax-properties-coproduct = {path = "./pax-properties-coproduct"}

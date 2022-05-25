@@ -27,6 +27,9 @@ designtime = []
 piet-web = "0.5.0"
 wasm-bindgen = { version = "0.2.59", features = ["serde-serialize"] }
 
+
+[patch.'file:///Users/zack/code/pax-lang/pax-properties-coproduct']
+pax-properties-coproduct = {path = "../pax-cartridge/pax-properties-coproduct"}
 #
 #[patch.'file://../pax-properties-coproduct']
 #pax-properties-coproduct = { path = "../pax-example/.pax-manual/patches/pax-properties-coproduct"}

@@ -7,4 +7,4 @@ edition = "2021"
 [dependencies]
 pax = {package="pax-lang", path = "../pax-lang"}
 pax-std = {path = "../pax-std"}
-### REMOVE once lazy_static pascal_identifier hack is removed from manually expanded prototype macros
+

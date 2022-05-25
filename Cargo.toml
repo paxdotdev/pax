@@ -10,13 +10,14 @@ members = [
     "pax-compiler",
     "pax-properties-coproduct",
     "pax-runtime-api",
-    "pax-cartridge",
+
 ]
 
 exclude = [
     "pax-example",
     "pax-std",
     "pax-chassis-macos/pax-dev-harness-macos",
+    "pax-cartridge",
 ]
 
 
