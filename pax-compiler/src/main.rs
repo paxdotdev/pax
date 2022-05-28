@@ -15,12 +15,13 @@ mod server;
 
 use templates::*;
 
-use std::io::Error;
+use std::io::{Error};
 use std::task::{Poll, Context};
 use std::{fs, thread::{Thread, self}, time::Duration};
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
-use std::path::Path;
+use std::path::{Path, PathBuf};
+use std::process::Stdio;
 use std::sync::Arc;
 
 use clap::{App, AppSettings, Arg};
@@ -41,6 +42,7 @@ use ::parser::PaxManifest;
 
 
 use toml_edit::{Document, value};
+use uuid::Uuid;
 
 
 fn tryout() {
@@ -146,8 +148,6 @@ async fn main() -> Result<(), Error> {
 //     });
 
 
-
-
 //     let mut thread_wrapper  = ThreadWrapper{
 //         handle,
 //         receiver: (),
@@ -172,7 +172,6 @@ fn get_open_tcp_port() -> u16 {
     }
     current
 }
-
 
 
 // struct MessageMacroCoordination {}
@@ -262,13 +261,10 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
     Ok(())
 }
 
-
-
 struct RunHelpers {}
 impl RunHelpers {
 
-
-    pub fn generate_parser_cargo(working_dir: &str, output_dir: &str) -> String {
+    pub fn create_parser_cargo_file(working_dir: &str, output_dir: &PathBuf) -> PathBuf {
         //Load existing Cargo.toml
         //Parse with toml parser -- pull `features` and `dependencies` into `original_features` and `original_dependencies`.  Serialize the rest into `original_contents_cleaned`.
 
@@ -309,194 +305,129 @@ impl RunHelpers {
 
         let template_parser_cargo = TEMPLATE_DIR.get_file("parser-cargo/Cargo.toml").unwrap().contents_utf8().unwrap();
 
+        let cargo_file_contents = Tera::one_off(&template_parser_cargo, &tera::Context::from_serialize(cpa).unwrap(), false).unwrap();
 
-        let x = Tera::one_off(&template_parser_cargo, &tera::Context::from_serialize(cpa).unwrap(), false);
-        println!("{}", x.as_ref().unwrap());
+        let mut ret_path = get_or_create_pax_tmp_directory(working_dir)
+            .join(Uuid::new_v4().to_string());
 
+        fs::create_dir_all(&ret_path);
+
+        ret_path = ret_path.join("Cargo.toml");
+
+        fs::write(&ret_path, cargo_file_contents);
+        ret_path
         //Generate templated Cargo.toml into output_dir; return full path to that file
 
-
-
-        x.unwrap()
     }
 }
-fn get_pax_directory(working_dir: &str) -> String {
+fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let mut working_path = std::path::Path::new(working_dir).join(".pax");
     std::fs::create_dir_all( &working_path);
-    working_path.to_str().unwrap().into()
+    working_path
 }
 const TMP_DIRECTORY_NAME: &str = "tmp";
-fn get_pax_tmp_directory(working_dir: &str) -> String {
-    let tmp = Path::new(&get_pax_directory(working_dir)).join(TMP_DIRECTORY_NAME);
+fn get_or_create_pax_tmp_directory(working_dir: &str) -> PathBuf {
+    let tmp = Path::new(&get_or_create_pax_directory(working_dir)).join(TMP_DIRECTORY_NAME);
     std::fs::create_dir_all( &tmp);
-    tmp.to_str().unwrap().into()
+    tmp
 }
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
+
+
+
+
+
+
+
+
+
+
+
 /// For the specified file path or current working directory, first compile Pax project,
-/// then run it with the `chassis-app` appropriate for the specified platform
+/// then run it with a patched build of the `chassis` appropriate for the specified platform
 async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     println!("Performing run");
 
-    let tmp_dir =  get_pax_tmp_directory(&ctx.path);
+    let tmp_dir =  get_or_create_pax_tmp_directory(&ctx.path);
 
     //0. (Gen "parsing rust files" for stand-alone .pax files
+    //TODO: handle stand-alone .pax files
+
     //1. Gen parser-bin Cargo.toml inside @/.pax/tmp
-    let parser_cargo_path = RunHelpers::generate_parser_cargo(&ctx.path, &tmp_dir);
+    let parser_cargo_file_path = RunHelpers::create_parser_cargo_file(&ctx.path, &tmp_dir);
 
-    //2. Build host project with specified cargo file: `--features parser`, output `parser binary` into tmp
+    //2. start parser coordination server (awaiting output message)
+    let manifest_path = parser_cargo_file_path.canonicalize().unwrap();
+    //3. Run parser bin from host project with specified cargo file and `--features parser`
+    let cargo_run_parser_future = Command::new("cargo")
+        .current_dir(&ctx.path)
+        .arg("run")
+        .arg("--features")
+        .arg("parser")
+        .arg("--manifest-path")
+        .arg(manifest_path.to_str().unwrap())
+        .stdout(Stdio::piped())
+        .spawn()
+        .expect("failed to execute parser binary");
+
+    let output = cargo_run_parser_future
+        .wait_with_output()
+        .await
+        .unwrap();
+
+    assert!(output.status.success());
 
 
-    //3. start parser coordination server (awaiting output message) -- note, this could also be done with stdio
+    //TODO: canonicalize relative paths and `lib` path in genned Cargo.toml
+    //TODO: inject the feature-gated parser bin logic via `pax` macros
+
+
     //4. Run compiled `parser binary` from tmp, which reports back to parser coordination server
     //5. After PaxManifest is received by main thread, shut down parser coordination server
     //6. Codegen:
     //   - Properties Coproduct
     //   - Cartridge
-    //   - Cargo.toml (including patches for Properties Coproduct & Cartridge)
-    //7. Build one more time, pointing to the above Cargo.toml
-    //8. Attach the built lib to the appropriate chassis, just like with pax-example
+    //   - Cargo.toml for the appropriate `chassis` (including patches for Properties Coproduct & Cartridge)
+    //7. Build the appropriate `chassis`, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
+    //8. Run dev harness, with freshly built chassis plugged in
 
     //see pax-compiler-sequence-diagram.png
 
-    let macro_coordination_tcp_port= get_open_tcp_port();
-    println!("Listening for macro communication on open TCP port: {}", macro_coordination_tcp_port);
-
-    let (red_phone_tx, red_phone_rx) = tokio::sync::mpsc::unbounded_channel();
-    let (payload_tx, mut payload_rx) = tokio::sync::oneshot::channel();
-
-    let macro_coordination_handle = task::spawn(
-        run_macro_coordination_server(red_phone_rx, payload_tx, macro_coordination_tcp_port)
-    );
-
-    let cargo_build_parser_future = Command::new("cargo").current_dir(&ctx.path)
-        .arg("build")
-        .arg("--features")
-        .arg("parser")
-        .spawn().expect("failed to execute cargo build parser").wait_with_output();
-
-    let mut cargo_exit_code : i32 = -1;
-
-    //Execute `cargo build` on specified path; wait on result
-    select! {
-        _ = macro_coordination_handle => {
-            panic!("Macro coordination thread failed or crashed before receiving data.")
-        }
-        exit_code = cargo_build_parser_future => {
-            cargo_exit_code = exit_code.unwrap().status.code().unwrap();
-        }
-    }
-
-    //TODO: cp lib.rs to .pax.manifest.rs
-    //TODO: clean up .pax.manifest.rs
-
-    templates::compile_and_mount_template_directory("./templates/parser-bin-harness/");
-
-    println!("Waiting 15 seconds for messages...");
-    thread::sleep(Duration::from_secs(15));
-
-    println!("Sending shutdown signal");
-    red_phone_tx.send(true); //send shutdown signal
-
-    let component_manifest = payload_rx.await.expect("failed to retrieve component_manifest from macro coordination thread");
-
-    println!("received component manifest");
-
-    //TODO: codegen PropertiesCoproduct
-    //TODO: codegen DefinitionToInstanceTraverser (note: probably hand-roll this for v0, like macros)
-
-    // listener.
-
-    // let server = listener.incoming().for_each(move |socket| {
-    //     // TODO: Process socket
-    //     Ok(())
-    // })
-    // .map_err(|err| {
-    //     // Handle error by printing to STDOUT.
-    //     println!("accept error = {:?}", err);
-    // });
-
-    // // Instead of the full macro coordination server, try a simpler approach:
-    // // "every macro writes to a file", waiting for the file to be ready as long as necessary to write.
-    // //  Note that the file lock management becomes a little tricky.
-
-    // // What about OS pipes?  the message passing is very simple — no risk of
-    // // deadlocks as long as the message-passing is one-way
 
 
-    // ctx.ProcessCargo = Some(start_cargo_process(macro_coordination_tcp_port));
+    /*
+    Problem: the location of the cargo file acts as the root for relative paths, e.g. `../pax-lang`
+    Possible solutions:
+        - gen the cargo file into PWD _as_ Cargo.toml; restore the old cargo file afterwards
+        - gen a complete copy of the project elsewhere (still would have trouble with ../ paths)
+        - try to patch any "../" paths detected in the input Cargo.toml with `fs::canonicalize`d full paths
+            ^ this feels slightly hacky... but also maybe the cleanest option here
+              Note: tried it by hand (expanding absolute paths) and it worked a charm
 
 
-    // let thread_join_handle = thread::spawn(move || {
-    //     // some work here
-    // });
+    ------
 
-    // let (tx, rx) = mpsc::channel();
+    zack@Quixote pax-example % cargo run --features parser --manifest-path ./.pax/tmp/8ebadfe9-61ce-4a27-bdf7-ab6b0b2666af/Cargo.toml
+    error: failed to get `pax-lang` as a dependency of package `pax-example v0.0.1 (/Users/zack/code/pax-lang/pax-example/.pax/tmp/8ebadfe9-61ce-4a27-bdf7-ab6b0b2666af)`
 
-    // let tx1 = tx.clone();
-    // thread::spawn(move || {
-    //     let vals = vec![
-    //         String::from("hi"),
-    //         String::from("from"),
-    //         String::from("the"),
-    //         String::from("thread"),
-    //     ];
+    Caused by:
+      failed to load source for dependency `pax-lang`
 
-    //     for val in vals {
-    //         tx1.send(val).unwrap();
-    //         thread::sleep(Duration::from_secs(1));
-    //     }
-    // });
+    Caused by:
+      Unable to update /Users/zack/code/pax-lang/pax-example/.pax/tmp/pax-lang
 
-    // thread::spawn(move || {
-    //     let vals = vec![
-    //         String::from("more"),
-    //         String::from("messages"),
-    //         String::from("for"),
-    //         String::from("you"),
-    //     ];
+    Caused by:
+      failed to read `/Users/zack/code/pax-lang/pax-example/.pax/tmp/pax-lang/Cargo.toml`
 
-    //     for val in vals {
-    //         tx.send(val).unwrap();
-    //         thread::sleep(Duration::from_secs(1));
-    //     }
-    // });
+    Caused by:
+      No such file or directory (os error 2)
 
-    // for received in rx {
-    //     println!("Got: {}", received);
-    // }
+     */
 
 
-
-    // //TODO: start macro coordination server
-    // ctx.MacroCoordinationThread = Some(macro_coordination::start_server());
-    // /*
-    // Option A: dump to an append-only file; load that file after compilation
-    // Option B: open a simple HTTP server
-    // */
-
-
-    // ctx.MacroCoordinationThread.unwrap().attach_listener("finish", |data| {
-    //     //use the dumped data gathered by macros:
-    //     // - location of all pax files to create a work queue for parsing
-    //     // - paths to import for PropertiesCoproduct members, to code-gen PropertiesCoproduct and its Cargo.toml
-    // });
-
-
-    // //TODO: start cargo build
-    // // ctx.CargoBuildThread = Some(start_cargo_build_thread())
-
-
-    // //Await completion of both threads
-
-    // //TODO: perform any necessary codegen, incl. patched Cargo.toml, into temp dir
-    // //TODO: run cargo build again; generate .wasm (or other platform-native lib)
-    // //TODO: start websocket server
-    // //TODO: start demo harness, load cartridge
-    // //TODO: establish duplex connection to WS server from cartridge
-    // //TODO: start parsing Pax files
 
     Ok(())
 }
