@@ -5,10 +5,6 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::quote;
 
 
-
-
-
-
 #[proc_macro_attribute]
 pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     //decorate a userland cartridge struct to connect it
@@ -37,7 +33,6 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
 
     input
 }
-
 
 // Exactly like `#[pax()]`, except specifies that the attached component is intended to be mounted at
 // the root of an app-contained cartridge

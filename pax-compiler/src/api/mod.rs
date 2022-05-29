@@ -450,7 +450,7 @@ fn derive_settings_value_definition_from_literal_object_pair(mut literal_object:
                     //Recurse
                     derive_settings_value_definition_from_literal_object_pair(raw_value)
                 )},
-                Rule::enum_value => {SettingsValueDefinition::Enum(raw_value.as_str().to_string())},
+                // Rule::literal_enum_value => {SettingsValueDefinition::Enum(raw_value.as_str().to_string())},
                 Rule::expression => { SettingsValueDefinition::Expression(raw_value.as_str().to_string())},
                 _ => {unreachable!()}
             };

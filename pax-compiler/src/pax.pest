@@ -29,7 +29,9 @@ closing_tag = {"</" ~ POP ~ ">"} //TODO: don't accept whitespace like < / SomeEl
 
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
 attribute_key_value_pair = {identifier ~ "=" ~ any_template_value}
-any_template_value = {literal_value | expression}
+
+//`...=5.0`, `...={...}`, `id=some_id`
+any_template_value = {literal_value | expression | identifier}
 any_tag_pair = _{matched_tag | self_closing_tag}
 
 //Describes an XML subtree surrounded by a pair of matching tags, like
@@ -83,21 +85,20 @@ selector = @{("." | "#") ~ identifier}
 //included recursive nesting via `property_block`
 settings_key_value_pair = { settings_key ~ settings_value ~ ","? }
 settings_key = @{ identifier ~ ":" }
-settings_value = { literal_value | literal_object | enum_value | expression }
+settings_value = { literal_value | literal_object | expression }
 
-literal_value = { literal_number_with_unit | literal_number | literal_array | literal_enum | string }
-literal_number_with_unit = { literal_number ~ literal_number_unit }
+literal_value = { literal_number_with_unit | literal_number | literal_array | literal_enum_value | string }
+literal_number_with_unit = @{ literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
 literal_number_integer = {(!(".") ~ ASCII_DIGIT)+ }
 literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
 literal_number_unit = {("%" | "px")}
 literal_array = {("[") ~ literal_value ~ ("," ~ literal_value)* ~ ("]")}
-literal_enum = { identifier ~ ("::" ~ identifier)* } //TODO: support embedded literal data? Some::Variant(5.0)
 
-//Enums like Orientation::Vertical
-enum_value = @{pascal_identifier ~ ("::" ~ pascal_identifier ~ ("("~enum_args_list~")")?)?}
-//Experimental/probably incomplete: pass values to enums, like rust but variadically
-enum_args_list = !{settings_value ~ ("," ~ settings_value)*}
+//Enums like Orientation::Vertical or Color::Rgba(100%, 100%, 0, 0)
+//Note that this is parsed separately from expression enums, `xo_enum*`
+literal_enum_value = {pascal_identifier ~ ("::" ~ pascal_identifier)* ~ ("("~literal_enum_args_list~")")?}
+literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 
 //////  //////  //////
 /// BEGIN EXPRESSIONS (PAXEL)
@@ -106,12 +107,11 @@ enum_args_list = !{settings_value ~ ("," ~ settings_value)*}
 //Expressions can be:
 // a.) symbolic bindings to component properties, e.g. `@num_clicks`
 // b.) lambdas, where types will be enforced by downstream compiler
-expression = @{
-    "{" ~ (expression_symbolic_binding | expression_lambda) ~ "}"
+expression = {
+    "{" ~ (expression_body) ~ "}"
 }
 
 expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
-expression_lambda = !{"{"~expression_body~"}"}
 
 //Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
 //or a literal returned value like `Color { ... }` or `5`
@@ -119,7 +119,7 @@ expression_body = { expression_operand ~ (xo_infix_binary ~ expression_operand)*
 
 //terminal, or recurse into `(...)`
 expression_operand = { expression_grouped | xo_range | xo_literal | xo_symbol }
-expression_grouped = { "(" ~ expression_body ~ ")" }
+expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? }
 
 /*
 Some examples of valid expressions:
@@ -158,10 +158,10 @@ xo_prefix_unary = {
     xo_bool_not | xo_sub
 }
 
-xo_literal = {literal_number | string | literal_array | xo_literal_object}
+xo_literal = {xo_enum  | literal_number_with_unit | literal_number  | string | literal_array | xo_literal_object}
 
 //Note that `xo_literal_object` differs from `settings` literal_object because it accepts
-//expressions for property values without having to enter a @{} context (because these
+//expressions for property values without having to enter a {} context (because these
 //are already evaluated inside an `@{}` context)
 xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_settings_key_value_pair* ~ "}" }
 xo_literal_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
@@ -198,6 +198,9 @@ xo_range = { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | 
 xo_range_exclusive = @{".."}
 xo_range_inclusive = @{"..."}
 
+xo_enum = {pascal_identifier ~ ("::" ~ pascal_identifier)* ~ ("("~xo_enum_args_list~")")?}
+xo_enum_args_list = {expression_operand ~ ("," ~ expression_operand)*}
+
 //////  //////  //////
 /// BEGIN CONTROL FLOW
 //////
@@ -209,7 +212,7 @@ xo_range_inclusive = @{"..."}
 statement_control_flow = {(statement_if | statement_for| statement_slot)}
 
 statement_if = {"if" ~ expression_body ~ "{" ~ inner_nodes ~ "}"} //TODO: else
-statement_for = {"for" ~ statement_for_predicate_declaration ~ "in" ~ statement_for_predicate_binding ~ "{" ~ inner_nodes ~ "}"}
+statement_for = {"for" ~ statement_for_predicate_declaration ~ "in" ~ statement_for_predicate_source ~ "{" ~ inner_nodes ~ "}"}
 statement_slot = {"slot" ~ expression_body}
 
 //Examples:
@@ -220,9 +223,10 @@ statement_for_predicate_declaration = {
     ("(" ~ identifier ~ ","~ identifier ~")")
 }
 
-//Uses `expression_symbolic_binding` for the definition, which is reasonable because `for` preambles are evaluated as expressions
+
 //Examples:
 // in some_symbol
 // in self.some_symbol
 // in this.Pascal_snake-kebab
-statement_for_predicate_binding = @{ expression_symbolic_binding }
+// in 0..5
+statement_for_predicate_source = @{ xo_range | expression_symbolic_binding }  //Uses `expression_symbolic_binding` for the definition, which is reasonable because `for` preambles are evaluated as expressions

@@ -108,20 +108,20 @@ impl Root {
         const raw_pax: &str = r#"<Stacker cell_count=10 >
     <Stacker cell_count=5 direction=Vertical >
         for i in 0..5 {
-            <Rectangle fill={Color::rgba((i * 20)%, 0, 100%, 100%)} />
+            <Rectangle fill={Color::Rgba(20%, 0, 100%, 100%)} />
         }
     </Stacker>
 
     for i in 0..8 {
         <Group>
             <Text id=index_text>"Index: {i}"</Text>
-            <Rectangle fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
+            <Rectangle fill={Color::Rgba(100%, 100% - (i * 12.5%), (i * 12.5)%, 100%)} />
         </Group>
     }
 
     <Group @click=self.handle_click transform={rotate(self.current_rotation)}>
         <Text>{JABBERWOCKY}</Text>
-        <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
+        <Rectangle fill=Color::Rgba(100%, 100%, 0, 100%) />
     </Group>
 </Stacker>
 
@@ -162,9 +162,6 @@ impl Root {
 
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Root";
-
-
-
 
                 let (mut ctx, comp_def) =
                     pax_compiler_api::parse_full_component_definition_string(
