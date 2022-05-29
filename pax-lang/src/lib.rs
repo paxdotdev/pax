@@ -7,5 +7,5 @@ pub use pax_runtime_api::log;
 pub use pax_runtime_api::Property;
 
 pub mod internal {
-    pub use compiler_api::message as message;
+    pub use pax_compiler_api::message as message;
 }

@@ -8,7 +8,7 @@ edition = "2021"
 
 #
 [lib]
-name = "compiler_api"
+name = "pax_compiler_api"
 path = "src/api/mod.rs"
 
 

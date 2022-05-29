@@ -7,7 +7,7 @@ COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 //////
 
 //A template is expressed as an XML-like document with support for
-//@property binding, control-flow (@if, @for) and @{}-style templating (embedding expressions)
+//@property binding, control-flow (if, for) and @{}-style templating (embedding expressions)
 
 //A template has exactly one root tag, which cannot be control-flow
 //A template may be passed as the only content of a pax component definition, or one or more of a `@template{}` or `@settings{}` block may be passed.
@@ -29,7 +29,7 @@ closing_tag = {"</" ~ POP ~ ">"} //TODO: don't accept whitespace like < / SomeEl
 
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
 attribute_key_value_pair = {identifier ~ "=" ~ any_template_value}
-any_template_value = {string | expression}
+any_template_value = {literal_value | expression}
 any_tag_pair = _{matched_tag | self_closing_tag}
 
 //Describes an XML subtree surrounded by a pair of matching tags, like
@@ -85,13 +85,14 @@ settings_key_value_pair = { settings_key ~ settings_value ~ ","? }
 settings_key = @{ identifier ~ ":" }
 settings_value = { literal_value | literal_object | enum_value | expression }
 
-literal_value = { literal_number_with_unit | literal_number | literal_array | string }
+literal_value = { literal_number_with_unit | literal_number | literal_array | literal_enum | string }
 literal_number_with_unit = { literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
 literal_number_integer = {(!(".") ~ ASCII_DIGIT)+ }
 literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
 literal_number_unit = {("%" | "px")}
 literal_array = {("[") ~ literal_value ~ ("," ~ literal_value)* ~ ("]")}
+literal_enum = { identifier ~ ("::" ~ identifier)* } //TODO: support embedded literal data? Some::Variant(5.0)
 
 //Enums like Orientation::Vertical
 enum_value = @{pascal_identifier ~ ("::" ~ pascal_identifier ~ ("("~enum_args_list~")")?)?}

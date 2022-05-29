@@ -507,10 +507,11 @@ pub fn create_uuid() -> String {
 pub struct ManifestContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
-    pub root_component_id: String,
     pub visited_source_ids: HashSet<String>,
-    pub component_definitions: Vec<ComponentDefinition>,
 
+    pub root_component_id: String,
+
+    pub component_definitions: Vec<ComponentDefinition>,
 }
 
 //TODO: support fragments of pax that ARE NOT pax_component_definition (e.g. inline expressions)
@@ -519,6 +520,8 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
     let ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect("unsuccessful parse") // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
+
+    println!("ast: {}", ast);
 
     if is_root {
         ctx.root_component_id = source_id.to_string();

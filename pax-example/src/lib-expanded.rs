@@ -1,7 +1,7 @@
 #[macro_use]
-extern crate compiler_api;
+extern crate pax_compiler_api;
 
-use compiler_api::lazy_static;
+use pax_compiler_api::lazy_static;
 
 
 use pax::*;
@@ -9,6 +9,7 @@ use pax::api::{ArgsCoproduct, ArgsRender, Property, ArgsClick, EasingCurve};
 
 use pax_std::primitives::{Group, Rectangle};
 
+//Re-exports of all used types, for use by cartridge
 pub mod pax_types {
     pub mod pax_std {
         pub mod primitives {
@@ -58,7 +59,7 @@ impl Root {
 #[cfg(feature = "parser")]
 use pax::internal::message::ComponentDefinition;
 #[cfg(feature = "parser")]
-use compiler_api::ManifestContext;
+use pax_compiler_api::ManifestContext;
 #[cfg(feature = "parser")]
 use std::collections::HashMap;
 #[cfg(feature = "parser")]
@@ -71,7 +72,7 @@ use std::{env, fs};
 use pax::internal::message::{SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
 #[cfg(feature = "parser")]
 lazy_static! {
-    static ref source_id: String = compiler_api::create_uuid();
+    static ref source_id: String = pax_compiler_api::create_uuid();
 }
 #[cfg(feature = "parser")]
 pub fn main() {
@@ -104,75 +105,90 @@ impl Root {
         //evaluates `raw_pax`.
 
 
+        const raw_pax: &str = r#"<Stacker cell_count=10 >
+    <Stacker cell_count=5 direction=Vertical >
+        for i in 0..5 {
+            <Rectangle fill={Color::rgba((i * 20)%, 0, 100%, 100%)} />
+        }
+    </Stacker>
+
+    for i in 0..8 {
+        <Group>
+            <Text id=index_text>"Index: {i}"</Text>
+            <Rectangle fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
+        </Group>
+    }
+
+    <Group @click=self.handle_click transform={rotate(self.current_rotation)}>
+        <Text>{JABBERWOCKY}</Text>
+        <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
+    </Group>
+</Stacker>
+
+@settings {
+    #index_text {
+        transform: { align(0%, i * 12.5%) }
+        font: {
+            family: "Real Text Pro",
+            variant: "Demibold",
+            size: {(20 + (i * 5))px},
+        }
+        fill: Color::rgba()
+    }
+}
+"#;
 
 
-        const raw_pax: &str = r#"
-            <Stacker cell_count=10 >
-                <Stacker cell_count=5 direction=Vertical >
-                    for i in 0..5 {
-                        <Rectangle fill={Color::rgba((i * 20)%, 0, 100%, 100%)} />
-                    }
-                </Stacker>
-
-                for i in 0..8 {
-                    <Group>
-                        <Text id=index_text>"Index: {i}"</Text>
-                        <Rectangle stroke={} fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
-                    </Group>
-                }
-
-                <Group @click=self.handle_click transform={rotate(self.current_rotation)}>
-                    <Text>{JABBERWOCKY}</Text>
-                    <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
-                </Group>
-            </Stacker>
-
-            @settings {
-                #index_text {
-                    transform: { align(0%, i * 12.5%) }
-                    font: {
-                        family: "Real Text Pro",
-                        variant: "Demibold",
-                        size: {(20 + (i * 5))px},
-                    }
-                    fill: Color::rgba()
-                }
-            }
-        "#;
-
+        println!("source_id {}", &source_id.to_string());
         match ctx.visited_source_ids.get(&source_id as &str) {
-            _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
+
             None => {
+                println!("source_id {}", &source_id.to_string());
                 //First time visiting this file/source — parse the relevant contents
                 //then recurse through child nodes, unrolled here in the macro as
                 //parsed from the template
                 ctx.visited_source_ids.insert(source_id.clone());
 
-                //GENERATE: gen explict_path value with macro
-                let explicit_path: Option<String> = todo!();//Some(.to_string());
                 //TODO: support inline pax as an alternative to file
                 let mut template_map: HashMap<String, String> = HashMap::new();
 
+                println!("about to parse");
+
                 //GENERATE: do for each unique component type found in template
-                let (mut ctx, component_id) = Rectangle::parse_to_manifest(ctx);
-                template_map.insert("Rectangle".into(), component_id);
-                let (mut ctx, component_id) = Group::parse_to_manifest(ctx);
-                template_map.insert("Group".into(), component_id);
+                // let (mut ctx, component_id) = Rectangle::parse_to_manifest(ctx);
+                // template_map.insert("Rectangle".into(), component_id);
+                // let (mut ctx, component_id) = Group::parse_to_manifest(ctx);
+                // template_map.insert("Group".into(), component_id);
 
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Root";
 
-                let (mut ctx, component_definition_for_this_file) = compiler_api::handle_file(
-                    ctx,
-                    file!(),
-                    module_path!(),
-                    explicit_path,
-                    PASCAL_IDENTIFIER,
-                    template_map,
-                    &source_id as &str,
-                );
+
+
+
+                let (mut ctx, comp_def) =
+                    pax_compiler_api::parse_full_component_definition_string(
+                        ctx,
+                        &raw_pax,
+                        PASCAL_IDENTIFIER,
+                        true,
+                        template_map,
+                        &source_id as &str,
+                        module_path!(),
+                    );
+
+                println!("{:?}", &comp_def);
+                // let (mut ctx, component_definition_for_this_file) = pax_compiler_api::handle_file(
+                //     ctx,
+                //     file!(),
+                //     module_path!(),
+                //     explicit_path,
+                //     PASCAL_IDENTIFIER,
+                //     template_map,
+                //     &source_id as &str,
+                // );
                 ctx.component_definitions
-                    .push(component_definition_for_this_file);
+                    .push(comp_def);
 
                 //TODO: need to associate component IDs with template nodes, so that
                 //      component tree can be renormalized.
@@ -190,6 +206,7 @@ impl Root {
 
                 (ctx, source_id.to_string())
             },
+            _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
         }
     }
 }

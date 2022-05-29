@@ -25,9 +25,9 @@ pub mod primitives {
     pub struct Group {}
 
     #[cfg(feature = "parser")]
-    use compiler_api;
+    use pax_compiler_api;
     #[cfg(feature = "parser")]
-    use compiler_api::ManifestContext;
+    use pax_compiler_api::ManifestContext;
     #[cfg(feature = "parser")]
     use std::collections::HashMap;
     #[cfg(feature = "parser")]
@@ -44,7 +44,7 @@ pub mod primitives {
     use crate::types::{Color, Font};
     #[cfg(feature = "parser")]
     lazy_static! {
-        static ref source_id: String = compiler_api::create_uuid();
+        static ref source_id: String = pax_compiler_api::create_uuid();
     }
     #[cfg(feature = "parser")]
     impl Group {
@@ -62,7 +62,7 @@ pub mod primitives {
                     //GENERATE: inject pascal_identifier instead of CONSTANT
                     let PASCAL_IDENTIFIER = "Group";
                     //GENERATE: handle_file vs. handle_primitive
-                    let component_definition_for_this_file = compiler_api::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id as &str);
+                    let component_definition_for_this_file = pax_compiler_api::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id as &str);
                     ctx.component_definitions.push(component_definition_for_this_file);
                     //GENERATE:
                     //Lead node; no template, no pax file, no children to generate
@@ -127,18 +127,7 @@ pub mod primitives {
                     //then recurse through child nodes, unrolled here in the macro as
                     //parsed from the template
                     ctx.visited_source_ids.insert(source_id.clone());
-
-                    //GENERATE: gen explict_path value with macro
-                    let explicit_path: Option<String> = None;
-                    //TODO: support inline pax as an alternative to file
-                    //GENERATE: inject pascal_identifier instead of CONSTANT
-                    let PASCAL_IDENTIFIER = "Group";
-                    //GENERATE: handle_file vs. handle_primitive
-                    let component_definition_for_this_file = compiler_api::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id as &str);
-                    ctx.component_definitions.push(component_definition_for_this_file);
-                    //GENERATE:
-                    //Lead node; no template, no pax file, no children to generate
-
+                    // TODO!
                     (ctx, source_id.to_string())
                 },
                 _ => { (ctx, source_id.to_string()) } //early return; this file has already been parsed

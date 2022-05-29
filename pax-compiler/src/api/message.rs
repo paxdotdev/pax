@@ -59,7 +59,7 @@ impl PaxManifest {
 //     CommandDefinitionTODO,
 // }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct ComponentDefinition {
     pub source_id: String,
     pub pascal_identifier: String,
@@ -73,7 +73,7 @@ pub struct ComponentDefinition {
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 //Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 pub struct TemplateNodeDefinition {
     pub id: String,
@@ -82,13 +82,13 @@ pub struct TemplateNodeDefinition {
     pub children_ids: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum AttributeValueDefinition {
     String(String),
     Expression(String),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SettingsSelectorBlockDefinition {
     pub selector: String,
     pub value_block: SettingsLiteralBlockDefinition,
@@ -99,13 +99,13 @@ pub struct SettingsSelectorBlockDefinition {
     //     It's possible that it will.  Revisit only if we have trouble serializing this data.
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct SettingsLiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<String>,
     pub settings_key_value_pairs: Vec<(String, SettingsValueDefinition)>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SettingsValueDefinition {
     Literal(SettingsLiteralValue),
     Expression(String),
@@ -113,7 +113,7 @@ pub enum SettingsValueDefinition {
     Block(SettingsLiteralBlockDefinition),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum SettingsLiteralValue {
     LiteralNumberWithUnit(Number, Unit),
     LiteralNumber(Number),
@@ -121,13 +121,13 @@ pub enum SettingsLiteralValue {
     String(String),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Number {
     Float(f64),
     Int(isize)
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub enum Unit {
     Pixels,
     Percent

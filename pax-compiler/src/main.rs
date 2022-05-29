@@ -37,7 +37,7 @@ use tokio::sync::oneshot;
 use tokio_serde::SymmetricallyFramed;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use tokio_serde::formats::*;
-use compiler_api::PaxManifest;
+use pax_compiler_api::PaxManifest;
 
 
 
