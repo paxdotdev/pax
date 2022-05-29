@@ -1874,7 +1874,6 @@ name = "pax-cartridge"
 version = "0.0.1"
 dependencies = [
  "pax-core",
- "pax-example",
  "pax-runtime-api",
  "piet-common",
 ]
@@ -1965,14 +1964,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pax-example"
-version = "0.0.1"
-dependencies = [
- "pax-lang",
- "pax-std",
-]
-
-[[package]]
 name = "pax-lang"
 version = "0.0.1"
 dependencies = [
@@ -2015,18 +2006,6 @@ dependencies = [
  "lazy_static",
  "mut_static",
  "uuid",
-]
-
-[[package]]
-name = "pax-std"
-version = "0.0.1"
-dependencies = [
- "kurbo",
- "lazy_static",
- "pax-compiler",
- "pax-lang",
- "pax-message",
- "piet",
 ]
 
 [[package]]

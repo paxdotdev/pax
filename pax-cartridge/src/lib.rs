@@ -5,7 +5,6 @@ use std::ops::Deref;
 use std::rc::Rc;
 use pax_core::{ComponentInstance, RenderNodePtr, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceRegistry, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-// use pax_core::repeat::{RepeatInstance};
 use piet_common::RenderContext;
 
 use pax_runtime_api::{ArgsCoproduct, SizePixels, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
@@ -21,16 +20,16 @@ use pax_runtime_api::{ArgsCoproduct, SizePixels, PropertyInstance, PropertyLiter
 
 
 
-const PLACEHOLDER_ERROR : &str = "A custom cartridge should be attached; instead, the placeholder cartridge is attached.";
+const PLACEHOLDER_ERROR : &str = "Fatal: the placeholder cartridge is still attached -- a custom cartridge should be attached during compilation.";
 
 pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
-    unreachable!(PLACEHOLDER_ERROR)
+    unreachable!("{}", PLACEHOLDER_ERROR)
 }
 
 pub fn instantiate_component_stacker<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
-    unreachable!(PLACEHOLDER_ERROR)
+    unreachable!("{}", PLACEHOLDER_ERROR)
 }
 
 pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
-    unreachable!(PLACEHOLDER_ERROR)
+    unreachable!("{}", PLACEHOLDER_ERROR)
 }

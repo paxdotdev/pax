@@ -25,9 +25,9 @@ pub mod primitives {
     pub struct Group {}
 
     #[cfg(feature = "parser")]
-    use parser;
+    use compiler_api;
     #[cfg(feature = "parser")]
-    use parser::ManifestContext;
+    use compiler_api::ManifestContext;
     #[cfg(feature = "parser")]
     use std::collections::HashMap;
     #[cfg(feature = "parser")]
@@ -44,7 +44,7 @@ pub mod primitives {
     use crate::types::{Color, Font};
     #[cfg(feature = "parser")]
     lazy_static! {
-        static ref source_id: String = parser::create_uuid();
+        static ref source_id: String = compiler_api::create_uuid();
     }
     #[cfg(feature = "parser")]
     impl Group {
@@ -62,7 +62,7 @@ pub mod primitives {
                     //GENERATE: inject pascal_identifier instead of CONSTANT
                     let PASCAL_IDENTIFIER = "Group";
                     //GENERATE: handle_file vs. handle_primitive
-                    let component_definition_for_this_file = parser::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id as &str);
+                    let component_definition_for_this_file = compiler_api::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id as &str);
                     ctx.component_definitions.push(component_definition_for_this_file);
                     //GENERATE:
                     //Lead node; no template, no pax file, no children to generate
@@ -134,7 +134,7 @@ pub mod primitives {
                     //GENERATE: inject pascal_identifier instead of CONSTANT
                     let PASCAL_IDENTIFIER = "Group";
                     //GENERATE: handle_file vs. handle_primitive
-                    let component_definition_for_this_file = parser::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id as &str);
+                    let component_definition_for_this_file = compiler_api::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id as &str);
                     ctx.component_definitions.push(component_definition_for_this_file);
                     //GENERATE:
                     //Lead node; no template, no pax file, no children to generate

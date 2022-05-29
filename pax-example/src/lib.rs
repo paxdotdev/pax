@@ -26,7 +26,7 @@ use pax_std::components::{Stacker};
 
     @settings {
         #index_text {
-            transform: { align(0%, (i * 12.5)%) }
+            transform: { align(0%, i * 12.5%) }
             font: {
                 family: "Real Text Pro",
                 variant: "Demibold",

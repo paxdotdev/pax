@@ -1,5 +1,8 @@
 #[macro_use]
-extern crate lazy_static;
+extern crate compiler_api;
+
+use compiler_api::lazy_static;
+
 
 use pax::*;
 use pax::api::{ArgsCoproduct, ArgsRender, Property, ArgsClick, EasingCurve};
@@ -55,9 +58,7 @@ impl Root {
 #[cfg(feature = "parser")]
 use pax::internal::message::ComponentDefinition;
 #[cfg(feature = "parser")]
-use parser;
-#[cfg(feature = "parser")]
-use parser::ManifestContext;
+use compiler_api::ManifestContext;
 #[cfg(feature = "parser")]
 use std::collections::HashMap;
 #[cfg(feature = "parser")]
@@ -70,7 +71,7 @@ use std::{env, fs};
 use pax::internal::message::{SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
 #[cfg(feature = "parser")]
 lazy_static! {
-    static ref source_id: String = parser::get_uuid();
+    static ref source_id: String = compiler_api::create_uuid();
 }
 #[cfg(feature = "parser")]
 pub fn main() {
@@ -79,6 +80,7 @@ pub fn main() {
         visited_source_ids: HashSet::new(),
         component_definitions: vec![],
     };
+
     let (ctx, _) = Root::parse_to_manifest(ctx);
 
     //TODO: should be able to de-dupe PaxManifest and ManifestContext data structures
@@ -89,7 +91,6 @@ pub fn main() {
 
     println!("serialized bytes: {:?}", manifest.serialize());
 
-    let tcp_port = std::env::var("PAX_TCP_CALLBACK_PORT").expect("TCP callback port not provided");
 }
 
 
@@ -101,7 +102,44 @@ impl Root {
         //this is decided based on which macro is used: [#pax(contents)] for inline and [#pax_file("path")] for file
         //those two macros should be otherwise equivalent, generating simply a different line that
         //evaluates `raw_pax`.
-        const raw_pax: String = todo!();//fs::read_to_string("lib.pax").expect("failed to load lib.pax. Does the specified file exist?");
+
+
+
+
+        const raw_pax: &str = r#"
+            <Stacker cell_count=10 >
+                <Stacker cell_count=5 direction=Vertical >
+                    for i in 0..5 {
+                        <Rectangle fill={Color::rgba((i * 20)%, 0, 100%, 100%)} />
+                    }
+                </Stacker>
+
+                for i in 0..8 {
+                    <Group>
+                        <Text id=index_text>"Index: {i}"</Text>
+                        <Rectangle stroke={} fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
+                    </Group>
+                }
+
+                <Group @click=self.handle_click transform={rotate(self.current_rotation)}>
+                    <Text>{JABBERWOCKY}</Text>
+                    <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
+                </Group>
+            </Stacker>
+
+            @settings {
+                #index_text {
+                    transform: { align(0%, i * 12.5%) }
+                    font: {
+                        family: "Real Text Pro",
+                        variant: "Demibold",
+                        size: {(20 + (i * 5))px},
+                    }
+                    fill: Color::rgba()
+                }
+            }
+        "#;
+
         match ctx.visited_source_ids.get(&source_id as &str) {
             _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
             None => {
@@ -124,7 +162,7 @@ impl Root {
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Root";
 
-                let (mut ctx, component_definition_for_this_file) = parser::handle_file(
+                let (mut ctx, component_definition_for_this_file) = compiler_api::handle_file(
                     ctx,
                     file!(),
                     module_path!(),

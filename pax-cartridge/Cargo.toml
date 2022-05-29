@@ -8,7 +8,7 @@ edition = "2021"
 [dependencies]
 piet-common = "0.5.0"
 pax-core = {path = "../pax-core"}
-pax-example = {path = "../pax-example"}
+#pax-example = {path = "../pax-example"}
 pax-runtime-api = {path = "../pax-runtime-api"}
 #pax-properties-coproduct = {path="../pax-properties-coproduct"}
 

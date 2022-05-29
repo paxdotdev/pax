@@ -9,7 +9,7 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc::{Sender, Receiver, UnboundedReceiver};
 use tokio_stream::wrappers::{ReceiverStream};
 
-mod parser;
+mod api;
 mod templates;
 mod server;
 
@@ -37,7 +37,7 @@ use tokio::sync::oneshot;
 use tokio_serde::SymmetricallyFramed;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use tokio_serde::formats::*;
-use ::parser::PaxManifest;
+use compiler_api::PaxManifest;
 
 
 
@@ -119,11 +119,6 @@ async fn main() -> Result<(), Error> {
 }
 
 
-
-
-
-
-
 // fn start_thread_macro_coordination() -> ThreadWrapper<MessageMacroCoordination> {
 
 //     let (tx_out, rx_out) = mpsc::channel();
@@ -131,7 +126,6 @@ async fn main() -> Result<(), Error> {
 //     let (tx_red, rx_red) = mpsc::channel();
 
 //     let handle = thread::spawn(move || {
-
 
 //         //set up HTTP or WS server — 
 //         let vals = vec![
@@ -147,7 +141,6 @@ async fn main() -> Result<(), Error> {
 //         }
 //     });
 
-
 //     let mut thread_wrapper  = ThreadWrapper{
 //         handle,
 //         receiver: (),
@@ -157,8 +150,6 @@ async fn main() -> Result<(), Error> {
 
 //     // thread_wrapper.handle
 // }
-
-
 
 fn get_open_tcp_port() -> u16 {
     //TODO: mitigate races within this process where 
@@ -173,7 +164,6 @@ fn get_open_tcp_port() -> u16 {
     current
 }
 
-
 // struct MessageMacroCoordination {}
 struct MessageCargo {}
 struct MessageForwarder {}
@@ -184,7 +174,6 @@ struct RunContext {
     handle: Handle,
     // ThreadMacroCoordination: Option<ThreadWrapper<MessageMacroCoordination>>,
 }
-
 
 async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, return_data_channel : tokio::sync::oneshot::Sender<PaxManifest>, macro_coordination_tcp_port: u16) -> Result<(), Error> {
 
@@ -264,61 +253,61 @@ async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, r
 struct RunHelpers {}
 impl RunHelpers {
 
-    pub fn create_parser_cargo_file(working_dir: &str, output_dir: &PathBuf) -> PathBuf {
-        //Load existing Cargo.toml
-        //Parse with toml parser -- pull `features` and `dependencies` into `original_features` and `original_dependencies`.  Serialize the rest into `original_contents_cleaned`.
-
-        let existing_cargo_contents = fs::read_to_string(
-            Path::new(&working_dir)
-                .join("Cargo.toml")
-        ).expect(&("Couldn't find Cargo.toml in specified directory: ".to_string() + working_dir));
-
-        let mut parsed_existing_cargo = existing_cargo_contents.parse::<Document>().expect("invalid TOML document -- verify the Cargo.toml in the specified working directory");
-
-        let mut original_dependencies = &parsed_existing_cargo["dependencies"];
-
-        //Remove any existing entries that we're going to add, to ensure no duplicates
-        match original_dependencies.to_owned().into_table() {
-            Ok(mut original_dependencies_table) => {
-                //These entries must exist in the parser-cargo `template`, too
-                original_dependencies_table.remove("lazy_static");
-                original_dependencies_table.remove("pax-compiler");
-            },
-            _ => {}
-        }
-
-        let original_dependencies = original_dependencies.to_string().clone();
-        let original_features = match parsed_existing_cargo.get("features") {
-            Some(feats) => {feats.to_string()},
-            _ => {"".to_string()}
-        };
-        parsed_existing_cargo.remove("dependencies");
-        parsed_existing_cargo.remove("features");
-        let original_contents_cleaned = parsed_existing_cargo.to_string();
-
-        //Populate template data structure; compile template
-        let cpa = TemplateArgsParserCargo {
-            original_contents_cleaned,
-            original_features,
-            original_dependencies,
-        };
-
-        let template_parser_cargo = TEMPLATE_DIR.get_file("parser-cargo/Cargo.toml").unwrap().contents_utf8().unwrap();
-
-        let cargo_file_contents = Tera::one_off(&template_parser_cargo, &tera::Context::from_serialize(cpa).unwrap(), false).unwrap();
-
-        let mut ret_path = get_or_create_pax_tmp_directory(working_dir)
-            .join(Uuid::new_v4().to_string());
-
-        fs::create_dir_all(&ret_path);
-
-        ret_path = ret_path.join("Cargo.toml");
-
-        fs::write(&ret_path, cargo_file_contents);
-        ret_path
-        //Generate templated Cargo.toml into output_dir; return full path to that file
-
-    }
+//     pub fn create_parser_cargo_file(working_dir: &str, output_dir: &PathBuf) -> PathBuf {
+//         //Load existing Cargo.toml
+//         //Parse with toml parser -- pull `features` and `dependencies` into `original_features` and `original_dependencies`.  Serialize the rest into `original_contents_cleaned`.
+//
+//         let existing_cargo_contents = fs::read_to_string(
+//             Path::new(&working_dir)
+//                 .join("Cargo.toml")
+//         ).expect(&("Couldn't find Cargo.toml in specified directory: ".to_string() + working_dir));
+//
+//         let mut parsed_existing_cargo = existing_cargo_contents.parse::<Document>().expect("invalid TOML document -- verify the Cargo.toml in the specified working directory");
+//
+//         let mut original_dependencies = &parsed_existing_cargo["dependencies"];
+//
+//         //Remove any existing entries that we're going to add, to ensure no duplicates
+//         match original_dependencies.to_owned().into_table() {
+//             Ok(mut original_dependencies_table) => {
+//                 //These entries must exist in the parser-cargo `template`, too
+//                 original_dependencies_table.remove("lazy_static");
+//                 original_dependencies_table.remove("pax-compiler");
+//             },
+//             _ => {}
+//         }
+//
+//         let original_dependencies = original_dependencies.to_string().clone();
+//         let original_features = match parsed_existing_cargo.get("features") {
+//             Some(feats) => {feats.to_string()},
+//             _ => {"".to_string()}
+//         };
+//         parsed_existing_cargo.remove("dependencies");
+//         parsed_existing_cargo.remove("features");
+//         let original_contents_cleaned = parsed_existing_cargo.to_string();
+//
+//         //Populate template data structure; compile template
+//         let cpa = TemplateArgsParserCargo {
+//             original_contents_cleaned,
+//             original_features,
+//             original_dependencies,
+//         };
+//
+//         let template_parser_cargo = TEMPLATE_DIR.get_file("parser-cargo/Cargo.toml").unwrap().contents_utf8().unwrap();
+//
+//         let cargo_file_contents = Tera::one_off(&template_parser_cargo, &tera::Context::from_serialize(cpa).unwrap(), false).unwrap();
+//
+//         let mut ret_path = get_or_create_pax_tmp_directory(working_dir)
+//             .join(Uuid::new_v4().to_string());
+//
+//         fs::create_dir_all(&ret_path);
+//
+//         ret_path = ret_path.join("Cargo.toml");
+//
+//         fs::write(&ret_path, cargo_file_contents);
+//         ret_path
+//         //Generate templated Cargo.toml into output_dir; return full path to that file
+//
+//     }
 }
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let mut working_path = std::path::Path::new(working_dir).join(".pax");
@@ -353,22 +342,21 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     let tmp_dir =  get_or_create_pax_tmp_directory(&ctx.path);
 
-    //0. (Gen "parsing rust files" for stand-alone .pax files
     //TODO: handle stand-alone .pax files
 
-    //1. Gen parser-bin Cargo.toml inside @/.pax/tmp
-    let parser_cargo_file_path = RunHelpers::create_parser_cargo_file(&ctx.path, &tmp_dir);
+    //TODO: automatically inject missing deps into host Cargo.toml (or offer to do so)
+    //      alternatively — offer a separate command, `pax init .` for example, which
+    //      can generate empty projects or patch existing ones.  in this world,
+    //      we can handle errors in running `cargo .. --features parser` and prompt
+    //      user to run `pax init`
+    // let parser_cargo_file_path = RunHelpers::create_parser_cargo_file(&ctx.path, &tmp_dir);
 
-    //2. start parser coordination server (awaiting output message)
-    let manifest_path = parser_cargo_file_path.canonicalize().unwrap();
-    //3. Run parser bin from host project with specified cargo file and `--features parser`
+    // Run parser bin from host project with `--features parser`
     let cargo_run_parser_future = Command::new("cargo")
         .current_dir(&ctx.path)
         .arg("run")
         .arg("--features")
         .arg("parser")
-        .arg("--manifest-path")
-        .arg(manifest_path.to_str().unwrap())
         .stdout(Stdio::piped())
         .spawn()
         .expect("failed to execute parser binary");
@@ -378,11 +366,11 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
         .await
         .unwrap();
 
+    let out = String::from_utf8(output.stdout).unwrap();
+    println!("{}", &out);
+
     assert!(output.status.success());
 
-
-    //TODO: canonicalize relative paths and `lib` path in genned Cargo.toml
-    //TODO: inject the feature-gated parser bin logic via `pax` macros
 
 
     //4. Run compiled `parser binary` from tmp, which reports back to parser coordination server
@@ -391,7 +379,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     //   - Properties Coproduct
     //   - Cartridge
     //   - Cargo.toml for the appropriate `chassis` (including patches for Properties Coproduct & Cartridge)
-    //7. Build the appropriate `chassis`, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
+    //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     //8. Run dev harness, with freshly built chassis plugged in
 
     //see pax-compiler-sequence-diagram.png
@@ -401,11 +389,14 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     /*
     Problem: the location of the cargo file acts as the root for relative paths, e.g. `../pax-lang`
     Possible solutions:
-        - gen the cargo file into PWD _as_ Cargo.toml; restore the old cargo file afterwards
+        - require manual or one-time addition/injection of the [[bin]] target, plus the `pax-compiler` dependency and the `parser = ["pax-std/parser"]` feature
+        - gen the cargo file into PWD _as_ Cargo.toml; restore the old cargo file afterwards (store as Cargo.toml.bak, perhaps)
         - gen a complete copy of the project elsewhere (still would have trouble with ../ paths)
         - try to patch any "../" paths detected in the input Cargo.toml with `fs::canonicalize`d full paths
             ^ this feels slightly hacky... but also maybe the cleanest option here
               Note: tried it by hand (expanding absolute paths) and it worked a charm
+
+              Maybe just regex replace any `../` for now?  Could make more robust for e.g. Windows
 
 
     ------

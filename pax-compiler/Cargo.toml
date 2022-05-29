@@ -8,8 +8,8 @@ edition = "2021"
 
 #
 [lib]
-name = "parser"
-path = "src/parser/mod.rs"
+name = "compiler_api"
+path = "src/api/mod.rs"
 
 
 [features]

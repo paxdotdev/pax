@@ -7,4 +7,12 @@ edition = "2021"
 [dependencies]
 pax = {package="pax-lang", path = "../pax-lang"}
 pax-std = {path = "../pax-std"}
+pax-compiler = {path = "../pax-compiler", optional = true}
 
+[features]
+parser = ["pax-std/parser", "dep:pax-compiler"]
+
+[[bin]]
+name = "parser"
+path = "src/lib-expanded.rs"
+required-features = ["parser"]
