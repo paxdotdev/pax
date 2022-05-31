@@ -1,7 +1,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-
 use pax::*;
 
 pub mod types;
@@ -11,7 +10,6 @@ pub mod types;
 pub mod components {
     pub use super::stacker::*;
 }
-
 
 use pax::api::PropertyInstance;
 
@@ -33,15 +31,7 @@ pub mod primitives {
     #[cfg(feature = "parser")]
     use std::collections::HashSet;
     #[cfg(feature = "parser")]
-    use std::path::{Path, PathBuf};
-    #[cfg(feature = "parser")]
-    use std::{env, fs};
-    use std::rc::Rc;
-    use pax::api::SizePixels;
-    #[cfg(feature = "parser")]
     use pax::internal::message::{ComponentDefinition, PaxManifest, SettingsLiteralBlockDefinition, SettingsValueDefinition};
-    use crate::types;
-    use crate::types::{Color, Font};
     #[cfg(feature = "parser")]
     lazy_static! {
         static ref source_id: String = pax_compiler_api::create_uuid();
@@ -62,10 +52,13 @@ pub mod primitives {
                     //GENERATE: inject pascal_identifier instead of CONSTANT
                     let PASCAL_IDENTIFIER = "Group";
                     //GENERATE: handle_file vs. handle_primitive
-                    let component_definition_for_this_file = pax_compiler_api::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id as &str);
-                    ctx.component_definitions.push(component_definition_for_this_file);
-                    //GENERATE:
-                    //Lead node; no template, no pax file, no children to generate
+                    let template_map= ctx.template_map.clone();
+                    let comp_def = pax_compiler_api::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id);
+                    println!("{:?}", &comp_def);
+
+                    ctx.component_definitions
+                        .push(comp_def);
+
 
                     (ctx, source_id.to_string())
                 },
@@ -77,19 +70,16 @@ pub mod primitives {
 
     #[pax_primitive("./pax-std-primitives", crate::RectangleInstance)]
     pub struct Rectangle {
-        pub stroke: types::Stroke,
-        pub fill: Box<dyn pax::api::PropertyInstance<types::Color>>,
+        pub stroke: crate::types::Stroke,
+        pub fill: Box<dyn pax::api::PropertyInstance<crate::types::Color>>,
     }
-
-
 
     #[pax_primitive("./pax-std-primitives", crate::TextInstance)]
     pub struct Text {
         pub content: Box<dyn pax::api::PropertyInstance<String>>,
-        pub font: types::Font,
-        pub fill: Box<dyn pax::api::PropertyInstance<Color>>,
+        pub font: crate::types::Font,
+        pub fill: Box<dyn pax::api::PropertyInstance<crate::types::Color>>,
     }
-
 
     // #[pax_primitive("./pax-std-primitives", crate::TextInstance)]
     // pub struct Text {
@@ -109,10 +99,6 @@ pub mod primitives {
     // #[cfg(feature = "parser")]
     // use std::collections::HashSet;
     // #[cfg(feature = "parser")]
-    // use std::path::{Path, PathBuf};
-    // #[cfg(feature = "parser")]
-    // use std::{env, fs};
-    // #[cfg(feature = "parser")]
     // use pax_message::{ComponentDefinition, SettingsValueDefinition, PaxManifest,SettingsLiteralBlockDefinition};
     // #[cfg(feature = "parser")]
     // lazy_static! {
@@ -127,11 +113,23 @@ pub mod primitives {
                     //then recurse through child nodes, unrolled here in the macro as
                     //parsed from the template
                     ctx.visited_source_ids.insert(source_id.clone());
-                    // TODO!
+
+                    //GENERATE: inject pascal_identifier instead of CONSTANT
+                    let PASCAL_IDENTIFIER = "Rectangle";
+
+                    let template_map= ctx.template_map.clone();
+                    let comp_def = pax_compiler_api::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id);
+                    println!("{:?}", &comp_def);
+
+                    ctx.component_definitions
+                        .push(comp_def);
+
                     (ctx, source_id.to_string())
                 },
-                _ => { (ctx, source_id.to_string()) } //early return; this file has already been parsed
+                _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
             }
         }
     }
+
+
 }

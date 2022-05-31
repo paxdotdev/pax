@@ -13,10 +13,8 @@ COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 //A template may be passed as the only content of a pax component definition, or one or more of a `@template{}` or `@settings{}` block may be passed.
 //If a `@settings` block is present, the template must be wrapped in `@template` rather than exposed at the root.
 //The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
-pax_component_definition = { SOI ~ (root_tag_pair | (template_block_declaration | settings_block_declaration)+) ~ EOI }
+pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration)+ ~ EOI }
 root_tag_pair = { any_tag_pair }
-
-template_block_declaration = {"@template" ~ "{" ~ root_tag_pair ~ "}"}
 
 //On the other hand, the inner_nodes (children of another tag)
 //may have multiple top-level siblings
@@ -25,10 +23,12 @@ inner_nodes = { (any_tag_pair | statement_control_flow )* }
 //This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>
 open_tag = {"<" ~ PUSH(pascal_identifier) ~ attribute_key_value_pair* ~ ">"}
-closing_tag = {"</" ~ POP ~ ">"} //TODO: don't accept whitespace like < / SomeElement > ?
+closing_tag = {"</" ~ POP ~ ">"} //TODO: should we accept whitespace like < / SomeElement > ?
 
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
-attribute_key_value_pair = {identifier ~ "=" ~ any_template_value}
+attribute_key_value_pair = {attribute_event_binding | (identifier ~ "=" ~ any_template_value)}
+attribute_event_id = @{"@" ~ identifier}
+attribute_event_binding = {attribute_event_id ~ "=" ~ expression_symbolic_binding}
 
 //`...=5.0`, `...={...}`, `id=some_id`
 any_template_value = {literal_value | expression | identifier}
@@ -199,7 +199,7 @@ xo_range_exclusive = @{".."}
 xo_range_inclusive = @{"..."}
 
 xo_enum = {pascal_identifier ~ ("::" ~ pascal_identifier)* ~ ("("~xo_enum_args_list~")")?}
-xo_enum_args_list = {expression_operand ~ ("," ~ expression_operand)*}
+xo_enum_args_list = {expression_body ~ ("," ~ expression_body)*}
 
 //////  //////  //////
 /// BEGIN CONTROL FLOW
@@ -208,8 +208,8 @@ xo_enum_args_list = {expression_operand ~ ("," ~ expression_operand)*}
 //Control flow statements are NOT embeddable all places that expressions are.  That is, control-flow statements
 //can only sit alongside elements in a template and cannot be bound to properties.  As a result,
 //and to foster clarity of nomenclature, we call these `statements` rather than `expressions`.
-//These statements work as syntactic sugar for built-in primitives Conditional and Repeat.
-statement_control_flow = {(statement_if | statement_for| statement_slot)}
+//These statements work as syntactic sugar for built-in primitives: Conditional, Repeat, and Slot.
+statement_control_flow = {(statement_if | statement_for | statement_slot)}
 
 statement_if = {"if" ~ expression_body ~ "{" ~ inner_nodes ~ "}"} //TODO: else
 statement_for = {"for" ~ statement_for_predicate_declaration ~ "in" ~ statement_for_predicate_source ~ "{" ~ inner_nodes ~ "}"}

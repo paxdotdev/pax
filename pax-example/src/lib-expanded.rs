@@ -80,6 +80,7 @@ pub fn main() {
         root_component_id: "".into(),
         visited_source_ids: HashSet::new(),
         component_definitions: vec![],
+        template_map: HashMap::new(),
     };
 
     let (ctx, _) = Root::parse_to_manifest(ctx);
@@ -105,63 +106,62 @@ impl Root {
         //evaluates `raw_pax`.
 
 
-        const raw_pax: &str = r#"<Stacker cell_count=10 >
-    <Stacker cell_count=5 direction=Vertical >
-        for i in 0..5 {
-            <Rectangle fill={Color::Rgba(20%, 0, 100%, 100%)} />
-        }
-    </Stacker>
+//         const raw_pax: &str = r#"<Stacker cell_count=10 >
+//     <Stacker cell_count=5 direction=Vertical >
+//         for i in 0..5 {
+//             <Rectangle fill={Color::Rgba(20%, 0, 100%, 100%)} />
+//         }
+//     </Stacker>
+//
+//     for i in 0..8 {
+//         <Group>
+//             <Text id=index_text>"Index: {i}"</Text>
+//             <Rectangle fill={Color::Rgba(100%, 100% - (i * 12.5%), (i * 12.5)%, 100%)} />
+//         </Group>
+//     }
+//
+//     <Group @click=self.handle_click transform={Rotate(self.current_rotation)}>
+//         <Text>{JABBERWOCKY}</Text>
+//         <Rectangle fill=Color::Rgba(100%, 100%, 0, 100%) />
+//     </Group>
+// </Stacker>
+//
+// @settings {
+//     #index_text {
+//         transform: { Align(0%, i * 12.5%) }
+//         font: {
+//             family: "Real Text Pro",
+//             variant: "Demibold",
+//             size: {(20 + (i * 5))px},
+//         }
+//         fill: Color::Rgb(100%, 100%, 100%)
+//     }
+// }
+// "#;
 
-    for i in 0..8 {
-        <Group>
-            <Text id=index_text>"Index: {i}"</Text>
-            <Rectangle fill={Color::Rgba(100%, 100% - (i * 12.5%), (i * 12.5)%, 100%)} />
-        </Group>
-    }
 
-    <Group @click=self.handle_click transform={rotate(self.current_rotation)}>
-        <Text>{JABBERWOCKY}</Text>
-        <Rectangle fill=Color::Rgba(100%, 100%, 0, 100%) />
-    </Group>
-</Stacker>
-
-@settings {
-    #index_text {
-        transform: { align(0%, i * 12.5%) }
-        font: {
-            family: "Real Text Pro",
-            variant: "Demibold",
-            size: {(20 + (i * 5))px},
-        }
-        fill: Color::rgba()
-    }
-}
+const raw_pax: &str = r#"<Group><Rectangle /></Group>
 "#;
 
-
-        println!("source_id {}", &source_id.to_string());
         match ctx.visited_source_ids.get(&source_id as &str) {
 
             None => {
-                println!("source_id {}", &source_id.to_string());
                 //First time visiting this file/source — parse the relevant contents
                 //then recurse through child nodes, unrolled here in the macro as
                 //parsed from the template
                 ctx.visited_source_ids.insert(source_id.clone());
 
-                //TODO: support inline pax as an alternative to file
-                let mut template_map: HashMap<String, String> = HashMap::new();
-
-                println!("about to parse");
 
                 //GENERATE: do for each unique component type found in template
-                // let (mut ctx, component_id) = Rectangle::parse_to_manifest(ctx);
-                // template_map.insert("Rectangle".into(), component_id);
-                // let (mut ctx, component_id) = Group::parse_to_manifest(ctx);
-                // template_map.insert("Group".into(), component_id);
+                let (mut ctx, component_id) = Rectangle::parse_to_manifest(ctx);
+                ctx.template_map.insert("Rectangle".into(), component_id);
+                let (mut ctx, component_id) = Group::parse_to_manifest(ctx);
+                ctx.template_map.insert("Group".into(), component_id);
 
                 //GENERATE: inject pascal_identifier instead of CONSTANT
                 let PASCAL_IDENTIFIER = "Root";
+
+                let template_map= ctx.template_map.clone();
 
                 let (mut ctx, comp_def) =
                     pax_compiler_api::parse_full_component_definition_string(
@@ -175,31 +175,9 @@ impl Root {
                     );
 
                 println!("{:?}", &comp_def);
-                // let (mut ctx, component_definition_for_this_file) = pax_compiler_api::handle_file(
-                //     ctx,
-                //     file!(),
-                //     module_path!(),
-                //     explicit_path,
-                //     PASCAL_IDENTIFIER,
-                //     template_map,
-                //     &source_id as &str,
-                // );
+
                 ctx.component_definitions
                     .push(comp_def);
-
-                //TODO: need to associate component IDs with template nodes, so that
-                //      component tree can be renormalized.
-                //      - should source_id and component_id be de-duped?
-                //        Note that this would further-separate us from multiple-
-                //        components-per-source-file support
-                //      - where should the linking occur? will require tangling the ID generation
-                //        logic a bit
-                //can create a map per-file (here) of pascal_identifier => uuid,
-                //which can be passed to template parsing to resolve pascal_identifier => component_id in order to track a tree of
-                //component instances (via component_id)
-
-                println!("Got context");
-                // println!("{:?}", ctx);
 
                 (ctx, source_id.to_string())
             },

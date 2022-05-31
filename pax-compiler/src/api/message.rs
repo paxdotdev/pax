@@ -7,7 +7,6 @@ use std::rc::Rc;
 use pest::iterators::{Pair, Pairs};
 
 use uuid::Uuid;
-
 use pest::Parser;
 
 
@@ -27,10 +26,6 @@ pub struct PaxManifest {
 //coordinate versions/strategies for serialization
 impl PaxManifest {
     pub fn serialize(&self) -> Vec<u8> {
-
-
-
-
         serialize(&self).unwrap()
     }
 
@@ -38,26 +33,7 @@ impl PaxManifest {
         deserialize(bytes).unwrap()
     }
 }
-//
-// pub enum Action {
-//     Create,
-//     Read,
-//     Update,
-//     Delete,
-//     Command,
-// }
-//
-// #[allow(dead_code)]
-// pub struct PaxMessage {
-//     pub action: Action,
-//     pub payload: Entity,
-// }
-//
-// pub enum Entity {
-//     ComponentDefinition(ComponentDefinition),
-//     TemplateNodeDefinition(TemplateNodeDefinition),
-//     CommandDefinitionTODO,
-// }
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ComponentDefinition {

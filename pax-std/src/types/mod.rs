@@ -1,8 +1,8 @@
 use pax::*;
 use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 
-#[pax_type]
 #[derive(Clone)]
+#[pax_type]
 pub struct Stroke {
     pub color: Box<dyn PropertyInstance<Color>>,
     pub width: Box<dyn PropertyInstance<SizePixels>>,
@@ -16,8 +16,8 @@ impl Default for Stroke {
     }
 }
 
-#[pax_type]
 #[derive(Default, Clone)]
+#[pax_type]
 pub struct Text {
     pub content: Box<dyn PropertyInstance<String>>,
 }
@@ -31,8 +31,8 @@ pub struct StackerCellProperties {
     pub height_px: f64,
 }
 
-#[pax_type]
 #[derive(Clone)]
+#[pax_type]
 pub enum StackerDirection {
     Vertical,
     Horizontal,
@@ -46,8 +46,8 @@ impl Default for StackerDirection {
 impl Interpolatable for StackerDirection {}
 
 
-#[pax_type]
 #[derive(Clone)]
+#[pax_type]
 pub struct Font {
     pub family: Box<dyn pax::api::PropertyInstance<String>>,
     pub variant: Box<dyn pax::api::PropertyInstance<String>>,
@@ -81,8 +81,8 @@ impl Default for Font {
 }
 impl Interpolatable for Font {}
 
-#[pax_type]
 #[derive(Clone)]
+#[pax_type]
 pub struct Color{
     pub color_variant: ColorVariant,
 }
@@ -148,8 +148,9 @@ impl Color {
         }
     }
 }
-#[pax_type]
+
 #[derive(Clone)]
+#[pax_type]
 pub enum ColorVariant {
     Hlca([f64; 4]),
     Rgba([f64; 4]),

@@ -228,7 +228,10 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
                                     recurse_visit_tag_pairs_for_pascal_identifiers(sub_tag_pair, Rc::clone(&pascal_identifiers));
                                 },
                                 Rule::statement_control_flow => {
-                                    unimplemented!("Control flow not yet supported");
+                                    //for enumerating our pascal_identifiers, we can just ignore (traverse into desc. of) control-flow
+                                    sub_tag_pair.into_inner().for_each(|pair|{
+                                        recurse_visit_tag_pairs_for_pascal_identifiers(pair, Rc::clone(&pascal_identifiers));
+                                    });
                                 },
                                 _ => {unreachable!()},
                             }
@@ -281,6 +284,9 @@ struct TemplateParseContext {
     pub children_id_tracking_stack: Vec<Vec<String>>,
 }
 
+
+
+
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_pair: Pair<Rule>)  {
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
@@ -288,7 +294,6 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
             let matched_tag = any_tag_pair;
             let mut open_tag = matched_tag.clone().into_inner().next().unwrap().into_inner();
             let pascal_identifier = open_tag.next().unwrap().as_str();
-
 
             let new_id = create_uuid();
             if ctx.is_root {
@@ -311,18 +316,8 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
                     let inner_nodes = prospective_inner_nodes;
                     inner_nodes.into_inner()
                         .for_each(|sub_tag_pair|{
-                            match sub_tag_pair.as_rule() {
-                                Rule::matched_tag | Rule::self_closing_tag => {
-                                    //it's another tag — time to recurse
-                                    recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
-                                },
-                                Rule::statement_control_flow => {
-                                    unimplemented!("Control flow not yet supported");
-                                },
-                                _ => {unreachable!()},
-                            }
-                        }
-                        )
+                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                        })
                 },
                 Rule::closing_tag => {},
                 _ => {panic!("wrong .nth")}
@@ -330,7 +325,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
 
             let template_node = TemplateNodeDefinition {
                 id: new_id,
-                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect("Template key not found").to_string(),
+                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
             };
@@ -353,12 +348,89 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
 
             let template_node = TemplateNodeDefinition {
                 id: new_id,
-                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect("Template key not found").to_string(),
+                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 children_ids: vec![]
             };
             ctx.template_node_definitions.push(template_node);
         },
+        Rule::statement_control_flow => {
+
+            //statement_control_flow => statement variant
+            let matched_tag = any_tag_pair.into_inner().next().unwrap();
+
+            match matched_tag.as_rule() {
+                Rule::statement_if => {
+
+                },
+                Rule::statement_for => {
+                    println!("Found for!");
+                },
+                Rule::statement_slot => {
+
+                },
+                _ => {
+                    unreachable!();
+                }
+            };
+            //
+            // let mut open_tag = matched_tag.clone().into_inner().next().unwrap().into_inner();
+            // let pascal_identifier = open_tag.next().unwrap().as_str();
+            //
+            //
+            // let new_id = create_uuid();
+            // if ctx.is_root {
+            //     ctx.root_template_node_id = Some(new_id.clone());
+            // }
+            // ctx.is_root = false;
+            //
+            // //add self to parent's children_id_list
+            // let mut parents_children_id_list = ctx.children_id_tracking_stack.pop().unwrap();
+            // parents_children_id_list.push(new_id.clone());
+            // ctx.children_id_tracking_stack.push(parents_children_id_list);
+            //
+            // //push the frame for this node's children
+            // ctx.children_id_tracking_stack.push(vec![]);
+            //
+            // //recurse into inner_nodes
+            // let prospective_inner_nodes = matched_tag.into_inner().nth(1).unwrap();
+            // match prospective_inner_nodes.as_rule() {
+            //     Rule::inner_nodes => {
+            //         let inner_nodes = prospective_inner_nodes;
+            //         inner_nodes.into_inner()
+            //             .for_each(|sub_tag_pair|{
+            //                 match sub_tag_pair.as_rule() {
+            //                     Rule::matched_tag | Rule::self_closing_tag | Rule::statement_control_flow => {
+            //                         //it's another tag — time to recurse
+            //                         recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+            //                     },
+            //                     // Rule::statement_control_flow => {
+            //                     //     //Control flow is also handled as basic TemplateNodeDefinitions,
+            //                     //     //maybe with extra handling around expressions/bindings
+            //                     //
+            //                     //     unimplemented!("Control flow not yet supported");
+            //                     // },
+            //                     _ => {unreachable!()},
+            //                 }
+            //             }
+            //             )
+            //     },
+            //     Rule::closing_tag => {},
+            //     _ => {panic!("wrong .nth")}
+            // }
+            //
+            // let template_node = TemplateNodeDefinition {
+            //     id: new_id,
+            //     component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect("Template key not found").to_string(),
+            //     inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
+            //     children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+            // };
+            // ctx.template_node_definitions.push(template_node);
+            //
+            //
+            //
+            // todo!("support control flow mapping into TemplateNodeDefinitions");
+        }
         _ => {unreachable!()}
     }
 }
@@ -512,6 +584,8 @@ pub struct ManifestContext {
     pub root_component_id: String,
 
     pub component_definitions: Vec<ComponentDefinition>,
+
+    pub template_map: HashMap<String, String>,
 }
 
 //TODO: support fragments of pax that ARE NOT pax_component_definition (e.g. inline expressions)
