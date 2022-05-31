@@ -14,5 +14,5 @@ parser = ["pax-std/parser", "dep:pax-compiler"]
 
 [[bin]]
 name = "parser"
-path = "src/lib-expanded.rs"
+path = "src/lib.rs"
 required-features = ["parser"]

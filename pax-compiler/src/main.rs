@@ -37,7 +37,7 @@ use tokio::sync::oneshot;
 use tokio_serde::SymmetricallyFramed;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use tokio_serde::formats::*;
-use pax_compiler_api::PaxManifest;
+// use pax_compiler_api::PaxManifest;
 
 use toml_edit::{Document, value};
 use uuid::Uuid;
@@ -170,80 +170,80 @@ struct RunContext {
     // ThreadMacroCoordination: Option<ThreadWrapper<MessageMacroCoordination>>,
 }
 
-async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, return_data_channel : tokio::sync::oneshot::Sender<PaxManifest>, macro_coordination_tcp_port: u16) -> Result<(), Error> {
-
-    let listener = TcpListener::bind(format!("127.0.0.1:{}",macro_coordination_tcp_port)).await.unwrap();
-
-    loop {
-        // tokio::select! {
-        //     _ = red_phone.recv() => {
-        //         //for now, any message from parent is the shutdown message
-        //         println!("Red phone message received; shutting down thread");
-        //         break;
-        //     }
-        //     _ = listener.accept() => {
-        //         println!("TCP message received");
-        //
-        //         let tcp_msg = "TODO".as_bytes();
-        //
-        //         return_data_channel.send(PaxManifest::deserialize(tcp_msg));
-        //     }
-        // }
-
-
-        //
-        //
-        //
-        // let (socket, _) = future::select(red_phone.blocking_recv().await, listener.accept().await).unwrap();
-        // // let (socket, _) = listener.accept().await.unwrap();
-        //
-        // // Delimit frames using a length header
-        // let length_delimited = FramedRead::new(socket, LengthDelimitedCodec::new());
-        //
-        // // Deserialize frames
-        // let mut deserialized = tokio_serde::SymmetricallyFramed::new(
-        //     length_delimited,
-        //     SymmetricalJson::<Value>::default(),
-        // );
-        //
-        // // Spawn a task that prints all received messages to STDOUT
-        // tokio::spawn(async move {
-        //     while let Some(msg) = deserialized.try_next().await.unwrap() {
-        //         println!("GOT: {:?}", msg);
-        //     }
-        // });
-
-
-    }
-
-
-    // let listener = TcpListener::bind(
-    //     format!("127.0.0.1:{}", macro_coordination_tcp_port.to_string())
-    // ).await?;
-
-    // let mut empty_context = Context::from(_)
-    // loop {
-    //     match listener.poll_accept(&mut empty_context) {
-    //         Poll::Ready(result) => {
-    //             //process incoming data
-    //             // result.unwrap().0
-    //             print!("received TCP data");
-
-    //         },
-    //         _ => {},
-    //     }
-
-    //     match red_phone.poll_recv(&mut empty_context) {
-    //         Poll::Ready(msg) => {
-    //             //for now, any message from parent is the shutdown message
-    //             break;
-    //         },
-    //         Poll::Pending => {},
-    //     }
-    // }
-
-    Ok(())
-}
+// async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, return_data_channel : tokio::sync::oneshot::Sender<PaxManifest>, macro_coordination_tcp_port: u16) -> Result<(), Error> {
+//
+//     let listener = TcpListener::bind(format!("127.0.0.1:{}",macro_coordination_tcp_port)).await.unwrap();
+//
+//     loop {
+//         // tokio::select! {
+//         //     _ = red_phone.recv() => {
+//         //         //for now, any message from parent is the shutdown message
+//         //         println!("Red phone message received; shutting down thread");
+//         //         break;
+//         //     }
+//         //     _ = listener.accept() => {
+//         //         println!("TCP message received");
+//         //
+//         //         let tcp_msg = "TODO".as_bytes();
+//         //
+//         //         return_data_channel.send(PaxManifest::deserialize(tcp_msg));
+//         //     }
+//         // }
+//
+//
+//         //
+//         //
+//         //
+//         // let (socket, _) = future::select(red_phone.blocking_recv().await, listener.accept().await).unwrap();
+//         // // let (socket, _) = listener.accept().await.unwrap();
+//         //
+//         // // Delimit frames using a length header
+//         // let length_delimited = FramedRead::new(socket, LengthDelimitedCodec::new());
+//         //
+//         // // Deserialize frames
+//         // let mut deserialized = tokio_serde::SymmetricallyFramed::new(
+//         //     length_delimited,
+//         //     SymmetricalJson::<Value>::default(),
+//         // );
+//         //
+//         // // Spawn a task that prints all received messages to STDOUT
+//         // tokio::spawn(async move {
+//         //     while let Some(msg) = deserialized.try_next().await.unwrap() {
+//         //         println!("GOT: {:?}", msg);
+//         //     }
+//         // });
+//
+//
+//     }
+//
+//
+//     // let listener = TcpListener::bind(
+//     //     format!("127.0.0.1:{}", macro_coordination_tcp_port.to_string())
+//     // ).await?;
+//
+//     // let mut empty_context = Context::from(_)
+//     // loop {
+//     //     match listener.poll_accept(&mut empty_context) {
+//     //         Poll::Ready(result) => {
+//     //             //process incoming data
+//     //             // result.unwrap().0
+//     //             print!("received TCP data");
+//
+//     //         },
+//     //         _ => {},
+//     //     }
+//
+//     //     match red_phone.poll_recv(&mut empty_context) {
+//     //         Poll::Ready(msg) => {
+//     //             //for now, any message from parent is the shutdown message
+//     //             break;
+//     //         },
+//     //         Poll::Pending => {},
+//     //     }
+//     // }
+//
+//     Ok(())
+// }
 
 struct RunHelpers {}
 impl RunHelpers {

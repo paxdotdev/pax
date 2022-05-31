@@ -7,32 +7,32 @@ use pax_std::components::{Stacker};
     <Stacker cell_count=10 >
         <Stacker cell_count=5 direction=Vertical >
             for i in 0..5 {
-                <Rectangle fill={Color::rgba((i * 20)%, 0, 100%, 100%)} />
+                <Rectangle fill={Color::Rgba((i * 20)%, 0, 100%, 100%)} />
             }
         </Stacker>
 
         for i in 0..8 {
             <Group>
                 <Text id=index_text>"Index: {i}"</Text>
-                <Rectangle stroke={} fill={Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
+                <Rectangle fill={Color::Rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
             </Group>
         }
 
-        <Group @click=self.handle_click transform={rotate(self.current_rotation)}>
+        <Group @click=self.handle_click transform={Rotate(self.current_rotation)}>
             <Text>{JABBERWOCKY}</Text>
-            <Rectangle fill=Color::rgba(100%, 100%, 0, 100%) />
+            <Rectangle fill=Color::Rgba(100%, 100%, 0, 100%) />
         </Group>
     </Stacker>
 
+
     @settings {
         #index_text {
-            transform: { align(0%, i * 12.5%) }
+            transform: { Align(0%, i * 12.5%) }
             font: {
                 family: "Real Text Pro",
                 variant: "Demibold",
                 size: {(20 + (i * 5))px},
             }
-            fill: Color::rgba()
         }
     }
 )]

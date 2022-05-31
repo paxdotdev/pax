@@ -55,12 +55,19 @@ pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
     let pascal_identifier = input.ident.to_string();
 
+    let raw_pax = args.to_string();
+
+    // let ids = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPaxRoot{
-        raw_pax: args.to_string(),
+        raw_pax,
         pascal_identifier,
         original_tokens: original_tokens,
         dependencies: vec![],//TODO!
     });
+
+    println!("Macro output: {}", &output);
+
 
     TokenStream::from_str(&output).unwrap().into()
 

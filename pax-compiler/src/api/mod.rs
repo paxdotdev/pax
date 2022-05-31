@@ -188,25 +188,26 @@ pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, expl
 
 
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
-    let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
-        .expect("unsuccessful parse") // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
-
-    let pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
-
-    pax_component_definition.into_inner().for_each(|pair|{
-        match pair.as_rule() {
-            Rule::root_tag_pair => {
-                recurse_visit_tag_pairs_for_pascal_identifiers(
-                    pair.into_inner().next().unwrap(),
-                    Rc::clone(&pascal_identifiers),
-                );
-            }
-            _ => {}
-        }
-    });
-    let unwrapped_hashmap = Rc::try_unwrap(pascal_identifiers).unwrap().into_inner();
-    unwrapped_hashmap.into_iter().collect()
+    vec![]
+    // let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
+    //     .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
+    //     .next().unwrap(); // get and unwrap the `pax_component_definition` rule
+    //
+    // let pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
+    //
+    // pax_component_definition.into_inner().for_each(|pair|{
+    //     match pair.as_rule() {
+    //         Rule::root_tag_pair => {
+    //             recurse_visit_tag_pairs_for_pascal_identifiers(
+    //                 pair.into_inner().next().unwrap(),
+    //                 Rc::clone(&pascal_identifiers),
+    //             );
+    //         }
+    //         _ => {}
+    //     }
+    // });
+    // let unwrapped_hashmap = Rc::try_unwrap(pascal_identifiers).unwrap().into_inner();
+    // unwrapped_hashmap.into_iter().collect()
 }
 
 fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pascal_identifiers: Rc<RefCell<HashSet<String>>>)  {
@@ -226,15 +227,9 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
                     inner_nodes.into_inner()
                         .for_each(|sub_tag_pair|{
                             match sub_tag_pair.as_rule() {
-                                Rule::matched_tag | Rule::self_closing_tag => {
+                                Rule::matched_tag | Rule::self_closing_tag | Rule::statement_control_flow => {
                                     //it's another tag — time to recurse
                                     recurse_visit_tag_pairs_for_pascal_identifiers(sub_tag_pair, Rc::clone(&pascal_identifiers));
-                                },
-                                Rule::statement_control_flow => {
-                                    //for enumerating our pascal_identifiers, we can just ignore (traverse into desc. of) control-flow
-                                    sub_tag_pair.into_inner().for_each(|pair|{
-                                        recurse_visit_tag_pairs_for_pascal_identifiers(pair, Rc::clone(&pascal_identifiers));
-                                    });
                                 },
                                 _ => {unreachable!()},
                             }
@@ -250,13 +245,54 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
             let pascal_identifier = any_tag_pair.into_inner().next().unwrap().as_str();
             pascal_identifiers.borrow_mut().insert(pascal_identifier.to_string());
         },
+        Rule::statement_control_flow => {
+
+            let matched_tag = any_tag_pair.into_inner().next().unwrap();
+
+            match matched_tag.as_rule() {
+                Rule::statement_if => {
+                    pascal_identifiers.borrow_mut().insert("Conditional".to_string());
+                },
+                Rule::statement_for => {
+                    pascal_identifiers.borrow_mut().insert("Repeat".to_string());
+                },
+                Rule::statement_slot => {
+                    //`slot` is a leaf node, just needs to register `Slot`
+                    pascal_identifiers.borrow_mut().insert("Slot".to_string());
+                },
+                _ => {
+                    unreachable!();
+                }
+            };
+
+            let prospective_inner_nodes = matched_tag.into_inner().nth(1).unwrap();
+            match prospective_inner_nodes.as_rule() {
+                Rule::inner_nodes => {
+                    let inner_nodes = prospective_inner_nodes;
+                    inner_nodes.into_inner()
+                        .for_each(|sub_tag_pair|{
+                            match sub_tag_pair.as_rule() {
+                                Rule::matched_tag | Rule::self_closing_tag | Rule::statement_control_flow => {
+                                    //it's another tag — time to recurse
+                                    recurse_visit_tag_pairs_for_pascal_identifiers(sub_tag_pair, Rc::clone(&pascal_identifiers));
+                                },
+                                _ => {unreachable!()},
+                            }
+                        }
+                        )
+                },
+                Rule::closing_tag => {},
+                _ => {panic!("wrong .nth")}
+            }
+
+        },
         _ => {unreachable!()}
     }
 }
 
 fn parse_template_from_component_definition_string(ctx: &mut TemplateParseContext, pax: &str)  {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
-        .expect("unsuccessful parse") // unwrap the parse result
+        .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
     pax_component_definition.into_inner().for_each(|pair|{
@@ -541,7 +577,7 @@ fn derive_settings_value_definition_from_literal_object_pair(mut literal_object:
 fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<SettingsSelectorBlockDefinition>> {
 
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
-        .expect("unsuccessful parse") // unwrap the parse result
+        .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
     let mut ret : Vec<SettingsSelectorBlockDefinition> = vec![];
@@ -597,7 +633,7 @@ pub struct ManifestContext {
 pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &str, pascal_identifier: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ManifestContext, ComponentDefinition) {
 
     let ast = PaxParser::parse(Rule::pax_component_definition, pax)
-        .expect("unsuccessful parse") // unwrap the parse result
+        .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
     println!("ast: {}", ast);

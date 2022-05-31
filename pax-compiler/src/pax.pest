@@ -9,7 +9,7 @@ COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 //A template is expressed as an XML-like document with support for
 //@property binding, control-flow (if, for) and @{}-style templating (embedding expressions)
 
-//A template has exactly one root tag, which cannot be control-flow
+//A template has exactly one root tag, which cannot be control-flow (why?)
 //A template may be passed as the only content of a pax component definition, or one or more of a `@template{}` or `@settings{}` block may be passed.
 //If a `@settings` block is present, the template must be wrapped in `@template` rather than exposed at the root.
 //The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
@@ -18,7 +18,7 @@ root_tag_pair = { any_tag_pair }
 
 //On the other hand, the inner_nodes (children of another tag)
 //may have multiple top-level siblings
-inner_nodes = { (any_tag_pair | statement_control_flow )* }
+inner_nodes = { (statement_control_flow | any_tag_pair )* }
 
 //This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>
@@ -27,7 +27,7 @@ closing_tag = {"</" ~ POP ~ ">"} //TODO: should we accept whitespace like < / So
 
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
 attribute_key_value_pair = {attribute_event_binding | (identifier ~ "=" ~ any_template_value)}
-attribute_event_id = @{"@" ~ identifier}
+attribute_event_id = {"@" ~ identifier}
 attribute_event_binding = {attribute_event_id ~ "=" ~ expression_symbolic_binding}
 
 //`...=5.0`, `...={...}`, `id=some_id`
@@ -79,16 +79,16 @@ literal_object = { pascal_identifier? ~ "{" ~ settings_key_value_pair* ~ "}" }
 //Describes a CSS-style selector, used for joining settings to elements
 //Note: only basic `id` and `class` syntax supported for now; could be extended
 //Example: `#some-element`
-selector = @{("." | "#") ~ identifier}
+selector = {("." | "#") ~ identifier}
 
 //Describes a key-value pair in a settings block, which supports a number of formats,
 //included recursive nesting via `property_block`
 settings_key_value_pair = { settings_key ~ settings_value ~ ","? }
-settings_key = @{ identifier ~ ":" }
+settings_key = { identifier ~ ":" }
 settings_value = { literal_value | literal_object | expression }
 
 literal_value = { literal_number_with_unit | literal_number | literal_array | literal_enum_value | string }
-literal_number_with_unit = @{ literal_number ~ literal_number_unit }
+literal_number_with_unit = { literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
 literal_number_integer = {(!(".") ~ ASCII_DIGIT)+ }
 literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
@@ -166,7 +166,7 @@ xo_literal = {xo_enum  | literal_number_with_unit | literal_number  | string | l
 xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_settings_key_value_pair* ~ "}" }
 xo_literal_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
 
-xo_symbol = @{identifier ~ (("." ~ identifier) | ("::" ~ identifier))*}
+xo_symbol = {identifier ~ (("." ~ identifier) | ("::" ~ identifier))*}
 
 xo_group_open = {"("}
 xo_group_close = {")"}
@@ -229,4 +229,4 @@ statement_for_predicate_declaration = {
 // in self.some_symbol
 // in this.Pascal_snake-kebab
 // in 0..5
-statement_for_predicate_source = @{ xo_range | expression_symbolic_binding }  //Uses `expression_symbolic_binding` for the definition, which is reasonable because `for` preambles are evaluated as expressions
+statement_for_predicate_source = { xo_range | expression_symbolic_binding }  //Uses `expression_symbolic_binding` for the definition, which is reasonable because `for` preambles are evaluated as expressions

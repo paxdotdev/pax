@@ -1,7 +1,29 @@
 #[cfg(feature = "parser")]
 use pax_compiler_api;
 #[cfg(feature = "parser")]
-use pax_compiler_api::ManifestContext;
+use pax_compiler_api::{ManifestContext, PaxManifest};
+#[cfg(feature = "parser")]
+use std::collections::{HashSet, HashMap};
+
+#[cfg(feature = "parser")]
+pub fn main() {
+    let mut ctx = ManifestContext {
+        root_component_id: "".into(),
+        visited_source_ids: HashSet::new(),
+        component_definitions: vec![],
+        template_map: HashMap::new(),
+    };
+
+    let (ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
+
+    let manifest = PaxManifest {
+        components: ctx.component_definitions,
+        root_component_id: ctx.root_component_id,
+    };
+
+    println!("serialized bytes: {:?}", manifest.serialize());
+}
+
 
 {{original_tokens}}
 
@@ -14,9 +36,8 @@ impl {{pascal_identifier}} {
 
         let source_id = "component::{{pascal_identifier}}";
 
-        const raw_pax: &str = r#"{{raw_pax}}
-"#;
-
+        const raw_pax: &str = r#####"{{raw_pax}}
+"#####;
         match ctx.visited_source_ids.get(&source_id as &str) {
 
             None => {
