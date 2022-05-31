@@ -39,11 +39,8 @@ use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use tokio_serde::formats::*;
 use pax_compiler_api::PaxManifest;
 
-
-
 use toml_edit::{Document, value};
 use uuid::Uuid;
-
 
 fn tryout() {
     let toml = r#"
@@ -64,7 +61,6 @@ fn tryout() {
     "#;
     assert_eq!(doc.to_string(), expected);
 }
-
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -117,7 +113,6 @@ async fn main() -> Result<(), Error> {
 
     Ok(())
 }
-
 
 // fn start_thread_macro_coordination() -> ThreadWrapper<MessageMacroCoordination> {
 

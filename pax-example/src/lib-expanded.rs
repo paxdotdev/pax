@@ -105,7 +105,6 @@ impl Root {
         //those two macros should be otherwise equivalent, generating simply a different line that
         //evaluates `raw_pax`.
 
-
 //         const raw_pax: &str = r#"<Stacker cell_count=10 >
 //     <Stacker cell_count=5 direction=Vertical >
 //         for i in 0..5 {

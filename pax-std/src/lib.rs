@@ -4,13 +4,11 @@ extern crate lazy_static;
 use pax::*;
 
 pub mod types;
- mod stacker;
-// pub mod stacker;
+pub mod stacker;
 
 pub mod components {
     pub use super::stacker::*;
 }
-
 
 use pax::api::PropertyInstance;
 

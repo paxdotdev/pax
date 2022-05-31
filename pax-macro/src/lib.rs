@@ -5,17 +5,14 @@ use std::str::FromStr;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
 use quote::quote;
-use pax_compiler_api::TemplateArgsMacroPaxPrimitive;
+use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPaxRoot};
 
 use syn::{parse_macro_input, Data, DeriveInput};
 
 
 #[proc_macro_attribute]
 pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    //Handle primitive: decorate a userland cartridge struct to connect it
-    //with a corresponding runtime cartridge struct (which handles, e.g. rendering)
-    //the macro-decorated struct is used, e.g. for PropertiesCoproduct generation and
-    //runtime API object generation (.get/.set wrappers & hooks)
+
     let original_tokens = input.to_string();
 
     let input = parse_macro_input!(input as DeriveInput);
@@ -44,9 +41,6 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
     let _ = args;
     let _ = input;
 
-    //TODO: idempotent pax-macro-coordination startup
-    //Handle incremental compilation
-
     input
 }
 
@@ -54,21 +48,45 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
 // the root of an app-contained cartridge
 #[proc_macro_attribute]
 pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+
+    let original_tokens = input.to_string();
+
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let pascal_identifier = input.ident.to_string();
+
+    let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPaxRoot{
+        raw_pax: args.to_string(),
+        pascal_identifier,
+        original_tokens: original_tokens,
+        dependencies: vec![],//TODO!
+    });
+
+    TokenStream::from_str(&output).unwrap().into()
+
+}
+
+
+#[proc_macro_attribute]
+pub fn pax_file(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+
+    //TODO: use generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
+    //let include = generate_include(...);
+
+    //TODO: load specified file contents, hack into `args: proc_macro::TokenStream`, and call `pax(args, input)`
     let _ = args;
     let _ = input;
 
-    //TODO: idempotent pax-macro-coordination startup
-    //Handle incremental compilation
-
     input
 }
+
 
 #[proc_macro_attribute]
 pub fn pax_on(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let _ = args;
     let _ = input;
 
-    //TODO: register event handler (e.g. pre_render)
+    //TODO: register event handler (e.g. PreRender)
     //Handle incremental compilation
 
     input

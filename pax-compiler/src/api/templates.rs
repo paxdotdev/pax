@@ -17,16 +17,22 @@ pub struct TemplateArgsMacroPaxPrimitive {
 }
 
 
-
-
-
-
+#[derive(Serialize)]
+pub struct TemplateArgsMacroPaxRoot {
+    pub raw_pax: String,
+    pub pascal_identifier: String,
+    pub original_tokens: String,
+    pub dependencies: Vec<String>,
+}
 
 
 pub fn press_template_macro_pax_primitive(args: TemplateArgsMacroPaxPrimitive ) -> String {
+    let template = TEMPLATE_DIR.get_file("macros/pax_primitive").unwrap().contents_utf8().unwrap();
+    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
+}
 
-    let template = TEMPLATE_DIR.get_file("macro-pax-primitive/template.rs.txt").unwrap().contents_utf8().unwrap();
 
-    Tera::one_off(template, &tera::Context::from_serialize(args).unwrap(), false).unwrap()
-
+pub fn press_template_macro_pax_root(args: TemplateArgsMacroPaxRoot ) -> String {
+    let template = TEMPLATE_DIR.get_file("macros/pax_root").unwrap().contents_utf8().unwrap();
+    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }

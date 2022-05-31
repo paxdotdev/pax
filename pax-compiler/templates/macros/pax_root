@@ -1,0 +1,58 @@
+#[cfg(feature = "parser")]
+use pax_compiler_api;
+#[cfg(feature = "parser")]
+use pax_compiler_api::ManifestContext;
+
+{{original_tokens}}
+
+#[cfg(feature = "parser")]
+impl {{pascal_identifier}} {
+    pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
+        //a given source may be EITHER a.) inline pax, or b.) code-behind pax.
+        //this is decided based on which macro is used: [#pax(contents)] for inline and [#pax_file("path")] for file
+        //those two macros should be otherwise equivalent, generating simply a different line that evaluates `raw_pax`.
+
+        let source_id = "component::{{pascal_identifier}}";
+
+        const raw_pax: &str = r#"{{raw_pax}}
+"#;
+
+        match ctx.visited_source_ids.get(&source_id as &str) {
+
+            None => {
+                //First time visiting this file/source — parse the relevant contents
+                //then recurse through child nodes, unrolled here in the macro as
+                //parsed from the template
+                ctx.visited_source_ids.insert(source_id.clone().into());
+
+                {% for dep in dependencies %}
+                let (mut ctx, component_id) = {{dep}}::parse_to_manifest(ctx);
+                ctx.template_map.insert("{{dep}}".into(), component_id);
+                {% endfor %}
+
+                let PASCAL_IDENTIFIER = "{{pascal_identifier}}";
+
+                let template_map= ctx.template_map.clone();
+
+                let (mut ctx, comp_def) =
+                    pax_compiler_api::parse_full_component_definition_string(
+                        ctx,
+                        &raw_pax,
+                        PASCAL_IDENTIFIER,
+                        true,
+                        template_map,
+                        &source_id,
+                        module_path!(),
+                    );
+
+                println!("{:?}", &comp_def);
+
+                ctx.component_definitions
+                    .push(comp_def);
+
+                (ctx, source_id.to_string())
+            },
+            _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
+        }
+    }
+}
