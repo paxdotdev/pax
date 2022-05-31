@@ -1,17 +1,33 @@
 extern crate proc_macro;
 extern crate proc_macro2;
+use std::str::FromStr;
 
 use proc_macro2::{Ident, Span, TokenStream};
+use quote::__private::ext::RepToTokensExt;
 use quote::quote;
+use pax_compiler_api::TemplateArgsMacroPaxPrimitive;
+
+use syn::{parse_macro_input, Data, DeriveInput};
 
 
 #[proc_macro_attribute]
 pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    //decorate a userland cartridge struct to connect it
+    //Handle primitive: decorate a userland cartridge struct to connect it
     //with a corresponding runtime cartridge struct (which handles, e.g. rendering)
     //the macro-decorated struct is used, e.g. for PropertiesCoproduct generation and
     //runtime API object generation (.get/.set wrappers & hooks)
-    input
+    let original_tokens = input.to_string();
+
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let pascal_identifier = input.ident.to_string();
+
+    let output = pax_compiler_api::press_template_macro_pax_primitive(TemplateArgsMacroPaxPrimitive{
+        pascal_identifier,
+        original_tokens: original_tokens
+    });
+
+    TokenStream::from_str(&output).unwrap().into()
 }
 
 #[proc_macro_attribute]

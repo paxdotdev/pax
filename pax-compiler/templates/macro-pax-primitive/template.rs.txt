@@ -1,0 +1,24 @@
+//Following is the macro expansion of: #[pax_primitive("./pax-std-primitives", crate::{{pascal_identifier}}Instance)]
+{{original_tokens}}
+#[cfg(feature = "parser")]
+impl {{pascal_identifier}} {
+    pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
+        let source_id = "primitive::{{pascal_identifier}}";
+        match ctx.visited_source_ids.get(&source_id as &str) {
+            None => {
+                //First time visiting this file/source — parse the relevant contents
+                //then recurse through child nodes, unrolled here in the macro as
+                //parsed from the template
+                ctx.visited_source_ids.insert(source_id.to_string());
+                let PASCAL_IDENTIFIER = "{{pascal_identifier}}";
+                let template_map= ctx.template_map.clone();
+                let comp_def = pax_compiler_api::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id);
+                println!("{:?}", &comp_def);
+                ctx.component_definitions
+                    .push(comp_def);
+                (ctx, source_id.to_string())
+            },
+            _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
+        }
+    }
+}

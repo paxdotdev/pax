@@ -14,6 +14,9 @@ use uuid::Uuid;
 pub mod message;
 pub use message::*;
 
+pub mod templates;
+pub use templates::*;
+
 pub use lazy_static::lazy_static;
 
 #[derive(Parser)]
@@ -271,6 +274,8 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateParseContex
     });
 
 }
+
+
 
 struct TemplateParseContext {
     pub template_node_definitions: Vec<TemplateNodeDefinition>,

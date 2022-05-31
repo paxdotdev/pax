@@ -1977,6 +1977,7 @@ dependencies = [
 name = "pax-macro"
 version = "0.0.1"
 dependencies = [
+ "pax-compiler",
  "proc-macro2",
  "quote",
  "syn",
