@@ -136,6 +136,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
         .arg("--features")
         .arg("parser")
         .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .spawn()
         .expect("failed to execute parser binary");
 
@@ -146,8 +147,10 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     let out = String::from_utf8(output.stdout).unwrap();
     println!("{}", &out);
+    let err = String::from_utf8(output.stderr).unwrap();
+    println!("{}", &err);
 
-    assert!(output.status.success());
+    assert_eq!(output.status.code().unwrap(), 0);
 
 
 

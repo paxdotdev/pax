@@ -12,8 +12,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 
-{ < Rectangle fill = { Color :: Rgba((i * 20) %, 0, 100 %, 100 %) } / > } < /␊
-
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
 ///

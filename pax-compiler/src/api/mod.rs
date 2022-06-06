@@ -155,7 +155,7 @@ pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, expl
 
 
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
-    vec![]
+    todo!("parse pascal IDs in order to generate dependency traversal calls ")
     // let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
     //     .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
     //     .next().unwrap(); // get and unwrap the `pax_component_definition` rule
