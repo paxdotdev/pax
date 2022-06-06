@@ -14,8 +14,8 @@ use uuid::Uuid;
 pub mod message;
 pub use message::*;
 
-pub mod templates;
-pub use templates::*;
+pub mod templating;
+pub use templating::*;
 
 pub use lazy_static::lazy_static;
 
@@ -97,39 +97,6 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
     // }
 }
 
-
-//TODO: should we process in chunks of `files` or `components`?
-//      for now they're enforced to be the same thing (at least due to
-//      the magic resolution of foo.pax from foo.rs, which admittedly could be changed.)
-//
-//
-// pub fn parse_pax_for_template(pax: &str) {//-> TemplateNodeDefinition {
-//
-//     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
-//         .expect("unsuccessful parse") // unwrap the parse result
-//         .next().unwrap(); // get and unwrap the `file` rule; never fails
-//
-//     let x = pax_component_definition.into_inner();
-//     x.for_each(|pair|{
-//         match pair.as_rule() {
-//             Rule::root_tag_pair => {
-//                 println!("root tag inner: {:?}", pair.into_inner());
-//             }
-//             _ => {}
-//         }
-//     });
-//
-//
-//
-//
-//     // parsed.
-//
-//     // unimplemented!()
-//     // TemplateNodeDefinition {
-//     //     id:
-//     // }
-// }
-//
 
 
 pub fn handle_primitive(pascal_identifier: &str, module_path: &str, source_id: &str) -> ComponentDefinition {

@@ -39,26 +39,6 @@ use tokio_serde::formats::*;
 use toml_edit::{Document, value};
 use uuid::Uuid;
 
-fn tryout() {
-    let toml = r#"
-        "hello" = 'toml!' # comment
-        ['a'.b]
-    "#;
-    let mut doc = toml.parse::<Document>().expect("invalid doc");
-
-    assert_eq!(doc.to_string(), toml);
-    // let's add a new key/value pair inside a.b: c = {d = "hello"}
-    doc["a"]["b"]["c"]["d"] = value("hello");
-    // autoformat inline table a.b.c: { d = "hello" }
-    doc["a"]["b"]["c"].as_inline_table_mut().map(|t| t.fmt());
-    let expected = r#"
-        "hello" = 'toml!' # comment
-        ['a'.b]
-        c = { d = "hello" }
-    "#;
-    assert_eq!(doc.to_string(), expected);
-}
-
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let matches = App::new("pax")
@@ -111,196 +91,12 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// fn start_thread_macro_coordination() -> ThreadWrapper<MessageMacroCoordination> {
-
-//     let (tx_out, rx_out) = mpsc::channel();
-//     let (tx_in, rx_in) = mpsc::channel();
-//     let (tx_red, rx_red) = mpsc::channel();
-
-//     let handle = thread::spawn(move || {
-
-//         //set up HTTP or WS server — 
-//         let vals = vec![
-//             String::from("hi"),
-//             String::from("from"),
-//             String::from("the"),
-//             String::from("thread"),
-//         ];
-
-//         for val in vals {
-//             tx1.send(val).unwrap();
-//             thread::sleep(Duration::from_secs(1));
-//         }
-//     });
-
-//     let mut thread_wrapper  = ThreadWrapper{
-//         handle,
-//         receiver: (),
-//         red_phone: (),
-//         sender: (),
-//     };
-
-//     // thread_wrapper.handle
-// }
-
-fn get_open_tcp_port() -> u16 {
-    //TODO: mitigate races within this process where 
-    //      get_open_tcp_port is called in quick succession.
-    //      Could keep a simple hashmap "burn list", ensuring that not only
-    //      is a port open per the OS, but it's also not in the burn list.
-    const RANGE_START : u16 = 4242;
-    let mut current = RANGE_START;
-    while !portpicker::is_free_tcp(current) {
-        current = current + 1;
-    }
-    current
-}
-
-// struct MessageMacroCoordination {}
-struct MessageCargo {}
-struct MessageForwarder {}
-
 struct RunContext {
     target: String,
     path: String,
     handle: Handle,
-    // ThreadMacroCoordination: Option<ThreadWrapper<MessageMacroCoordination>>,
 }
 
-// async fn run_macro_coordination_server(mut red_phone: UnboundedReceiver<bool>, return_data_channel : tokio::sync::oneshot::Sender<PaxManifest>, macro_coordination_tcp_port: u16) -> Result<(), Error> {
-//
-//     let listener = TcpListener::bind(format!("127.0.0.1:{}",macro_coordination_tcp_port)).await.unwrap();
-//
-//     loop {
-//         // tokio::select! {
-//         //     _ = red_phone.recv() => {
-//         //         //for now, any message from parent is the shutdown message
-//         //         println!("Red phone message received; shutting down thread");
-//         //         break;
-//         //     }
-//         //     _ = listener.accept() => {
-//         //         println!("TCP message received");
-//         //
-//         //         let tcp_msg = "TODO".as_bytes();
-//         //
-//         //         return_data_channel.send(PaxManifest::deserialize(tcp_msg));
-//         //     }
-//         // }
-//
-//
-//         //
-//         //
-//         //
-//         // let (socket, _) = future::select(red_phone.blocking_recv().await, listener.accept().await).unwrap();
-//         // // let (socket, _) = listener.accept().await.unwrap();
-//         //
-//         // // Delimit frames using a length header
-//         // let length_delimited = FramedRead::new(socket, LengthDelimitedCodec::new());
-//         //
-//         // // Deserialize frames
-//         // let mut deserialized = tokio_serde::SymmetricallyFramed::new(
-//         //     length_delimited,
-//         //     SymmetricalJson::<Value>::default(),
-//         // );
-//         //
-//         // // Spawn a task that prints all received messages to STDOUT
-//         // tokio::spawn(async move {
-//         //     while let Some(msg) = deserialized.try_next().await.unwrap() {
-//         //         println!("GOT: {:?}", msg);
-//         //     }
-//         // });
-//
-//
-//     }
-//
-//
-//     // let listener = TcpListener::bind(
-//     //     format!("127.0.0.1:{}", macro_coordination_tcp_port.to_string())
-//     // ).await?;
-//
-//     // let mut empty_context = Context::from(_)
-//     // loop {
-//     //     match listener.poll_accept(&mut empty_context) {
-//     //         Poll::Ready(result) => {
-//     //             //process incoming data
-//     //             // result.unwrap().0
-//     //             print!("received TCP data");
-//
-//     //         },
-//     //         _ => {},
-//     //     }
-//
-//     //     match red_phone.poll_recv(&mut empty_context) {
-//     //         Poll::Ready(msg) => {
-//     //             //for now, any message from parent is the shutdown message
-//     //             break;
-//     //         },
-//     //         Poll::Pending => {},
-//     //     }
-//     // }
-//
-//     Ok(())
-// }
-
-struct RunHelpers {}
-impl RunHelpers {
-
-//     pub fn create_parser_cargo_file(working_dir: &str, output_dir: &PathBuf) -> PathBuf {
-//         //Load existing Cargo.toml
-//         //Parse with toml parser -- pull `features` and `dependencies` into `original_features` and `original_dependencies`.  Serialize the rest into `original_contents_cleaned`.
-//
-//         let existing_cargo_contents = fs::read_to_string(
-//             Path::new(&working_dir)
-//                 .join("Cargo.toml")
-//         ).expect(&("Couldn't find Cargo.toml in specified directory: ".to_string() + working_dir));
-//
-//         let mut parsed_existing_cargo = existing_cargo_contents.parse::<Document>().expect("invalid TOML document -- verify the Cargo.toml in the specified working directory");
-//
-//         let mut original_dependencies = &parsed_existing_cargo["dependencies"];
-//
-//         //Remove any existing entries that we're going to add, to ensure no duplicates
-//         match original_dependencies.to_owned().into_table() {
-//             Ok(mut original_dependencies_table) => {
-//                 //These entries must exist in the parser-cargo `template`, too
-//                 original_dependencies_table.remove("lazy_static");
-//                 original_dependencies_table.remove("pax-compiler");
-//             },
-//             _ => {}
-//         }
-//
-//         let original_dependencies = original_dependencies.to_string().clone();
-//         let original_features = match parsed_existing_cargo.get("features") {
-//             Some(feats) => {feats.to_string()},
-//             _ => {"".to_string()}
-//         };
-//         parsed_existing_cargo.remove("dependencies");
-//         parsed_existing_cargo.remove("features");
-//         let original_contents_cleaned = parsed_existing_cargo.to_string();
-//
-//         //Populate template data structure; compile template
-//         let cpa = TemplateArgsParserCargo {
-//             original_contents_cleaned,
-//             original_features,
-//             original_dependencies,
-//         };
-//
-//         let template_parser_cargo = TEMPLATE_DIR.get_file("parser-cargo/Cargo.toml").unwrap().contents_utf8().unwrap();
-//
-//         let cargo_file_contents = Tera::one_off(&template_parser_cargo, &tera::Context::from_serialize(cpa).unwrap(), false).unwrap();
-//
-//         let mut ret_path = get_or_create_pax_tmp_directory(working_dir)
-//             .join(Uuid::new_v4().to_string());
-//
-//         fs::create_dir_all(&ret_path);
-//
-//         ret_path = ret_path.join("Cargo.toml");
-//
-//         fs::write(&ret_path, cargo_file_contents);
-//         ret_path
-//         //Generate templated Cargo.toml into output_dir; return full path to that file
-//
-//     }
-}
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let mut working_path = std::path::Path::new(working_dir).join(".pax");
     std::fs::create_dir_all( &working_path);
@@ -314,16 +110,6 @@ fn get_or_create_pax_tmp_directory(working_dir: &str) -> PathBuf {
 }
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
-
-
-
-
-
-
-
-
-
-
 
 
 /// For the specified file path or current working directory, first compile Pax project,
