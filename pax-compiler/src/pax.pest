@@ -23,7 +23,7 @@ inner_nodes = { (statement_control_flow | any_tag_pair )* }
 //This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>
 open_tag = {"<" ~ PUSH(pascal_identifier) ~ attribute_key_value_pair* ~ ">"}
-closing_tag = {"</" ~ POP ~ ">"} //TODO: should we accept whitespace like < / SomeElement > ?
+closing_tag = {"<" ~ "/" ~ POP ~ ">"} //TODO: should we accept whitespace like < / SomeElement > ?
 
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
 attribute_key_value_pair = {attribute_event_binding | (identifier ~ "=" ~ any_template_value)}
@@ -43,7 +43,7 @@ matched_tag = {open_tag ~ (node_inner_content | inner_nodes) ~ closing_tag}
 node_inner_content = { literal_value | expression }
 
 //Describes a (leaf-node) self-closing element, like <SomeElement />
-self_closing_tag = {"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/>"}
+self_closing_tag = {"<" ~ pascal_identifier ~ attribute_key_value_pair* ~ "/" ~ ">"}
 
 //string/inner/char from https://pest.rs/book/examples/json.html
 string = ${ ("\"" ~ inner ~ "\"") | ("'" ~ inner ~ "'") | ("`" ~ (inner_templated | inner) ~ "`") }
@@ -72,7 +72,7 @@ pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_" | "-")*}
 /// BEGIN SETTINGS
 //////
 
-settings_block_declaration = {"@settings" ~ "{" ~ selector_block* ~ "}"}
+settings_block_declaration = {"@" ~ "settings" ~ "{" ~ selector_block* ~ "}"}
 selector_block = {selector ~ literal_object}
 literal_object = { pascal_identifier? ~ "{" ~ settings_key_value_pair* ~ "}" }
 
