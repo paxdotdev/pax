@@ -18,7 +18,7 @@ root_tag_pair = { any_tag_pair }
 
 //On the other hand, the inner_nodes (children of another tag)
 //may have multiple top-level siblings
-inner_nodes = { (statement_control_flow | any_tag_pair )* }
+inner_nodes = { node_inner_content | (statement_control_flow | any_tag_pair )* }
 
 //This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>
@@ -36,10 +36,10 @@ any_tag_pair = _{matched_tag | self_closing_tag}
 
 //Describes an XML subtree surrounded by a pair of matching tags, like
 //<SomeElement>...</SomeElement>
-matched_tag = {open_tag ~ (node_inner_content | inner_nodes) ~ closing_tag}
+matched_tag = {open_tag ~ inner_nodes ~ closing_tag}
 //For example: <Text>"This is my inner content"</Text>
 //Presumably this content can be bare literal values other than strings like Color::hlca(...)
-//It can also be a @binding or @{} expression
+//It could also be an `{...}` expression or presumably even a method `@binding`
 node_inner_content = { literal_value | expression }
 
 //Describes a (leaf-node) self-closing element, like <SomeElement />

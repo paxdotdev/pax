@@ -155,26 +155,26 @@ pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, expl
 
 
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
-    todo!("parse pascal IDs in order to generate dependency traversal calls ")
-    // let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
-    //     .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
-    //     .next().unwrap(); // get and unwrap the `pax_component_definition` rule
-    //
-    // let pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
-    //
-    // pax_component_definition.into_inner().for_each(|pair|{
-    //     match pair.as_rule() {
-    //         Rule::root_tag_pair => {
-    //             recurse_visit_tag_pairs_for_pascal_identifiers(
-    //                 pair.into_inner().next().unwrap(),
-    //                 Rc::clone(&pascal_identifiers),
-    //             );
-    //         }
-    //         _ => {}
-    //     }
-    // });
-    // let unwrapped_hashmap = Rc::try_unwrap(pascal_identifiers).unwrap().into_inner();
-    // unwrapped_hashmap.into_iter().collect()
+    // todo!("parse pascal IDs in order to generate dependency traversal calls ")
+    let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
+        .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
+        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
+
+    let pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
+
+    pax_component_definition.into_inner().for_each(|pair|{
+        match pair.as_rule() {
+            Rule::root_tag_pair => {
+                recurse_visit_tag_pairs_for_pascal_identifiers(
+                    pair.into_inner().next().unwrap(),
+                    Rc::clone(&pascal_identifiers),
+                );
+            }
+            _ => {}
+        }
+    });
+    let unwrapped_hashmap = Rc::try_unwrap(pascal_identifiers).unwrap().into_inner();
+    unwrapped_hashmap.into_iter().collect()
 }
 
 fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pascal_identifiers: Rc<RefCell<HashSet<String>>>)  {
@@ -187,7 +187,9 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
             pascal_identifiers.borrow_mut().insert(pascal_identifier.to_string());
 
             //recurse into inner_nodes
-            let prospective_inner_nodes = matched_tag.into_inner().nth(1).unwrap();
+            // println!("{:?}", );
+
+            let prospective_inner_nodes = matched_tag.clone().into_inner().nth(1).unwrap();
             match prospective_inner_nodes.as_rule() {
                 Rule::inner_nodes => {
                     let inner_nodes = prospective_inner_nodes;
@@ -198,13 +200,15 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
                                     //it's another tag — time to recurse
                                     recurse_visit_tag_pairs_for_pascal_identifiers(sub_tag_pair, Rc::clone(&pascal_identifiers));
                                 },
-                                _ => {unreachable!()},
+                                Rule::node_inner_content => {
+                                    //literal or expression content; no pascal identifiers to worry about here
+                                }
+                                _ => {unreachable!("Parsing error 88779273: {:?}", sub_tag_pair.as_rule());},
                             }
                         }
                         )
                 },
-                Rule::closing_tag => {},
-                _ => {panic!("wrong .nth")}
+                _ => {unreachable!("Parsing error 45834823: {:?}", matched_tag.clone().into_inner())}
             }
         },
         Rule::self_closing_tag => {
@@ -216,23 +220,26 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
 
             let matched_tag = any_tag_pair.into_inner().next().unwrap();
 
+            let mut n = 1;
             match matched_tag.as_rule() {
                 Rule::statement_if => {
                     pascal_identifiers.borrow_mut().insert("Conditional".to_string());
+                    n = 2;
                 },
                 Rule::statement_for => {
                     pascal_identifiers.borrow_mut().insert("Repeat".to_string());
+                    n = 2;
                 },
                 Rule::statement_slot => {
                     //`slot` is a leaf node, just needs to register `Slot`
                     pascal_identifiers.borrow_mut().insert("Slot".to_string());
                 },
                 _ => {
-                    unreachable!();
+                    unreachable!("Parsing error 944491032: {:?}", matched_tag.as_rule());
                 }
             };
 
-            let prospective_inner_nodes = matched_tag.into_inner().nth(1).unwrap();
+            let prospective_inner_nodes = matched_tag.into_inner().nth(n).unwrap();
             match prospective_inner_nodes.as_rule() {
                 Rule::inner_nodes => {
                     let inner_nodes = prospective_inner_nodes;
@@ -243,17 +250,16 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
                                     //it's another tag — time to recurse
                                     recurse_visit_tag_pairs_for_pascal_identifiers(sub_tag_pair, Rc::clone(&pascal_identifiers));
                                 },
-                                _ => {unreachable!()},
+                                _ => {unreachable!("Parsing error 2355593: {:?}", sub_tag_pair.as_rule());},
                             }
                         }
                         )
                 },
-                Rule::closing_tag => {},
-                _ => {panic!("wrong .nth")}
+                _ => {unreachable!("Parsing error 4449292922: {:?}", prospective_inner_nodes.as_rule());}
             }
 
         },
-        _ => {unreachable!()}
+        _ => {unreachable!("Parsing error 123123121: {:?}", any_tag_pair.as_rule());}
     }
 }
 
@@ -327,8 +333,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
                             recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
                         })
                 },
-                Rule::closing_tag => {},
-                _ => {panic!("wrong .nth")}
+                _ => {panic!("wrong prospective inner nodes (or nth)")}
             }
 
             let template_node = TemplateNodeDefinition {
@@ -378,7 +383,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
 
                 },
                 _ => {
-                    unreachable!();
+                    unreachable!("Parsing error 883427242: {:?}", matched_tag.as_rule());;
                 }
             };
             //
@@ -439,7 +444,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
             //
             // todo!("support control flow mapping into TemplateNodeDefinitions");
         }
-        _ => {unreachable!()}
+        _ => {unreachable!("Parsing error 2232444421: {:?}", any_tag_pair.as_rule());}
     }
 }
 
@@ -453,7 +458,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
         let value = match raw_value.as_rule() {
             Rule::string => {AttributeValueDefinition::String(raw_value.as_str().to_string())},
             Rule::expression => {AttributeValueDefinition::Expression(raw_value.as_str().to_string())},
-            _ => {unreachable!()}
+            _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}
         };
         (key, value)
     }).collect();
@@ -532,7 +537,7 @@ fn derive_settings_value_definition_from_literal_object_pair(mut literal_object:
                 )},
                 // Rule::literal_enum_value => {SettingsValueDefinition::Enum(raw_value.as_str().to_string())},
                 Rule::expression => { SettingsValueDefinition::Expression(raw_value.as_str().to_string())},
-                _ => {unreachable!()}
+                _ => {unreachable!("Parsing error 231453468: {:?}", raw_value.as_rule());}
             };
 
             (setting_key, setting_value)

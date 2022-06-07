@@ -48,15 +48,12 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
 // the root of an app-contained cartridge
 #[proc_macro_attribute]
 pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-
     let original_tokens = input.to_string();
 
-    let input = parse_macro_input!(input as DeriveInput);
-
-    let pascal_identifier = input.ident.to_string();
+    let input_parsed = parse_macro_input!(input as DeriveInput);
+    let pascal_identifier = input_parsed.ident.to_string();
 
     let raw_pax = args.to_string();
-
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPaxRoot{
@@ -68,9 +65,7 @@ pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
     println!("Macro output: {}", &output);
 
-
     TokenStream::from_str(&output).unwrap().into()
-
 }
 
 
