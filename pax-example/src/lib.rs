@@ -1,6 +1,6 @@
 use pax::*;
 use pax::api::{EasingCurve, ArgsRender, ArgsClick};
-use pax_std::primitives::{Text, Rectangle};
+use pax_std::primitives::{Text, Rectangle, Group};
 use pax_std::components::{Stacker};
 
 #[pax_root(

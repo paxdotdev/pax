@@ -155,7 +155,7 @@ pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, expl
 
 
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
-    // todo!("parse pascal IDs in order to generate dependency traversal calls ")
+
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
@@ -223,37 +223,31 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
             let mut n = 1;
             match matched_tag.as_rule() {
                 Rule::statement_if => {
-                    pascal_identifiers.borrow_mut().insert("Conditional".to_string());
                     n = 2;
                 },
                 Rule::statement_for => {
-                    pascal_identifiers.borrow_mut().insert("Repeat".to_string());
                     n = 2;
                 },
                 Rule::statement_slot => {
                     //`slot` is a leaf node, just needs to register `Slot`
-                    pascal_identifiers.borrow_mut().insert("Slot".to_string());
+                    n = 0;
                 },
                 _ => {
                     unreachable!("Parsing error 944491032: {:?}", matched_tag.as_rule());
                 }
             };
 
-            let prospective_inner_nodes = matched_tag.into_inner().nth(n).unwrap();
+            let prospective_inner_nodes = matched_tag.into_inner().nth(n).expect("WRONG nth");
             match prospective_inner_nodes.as_rule() {
                 Rule::inner_nodes => {
                     let inner_nodes = prospective_inner_nodes;
                     inner_nodes.into_inner()
                         .for_each(|sub_tag_pair|{
-                            match sub_tag_pair.as_rule() {
-                                Rule::matched_tag | Rule::self_closing_tag | Rule::statement_control_flow => {
-                                    //it's another tag — time to recurse
-                                    recurse_visit_tag_pairs_for_pascal_identifiers(sub_tag_pair, Rc::clone(&pascal_identifiers));
-                                },
-                                _ => {unreachable!("Parsing error 2355593: {:?}", sub_tag_pair.as_rule());},
-                            }
-                        }
-                        )
+                            recurse_visit_tag_pairs_for_pascal_identifiers(sub_tag_pair, Rc::clone(&pascal_identifiers));
+                        })
+                },
+                Rule::expression_body => {
+                    //e.g. for `slot` -- not necessary to worry about for PascalIdentifiers
                 },
                 _ => {unreachable!("Parsing error 4449292922: {:?}", prospective_inner_nodes.as_rule());}
             }
@@ -386,63 +380,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
                     unreachable!("Parsing error 883427242: {:?}", matched_tag.as_rule());;
                 }
             };
-            //
-            // let mut open_tag = matched_tag.clone().into_inner().next().unwrap().into_inner();
-            // let pascal_identifier = open_tag.next().unwrap().as_str();
-            //
-            //
-            // let new_id = create_uuid();
-            // if ctx.is_root {
-            //     ctx.root_template_node_id = Some(new_id.clone());
-            // }
-            // ctx.is_root = false;
-            //
-            // //add self to parent's children_id_list
-            // let mut parents_children_id_list = ctx.children_id_tracking_stack.pop().unwrap();
-            // parents_children_id_list.push(new_id.clone());
-            // ctx.children_id_tracking_stack.push(parents_children_id_list);
-            //
-            // //push the frame for this node's children
-            // ctx.children_id_tracking_stack.push(vec![]);
-            //
-            // //recurse into inner_nodes
-            // let prospective_inner_nodes = matched_tag.into_inner().nth(1).unwrap();
-            // match prospective_inner_nodes.as_rule() {
-            //     Rule::inner_nodes => {
-            //         let inner_nodes = prospective_inner_nodes;
-            //         inner_nodes.into_inner()
-            //             .for_each(|sub_tag_pair|{
-            //                 match sub_tag_pair.as_rule() {
-            //                     Rule::matched_tag | Rule::self_closing_tag | Rule::statement_control_flow => {
-            //                         //it's another tag — time to recurse
-            //                         recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
-            //                     },
-            //                     // Rule::statement_control_flow => {
-            //                     //     //Control flow is also handled as basic TemplateNodeDefinitions,
-            //                     //     //maybe with extra handling around expressions/bindings
-            //                     //
-            //                     //     unimplemented!("Control flow not yet supported");
-            //                     // },
-            //                     _ => {unreachable!()},
-            //                 }
-            //             }
-            //             )
-            //     },
-            //     Rule::closing_tag => {},
-            //     _ => {panic!("wrong .nth")}
-            // }
-            //
-            // let template_node = TemplateNodeDefinition {
-            //     id: new_id,
-            //     component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect("Template key not found").to_string(),
-            //     inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
-            //     children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
-            // };
-            // ctx.template_node_definitions.push(template_node);
-            //
-            //
-            //
-            // todo!("support control flow mapping into TemplateNodeDefinitions");
+            
         }
         _ => {unreachable!("Parsing error 2232444421: {:?}", any_tag_pair.as_rule());}
     }
@@ -456,8 +394,9 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
         let key = kv.next().unwrap().as_str().to_string();
         let mut raw_value = kv.next().unwrap().into_inner().next().unwrap();
         let value = match raw_value.as_rule() {
-            Rule::string => {AttributeValueDefinition::String(raw_value.as_str().to_string())},
+            Rule::literal_value => {AttributeValueDefinition::LiteralValue(raw_value.as_str().to_string())},
             Rule::expression => {AttributeValueDefinition::Expression(raw_value.as_str().to_string())},
+            Rule::identifier => {AttributeValueDefinition::Identifier(raw_value.as_str().to_string())},
             _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}
         };
         (key, value)
@@ -599,6 +538,18 @@ pub struct ManifestContext {
     pub component_definitions: Vec<ComponentDefinition>,
 
     pub template_map: HashMap<String, String>,
+}
+
+
+impl Default for ManifestContext {
+    fn default() -> Self {
+        Self {
+            root_component_id: "".into(),
+            visited_source_ids: HashSet::new(),
+            component_definitions: vec![],
+            template_map: HashMap::new(),
+        }
+    }
 }
 
 //TODO: support fragments of pax that ARE NOT pax_component_definition (e.g. inline expressions)

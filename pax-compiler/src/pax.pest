@@ -18,7 +18,7 @@ root_tag_pair = { any_tag_pair }
 
 //On the other hand, the inner_nodes (children of another tag)
 //may have multiple top-level siblings
-inner_nodes = { node_inner_content | (statement_control_flow | any_tag_pair )* }
+inner_nodes = { node_inner_content | (any_tag_pair)* }
 
 //This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>
@@ -32,7 +32,7 @@ attribute_event_binding = {attribute_event_id ~ "=" ~ expression_symbolic_bindin
 
 //`...=5.0`, `...={...}`, `id=some_id`
 any_template_value = {literal_value | expression | identifier}
-any_tag_pair = _{matched_tag | self_closing_tag}
+any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag}
 
 //Describes an XML subtree surrounded by a pair of matching tags, like
 //<SomeElement>...</SomeElement>

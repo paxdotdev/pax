@@ -5,7 +5,7 @@ use std::str::FromStr;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
 use quote::quote;
-use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPaxRoot};
+use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax};
 
 use syn::{parse_macro_input, Data, DeriveInput};
 
@@ -38,10 +38,25 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
 #[proc_macro_attribute]
 pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let _ = args;
-    let _ = input;
+    let original_tokens = input.to_string();
 
-    input
+    let input_parsed = parse_macro_input!(input as DeriveInput);
+    let pascal_identifier = input_parsed.ident.to_string();
+
+    let raw_pax = args.to_string();
+    let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+
+    let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
+        raw_pax,
+        pascal_identifier,
+        original_tokens: original_tokens,
+        is_root: false,
+        dependencies,
+    });
+
+    println!("Macro output: {}", &output);
+
+    TokenStream::from_str(&output).unwrap().into()
 }
 
 // Exactly like `#[pax()]`, except specifies that the attached component is intended to be mounted at
@@ -56,10 +71,11 @@ pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
     let raw_pax = args.to_string();
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
-    let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPaxRoot{
+    let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
         original_tokens: original_tokens,
+        is_root: true,
         dependencies,
     });
 

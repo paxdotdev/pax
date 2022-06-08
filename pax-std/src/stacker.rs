@@ -10,7 +10,7 @@ use crate::types::{StackerDirection, StackerCellProperties};
 /// and vertically, alongside `Transform.align` and `Transform.anchor` to achieve any 2D layout.
 #[pax(
     for (elem, i) in self.computed_layout_spec {
-        <Frame transform={translate(elem.x_px, elem.y_px)} size={[elem.width_px, elem.height_px]}>
+        <Frame transform={Translate(elem.x_px, elem.y_px)} size={Size(elem.width_px, elem.height_px)}>
             slot(i)
         </Frame>
     }

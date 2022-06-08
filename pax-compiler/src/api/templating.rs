@@ -18,10 +18,11 @@ pub struct TemplateArgsMacroPaxPrimitive {
 
 
 #[derive(Serialize)]
-pub struct TemplateArgsMacroPaxRoot {
+pub struct TemplateArgsMacroPax {
     pub raw_pax: String,
     pub pascal_identifier: String,
     pub original_tokens: String,
+    pub is_root: bool,
     pub dependencies: Vec<String>,
 }
 
@@ -32,7 +33,7 @@ pub fn press_template_macro_pax_primitive(args: TemplateArgsMacroPaxPrimitive ) 
 }
 
 
-pub fn press_template_macro_pax_root(args: TemplateArgsMacroPaxRoot ) -> String {
-    let template = TEMPLATE_DIR.get_file("macros/pax_root").unwrap().contents_utf8().unwrap();
+pub fn press_template_macro_pax_root(args: TemplateArgsMacroPax) -> String {
+    let template = TEMPLATE_DIR.get_file("macros/pax").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }

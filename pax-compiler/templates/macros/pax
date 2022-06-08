@@ -5,14 +5,10 @@ use pax_compiler_api::{ManifestContext, PaxManifest};
 #[cfg(feature = "parser")]
 use std::collections::{HashSet, HashMap};
 
+{% if is_root %}
 #[cfg(feature = "parser")]
 pub fn main() {
-    let mut ctx = ManifestContext {
-        root_component_id: "".into(),
-        visited_source_ids: HashSet::new(),
-        component_definitions: vec![],
-        template_map: HashMap::new(),
-    };
+    let mut ctx = ManifestContext::default();
 
     let (ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
 
@@ -24,7 +20,7 @@ pub fn main() {
     println!("serialized bytes: {:?}", manifest.serialize());
     std::process::exit(0);
 }
-
+{% endif %}
 
 {{original_tokens}}
 

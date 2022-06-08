@@ -60,8 +60,9 @@ pub struct TemplateNodeDefinition {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum AttributeValueDefinition {
-    String(String),
+    LiteralValue(String),
     Expression(String),
+    Identifier(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
