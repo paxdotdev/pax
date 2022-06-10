@@ -366,32 +366,45 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
             let matched_tag = any_tag_pair.into_inner().next().unwrap();
             let new_id = create_uuid();
 
-            let mut pascal_identifier = "";
 
-            match matched_tag.as_rule() {
+            //add self to parent's children_id_list
+            let mut parents_children_id_list = ctx.children_id_tracking_stack.pop().unwrap();
+            parents_children_id_list.push(new_id.clone());
+            ctx.children_id_tracking_stack.push(parents_children_id_list);
+
+            //push the frame for this node's children
+            ctx.children_id_tracking_stack.push(vec![]);
+
+            let template_node = match matched_tag.as_rule() {
                 Rule::statement_if => {
-                    pascal_identifier = "Conditional";
-
+                    TemplateNodeDefinition {
+                        id: new_id,
+                        component_id: "Conditional".to_string(),
+                        inline_attributes: None,// todo!("package attributes from control-flow; keep as strings"),
+                        children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                    }
                 },
                 Rule::statement_for => {
-                    pascal_identifier = "Repeat";
-
+                    TemplateNodeDefinition {
+                        id: new_id,
+                        component_id: "Repeat".to_string(),
+                        inline_attributes: None,// todo!("package attributes from control-flow; keep as strings"),
+                        children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                    }
                 },
                 Rule::statement_slot => {
-                    pascal_identifier = "Slot";
-
+                    TemplateNodeDefinition {
+                        id: new_id,
+                        component_id: "Slot".to_string(),
+                        inline_attributes: None,// todo!("package attributes from control-flow; keep as strings"),
+                        children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                    }
                 },
                 _ => {
                     unreachable!("Parsing error 883427242: {:?}", matched_tag.as_rule());;
                 }
             };
 
-            let template_node = TemplateNodeDefinition {
-                id: new_id,
-                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
-                inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
-                children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
-            };
             ctx.template_node_definitions.push(template_node);
 
         },
@@ -405,17 +418,32 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
 
 fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Rule>) -> Option<Vec<(String, AttributeValueDefinition)>> {
     let vec : Vec<(String, AttributeValueDefinition)> = final_pairs_of_tag.map(|attribute_key_value_pair|{
-        let mut kv = attribute_key_value_pair.into_inner();
-        //TODO: handle expression
-        let key = kv.next().unwrap().as_str().to_string();
-        let mut raw_value = kv.next().unwrap().into_inner().next().unwrap();
-        let value = match raw_value.as_rule() {
-            Rule::literal_value => {AttributeValueDefinition::LiteralValue(raw_value.as_str().to_string())},
-            Rule::expression => {AttributeValueDefinition::Expression(raw_value.as_str().to_string())},
-            Rule::identifier => {AttributeValueDefinition::Identifier(raw_value.as_str().to_string())},
-            _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}
-        };
-        (key, value)
+        match attribute_key_value_pair.clone().into_inner().next().unwrap().as_rule() {
+            Rule::attribute_event_binding => {
+                // attribute_event_binding = {attribute_event_id ~ "=" ~ expression_symbolic_binding}
+                let mut kv = attribute_key_value_pair.into_inner();
+                let mut attribute_event_binding = kv.next().unwrap().into_inner();
+                let event_id = attribute_event_binding.next().unwrap().as_str().to_string();
+                let symbolic_binding = attribute_event_binding.next().unwrap().as_str().to_string();
+                //TODO: handle expression
+                (event_id, AttributeValueDefinition::EventBindingTarget(symbolic_binding))
+            },
+            _ => { //Vanilla `key=value` pair
+
+                let mut kv = attribute_key_value_pair.into_inner();
+                //TODO: handle expression
+                let key = kv.next().unwrap().as_str().to_string();
+                let mut raw_value = kv.next().unwrap().into_inner().next().unwrap();
+                let value = match raw_value.as_rule() {
+                    Rule::literal_value => {AttributeValueDefinition::LiteralValue(raw_value.as_str().to_string())},
+                    Rule::expression => {AttributeValueDefinition::Expression(raw_value.as_str().to_string())},
+                    Rule::identifier => {AttributeValueDefinition::Identifier(raw_value.as_str().to_string())},
+                    _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}
+                };
+                (key, value)
+            }
+        }
+
     }).collect();
 
     if vec.len() > 0 {

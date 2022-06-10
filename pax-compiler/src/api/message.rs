@@ -63,6 +63,7 @@ pub enum AttributeValueDefinition {
     LiteralValue(String),
     Expression(String),
     Identifier(String),
+    EventBindingTarget(String),
 }
 
 #[derive(Serialize, Deserialize, Debug)]
