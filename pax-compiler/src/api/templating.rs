@@ -32,7 +32,6 @@ pub fn press_template_macro_pax_primitive(args: TemplateArgsMacroPaxPrimitive ) 
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
-
 pub fn press_template_macro_pax_root(args: TemplateArgsMacroPax) -> String {
     let template = TEMPLATE_DIR.get_file("macros/pax").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()

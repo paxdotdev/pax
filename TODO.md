@@ -220,8 +220,7 @@ _RIL means Rust Intermediate Language, which is the
 [ ] `pax-compiler`
     [ ] support stand-alone .pax files (no rust file); .html use-case
         [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
-    [ ] update .pest and manifest-populating logic to latest language spec
-        [ ] 
+    [x] update .pest and manifest-populating logic to latest language spec
     [x] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
         [-] NOTE: provisionally, this whole group is solved as not necessary, in light of the "parser binary" feature-flagged approach
         [x] science: determine how macros behave, caching of expansion, incremental compilation
@@ -233,15 +232,15 @@ _RIL means Rust Intermediate Language, which is the
     [x] architecture
         [x] compiler seq. diagram 
         [x] dependency diagram
-    [ ] two-stage compilation process
+    [x] two-stage compilation process
         [x] thread/process/IPC chassis
         [x] parser cargo feature
         [x] bin-running harness to execute parser (see https://stackoverflow.com/questions/62180215/renaming-main-rs-and-using-with-cargo)
-        [ ] TCP message passing
+        [-] TCP message passing (using stdio for now)
             [x] de/serialization for manifest
                 [x] maybe normalize SelectorLiteralBlockDefinitions, if Serde can't elegantly de/serialize it
                 [x] or de-normalize TemplateNodeDefinition!
-            [ ] coordination of TCP client/server from compiler main thread
+            [-] coordination of TCP client/server from compiler main thread
         [x] parse and load .pax files
             [x] load file via macro
             [x] generate the parser bin logic via macro
@@ -252,7 +251,8 @@ _RIL means Rust Intermediate Language, which is the
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
-    [ ] dep. management -- augment prelude with static dep. list?
+    [ ] dep. management
+        [ ] augment prelude with static dep. list? e.g. for resolving `Transform2D::*` with implicit `Transform2D::`
         [ ] Support static constants?  e.g. JABBERWOCKY use-case
     [ ] expression compilation
         [ ] expression string => RIL generation
@@ -270,10 +270,13 @@ _RIL means Rust Intermediate Language, which is the
             [ ] shuttle data into RepeatInstance via Manifest
         [ ] if
             [ ] parse condition, handle as expression
+        [ ] slot
+            [ ] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
 [ ] compiler codegen
     [ ] codegen Cargo.toml + solution for patching
         [x] manual
         [ ] automated + file generation
+        [ ] Note use-case: pax-std also needs the same feature flags + deps.  Would be nice to automate!
     [ ] parser bin logic finish-line
         [ ] macro
     [ ] codegen PropertiesCoproduct

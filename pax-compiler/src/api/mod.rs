@@ -19,6 +19,7 @@ pub use templating::*;
 
 pub use lazy_static::lazy_static;
 
+
 #[derive(Parser)]
 #[grammar = "pax.pest"]
 pub struct PaxParser;
@@ -146,7 +147,7 @@ pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, expl
             }
         };
 
-    println!("path: {:?}", path);
+    // println!("path: {:?}", path);
     let pax = fs::read_to_string(path).unwrap();
 
     let (ctx, comp_def) = parse_full_component_definition_string(ctx, &pax, pascal_identifier, true, template_map, source_id, module_path);
@@ -603,7 +604,7 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
-    println!("ast: {}", ast);
+    // println!("ast: {}", ast);
 
     if is_root {
         ctx.root_component_id = source_id.to_string();

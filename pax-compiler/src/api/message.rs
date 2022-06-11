@@ -9,9 +9,8 @@ use pest::iterators::{Pair, Pairs};
 use uuid::Uuid;
 use pest::Parser;
 
-
-use bincode::{deserialize, serialize};
-use serde::{Deserialize, Serialize};
+use serde_derive::{Serialize, Deserialize};
+use serde_json;
 
 
 //definition container for an entire Pax cartridge
@@ -21,18 +20,20 @@ pub struct PaxManifest {
     pub root_component_id: String,
 }
 
-//these methods are exposed to encapsulate the serialization method/version (at time of writing: bincode 1.3.3)
-//though that particular version isn't important, this prevents consuming libraries from having to
-//coordinate versions/strategies for serialization
-impl PaxManifest {
-    pub fn serialize(&self) -> Vec<u8> {
-        serialize(&self).unwrap()
-    }
 
-    pub fn deserialize(bytes: &[u8]) -> Self {
-        deserialize(bytes).unwrap()
-    }
-}
+// FOR BINCODE:
+// these methods are exposed to encapsulate the serialization method/version (at time of writing: bincode 1.3.3)
+// though that particular version isn't important, this prevents consuming libraries from having to
+// coordinate versions/strategies for serialization
+// impl PaxManifest {
+//     pub fn serialize(&self) -> Vec<u8> {
+//         serialize(&self).unwrap()
+//     }
+//
+//     pub fn deserialize(bytes: &[u8]) -> Self {
+//         deserialize(bytes).unwrap()
+//     }
+// }
 
 
 #[derive(Serialize, Deserialize, Debug)]

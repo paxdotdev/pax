@@ -14,7 +14,6 @@ impl {{pascal_identifier}} {
                 ctx.template_map.insert(PASCAL_IDENTIFIER.to_string(), source_id.to_string());
                 let template_map= ctx.template_map.clone();
                 let comp_def = pax_compiler_api::handle_primitive(PASCAL_IDENTIFIER, module_path!(), &source_id);
-                println!("{:?}", &comp_def);
                 ctx.component_definitions
                     .push(comp_def);
                 (ctx, source_id.to_string())

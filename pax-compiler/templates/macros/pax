@@ -4,6 +4,8 @@ use pax_compiler_api;
 use pax_compiler_api::{ManifestContext, PaxManifest};
 #[cfg(feature = "parser")]
 use std::collections::{HashSet, HashMap};
+#[cfg(feature = "parser")]
+use serde_json;
 
 {% if is_root %}
 #[cfg(feature = "parser")]
@@ -17,7 +19,8 @@ pub fn main() {
         root_component_id: ctx.root_component_id,
     };
 
-    println!("serialized bytes: {:?}", manifest.serialize());
+    //Send data back to parent process by printing to stdout
+    println!("{}", &serde_json::to_string_pretty(&manifest).unwrap());
     std::process::exit(0);
 }
 {% endif %}
@@ -27,9 +30,6 @@ pub fn main() {
 #[cfg(feature = "parser")]
 impl {{pascal_identifier}} {
     pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
-        //a given source may be EITHER a.) inline pax, or b.) code-behind pax.
-        //this is decided based on which macro is used: [#pax(contents)] for inline and [#pax_file("path")] for file
-        //those two macros should be otherwise equivalent, generating simply a different line that evaluates `raw_pax`.
 
         let source_id = "component::{{pascal_identifier}}";
 
@@ -63,7 +63,6 @@ impl {{pascal_identifier}} {
                         module_path!(),
                     );
 
-                println!("{:?}", &comp_def);
 
                 ctx.component_definitions
                     .push(comp_def);

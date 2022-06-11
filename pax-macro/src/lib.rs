@@ -24,6 +24,7 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
         original_tokens: original_tokens
     });
 
+
     TokenStream::from_str(&output).unwrap().into()
 }
 
@@ -54,7 +55,7 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
         dependencies,
     });
 
-    println!("Macro output: {}", &output);
+    // println!("Macro output: {}", &output);
 
     TokenStream::from_str(&output).unwrap().into()
 }
@@ -79,7 +80,7 @@ pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
         dependencies,
     });
 
-    println!("Macro output: {}", &output);
+    // println!("Macro output: {}", &output);
 
     TokenStream::from_str(&output).unwrap().into()
 }

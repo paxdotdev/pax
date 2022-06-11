@@ -25,9 +25,10 @@ use clap::{App, AppSettings, Arg};
 
 use futures::prelude::*;
 use include_dir::{Dir, include_dir};
+use serde::Serialize;
 
 // use crate::parser::message::*;
-use serde_json::Value;
+use serde_json::{Value, json};
 use tera::Tera;
 use tokio::process::Command;
 use tokio::sync::oneshot;
@@ -38,6 +39,7 @@ use tokio_serde::formats::*;
 
 use toml_edit::{Document, value};
 use uuid::Uuid;
+use crate::api::PaxManifest;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -146,16 +148,22 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
         .unwrap();
 
     let out = String::from_utf8(output.stdout).unwrap();
-    println!("{}", &out);
+
     let err = String::from_utf8(output.stderr).unwrap();
-    println!("{}", &err);
+
+
+    // println!("PARSING: {}", &out);
+    //
 
     assert_eq!(output.status.code().unwrap(), 0);
 
+    //TODO: port to JSON serialization
 
 
-    //4. Run compiled `parser binary` from tmp, which reports back to parser coordination server
-    //5. After PaxManifest is received by main thread, shut down parser coordination server
+    let manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+
+    // println!("Received and deserialized manifest: {}", serde_json::to_string(&manifest).unwrap());
+    // let manifest = PaxManifest::deserialize();
     //6. Codegen:
     //   - Properties Coproduct
     //   - Cartridge
