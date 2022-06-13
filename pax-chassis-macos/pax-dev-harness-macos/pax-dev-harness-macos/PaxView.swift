@@ -46,18 +46,17 @@ struct PaxView: View {
                 .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
             NativeRenderingLayer()
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
-            
+            //TODO: especially if parsing is a bottleneck, could use a different encoding than JSON
             let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f} }", dragGesture.location.x, dragGesture.location.y);
             let buffer = try! FlexBufferBuilder.fromJSON(json)
             
-            
+            //Send `Click` interrupt
             buffer.data.withUnsafeBytes({ptr in
                 var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
                 
                 withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
                     pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
                 }
-                
             })
         })
     }

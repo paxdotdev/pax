@@ -1,5 +1,6 @@
 #[macro_use]
 extern crate pest_derive;
+extern crate core;
 
 use tokio::net::{TcpListener, TcpStream};
 
@@ -81,7 +82,7 @@ async fn main() -> Result<(), Error> {
             let path = args.value_of("path").unwrap().to_string(); //default value "."
 
             perform_run(RunContext{
-                target,
+                target: RunTarget::from(target.as_str()),
                 path,
                 handle: Handle::current(),
             }).await?;
@@ -94,9 +95,93 @@ async fn main() -> Result<(), Error> {
 }
 
 struct RunContext {
-    target: String,
+    target: RunTarget,
     path: String,
     handle: Handle,
+}
+
+enum RunTarget {
+    MacOS,
+    Web,
+}
+
+impl From<&str> for RunTarget {
+    fn from(input: &str) -> Self {
+        match input.to_lowercase().as_str() {
+            "macos" => {
+                RunTarget::MacOS
+            },
+            "web" => {
+                RunTarget::Web
+            }
+            _ => {unreachable!()}
+        }
+    }
+}
+
+impl<'a> Into<&'a str> for &'a RunTarget {
+    fn into(self) -> &'a str {
+        match self {
+            RunTarget::Web => {
+                "Web"
+            },
+            RunTarget::MacOS => {
+                "MacOS"
+            },
+            _ => {
+                unreachable!();
+            }
+        }
+    }
+}
+
+
+
+fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
+    // todo!()
+}
+fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
+    // todo!()
+}
+fn generate_cargo_definition(pax_dir: &PathBuf, target: &RunTarget, build_id: &str, manifest: &PaxManifest) {
+    //1. clone (git or raw fs) pax-chassis-whatever into .pax/chassis/
+    let chassis_dir = pax_dir.join("chassis");
+    std::fs::create_dir_all(&chassis_dir).expect("Failed to create chassis directory.  Check filesystem permissions?");
+
+    clone_target_chassis_to_dot_pax(&chassis_dir, target);
+
+    //2. generate Cargo.toml in place with correct relative paths / patches; run build script
+    todo!();
+}
+
+// static CHASSIS_MACOS_GIT_ROOT : &str = "~/code/pax-lang"; //TODO: update to github or other CDN
+// static CHASSIS_MACOS_GIT_SUBTREE : &str = "/pax-chassis-macos";
+// static CHASSIS_WEB_GIT_ROOT : &str = "~/code/pax-lang"; //TODO: update to github or other CDN
+// static CHASSIS_WEB_GIT_SUBTREE : &str = "/pax-chassis-web";
+
+static CHASSIS_MACOS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos");
+static CHASSIS_WEB_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web");
+/// Clone a copy of the relevant chassis (and dev harness) to the local .pax directory
+/// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
+/// and the encapsulated dev harness is the actual dev executable
+fn clone_target_chassis_to_dot_pax(chassis_dir: &PathBuf, target: &RunTarget) {
+    let target_str : &str = target.into();
+    let chassis_specific_dir = chassis_dir.join(target_str );
+
+    match target {
+        RunTarget::MacOS => {
+            //TODO: clone pax-chassis-macos into chassis_specific_dir
+            //git clone {CHASSIS_MACOS_GIT_ROOT} --sparse...
+            //Alternatively: loop through dirs/files of CHASSIS_MACOS_DIR and write to disk
+            let x = CHASSIS_MACOS_DIR.files();
+            println!("x");
+        }
+        RunTarget::Web => {
+            //TODO: clone pax-chassis-web into chassis_specific_dir
+            let x = CHASSIS_WEB_DIR.files();
+            println!("x");
+        }
+    }
 }
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
@@ -113,13 +198,13 @@ fn get_or_create_pax_tmp_directory(working_dir: &str) -> PathBuf {
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
-
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     println!("Performing run");
 
+    let pax_dir = get_or_create_pax_directory(&ctx.path);
     let tmp_dir =  get_or_create_pax_tmp_directory(&ctx.path);
 
     //TODO: handle stand-alone .pax files
@@ -148,26 +233,23 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
         .unwrap();
 
     let out = String::from_utf8(output.stdout).unwrap();
-
-    let err = String::from_utf8(output.stderr).unwrap();
-
+    let _err = String::from_utf8(output.stderr).unwrap();
 
     // println!("PARSING: {}", &out);
-    //
 
     assert_eq!(output.status.code().unwrap(), 0);
 
-    //TODO: port to JSON serialization
-
-
     let manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
 
-    // println!("Received and deserialized manifest: {}", serde_json::to_string(&manifest).unwrap());
-    // let manifest = PaxManifest::deserialize();
     //6. Codegen:
     //   - Properties Coproduct
     //   - Cartridge
     //   - Cargo.toml for the appropriate `chassis` (including patches for Properties Coproduct & Cartridge)
+    let build_id = Uuid::new_v4().to_string();
+    generate_properties_coproduct(&pax_dir, &build_id, &manifest);
+    generate_cartridge_definition(&pax_dir, &build_id, &manifest);
+    generate_cargo_definition(&pax_dir, &ctx.target, &build_id, &manifest);
+
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     //8. Run dev harness, with freshly built chassis plugged in
 

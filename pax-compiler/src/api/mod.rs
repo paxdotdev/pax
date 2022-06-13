@@ -230,7 +230,6 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
                     n = 2;
                 },
                 Rule::statement_slot => {
-                    //`slot` is a leaf node, just needs to register `Slot`
                     n = 0;
                 },
                 _ => {
@@ -248,6 +247,7 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
                         })
                 },
                 Rule::expression_body => {
+                    //This space intentionally left blank.
                     //e.g. for `slot` -- not necessary to worry about for PascalIdentifiers
                 },
                 _ => {unreachable!("Parsing error 4449292922: {:?}", prospective_inner_nodes.as_rule());}
@@ -276,9 +276,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateParseContex
             _ => {}
         }
     });
-
 }
-
 
 
 struct TemplateParseContext {
@@ -292,8 +290,6 @@ struct TemplateParseContext {
     //but not when iterating over siblings
     pub children_id_tracking_stack: Vec<Vec<String>>,
 }
-
-
 
 
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_pair: Pair<Rule>)  {
