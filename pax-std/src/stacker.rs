@@ -4,10 +4,10 @@ use pax::api::{Size2D, Size, ArgsRender, Property};
 use crate::primitives::Frame;
 use crate::types::{StackerDirection, StackerCellProperties};
 
-/// A layout component which renders a series of nodes either
+/// `Stacker` is a layout component that renders a series of nodes either
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
-/// each node.  Stackers can be stacked inside of each other, horizontally
-/// and vertically, alongside `Transform.align` and `Transform.anchor` to achieve any 2D layout.
+/// each node.  `Stacker`s can be stacked inside of each other, horizontally
+/// and vertically, along with `Transform.align` and `Transform.anchor` to compose any rectilinear 2D layout.
 #[pax(
     for (elem, i) in self.computed_layout_spec {
         <Frame transform={Translate(elem.x_px, elem.y_px)} size={Size(elem.width_px, elem.height_px)}>
