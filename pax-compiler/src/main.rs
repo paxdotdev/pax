@@ -20,6 +20,7 @@ use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::str::FromStr;
 use std::sync::Arc;
 
 use clap::{App, AppSettings, Arg};
@@ -148,79 +149,54 @@ fn generate_cargo_definition(pax_dir: &PathBuf, target: &RunTarget, build_id: &s
     let chassis_dir = pax_dir.join("chassis");
     std::fs::create_dir_all(&chassis_dir).expect("Failed to create chassis directory.  Check filesystem permissions?");
 
-    clone_target_chassis_to_dot_pax(&chassis_dir, target);
+    let target_str : &str = target.into();
+    let relative_chassis_specific_dir = chassis_dir.join(target_str);
+
+    clone_target_chassis_to_dot_pax(&relative_chassis_specific_dir, target_str);
 
     //2. generate Cargo.toml in place with correct relative paths / patches; run build script
     // todo!("Generate Cargo.toml file in place");
-    println!("TODO! Generate Cargo.toml");
+    println!("TODO! Generate Cargo.toml {:?}", &relative_chassis_specific_dir.join("Cargo.toml"));
+
+
+
+    let existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(
+        fs::canonicalize(relative_chassis_specific_dir.join("Cargo.toml")).unwrap()).unwrap());
+    println!("debug");
+    //use toml_edit -- edit Cargo.toml inline from chassis-specific directory
 
 }
 
-// static CHASSIS_MACOS_GIT_ROOT : &str = "~/code/pax-lang"; //TODO: update to github or other CDN
-// static CHASSIS_MACOS_GIT_SUBTREE : &str = "/pax-chassis-macos";
-// static CHASSIS_WEB_GIT_ROOT : &str = "~/code/pax-lang"; //TODO: update to github or other CDN
-// static CHASSIS_WEB_GIT_SUBTREE : &str = "/pax-chassis-web";
 
 static CHASSIS_MACOS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos");
+//TODO: including this whole pax-chassis-web directory, plus node_modules, adds >100MB to the size of the
+//      compiler binary; also extends build times for Web and build times for pax-compiler itself.
+//      These are all development dependencies, namely around webpack/typescript -- this could be
+//      improved with a "production build" of `pax-chassis-web` that gets included into the compiler
 static CHASSIS_WEB_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web");
 /// Clone a copy of the relevant chassis (and dev harness) to the local .pax directory
 /// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
 /// and the encapsulated dev harness is the actual dev executable
-fn clone_target_chassis_to_dot_pax(chassis_dir: &PathBuf, target: &RunTarget) {
-    let target_str : &str = target.into();
-    let chassis_specific_dir = chassis_dir.join(target_str );
-    fs::remove_dir_all(&chassis_specific_dir);
+fn clone_target_chassis_to_dot_pax(relative_chassis_specific_dir: &PathBuf, target_str: &str) -> std::io::Result<()> {
 
-    match target {
+    fs::remove_dir_all(&relative_chassis_specific_dir);
+    fs::create_dir_all(&relative_chassis_specific_dir);
+
+    //Note: zb spent too long tangling with this -- seems like fs::remove* and fs::create* work
+    //      only with the relative path, while Dir::extract requires a canonicalized path.  At least: this works on macOS,
+    //      and failed silently/partially in all explored configurations until this one
+    let chassis_specific_dir = fs::canonicalize(&relative_chassis_specific_dir).expect("Invalid path");
+
+    println!("Extracting {} chassis to {:?}", target_str, chassis_specific_dir);
+    match RunTarget::from(target_str) {
         RunTarget::MacOS => {
-            // CHASSIS_MACOS_DIR.extract(&chassis_specific_dir);
-            for entry in CHASSIS_MACOS_DIR.entries() {
-                let path = (&chassis_specific_dir).join(entry.path());
-
-                match entry {
-                    DirEntry::File(f) => {
-                        fs::write(path, f.contents());
-                    },
-                    DirEntry::Dir(d) => {
-                        fs::create_dir_all(&path);
-                        d.extract(&chassis_specific_dir);
-                    }
-
-                }
-            }
-
+            CHASSIS_MACOS_DIR.extract(&chassis_specific_dir)
         }
         RunTarget::Web => {
-            // CHASSIS_WEB_DIR.extract(&chassis_specific_dir);
-            //
-            for entry in CHASSIS_WEB_DIR.entries() {
-                let path = (&chassis_specific_dir).join(entry.path());
-
-                match entry {
-                    DirEntry::File(f) => {
-                        fs::write(path, f.contents());
-                    },
-                    DirEntry::Dir(d) => {
-                        fs::create_dir_all(&path);
-                        d.extract(&chassis_specific_dir);
-                    }
-
-                }
-            }
+            CHASSIS_WEB_DIR.extract(&chassis_specific_dir)
         }
     }
 }
-//
-// fn print_included_dir_to_disk(dir: &Dir, mount_dir: &PathBuf) {
-//     println!("{:?}", dir);
-//     dir.files().for_each(|f| {
-//         println!("found file {:?}", f);
-//     });
-//     dir.dirs().for_each(|d| {
-//         d.extract();
-//         print_included_dir_to_disk(d, &mount_dir.join(d.path().))
-//     });
-// }
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let mut working_path = std::path::Path::new(working_dir).join(".pax");
@@ -288,8 +264,6 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     generate_cartridge_definition(&pax_dir, &build_id, &manifest);
     generate_cargo_definition(&pax_dir, &ctx.target, &build_id, &manifest);
 
-
-    thread::sleep(Duration::from_secs(5));
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     //8. Run dev harness, with freshly built chassis plugged in
 
