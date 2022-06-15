@@ -923,7 +923,7 @@ Thus, and given that property schemas will need to be understood by the parser e
 We need a fn:
 ```
 compute_properties_fn: |mut properties: PropertiesCoproduct, rtc: &RenderTreeContext|{
-    if let PropertiesCoproduct::Root(mut properties_cast) = properties {
+    if let PropertiesCoproduct::HelloWorld(mut properties_cast) = properties {
         //Note: this is code-genned based on parsed knowlege of the properties
         //      of `Root`
         properties_cast.deeper_struct.compute_in_place(rtc);

@@ -65,7 +65,7 @@ identifier = @{ ASCII_ALPHANUMERIC ~ (ASCII_ALPHANUMERIC | "_")* }
 //Intended as convention for symbolic ids in expressions, e.g. `Engine`, specification
 //of explicit types in polymorphic/enum contexts (e.g. `fill: Color {...}`), and
 //for namespaced access of symbolic ids, like `Orientation::Vertical`
-pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_" | "-")*}
+pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 
 
 //////  //////  //////

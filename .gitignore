@@ -6,7 +6,6 @@ pax-chassis-macos/pax-dev-harness-macos/build
 **/*.rs.bk
 Cargo.lock
 .DS_Store
-.pax
 .cargo
 
 ## Intellij Idea project configuration files

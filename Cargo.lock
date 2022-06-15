@@ -1944,7 +1944,6 @@ dependencies = [
  "uuid",
  "walkdir",
  "wasm-bindgen",
- "web-sys",
 ]
 
 [[package]]
@@ -1958,7 +1957,6 @@ dependencies = [
  "pax-runtime-api",
  "piet",
  "piet-common",
- "piet-web",
  "wasm-bindgen",
  "wee_alloc",
 ]

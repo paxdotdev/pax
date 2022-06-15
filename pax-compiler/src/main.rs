@@ -144,6 +144,14 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
 fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
     // todo!()
 }
+
+
+
+fn upsert_chassis_cargo_toml_patch(doc: &toml_edit::Document) {
+    //if there's a [patch] segment
+    // doc.insert()
+}
+
 fn generate_cargo_definition(pax_dir: &PathBuf, target: &RunTarget, build_id: &str, manifest: &PaxManifest) {
     //1. clone (git or raw fs) pax-chassis-whatever into .pax/chassis/
     let chassis_dir = pax_dir.join("chassis");
@@ -197,6 +205,7 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_dir: &PathBuf, targ
         }
     }
 }
+
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let mut working_path = std::path::Path::new(working_dir).join(".pax");

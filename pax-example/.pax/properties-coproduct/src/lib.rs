@@ -7,13 +7,14 @@ pub enum PropertiesCoproduct {
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     isize(isize), //used by range for repeat (0..10)
+    
     //generated
     StackerCellProperties(pax_example::pax_types::pax_std::types::StackerCellProperties),
     Rectangle(pax_example::pax_types::pax_std::primitives::Rectangle),
     Text(pax_example::pax_types::pax_std::primitives::Text),
     Group(pax_example::pax_types::pax_std::primitives::Group),
     Stacker(pax_example::pax_types::pax_std::components::Stacker),
-    Root(pax_example::Root),
+    HelloWorld(pax_example::HelloWorld),
 
 }
 
@@ -22,6 +23,8 @@ pub enum PropertiesCoproduct {
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
     //core (?)
+
+    i64(i64),
     f64(f64),
     bool(bool),
     isize(isize),
