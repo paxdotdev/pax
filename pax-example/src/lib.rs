@@ -4,7 +4,6 @@ use pax_std::primitives::{Text, Rectangle, Group};
 use pax_std::components::{Stacker};
 
 
-
 pub mod pax_types {
     pub mod pax_std {
         pub mod primitives {
