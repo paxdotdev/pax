@@ -251,6 +251,7 @@ _RIL means Rust Intermediate Language, which is the
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
     [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
+        [ ] Alternatively: back out of async, given stdio for 
     [ ] dep. management
         [ ] augment prelude with static dep. list? e.g. for resolving `Transform2D::*` with implicit `Transform2D::`
         [ ] Support static constants?  e.g. JABBERWOCKY use-case
@@ -273,20 +274,25 @@ _RIL means Rust Intermediate Language, which is the
         [ ] slot
             [ ] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
 [ ] compiler codegen
-    [ ] codegen Cargo.toml + solution for patching
+    [-] codegen Cargo.toml + solution for patching
+    Note: decided to require manual Cargo setup for launch (solved by `generate` use-case)
         [x] manual
-        [ ] automated + file generation
-        [ ] Note use-case: pax-std also needs the same feature flags + deps.  Would be nice to automate!
-    [ ] parser bin logic finish-line
-        [ ] macro
+        [-] automated + file generation
+        [-] Note use-case: pax-std also needs the same feature flags + deps.  Would be nice to automate!
+    [ ] .pax folder
+        [x] manual .pax folder 'proof'
+    [ ] generate `pub mod types` via `pax_root` -- tricky because full parse is required to
+        know how to build this tree.  Either: do a full parse during macro eval (possible! pending confirmation that parse_to_manifest can be called at macro-expansion time) or
+        do some codegen/patching on the userland project (icky)
+        (Tentative decision: refactor macro-time parse logic; probably do a full parse; return necessary dep strings along with pascal_identifiers)
+        Escape hatch if the above doesn't work: use include_str!() along with a file that contains 
+    [x] parser bin logic finish-line
+        [x] macro
     [ ] codegen PropertiesCoproduct
         [x] manual
         [ ] if necessary, supporting type parsing & inference work for TypesCoproduct
-    [ ] serialize to RIL
-        [ ] normalize manifest, or efficient JIT traversal
-            [ ] stack Settings fragments (settings-selector-blocks and inline properties on top of defaults)
-        [ ] codegen RIL into source via `#[pax]` macro, to enable vanilla run-via-cargo (well, pax-compiler, but maybe there's still a path to bare cargo!)
-        [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
+    [ ] Structure 
+    [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
 [ ] e2e `pax run`
 [ ] documentation pass

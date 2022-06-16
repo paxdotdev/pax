@@ -1,5 +1,7 @@
 extern crate proc_macro;
 extern crate proc_macro2;
+
+use std::fs;
 use std::str::FromStr;
 
 use proc_macro2::{Ident, Span, TokenStream};
@@ -21,9 +23,8 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
 
     let output = pax_compiler_api::press_template_macro_pax_primitive(TemplateArgsMacroPaxPrimitive{
         pascal_identifier,
-        original_tokens: original_tokens
+        original_tokens,
     });
-
 
     TokenStream::from_str(&output).unwrap().into()
 }
@@ -47,12 +48,20 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
     let raw_pax = args.to_string();
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
+    let pub_mod_types = if Path::new("$CARGO_MANIFEST_DIR/.pax/types.rs").exists() {
+        include_str!("$CARGO_MANIFEST_DIR/.pax/types.rs")
+    } else {
+        ""
+    }.to_string();
+
+
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
         original_tokens: original_tokens,
         is_root: false,
         dependencies,
+        pub_mod_types,
     });
 
     // println!("Macro output: {}", &output);
@@ -72,12 +81,19 @@ pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
     let raw_pax = args.to_string();
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
+    let pub_mod_types = if Path::new("./.pax/types.rs").exists() {
+        include_str!("./.pax/types.rs")
+    } else {
+        ""
+    }.to_string();
+
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
         original_tokens: original_tokens,
         is_root: true,
         dependencies,
+        pub_mod_types,
     });
 
     // println!("Macro output: {}", &output);
