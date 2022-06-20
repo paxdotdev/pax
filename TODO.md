@@ -250,8 +250,8 @@ _RIL means Rust Intermediate Language, which is the
             [x] (start with templates only)
     [x] thread for wrapping `cargo build`
     [x] sketch out .pax folder design
-    [ ] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
-        [ ] Alternatively: back out of async, given stdio for 
+    [-] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
+        [x] Alternatively: back out of async, given stdio for passing data from parser 
     [ ] dep. management
         [ ] augment prelude with static dep. list? e.g. for resolving `Transform2D::*` with implicit `Transform2D::`
         [ ] Support static constants?  e.g. JABBERWOCKY use-case
@@ -273,6 +273,8 @@ _RIL means Rust Intermediate Language, which is the
             [ ] parse condition, handle as expression
         [ ] slot
             [ ] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
+[ ] Support async
+    [ ] `Property` => channels 'smart object'; disposable `mut self` => lifecycle methods (support async lifecycle event handlers)
 [ ] compiler codegen
     [-] codegen Cargo.toml + solution for patching
     Note: decided to require manual Cargo setup for launch (solved by `generate` use-case)
@@ -281,6 +283,7 @@ _RIL means Rust Intermediate Language, which is the
         [-] Note use-case: pax-std also needs the same feature flags + deps.  Would be nice to automate!
     [ ] .pax folder
         [x] manual .pax folder 'proof'
+        [ ] automated generation for each piece
     [ ] generate `pub mod types` via `pax_root` -- tricky because full parse is required to
         know how to build this tree.  Either: do a full parse during macro eval (possible! pending confirmation that parse_to_manifest can be called at macro-expansion time) or
         do some codegen/patching on the userland project (icky)
@@ -291,7 +294,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] codegen PropertiesCoproduct
         [x] manual
         [ ] if necessary, supporting type parsing & inference work for TypesCoproduct
-    [ ] Structure 
+    
     [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
 [ ] e2e `pax run`
@@ -2692,3 +2695,89 @@ Problematically, `virtual` could arguably be applied to both the `raw instance` 
 
 `hydrated node` vs `instance node` ?  trying it on
 
+
+
+
+### Async methods
+
+Use-case: load some data over HTTP; set a local Property; don't block rendering thread
+Problem: without support for threading certain methods (or all methods...?), the only way to achieve something like 
+         HTTP loading would require blocking the rendering thread
+
+Reading:
+
+ - https://internals.rust-lang.org/t/how-to-define-async-methods-without-capturing-lifetime-of-self/10708
+
+    > There is no way to annotate an async fn to not capture a lifetime in it, and inferring that would go against Rust's current philosophy that function signature's should be able to be relied on independently of the body (other than auto-trait leakage in RPIT).
+    >
+    > You can instead make bar a normal fn returning an impl Future and use an async block to define it:
+    > ... (see above link)
+   
+Approaches:
+
+1. Channel for properties (or parallel version of `SelfChannel`)
+
+```rust
+
+#[pax(
+    <AnimatedBanner>{banner_message}</AnimatedBanner>
+)]
+pub struct HelloWorld {
+    pub banner_message : Property<String>,
+}
+
+impl HelloWorld {
+    
+    #[pax_on(PostMount)]
+    pub async fn lifecycle_load_banner_message(self) {
+        let data = do_http_things().await.unwrap();
+        self.banner_message.set(data.new_message)
+    }
+    
+}
+
+
+// Alt: make `Property` itself alias a channel-brokering object, with same `.set` API, but without
+// `&mut self` or even `&self` requirements
+
+```
+Work:
+[ ] Refactor `Property<T>` definition to be a channel container rather than raw `Box<>`s
+[ ] Figure out where to store the canonical, owned data (Perhaps an Rc<RefCell<>>?)
+[ ] Refactor `example` etc. to deal with `self`, and prove ability to spawn "disposable selfs" in dispatch logic 
+    (create a basket of channels, along with listening/data-gathering & cleanup logic, plus patch data)
+
+Perhaps each `PropertyChannel` instance has two modes: 
+1. "zergling" | "drone" where it's simply a broadcaster
+(this is the "mode" that is baked into the cloned "channel basket" cloned instances)
+2. "hatchery" | "hive" where it knows how to
+   1. spawn baskets
+   2. listen to its spawned baskets for updates
+   3. store canonical data, and patch that data via updates from `zerglings`  
+
+
+2. Callback?
+
+```rust
+
+
+pub async fn do_async_things() {
+    fetch_http_data().await //T = DataType with member `server_message`
+}
+
+impl HelloWorld {
+    
+    #[pax_on(PreMount)]
+    pub fn mount(&mut self) {
+        pax::async(do_async_things, self::http_callback);
+    }
+    
+    pub fn http_callback(&mut self, args: ArgsCallback<DataType>) {
+        self.message.set(args.data.server_message)
+    }
+    
+}
+
+
+
+```
