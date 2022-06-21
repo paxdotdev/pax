@@ -158,6 +158,39 @@ _RIL means Rust Intermediate Language, which is the
     [x] "expand the proof" of generated code & make it work manually
 ```
 
+
+## Milestone: clickable square
+
+```
+
+[x] Action API
+    [x] state management (.get/.set/etc.)
+    [-] hooks into dirty-update system, to support expression dirty-watching
+    [x] Instantiation, reference management, enum ID + addressing for method definitions &
+        invocations
+    [x] tween/dynamic timeline API
+[x] revisit chassis-web implementation
+    [x] rust/JS divide
+        [x] Sandwich TS and rust (as current,) or
+        [x] handle all cartridge work from rust, incl. generation of public API
+[x] Event capture and transmission
+    [x] Map inputs through chassis, native events (mouse, touch)
+        [x] PoC with Web
+        [x] PoC with macOS
+    [x] tick event e2e
+    [x] Message queue in runtime
+    [x] Ray-casting? probably
+    [x] Message bubbling/capture or similar solution
+[x] Expressions
+    [x] Write ExpressionTable harness, incl. mechanisms for:
+        [x] vtable storage & lookup
+        [x] Return value passing & caching
+    [-] Sketch out design for parallelized expression computation (e.g. in WebWorkers)
+    [-] Patch ExpressionTable into cartridge à la PropertyCoproduct
+```
+
+
+
 ## Milestone: OSS release
 
 ```
@@ -217,9 +250,54 @@ _RIL means Rust Intermediate Language, which is the
         [x] Debugging via LLDB
             [x] support debugging as necessary with macos dev-harness
             [x] IDE configs for each of: userland cartridge; core; std
+[ ] compiler codegen
+    [-] codegen Cargo.toml + solution for patching
+    Note: decided to require manual Cargo setup for launch (solved by `generate` use-case)
+        [x] manual
+        [-] automated + file generation
+        [-] Note use-case: pax-std also needs the same feature flags + deps.  Would be nice to automate!
+    [x] .pax folder
+        [x] manual .pax folder 'proof'
+        [x] codegen + templating logic
+    [ ] generate `pub mod types` via `pax_root` -- tricky because full parse is required to
+        know how to build this tree.  Either: do a full parse during macro eval (possible! pending confirmation that parse_to_manifest can be called at macro-expansion time) or
+        do some codegen/patching on the userland project (icky)
+        (Tentative decision: refactor macro-time parse logic; probably do a full parse; return necessary dep strings along with pascal_identifiers)
+        Escape hatch if the above doesn't work: use include_str!() along with a file that contains
+        [ ] Refactor parsing logic -- maybe start clean?
+            [ ] De-risk: verify ability to call macro-generated code at compile-time (parse_to_manifest)
+            [ ] Parse all of, recursively:
+                [ ] Template
+                [ ] Properties:
+                    [ ] Property key
+                    [ ] Property type, full module (import) path
+                        [ ] This will be tricky... either
+                            [-] static analysis on the whole source file, looking for a `use ... KEYWORD` statement and infer paths
+                            [-] dynamic analysis -- some kind of rustc API.....?
+                            [ ] dynamic analysis: `parse_to_manifest`-style `get_module_path`, called by parser
+                                [ ] parser returns fully qualified types in manifest by dynamically calling `get_module_path` on each discovered type during parsing
+                                [ ] during "compiler codegen" phase, build `.pax/types.rs`
+                                [ ] include_str!() `.pax/types.rs` _at compile-time_ in macro logic
+                                    -- and pass the resulting static string into Tera
+                            [-] Require fully qualified types inside Property<...>, like `Property<crate::SomeType>` or `Property<pax::api::Color>`  
+                            [-] Make Property types `Pathable` or similar, which exposes a method `get_module_path()` that invoked `module_path!()` internally
+                                Then -- `pax` macro can invoke `get_module_path()` just like `parse_to_manifest`
+                                (Evaluated at compiletime) `Color::_get_module_path()`
+                                    ^ wrong -- this would be evaluated at `parser bin`-time
+                                Which returns `pax_runtime_api::Color`
+                                Which gets codegenned into `pub mod types`
+                                Checksum: does this resolve at the right time
+                                MAYBE we still need two phases:  one that parses template and property types, which allows codegen of `get_module_path` and `parse_to_manifest`
+                                                                 and another that runs the parser bin
+                                AS AN ALTERNATIVE to this spiraling complexity, perhaps should explore `include_str` a bit further.
+    [x] parser bin logic finish-line
+        [x] macro
+    [ ] codegen PropertiesCoproduct
+        [x] manual
+        [ ] if necessary, supporting type parsing & inference work for TypesCoproduct
+    [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
+    [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
 [ ] `pax-compiler`
-    [ ] support stand-alone .pax files (no rust file); .html use-case
-        [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
     [x] update .pest and manifest-populating logic to latest language spec
     [x] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
         [-] NOTE: provisionally, this whole group is solved as not necessary, in light of the "parser binary" feature-flagged approach
@@ -255,13 +333,24 @@ _RIL means Rust Intermediate Language, which is the
     [ ] dep. management
         [ ] augment prelude with static dep. list? e.g. for resolving `Transform2D::*` with implicit `Transform2D::`
         [ ] Support static constants?  e.g. JABBERWOCKY use-case
+    [ ] `with`
+        [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
+        [ ] grammar+parser support
+        [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
+        [ ] multiple variables in tuple `(i,j,k)`
     [ ] expression compilation
         [ ] expression string => RIL generation
-            [ ] `invocation` logic, to initialize symbols from runtime stack, with awareness
-                of symbols / hierarchy / types via compiletime stack
-            [ ] gradual typing for numerics (implicit coercion between ints/floats as needed -- or perhaps write `Mul`/etc. for each)
             [ ] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
-            [ ] grouping units, e.g. `(5 + 10)%` 
+            [ ] grouping of units, e.g. `(5 + 10)%` 
+            [ ] boolean ops: `==`, `&&`, and `||`
+            [ ] parenthetical grouping  `(.*)`
+            [ ] Literals for strings, bools, ints, floats
+            [ ] Nested object references + injected context
+                [ ] incantation for deriving values from scope
+                [ ] type-matching
+                [ ] Numeric type management, casting ("gradual typing"?)
+        [ ] Dependency tracking & dirty-watching
+            [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender`
         [ ] symbol resolution & code-gen, incl. shadowing with `@for`
         [ ] binding event handlers
     [ ] control flow
@@ -273,30 +362,11 @@ _RIL means Rust Intermediate Language, which is the
             [ ] parse condition, handle as expression
         [ ] slot
             [ ] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
+[ ] support stand-alone .pax files (no rust file); .html use-case
+    [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
 [ ] Support async
     [ ] `Property` => channels 'smart object'; disposable `mut self` => lifecycle methods (support async lifecycle event handlers)
-[ ] compiler codegen
-    [-] codegen Cargo.toml + solution for patching
-    Note: decided to require manual Cargo setup for launch (solved by `generate` use-case)
-        [x] manual
-        [-] automated + file generation
-        [-] Note use-case: pax-std also needs the same feature flags + deps.  Would be nice to automate!
-    [ ] .pax folder
-        [x] manual .pax folder 'proof'
-        [ ] automated generation for each piece
-    [ ] generate `pub mod types` via `pax_root` -- tricky because full parse is required to
-        know how to build this tree.  Either: do a full parse during macro eval (possible! pending confirmation that parse_to_manifest can be called at macro-expansion time) or
-        do some codegen/patching on the userland project (icky)
-        (Tentative decision: refactor macro-time parse logic; probably do a full parse; return necessary dep strings along with pascal_identifiers)
-        Escape hatch if the above doesn't work: use include_str!() along with a file that contains 
-    [x] parser bin logic finish-line
-        [x] macro
-    [ ] codegen PropertiesCoproduct
-        [x] manual
-        [ ] if necessary, supporting type parsing & inference work for TypesCoproduct
-    
-    [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
-    [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
+    [ ] Pencil out error handling (userland)
 [ ] e2e `pax run`
 [ ] documentation pass
     [ ] clean up codebase; reduce warnings
@@ -395,51 +465,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] Sizing / clipping API (e.g. cover, or anchor + stretch/maintain/fill/target-width/target-height/etc.)
 ```
 
-## Milestone: clickable square
-Three "clickable squares" with independent event handlers, state
-On click, each square performs an animated transformation, e.g. rotation
 
-```
-[ ] compiler updates
-    [ ] `with`
-        [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
-        [ ] grammar+parser support
-        [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
-        [ ] multiple variables in tuple `(i,j,k)`
-[ ] Action API
-    [x] state management (.get/.set/etc.)
-    [ ] hooks into dirty-update system, for expression updates
-    [x] Instantiation, reference management, enum ID + addressing for method definitions &
-        invocations
-    [x] tween/dynamic timeline API
-[ ] revisit chassis-web implementation
-    [ ] rust/JS divide
-        [ ] Sandwich TS and rust (as current,) or
-        [ ] handle all cartridge work from rust, incl. generation of public API
-[ ] Event capture and transmission
-    [ ] Map inputs through chassis, native events (mouse, touch)
-        [ ] PoC with Web
-    [x] tick event e2e
-    [x] Message queue in runtime
-    [ ] Ray-casting? probably
-    [ ] Message bubbling/capture or similar solution
-[ ] Expressions
-    [ ] Transpile expressions to Rust (or choose another compilation strategy)
-        [ ] boolean ops: `==`, `&&`, and `||`
-        [ ] parenthetical grouping  `(.*)`
-        [ ] Literals for strings, bools, ints, floats
-        [ ] Nested object references + injected context
-            [ ] incantation for deriving values from scope
-            [ ] type-matching
-            [ ] Numeric type management, casting
-    [x] Write ExpressionTable harness, incl. mechanisms for:
-        [x] vtable storage & lookup
-        [ ] Dependency tracking & dirty-watching
-            [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender`
-        [x] Return value passing & caching
-    [ ] Sketch out design for parallelized expression computation (e.g. in WebWorkers)
-    [-] Patch ExpressionTable into cartridge à la PropertyCoproduct
-```
 
 ## Milestone: embedded UI components
 (instead of full-window Electron/Expo-like wrappers)
