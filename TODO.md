@@ -289,7 +289,7 @@ _RIL means Rust Intermediate Language, which is the
                                 Checksum: does this resolve at the right time
                                 MAYBE we still need two phases:  one that parses template and property types, which allows codegen of `get_module_path` and `parse_to_manifest`
                                                                  and another that runs the parser bin
-                                AS AN ALTERNATIVE to this spiraling complexity, perhaps should explore `include_str` a bit further.
+                                
     [x] parser bin logic finish-line
         [x] macro
     [ ] codegen PropertiesCoproduct

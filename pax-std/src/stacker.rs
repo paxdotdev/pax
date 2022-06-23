@@ -27,6 +27,8 @@ pub struct Stacker {
 
 impl Stacker {
 
+    pub fn hello(){}
+
     #[pax_on(pre_render)]
     pub fn handle_pre_render(&mut self, args: ArgsRender) {
 

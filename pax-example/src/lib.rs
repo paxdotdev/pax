@@ -7,20 +7,20 @@ use pax_std::components::{Stacker};
     <Stacker cell_count=10 >
         <Stacker cell_count=5 direction=Vertical >
             for i in 0..5 {
-                <Rectangle fill={Color::Rgba((i * 20)%, 0, 100%, 100%)} />
+                <Rectangle fill={Rgba((i * 20)%, 0, 100%, 100%)} />
             }
         </Stacker>
 
         for i in 0..8 {
             <Group>
                 <Text id=index_text>"Index: {i}"</Text>
-                <Rectangle fill={Color::Rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
+                <Rectangle fill={Rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)} />
             </Group>
         }
 
         <Group @click=self.handle_click transform={Rotate(self.current_rotation)}>
             <Text>{JABBERWOCKY}</Text>
-            <Rectangle fill=Color::Rgba(100%, 100%, 0, 100%) />
+            <Rectangle fill=Rgba(100%, 100%, 0, 100%) />
         </Group>
     </Stacker>
 

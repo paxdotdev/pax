@@ -42,18 +42,13 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let original_tokens = input.to_string();
 
+    let pub_mod_types = "".to_string();
+
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
     let raw_pax = args.to_string();
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
-
-    let pub_mod_types = if Path::new("$CARGO_MANIFEST_DIR/.pax/types.rs").exists() {
-        include_str!("$CARGO_MANIFEST_DIR/.pax/types.rs")
-    } else {
-        ""
-    }.to_string();
-
 
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
         raw_pax,
@@ -63,6 +58,7 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
         dependencies,
         pub_mod_types,
     });
+
 
     // println!("Macro output: {}", &output);
 
@@ -81,11 +77,13 @@ pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
     let raw_pax = args.to_string();
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
-    let pub_mod_types = if Path::new("./.pax/types.rs").exists() {
-        include_str!("./.pax/types.rs")
-    } else {
-        ""
-    }.to_string();
+    let pub_mod_types = "".to_string();
+
+    // let pub_mod_types = if Path::new("./.pax/types.rs").exists() {
+    //     include_str!("./.pax/types.rs")
+    // } else {
+    //     ""
+    // }.to_string();
 
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
         raw_pax,

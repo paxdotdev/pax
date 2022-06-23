@@ -7,16 +7,10 @@ use std::collections::{HashSet, HashMap};
 #[cfg(feature = "parser")]
 use serde_json;
 
-
-//if NOT parser,
-//include_str!(.pax/types)
-#[cfg(not(feature = "parser"))]
-inject_literal_rust!(include_str!({{pax_types_abs_path}}))
-
-
 {% if is_root %}
 #[cfg(feature = "parser")]
 pub fn main() {
+
     let mut ctx = ManifestContext::default();
 
     let (ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);

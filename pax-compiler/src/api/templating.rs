@@ -30,12 +30,17 @@ pub struct TemplateArgsMacroPax {
     pub pub_mod_types: String,
 }
 
-
+static TEMPLATE_PAX_PRIMITIVE : &str = include_str!("../../templates/macros/pax_primitive");
 pub fn press_template_macro_pax_primitive(args: TemplateArgsMacroPaxPrimitive ) -> String {
     let template = TEMPLATE_DIR.get_file("macros/pax_primitive").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
+//Included to allows `rustc` to "dirty-watch" these template files.
+//Otherwise, after changing one of those files, the author must also change
+//something in _this file_ for `rustc` to detect the changes and recompile the included
+//template file.
+static TEMPLATE_PAX : &str = include_str!("../../templates/macros/pax");
 pub fn press_template_macro_pax_root(args: TemplateArgsMacroPax) -> String {
     let template = TEMPLATE_DIR.get_file("macros/pax").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()

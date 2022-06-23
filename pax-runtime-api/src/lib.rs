@@ -70,6 +70,11 @@ pub enum ArgsCoproduct {
 
 pub type Property<T: Interpolatable> = Box<dyn PropertyInstance<T>>;
 
+pub trait Manifestable {
+    // pub fn parse_to_manifest(ctx: PaxManifest)
+}
+
+
 #[derive(Clone)]
 pub struct ArgsRender {
     /// The current global engine tick count
