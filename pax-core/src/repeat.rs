@@ -26,9 +26,6 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
-
-
-
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }
@@ -52,7 +49,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
-
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
@@ -102,13 +98,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
 
-
-            //What if...
-            //Once a node is allocated (initialized) it doesn't get uninitialized.
-            // (it gets stored in a field of `RepeatInstance`)
-            //So, a node's `RepeatItem` instance storage never shrinks. (for now)
-            //Then... could we possibly `.set` each property individually? instead of
-            //instantiating a whole new component?
 
             //reset children:
             //wrap data_list into `RepeatItems`, which attach

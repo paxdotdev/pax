@@ -579,6 +579,8 @@ pub struct ManifestContext {
     pub component_definitions: Vec<ComponentDefinition>,
 
     pub template_map: HashMap<String, String>,
+
+    pub property_types: Vec<String>,
 }
 
 
@@ -589,6 +591,7 @@ impl Default for ManifestContext {
             visited_source_ids: HashSet::new(),
             component_definitions: vec![],
             template_map: HashMap::new(),
+            property_types: vec![],
         }
     }
 }

@@ -29,7 +29,7 @@ impl Stacker {
 
     pub fn hello(){}
 
-    #[pax_on(pre_render)]
+    #[pax_on(PreRender)]
     pub fn handle_pre_render(&mut self, args: ArgsRender) {
 
         //TODO: dirty check

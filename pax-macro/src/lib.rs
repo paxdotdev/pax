@@ -9,7 +9,7 @@ use quote::__private::ext::RepToTokensExt;
 use quote::quote;
 use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax};
 
-use syn::{parse_macro_input, Data, DeriveInput};
+use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument};
 
 
 #[proc_macro_attribute]
@@ -29,6 +29,7 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
     TokenStream::from_str(&output).unwrap().into()
 }
 
+
 #[proc_macro_attribute]
 pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     //similar to pax_primitive: registers annotated type with PropertiesCoproduct
@@ -38,24 +39,111 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
     input
 }
 
-#[proc_macro_attribute]
-pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+
+
+
+
+
+/// Determines whether a field is wrapped in Option<...>, returning None if not,
+/// and returning the encapsulated type if so
+fn get_property_wrapped_field(f: &Field) -> Option<Type> {
+    let mut ret = None;
+    match &f.ty {
+        Type::Path(tp) => {
+            match tp.qself {
+                None => {
+                    tp.path.segments.iter().for_each(|ps| {
+                        if ps.ident.to_string().ends_with("Property") {
+                            match &ps.arguments {
+                                PathArguments::AngleBracketed(abga) => {
+                                    abga.args.iter().for_each(|abgaa| {
+                                        match abgaa {
+                                            GenericArgument::Type(gat) => {
+                                                ret = Some(gat.to_owned());
+                                            },
+                                            _ => {}
+                                        };
+                                    })
+                                },
+                                _ => {}
+                            }
+                        }
+                    });
+                },
+                _ => {},
+            };
+        },
+        _ => {}
+    };
+    ret
+}
+
+
+fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, is_root: bool) -> proc_macro::TokenStream {
     let original_tokens = input.to_string();
+
+    //TODO: might need to define two separate `pax` (and friends) macros,
+    //      gated by complementary boolean `cartridge-attached` feature flags
 
     let pub_mod_types = "".to_string();
 
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
+    // let property_types = match input_parsed.data {
+    //     Data::Struct(ref data) => {
+    //         match data.fields {
+    //             Fields::Named(ref fields) => {
+    //                 fields.named.iter().map(|f| {
+    //                     let field_name = f.ident.as_ref().unwrap();
+    //                     let ty = match get_property_wrapped_field(f) {
+    //                         None => { f.ty.clone() },
+    //                         Some(ty) => { ty }
+    //                     };
+    //                     let field_type = quote!(#ty).to_string();
+    //                     field_type
+    //                 }).collect()
+    //             },
+    //             _ => {vec!["brokenA".to_string()]},
+    //         }
+    //     },
+    //     _ => {vec!["brokenB".to_string()]},
+    // };
+
+    let property_types = match input_parsed.data {
+        Data::Struct(ref data) => {
+            match data.fields {
+                Fields::Named(ref fields) => {
+                    let mut ret = vec![];
+                    fields.named.iter().for_each(|f| {
+                        let _field_name = f.ident.as_ref().unwrap();
+                        let field_type = match get_property_wrapped_field(f) {
+                            None => { /* noop */ },
+                            Some(ty) => { ret.push(quote!(#ty).to_string()) }
+                        };
+
+                    });
+                    ret
+                },
+                _ => {
+                    unimplemented!("Pax may only be attached to structs with named fields");
+                }
+            }
+        },
+        _ => {unreachable!("Pax may only be attached to `struct`s")}
+    };
+
     let raw_pax = args.to_string();
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+
 
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
         original_tokens: original_tokens,
-        is_root: false,
+        is_root,
         dependencies,
+        property_types,
         pub_mod_types,
     });
 
@@ -65,38 +153,17 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
     TokenStream::from_str(&output).unwrap().into()
 }
 
+
+#[proc_macro_attribute]
+pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    pax_internal(args, input, false)
+}
+
 // Exactly like `#[pax()]`, except specifies that the attached component is intended to be mounted at
 // the root of an app-contained cartridge
 #[proc_macro_attribute]
 pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let original_tokens = input.to_string();
-
-    let input_parsed = parse_macro_input!(input as DeriveInput);
-    let pascal_identifier = input_parsed.ident.to_string();
-
-    let raw_pax = args.to_string();
-    let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
-
-    let pub_mod_types = "".to_string();
-
-    // let pub_mod_types = if Path::new("./.pax/types.rs").exists() {
-    //     include_str!("./.pax/types.rs")
-    // } else {
-    //     ""
-    // }.to_string();
-
-    let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
-        raw_pax,
-        pascal_identifier,
-        original_tokens: original_tokens,
-        is_root: true,
-        dependencies,
-        pub_mod_types,
-    });
-
-    // println!("Macro output: {}", &output);
-
-    TokenStream::from_str(&output).unwrap().into()
+    pax_internal(args, input, true)
 }
 
 

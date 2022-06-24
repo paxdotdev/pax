@@ -1,5 +1,5 @@
 #[cfg(feature = "parser")]
-use pax_compiler_api;
+use pax::api::{Manifestable};
 #[cfg(feature = "parser")]
 use pax_compiler_api::{ManifestContext, PaxManifest};
 #[cfg(feature = "parser")]
@@ -13,7 +13,12 @@ pub fn main() {
 
     let mut ctx = ManifestContext::default();
 
-    let (ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
+    let (mut ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
+
+    {% for property_type in property_types %}
+    let module_paths = {{property_type}}::collect_module_paths(vec![]);
+    ctx.property_types.extend(module_paths);
+    {% endfor %}
 
     let manifest = PaxManifest {
         components: ctx.component_definitions,

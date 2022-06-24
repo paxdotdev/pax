@@ -25,6 +25,7 @@ pub struct TemplateArgsMacroPax {
     pub original_tokens: String,
     pub is_root: bool,
     pub dependencies: Vec<String>,
+    pub property_types: Vec<String>,
     /// A string of Rust code describing the `pub mod types {...}` block of re-exports,
     /// necessary for the userland Rust project to expose its runtime dependencies to the cartridge
     pub pub_mod_types: String,

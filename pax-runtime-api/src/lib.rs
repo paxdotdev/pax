@@ -68,11 +68,21 @@ pub enum ArgsCoproduct {
     Click(ArgsClick),
 }
 
-pub type Property<T: Interpolatable> = Box<dyn PropertyInstance<T>>;
+pub type Property<T: Interpolatable + Manifestable> = Box<dyn PropertyInstance<T>>;
 
 pub trait Manifestable {
-    // pub fn parse_to_manifest(ctx: PaxManifest)
+    // Default implementation: push the current `module_path` to the accumulated Vec;
+    // For overriding, generally will want to recurse through all Properties on a struct
+    // The override can be easily derived, e.g. with something like `#[derive(PaxProperty)]`
+    fn collect_module_paths(mut accum: Vec<String>) -> Vec<String> {
+        let this_path = module_path!();
+        accum.push(this_path.to_string());
+        accum
+    }
 }
+
+impl Manifestable for i64{}
+impl Manifestable for f64{}
 
 
 #[derive(Clone)]
