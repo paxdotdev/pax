@@ -3,12 +3,15 @@ extern crate pest;
 use pest_derive::Parser;
 use pest::Parser;
 
+
 use std::{env, fs};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use pest::iterators::{Pair, Pairs};
+use serde_json;
+use serde_derive::{Serialize, Deserialize};
 use uuid::Uuid;
 
 pub mod message;
@@ -98,9 +101,47 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
     // }
 }
 
+/// Arguably Manifestable is a compiletime concern; however, it is useful to rely on the
+/// compiler to enforce `Property<T: Manifestable>`, because that constraint is expected
+/// at compiletime (i.e. statically generated,) and this constraint applies to userland code (complex property types)
+/// as well.  Thus, this logic is housed in pax-runtime-api to satisfy dependency graph constraints.
+pub trait PropertyManifestable {
+    // Default implementation: push the current `module_path` to the accumulated Vec;
+    // For overriding, generally will want to recurse through all Properties on a struct
+    // The override can be easily derived, e.g. with something like `#[derive(PaxProperty)]`
+
+    //TODO: figure out the shape of this data
+    //1. need each property's identifier (name) and type
+    //2. need (recursively) each property of each complex type
+
+    //Note: this default implementation is probably not the right approach, but it works hackily
+    //      alongisde e.g. `impl PropertyManifestable for i64{} pub use i64`.  A better alternative may be to `#[derive(Manifestable)]` (or
+    //      derive as part of `pax`, `pax_root`, or `pax_type` macros)
+    fn get_property_manifest(self_identifier: &str) -> PropertyManifest {
+        let this_path = module_path!().to_owned() + "::" + self_identifier;
+
+        PropertyManifest {
+            identifier: self_identifier.to_string(),
+            fully_qualified_path: this_path,
+            dependency_manifests: vec![]
+        }
+    }
+}
+
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct PropertyManifest {
+    identifier: String,
+    fully_qualified_path: String,
+    dependency_manifests: Vec<PropertyManifest>,
+}
+
+impl PropertyManifestable for i64{}
+pub use i64;
+impl PropertyManifestable for f64{}
+pub use f64;
 
 
-pub fn handle_primitive(pascal_identifier: &str, module_path: &str, source_id: &str) -> ComponentDefinition {
+pub fn get_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_manifests: &Vec<PropertyManifest>) -> ComponentDefinition {
     ComponentDefinition {
         source_id: source_id.to_string(),
         pascal_identifier: pascal_identifier.to_string(),
@@ -108,6 +149,7 @@ pub fn handle_primitive(pascal_identifier: &str, module_path: &str, source_id: &
         settings: None,
         root_template_node_id: None,
         module_path: module_path.to_string(),
+        property_manifests: property_manifests.clone(),
     }
 }
 
@@ -117,42 +159,77 @@ pub enum PaxContents {
     Inline(String),
 }
 
-pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, explicit_path: Option<String>, pascal_identifier: &str, template_map: HashMap<String, String>, source_id: &str) -> (ManifestContext, ComponentDefinition) {
-    let path =
-        match explicit_path {
-            None => {
-                //infer path by current filename, e.g. lib.rs => lib.pax
-                let mut inferred_path = PathBuf::from(file);
-                inferred_path.set_extension("pax");
-
-                let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
-                let path = Path::new(&root).join("src/").join(&inferred_path);
-                let file_name = match path.file_name() {
-                    Some(file_name) => file_name,
-                    None => panic!("no pax file found"), //TODO: make error message more helpful, e.g. by suggesting where to create a pax file
-                };
-
-                path
-            },
-            Some(provided_path) => {
-                //explicit path (relative to src/) was provided
-                let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
-                let path = Path::new(&root).join("src/").join(&provided_path);
-                let file_name = match path.file_name() {
-                    Some(file_name) => file_name,
-                    None => panic!("pax file not found at specified path"), //TODO: make error message more helpful, e.g. by suggesting the use of `src/`-relative paths
-                };
-
-                path
-            }
-        };
-
-    // println!("path: {:?}", path);
-    let pax = fs::read_to_string(path).unwrap();
-
-    let (ctx, comp_def) = parse_full_component_definition_string(ctx, &pax, pascal_identifier, true, template_map, source_id, module_path);
-    (ctx, comp_def)
-}
+// pub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, explicit_path: Option<String>, pascal_identifier: &str, template_map: HashMap<String, String>, source_id: &str) -> (ManifestContext, ComponentDefinition) {
+//     let path =
+//         match explicit_path {
+//             None => {
+//                 //infer path by current filename, e.g. lib.rs => lib.pax
+//                 let mut inferred_path = PathBuf::from(file);
+//                 inferred_path.set_extension("pax");
+//
+//                 let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+//                 let path = Path::new(&root).join("src/").join(&inferred_path);
+//                 let file_name = match path.file_name() {
+//                     Some(file_name) => file_name,
+//                     None => panic!("no pax file found"), //TODO: make error message more helpful, e.g. by suggesting where to create a pax file
+//                 };
+//
+//                 path
+//             },
+//             Some(provided_path) => {
+//                 //explicit path (relative to src/) was provided
+//                 let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+//                 let path = Path::new(&root).join("src/").join(&provided_path);
+//                 let file_name = match path.file_name() {
+//                     Some(file_name) => file_name,
+//                     None => panic!("pax file not found at specified path"), //TODO: make error message more helpful, e.g. by suggesting the use of `src/`-relative paths
+//                 };
+//
+//                 path
+//             }
+//         };
+//
+//     // println!("path: {:?}", path);
+//     let pax = fs::read_to_string(path).unwrap();
+//
+//     let (ctx, comp_def) = parse_full_component_definition_string(ctx, &pax, pascapub fn handle_file(mut ctx: ManifestContext, file: &str, module_path: &str, explicit_path: Option<String>, pascal_identifier: &str, template_map: HashMap<String, String>, source_id: &str) -> (ManifestContext, ComponentDefinition) {
+// //     let path =
+// //         match explicit_path {
+// //             None => {
+// //                 //infer path by current filename, e.g. lib.rs => lib.pax
+// //                 let mut inferred_path = PathBuf::from(file);
+// //                 inferred_path.set_extension("pax");
+// //
+// //                 let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+// //                 let path = Path::new(&root).join("src/").join(&inferred_path);
+// //                 let file_name = match path.file_name() {
+// //                     Some(file_name) => file_name,
+// //                     None => panic!("no pax file found"), //TODO: make error message more helpful, e.g. by suggesting where to create a pax file
+// //                 };
+// //
+// //                 path
+// //             },
+// //             Some(provided_path) => {
+// //                 //explicit path (relative to src/) was provided
+// //                 let root = env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into());
+// //                 let path = Path::new(&root).join("src/").join(&provided_path);
+// //                 let file_name = match path.file_name() {
+// //                     Some(file_name) => file_name,
+// //                     None => panic!("pax file not found at specified path"), //TODO: make error message more helpful, e.g. by suggesting the use of `src/`-relative paths
+// //                 };
+// //
+// //                 path
+// //             }
+// //         };
+// //
+// //     // println!("path: {:?}", path);
+// //     let pax = fs::read_to_string(path).unwrap();
+// //
+// //     let (ctx, comp_def) = parse_full_component_definition_string(ctx, &pax, pascal_identifier, true, template_map, source_id, module_path);
+// //     (ctx, comp_def)
+// // }l_identifier, true, template_map, source_id, module_path);
+//     (ctx, comp_def)
+// }
 
 
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
@@ -580,7 +657,7 @@ pub struct ManifestContext {
 
     pub template_map: HashMap<String, String>,
 
-    pub property_types: Vec<String>,
+    pub property_manifests: Vec<PropertyManifest>,
 }
 
 
@@ -591,14 +668,14 @@ impl Default for ManifestContext {
             visited_source_ids: HashSet::new(),
             component_definitions: vec![],
             template_map: HashMap::new(),
-            property_types: vec![],
+            property_manifests: vec![],
         }
     }
 }
 
-//TODO: support fragments of pax that ARE NOT pax_component_definition (e.g. inline expressions)
-pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &str, pascal_identifier: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ManifestContext, ComponentDefinition) {
 
+/// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
+pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &str, pascal_identifier: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ManifestContext, ComponentDefinition) {
     let ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
@@ -613,7 +690,7 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
         pascal_identifier_to_component_id_map: template_map,
         template_node_definitions: vec![],
         root_template_node_id: None,
-        is_root: true,
+        is_root,
         //each frame of the outer vec represents a list of
         //children for a given node; child order matters because of z-index defaults;
         //a new frame is added when descending the tree
@@ -630,6 +707,7 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
         settings: parse_settings_from_component_definition_string(pax),
         module_path: module_path.to_string(),
         root_template_node_id: tpc.root_template_node_id,
+        property_manifests: ctx.property_manifests.clone(),
     };
 
     // TODO:

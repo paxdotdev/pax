@@ -1,5 +1,5 @@
 #[cfg(feature = "parser")]
-use pax::api::{Manifestable};
+use pax::internal::{PropertyManifestable};
 #[cfg(feature = "parser")]
 use pax_compiler_api::{ManifestContext, PaxManifest};
 #[cfg(feature = "parser")]
@@ -7,23 +7,27 @@ use std::collections::{HashSet, HashMap};
 #[cfg(feature = "parser")]
 use serde_json;
 
+
 {% if is_root %}
+// For the root component only, a `main` is generated for the `parser` bin target.
+// This method bootstraps the parsing process, parsing not only the root component
+// but every component/primitive found in its extended render tree. This main method
+// also returns the parsed, serialized PaxManifest by stdio (println)
 #[cfg(feature = "parser")]
 pub fn main() {
 
     let mut ctx = ManifestContext::default();
 
-    let (mut ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
-
-    {% for property_type in property_types %}
-    let module_paths = {{property_type}}::collect_module_paths("{{property_type}}", vec![]);
-    ctx.property_types.extend(module_paths);
+    {% for property_type in local_property_types %}
+    let property_manifest = {{property_type}}::get_property_manifest("{{property_type}}");
+    ctx.property_manifests.push(property_manifest);
     {% endfor %}
+
+    let (mut ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
 
     let manifest = PaxManifest {
         components: ctx.component_definitions,
         root_component_id: ctx.root_component_id,
-        property_types: ctx.property_types,
     };
 
     //Send data back to parent process by printing to stdout
@@ -36,10 +40,15 @@ pub fn main() {
 
 #[cfg(feature = "parser")]
 impl {{pascal_identifier}} {
+    // For all components, a parse_to_manifest is generated under the `parser` feature
+    // so that the parser binary may traverse all dependencies and parse the discovered Pax.
+    // This method is the recursive workhorse of parsing logic.
     pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
 
         let source_id = "component::{{pascal_identifier}}";
 
+        //TODO: be aware of injection risk here -- notably if dealing with untrusted input,
+        //      this is an easy vector for a SQL-injection-like attack
         const raw_pax: &str = r#####"{{raw_pax}}
 "#####;
         match ctx.visited_source_ids.get(&source_id as &str) {

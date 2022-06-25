@@ -19,7 +19,8 @@ messagepack = ["serde"]
 cbor = ["serde"]
 
 [dependencies]
-pax-message = { path = "../pax-message" } 
+pax-message = { path = "../pax-message" }
+pax-runtime-api = { path = "../pax-runtime-api" }
 pest = "2.1.3"
 pest_derive = "2.1.0"
 include_dir = {version = "0.7.2", features = ["glob"]}

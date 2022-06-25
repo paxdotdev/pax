@@ -1928,6 +1928,7 @@ dependencies = [
  "include_dir",
  "lazy_static",
  "pax-message",
+ "pax-runtime-api",
  "pest",
  "pest_derive",
  "portpicker",

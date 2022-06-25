@@ -44,8 +44,9 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
 
 
-/// Determines whether a field is wrapped in Option<...>, returning None if not,
-/// and returning the encapsulated type if so
+/// Determines whether a field is wrapped in Property<...>, returning None if not,
+/// and returning the encapsulated type if so.  This heuristic is used to determine
+/// whether a declared field should be treated as a Pax Property
 fn get_property_wrapped_field(f: &Field) -> Option<Type> {
     let mut ret = None;
     match &f.ty {
@@ -90,16 +91,18 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
-    let property_types = match input_parsed.data {
+    let local_property_definitions = match input_parsed.data {
         Data::Struct(ref data) => {
             match data.fields {
                 Fields::Named(ref fields) => {
                     let mut ret = vec![];
                     fields.named.iter().for_each(|f| {
-                        let _field_name = f.ident.as_ref().unwrap();
+                        let field_name = f.ident.as_ref().unwrap();
                         let field_type = match get_property_wrapped_field(f) {
                             None => { /* noop */ },
-                            Some(ty) => { ret.push(quote!(#ty).to_string()) }
+                            Some(ty) => { ret.push(
+                                (quote!(#field_name).to_string(),quote!(#ty).to_string())
+                            ) }
                         };
 
                     });
@@ -116,6 +119,8 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let raw_pax = args.to_string();
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
+    let local_property_types = local_property_definitions.iter().map(|a|{a.1.to_string()}).collect();
+    let pub_mod_types = "".into(); //TODO: load codegenned types.fragment.rs file.  Might feature-gate an include_str! behind a `cartridge-attached` feature.
 
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
         raw_pax,
@@ -123,12 +128,9 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         original_tokens: original_tokens,
         is_root,
         dependencies,
-        property_types,
+        local_property_types,
         pub_mod_types,
     });
-
-
-    // println!("Macro output: {}", &output);
 
     TokenStream::from_str(&output).unwrap().into()
 }
