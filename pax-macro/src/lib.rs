@@ -90,26 +90,6 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
-    // let property_types = match input_parsed.data {
-    //     Data::Struct(ref data) => {
-    //         match data.fields {
-    //             Fields::Named(ref fields) => {
-    //                 fields.named.iter().map(|f| {
-    //                     let field_name = f.ident.as_ref().unwrap();
-    //                     let ty = match get_property_wrapped_field(f) {
-    //                         None => { f.ty.clone() },
-    //                         Some(ty) => { ty }
-    //                     };
-    //                     let field_type = quote!(#ty).to_string();
-    //                     field_type
-    //                 }).collect()
-    //             },
-    //             _ => {vec!["brokenA".to_string()]},
-    //         }
-    //     },
-    //     _ => {vec!["brokenB".to_string()]},
-    // };
-
     let property_types = match input_parsed.data {
         Data::Struct(ref data) => {
             match data.fields {
@@ -126,7 +106,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
                     ret
                 },
                 _ => {
-                    unimplemented!("Pax may only be attached to structs with named fields");
+                    unimplemented!("Pax may only be attached to `struct`s with named fields");
                 }
             }
         },

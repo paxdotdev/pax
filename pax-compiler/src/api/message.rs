@@ -18,6 +18,7 @@ use serde_json;
 pub struct PaxManifest {
     pub components: Vec<ComponentDefinition>,
     pub root_component_id: String,
+    pub property_types: Vec<String>,
 }
 
 

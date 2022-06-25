@@ -16,13 +16,14 @@ pub fn main() {
     let (mut ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
 
     {% for property_type in property_types %}
-    let module_paths = {{property_type}}::collect_module_paths(vec![]);
+    let module_paths = {{property_type}}::collect_module_paths("{{property_type}}", vec![]);
     ctx.property_types.extend(module_paths);
     {% endfor %}
 
     let manifest = PaxManifest {
         components: ctx.component_definitions,
         root_component_id: ctx.root_component_id,
+        property_types: ctx.property_types,
     };
 
     //Send data back to parent process by printing to stdout
