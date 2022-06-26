@@ -26,9 +26,11 @@ pub struct TemplateArgsMacroPax {
     pub is_root: bool,
     pub dependencies: Vec<String>,
 
-    /// List of local Property types, qualified to local namespace (e.g. as Pascal identifiers)
+    /// List of tuples of local Property types
+    /// `(a,b)` where `a is the identifier (name) of the property, and
+    /// `b` is the type of that property, qualified to local namespace (as Pascal identifiers or primitive type identifiers)
     /// Used to codegen get_property_manifest calls, which allows parser binary to "reflect"
-    pub local_property_types: Vec<String>,
+    pub local_property_definitions: Vec<(String, String)>,
 
     pub pub_mod_types: String,
 }

@@ -11,7 +11,6 @@ use pest::Parser;
 
 use serde_derive::{Serialize, Deserialize};
 use serde_json;
-use crate::PropertyManifest;
 
 
 //definition container for an entire Pax cartridge
@@ -50,7 +49,7 @@ pub struct ComponentDefinition {
     //can be hydrated as a tree via child_ids/parent_id
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
     //(String, String) => (field name, fully qualified module+type path)
-    pub property_manifests: Vec<PropertyManifest>,
+    pub property_manifests: Vec<super::PropertyManifest>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]

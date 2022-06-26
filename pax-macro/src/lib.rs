@@ -119,16 +119,15 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let raw_pax = args.to_string();
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
-    let local_property_types = local_property_definitions.iter().map(|a|{a.1.to_string()}).collect();
     let pub_mod_types = "".into(); //TODO: load codegenned types.fragment.rs file.  Might feature-gate an include_str! behind a `cartridge-attached` feature.
 
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
-        original_tokens: original_tokens,
+        original_tokens,
         is_root,
         dependencies,
-        local_property_types,
+        local_property_definitions,
         pub_mod_types,
     });
 

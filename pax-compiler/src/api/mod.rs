@@ -117,8 +117,8 @@ pub trait PropertyManifestable {
     //Note: this default implementation is probably not the right approach, but it works hackily
     //      alongisde e.g. `impl PropertyManifestable for i64{} pub use i64`.  A better alternative may be to `#[derive(Manifestable)]` (or
     //      derive as part of `pax`, `pax_root`, or `pax_type` macros)
-    fn get_property_manifest(self_identifier: &str) -> PropertyManifest {
-        let this_path = module_path!().to_owned() + "::" + self_identifier;
+    fn get_property_manifest(self_identifier: &str, self_type: &str) -> PropertyManifest {
+        let this_path = module_path!().to_owned() + "::" + self_type;
 
         PropertyManifest {
             identifier: self_identifier.to_string(),

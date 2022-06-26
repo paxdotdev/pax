@@ -11,7 +11,6 @@ use tokio::sync::mpsc::{Sender, Receiver, UnboundedReceiver};
 use tokio_stream::wrappers::{ReceiverStream};
 
 mod api;
-mod server;
 
 use std::io::{Error};
 use std::task::{Poll, Context};

@@ -21,9 +21,7 @@ pub mod primitives {
     use pax_compiler_api::ManifestContext;
 
     #[pax_primitive("./pax-std-primitives",  crate::FrameInstance)]
-    pub struct Frame {
-
-    }
+    pub struct Frame {}
 
     #[pax_primitive("./pax-std-primitives",  crate::GroupInstance)]
     pub struct Group {}
