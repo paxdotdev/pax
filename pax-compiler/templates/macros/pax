@@ -18,6 +18,9 @@ pub fn main() {
 
     let mut ctx = ManifestContext::default();
 
+
+
+
     let (mut ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
 
     let manifest = PaxManifest {
@@ -43,10 +46,23 @@ impl {{pascal_identifier}} {
 
         let source_id = "component::{{pascal_identifier}}";
 
+
         {% for property_definition in local_property_definitions %}
-        //let property_manifest = {{property_definition.1}}::get_property_manifest("{{property_definition.0}}", "{{property_definition.1}}");
-        //ctx.property_manifests.push(property_manifest);
+        //break complex (nested, generic) types into individual calls here, with Tera filters?
+        //note: this lacks an awareness of lifetimes
+        //TODO: Probably abandon this approach, particularly because of the above
+        //      Probably best to enumerate nested properties with awareness of AST, in vanilla macro land
+
+
+        {% for atomic_type in property_definition.1 | replace(from=">", to="") | split(pat="<") %}
+        let property_manifest = {{atomic_type}}::get_property_manifest("{{property_definition.0}}", "{{atomic_type}}");
+        ctx.property_manifests.push(property_manifest);
         {% endfor %}
+
+
+        {% endfor %}
+
+
 
         // TODO: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate `raw_pax` before templating.
 
