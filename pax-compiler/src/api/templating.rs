@@ -3,6 +3,7 @@ use serde_derive::Serialize;
 use serde_json;
 use include_dir::{include_dir, Dir};
 use tera::{Context, Tera};
+use std::collections::HashSet;
 
 
 static ROOT_PATH : &str = "$CARGO_MANIFEST_DIR/templates";
@@ -19,6 +20,14 @@ pub struct TemplateArgsMacroPaxPrimitive {
 
 
 #[derive(Serialize)]
+pub struct CompileTimePropertyDefinition {
+    pub scoped_atomic_types: HashSet<String>,
+    pub field_name: String,
+    pub full_type_name: String,
+}
+
+
+#[derive(Serialize)]
 pub struct TemplateArgsMacroPax {
     pub raw_pax: String,
     pub pascal_identifier: String,
@@ -26,11 +35,8 @@ pub struct TemplateArgsMacroPax {
     pub is_root: bool,
     pub dependencies: Vec<String>,
 
-    /// List of tuples of local Property types
-    /// `(a,b)` where `a is the identifier (name) of the property, and
-    /// `b` is the type of that property, qualified to local namespace (as Pascal identifiers or primitive type identifiers)
-    /// Used to codegen get_property_manifest calls, which allows parser binary to "reflect"
-    pub local_property_definitions: Vec<(String, String)>,
+    /// Used to codegen get_property_manifest calls, which allows parser to "reflect"
+    pub local_compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
 
     pub pub_mod_types: String,
 }

@@ -103,7 +103,7 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
 
 /// Arguably Manifestable is a compiletime concern; however, it is useful to rely on the
 /// compiler to enforce `Property<T: Manifestable>`, because that constraint is expected
-/// at compiletime (i.e. statically generated,) and this constraint applies to userland code (complex property types)
+/// at compiletime (i.e. it is statically generated,) and this constraint applies to userland code (complex property types)
 /// as well.  Thus, this logic is housed in pax-runtime-api to satisfy dependency graph constraints.
 pub trait PropertyManifestable {
     // Default implementation: push the current `module_path` to the accumulated Vec;
@@ -116,23 +116,28 @@ pub trait PropertyManifestable {
 
     //Note: this default implementation is probably not the right approach, but it works hackily
     //      alongisde e.g. `impl PropertyManifestable for i64{} pub use i64`.  A better alternative may be to `#[derive(Manifestable)]` (or
-    //      derive as part of `pax`, `pax_root`, or `pax_type` macros)
-    fn get_property_manifest(self_identifier: &str, self_type: &str) -> PropertyManifest {
-        let this_path = module_path!().to_owned() + "::" + self_type;
+    //      derive as part of `pax`, `pax_root`, and `pax_type` macros)
 
+    ///
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+        let fully_qualified_path = module_path!().to_owned() + "::" + atomic_self_type;
+
+
+        //TO implement (generate):  recursive invocations (alt: invoke flat list via tera-generated loop)
+        //Represents a Property<> and its metadata:
+        // -- fully qualified paths of all necessary imports
+        // -- name of the property
         PropertyManifest {
-            identifier: self_identifier.to_string(),
-            fully_qualified_path: this_path,
-            dependency_manifests: vec![]
+            field_name: field_name.to_string(),
+            fully_qualified_path,
         }
     }
 }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PropertyManifest {
-    identifier: String,
+    field_name: String,
     fully_qualified_path: String,
-    dependency_manifests: Vec<PropertyManifest>,
 }
 
 impl PropertyManifestable for i64{}

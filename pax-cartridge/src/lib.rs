@@ -7,7 +7,7 @@ use pax_core::{ComponentInstance, RenderNodePtr, PropertyExpression, RenderNodeP
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet_common::RenderContext;
 
-const PLACEHOLDER_ERROR : &str = "Fatal: the placeholder cartridge is still attached -- a defined cartridge must be attached during compilation.  This means compilation failed.";
+const PLACEHOLDER_ERROR : &str = "Fatal: the placeholder cartridge is still attached -- a defined cartridge must be attached during compilation.  This means that Pax compilation failed.";
 
 pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
     unreachable!("{}", PLACEHOLDER_ERROR)

@@ -8,6 +8,7 @@ use std::collections::{HashSet, HashMap};
 use serde_json;
 
 
+
 {% if is_root %}
 // For the root component only, a `main` is generated for the `parser` bin target.
 // This method bootstraps the parsing process, parsing not only the root component
@@ -17,9 +18,6 @@ use serde_json;
 pub fn main() {
 
     let mut ctx = ManifestContext::default();
-
-
-
 
     let (mut ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
 
@@ -48,6 +46,11 @@ impl {{pascal_identifier}} {
 
 
         {% for property_definition in local_property_definitions %}
+        {% for scoped_atomic_type in property_definition.scoped_atomic_types %}
+
+        let property_manifest = {{scoped_atomic_type}}::get_property_manifest("{{property_definition.field_name}}", "{{scoped_atomic_type}}");
+        ctx.property_manifests.push(property_manifest);
+
         //break complex (nested, generic) types into individual calls here, with Tera filters?
         //note: this lacks an awareness of lifetimes
         //TODO: Probably abandon this approach, particularly because of the above

@@ -3,11 +3,12 @@ extern crate proc_macro2;
 
 use std::fs;
 use std::str::FromStr;
+use std::collections::HashSet;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
-use quote::quote;
-use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax};
+use quote::{quote, ToTokens};
+use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, CompileTimePropertyDefinition};
 
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument};
 
@@ -44,6 +45,12 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
 
 
+
+
+
+
+
+
 /// Determines whether a field is wrapped in Property<...>, returning None if not,
 /// and returning the encapsulated type if so.  This heuristic is used to determine
 /// whether a declared field should be treated as a Pax Property
@@ -54,12 +61,17 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
             match tp.qself {
                 None => {
                     tp.path.segments.iter().for_each(|ps| {
+                        //Only generate parsing logic for types wrapped in `Property<>`
                         if ps.ident.to_string().ends_with("Property") {
                             match &ps.arguments {
                                 PathArguments::AngleBracketed(abga) => {
                                     abga.args.iter().for_each(|abgaa| {
                                         match abgaa {
                                             GenericArgument::Type(gat) => {
+
+                                                //Break out "working end" type, then
+                                                //recurse with `extract_all_types_from_possibly_compound_type`
+
                                                 ret = Some(gat.to_owned());
                                             },
                                             _ => {}
@@ -78,6 +90,129 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
     };
     ret
 }
+
+
+
+fn get_working_end_of_possibly_compound_type(t: &Type) -> String {
+    let mut output = String::new();
+    match t {
+        Type::Path(tp) => {
+            match tp.qself {
+                None => {
+                    tp.path.segments.iter().for_each(|ps| {
+                        let ret = ps.ident.to_string();
+                        println!("Working end? {}", &ret);
+                        //Only generate parsing logic for types wrapped in `Property<>`
+                        // return ps.ident.to_string();
+                        output = ret;
+                    });
+                },
+                _ => { unimplemented!("Self-qualifying types not yet supported with Pax `Property<...>`")}
+            }
+        },
+        _ => {
+            unimplemented!("Unsupported Type::Path {}", t.to_token_stream().to_string());
+        }
+    }
+    output
+}
+
+
+//get an list of scoped types for a possibly compound type, or
+fn get_scoped_atomic_types(t: &Type) -> HashSet<String> {
+    //for example: Vec<Rc<SomeStruct<'a, SomeOtherStruct>>>
+    //             => ["Vec", "Rc", "SomeStruct", "SomeOtherStruct"]
+    let mut accum: HashSet<String> = HashSet::new();
+    let working_end_type_name = get_working_end_of_possibly_compound_type(t);
+    accum.insert(working_end_type_name);
+
+
+
+    match t {
+        Type::Path(tp) => {
+            match tp.qself {
+                None => {
+                    tp.path.segments.iter().for_each(|ps| {
+                        match &ps.arguments {
+                            PathArguments::AngleBracketed(abga) => {
+                                abga.args.iter().for_each(|abgaa| {
+                                    match abgaa {
+                                        GenericArgument::Type(gat) => {
+                                            // Want to add BOTH this "atomic type" (pre-angle-bracket) and each of its descendents' atomic types
+                                            // to our accum
+                                            // This requires breaking out the working end of the current type,
+
+                                            // let sub_types = extract_all_types_from_possibly_compound_type(gat, types);
+                                            // accum =
+                                            // ret = Some(gat.to_owned());
+                                        },
+                                        //TODO: _might_ need to extract and deal with lifetimes, most notably where the "full string type" is used.
+                                        //      May be a non-issue, but this is where that data would need to be extracted.
+
+                                        _ => {}
+                                    };
+                                })
+                            },
+                            _ => {}
+                        }
+                    });
+                },
+                _ => {},
+            };
+        },
+        _ => {}
+    }
+
+    accum
+
+
+}
+
+
+fn extract_all_types_from_possibly_compound_type(t: &Type, mut accum: HashSet<String>) -> HashSet<String> {
+    match t {
+        Type::Path(tp) => {
+            match tp.qself {
+                None => {
+                    tp.path.segments.iter().for_each(|ps| {
+                        match &ps.arguments {
+                            PathArguments::AngleBracketed(abga) => {
+                                abga.args.iter().for_each(|abgaa| {
+                                    match abgaa {
+                                        GenericArgument::Type(gat) => {
+                                            // Want to add BOTH this "atomic type" (pre-angle-bracket) and each of its descendents' atomic types
+                                            // to our accum
+                                            // This requires breaking out the working end of the current type,
+
+                                            // let sub_types = extract_all_types_from_possibly_compound_type(gat, types);
+                                            // accum =
+                                            // ret = Some(gat.to_owned());
+                                        },
+                                        //TODO: _might_ need to extract and deal with lifetimes, most notably where the "full string type" is used.
+                                        //      May be a non-issue, but this is where that data would need to be extracted.
+
+                                        _ => {}
+                                    };
+                                })
+                            },
+                            _ => {}
+                        }
+                    });
+                },
+                _ => {},
+            };
+        },
+        _ => {}
+    }
+    accum
+
+}
+
+
+
+
+///TODO: extend `Type`-matching logic to be recursive, and return a flat list of atomic Types
+/// (as well as a full string of the type, esp. for Lifetime concerns.
 
 
 fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, is_root: bool) -> proc_macro::TokenStream {
@@ -101,7 +236,11 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
                         let field_type = match get_property_wrapped_field(f) {
                             None => { /* noop */ },
                             Some(ty) => { ret.push(
-                                (quote!(#field_name).to_string(),quote!(#ty).to_string())
+                                CompileTimePropertyDefinition {
+                                     full_type_name: quote!(#ty).to_string(),
+                                     field_name: quote!(#field_name).to_string(),
+                                     scoped_atomic_types: get_scoped_atomic_types(&ty),
+                                }
                             ) }
                         };
 
@@ -127,7 +266,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         original_tokens,
         is_root,
         dependencies,
-        local_property_definitions,
+        local_compile_time_property_definitions: local_property_definitions,
         pub_mod_types,
     });
 

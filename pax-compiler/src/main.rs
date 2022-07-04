@@ -257,7 +257,11 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     let out = String::from_utf8(output.stdout).unwrap();
     let _err = String::from_utf8(output.stderr).unwrap();
 
-    // println!("PARSING: {}"/, &out);
+
+    // TODO: error handle calling `cargo run` here -- need to forward
+    //       cargo/rustc errors, to handle the broad set of cases where
+    //       there are vanilla Rust errors (dep/config issues, syntax errors, etc.)
+    // println!("PARSING: {}", &out);
 
     assert_eq!(output.status.code().unwrap(), 0);
 
