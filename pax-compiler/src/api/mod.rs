@@ -136,8 +136,8 @@ pub trait PropertyManifestable {
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PropertyManifest {
-    field_name: String,
-    fully_qualified_path: String,
+    pub field_name: String,
+    pub fully_qualified_path: String,
 }
 
 impl PropertyManifestable for i64{}

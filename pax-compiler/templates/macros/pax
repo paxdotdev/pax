@@ -45,24 +45,11 @@ impl {{pascal_identifier}} {
         let source_id = "component::{{pascal_identifier}}";
 
 
-        {% for property_definition in local_property_definitions %}
-        {% for scoped_atomic_type in property_definition.scoped_atomic_types %}
-
-        let property_manifest = {{scoped_atomic_type}}::get_property_manifest("{{property_definition.field_name}}", "{{scoped_atomic_type}}");
-        ctx.property_manifests.push(property_manifest);
-
-        //break complex (nested, generic) types into individual calls here, with Tera filters?
-        //note: this lacks an awareness of lifetimes
-        //TODO: Probably abandon this approach, particularly because of the above
-        //      Probably best to enumerate nested properties with awareness of AST, in vanilla macro land
-
-
-        {% for atomic_type in property_definition.1 | replace(from=">", to="") | split(pat="<") %}
-        let property_manifest = {{atomic_type}}::get_property_manifest("{{property_definition.0}}", "{{atomic_type}}");
-        ctx.property_manifests.push(property_manifest);
-        {% endfor %}
-
-
+        {% for property_definition in local_compile_time_property_definitions %}
+            {% for scoped_atomic_type in property_definition.scoped_atomic_types %}
+                let property_manifest = {{scoped_atomic_type}}::get_property_manifest("{{property_definition.field_name}}", "{{scoped_atomic_type}}");
+                ctx.property_manifests.push(property_manifest);
+            {% endfor %}
         {% endfor %}
 
 
