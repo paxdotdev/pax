@@ -127,7 +127,6 @@ fn recurse_get_scoped_atomic_types(t: &Type, accum: &mut HashSet<String>) {
                     // accum.insert(scoped_atomic_type);
 
 
-
                     let mut accumulated_scoped_atomic_type = "".to_string();
                     tp.path.segments.iter().for_each(|ps| {
                         match &ps.arguments {
@@ -136,15 +135,20 @@ fn recurse_get_scoped_atomic_types(t: &Type, accum: &mut HashSet<String>) {
                                 if accumulated_scoped_atomic_type.ne("") {
                                     accumulated_scoped_atomic_type = accumulated_scoped_atomic_type.clone() + "::"
                                 }
-                                accumulated_scoped_atomic_type = accumulated_scoped_atomic_type.clone() + &ps.to_token_stream().to_string();
+
+                                accumulated_scoped_atomic_type = accumulated_scoped_atomic_type.clone() + &ps.ident.to_token_stream().to_string();
 
                                 abga.args.iter().for_each(|abgaa| {
                                     match abgaa {
                                         GenericArgument::Type(gat) => {
+
+                                            //break apart, for example, `Vec` from `Vec<(usize, Size)` >
                                             recurse_get_scoped_atomic_types(gat, accum);
                                         },
                                         //TODO: _might_ need to extract and deal with lifetimes, most notably where the "full string type" is used.
                                         //      May be a non-issue, but this is where that data would need to be extracted.
+                                        //      Finally: might want to choose whether to require that any lifetimes used in Pax `Property<...>` are compatible with `'static`
+
 
                                         _ => {}
                                     };
@@ -170,6 +174,7 @@ fn recurse_get_scoped_atomic_types(t: &Type, accum: &mut HashSet<String>) {
                 _ => { unimplemented!("Self-types not yet supported with Pax `Property<...>`")}
             }
         },
+        //For example, the contained tuple: `Property<(usize, Vec<String>)>`
         Type::Tuple(t) => {
             t.elems.iter().for_each(|tuple_elem| {
                 recurse_get_scoped_atomic_types(tuple_elem, accum);
@@ -199,6 +204,7 @@ fn get_scoped_atomic_types(t: &Type) -> HashSet<String> {
     recurse_get_scoped_atomic_types(t, &mut accum);
 
     //TODO: notice this log output —
+    //      Ideally, generics are ignored and tuples are broken apart
 
     /*
     Got scoped atomic types: {"StackerDirection"}
@@ -319,7 +325,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
-    let local_property_definitions = match input_parsed.data {
+    let local_compile_time_property_definitions = match input_parsed.data {
         Data::Struct(ref data) => {
             match data.fields {
                 Fields::Named(ref fields) => {
@@ -359,7 +365,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         original_tokens,
         is_root,
         dependencies,
-        local_compile_time_property_definitions: local_property_definitions,
+        local_compile_time_property_definitions,
         pub_mod_types,
     });
 
