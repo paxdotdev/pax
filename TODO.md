@@ -265,7 +265,7 @@ _RIL means Rust Intermediate Language, which is the
         (Tentative decision: refactor macro-time parse logic; probably do a full parse; return necessary dep strings along with pascal_identifiers)
         Escape hatch if the above doesn't work: use include_str!() along with a file that contains
         [ ] Refactor parsing logic -- maybe start clean?
-            [ ] De-risk: verify ability to call macro-generated code at compile-time (parse_to_manifest)
+            [x] De-risk: verify ability to call macro-generated code at compile-time (parse_to_manifest)
             [ ] Parse all of, recursively:
                 [ ] Template
                 [ ] Properties:
@@ -274,9 +274,11 @@ _RIL means Rust Intermediate Language, which is the
                         [ ] This will be tricky... either
                             [-] static analysis on the whole source file, looking for a `use ... KEYWORD` statement and infer paths
                             [-] dynamic analysis -- some kind of rustc API.....?
-                            [ ] dynamic analysis: `parse_to_manifest`-style `get_module_path`, called by parser
-                                [ ] parser returns fully qualified types in manifest by dynamically calling `get_module_path` on each discovered type during parsing
-                                [ ] during "compiler codegen" phase, build `.pax/types.rs`
+                            [x] dynamic analysis: `parse_to_manifest`-style `get_module_path`, called by parser
+                                [x] parser returns fully qualified types in manifest by dynamically calling `get_module_path` on each discovered type during parsing
+                                [ ] refactor: re-introduce `Size` as a `core` entity; move  plan to use `Into` where needed to convert
+                                    -- this allows  
+                                [ ] during "compiler codegen" phase, generate `.pax/types.rs`
                                 [ ] include_str!() `.pax/types.rs` _at compile-time_ in macro logic
                                     -- and pass the resulting static string into Tera
                             [-] Require fully qualified types inside Property<...>, like `Property<crate::SomeType>` or `Property<pax::api::Color>`  

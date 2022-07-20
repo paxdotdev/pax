@@ -8,7 +8,7 @@ use std::collections::HashSet;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
 use quote::{quote, ToTokens};
-use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, CompileTimePropertyDefinition};
+use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, TemplateArgsMacroPaxType, CompileTimePropertyDefinition};
 
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument};
 
@@ -33,10 +33,20 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
 
 #[proc_macro_attribute]
 pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    //TODO: derive `get_property_manifest` logic
 
+    let original_tokens = input.to_string();
 
-    input
+    let input = parse_macro_input!(input as DeriveInput);
+
+    let pascal_identifier = input.ident.to_string();
+
+    let output = pax_compiler_api::press_template_macro_pax_type(TemplateArgsMacroPaxType{
+        pascal_identifier,
+        original_tokens,
+    });
+
+    TokenStream::from_str(&output).unwrap().into()
+
 }
 
 

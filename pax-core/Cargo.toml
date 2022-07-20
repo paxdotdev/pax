@@ -20,11 +20,3 @@ wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 
 [features]
 designtime = []
-
-
-#
-#[patch.'/Users/zack/code/pax-lang/pax-properties-coproduct']
-#pax-properties-coproduct = {path = "../pax-cartridge/pax-properties-coproduct"}
-#
-#[patch.'file://../pax-properties-coproduct']
-#pax-properties-coproduct = { path = "../pax-example/.pax-manual/patches/pax-properties-coproduct"}

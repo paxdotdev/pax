@@ -134,6 +134,35 @@ pub trait PropertyManifestable {
     }
 }
 
+impl PropertyManifestable for usize {
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+        PropertyManifest {
+            field_name: field_name.to_string(),
+            fully_qualified_path: "usize".to_string(),
+        }
+    }
+}
+
+impl<T> PropertyManifestable for Rc<T> {
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+        PropertyManifest {
+            field_name: field_name.to_string(),
+            fully_qualified_path: "std::rc::Rc".to_string(),
+        }
+    }
+}
+
+impl<T> PropertyManifestable for Vec<T> {
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+        PropertyManifest {
+            field_name: field_name.to_string(),
+            fully_qualified_path: "std::collections::Vec".to_string(),
+        }
+    }
+}
+
+
+
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PropertyManifest {
     pub field_name: String,

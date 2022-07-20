@@ -20,6 +20,14 @@ pub struct TemplateArgsMacroPaxPrimitive {
 
 
 #[derive(Serialize)]
+pub struct TemplateArgsMacroPaxType {
+    pub pascal_identifier: String,
+    pub original_tokens: String,
+
+}
+
+
+#[derive(Serialize)]
 pub struct CompileTimePropertyDefinition {
     pub scoped_atomic_types: HashSet<String>,
     pub field_name: String,
@@ -44,6 +52,14 @@ pub struct TemplateArgsMacroPax {
 static TEMPLATE_PAX_PRIMITIVE : &str = include_str!("../../templates/macros/pax_primitive");
 pub fn press_template_macro_pax_primitive(args: TemplateArgsMacroPaxPrimitive ) -> String {
     let template = TEMPLATE_DIR.get_file("macros/pax_primitive").unwrap().contents_utf8().unwrap();
+    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
+}
+
+
+
+static TEMPLATE_PAX_TYPE : &str = include_str!("../../templates/macros/pax_type");
+pub fn press_template_macro_pax_type(args: TemplateArgsMacroPaxType ) -> String {
+    let template = TEMPLATE_DIR.get_file("macros/pax_type").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 

@@ -44,15 +44,12 @@ impl {{pascal_identifier}} {
 
         let source_id = "component::{{pascal_identifier}}";
 
-
         {% for property_definition in local_compile_time_property_definitions %}
             {% for scoped_atomic_type in property_definition.scoped_atomic_types %}
                 let property_manifest = {{scoped_atomic_type}}::get_property_manifest("{{property_definition.field_name}}", "{{scoped_atomic_type}}");
                 ctx.property_manifests.push(property_manifest);
             {% endfor %}
         {% endfor %}
-
-
 
         // TODO: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate `raw_pax` before templating.
 

@@ -7,6 +7,9 @@ use std::rc::Rc;
 use uuid::Uuid;
 use std::ffi::CString;
 
+pub extern crate pax_macro;
+pub use pax_macro::*;
+
 #[macro_use]
 extern crate lazy_static;
 extern crate mut_static;
@@ -110,6 +113,22 @@ pub struct ArgsJab {
 pub enum Size {
     Pixels(f64),
     Percent(f64),
+}
+
+impl Size {
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+        let fully_qualified_path = module_path!().to_owned() + "::" + atomic_self_type;
+
+
+        //TO implement (generate):  recursive invocations (alt: invoke flat list via tera-generated loop)
+        //Represents a Property<> and its metadata:
+        // -- fully qualified paths of all necessary imports
+        // -- name of the property
+        PropertyManifest {
+            field_name: field_name.to_string(),
+            fully_qualified_path,
+        }
+    }
 }
 
 #[derive(Copy, Clone)]

@@ -1,6 +1,8 @@
 use pax::*;
 use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 
+
+
 #[derive(Clone)]
 #[pax_type]
 pub struct Stroke {
@@ -29,17 +31,6 @@ pub struct StackerCellProperties {
     pub y_px: f64,
     pub width_px: f64,
     pub height_px: f64,
-}
-
-impl PropertyManifestable for StackerCellProperties {
-    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
-        let fully_qualified_path = module_path!().to_owned() + "::" + atomic_self_type;
-        let field_name = field_name.to_string();
-        PropertyManifest {
-            field_name,
-            fully_qualified_path,
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -167,7 +158,6 @@ pub enum ColorVariant {
     Rgba([f64; 4]),
 }
 
-#[pax_type]
 pub use pax::api::Size;
-use pax_compiler_api::{PropertyManifest, PropertyManifestable};
+
 use pax_message::{ColorVariantMessage, FontPatch};
