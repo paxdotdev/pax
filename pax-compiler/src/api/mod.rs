@@ -143,28 +143,28 @@ impl PropertyManifestable for usize {
         }
     }
 }
-
-impl<T> PropertyManifestable for Rc<T>
-    where T: Sized
-{
-    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
-        PropertyManifest {
-            field_name: field_name.to_string(),
-            fully_qualified_path: "std::rc::Rc".to_string(),
-        }
-    }
-}
-
-impl<T> PropertyManifestable for Vec<T>
-    where T: Sized
-{
-    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
-        PropertyManifest {
-            field_name: field_name.to_string(),
-            fully_qualified_path: "std::collections::Vec".to_string(),
-        }
-    }
-}
+//
+// impl<T> PropertyManifestable for Rc<T>
+//     where T: Sized
+// {
+//     fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+//         PropertyManifest {
+//             field_name: field_name.to_string(),
+//             fully_qualified_path: "std::rc::Rc".to_string(),
+//         }
+//     }
+// }
+//
+// impl<T> PropertyManifestable for Vec<T>
+//     where T: Sized
+// {
+//     fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+//         PropertyManifest {
+//             field_name: field_name.to_string(),
+//             fully_qualified_path: "std::collections::Vec".to_string(),
+//         }
+//     }
+// }
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PropertyManifest {
@@ -183,6 +183,7 @@ pub fn is_prelude_type(identifier: &str) -> bool {
         "std::rc::Rc",
         "std::collections::Vec",
     ];
+    println!("testing {}", identifier);
     for x in PRELUDE_TYPES {
         if x.ends_with(identifier) {
             return true;

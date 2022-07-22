@@ -178,7 +178,9 @@ fn recurse_get_scoped_atomic_types(t: &Type, accum: &mut HashSet<String>) {
                         }
                     });
 
-                    accum.insert(accumulated_scoped_atomic_type);
+                    if !pax_compiler_api::is_prelude_type(&accumulated_scoped_atomic_type) {
+                        accum.insert(accumulated_scoped_atomic_type);
+                    }
 
                 },
                 _ => { unimplemented!("Self-types not yet supported with Pax `Property<...>`")}
@@ -347,15 +349,14 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
                             Some(ty) => {
                                 let name = quote!(#ty).to_string();
                                 //only add types that aren't in this
-                                if !pax_compiler_api::is_prelude_type(&name) {
-                                    ret.push(
-                                        CompileTimePropertyDefinition {
-                                            full_type_name: name,
-                                            field_name: quote!(#field_name).to_string(),
-                                            scoped_atomic_types: get_scoped_atomic_types(&ty),
-                                        }
-                                    )
-                                }
+
+                                ret.push(
+                                    CompileTimePropertyDefinition {
+                                        full_type_name: name,
+                                        field_name: quote!(#field_name).to_string(),
+                                        scoped_atomic_types: get_scoped_atomic_types(&ty),
+                                    }
+                                )
                             }
                         };
 
