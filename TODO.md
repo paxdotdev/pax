@@ -276,8 +276,10 @@ _RIL means Rust Intermediate Language, which is the
                             [-] dynamic analysis -- some kind of rustc API.....?
                             [x] dynamic analysis: `parse_to_manifest`-style `get_module_path`, called by parser
                                 [x] parser returns fully qualified types in manifest by dynamically calling `get_module_path` on each discovered type during parsing
-                                [ ] refactor: re-introduce `Size` as a `core` entity; move  plan to use `Into` where needed to convert
-                                    -- this allows  
+                                [x] refactor: punch `parser` features through all necessary Cargo.tomls — `impl PropertyManifestable` manually for `Size` and `Size2D`
+                                [ ] refactor: instead of `scoped_atomic_types`, might need to `impl PropertyManifestable` for concrete nested generic types, e.g.
+                                    instead of Vec::get_property_manifest and Rc::get_property_manifest, Vec<Rc<StackerCellProperties>>::get_property_manifest
+                                    -- this addresses compiler error `cannot infer type T for Rc<T>` (non-viable approach)  
                                 [ ] during "compiler codegen" phase, generate `.pax/types.rs`
                                 [ ] include_str!() `.pax/types.rs` _at compile-time_ in macro logic
                                     -- and pass the resulting static string into Tera

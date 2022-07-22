@@ -8,6 +8,9 @@ edition = "2021"
 [dependencies]
 pax-macro = {path="../pax-macro"}
 pax-message = {path="../pax-message"}
-pax-runtime-api = {path="../pax-runtime-api"}
-pax-compiler = {path="../pax-compiler"}
+pax-runtime-api = {path="../pax-runtime-api", features=["parser"]}
+pax-compiler = {path="../pax-compiler", optional=true}
+
+[features]
+parser = ["dep:pax-compiler"]
 

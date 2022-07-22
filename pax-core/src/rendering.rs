@@ -23,12 +23,13 @@ pub struct ScrollerArgs {
     pub axes_enabled: [Box<dyn PropertyInstance<bool>>;2],
 }
 
+
 pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub size: Option<[Box<dyn PropertyInstance<Size>>;2]>,
+    pub size: Option<[Box<dyn PropertyInstance<CoreSize>>;2]>,
     pub children: Option<RenderNodePtrList<R>>,
     pub component_template: Option<RenderNodePtrList<R>>,
 
@@ -99,6 +100,7 @@ impl<R: 'static + RenderContext> TabCache<R> {
         self.parents = HashMap::new();
     }
 }
+
 
 
 

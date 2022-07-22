@@ -7,6 +7,7 @@ use pest::Parser;
 use std::{env, fs};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::ops::Deref;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 use pest::iterators::{Pair, Pairs};
@@ -143,7 +144,9 @@ impl PropertyManifestable for usize {
     }
 }
 
-impl<T> PropertyManifestable for Rc<T> {
+impl<T> PropertyManifestable for Rc<T>
+    where T: Sized
+{
     fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
         PropertyManifest {
             field_name: field_name.to_string(),
@@ -152,7 +155,9 @@ impl<T> PropertyManifestable for Rc<T> {
     }
 }
 
-impl<T> PropertyManifestable for Vec<T> {
+impl<T> PropertyManifestable for Vec<T>
+    where T: Sized
+{
     fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
         PropertyManifest {
             field_name: field_name.to_string(),
@@ -160,8 +165,6 @@ impl<T> PropertyManifestable for Vec<T> {
         }
     }
 }
-
-
 
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct PropertyManifest {
@@ -173,6 +176,20 @@ impl PropertyManifestable for i64{}
 pub use i64;
 impl PropertyManifestable for f64{}
 pub use f64;
+
+pub fn is_prelude_type(identifier: &str) -> bool {
+    //TODO: make static; deal with static + iter
+    let PRELUDE_TYPES: Vec<&'static str> = vec![
+        "std::rc::Rc",
+        "std::collections::Vec",
+    ];
+    for x in PRELUDE_TYPES {
+        if x.ends_with(identifier) {
+            return true;
+        }
+    }
+    false
+}
 
 
 pub fn get_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_manifests: &Vec<PropertyManifest>) -> ComponentDefinition {

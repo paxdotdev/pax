@@ -109,24 +109,19 @@ pub struct ArgsJab {
 
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
+
 #[derive(Copy, Clone)]
 pub enum Size {
     Pixels(f64),
     Percent(f64),
 }
 
-impl Size {
-    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
-        let fully_qualified_path = module_path!().to_owned() + "::" + atomic_self_type;
-
-
-        //TO implement (generate):  recursive invocations (alt: invoke flat list via tera-generated loop)
-        //Represents a Property<> and its metadata:
-        // -- fully qualified paths of all necessary imports
-        // -- name of the property
-        PropertyManifest {
+#[cfg(feature = "parser")]
+impl pax_compiler_api::PropertyManifestable for Size {
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> pax_compiler_api::PropertyManifest {
+        pax_compiler_api::PropertyManifest {
             field_name: field_name.to_string(),
-            fully_qualified_path,
+            fully_qualified_path: "pax::api::Size".to_string(),
         }
     }
 }
@@ -219,7 +214,7 @@ impl Mul for Size {
     }
 }
 
-/// TODO: revisit if 100% is the most ergonomic default size (remember Dreamweaver)
+// TODO: revisit if 100% is the most ergonomic default size (remember Dreamweaver)
 impl Default for Size {
     fn default() -> Self {
         Self::Percent(100.0)

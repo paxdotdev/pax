@@ -344,13 +344,19 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
                         let field_name = f.ident.as_ref().unwrap();
                         let field_type = match get_property_wrapped_field(f) {
                             None => { /* noop */ },
-                            Some(ty) => { ret.push(
-                                CompileTimePropertyDefinition {
-                                     full_type_name: quote!(#ty).to_string(),
-                                     field_name: quote!(#field_name).to_string(),
-                                     scoped_atomic_types: get_scoped_atomic_types(&ty),
+                            Some(ty) => {
+                                let name = quote!(#ty).to_string();
+                                //only add types that aren't in this
+                                if !pax_compiler_api::is_prelude_type(&name) {
+                                    ret.push(
+                                        CompileTimePropertyDefinition {
+                                            full_type_name: name,
+                                            field_name: quote!(#field_name).to_string(),
+                                            scoped_atomic_types: get_scoped_atomic_types(&ty),
+                                        }
+                                    )
                                 }
-                            ) }
+                            }
                         };
 
                     });

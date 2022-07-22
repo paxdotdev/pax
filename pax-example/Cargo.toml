@@ -5,8 +5,8 @@ authors = ["Zack Brown <zack@pax-lang.org>"]
 edition = "2021"
 
 [dependencies]
-pax = {package="pax-lang", path = "../pax-lang"}
-pax-std = {path = "../pax-std"}
+pax = {package="pax-lang", path = "../pax-lang", features=["parser"]}
+pax-std = {path = "../pax-std", features=["parser"]}
 pax-compiler = {path = "../pax-compiler", optional = true}
 serde_json = {version = "1", optional = true}
 
