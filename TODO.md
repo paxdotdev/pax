@@ -264,25 +264,24 @@ _RIL means Rust Intermediate Language, which is the
         do some codegen/patching on the userland project (icky)
         (Tentative decision: refactor macro-time parse logic; probably do a full parse; return necessary dep strings along with pascal_identifiers)
         Escape hatch if the above doesn't work: use include_str!() along with a file that contains
-        [ ] Refactor parsing logic -- maybe start clean?
+        [x] Refactor parsing logic -- maybe start clean?
             [x] De-risk: verify ability to call macro-generated code at compile-time (parse_to_manifest)
-            [ ] Parse all of, recursively:
-                [ ] Template
-                [ ] Properties:
-                    [ ] Property key
-                    [ ] Property type, full module (import) path
-                        [ ] This will be tricky... either
+            [x] Parse all of, recursively:
+                [x] Template
+                [x] Properties:
+                    [x] Property key
+                    [x] Property type, full module (import) path
+                        [x] This will be tricky... either
                             [-] static analysis on the whole source file, looking for a `use ... KEYWORD` statement and infer paths
                             [-] dynamic analysis -- some kind of rustc API.....?
                             [x] dynamic analysis: `parse_to_manifest`-style `get_module_path`, called by parser
                                 [x] parser returns fully qualified types in manifest by dynamically calling `get_module_path` on each discovered type during parsing
                                 [x] refactor: punch `parser` features through all necessary Cargo.tomls — `impl PropertyManifestable` manually for `Size` and `Size2D`
-                                [ ] refactor: instead of `scoped_atomic_types`, might need to `impl PropertyManifestable` for concrete nested generic types, e.g.
+                                [-] refactor: instead of `scoped_atomic_types`, might need to `impl PropertyManifestable` for concrete nested generic types, e.g.
                                     instead of Vec::get_property_manifest and Rc::get_property_manifest, Vec<Rc<StackerCellProperties>>::get_property_manifest
-                                    -- this addresses compiler error `cannot infer type T for Rc<T>` (non-viable approach)  
-                                [ ] during "compiler codegen" phase, generate `.pax/types.rs`
-                                [ ] include_str!() `.pax/types.rs` _at compile-time_ in macro logic
-                                    -- and pass the resulting static string into Tera
+                                    -- this addresses compiler error `cannot infer type T for Rc<T>` (non-viable approach)
+                                        [x] Alternatively: hard-code a list of prelude types; treat as blacklist for re-exporting
+                                            -- note that this adds additional complexity/weakness around "global identifier" constraints, i.e. that as currently implemented, there can be no userland `**::**::Rc` or `**::**::Vec`  
                             [-] Require fully qualified types inside Property<...>, like `Property<crate::SomeType>` or `Property<pax::api::Color>`  
                             [-] Make Property types `Pathable` or similar, which exposes a method `get_module_path()` that invoked `module_path!()` internally
                                 Then -- `pax` macro can invoke `get_module_path()` just like `parse_to_manifest`
@@ -293,12 +292,28 @@ _RIL means Rust Intermediate Language, which is the
                                 Checksum: does this resolve at the right time
                                 MAYBE we still need two phases:  one that parses template and property types, which allows codegen of `get_module_path` and `parse_to_manifest`
                                                                  and another that runs the parser bin
-                                
+        [ ] Codegen`.pax/types.partial.rs`
+        [ ] include_str!() `.pax/types.partial.rs` _at compile-time_ in macro logic
+            -- the goal is for this types re-export to be present at the root of the *userland project* by the time
+            the chassis is attached / compiled
+            [ ] might need to "create if doesn't exist," or otherwise guard the lifecycle of the include_str! per best practice
     [x] parser bin logic finish-line
         [x] macro
     [ ] codegen PropertiesCoproduct
         [x] manual
-        [ ] if necessary, supporting type parsing & inference work for TypesCoproduct
+        [ ] automated
+            [ ] For each `pax` component (e.g. `Rectangle`), expose the component's Properties
+                struct through `pub mod types
+            [ ] For each such entry, in addition to the template "prelude" types,
+                generate an entry for PropertiesCoproduct 
+    [ ] codegen TypesCoproduct
+        [ ] For each property that is bound to an Expression, look up the type of that property from PropertyManifests,
+            import from userland project, wrap into TypesCoproduct declaration
+            -- if this throws any curveballs, might be worth considering a refactor of the expression vtable, probably using
+            `unsafe`, such that functions with heterogeneous return types can be stored / accessed together 
+        [x] if necessary, supporting type parsing & inference work for TypesCoproduct
+    [ ] hook up `pax_on` and basic lifecycle events
+        [ ] possibly worth considering design for async while doing this
     [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
 [ ] `pax-compiler`
@@ -337,11 +352,8 @@ _RIL means Rust Intermediate Language, which is the
     [ ] dep. management
         [ ] augment prelude with static dep. list? e.g. for resolving `Transform2D::*` with implicit `Transform2D::`
         [ ] Support static constants?  e.g. JABBERWOCKY use-case
-    [ ] `with`
-        [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
-        [ ] grammar+parser support
-        [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
-        [ ] multiple variables in tuple `(i,j,k)`
+            [ ] perhaps decorate with `#[pax_const]`
+                -- ensure export, OR copy outright and re-declare in cartridge
     [ ] expression compilation
         [ ] expression string => RIL generation
             [ ] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
@@ -355,6 +367,10 @@ _RIL means Rust Intermediate Language, which is the
                 [ ] Numeric type management, casting ("gradual typing"?)
         [ ] Dependency tracking & dirty-watching
             [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender`
+            [ ] address use-case of `Property<Vec<T>>`, inserting/changing an element without setting the whole
+                entity.  Might want to offer a `get_mut` API (keep an eye on async / ownership concerns)
+                -- In fact, probably address this on the heels of a Property -> channel refactor, as the implications for this
+                intersection are significant  
         [ ] symbol resolution & code-gen, incl. shadowing with `@for`
         [ ] binding event handlers
     [ ] control flow
@@ -368,9 +384,6 @@ _RIL means Rust Intermediate Language, which is the
             [ ] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
 [ ] support stand-alone .pax files (no rust file); .html use-case
     [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
-[ ] Support async
-    [ ] `Property` => channels 'smart object'; disposable `mut self` => lifecycle methods (support async lifecycle event handlers)
-    [ ] Pencil out error handling (userland)
 [ ] e2e `pax run`
 [ ] documentation pass
     [ ] clean up codebase; reduce warnings
@@ -388,6 +401,24 @@ _RIL means Rust Intermediate Language, which is the
     [ ] ProductHunt launch (+ other channels, incl Reddit communities)
 ```
 
+
+## Milestone: usability & functionality++
+```
+[ ] `with`
+    [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
+    [ ] grammar+parser support
+    [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
+    [ ] multiple variables in tuple `(i,j,k)`
+[ ] Support async
+    [ ] `Property` => channels 'smart object'; disposable `mut self` => lifecycle methods (support async lifecycle event handlers)
+    [ ] Pencil out error handling (userland)
+[ ] usable error messages
+    [ ] compiletime errors:
+        [ ] 
+    [ ] parsetime errors:
+        [ ] syntax errors
+            [ ] 
+```
 
 ## Milestone: form controls
 ```

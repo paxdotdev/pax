@@ -11,17 +11,18 @@ pub enum PropertiesCoproduct {
 
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
-    //core (?)
+    //core: primitives
     f64(f64),
     bool(bool),
     isize(isize),
     usize(usize), //used by Slot for index
+
     Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
     String(String),
     Transform2D(pax_runtime_api::Transform2D),
     SizePixels(pax_runtime_api::SizePixels),
     Size(pax_runtime_api::Size),
-    //generated
+    //generated / userland
 }
 
 

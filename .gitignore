@@ -2,6 +2,7 @@ node_modules
 target/
 
 pax-chassis-macos/pax-dev-harness-macos/build
+pax-example/.pax/chassis/
 
 **/*.rs.bk
 Cargo.lock
