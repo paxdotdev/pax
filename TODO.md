@@ -293,10 +293,17 @@ _RIL means Rust Intermediate Language, which is the
                                 MAYBE we still need two phases:  one that parses template and property types, which allows codegen of `get_module_path` and `parse_to_manifest`
                                                                  and another that runs the parser bin
         [ ] Codegen`.pax/types.partial.rs`
+            [x] Basic logic
+            [x] Filter prelude
+            [ ] fix bug: using `ctx` for property_manifests (maybe only a bug in primitives)
+            [ ] Hook up primitives + types
+                -- possibly recycle logic that checks for `Property<...>`
         [ ] include_str!() `.pax/types.partial.rs` _at compile-time_ in macro logic
             -- the goal is for this types re-export to be present at the root of the *userland project* by the time
             the chassis is attached / compiled
             [ ] might need to "create if doesn't exist," or otherwise guard the lifecycle of the include_str! per best practice
+                -- a likely-viable approach: feature-gate two complementary `pax_root` macros, across binary values `is parser`
+                   parser mode passes an empty string; prod mode assumes presence of .pax/types.partial.rs and hard-code-includes it
     [x] parser bin logic finish-line
         [x] macro
     [ ] codegen PropertiesCoproduct
