@@ -48,7 +48,6 @@ pub struct ComponentDefinition {
     pub template: Option<Vec<TemplateNodeDefinition>>,
     //can be hydrated as a tree via child_ids/parent_id
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
-    //(String, String) => (field name, fully qualified module+type path)
     pub property_manifests: Vec<super::PropertyManifest>,
 }
 

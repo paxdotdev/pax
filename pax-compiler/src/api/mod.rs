@@ -123,11 +123,6 @@ pub trait PropertyManifestable {
     fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
         let fully_qualified_path = module_path!().to_owned() + "::" + atomic_self_type;
 
-
-        //TO implement (generate):  recursive invocations (alt: invoke flat list via tera-generated loop)
-        //Represents a Property<> and its metadata:
-        // -- fully qualified paths of all necessary imports
-        // -- name of the property
         PropertyManifest {
             field_name: field_name.to_string(),
             fully_qualified_path,
@@ -182,8 +177,10 @@ pub fn is_prelude_type(identifier: &str) -> bool {
     let PRELUDE_TYPES: Vec<&'static str> = vec![
         "std::rc::Rc",
         "std::collections::Vec",
+        "usize",
+        "i64",
+        "u64",
     ];
-    println!("testing {}", identifier);
     for x in PRELUDE_TYPES {
         if x.ends_with(identifier) {
             return true;
@@ -194,13 +191,18 @@ pub fn is_prelude_type(identifier: &str) -> bool {
 
 
 pub fn get_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_manifests: &Vec<PropertyManifest>) -> ComponentDefinition {
+    let modified_module_path = if module_path.starts_with("parser") {
+        module_path.replacen("parser", "crate", 1)
+    } else {
+        module_path.to_string()
+    };
     ComponentDefinition {
         source_id: source_id.to_string(),
         pascal_identifier: pascal_identifier.to_string(),
         template: None,
         settings: None,
         root_template_node_id: None,
-        module_path: module_path.to_string(),
+        module_path: modified_module_path,
         property_manifests: property_manifests.clone(),
     }
 }
@@ -752,12 +754,18 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
 
     parse_template_from_component_definition_string(&mut tpc, pax);
 
+    let modified_module_path = if module_path.starts_with("parser") {
+        module_path.replacen("parser", "crate", 1)
+    } else {
+        module_path.to_string()
+    };
+
     let mut new_def = ComponentDefinition {
         source_id: source_id.into(),
         pascal_identifier: pascal_identifier.to_string(),
         template: Some(tpc.template_node_definitions),
         settings: parse_settings_from_component_definition_string(pax),
-        module_path: module_path.to_string(),
+        module_path: modified_module_path,
         root_template_node_id: tpc.root_template_node_id,
         property_manifests: ctx.property_manifests.clone(),
     };

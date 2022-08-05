@@ -227,8 +227,8 @@ fn get_scoped_atomic_types(t: &Type) -> HashSet<String> {
      */
 
     //TODO: fix `recurse_get_scoped_atomic_types` logic
-
-    println!("Got scoped atomic types: {:?}", accum);
+    //
+    // println!("Got scoped atomic types: {:?}", accum);
 
     accum
 

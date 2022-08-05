@@ -8,9 +8,15 @@ use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 use piet_common::RenderContext;
 
+//
+//Choose whether to
+// A. hardcode in template
+// B. hardcode / const-ize via prelude
+// C. load dynamically
 use pax_runtime_api::{ArgsCoproduct, SizePixels, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 
-//generate dependencies, pointing to userland cartridge (same logic as in PropertiesCoproduct)
+// generate dependencies, pointing to userland cartridge `pub mod types`
+// (? shared logic with PropertiesCoproduct gen ?)
 use pax_example::pax_types::{Root};
 use pax_example::pax_types::pax_std::primitives::{Rectangle, Group, Text};
 use pax_example::pax_types::pax_std::types::{Color, Font, Stroke, Size, StackerCellProperties, StackerDirection};

@@ -17,6 +17,7 @@ use std::task::{Poll, Context};
 use std::{fs, thread::{Thread, self}, time::Duration};
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::str::FromStr;
@@ -135,8 +136,42 @@ impl<'a> Into<&'a str> for &'a RunTarget {
     }
 }
 
+//relative to pax_dir
+const TYPE_PARTIAL_RS_PATH: &str = "types.partial.rs";
+fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
+    //traverse ComponentDefinitions in manifest
+    //gather module_path and PascalIdentifier --
+    //  handle `parser` module_path and any sub-paths
+    //re-expose module_path::PascalIdentifier underneath `pax_types`
+    //ensure that this partial.rs file is loaded included under the `pax_root` macro
+    let mut reexport_components: Vec<String> = manifest.components.iter().map(|cd|{
+        //e.g.: "some::module::path::SomePascalIdentifier"
+        cd.module_path.clone() + "::" + &cd.pascal_identifier
+    }).collect();
 
+    let mut reexport_types: Vec<String> = manifest.components.iter().map(|cd|{
+        cd.property_manifests.iter().map(|pm|{
+            pm.fully_qualified_path.clone()
+        }).collect::<Vec<String>>()
+    }).flatten().collect();
 
+    let mut combined_reexports = reexport_components;
+    combined_reexports.append(&mut reexport_types);
+
+    let mut already_exported = HashSet::new();
+    let mut file_contents = "pub mod pax_types { \n".to_string();
+    for reexport in combined_reexports.iter() {
+        if !already_exported.contains(reexport) && !pax_compiler_api::is_prelude_type(reexport) {
+            file_contents += &format!("\tpub use {};\n", reexport);
+            already_exported.insert(reexport.clone());
+        }
+    }
+    file_contents += "}";
+
+    let path = pax_dir.join(Path::new(TYPE_PARTIAL_RS_PATH));
+    fs::write(path, file_contents);
+
+}
 fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
     // todo!()
 }
@@ -268,10 +303,12 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     let manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
 
     //6. Codegen:
+    //   - types.partial.rs
     //   - Properties Coproduct
     //   - Cartridge
     //   - Cargo.toml for the appropriate `chassis` (including patches for Properties Coproduct & Cartridge)
     let build_id = Uuid::new_v4().to_string();
+    generate_types_partial_rs(&pax_dir, &manifest);
     generate_properties_coproduct(&pax_dir, &build_id, &manifest);
     generate_cartridge_definition(&pax_dir, &build_id, &manifest);
     generate_cargo_definition(&pax_dir, &ctx.target, &build_id, &manifest);
