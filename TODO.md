@@ -1733,7 +1733,7 @@ Stacker needs to update its cached computed layout as a function of its ~six pro
 
 pub computed_layout_spec: Vec<Rc<StackerCellProperties>>,
 pub direction:  Box<dyn pax::api::Property<StackerDirection>>,
-pub cell_count: Box<dyn pax::api::Property<usize>>,
+pub cells: Box<dyn pax::api::Property<usize>>,
 pub gutter_width: Box<dyn pax::api::Property<pax::api::Size>>,
 pub overrides_cell_size: Option(Vec<(usize, pax::api::Size)>),
 pub overrides_gutter_size: Option(Vec<(usize, pax::api::Size)>),
@@ -1742,7 +1742,7 @@ pub overrides_gutter_size: Option(Vec<(usize, pax::api::Size)>),
 As a single expression? (probably requires functional list operators in PAXEL, like `map`, as well
 as lambdas)
 ```
-(0..cell_count).map(|i|{
+(0..cells).map(|i|{
     
 })
 ```
@@ -2117,7 +2117,7 @@ Stacker's template in the example above might be something like:
 
 ```
 
-@for i in self.cell_count {
+@for i in self.cells {
     <Frame transform=@{self.get_transform(i)}>
         <Slot index=@i />
     </Frame>

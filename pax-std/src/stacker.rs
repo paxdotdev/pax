@@ -18,7 +18,7 @@ use crate::types::{StackerDirection, StackerCellProperties};
 pub struct Stacker {
     pub computed_layout_spec: Property<Vec<Rc<StackerCellProperties>>>,
     pub direction: Property<StackerDirection>,
-    pub cell_count: Property<usize>,
+    pub cells: Property<usize>,
     pub gutter_width: Property<Size>,
 
     pub overrides_cell_size: Property<Vec<(usize, Size)>>,
@@ -46,10 +46,10 @@ impl Stacker {
             Size::Percent(pct) => active_bound * (pct / 100.0),
         };
 
-        let cell_count = *self.cell_count.get() as f64;
+        let cells = *self.cells.get() as f64;
 
-        let usable_interior_space = active_bound - (cell_count - 1.0) * gutter_calc;
-        let per_cell_space = usable_interior_space / cell_count;
+        let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc;
+        let per_cell_space = usable_interior_space / cells;
 
         //TODO: account for overrides
         //The two data structures act as "sparse maps," where
@@ -62,7 +62,7 @@ impl Stacker {
         //was needed to stop instance churn that was happening with
 
         let old = self.computed_layout_spec.get();
-        let new : Vec<Rc<StackerCellProperties>> = (0..(cell_count as usize)).into_iter().map(|i| {
+        let new : Vec<Rc<StackerCellProperties>> = (0..(cells as usize)).into_iter().map(|i| {
             match self.direction.get() {
                 StackerDirection::Horizontal =>
                     Rc::new(StackerCellProperties {

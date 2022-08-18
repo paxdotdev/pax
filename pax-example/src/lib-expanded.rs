@@ -105,8 +105,8 @@
 //         //those two macros should be otherwise equivalent, generating simply a different line that
 //         //evaluates `raw_pax`.
 //
-//         const raw_pax: &str = r#"<Stacker cell_count=10 >
-//     <Stacker cell_count=5 direction=Vertical >
+//         const raw_pax: &str = r#"<Stacker cells=10 >
+//     <Stacker cells=5 direction=Vertical >
 //         for i in 0..5 {
 //             <Rectangle fill={Color::Rgba(20%, 0, 100%, 100%)} />
 //         }

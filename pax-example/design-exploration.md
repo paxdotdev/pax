@@ -93,7 +93,7 @@ Alphabet of injectables:
         size: (Size::Percent(100.0),Size::Percent(100.0))
         transform: || {}
         direction:
-        cell_count:
+        cells:
         gutter_width:
     }
 )
@@ -144,7 +144,7 @@ That is, three total parsers:
                                //but have obvious namespace collision risks.
                                //To start we could give judicious global real estate to 
                                //orientation.{vertical|horizontal}, toward.{top,right,bottom,left}
-        cell_count: 10,
+        cells: 10,
         gutter_width: 10px,
     }
     
@@ -174,7 +174,7 @@ That is, three total parsers:
                                //but have obvious namespace collision risks.
                                //To start we could give judicious global real estate to 
                                //orientation.{vertical|horizontal}, toward.{top,right,bottom,left}
-        cell_count: 10,
+        cells: 10,
         gutter_width: 10px,
     }
     

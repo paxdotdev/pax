@@ -516,9 +516,9 @@ description of any visual content, design, prototype, document, production GUI, 
 
 ```
 //Tic-tac-toe example
-<Stacker direction=Horizontal cell_count=3 >
+<Stacker direction=Horizontal cells=3 >
   for i in 0..3 {
-    <Stacker direction=Vertical cell_count=3 >
+    <Stacker direction=Vertical cells=3 >
       for j in 0..3 {
         <Group on_jab=handle_jab with (i, j)>
           if self.cells[i][j] == Cell::Empty {

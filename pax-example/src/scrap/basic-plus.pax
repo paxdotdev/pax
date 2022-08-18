@@ -11,7 +11,7 @@
 
 @settings {
     #main-stacker {
-        cell_count: 3
+        cells: 3
         orientation: Orientation::Vertical
         gutter_width: 5px
     }

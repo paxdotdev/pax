@@ -4,8 +4,8 @@ use pax_std::primitives::{Text, Rectangle, Group};
 use pax_std::components::{Stacker};
 
 #[pax_root(
-    <Stacker cell_count=10 >
-        <Stacker cell_count=5 direction=Vertical >
+    <Stacker cells=10 >
+        <Stacker cells=5 direction=Vertical >
             for i in 0..5 {
                 <Rectangle fill={Rgba((i * 20)%, 0, 100%, 100%)} />
             }
