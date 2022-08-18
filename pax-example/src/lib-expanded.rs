@@ -42,7 +42,7 @@
 // }
 //
 // impl Root {
-//     pub fn handle_pre_render(&mut self, args: ArgsRender) {
+//     pub fn handle_will_render(&mut self, args: ArgsRender) {
 //         if args.frames_elapsed % 180 == 0 {
 //             //every 3s
 //             pax::log(&format!("pax::log from frame {}", args.frames_elapsed));

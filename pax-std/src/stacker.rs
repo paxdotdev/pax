@@ -31,7 +31,7 @@ impl Stacker {
     pub fn hello(){}
 
     #[pax_on(PreRender)]
-    pub fn handle_pre_render(&mut self, args: ArgsRender) {
+    pub fn handle_will_render(&mut self, args: ArgsRender) {
 
         //TODO: dirty check
         let bounds = args.bounds;
@@ -139,7 +139,7 @@ impl Stacker {
 //
 //     fn get_rendering_children(&self) -> RenderNodePtrList {
 //         // return the root of the internal template here — as long
-//         // as we capture refs to (c) and (d) below during Stacker's `render` or `pre_render` fn,
+//         // as we capture refs to (c) and (d) below during Stacker's `render` or `will_render` fn,
 //         // we can happily let rendering just take its course,
 //         // recursing through the subtree starting with (e).
 //         //
@@ -401,7 +401,7 @@ impl Stacker {
 
 /* Things that a component needs to do, beyond being just a rendernode
     - declare a list of Properties [maybe this should be the same as RenderNodes?? i.e. change RenderNode to be more like this]
-    - push a stackframe during pre_render and pop it during post_render
+    - push a stackframe during will_render and pop it during did_render
     - declare a `template` that's separate from its `children`
 */
 

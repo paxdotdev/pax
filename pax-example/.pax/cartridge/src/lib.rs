@@ -265,11 +265,11 @@ pub fn instantiate_component_stacker<R: 'static + RenderContext>(instance_regist
     args.handler_registry = Some(Rc::new(RefCell::new(
         HandlerRegistry {
             click_handlers: vec![],
-            pre_render_handlers: vec![
+            will_render_handlers: vec![
                 |properties,args|{
                     let properties = &mut *properties.as_ref().borrow_mut();
                     let properties = if let PropertiesCoproduct::Stacker(p) = properties {p} else {unreachable!("{}",123)};
-                    Stacker::handle_pre_render(properties, args);
+                    Stacker::handle_will_render(properties, args);
                 }
             ],
         }
@@ -325,11 +325,11 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
             }),
             handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
                 click_handlers: vec![],
-                pre_render_handlers: vec![
+                will_render_handlers: vec![
                     |properties,args|{
                         let properties = &mut *properties.as_ref().borrow_mut();
                         let properties = if let PropertiesCoproduct::HelloWorld(p) = properties {p} else {unreachable!("{}",123)};
-                        HelloWorld::handle_pre_render(properties, args);
+                        HelloWorld::handle_will_render(properties, args);
                     }
                 ]
             }))),
@@ -541,7 +541,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                 HelloWorld::handle_click(properties, args);
                                             }
                                         ],
-                                        pre_render_handlers: vec![],
+                                        will_render_handlers: vec![],
                                     }
                                 ))),
                                 instance_registry: Rc::clone(&instance_registry),

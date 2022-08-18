@@ -258,7 +258,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
-    fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
 
         let clipping_ids = rtc.runtime.borrow().get_current_clipping_ids();
 
@@ -271,7 +271,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         );
     }
 
-    fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_will_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
 
         // unplugged in desperation, search codebase for "unplugged in desperation"
 

@@ -469,7 +469,7 @@ PAXEL expressions are noteworthy in a few ways:
 
 It is in event handlers that you will normally change property values (e.g. `self.red_amount.set(/*new value*/)`, where `self.red_amount` is referenced in the Expression example above.)
 
-Pax includes a number of built-in lifecycle events like `pre_render` and user interaction events like `on_click` and `on_tap`.
+Pax includes a number of built-in lifecycle events like `will_render` and user interaction events like `on_click` and `on_tap`.
 
 [*] PAXEL is similar to Google's Common Expression Language (CEL), but CEL was not a suitable fit for Pax due to its footprint — being written in Go, CEL adds
 a prohibitive overhead to compiled binaries (1-2MB) vs. Pax's total target footprint of <100KB.  Pax also has subtly distinct goals

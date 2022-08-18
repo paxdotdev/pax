@@ -44,7 +44,7 @@ pub struct HelloWorld {
 impl HelloWorld {
 
     #[pax_on(PreRender)] //or long-hand: #[pax_on(Lifecycle::PreRender)]
-    pub fn handle_pre_render(&mut self, args: ArgsRender) {
+    pub fn handle_will_render(&mut self, args: ArgsRender) {
         if args.frames_elapsed % 180 == 0 {
             //every 3s
             pax::log(&format!("pax::log from frame {}", args.frames_elapsed));

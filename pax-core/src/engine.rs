@@ -163,7 +163,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 #[derive(Default)]
 pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsClick)>,
-    pub pre_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
+    pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
 }
 
 pub struct HydratedNode<R: 'static + RenderContext> {
@@ -317,7 +317,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
             let repeat_indices = (*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack();
             if !instance_registry.is_mounted(id, repeat_indices.clone()) { //TODO: make more efficient
-                node.borrow_mut().handle_post_mount(rtc);
+                node.borrow_mut().handle_did_mount(rtc);
                 instance_registry.mark_mounted(id, repeat_indices.clone());
             }
         }
@@ -362,8 +362,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
         node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec());
 
-        //lifecycle: pre_render for primitives
-        node.borrow_mut().handle_pre_render(rtc, rc);
+        //lifecycle: will_render for primitives
+        node.borrow_mut().handle_will_render(rtc, rc);
 
         //Fire userland `pax_on(PreRender)` handlers
         let registry = (*node).borrow().get_handler_registry();
@@ -372,7 +372,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             //on instance in order to dispatch cartridge method
             match rtc.runtime.borrow_mut().peek_stack_frame() {
                 Some(stack_frame) => {
-                    for handler in (*registry).borrow().pre_render_handlers.iter() {
+                    for handler in (*registry).borrow().will_render_handlers.iter() {
                         let args = ArgsRender { bounds: rtc.bounds.clone(), frames_elapsed: rtc.engine.frames_elapsed };
                         handler(stack_frame.borrow_mut().get_properties(), args);
                     }
@@ -419,8 +419,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //from the rendering of its children. Its children have already been rendered.
         node.borrow_mut().handle_render(rtc, rc);
 
-        //lifecycle: post_render
-        node.borrow_mut().handle_post_render(rtc, rc);
+        //lifecycle: did_render
+        node.borrow_mut().handle_did_render(rtc, rc);
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a

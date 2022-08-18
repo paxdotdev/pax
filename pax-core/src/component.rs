@@ -24,17 +24,9 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>,
-
-    // pub rtc: Option<RenderTreeContext<R>>,
 }
 
-
-//TODO:
-//  - track internal playhead for this component
-
-
 impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
-
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -52,7 +44,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         }
     }
 
-    fn handle_post_render(&mut self, rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
         (*rtc.runtime).borrow_mut().pop_stack_frame();
     }
 

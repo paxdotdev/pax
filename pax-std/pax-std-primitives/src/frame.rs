@@ -25,14 +25,10 @@ pub struct FrameInstance<R: 'static + RenderContext> {
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 
-
     last_patches: HashMap<Vec<u64>, FramePatch>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
-
-
-
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -157,7 +153,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         }
     }
 
-    fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         // construct a BezPath of this frame's bounds * its transform,
         // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
 
@@ -176,20 +172,20 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         bez_path.close_path();
 
         let transformed_bez_path = transform * bez_path;
-        rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
+        rc.save().unwrap(); //our "save point" before clipping — restored to in the did_render
         rc.clip(transformed_bez_path);
 
         let id_chain = rtc.get_id_chain(self.instance_id);
         (*rtc.runtime).borrow_mut().push_clipping_stack_id(id_chain);
     }
-    fn handle_post_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //pop the clipping context from the stack
         rc.restore().unwrap();
 
         (*rtc.runtime).borrow_mut().pop_clipping_stack_id();
     }
 
-    fn handle_post_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
         let id_chain = rtc.get_id_chain(self.instance_id);
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
@@ -204,7 +200,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
 
     }
 
-    fn handle_pre_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_will_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
 
         // The following, sending a `FrameDelete` message, was unplugged in desperation on May 11 2022
         // There was a bug wherein a flood of `FrameDelete` messages was getting

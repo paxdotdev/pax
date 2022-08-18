@@ -199,7 +199,7 @@ Seems like a suitable solution.
 //Can we operate on a guarantee that for `n` elements in a repeat, the consumer (expression)
 //will be invoked exactly `n` times?  If so, we could push a stackframe for each datum (in reverse)
 //so that each invocation consumes a new stack frame, in order.  The tricky piece of this is
-//a need to introduce stack frame `pop`s somewhere before the post_eval_properties_in_place lifecycle
+//a need to introduce stack frame `pop`s somewhere before the did_eval_properties_in_place lifecycle
 //method, in a way that's unique to `repeat`.
 
 //An alternative approach to this problem, which operates with the grain of "one stack frame
