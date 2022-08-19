@@ -10,6 +10,7 @@ pub mod components {
     pub use super::stacker::*;
 }
 
+
 pub mod primitives {
     use pax::pax_primitive;
 
@@ -17,6 +18,8 @@ pub mod primitives {
     use pax_compiler_api;
     #[cfg(feature = "parser")]
     use pax_compiler_api::ManifestContext;
+    #[cfg(feature = "parser")]
+    use pax_compiler_api::PropertyManifestable;
 
     #[pax_primitive("./pax-std-primitives",  crate::FrameInstance)]
     pub struct Frame {}

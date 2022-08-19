@@ -138,6 +138,33 @@ impl PropertyManifestable for usize {
         }
     }
 }
+
+impl PropertyManifestable for f64 {
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+        PropertyManifest {
+            field_name: field_name.to_string(),
+            fully_qualified_path: "f64".to_string(),
+        }
+    }
+}
+
+impl PropertyManifestable for i64 {
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+        PropertyManifest {
+            field_name: field_name.to_string(),
+            fully_qualified_path: "i64".to_string(),
+        }
+    }
+}
+
+impl PropertyManifestable for std::string::String {
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+        PropertyManifest {
+            field_name: field_name.to_string(),
+            fully_qualified_path: "std::string::String".to_string(),
+        }
+    }
+}
 //
 // impl<T> PropertyManifestable for Rc<T>
 //     where T: Sized
@@ -166,11 +193,6 @@ pub struct PropertyManifest {
     pub field_name: String,
     pub fully_qualified_path: String,
 }
-
-impl PropertyManifestable for i64{}
-pub use i64;
-impl PropertyManifestable for f64{}
-pub use f64;
 
 pub fn is_prelude_type(identifier: &str) -> bool {
     //TODO: make static; deal with static + iter
@@ -711,7 +733,8 @@ pub struct ManifestContext {
 
     pub template_map: HashMap<String, String>,
 
-    pub property_manifests: Vec<PropertyManifest>,
+    //(SourceID, associated PropertyManifests)
+    pub property_manifests: HashMap<String, Vec<PropertyManifest>>,
 }
 
 
@@ -722,7 +745,7 @@ impl Default for ManifestContext {
             visited_source_ids: HashSet::new(),
             component_definitions: vec![],
             template_map: HashMap::new(),
-            property_manifests: vec![],
+            property_manifests: HashMap::new(),
         }
     }
 }
@@ -739,6 +762,7 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
     if is_root {
         ctx.root_component_id = source_id.to_string();
     }
+
 
     let mut tpc = TemplateParseContext {
         pascal_identifier_to_component_id_map: template_map,
@@ -760,6 +784,8 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
         module_path.to_string()
     };
 
+    let component_property_manifests = ctx.property_manifests.get(source_id).unwrap();
+
     let mut new_def = ComponentDefinition {
         source_id: source_id.into(),
         pascal_identifier: pascal_identifier.to_string(),
@@ -767,7 +793,7 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
         settings: parse_settings_from_component_definition_string(pax),
         module_path: modified_module_path,
         root_template_node_id: tpc.root_template_node_id,
-        property_manifests: ctx.property_manifests.clone(),
+        property_manifests: component_property_manifests.clone(),
     };
 
     // TODO:

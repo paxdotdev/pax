@@ -1,7 +1,8 @@
 use pax::*;
 use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 
-
+#[cfg(feature = "parser")]
+use pax_compiler_api::PropertyManifestable;
 
 #[derive(Clone)]
 #[pax_type]

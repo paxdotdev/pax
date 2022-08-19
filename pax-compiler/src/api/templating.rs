@@ -15,7 +15,8 @@ static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 pub struct TemplateArgsMacroPaxPrimitive {
     pub pascal_identifier: String,
     pub original_tokens: String,
-
+    /// Used to codegen get_property_manifest calls, which allows parser to "reflect"
+    pub local_compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
 }
 
 

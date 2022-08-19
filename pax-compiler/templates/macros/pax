@@ -48,14 +48,17 @@ impl {{pascal_identifier}} {
         // call get_property_manifest for each of them (except whitelist)
         // This data is used (at least) for generating the `pub mod types` re-export
         // at the root of a userland project (`pax_root`)
+        let mut property_manifests = vec![];
         {% for property_definition in local_compile_time_property_definitions %}
             {% for scoped_atomic_type in property_definition.scoped_atomic_types %}
                 let property_manifest = {{scoped_atomic_type}}::get_property_manifest("{{property_definition.field_name}}", "{{scoped_atomic_type}}");
-                ctx.property_manifests.push(property_manifest);
+                property_manifests.push(property_manifest);
             {% endfor %}
         {% endfor %}
+        ctx.property_manifests.insert(source_id.to_string(), property_manifests);
 
-        // TODO: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate `raw_pax` before templating.
+
+        // TODO: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate/parse `raw_pax` before templating.
 
         const raw_pax: &str = r#####"{{raw_pax}}
 "#####;

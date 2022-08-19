@@ -16,15 +16,18 @@ use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArgumen
 #[proc_macro_attribute]
 pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
+
     let original_tokens = input.to_string();
 
-    let input = parse_macro_input!(input as DeriveInput);
+    let input_parsed = parse_macro_input!(input as DeriveInput);
+    let pascal_identifier = input_parsed.ident.to_string();
 
-    let pascal_identifier = input.ident.to_string();
+    let local_compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
 
     let output = pax_compiler_api::press_template_macro_pax_primitive(TemplateArgsMacroPaxPrimitive{
         pascal_identifier,
         original_tokens,
+        local_compile_time_property_definitions,
     });
 
     TokenStream::from_str(&output).unwrap().into()
@@ -321,23 +324,8 @@ fn extract_all_types_from_possibly_compound_type(t: &Type, mut accum: HashSet<St
 
 
 
-
-///TODO: extend `Type`-matching logic to be recursive, and return a flat list of atomic Types
-/// (as well as a full string of the type, esp. for Lifetime concerns.
-
-
-fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, is_root: bool) -> proc_macro::TokenStream {
-    let original_tokens = input.to_string();
-
-    //TODO: might need to define two separate `pax` (and friends) macros,
-    //      gated by complementary boolean `cartridge-attached` feature flags
-
-    let pub_mod_types = "".to_string();
-
-    let input_parsed = parse_macro_input!(input as DeriveInput);
-    let pascal_identifier = input_parsed.ident.to_string();
-
-    let local_compile_time_property_definitions = match input_parsed.data {
+fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileTimePropertyDefinition> {
+    match data {
         Data::Struct(ref data) => {
             match data.fields {
                 Fields::Named(ref fields) => {
@@ -369,7 +357,24 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
             }
         },
         _ => {unreachable!("Pax may only be attached to `struct`s")}
-    };
+    }
+}
+
+
+
+///TODO: extend `Type`-matching logic to be recursive, and return a flat list of atomic Types
+/// (as well as a full string of the type, esp. for Lifetime concerns.
+
+
+fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, is_root: bool) -> proc_macro::TokenStream {
+    let original_tokens = input.to_string();
+
+    let pub_mod_types = "".to_string();
+
+    let input_parsed = parse_macro_input!(input as DeriveInput);
+    let pascal_identifier = input_parsed.ident.to_string();
+
+    let local_compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
 
     let raw_pax = args.to_string();
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
