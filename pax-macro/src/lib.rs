@@ -54,15 +54,6 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
 
 
-
-
-
-
-
-
-
-
-
 /// Determines whether a field is wrapped in Property<...>, returning None if not,
 /// and returning the encapsulated type if so.  This heuristic is used to determine
 /// whether a declared field should be treated as a Pax Property
@@ -80,10 +71,6 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
                                     abga.args.iter().for_each(|abgaa| {
                                         match abgaa {
                                             GenericArgument::Type(gat) => {
-
-                                                //Break out "working end" type, then
-                                                //recurse with `extract_all_types_from_possibly_compound_type`
-
                                                 ret = Some(gat.to_owned());
                                             },
                                             _ => {}
@@ -103,43 +90,11 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
     ret
 }
 
-
-//
-// fn get_working_end_of_possibly_compound_type(t: &Type) -> String {
-//     let mut output = String::new();
-//     match t {
-//         Type::Path(tp) => {
-//             match tp.qself {
-//                 None => {
-//                     tp.path.segments.iter().for_each(|ps| {
-//                         let ret = ps.ident.to_string();
-//                         println!("Working end? {}", &ret);
-//                         //Only generate parsing logic for types wrapped in `Property<>`
-//                         // return ps.ident.to_string();
-//                         output = ret;
-//                     });
-//                 },
-//                 _ => { unimplemented!("Self-qualifying types not yet supported with Pax `Property<...>`")}
-//             }
-//         },
-//         _ => {
-//             unimplemented!("Unsupported Type::Path {}", t.to_token_stream().to_string());
-//         }
-//     }
-//     output
-// }
-
-
 fn recurse_get_scoped_atomic_types(t: &Type, accum: &mut HashSet<String>) {
-
     match t {
         Type::Path(tp) => {
             match tp.qself {
                 None => {
-                    // let scoped_atomic_type = tp.path.to_token_stream().to_string();
-                    // accum.insert(scoped_atomic_type);
-
-
                     let mut accumulated_scoped_atomic_type = "".to_string();
                     tp.path.segments.iter().for_each(|ps| {
                         match &ps.arguments {
@@ -161,7 +116,6 @@ fn recurse_get_scoped_atomic_types(t: &Type, accum: &mut HashSet<String>) {
                                         //TODO: _might_ need to extract and deal with lifetimes, most notably where the "full string type" is used.
                                         //      May be a non-issue, but this is where that data would need to be extracted.
                                         //      Finally: might want to choose whether to require that any lifetimes used in Pax `Property<...>` are compatible with `'static`
-
 
                                         _ => {}
                                     };
@@ -218,109 +172,11 @@ fn get_scoped_atomic_types(t: &Type) -> HashSet<String> {
 
     recurse_get_scoped_atomic_types(t, &mut accum);
 
-    //TODO: notice this log output —
-    //      Ideally, generics are ignored and tuples are broken apart
-
-    /*
-    Got scoped atomic types: {"StackerDirection"}
-    Got scoped atomic types: {"usize"}
-    Got scoped atomic types: {"Size"}
-    Got scoped atomic types: {"Size", "Vec < (usize, Size) >", "usize"}
-    Got scoped atomic types: {"Vec < (usize, Size) >", "Size", "usize"}
-     */
-
-    //TODO: fix `recurse_get_scoped_atomic_types` logic
-    //
-    // println!("Got scoped atomic types: {:?}", accum);
-
-    accum
-
-
-    //
-    // let working_end_type_name = get_working_end_of_possibly_compound_type(t);
-    // accum.insert(working_end_type_name);
-    //
-    //
-    //
-    // match t {
-    //     Type::Path(tp) => {
-    //         match tp.qself {
-    //             None => {
-    //                 tp.path.segments.iter().for_each(|ps| {
-    //                     match &ps.arguments {
-    //                         PathArguments::AngleBracketed(abga) => {
-    //                             abga.args.iter().for_each(|abgaa| {
-    //                                 match abgaa {
-    //                                     GenericArgument::Type(gat) => {
-    //                                         // Want to add BOTH this "atomic type" (pre-angle-bracket) and each of its descendents' atomic types
-    //                                         // to our accum
-    //                                         // This requires breaking out the working end of the current type,
-    //
-    //                                         // let sub_types = extract_all_types_from_possibly_compound_type(gat, types);
-    //                                         // accum =
-    //                                         // ret = Some(gat.to_owned());
-    //                                     },
-    //                                     //TODO: _might_ need to extract and deal with lifetimes, most notably where the "full string type" is used.
-    //                                     //      May be a non-issue, but this is where that data would need to be extracted.
-    //
-    //                                     _ => {}
-    //                                 };
-    //                             })
-    //                         },
-    //                         _ => {}
-    //                     }
-    //                 });
-    //             },
-    //             _ => {},
-    //         };
-    //     },
-    //     _ => {}
-    // }
-    //
-    // accum
-
-
-}
-
-
-fn extract_all_types_from_possibly_compound_type(t: &Type, mut accum: HashSet<String>) -> HashSet<String> {
-    match t {
-        Type::Path(tp) => {
-            match tp.qself {
-                None => {
-                    tp.path.segments.iter().for_each(|ps| {
-                        match &ps.arguments {
-                            PathArguments::AngleBracketed(abga) => {
-                                abga.args.iter().for_each(|abgaa| {
-                                    match abgaa {
-                                        GenericArgument::Type(gat) => {
-                                            // Want to add BOTH this "atomic type" (pre-angle-bracket) and each of its descendents' atomic types
-                                            // to our accum
-                                            // This requires breaking out the working end of the current type,
-
-                                            // let sub_types = extract_all_types_from_possibly_compound_type(gat, types);
-                                            // accum =
-                                            // ret = Some(gat.to_owned());
-                                        },
-                                        //TODO: _might_ need to extract and deal with lifetimes, most notably where the "full string type" is used.
-                                        //      May be a non-issue, but this is where that data would need to be extracted.
-
-                                        _ => {}
-                                    };
-                                })
-                            },
-                            _ => {}
-                        }
-                    });
-                },
-                _ => {},
-            };
-        },
-        _ => {}
-    }
     accum
 
 }
+
+
 
 
 
