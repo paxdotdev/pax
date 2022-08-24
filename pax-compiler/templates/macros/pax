@@ -50,7 +50,7 @@ impl {{pascal_identifier}} {
         // at the root of a userland project (`pax_root`)
         let mut property_manifests = vec![];
         {% for property_definition in local_compile_time_property_definitions %}
-            {% for scoped_atomic_type in property_definition.scoped_atomic_types %}
+            {% for scoped_atomic_type in property_definition.scoped_atomic_types_minus_prelude %}
                 let property_manifest = {{scoped_atomic_type}}::get_property_manifest("{{property_definition.field_name}}", "{{scoped_atomic_type}}");
                 property_manifests.push(property_manifest);
             {% endfor %}
@@ -70,7 +70,7 @@ impl {{pascal_identifier}} {
                 //parsed from the template
                 ctx.visited_source_ids.insert(source_id.clone().into());
 
-                {% for dep in dependencies %}
+                {% for dep in dependencies_minus_prelude %}
                 let (mut ctx, component_id) = {{dep}}::parse_to_manifest(ctx);
                 ctx.template_map.insert("{{dep}}".into(), component_id);
                 {% endfor %}

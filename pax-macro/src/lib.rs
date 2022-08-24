@@ -135,9 +135,9 @@ fn recurse_get_scoped_atomic_types(t: &Type, accum: &mut HashSet<String>) {
                         }
                     });
 
-                    if !pax_compiler_api::is_prelude_type(&accumulated_scoped_atomic_type) {
-                        accum.insert(accumulated_scoped_atomic_type);
-                    }
+                    // if !pax_compiler_api::is_prelude_type(&accumulated_scoped_atomic_type) {
+                    accum.insert(accumulated_scoped_atomic_type);
+                    // }
 
                 },
                 _ => { unimplemented!("Self-types not yet supported with Pax `Property<...>`")}
@@ -192,13 +192,23 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
                             None => { /* noop */ },
                             Some(ty) => {
                                 let name = quote!(#ty).to_string();
-                                //only add types that aren't in this
 
+                                let scoped_atomic_types = get_scoped_atomic_types(&ty);
+                                let scoped_atomic_types_minus_prelude =  {
+                                    let mut filt= HashSet::new();
+                                    scoped_atomic_types.iter().for_each(|a| {
+                                        if !pax_compiler_api::is_prelude_type(a) {
+                                            filt.insert(a.clone());
+                                        }
+                                    });
+                                    filt
+                                };
                                 ret.push(
                                     CompileTimePropertyDefinition {
                                         full_type_name: name,
                                         field_name: quote!(#field_name).to_string(),
-                                        scoped_atomic_types: get_scoped_atomic_types(&ty),
+                                        scoped_atomic_types,
+                                        scoped_atomic_types_minus_prelude,
                                     }
                                 )
                             }
@@ -234,6 +244,15 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
 
     let raw_pax = args.to_string();
     let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+    let dependencies_minus_prelude = {
+        let mut filt= vec![];
+        dependencies.iter().for_each(|a| {
+            if !pax_compiler_api::is_prelude_type(a) {
+                filt.push(a.clone());
+            }
+        });
+        filt
+    };
 
     let pub_mod_types = "".into(); //TODO: load codegenned types.fragment.rs file.  Might feature-gate an include_str! behind a `cartridge-attached` feature.
 
@@ -242,7 +261,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         pascal_identifier,
         original_tokens,
         is_root,
-        dependencies,
+        dependencies_minus_prelude,
         local_compile_time_property_definitions,
         pub_mod_types,
     });

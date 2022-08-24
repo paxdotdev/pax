@@ -203,7 +203,11 @@ pub fn is_prelude_type(identifier: &str) -> bool {
         "i64",
         "u64",
     ];
+    if identifier.contains("Rc") || identifier.contains("Vec") {
+        return true;
+    }
     for x in PRELUDE_TYPES {
+        //TODO: this logic for Rc and Vec is fragile.  Can we do better?
         if x.ends_with(identifier) {
             return true;
         }
