@@ -295,9 +295,10 @@ _RIL means Rust Intermediate Language, which is the
         [ ] Codegen`.pax/types.partial.rs`
             [x] Basic logic
             [x] Filter prelude
-            [ ] fix bug: using `ctx` for property_manifests (maybe only a bug in primitives)
-            [ ] Hook up primitives + types
+            [x] fix bug: using `ctx` for property_manifests (maybe only a bug in primitives)
+            [x] Hook up primitives + types
                 -- possibly recycle logic that checks for `Property<...>`
+            [ ] fix bug: prelude types not showing up in PropertyManifests
         [ ] include_str!() `.pax/types.partial.rs` _at compile-time_ in macro logic
             -- the goal is for this types re-export to be present at the root of the *userland project* by the time
             the chassis is attached / compiled

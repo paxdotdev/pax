@@ -194,14 +194,17 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
                                 let name = quote!(#ty).to_string();
 
                                 let scoped_atomic_types = get_scoped_atomic_types(&ty);
-                                let scoped_atomic_types_minus_prelude =  {
-                                    let mut filt= HashSet::new();
+                                let (scoped_atomic_types_minus_prelude, scoped_atomic_types_intersect_prelude) =  {
+                                    let mut filt_minus= HashSet::new();
+                                    let mut filt_intersect= HashSet::new();
                                     scoped_atomic_types.iter().for_each(|a| {
                                         if !pax_compiler_api::is_prelude_type(a) {
-                                            filt.insert(a.clone());
+                                            filt_minus.insert(a.clone());
+                                        } else {
+                                            filt_intersect.insert(a.clone());
                                         }
                                     });
-                                    filt
+                                    (filt_minus, filt_intersect)
                                 };
                                 ret.push(
                                     CompileTimePropertyDefinition {
@@ -209,6 +212,7 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
                                         field_name: quote!(#field_name).to_string(),
                                         scoped_atomic_types,
                                         scoped_atomic_types_minus_prelude,
+                                        scoped_atomic_types_intersect_prelude,
                                     }
                                 )
                             }

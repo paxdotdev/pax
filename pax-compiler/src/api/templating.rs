@@ -32,6 +32,7 @@ pub struct TemplateArgsMacroPaxType {
 pub struct CompileTimePropertyDefinition {
     pub scoped_atomic_types: HashSet<String>,
     pub scoped_atomic_types_minus_prelude: HashSet<String>,
+    pub scoped_atomic_types_intersect_prelude: HashSet<String>,
     pub field_name: String,
     pub full_type_name: String,
 }

@@ -102,6 +102,22 @@ fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
     // }
 }
 
+
+
+pub fn get_prelude_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+    //assert that atomic_self_type is in prelude
+    //return a
+
+    assert!(is_prelude_type(atomic_self_type), "Prelude property manifest requested for non-prelude type");
+
+    let fully_qualified_path = get_fully_qualified_prelude_type(atomic_self_type);
+
+    PropertyManifest {
+        field_name: field_name.to_string(),
+        fully_qualified_path,
+    }
+}
+
 /// Arguably Manifestable is a compiletime concern; however, it is useful to rely on the
 /// compiler to enforce `Property<T: Manifestable>`, because that constraint is expected
 /// at compiletime (i.e. it is statically generated,) and this constraint applies to userland code (complex property types)
@@ -165,6 +181,25 @@ impl PropertyManifestable for std::string::String {
         }
     }
 }
+
+impl<T> PropertyManifestable for std::rc::Rc<T> {
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+        PropertyManifest {
+            field_name: field_name.to_string(),
+            fully_qualified_path: "std::rc::Rc".to_string(),
+        }
+    }
+}
+
+impl<T> PropertyManifestable for std::vec::Vec<T> {
+    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> PropertyManifest {
+        PropertyManifest {
+            field_name: field_name.to_string(),
+            fully_qualified_path: "std::vec::Vec".to_string(),
+        }
+    }
+}
+
 //
 // impl<T> PropertyManifestable for Rc<T>
 //     where T: Sized
@@ -194,19 +229,25 @@ pub struct PropertyManifest {
     pub fully_qualified_path: String,
 }
 
+static PRELUDE_TYPES: [&'static str; 5] = [
+    "std::rc::Rc",
+    "std::vec::Vec",
+    "usize",
+    "i64",
+    "u64",
+];
+
+
+/// When we have a fragment of a prelude type like `Rc`, this function maps
+/// that fragment to the fully qualified path `std::rc::Rc`, as a String
+pub fn get_fully_qualified_prelude_type(identifier: &str) -> String {
+    (PRELUDE_TYPES.iter().find(|pt|{
+        pt.ends_with(identifier)
+    }).expect("`get_fully_resolved_prelude_type` called on a non-prelude type")).to_string()
+}
+
 pub fn is_prelude_type(identifier: &str) -> bool {
-    //TODO: make static; deal with static + iter
-    let PRELUDE_TYPES: Vec<&'static str> = vec![
-        "std::rc::Rc",
-        "std::collections::Vec",
-        "usize",
-        "i64",
-        "u64",
-    ];
-    if identifier.contains("Rc") || identifier.contains("Vec") {
-        return true;
-    }
-    for x in PRELUDE_TYPES {
+    for x in PRELUDE_TYPES.iter() {
         //TODO: this logic for Rc and Vec is fragile.  Can we do better?
         if x.ends_with(identifier) {
             return true;

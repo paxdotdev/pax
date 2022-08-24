@@ -54,6 +54,10 @@ impl {{pascal_identifier}} {
                 let property_manifest = {{scoped_atomic_type}}::get_property_manifest("{{property_definition.field_name}}", "{{scoped_atomic_type}}");
                 property_manifests.push(property_manifest);
             {% endfor %}
+            {% for scoped_atomic_type in property_definition.scoped_atomic_types_intersect_prelude %}
+                let property_manifest = pax_compiler_api::get_prelude_property_manifest("{{property_definition.field_name}}", "{{scoped_atomic_type}}");
+                property_manifests.push(property_manifest);
+            {% endfor %}
         {% endfor %}
         ctx.property_manifests.insert(source_id.to_string(), property_manifests);
 
