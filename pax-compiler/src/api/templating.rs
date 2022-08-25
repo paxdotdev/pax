@@ -30,7 +30,7 @@ pub struct TemplateArgsMacroPaxType {
 
 #[derive(Serialize)]
 pub struct CompileTimePropertyDefinition {
-    pub scoped_atomic_types: HashSet<String>,
+    pub scoped_resolvable_types: HashSet<String>,
     pub field_name: String,
     pub full_type_name: String,
 }

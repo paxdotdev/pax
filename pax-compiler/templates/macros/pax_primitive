@@ -28,9 +28,9 @@ impl {{pascal_identifier}} {
                     //4. (default value?  punt)
 
                     let mut fully_qualified_dependencies = vec![];
-                    {% for scoped_atomic_type in ctpd.scoped_atomic_types %}
+                    {% for scoped_resolvable_type in ctpd.scoped_resolvable_types %}
                         fully_qualified_dependencies.push(
-                            {{scoped_atomic_type}}::get_fully_qualified_path("{{scoped_atomic_type}}")
+                            {{scoped_resolvable_type}}::get_fully_qualified_path("{{scoped_resolvable_type}}")
                         );
                     {% endfor %}
                     property_definitions.push(pax_compiler_api::PropertyDefinition {
@@ -39,7 +39,7 @@ impl {{pascal_identifier}} {
                         fully_qualified_dependencies,
                     });
                 {% endfor %}
-                ctx.all_property_definitions.insert(source_id.to_string(), property_definitions);
+                ctx.all_property_definitions.insert(source_id.to_string(), property_definitions.clone());
 
                 let comp_def = pax_compiler_api::get_primitive_definition(PASCAL_IDENTIFIER, module_path!(), &source_id, &property_definitions);
                 ctx.component_definitions

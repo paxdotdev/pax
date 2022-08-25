@@ -90,34 +90,42 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
     ret
 }
 
-fn recurse_get_scoped_atomic_types(t: &Type, accum: &mut HashSet<String>) {
+fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut HashSet<String>) {
     match t {
         Type::Path(tp) => {
             match tp.qself {
                 None => {
-                    let mut accumulated_scoped_atomic_type = "".to_string();
+                    let mut accumulated_scoped_resolvable_type = "".to_string();
                     tp.path.segments.iter().for_each(|ps| {
                         match &ps.arguments {
                             PathArguments::AngleBracketed(abga) => {
 
-                                if accumulated_scoped_atomic_type.ne("") {
-                                    accumulated_scoped_atomic_type = accumulated_scoped_atomic_type.clone() + "::"
+                                if accumulated_scoped_resolvable_type.ne("") {
+                                    accumulated_scoped_resolvable_type = accumulated_scoped_resolvable_type.clone() + "::"
                                 }
-
-                                accumulated_scoped_atomic_type = accumulated_scoped_atomic_type.clone() + &ps.ident.to_token_stream().to_string();
+                                let ident = ps.ident.to_token_stream().to_string();
+                                let turbofish_contents = ps.to_token_stream()
+                                    .to_string()
+                                    .replacen(&ident, "", 1)
+                                    .replace(" ", "");
+                                accumulated_scoped_resolvable_type =
+                                    accumulated_scoped_resolvable_type.clone() +
+                                    &ident +
+                                    "::" +
+                                    &turbofish_contents;
 
                                 abga.args.iter().for_each(|abgaa| {
                                     match abgaa {
                                         GenericArgument::Type(gat) => {
 
                                             //break apart, for example, `Vec` from `Vec<(usize, Size)` >
-                                            recurse_get_scoped_atomic_types(gat, accum);
+                                            recurse_get_scoped_resolvable_types(gat, accum);
                                         },
                                         //TODO: _might_ need to extract and deal with lifetimes, most notably where the "full string type" is used.
                                         //      May be a non-issue, but this is where that data would need to be extracted.
                                         //      Finally: might want to choose whether to require that any lifetimes used in Pax `Property<...>` are compatible with `'static`
 
-                                        _ => {}
+                                        _ => { }
                                     };
                                 })
                             },
@@ -125,19 +133,17 @@ fn recurse_get_scoped_atomic_types(t: &Type, accum: &mut HashSet<String>) {
                             PathArguments::None => {
                                 //PathSegments without Args are vanilla segments, like
                                 //`std` or `collections`.  While visiting path segments, assemble our
-                                //accumulated_scoped_atomic_type
-                                if accumulated_scoped_atomic_type.ne("") {
-                                    accumulated_scoped_atomic_type = accumulated_scoped_atomic_type.clone() + "::"
+                                //accumulated_scoped_resolvable_type
+                                if accumulated_scoped_resolvable_type.ne("") {
+                                    accumulated_scoped_resolvable_type = accumulated_scoped_resolvable_type.clone() + "::"
                                 }
-                                accumulated_scoped_atomic_type = accumulated_scoped_atomic_type.clone() + &ps.to_token_stream().to_string();
+                                accumulated_scoped_resolvable_type = accumulated_scoped_resolvable_type.clone() + &ps.to_token_stream().to_string();
                             }
                             _ => {}
                         }
                     });
 
-                    // if !pax_compiler_api::is_prelude_type(&accumulated_scoped_atomic_type) {
-                    accum.insert(accumulated_scoped_atomic_type);
-                    // }
+                    accum.insert(accumulated_scoped_resolvable_type);
 
                 },
                 _ => { unimplemented!("Self-types not yet supported with Pax `Property<...>`")}
@@ -146,39 +152,25 @@ fn recurse_get_scoped_atomic_types(t: &Type, accum: &mut HashSet<String>) {
         //For example, the contained tuple: `Property<(usize, Vec<String>)>`
         Type::Tuple(t) => {
             t.elems.iter().for_each(|tuple_elem| {
-                recurse_get_scoped_atomic_types(tuple_elem, accum);
+                recurse_get_scoped_resolvable_types(tuple_elem, accum);
             });
         },
         _ => {
             unimplemented!("Unsupported Type::Path {}", t.to_token_stream().to_string());
         }
     }
-
 }
 
-
-
-
-
-
-//get an list of scoped types for a possibly compound type, or
-fn get_scoped_atomic_types(t: &Type) -> HashSet<String> {
-    //for example: Vec<Rc<SomeStruct<'a, SomeOtherStruct>>>
-    //             => ["Vec", "Rc", "SomeStruct", "SomeOtherStruct"]
-
-
-
+/// From a raw Property inner type (`T<K>` for `Property<T<K>>`):
+/// Retrieve a list of "resolvable types"; this is, a sequence of identifers that `rustc` can resolve
+/// to a namespace for a `::get_fully_qualified_path` call.
+/// For example: `K` and `T::<K>`.  This is used to bridge from static to dynamic analysis, parse-time "reflection,"
+/// so that the Pax compiler can resolve fully qualified paths.
+fn get_scoped_resolvable_types(t: &Type) -> HashSet<String> {
     let mut accum: HashSet<String> = HashSet::new();
-
-    recurse_get_scoped_atomic_types(t, &mut accum);
-
+    recurse_get_scoped_resolvable_types(t, &mut accum);
     accum
-
 }
-
-
-
-
 
 fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileTimePropertyDefinition> {
     match data {
@@ -191,13 +183,13 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
                         let field_type = match get_property_wrapped_field(f) {
                             None => { /* noop */ },
                             Some(ty) => {
-                                let name = quote!(#ty).to_string();
+                                let name = quote!(#ty).to_string().replace(" ", "");
 
-                                let scoped_atomic_types = get_scoped_atomic_types(&ty);
-                                // let (scoped_atomic_types_minus_prelude, scoped_atomic_types_intersect_prelude) =  {
+                                let scoped_resolvable_types = get_scoped_resolvable_types(&ty);
+                                // let (scoped_resolvable_types_minus_prelude, scoped_resolvable_types_intersect_prelude) =  {
                                 //     let mut filt_minus= HashSet::new();
                                 //     let mut filt_intersect= HashSet::new();
-                                //     scoped_atomic_types.iter().for_each(|a| {
+                                //     scoped_resolvable_types.iter().for_each(|a| {
                                 //         if !pax_compiler_api::is_prelude_type(a) {
                                 //             filt_minus.insert(a.clone());
                                 //         } else {
@@ -210,7 +202,7 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
                                     CompileTimePropertyDefinition {
                                         full_type_name: name,
                                         field_name: quote!(#field_name).to_string(),
-                                        scoped_atomic_types,
+                                        scoped_resolvable_types,
                                     }
                                 )
                             }
