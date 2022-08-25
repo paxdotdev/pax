@@ -150,8 +150,8 @@ fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     }).collect();
 
     let mut reexport_types: Vec<String> = manifest.components.iter().map(|cd|{
-        cd.property_manifests.iter().map(|pm|{
-            pm.fully_qualified_path.clone()
+        cd.property_definitions.iter().map(|pm|{
+            pm.dependencies_fully_qualified_paths.clone()
         }).collect::<Vec<String>>()
     }).flatten().collect();
 

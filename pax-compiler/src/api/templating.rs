@@ -16,7 +16,7 @@ pub struct TemplateArgsMacroPaxPrimitive {
     pub pascal_identifier: String,
     pub original_tokens: String,
     /// Used to codegen get_property_manifest calls, which allows parser to "reflect"
-    pub local_compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
+    pub compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
 }
 
 
@@ -31,8 +31,6 @@ pub struct TemplateArgsMacroPaxType {
 #[derive(Serialize)]
 pub struct CompileTimePropertyDefinition {
     pub scoped_atomic_types: HashSet<String>,
-    pub scoped_atomic_types_minus_prelude: HashSet<String>,
-    pub scoped_atomic_types_intersect_prelude: HashSet<String>,
     pub field_name: String,
     pub full_type_name: String,
 }
@@ -44,10 +42,11 @@ pub struct TemplateArgsMacroPax {
     pub pascal_identifier: String,
     pub original_tokens: String,
     pub is_root: bool,
-    pub dependencies_minus_prelude: Vec<String>,
+    pub template_dependencies: Vec<String>,
 
-    /// Used to codegen get_property_manifest calls, which allows parser to "reflect"
-    pub local_compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
+    /// Used to codegen get_property_manifest calls, which allows parser to "reflect" with dynamic
+    /// evaluation through the `parser`.
+    pub compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
 
     pub pub_mod_types: String,
 }

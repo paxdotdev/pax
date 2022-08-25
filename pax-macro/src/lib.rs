@@ -22,12 +22,12 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
-    let local_compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
+    let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
 
     let output = pax_compiler_api::press_template_macro_pax_primitive(TemplateArgsMacroPaxPrimitive{
         pascal_identifier,
         original_tokens,
-        local_compile_time_property_definitions,
+        compile_time_property_definitions,
     });
 
     TokenStream::from_str(&output).unwrap().into()
@@ -194,25 +194,23 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
                                 let name = quote!(#ty).to_string();
 
                                 let scoped_atomic_types = get_scoped_atomic_types(&ty);
-                                let (scoped_atomic_types_minus_prelude, scoped_atomic_types_intersect_prelude) =  {
-                                    let mut filt_minus= HashSet::new();
-                                    let mut filt_intersect= HashSet::new();
-                                    scoped_atomic_types.iter().for_each(|a| {
-                                        if !pax_compiler_api::is_prelude_type(a) {
-                                            filt_minus.insert(a.clone());
-                                        } else {
-                                            filt_intersect.insert(a.clone());
-                                        }
-                                    });
-                                    (filt_minus, filt_intersect)
-                                };
+                                // let (scoped_atomic_types_minus_prelude, scoped_atomic_types_intersect_prelude) =  {
+                                //     let mut filt_minus= HashSet::new();
+                                //     let mut filt_intersect= HashSet::new();
+                                //     scoped_atomic_types.iter().for_each(|a| {
+                                //         if !pax_compiler_api::is_prelude_type(a) {
+                                //             filt_minus.insert(a.clone());
+                                //         } else {
+                                //             filt_intersect.insert(a.clone());
+                                //         }
+                                //     });
+                                //     (filt_minus, filt_intersect)
+                                // };
                                 ret.push(
                                     CompileTimePropertyDefinition {
                                         full_type_name: name,
                                         field_name: quote!(#field_name).to_string(),
                                         scoped_atomic_types,
-                                        scoped_atomic_types_minus_prelude,
-                                        scoped_atomic_types_intersect_prelude,
                                     }
                                 )
                             }
@@ -244,19 +242,10 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
-    let local_compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
+    let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
 
     let raw_pax = args.to_string();
-    let dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
-    let dependencies_minus_prelude = {
-        let mut filt= vec![];
-        dependencies.iter().for_each(|a| {
-            if !pax_compiler_api::is_prelude_type(a) {
-                filt.push(a.clone());
-            }
-        });
-        filt
-    };
+    let template_dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
     let pub_mod_types = "".into(); //TODO: load codegenned types.fragment.rs file.  Might feature-gate an include_str! behind a `cartridge-attached` feature.
 
@@ -265,8 +254,8 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         pascal_identifier,
         original_tokens,
         is_root,
-        dependencies_minus_prelude,
-        local_compile_time_property_definitions,
+        template_dependencies,
+        compile_time_property_definitions,
         pub_mod_types,
     });
 

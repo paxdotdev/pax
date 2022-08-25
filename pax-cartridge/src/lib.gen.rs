@@ -1,19 +1,19 @@
 
+//Prelude
 use std::cell::RefCell;
 use std::collections::{HashMap, VecDeque};
 use std::ops::Deref;
 use std::rc::Rc;
+
+//Choose whether to
+// A. [*] hardcode in template
+// B. hardcode / const-ize via prelude
+// C. load dynamically
+use pax_runtime_api::{ArgsCoproduct, SizePixels, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_core::{ComponentInstance, RenderNodePtr, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceRegistry, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 use piet_common::RenderContext;
-
-//
-//Choose whether to
-// A. hardcode in template
-// B. hardcode / const-ize via prelude
-// C. load dynamically
-use pax_runtime_api::{ArgsCoproduct, SizePixels, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 
 // generate dependencies, pointing to userland cartridge `pub mod types`
 // (? shared logic with PropertiesCoproduct gen ?)
@@ -25,6 +25,7 @@ use pax_example::pax_types::pax_std::components::Stacker;
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
 use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};
 
+//probably pull entire token stream here e.g. via `pax_const` and re-embed
 const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves
 Did gyre and gimble in the wabe:
 All mimsy were the borogoves,

@@ -2,11 +2,8 @@
 {{original_tokens}}
 
 #[cfg(feature = "parser")]
-impl pax_compiler_api::PropertyManifestable for {{pascal_identifier}} {
-    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> pax_compiler_api::PropertyManifest {
-        pax_compiler_api::PropertyManifest {
-            field_name: field_name.to_string(),
-            fully_qualified_path:  module_path!().to_owned() + "::" + atomic_self_type,
-        }
+impl pax_compiler_api::PathQualifiable for {{pascal_identifier}} {
+    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
+        module_path!().to_owned() + "::" + atomic_self_type
     }
 }

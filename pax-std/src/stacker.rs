@@ -25,10 +25,12 @@ pub struct Stacker {
     pub overrides_gutter_size: Property<Vec<(usize, Size)>>,
 }
 
-
 impl Stacker {
 
-    pub fn hello(){}
+    pub fn hello(){
+        Vec::<Rc<StackerCellProperties>>::get_fully_qualified_path("mrow");
+
+    }
 
     #[pax_on(PreRender)]
     pub fn handle_will_render(&mut self, args: ArgsRender) {

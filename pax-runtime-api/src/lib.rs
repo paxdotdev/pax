@@ -117,12 +117,9 @@ pub enum Size {
 }
 
 #[cfg(feature = "parser")]
-impl pax_compiler_api::PropertyManifestable for Size {
-    fn get_property_manifest(field_name: &str, atomic_self_type: &str) -> pax_compiler_api::PropertyManifest {
-        pax_compiler_api::PropertyManifest {
-            field_name: field_name.to_string(),
-            fully_qualified_path: "pax::api::Size".to_string(),
-        }
+impl pax_compiler_api::PathQualifiable for Size {
+    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
+        "pax::api::Size".to_string()
     }
 }
 

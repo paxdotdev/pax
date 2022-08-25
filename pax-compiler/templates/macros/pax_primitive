@@ -14,20 +14,34 @@ impl {{pascal_identifier}} {
                 ctx.template_map.insert(PASCAL_IDENTIFIER.to_string(), source_id.to_string());
                 let template_map= ctx.template_map.clone();
 
-                // Recurse through all types present in `Property<>` definitions --
-                // call get_property_manifest for each of them (except whitelist)
-                // This data is used (at least) for generating the `pub mod types` re-export
-                // at the root of a userland project (`pax_root`)
-                let mut property_manifests = vec![];
-                {% for property_definition in local_compile_time_property_definitions %}
-                    {% for scoped_atomic_type in property_definition.scoped_atomic_types %}
-                        let property_manifest = {{scoped_atomic_type}}::get_property_manifest("{{property_definition.field_name}}", "{{scoped_atomic_type}}");
-                        property_manifests.push(property_manifest);
-                    {% endfor %}
-                {% endfor %}
-                ctx.property_manifests.insert(source_id.to_string(), property_manifests.clone());
+                let mut property_definitions = vec![];
 
-                let comp_def = pax_compiler_api::get_primitive_definition(PASCAL_IDENTIFIER, module_path!(), &source_id, &property_manifests);
+                // Populate `PropertyDefinition`s
+                {% for ctpd in compile_time_property_definitions %}
+                    //Here we bridge from pure static analysis into some dynamic analysis via `parser`, in order
+                    //to fully qualify module paths for scoped atomic types.
+
+                    //For each compile-time property definition, populate a full (parse-time) PropertyDefinition:
+                    //1. name | from template args
+                    //2. (full original type: punt) | from template args (via macro)
+                    //3. unique, fully qualified dependencies (HashSet, perhaps) | AT PARSE-TIME: from imperative calls to `get_fully_qualified_path`
+                    //4. (default value?  punt)
+
+                    let mut fully_qualified_dependencies = vec![];
+                    {% for scoped_atomic_type in ctpd.scoped_atomic_types %}
+                        fully_qualified_dependencies.push(
+                            {{scoped_atomic_type}}::get_fully_qualified_path("{{scoped_atomic_type}}")
+                        );
+                    {% endfor %}
+                    property_definitions.push(pax_compiler_api::PropertyDefinition {
+                        name: "{{ctpd.field_name}}".to_string(),
+                        full_type_name: "{{ctpd.full_type_name}}".to_string(),
+                        fully_qualified_dependencies,
+                    });
+                {% endfor %}
+                ctx.all_property_definitions.insert(source_id.to_string(), property_definitions);
+
+                let comp_def = pax_compiler_api::get_primitive_definition(PASCAL_IDENTIFIER, module_path!(), &source_id, &property_definitions);
                 ctx.component_definitions
                     .push(comp_def);
                 (ctx, source_id.to_string())

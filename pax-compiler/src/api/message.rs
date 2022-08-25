@@ -48,7 +48,7 @@ pub struct ComponentDefinition {
     pub template: Option<Vec<TemplateNodeDefinition>>,
     //can be hydrated as a tree via child_ids/parent_id
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
-    pub property_manifests: Vec<super::PropertyManifest>,
+    pub property_definitions: Vec<PropertyDefinition>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -58,6 +58,14 @@ pub struct TemplateNodeDefinition {
     pub component_id: String,
     pub inline_attributes: Option<Vec<(String, AttributeValueDefinition)>>,
     pub children_ids: Vec<String>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PropertyDefinition {
+    pub name: String,
+    pub full_type_name: String,
+    pub fully_qualified_dependencies: Vec<String>,
+    //pub default_value ?
 }
 
 #[derive(Serialize, Deserialize, Debug)]

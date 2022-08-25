@@ -299,6 +299,16 @@ _RIL means Rust Intermediate Language, which is the
             [x] Hook up primitives + types
                 -- possibly recycle logic that checks for `Property<...>`
             [ ] fix bug: prelude types not showing up in PropertyManifests
+                -- perhaps each propertymanifest should have:
+                    -- fully qualified atomic types
+                        -- for `pub mod pax_types`
+                        -- for recursive calls to `get_property_manifest`
+                        -- for TypesCoproduct generation
+                        -- for cartridge codegen (imports)
+                    -- In each of the above, it should be reasonable to handle prelude vs. imported types separately
+                    -- Also: should this be called something else, like `dependencies` or `imports`? Instead of `PropertyManifests`.
+                    -- What about `properties`?  For design tooling, will definitely be necessary.  Is it worth shimming `dependencies` into 
+                       -- maybe `get_property_manifest` should just be `get_property_dependencies` ??
         [ ] include_str!() `.pax/types.partial.rs` _at compile-time_ in macro logic
             -- the goal is for this types re-export to be present at the root of the *userland project* by the time
             the chassis is attached / compiled
