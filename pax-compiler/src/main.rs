@@ -149,11 +149,18 @@ fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
         cd.module_path.clone() + "::" + &cd.pascal_identifier
     }).collect();
 
-    let mut reexport_types: Vec<String> = manifest.components.iter().map(|cd|{
+
+
+
+    let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
         cd.property_definitions.iter().map(|pm|{
-            pm.dependencies_fully_qualified_paths.clone()
-        }).collect::<Vec<String>>()
-    }).flatten().collect();
+            pm.fully_qualified_dependencies.clone()
+        }).flatten().collect::<Vec<_>>()
+    }).flatten().collect::<Vec<_>>();
+
+    //Make reexport_types unique by pouring into a Set and back
+    let set: HashSet<_> = reexport_types.drain(..).collect();
+    reexport_types.extend(set.into_iter());
 
     let mut combined_reexports = reexport_components;
     combined_reexports.append(&mut reexport_types);
