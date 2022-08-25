@@ -20,7 +20,6 @@ pub struct Stacker {
     pub direction: Property<StackerDirection>,
     pub cells: Property<usize>,
     pub gutter_width: Property<Size>,
-
     pub overrides_cell_size: Property<Vec<(usize, Size)>>,
     pub overrides_gutter_size: Property<Vec<(usize, Size)>>,
 }

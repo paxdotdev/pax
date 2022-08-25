@@ -2860,3 +2860,86 @@ impl HelloWorld {
 
 
 ```
+
+
+
+## Archived lab journal from from pax-macro/.../lib.rs
+Probably authored early 2022
+//zb lab journal:
+//   This file including trick does NOT force the compiler to visit every macro.
+//   Instead, it (arguably more elegantly) forces Cargo to dirty-detect changes
+//   in the linked pax file by inlining that pax file into the .rs file.
+//   This is subtly different vs. our needs.
+
+//   One way to handle this is with an idempotent file registry — the challenge is
+//   how do entries get removed from the registry?
+
+//   Another possibility is static analysis
+
+//   Another possibility is a static registry — instead of phoning home over TCP,
+//   each macro generates a snippet that registers the pax parsing task via code.
+//   When the cartridge is run (with the `designtime` feature), that registry
+//   is exposed to the compiler, which is then able to determine which files to parse.
+//   This works in tandem with the dirty-watching trick borrowed from Pest —
+//   the "static registry" assignment will exist IFF the macro is live.
+//
+//   Note: possibly problematically, this "dynamic evaluation" of the manifest requires
+//         happening BEFORE the second cargo build, meaning the binary is run once (with blanks),
+//         evaluated to pass its macro manifest, then patched+recompiled before ACTUALLY running
+//   Perhaps this deserves a separate feature vs. `designtime`
+//   Alternatively:  is there a way to fundamentally clean this up?
+
+//   Another possibility: keep a manifest manually, e.g. in JSON or XML or YAML
+
+// v0? ----
+// Keep a .manifest.json alongside each pax file — the #[pax] macro can write to the companion file
+// for each pax file that it finds, and it can encode the relevant information for that file (e.g. component name)
+// The compiler can just naively look for all .pax.manifest files in the src/ dir
+//
+//Along with the "force dirty-watch" trick borrowed from Pest, this technique ensures that .manifest.json can
+//stay current with any change.
+//
+//Sanity check that we can accomplish our goals here
+// 1. generate PropertiesCoproduct for subsequent compilation,
+// - codegen a PropertiesCoproduct lib.rs+crate that imports the target crate's exported members
+// - codegen a "patched" Cargo.toml,
+// 2. choose which .pax files to parse, and which ComponentDefinitions to associate a given .pax file with
+// - refer to manifests for precise fs paths to .pax files
+//
+// Limitation: only one Pax component can be registered per file
+// Refinement: can store a duplicate structure of .pax.manifest files inside the local .pax directory
+//             that is, instead of alongside the source files in userland
+// Finally: this could be evolved into an automated, "double pass" compilation, where `pax-compiler` orchestrates
+//          fancy metaprogramming and message-passing (thinking: a special feature flag for the first pass, which
+//          aggregates data and hands off to the second pass which operates under the `designtime` feature.)
+//
+// To recap: - during initial & standard compilation, generate .pax/manifests/{mimic structure of src/}file.manifest
+//           - before designtime compilation: generate pax-properties-coproduct, Cargo.toml
+//           - parse pax files and prepare data for dump
+//              (Advantages of waiting until cartridge is running:
+//                [will fail parsing more gracefully; will better transition to compiler-side RIL generation])
+//           - perform second compilation; load resulting lib into demo chassis
+//           - dump parsed data to demo chassis; start running
+//             [Refinement: in the future when RIL is generated, this initial dump could be avoided]
+//
+// twist! might not be able to reliably get FS path from inside macros (see proc_macro_span unstable feature, since 2018)
+//    Spitballing a possible approach using multi-stage compilation:
+//     - macro generates functions behind a special feature "stage-0" that perform a TCP phone-home:
+//          - call file!() at runtime, allowing reliable resolution
+//          - pass file path for .pax file
+//          - pass struct path (& module? TBD but probably std::module_path) for properties coproduct generation
+
+// 1. compile cartridge with `parser` feature
+//  - each #[pax] macro
+//  ? how do files get into the tree?  Can we rely on the root file & its imports?
+//    note that resolving our deps requires traversing Component templates — this probably means
+//    we need to parse the templates *at this phase* so that each macro can 'phone home' for `parser`
+//    i.e. unroll dependencies from Pax into Rust so that the compiler can visit all the necessary files
+//  - THEN - either by evaling logic as a side-effect of importing (is this possible?) or by
+//    conventionally importing a certain-named entity that abides by a certain impl (and calling a known method)
+//    then each macro communicates its relevant data: file path, module path, name (and later: methods, properties)
+
+// Then too... if we're going to be parsing the pax tree in order to determine which modules to resolve, maybe we don't need
+// a separate manifest-generating step after all?  (Except we still need to generate the PropertiesCoproduct).
+
+

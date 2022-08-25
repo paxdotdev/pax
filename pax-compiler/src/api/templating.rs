@@ -5,11 +5,8 @@ use include_dir::{include_dir, Dir};
 use tera::{Context, Tera};
 use std::collections::HashSet;
 
-
 static ROOT_PATH : &str = "$CARGO_MANIFEST_DIR/templates";
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
-
-
 
 #[derive(Serialize)]
 pub struct TemplateArgsMacroPaxPrimitive {
@@ -19,14 +16,12 @@ pub struct TemplateArgsMacroPaxPrimitive {
     pub compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
 }
 
-
 #[derive(Serialize)]
 pub struct TemplateArgsMacroPaxType {
     pub pascal_identifier: String,
     pub original_tokens: String,
 
 }
-
 
 #[derive(Serialize)]
 pub struct CompileTimePropertyDefinition {
@@ -35,7 +30,6 @@ pub struct CompileTimePropertyDefinition {
     pub full_type_name: String,
 }
 
-
 #[derive(Serialize)]
 pub struct TemplateArgsMacroPax {
     pub raw_pax: String,
@@ -43,11 +37,7 @@ pub struct TemplateArgsMacroPax {
     pub original_tokens: String,
     pub is_root: bool,
     pub template_dependencies: Vec<String>,
-
-    /// Used to codegen get_property_manifest calls, which allows parser to "reflect" with dynamic
-    /// evaluation through the `parser`.
     pub compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
-
     pub pub_mod_types: String,
 }
 
@@ -56,8 +46,6 @@ pub fn press_template_macro_pax_primitive(args: TemplateArgsMacroPaxPrimitive ) 
     let template = TEMPLATE_DIR.get_file("macros/pax_primitive").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
-
-
 
 static TEMPLATE_PAX_TYPE : &str = include_str!("../../templates/macros/pax_type");
 pub fn press_template_macro_pax_type(args: TemplateArgsMacroPaxType ) -> String {

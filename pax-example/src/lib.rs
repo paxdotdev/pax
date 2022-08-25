@@ -24,7 +24,6 @@ use pax_std::components::{Stacker};
         </Group>
     </Stacker>
 
-
     @settings {
         #index_text {
             transform: { Align(0%, i * 12.5%) }

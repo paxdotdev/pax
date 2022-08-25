@@ -1,8 +1,6 @@
-
 extern crate pest;
 use pest_derive::Parser;
 use pest::Parser;
-
 
 use std::{env, fs};
 use std::cell::RefCell;
@@ -23,87 +21,9 @@ pub use templating::*;
 
 pub use lazy_static::lazy_static;
 
-
 #[derive(Parser)]
 #[grammar = "pax.pest"]
 pub struct PaxParser;
-
-/*
-COMPILATION STAGES
-
-0. Macro codegen
-    - build render tree by parsing template file
-        - unroll @{} into a vanilla tree (e.g. `<repeat>` instead of `foreach`)
-        - defer inlined properties & expressions to `process properties` step, except for `id`s
-    - semantize: map node keys to known rendernode types
-    - fails upon malformed tree or unknown node types
-1. Process properties
-    - link properties to nodes of render tree
-    - first parse "stylesheet" properties
-    - semantize: map selectors to known template nodes+types, then property keys/values to known node properies + FromString=>values
-    - then override with inlined properties from template
-    - fails upon type mismatches, empty-set selectors, heterogenous multi-element selectors
-2. Process expressions
-    - parse & lambda-ize expressions, applying a la properties above
-    - return primitive types
-    - fails upon return type mismatch, malformed expression
- */
-//
-//
-// pub struct PaxParser<'a> {
-//     inner_str: &'a str,
-// }
-//
-// impl<'a> PaxParser<'a> {
-//     pub fn new(pax: &str) -> Self {
-//         PaxParser {
-//             inner_str: pax
-//         }
-//     }
-//     ///Parses `template` of the encapsulated Pax string, returning
-//     ///the root node as a Definition entity
-//     pub fn parse_template(&self) -> TemplateNodeDefinition {
-//         self.inner_str
-//     }
-// }
-
-
-fn visit_template_tag_pair(pair: Pair<Rule>)  { // -> TemplateNodeDefinition
-    //TODO: determine if matched or self-closing
-    //      extract
-    // match pair.as_rule() {
-    //     Rule::matched_tag => {
-    //
-    //         pair.into_inner().for_each(|matched_tag_pair| {
-    //
-    //             match matched_tag_pair.as_rule() {
-    //                 Rule::open_tag => {
-    //                     //register this tag in manifest
-    //                 },
-    //                 Rule::inner_nodes => {
-    //                     //recursively visit template tag pair, passing/returning manifest
-    //                     visit_template_tag_pair(matched_tag_pair);
-    //                 },
-    //                 Rule::statement_control_flow => {
-    //                     //will need to support expressions (-> bool, -> iter)
-    //                     unimplemented!("control flow support not yet implemented in parser");
-    //                 },
-    //                 _ => {},
-    //             }
-    //         })
-    //     },
-    //     Rule::self_closing_tag => {
-    //         pair.into_inner()
-    //
-    //     },
-    //     _ => {
-    //         unreachable!();
-    //     }
-    // }
-}
-
-
-
 
 pub trait PathQualifiable {
     //Note: this default implementation is probably not the right approach, but it works hackily
@@ -159,7 +79,6 @@ static PRELUDE_TYPES: [&'static str; 5] = [
     "u64",
 ];
 
-
 /// When we have a fragment of a prelude type like `Rc`, this function maps
 /// that fragment to the fully qualified path `std::rc::Rc`, as a String
 pub fn get_fully_qualified_prelude_type(identifier: &str) -> String {
@@ -201,7 +120,6 @@ pub fn get_primitive_definition(pascal_identifier: &str, module_path: &str, sour
 }
 
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
-
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
@@ -232,9 +150,6 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
             let pascal_identifier = open_tag.into_inner().next().unwrap().as_str();
             pascal_identifiers.borrow_mut().insert(pascal_identifier.to_string());
 
-            //recurse into inner_nodes
-            // println!("{:?}", );
-
             let prospective_inner_nodes = matched_tag.clone().into_inner().nth(1).unwrap();
             match prospective_inner_nodes.as_rule() {
                 Rule::inner_nodes => {
@@ -258,12 +173,10 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
             }
         },
         Rule::self_closing_tag => {
-            //pascal_identifier
             let pascal_identifier = any_tag_pair.into_inner().next().unwrap().as_str();
             pascal_identifiers.borrow_mut().insert(pascal_identifier.to_string());
         },
         Rule::statement_control_flow => {
-
             let matched_tag = any_tag_pair.into_inner().next().unwrap();
 
             let mut n = 1;
@@ -322,7 +235,6 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateParseContex
         }
     });
 }
-
 
 struct TemplateParseContext {
     pub template_node_definitions: Vec<TemplateNodeDefinition>,
@@ -456,7 +368,6 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
     }
 }
 
-
 fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Rule>) -> Option<Vec<(String, AttributeValueDefinition)>> {
     let vec : Vec<(String, AttributeValueDefinition)> = final_pairs_of_tag.map(|attribute_key_value_pair|{
         match attribute_key_value_pair.clone().into_inner().next().unwrap().as_rule() {
@@ -527,7 +438,7 @@ fn derive_literal_value_from_pair(literal_value_pair: Pair<Rule>) -> SettingsLit
         },
         Rule::literal_array => {
             unimplemented!("literal arrays aren't supported but should be. fix me!")
-            //in particular, need to handle heterogenous types (i.e. not allow them)
+            //in particular, need to handle heterogeneous types (i.e. not allow them)
             //might just be able to rely on rustc to enforce
         },
         Rule::string => {
@@ -582,7 +493,6 @@ fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<Sett
         match top_level_pair.as_rule() {
             Rule::settings_block_declaration => {
 
-
                 let mut selector_block_definitions: Vec<SettingsSelectorBlockDefinition> = top_level_pair.into_inner().map(|selector_block| {
                     //selector_block => settings_key_value_pair where v is a SettingsValueDefinition
                     let mut selector_block_pairs = selector_block.into_inner();
@@ -598,20 +508,16 @@ fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<Sett
                 }).collect();
 
                 ret.extend(selector_block_definitions);
-
             }
             _ => {}
         }
-
     });
     Some(ret)
-
 }
 
 pub fn create_uuid() -> String {
     Uuid::new_v4().to_string()
 }
-
 
 pub struct ManifestContext {
     /// Used to track which files/sources have been visited during parsing,
@@ -628,7 +534,6 @@ pub struct ManifestContext {
     pub all_property_definitions: HashMap<String, Vec<PropertyDefinition>>,
 }
 
-
 impl Default for ManifestContext {
     fn default() -> Self {
         Self {
@@ -641,19 +546,15 @@ impl Default for ManifestContext {
     }
 }
 
-
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
 pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &str, pascal_identifier: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ManifestContext, ComponentDefinition) {
     let ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
-    // println!("ast: {}", ast);
-
     if is_root {
         ctx.root_component_id = source_id.to_string();
     }
-
 
     let mut tpc = TemplateParseContext {
         pascal_identifier_to_component_id_map: template_map,
@@ -689,9 +590,3 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
 
     (ctx, new_def)
 }
-
-
-
-
-
-
