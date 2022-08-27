@@ -136,6 +136,22 @@ impl<'a> Into<&'a str> for &'a RunTarget {
     }
 }
 
+
+
+
+
+fn get_namespaced_import_string(combined_exports: &Vec<String>) {
+    //split by "::"
+    //bucket into Map<K = String, V = Vec<String>> where key is "" or "any::prefixed::namespaces" (exclusive of final identifier), and value is vec of identifiers belonging to namespace
+    //Then, traverse map by keys,
+
+
+    //string sort
+}
+
+///e.g. `"pax_std::primitives"` => `["pax_std::primitives::Rectangle", ...]`
+type NamespaceMap = std::collections::HashMap<String, Vec<String>>;
+
 //relative to pax_dir
 const TYPE_PARTIAL_RS_PATH: &str = "types.partial.rs";
 fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
@@ -149,9 +165,6 @@ fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
         cd.module_path.clone() + "::" + &cd.pascal_identifier
     }).collect();
 
-
-
-
     let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
         cd.property_definitions.iter().map(|pm|{
             pm.fully_qualified_dependencies.clone()
@@ -164,9 +177,46 @@ fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
 
     let mut combined_reexports = reexport_components;
     combined_reexports.append(&mut reexport_types);
+    combined_reexports.sort();
+
+    /*
+    pub mod pax_types {
+        pub use crate::HelloWorld;
+        pub use f64;
+        pub use pax::api::Size;
+        pub use pax_std::primitives::Frame;
+        pub use pax_std::primitives::Group;
+        pub use pax_std::primitives::Rectangle;
+        pub use pax_std::primitives::Text;
+        pub use pax_std::stacker::Stacker;
+        pub use pax_std::types::Color;
+        pub use pax_std::types::Font;
+        pub use pax_std::types::StackerCellProperties;
+        pub use pax_std::types::StackerDirection;
+        pub use pax_std::types::Stroke;
+        pub use std::string::String;
+    }
+    */
+
+    //Bundle types into nested `pub mod`s
+    //0. sort
+    //1. keep transient stack of nested namespaces.  For each export string (like pax::api::Size)
+    //   - Split by "::"
+    //   - if no `::`, or `crate::`, export at root of `pax_types`, i.e. empty stack
+    //   - if `::`,
+    //      - push onto stack the first n-1 identifiers as namespace
+    //        - when pushing onto stack, write a `pub mod _identifier_ {`
+    //      - when last element is reached, write a `pub use _identifier_;`
+    //      - keep track of previous or next element, pop from stack for each of `n` mismatched prefix tokens
+    //        - when popping from stack, write a `}`
+    //        - empty stack entirely at end of vec
+
 
     let mut already_exported = HashSet::new();
     let mut file_contents = "pub mod pax_types { \n".to_string();
+
+    //Stack reexports into namespaces
+    // get_namespaced_import_string(&combined_reexports);
     for reexport in combined_reexports.iter() {
         if !already_exported.contains(reexport) && !pax_compiler_api::is_prelude_type(reexport) {
             file_contents += &format!("\tpub use {};\n", reexport);
@@ -179,14 +229,73 @@ fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     fs::write(path, file_contents);
 
 }
+
+
+/*
+    pub mod pax_types {
+        pub use
+        pub use
+        pub use
+        pub use
+        pub use
+        pub use
+        pub use
+        pub use
+        pub use
+        pub use
+        pub use
+        pub use
+        pub use
+        pub use
+    }
+    */
+
+//
+
+fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
+
+    //0. sort (expected to be passed sorted)
+    //1. keep transient stack of nested namespaces.  For each export string (like pax::api::Size)
+    //   - Split by "::"
+    //   - if no `::`, or `crate::`, export at root of `pax_types`, i.e. empty stack
+    //   - if `::`,
+    //      - push onto stack the first n-1 identifiers as namespace
+    //        - when pushing onto stack, write a `pub mod _identifier_ {`
+    //      - when last element is reached, write a `pub use _identifier_;`
+    //      - keep track of previous or next element, pop from stack for each of `n` mismatched prefix tokens
+    //        - when popping from stack, write a `}`
+    //        - empty stack entirely at end of vec
+
+    //Example sorted list:
+    // crate::HelloWorld;
+    // f64;
+    // pax::api::Size;
+    // pax_std::primitives::Frame;
+    // pax_std::primitives::Group;
+    // pax_std::primitives::Rectangle;
+    // pax_std::primitives::Text;
+    // pax_std::stacker::Stacker;
+    // pax_std::types::Color;
+    // pax_std::types::Font;
+    // pax_std::types::StackerCellProperties;
+    // pax_std::types::StackerDirection;
+    // pax_std::types::Stroke;
+    // std::string::String;
+
+
+    "".into()
+}
+
+
+
+
+
 fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
     // todo!()
 }
 fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
     // todo!()
 }
-
-
 
 fn upsert_chassis_cargo_toml_patch(doc: &toml_edit::Document) {
     //if there's a [patch] segment
@@ -207,15 +316,12 @@ fn generate_cargo_definition(pax_dir: &PathBuf, target: &RunTarget, build_id: &s
     // todo!("Generate Cargo.toml file in place");
     println!("TODO! Generate Cargo.toml {:?}", &relative_chassis_specific_dir.join("Cargo.toml"));
 
-
-
     let existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(
         fs::canonicalize(relative_chassis_specific_dir.join("Cargo.toml")).unwrap()).unwrap());
     println!("debug");
     //use toml_edit -- edit Cargo.toml inline from chassis-specific directory
 
 }
-
 
 static CHASSIS_MACOS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos");
 //TODO: including this whole pax-chassis-web directory, plus node_modules, adds >100MB to the size of the
@@ -325,8 +431,6 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     //see pax-compiler-sequence-diagram.png
 
-
-
     /*
     Problem: the location of the cargo file acts as the root for relative paths, e.g. `../pax-lang`
     Possible solutions:
@@ -359,24 +463,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
      */
 
-
-
     Ok(())
-}
-
-
-
-fn start_cargo_process(macro_coordination_tcp_port: u16) -> () {
-    
-    // let process = match Command::new("wc")
-    //                             .stdin(Stdio::piped())
-    //                             .stdout(Stdio::piped())
-    //                             .spawn() {
-    //     Err(why) => panic!("couldn't spawn wc: {}", why),
-    //     Ok(process) => process,
-    // };
-
-    unimplemented!()
 }
 
 
