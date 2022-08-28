@@ -18,6 +18,7 @@ use std::{fs, thread::{Thread, self}, time::Duration};
 use std::borrow::{Borrow, BorrowMut};
 use std::cell::RefCell;
 use std::collections::HashSet;
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::str::FromStr;
@@ -137,9 +138,6 @@ impl<'a> Into<&'a str> for &'a RunTarget {
 }
 
 
-
-
-
 fn get_namespaced_import_string(combined_exports: &Vec<String>) {
     //split by "::"
     //bucket into Map<K = String, V = Vec<String>> where key is "" or "any::prefixed::namespaces" (exclusive of final identifier), and value is vec of identifiers belonging to namespace
@@ -171,86 +169,29 @@ fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
         }).flatten().collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
-    //Make reexport_types unique by pouring into a Set and back
-    let set: HashSet<_> = reexport_types.drain(..).collect();
-    reexport_types.extend(set.into_iter());
+
 
     let mut combined_reexports = reexport_components;
     combined_reexports.append(&mut reexport_types);
     combined_reexports.sort();
 
-    /*
-    pub mod pax_types {
-        pub use crate::HelloWorld;
-        pub use f64;
-        pub use pax::api::Size;
-        pub use pax_std::primitives::Frame;
-        pub use pax_std::primitives::Group;
-        pub use pax_std::primitives::Rectangle;
-        pub use pax_std::primitives::Text;
-        pub use pax_std::stacker::Stacker;
-        pub use pax_std::types::Color;
-        pub use pax_std::types::Font;
-        pub use pax_std::types::StackerCellProperties;
-        pub use pax_std::types::StackerDirection;
-        pub use pax_std::types::Stroke;
-        pub use std::string::String;
-    }
-    */
 
-    //Bundle types into nested `pub mod`s
-    //0. sort
-    //1. keep transient stack of nested namespaces.  For each export string (like pax::api::Size)
-    //   - Split by "::"
-    //   - if no `::`, or `crate::`, export at root of `pax_types`, i.e. empty stack
-    //   - if `::`,
-    //      - push onto stack the first n-1 identifiers as namespace
-    //        - when pushing onto stack, write a `pub mod _identifier_ {`
-    //      - when last element is reached, write a `pub use _identifier_;`
-    //      - keep track of previous or next element, pop from stack for each of `n` mismatched prefix tokens
-    //        - when popping from stack, write a `}`
-    //        - empty stack entirely at end of vec
-
-
-    let mut already_exported = HashSet::new();
     let mut file_contents = "pub mod pax_types { \n".to_string();
 
-    //Stack reexports into namespaces
-    // get_namespaced_import_string(&combined_reexports);
-    for reexport in combined_reexports.iter() {
-        if !already_exported.contains(reexport) && !pax_compiler_api::is_prelude_type(reexport) {
-            file_contents += &format!("\tpub use {};\n", reexport);
-            already_exported.insert(reexport.clone());
-        }
-    }
+    //Make combined_reexports unique by pouring into a Set and back
+    let set: HashSet<_> = combined_reexports.drain(..).collect();
+    combined_reexports.extend(set.into_iter());
+    combined_reexports.sort();
+
+    println!("Combined, deduped, & sorted reexports: {:?}", &combined_reexports);
+
+    file_contents += &bundle_reexports_into_namespace_string(&combined_reexports);
+
     file_contents += "}";
 
     let path = pax_dir.join(Path::new(TYPE_PARTIAL_RS_PATH));
     fs::write(path, file_contents);
-
 }
-
-
-/*
-    pub mod pax_types {
-        pub use
-        pub use
-        pub use
-        pub use
-        pub use
-        pub use
-        pub use
-        pub use
-        pub use
-        pub use
-        pub use
-        pub use
-        pub use
-        pub use
-    }
-    */
-
-//
 
 fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
 
@@ -266,28 +207,100 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
     //        - when popping from stack, write a `}`
     //        - empty stack entirely at end of vec
 
-    //Example sorted list:
-    // crate::HelloWorld;
-    // f64;
-    // pax::api::Size;
-    // pax_std::primitives::Frame;
-    // pax_std::primitives::Group;
-    // pax_std::primitives::Rectangle;
-    // pax_std::primitives::Text;
-    // pax_std::stacker::Stacker;
-    // pax_std::types::Color;
-    // pax_std::types::Font;
-    // pax_std::types::StackerCellProperties;
-    // pax_std::types::StackerDirection;
-    // pax_std::types::Stroke;
-    // std::string::String;
+    let mut namespace_stack = vec![];
+    let mut output_string = "".to_string();
 
+    //identify namespaceless or prelude-qualified types, e.g. `f64`
+    fn is_reexport_namespaceless(symbols: &Vec<String>) -> bool {
+        symbols.len() == 0
+    }
 
-    "".into()
+    //identify `crate::*` reexports, e.g. `crate::HelloWorld`.  Note that the naive
+    //implementation here will not support namespaces, thus requiring globally unique
+    //symbol names for symbols exported from Pax project.
+    fn is_reexport_crate_prefixed(symbols: &Vec<String>) -> bool {
+        symbols[0].eq("crate")
+    }
+
+    fn get_tabs (i: usize) -> String {
+        "\t".repeat(i + 1).to_string()
+    };
+
+    fn pop_and_write_brace(namespace_stack: &mut Vec<String>, output_string: &mut String){
+        namespace_stack.pop();
+        output_string.push_str(&*(get_tabs(namespace_stack.len()) + "}\n"));
+    };
+
+    fn dump_stack(namespace_stack: &mut Vec<String>, output_string: &mut String)  {
+        while namespace_stack.len() > 0 {
+            pop_and_write_brace(namespace_stack, output_string);
+        }
+    };
+
+    sorted_reexports.iter().enumerate().for_each(|(i,pub_use)| {
+
+        let symbols: Vec<String> = pub_use.split("::").map(|s|{s.to_string()}).collect();
+
+        if is_reexport_namespaceless(&symbols) || is_reexport_crate_prefixed(&symbols) {
+            //we can assume we're already at the root of the stack, thanks to the look-ahead stack-popping logic.
+            assert!(namespace_stack.len() == 0);
+            output_string += &*(get_tabs(namespace_stack.len()) + "pub use " + pub_use + ";\n");
+        } else {
+            //push necessary symbols to stack
+            let starting_index = namespace_stack.len();
+            for k in 0..((symbols.len() - 1) - namespace_stack.len()) {
+                //k represents the offset `k` from `starting_index`, where `k + starting_index`
+                //should be retrieved from `symbols` and pushed to `namespace_stack`
+                let namespace_symbol = symbols.get(k + starting_index).unwrap().clone();
+                output_string += &*(get_tabs(namespace_stack.len()) + "pub mod " + &namespace_symbol + " {\n");
+                namespace_stack.push(namespace_symbol);
+            }
+
+            output_string += &*(get_tabs(namespace_stack.len()) + "pub use " + pub_use + ";\n");
+
+            //look-ahead and pop stack as necessary
+            match sorted_reexports.get(i + 1) {
+                Some(next_reexport) => {
+                    let next_symbols : Vec<String> = next_reexport.split("::").map(|s|{s.to_string()}).collect();
+                    if (is_reexport_crate_prefixed(&next_symbols) || is_reexport_namespaceless(&next_symbols)) {
+                        dump_stack(&mut namespace_stack, &mut output_string);
+                    } else {
+                        //for the CURRENT first n-1 symbols, check against same position in
+                        //new_symbols.
+                        //for the first mismatched symbol at i, pop k times, where k = (n-1)-i
+
+                        let mut how_many_pops = None;
+                        let n_minus_one = symbols.len() - 1;
+                        symbols.iter().take(symbols.len() - 1).enumerate().for_each(|(i,symbol)|{
+                            if let None = how_many_pops {
+                                if let Some(next_symbol) = next_symbols.get(i) {
+                                    if !next_symbol.eq(symbol) {
+                                        how_many_pops = Some(n_minus_one - i);
+                                    }
+                                } else {
+                                    how_many_pops = Some(n_minus_one - i);
+                                }
+                            }
+                        });
+
+                        if let Some(pops) = how_many_pops {
+                            for i in 0..pops {
+                                pop_and_write_brace(&mut namespace_stack, &mut output_string);
+                            }
+                        }
+                    }
+                },
+                None => {
+                    //we're at the end of the vec — dump stack and write braces
+                    dump_stack(&mut namespace_stack, &mut output_string);
+                }
+            }
+        }
+    });
+
+    output_string
+
 }
-
-
-
 
 
 fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
