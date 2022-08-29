@@ -13,6 +13,14 @@ use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, Temp
 
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument};
 
+
+#[proc_macro]
+pub fn include_pax_reexports(args: proc_macro::TokenStream)-> proc_macro::TokenStream {
+    let pax_dir = args.to_string();
+    let reexports_tokens_path = std::path::Path::new(&pax_dir).join("reexports.partial.rs");
+    proc_macro::TokenStream::from_str(&fs::read_to_string(reexports_tokens_path).expect("No reexports definition found")).unwrap()
+}
+
 #[proc_macro_attribute]
 pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let original_tokens = input.to_string();
@@ -212,15 +220,6 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let raw_pax = args.to_string();
     let template_dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
-    // #[cfg(feature = "parser")]
-    // let pub_mod_types: String = "".into_string(); //TODO: load codegenned types.fragment.rs file.  Might feature-gate an include_str! behind a `cartridge-attached` feature.
-    // #[cfg(not(feature = "parser"))]
-    // let pub_mod_types: String = {
-    //     //TODO: this may not work nicely with `pax` compiler specified `--path`.  Revisit as necessary.
-    //     // fs::read_to_string(std::path::Path::new(&current_dir().unwrap()).join(".pax/").join("types.partial.rs")).unwrap()
-    //     fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/.pax/types.partial.rs")).unwrap()
-    // };
-
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
@@ -228,7 +227,6 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         is_root,
         template_dependencies,
         compile_time_property_definitions,
-        pax_dir,
     });
 
     TokenStream::from_str(&output).unwrap().into()

@@ -38,7 +38,6 @@ pub struct TemplateArgsMacroPax {
     pub is_root: bool,
     pub template_dependencies: Vec<String>,
     pub compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
-    pub pax_dir: String,
 }
 
 static TEMPLATE_PAX_PRIMITIVE : &str = include_str!("../../templates/macros/pax_primitive");

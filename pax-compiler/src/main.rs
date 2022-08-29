@@ -151,12 +151,12 @@ fn get_namespaced_import_string(combined_exports: &Vec<String>) {
 type NamespaceMap = std::collections::HashMap<String, Vec<String>>;
 
 //relative to pax_dir
-pub const TYPE_PARTIAL_RS_PATH: &str = "types.partial.rs";
+pub const TYPE_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
 fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     //traverse ComponentDefinitions in manifest
     //gather module_path and PascalIdentifier --
     //  handle `parser` module_path and any sub-paths
-    //re-expose module_path::PascalIdentifier underneath `pax_types`
+    //re-expose module_path::PascalIdentifier underneath `pax_reexports`
     //ensure that this partial.rs file is loaded included under the `pax_root` macro
     let mut reexport_components: Vec<String> = manifest.components.iter().map(|cd|{
         //e.g.: "some::module::path::SomePascalIdentifier"
@@ -176,14 +176,12 @@ fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     combined_reexports.sort();
 
 
-    let mut file_contents = "pub mod pax_types { \n".to_string();
+    let mut file_contents = "pub mod pax_reexports { \n".to_string();
 
     //Make combined_reexports unique by pouring into a Set and back
     let set: HashSet<_> = combined_reexports.drain(..).collect();
     combined_reexports.extend(set.into_iter());
     combined_reexports.sort();
-
-    println!("Combined, deduped, & sorted reexports: {:?}", &combined_reexports);
 
     file_contents += &bundle_reexports_into_namespace_string(&combined_reexports);
 
@@ -198,7 +196,7 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
     //0. sort (expected to be passed sorted)
     //1. keep transient stack of nested namespaces.  For each export string (like pax::api::Size)
     //   - Split by "::"
-    //   - if no `::`, or `crate::`, export at root of `pax_types`, i.e. empty stack
+    //   - if no `::`, or `crate::`, export at root of `pax_reexports`, i.e. empty stack
     //   - if `::`,
     //      - push onto stack the first n-1 identifiers as namespace
     //        - when pushing onto stack, write a `pub mod _identifier_ {`
@@ -299,9 +297,7 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
     });
 
     output_string
-
 }
-
 
 fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
     // todo!()
@@ -315,7 +311,7 @@ fn upsert_chassis_cargo_toml_patch(doc: &toml_edit::Document) {
     // doc.insert()
 }
 
-fn generate_cargo_definition(pax_dir: &PathBuf, target: &RunTarget, build_id: &str, manifest: &PaxManifest) {
+fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: &str, manifest: &PaxManifest) {
     //1. clone (git or raw fs) pax-chassis-whatever into .pax/chassis/
     let chassis_dir = pax_dir.join("chassis");
     std::fs::create_dir_all(&chassis_dir).expect("Failed to create chassis directory.  Check filesystem permissions?");
@@ -327,12 +323,14 @@ fn generate_cargo_definition(pax_dir: &PathBuf, target: &RunTarget, build_id: &s
 
     //2. generate Cargo.toml in place with correct relative paths / patches; run build script
     // todo!("Generate Cargo.toml file in place");
-    println!("TODO! Generate Cargo.toml {:?}", &relative_chassis_specific_dir.join("Cargo.toml"));
+    println!("TODO! Generate chassis Cargo.toml at: {:?}", &relative_chassis_specific_dir.join("Cargo.toml"));
 
     let existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(
         fs::canonicalize(relative_chassis_specific_dir.join("Cargo.toml")).unwrap()).unwrap());
-    println!("debug");
-    //use toml_edit -- edit Cargo.toml inline from chassis-specific directory
+
+    //To proceed: use toml_edit -- edit Cargo.toml inline from chassis-specific directory
+    // include patched pax-cartridge/pax-properties-coproduct
+
 
 }
 
@@ -429,7 +427,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     let manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
 
     //6. Codegen:
-    //   - types.partial.rs
+    //   - reexports.partial.rs
     //   - Properties Coproduct
     //   - Cartridge
     //   - Cargo.toml for the appropriate `chassis` (including patches for Properties Coproduct & Cartridge)
@@ -437,7 +435,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     generate_types_partial_rs(&pax_dir, &manifest);
     generate_properties_coproduct(&pax_dir, &build_id, &manifest);
     generate_cartridge_definition(&pax_dir, &build_id, &manifest);
-    generate_cargo_definition(&pax_dir, &ctx.target, &build_id, &manifest);
+    generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     //8. Run dev harness, with freshly built chassis plugged in

@@ -7,8 +7,6 @@ use std::collections::{HashSet, HashMap};
 #[cfg(feature = "parser")]
 use serde_json;
 
-
-
 {% if is_root %}
 // For the root component only, a `main` is generated for the `parser` bin target.
 // This method bootstraps the parsing process, parsing not only the root component
@@ -31,11 +29,17 @@ pub fn main() {
     std::process::exit(0);
 }
 
-//For root only, include reexports
+//For root only, and only when we're NOT parsing, include reexports
+//Parsing is excluded because the `pub mod pax_reexports` snippet can only be generated
+//after parsing.  Trying to include_pax_reexports! before reexports.partial.rs is generated
+//will result in a macro error.
+//Finally: note that this code generates a macro call in order to load pax_reexports — this is necessary to load the
+//reexports.partial.rs file into a token stream, and this could not be evaluated by the normal
+//`pax_root` macro context because the local `CARGO_MANIFEST_DIR` is unknowable in that context.  Evaluating
+//another macro here, `include_pax_reexports`, and passing the locally knowable `env!("CARGO_MANIFEST_DIR")`, is a solution to that problem.
 #[cfg(not(feature = "parser"))]
-include_reexports!(env!("CARGO_MANIFEST_DIR"))
+include_pax_reexports!(concat!(env!("CARGO_MANIFEST_DIR"), "/.pax/"));
 {% endif %}
-
 
 {{original_tokens}}
 
@@ -59,7 +63,7 @@ impl {{pascal_identifier}} {
             //1. name | from template args
             //2. (full original type: punt) | from template args (via macro)
             //3. unique, fully qualified dependencies (HashSet, perhaps) | AT PARSE-TIME: from imperative calls to `get_fully_qualified_path`
-            //4. (default value?  punt) | from default-block parsing
+            //4. (default settings value?  punt) | from default-block parsing
 
             let mut fully_qualified_dependencies = vec![];
             {% for scoped_resolvable_type in ctpd.scoped_resolvable_types %}

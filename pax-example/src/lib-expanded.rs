@@ -10,7 +10,7 @@
 // use pax_std::primitives::{Group, Rectangle};
 //
 // //Re-exports of all used types, for use by cartridge
-// pub mod pax_types {
+// pub mod pax_reexports {
 //     pub mod pax_std {
 //         pub mod primitives {
 //             pub use pax_std::primitives::Rectangle;
@@ -20,7 +20,7 @@
 //         pub mod components {
 //             pub use pax_std::components::Stacker;
 //         }
-//         pub mod types {
+//         pub mod pax_reexports {
 //             pub use pax_std::types::StackerCellProperties;
 //             pub use pax_std::types::Color;
 //             pub use pax_std::types::Font;

@@ -259,7 +259,7 @@ _RIL means Rust Intermediate Language, which is the
     [x] .pax folder
         [x] manual .pax folder 'proof'
         [x] codegen + templating logic
-    [ ] generate `pub mod types` via `pax_root` -- tricky because full parse is required to
+    [ ] generate `pub mod pax_reexports` via `pax_root` -- tricky because full parse is required to
         know how to build this tree.  Either: do a full parse during macro eval (possible! pending confirmation that parse_to_manifest can be called at macro-expansion time) or
         do some codegen/patching on the userland project (icky)
         (Tentative decision: refactor macro-time parse logic; probably do a full parse; return necessary dep strings along with pascal_identifiers)
@@ -288,11 +288,11 @@ _RIL means Rust Intermediate Language, which is the
                                 (Evaluated at compiletime) `Color::_get_module_path()`
                                     ^ wrong -- this would be evaluated at `parser bin`-time
                                 Which returns `pax_runtime_api::Color`
-                                Which gets codegenned into `pub mod types`
+                                Which gets codegenned into `pub mod pax_reexports`
                                 Checksum: does this resolve at the right time
                                 MAYBE we still need two phases:  one that parses template and property types, which allows codegen of `get_module_path` and `parse_to_manifest`
                                                                  and another that runs the parser bin
-        [ ] Codegen`.pax/types.partial.rs`
+        [ ] Codegen`.pax/reexports.partial.rs`
             [x] Basic logic
             [x] Filter prelude
             [x] fix bug: using `ctx` for property_manifests (maybe only a bug in primitives)
@@ -301,7 +301,7 @@ _RIL means Rust Intermediate Language, which is the
             [ ] fix bug: prelude types not showing up in PropertyManifests
                 -- perhaps each propertymanifest should have:
                     -- fully qualified atomic types
-                        -- for `pub mod pax_types`
+                        -- for `pub mod pax_reexports`
                         -- for recursive calls to `get_property_manifest`
                         -- for TypesCoproduct generation
                         -- for cartridge codegen (imports)
@@ -309,19 +309,19 @@ _RIL means Rust Intermediate Language, which is the
                     -- Also: should this be called something else, like `dependencies` or `imports`? Instead of `PropertyManifests`.
                     -- What about `properties`?  For design tooling, will definitely be necessary.  Is it worth shimming `dependencies` into 
                        -- maybe `get_property_manifest` should just be `get_property_dependencies` ??
-        [ ] include_str!() `.pax/types.partial.rs` _at compile-time_ in macro logic
+        [ ] include_str!() `.pax/reexports.partial.rs` _at compile-time_ in macro logic
             -- the goal is for this types re-export to be present at the root of the *userland project* by the time
             the chassis is attached / compiled
             [ ] might need to "create if doesn't exist," or otherwise guard the lifecycle of the include_str! per best practice
                 -- a likely-viable approach: feature-gate two complementary `pax_root` macros, across binary values `is parser`
-                   parser mode passes an empty string; prod mode assumes presence of .pax/types.partial.rs and hard-code-includes it
+                   parser mode passes an empty string; prod mode assumes presence of .pax/reexports.partial.rs and hard-code-includes it
     [x] parser bin logic finish-line
         [x] macro
     [ ] codegen PropertiesCoproduct
         [x] manual
         [ ] automated
             [ ] For each `pax` component (e.g. `Rectangle`), expose the component's Properties
-                struct through `pub mod types
+                struct through `pub mod pax_reexports
             [ ] For each such entry, in addition to the template "prelude" types,
                 generate an entry for PropertiesCoproduct 
     [ ] codegen TypesCoproduct
