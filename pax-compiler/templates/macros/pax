@@ -30,7 +30,12 @@ pub fn main() {
     println!("{}", &serde_json::to_string_pretty(&manifest).unwrap());
     std::process::exit(0);
 }
+
+//For root only, include reexports
+#[cfg(not(feature = "parser"))]
+include_reexports!(env!("CARGO_MANIFEST_DIR"))
 {% endif %}
+
 
 {{original_tokens}}
 

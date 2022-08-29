@@ -151,7 +151,7 @@ fn get_namespaced_import_string(combined_exports: &Vec<String>) {
 type NamespaceMap = std::collections::HashMap<String, Vec<String>>;
 
 //relative to pax_dir
-const TYPE_PARTIAL_RS_PATH: &str = "types.partial.rs";
+pub const TYPE_PARTIAL_RS_PATH: &str = "types.partial.rs";
 fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     //traverse ComponentDefinitions in manifest
     //gather module_path and PascalIdentifier --

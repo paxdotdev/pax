@@ -4,6 +4,7 @@ extern crate proc_macro2;
 use std::fs;
 use std::str::FromStr;
 use std::collections::HashSet;
+use std::env::current_dir;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
@@ -199,10 +200,9 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
     }
 }
 
+
 fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, is_root: bool) -> proc_macro::TokenStream {
     let original_tokens = input.to_string();
-
-    let pub_mod_types = "".to_string();
 
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
@@ -212,7 +212,14 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let raw_pax = args.to_string();
     let template_dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
-    let pub_mod_types = "".into(); //TODO: load codegenned types.fragment.rs file.  Might feature-gate an include_str! behind a `cartridge-attached` feature.
+    // #[cfg(feature = "parser")]
+    // let pub_mod_types: String = "".into_string(); //TODO: load codegenned types.fragment.rs file.  Might feature-gate an include_str! behind a `cartridge-attached` feature.
+    // #[cfg(not(feature = "parser"))]
+    // let pub_mod_types: String = {
+    //     //TODO: this may not work nicely with `pax` compiler specified `--path`.  Revisit as necessary.
+    //     // fs::read_to_string(std::path::Path::new(&current_dir().unwrap()).join(".pax/").join("types.partial.rs")).unwrap()
+    //     fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/.pax/types.partial.rs")).unwrap()
+    // };
 
     let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
         raw_pax,
@@ -221,7 +228,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         is_root,
         template_dependencies,
         compile_time_property_definitions,
-        pub_mod_types,
+        pax_dir,
     });
 
     TokenStream::from_str(&output).unwrap().into()
