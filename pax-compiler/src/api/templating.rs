@@ -30,6 +30,18 @@ pub struct CompileTimePropertyDefinition {
     pub full_type_name: String,
 }
 
+pub struct TemplateArgsCodegenPropertiesCoproductLib {
+    //e.g. `Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle)`
+    //      |-------| |--------------------------------------------------------|
+    //      tuple.0   tuple.1
+    pub properties_coproduct_tuples: Vec<(String, String)>,
+
+    //e.g. `Stroke(    pax_example::pax_reexports::pax_std::types::Stroke)`
+    //      |----|     |--------------------------------------------------------|
+    //      tuple.0    tuple.1
+    pub types_coproduct_tuples: Vec<(String, String)>,
+}
+
 #[derive(Serialize)]
 pub struct TemplateArgsMacroPax {
     pub raw_pax: String,

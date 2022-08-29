@@ -40,7 +40,7 @@ use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use tokio_serde::formats::*;
 // use pax_compiler_api::PaxManifest;
 
-use toml_edit::{Document, value};
+use toml_edit::{Document, Item, value};
 use uuid::Uuid;
 use crate::api::PaxManifest;
 
@@ -137,22 +137,9 @@ impl<'a> Into<&'a str> for &'a RunTarget {
     }
 }
 
-
-fn get_namespaced_import_string(combined_exports: &Vec<String>) {
-    //split by "::"
-    //bucket into Map<K = String, V = Vec<String>> where key is "" or "any::prefixed::namespaces" (exclusive of final identifier), and value is vec of identifiers belonging to namespace
-    //Then, traverse map by keys,
-
-
-    //string sort
-}
-
-///e.g. `"pax_std::primitives"` => `["pax_std::primitives::Rectangle", ...]`
-type NamespaceMap = std::collections::HashMap<String, Vec<String>>;
-
 //relative to pax_dir
-pub const TYPE_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
-fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
+pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
+fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     //traverse ComponentDefinitions in manifest
     //gather module_path and PascalIdentifier --
     //  handle `parser` module_path and any sub-paths
@@ -169,12 +156,9 @@ fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
         }).flatten().collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
-
-
     let mut combined_reexports = reexport_components;
     combined_reexports.append(&mut reexport_types);
     combined_reexports.sort();
-
 
     let mut file_contents = "pub mod pax_reexports { \n".to_string();
 
@@ -187,7 +171,7 @@ fn generate_types_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
 
     file_contents += "}";
 
-    let path = pax_dir.join(Path::new(TYPE_PARTIAL_RS_PATH));
+    let path = pax_dir.join(Path::new(REEXPORTS_PARTIAL_RS_PATH));
     fs::write(path, file_contents);
 }
 
@@ -204,6 +188,9 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
     //      - keep track of previous or next element, pop from stack for each of `n` mismatched prefix tokens
     //        - when popping from stack, write a `}`
     //        - empty stack entirely at end of vec
+
+    //Author's note: if this logic must be refactored significantly, consider building a tree data structure & serializing it, instead
+    //      of doubling down on this sorted/iterator/stack approach.  This ended up fairly arcane and brittle. -zb
 
     let mut namespace_stack = vec![];
     let mut output_string = "".to_string();
@@ -299,8 +286,25 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
     output_string
 }
 
-fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
-    // todo!()
+fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
+
+    let target_dir = pax_dir.join("properties-coproduct");
+    clone_properties_coproduct_to_dot_pax(&target_dir).unwrap();
+
+    let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
+    let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
+
+    //insert new entry
+    std::mem::swap(
+        target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
+        &mut Item::from_str("{ path=\"../..\" }").unwrap()
+    );
+
+    //write patched Cargo.toml
+    fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
+
+    //build template
+
 }
 fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
     // todo!()
@@ -317,20 +321,19 @@ fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: 
     std::fs::create_dir_all(&chassis_dir).expect("Failed to create chassis directory.  Check filesystem permissions?");
 
     let target_str : &str = target.into();
-    let relative_chassis_specific_dir = chassis_dir.join(target_str);
+    let relative_chassis_specific_target_dir = chassis_dir.join(target_str);
 
-    clone_target_chassis_to_dot_pax(&relative_chassis_specific_dir, target_str);
+    clone_target_chassis_to_dot_pax(&relative_chassis_specific_target_dir, target_str);
 
     //2. generate Cargo.toml in place with correct relative paths / patches; run build script
     // todo!("Generate Cargo.toml file in place");
-    println!("TODO! Generate chassis Cargo.toml at: {:?}", &relative_chassis_specific_dir.join("Cargo.toml"));
+    println!("TODO! Generate chassis Cargo.toml at: {:?}", &relative_chassis_specific_target_dir.join("Cargo.toml"));
 
     let existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(
-        fs::canonicalize(relative_chassis_specific_dir.join("Cargo.toml")).unwrap()).unwrap());
+        fs::canonicalize(relative_chassis_specific_target_dir.join("Cargo.toml")).unwrap()).unwrap());
 
     //To proceed: use toml_edit -- edit Cargo.toml inline from chassis-specific directory
     // include patched pax-cartridge/pax-properties-coproduct
-
 
 }
 
@@ -343,17 +346,17 @@ static CHASSIS_WEB_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-w
 /// Clone a copy of the relevant chassis (and dev harness) to the local .pax directory
 /// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
 /// and the encapsulated dev harness is the actual dev executable
-fn clone_target_chassis_to_dot_pax(relative_chassis_specific_dir: &PathBuf, target_str: &str) -> std::io::Result<()> {
+fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBuf, target_str: &str) -> std::io::Result<()> {
 
-    fs::remove_dir_all(&relative_chassis_specific_dir);
-    fs::create_dir_all(&relative_chassis_specific_dir);
+    fs::remove_dir_all(&relative_chassis_specific_target_dir);
+    fs::create_dir_all(&relative_chassis_specific_target_dir);
 
     //Note: zb spent too long tangling with this -- seems like fs::remove* and fs::create* work
     //      only with the relative path, while Dir::extract requires a canonicalized path.  At least: this works on macOS,
     //      and failed silently/partially in all explored configurations until this one
-    let chassis_specific_dir = fs::canonicalize(&relative_chassis_specific_dir).expect("Invalid path");
+    let chassis_specific_dir = fs::canonicalize(&relative_chassis_specific_target_dir).expect("Invalid path");
 
-    println!("Extracting {} chassis to {:?}", target_str, chassis_specific_dir);
+    println!("Cloning {} chassis to {:?}", target_str, chassis_specific_dir);
     match RunTarget::from(target_str) {
         RunTarget::MacOS => {
             CHASSIS_MACOS_DIR.extract(&chassis_specific_dir)
@@ -364,6 +367,36 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_dir: &PathBuf, targ
     }
 }
 
+static CARTRIDGE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge");
+/// Clone a copy of the relevant chassis (and dev harness) to the local .pax directory
+/// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
+/// and the encapsulated dev harness is the actual dev executable
+fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
+    fs::remove_dir_all(&relative_cartridge_target_dir);
+    fs::create_dir_all(&relative_cartridge_target_dir);
+
+    let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
+
+    println!("Cloning cartridge to {:?}", target_dir);
+
+    CARTRIDGE_DIR.extract(&target_dir)
+}
+
+
+static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct");
+/// Clone a copy of the relevant chassis (and dev harness) to the local .pax directory
+/// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
+/// and the encapsulated dev harness is the actual dev executable
+fn clone_properties_coproduct_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
+    fs::remove_dir_all(&relative_cartridge_target_dir);
+    fs::create_dir_all(&relative_cartridge_target_dir);
+
+    let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
+
+    println!("Cloning properties coproduct to {:?}", target_dir);
+
+    PROPERTIES_COPRODUCT_DIR.extract(&target_dir)
+}
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let mut working_path = std::path::Path::new(working_dir).join(".pax");
@@ -375,6 +408,27 @@ fn get_or_create_pax_tmp_directory(working_dir: &str) -> PathBuf {
     let tmp = Path::new(&get_or_create_pax_directory(working_dir)).join(TMP_DIRECTORY_NAME);
     std::fs::create_dir_all( &tmp);
     tmp
+}
+
+/// Pulled from host Cargo.toml
+struct HostCrateInfo {
+    /// for example: `pax-example`
+    name: String,
+    /// for example: `pax_example`
+    identifier: String,
+}
+
+fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
+    let existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(
+        fs::canonicalize(cargo_toml_path).unwrap()).unwrap()).expect("Error loading host Cargo.toml");
+
+    let name = existing_cargo_toml["package"]["name"].as_str().unwrap().to_string();
+    let identifier = name.replace("-", "_"); //TODO: make this less naive?
+
+    HostCrateInfo {
+        name,
+        identifier,
+    }
 }
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
@@ -416,15 +470,16 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     let out = String::from_utf8(output.stdout).unwrap();
     let _err = String::from_utf8(output.stderr).unwrap();
 
-
     // TODO: error handle calling `cargo run` here -- need to forward
     //       cargo/rustc errors, to handle the broad set of cases where
     //       there are vanilla Rust errors (dep/config issues, syntax errors, etc.)
     // println!("PARSING: {}", &out);
-
     assert_eq!(output.status.code().unwrap(), 0);
 
     let manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+
+    let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
+    let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
 
     //6. Codegen:
     //   - reexports.partial.rs
@@ -432,13 +487,15 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     //   - Cartridge
     //   - Cargo.toml for the appropriate `chassis` (including patches for Properties Coproduct & Cartridge)
     let build_id = Uuid::new_v4().to_string();
-    generate_types_partial_rs(&pax_dir, &manifest);
-    generate_properties_coproduct(&pax_dir, &build_id, &manifest);
+
+    generate_reexports_partial_rs(&pax_dir, &manifest);
+    generate_properties_coproduct(&pax_dir, &build_id, &manifest, &host_crate_info);
     generate_cartridge_definition(&pax_dir, &build_id, &manifest);
     generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
-    //8. Run dev harness, with freshly built chassis plugged in
+    //8a::run: Run dev harness, with freshly built chassis plugged in
+    //8b::compile: Build production harness, with freshly built chassis plugged in
 
     //see pax-compiler-sequence-diagram.png
 
@@ -453,7 +510,6 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
               Note: tried it by hand (expanding absolute paths) and it worked a charm
 
               Maybe just regex replace any `../` for now?  Could make more robust for e.g. Windows
-
 
     ------
 
@@ -476,8 +532,6 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     Ok(())
 }
-
-
 
 
 

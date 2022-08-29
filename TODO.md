@@ -162,7 +162,6 @@ _RIL means Rust Intermediate Language, which is the
 ## Milestone: clickable square
 
 ```
-
 [x] Action API
     [x] state management (.get/.set/etc.)
     [-] hooks into dirty-update system, to support expression dirty-watching
@@ -250,7 +249,7 @@ _RIL means Rust Intermediate Language, which is the
         [x] Debugging via LLDB
             [x] support debugging as necessary with macos dev-harness
             [x] IDE configs for each of: userland cartridge; core; std
-[ ] compiler codegen
+[ ] compiler + codegen
     [-] codegen Cargo.toml + solution for patching
     Note: decided to require manual Cargo setup for launch (solved by `generate` use-case)
         [x] manual
@@ -259,7 +258,7 @@ _RIL means Rust Intermediate Language, which is the
     [x] .pax folder
         [x] manual .pax folder 'proof'
         [x] codegen + templating logic
-    [ ] generate `pub mod pax_reexports` via `pax_root` -- tricky because full parse is required to
+    [x] generate `pub mod pax_reexports` via `pax_root` -- tricky because full parse is required to
         know how to build this tree.  Either: do a full parse during macro eval (possible! pending confirmation that parse_to_manifest can be called at macro-expansion time) or
         do some codegen/patching on the userland project (icky)
         (Tentative decision: refactor macro-time parse logic; probably do a full parse; return necessary dep strings along with pascal_identifiers)
@@ -292,13 +291,13 @@ _RIL means Rust Intermediate Language, which is the
                                 Checksum: does this resolve at the right time
                                 MAYBE we still need two phases:  one that parses template and property types, which allows codegen of `get_module_path` and `parse_to_manifest`
                                                                  and another that runs the parser bin
-        [ ] Codegen`.pax/reexports.partial.rs`
+        [x] Codegen`.pax/reexports.partial.rs`
             [x] Basic logic
             [x] Filter prelude
             [x] fix bug: using `ctx` for property_manifests (maybe only a bug in primitives)
             [x] Hook up primitives + types
                 -- possibly recycle logic that checks for `Property<...>`
-            [ ] fix bug: prelude types not showing up in PropertyManifests
+            [x] fix bug: prelude types not showing up in PropertyManifests
                 -- perhaps each propertymanifest should have:
                     -- fully qualified atomic types
                         -- for `pub mod pax_reexports`
@@ -309,32 +308,18 @@ _RIL means Rust Intermediate Language, which is the
                     -- Also: should this be called something else, like `dependencies` or `imports`? Instead of `PropertyManifests`.
                     -- What about `properties`?  For design tooling, will definitely be necessary.  Is it worth shimming `dependencies` into 
                        -- maybe `get_property_manifest` should just be `get_property_dependencies` ??
-        [ ] include_str!() `.pax/reexports.partial.rs` _at compile-time_ in macro logic
+        [-] include_str!() `.pax/reexports.partial.rs` _at compile-time_ in macro logic
             -- the goal is for this types re-export to be present at the root of the *userland project* by the time
             the chassis is attached / compiled
-            [ ] might need to "create if doesn't exist," or otherwise guard the lifecycle of the include_str! per best practice
+            [-] might need to "create if doesn't exist," or otherwise guard the lifecycle of the include_str! per best practice
                 -- a likely-viable approach: feature-gate two complementary `pax_root` macros, across binary values `is parser`
                    parser mode passes an empty string; prod mode assumes presence of .pax/reexports.partial.rs and hard-code-includes it
+            [x] solution: write another macro, gated behind `not(feature="parser")`, which gets
+                passed `env!("CARGO_MANIFEST_DIR")`
     [x] parser bin logic finish-line
         [x] macro
-    [ ] codegen PropertiesCoproduct
-        [x] manual
-        [ ] automated
-            [ ] For each `pax` component (e.g. `Rectangle`), expose the component's Properties
-                struct through `pub mod pax_reexports
-            [ ] For each such entry, in addition to the template "prelude" types,
-                generate an entry for PropertiesCoproduct 
-    [ ] codegen TypesCoproduct
-        [ ] For each property that is bound to an Expression, look up the type of that property from PropertyManifests,
-            import from userland project, wrap into TypesCoproduct declaration
-            -- if this throws any curveballs, might be worth considering a refactor of the expression vtable, probably using
-            `unsafe`, such that functions with heterogeneous return types can be stored / accessed together 
-        [x] if necessary, supporting type parsing & inference work for TypesCoproduct
-    [ ] hook up `pax_on` and basic lifecycle events
-        [ ] possibly worth considering design for async while doing this
     [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
-[ ] `pax-compiler`
     [x] update .pest and manifest-populating logic to latest language spec
     [x] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
         [-] NOTE: provisionally, this whole group is solved as not necessary, in light of the "parser binary" feature-flagged approach
@@ -367,11 +352,39 @@ _RIL means Rust Intermediate Language, which is the
     [x] sketch out .pax folder design
     [-] graceful shutdown for threaded chassis (at least: ctrl+c and error handling)
         [x] Alternatively: back out of async, given stdio for passing data from parser 
-    [ ] dep. management
-        [ ] augment prelude with static dep. list? e.g. for resolving `Transform2D::*` with implicit `Transform2D::`
-        [ ] Support static constants?  e.g. JABBERWOCKY use-case
-            [ ] perhaps decorate with `#[pax_const]`
-                -- ensure export, OR copy outright and re-declare in cartridge
+    [x] generate & embed reexports
+        [x] parse properties into manifest
+        [x] bundle pax_reexports into nested mods
+        [x] load reexports.partial.rs into userland project
+    [ ] generate properties coproduct
+        [x] retrieve userland crate name (e.g. `pax-example`) and identifier (e.g. `pax_example`) 
+            [-] alternatively, hard-code a single dependency, something like "host", which always points to "../.." (relative to ".pax/properties-coproduct")
+                -- don't think the above will work; cargo needs a symbol that maps to the target Cargo.toml
+        [x] patch / generate Cargo.toml
+            [x] include `pax-example = {path="../../"}`
+                -- where `pax-example` is the userland crate name
+        [ ] PropertiesCoproduct
+            -- coproduct of ComponentName()
+            [ ] run through Tera template, iterating over dependencies
+        [ ] TypesCoproduct
+            -- coproduct of all types from PropertyDefinitions 
+            [x] if necessary, supporting type parsing & inference work for TypesCoproduct
+            [ ] run through Tera template
+    [ ] generate cartridge definition
+        [ ] prelude / hard-coded template
+        [ ] imports via `pax_example::pax_reexports::*`
+        [ ] consts
+            -- perhaps decorate with `#[pax_const]`; copy tokens? or refer to orig?  consider component/namespace reqs
+        [ ] expression vtable (see also: expression compilation)
+        [ ] component factories
+            [ ] compute_properties_fn generation
+            [ ] `instantiate_root_component`
+            [ ] `properties: PropertiesCoproduct::Stacker(Stacker {...})`
+            [ ] PropertiesLiteral vs. PropertiesExpression generation
+    [ ] generate chassis cargo.toml
+    [ ] lightly refactor `pax-compiler` -- break out some files
+    [ ] hook up `pax_on` and basic lifecycle events
+        [ ] possibly worth considering design for async while doing this
     [ ] expression compilation
         [ ] expression string => RIL generation
             [ ] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
@@ -390,7 +403,6 @@ _RIL means Rust Intermediate Language, which is the
                 -- In fact, probably address this on the heels of a Property -> channel refactor, as the implications for this
                 intersection are significant  
         [ ] symbol resolution & code-gen, incl. shadowing with `@for`
-        [ ] binding event handlers
     [ ] control flow
         [ ] for
             [ ] parse declaration `i`, `(i)`, `(i, elem)`
@@ -400,8 +412,7 @@ _RIL means Rust Intermediate Language, which is the
             [ ] parse condition, handle as expression
         [ ] slot
             [ ] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
-[ ] support stand-alone .pax files (no rust file); .html use-case
-    [ ] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
+[x] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
 [ ] e2e `pax run`
 [ ] documentation pass
     [ ] clean up codebase; reduce warnings
@@ -413,29 +424,28 @@ _RIL means Rust Intermediate Language, which is the
 [ ] publication to crates.io
     [x] reserve pax-lang crate on crates.io
     [ ] update relative paths in all cargo.tomls, point to hard-coded published versions
+    [ ] publish all crates
     [ ] e2e testing
-[ ] launch collateral
-    [ ] notify allies
-    [ ] ProductHunt launch (+ other channels, incl Reddit communities)
 ```
 
 
 ## Milestone: usability & functionality++
 ```
-[ ] `with`
-    [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
-    [ ] grammar+parser support
-    [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
-    [ ] multiple variables in tuple `(i,j,k)`
+[ ] `pax build` for distributable binaries
 [ ] Support async
     [ ] `Property` => channels 'smart object'; disposable `mut self` => lifecycle methods (support async lifecycle event handlers)
     [ ] Pencil out error handling (userland)
 [ ] usable error messages
-    [ ] compiletime errors:
-        [ ] 
+    [ ] compiletime (macro) errors:
+        [ ] write to stderr? or other pipe/file/channel readable by `pax-compiler`
     [ ] parsetime errors:
-        [ ] syntax errors
-            [ ] 
+        [ ] pax syntax errors
+            [ ]
+[ ] `with` + event bindings
+    [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
+    [ ] grammar+parser support
+    [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
+    [ ] multiple variables in tuple `(i,j,k)` 
 ```
 
 ## Milestone: form controls
@@ -500,10 +510,9 @@ _RIL means Rust Intermediate Language, which is the
 
 
 
-
-
 ## Milestone: capabilities++
 ```
+[ ] support stand-alone .pax files (no rust file); .html use-case
 [ ] asset management -- enables fonts and images
     [ ] decide on approach: bundle into binary or work with chassis/dev-harness for bundling
     [ ] support async/http assets, relative paths + configurable prefix path, absolute paths, http/https

@@ -7,5 +7,6 @@ edition = "2021"
 
 [dependencies]
 
-pax-example = {path="../../"}
-pax-runtime-api = {path="../../../pax-runtime-api"}
+
+pax-runtime-api = {path="../pax-runtime-api"}
+pax-example = { path="../.." }

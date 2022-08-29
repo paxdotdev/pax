@@ -7,6 +7,10 @@ pub enum PropertiesCoproduct {
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     //generated
+
+    {% for properties_coproduct_tuple in properties_coproduct_tuples %}
+
+    {% endfor %}
 }
 
 //used namely for return types of expressions — may have other purposes
@@ -23,6 +27,10 @@ pub enum TypesCoproduct {
     SizePixels(pax_runtime_api::SizePixels),
     Size(pax_runtime_api::Size),
     //generated / userland
+
+    {% for types_coproduct_tuple in types_coproduct_tuples %}
+
+    {% endfor %}
 }
 
 
