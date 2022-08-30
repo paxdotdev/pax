@@ -2,42 +2,14 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub enum PropertiesCoproduct {
-    //core
-    None,
-    RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
-    RepeatItem(Rc<PropertiesCoproduct>, usize),
-    //generated
-
     {% for properties_coproduct_tuple in properties_coproduct_tuples %}
-
+    {{properties_coproduct_tuple.0}}({{properties_coproduct_tuple.1}}),
     {% endfor %}
 }
 
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
-    //core: primitives
-    f64(f64),
-    bool(bool),
-    isize(isize),
-    usize(usize), //used by Slot for index
-
-    Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
-    String(String),
-    Transform2D(pax_runtime_api::Transform2D),
-    SizePixels(pax_runtime_api::SizePixels),
-    Size(pax_runtime_api::Size),
-    //generated / userland
-
     {% for types_coproduct_tuple in types_coproduct_tuples %}
-
+    {{types_coproduct_tuple.0}}({{types_coproduct_tuple.1}}),
     {% endfor %}
 }
-
-
-//
-// pub enum PatchCoproduct {
-//
-//     // Rectangle(pax_example::exports::pax_std::primitives::rectangle::Rectangle),
-//     // Group(pax_example::exports::pax_std::primitives::group::Group),
-//     RootPatch(pax_example::RootPatch),
-// }

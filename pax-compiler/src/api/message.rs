@@ -62,9 +62,14 @@ pub struct TemplateNodeDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct PropertyDefinition {
+    /// String representation of the identifier of a declared Property
     pub name: String,
-    pub full_type_name: String,
+    /// Type as authored, literally.  May be partially namespace-qualified or aliased.
+    pub original_type: String,
+    /// Vec of constituent components of a type, for example `Rc<String>` would have the dependencies [`std::rc::Rc` and `std::string::String`]
     pub fully_qualified_dependencies: Vec<String>,
+    /// Same type as `original_type`, but dynamically normalized to be fully qualified, suitable for reexporting
+    pub fully_qualified_type: String,
     //pub default_value ?
 }
 

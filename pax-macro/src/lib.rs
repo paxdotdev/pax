@@ -188,7 +188,7 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
 
                                 ret.push(
                                     CompileTimePropertyDefinition {
-                                        full_type_name: name,
+                                        original_type: name,
                                         field_name: quote!(#field_name).to_string(),
                                         scoped_resolvable_types,
                                     }

@@ -20,16 +20,16 @@ pub struct TemplateArgsMacroPaxPrimitive {
 pub struct TemplateArgsMacroPaxType {
     pub pascal_identifier: String,
     pub original_tokens: String,
-
 }
 
 #[derive(Serialize)]
 pub struct CompileTimePropertyDefinition {
     pub scoped_resolvable_types: HashSet<String>,
     pub field_name: String,
-    pub full_type_name: String,
+    pub original_type: String,
 }
 
+#[derive(Serialize)]
 pub struct TemplateArgsCodegenPropertiesCoproductLib {
     //e.g. `Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle)`
     //      |-------| |--------------------------------------------------------|
@@ -61,6 +61,12 @@ pub fn press_template_macro_pax_primitive(args: TemplateArgsMacroPaxPrimitive ) 
 static TEMPLATE_PAX_TYPE : &str = include_str!("../../templates/macros/pax_type");
 pub fn press_template_macro_pax_type(args: TemplateArgsMacroPaxType ) -> String {
     let template = TEMPLATE_DIR.get_file("macros/pax_type").unwrap().contents_utf8().unwrap();
+    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
+}
+
+static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB : &str = include_str!("../../templates/codegen/properties-coproduct-lib");
+pub fn press_template_codegen_properties_coproduct_lib(args: TemplateArgsCodegenPropertiesCoproductLib ) -> String {
+    let template = TEMPLATE_DIR.get_file("codegen/properties-coproduct-lib").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 

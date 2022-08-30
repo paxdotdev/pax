@@ -42,7 +42,7 @@ use tokio_serde::formats::*;
 
 use toml_edit::{Document, Item, value};
 use uuid::Uuid;
-use crate::api::PaxManifest;
+use crate::api::{PaxManifest, press_template_codegen_properties_coproduct_lib, TemplateArgsCodegenPropertiesCoproductLib};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -139,6 +139,7 @@ impl<'a> Into<&'a str> for &'a RunTarget {
 
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
+/// Returns a sorted and de-duped list of combined_reexports.
 fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     //traverse ComponentDefinitions in manifest
     //gather module_path and PascalIdentifier --
@@ -288,6 +289,9 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
 
 fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
+
+
+
     let target_dir = pax_dir.join("properties-coproduct");
     clone_properties_coproduct_to_dot_pax(&target_dir).unwrap();
 
@@ -303,7 +307,53 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
 
-    //build template
+    let import_prefix = format!("{}::pax_reexports::", host_crate_info.identifier);
+
+
+    //build tuples for PropertiesCoproduct
+    let properties_coproduct_tuples = manifest.components.iter().map(|comp_def| {
+        (
+            comp_def.pascal_identifier.clone(),
+            format!("{}{}::{}", &import_prefix, &comp_def.module_path.replace("crate::", ""), &comp_def.pascal_identifier)
+        )
+    }).collect();
+
+    //build tuples for PropertiesCoproduct
+    //get reexports for TypesCoproduct, omitting Component/Property type definitions
+    let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
+        cd.property_definitions.iter().map(|pm|{
+            (pm.original_type.clone()
+                 .replace("(","LPAREN")
+                 .replace("::","COCO")
+                 .replace(")","RPAREN")
+                 .replace("<","LABRA")
+                 .replace(">","RABRA")
+                 .replace(",","COMMA"),
+            pm.fully_qualified_type.clone())
+        }).collect::<Vec<_>>()
+    }).flatten().collect::<Vec<_>>();
+    //
+    // //make reexports unique
+    // let set: HashSet<_> = reexports.drain(..).collect();
+    // reexports.extend(set.into_iter());
+    // reexports.sort();
+    //
+    // let mut types_coproduct_tuples = reexports.iter().map(|rx|{
+    //     (
+    //         rx.split("::").last().unwrap().to_string(),
+    //         format!("{}{}", &import_prefix, rx)
+    //     )
+    //
+    // }).collect();
+
+    //press template into String
+    let generated_lib_rs = press_template_codegen_properties_coproduct_lib(TemplateArgsCodegenPropertiesCoproductLib {
+        properties_coproduct_tuples,
+        types_coproduct_tuples,
+    });
+
+    //write String to file
+    fs::write(target_dir.join("src/lib.rs"), generated_lib_rs);
 
 }
 fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {

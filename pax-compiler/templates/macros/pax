@@ -66,15 +66,35 @@ impl {{pascal_identifier}} {
             //4. (default settings value?  punt) | from default-block parsing
 
             let mut fully_qualified_dependencies = vec![];
+            let mut dep_to_fqd_map = std::collections::HashMap::new();
             {% for scoped_resolvable_type in ctpd.scoped_resolvable_types %}
+                let fqd = {{scoped_resolvable_type}}::get_fully_qualified_path("{{scoped_resolvable_type}}");
+                dep_to_fqd_map.insert("{{scoped_resolvable_type}}",fqd.clone());
+
                 fully_qualified_dependencies.push(
-                    {{scoped_resolvable_type}}::get_fully_qualified_path("{{scoped_resolvable_type}}")
+                    fqd
                 );
             {% endfor %}
+
+            let mut fully_qualified_type = "{{ctpd.original_type}}".to_string();
+            //break original_type into tokens; map each token through dep_to_fqd
+            vec!["<", ">", "(", ")", ","].iter().for_each(|delim| {
+                //split by delim; pass each part through dep_to_fqd map; re-splice with same delims
+                fully_qualified_type = fully_qualified_type.split(delim).map(|part|{
+                    if let Some(more_qualified) = dep_to_fqd_map.get(&part) {
+                        more_qualified
+                    } else {
+                        //if we can't further-qualify this segment, return the original segment
+                        part
+                    }
+                }).collect::<Vec<_>>().join(delim);
+            });
+
             property_definitions.push(pax_compiler_api::PropertyDefinition {
                 name: "{{ctpd.field_name}}".to_string(),
-                full_type_name: "{{ctpd.full_type_name}}".to_string(),
+                original_type: "{{ctpd.original_type}}".to_string(),
                 fully_qualified_dependencies,
+                fully_qualified_type,
             });
         {% endfor %}
         ctx.all_property_definitions.insert(source_id.to_string(), property_definitions);

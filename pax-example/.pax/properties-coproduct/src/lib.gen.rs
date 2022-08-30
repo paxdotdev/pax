@@ -17,8 +17,6 @@ pub enum PropertiesCoproduct {
 
 }
 
-
-
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
     //core (?)

@@ -2,34 +2,48 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub enum PropertiesCoproduct {
-    //core
-    None,
-    RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
-    RepeatItem(Rc<PropertiesCoproduct>, usize),
-    //generated
+    
+    Frame(pax_example::pax_reexports::pax_std::primitives::Frame),
+    
+    Stacker(pax_example::pax_reexports::pax_std::stacker::Stacker),
+    
+    Text(pax_example::pax_reexports::pax_std::primitives::Text),
+    
+    Group(pax_example::pax_reexports::pax_std::primitives::Group),
+    
+    Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
+    
+    HelloWorld(pax_example::pax_reexports::crate::HelloWorld),
+    
 }
 
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
-    //core: primitives
+    
+    VecLABRARcLABRAStackerCellPropertiesRABRARABRA(Vec<Rc<StackerCellProperties>>),
+    
+    StackerDirection(pax_std::types::StackerDirection),
+    
+    usize(usize),
+    
+    Size(pax::api::Size),
+    
+    VecLABRALPARENusizeCOMMASizeRPARENRABRA(Vec<(usize,Size)>),
+    
+    VecLABRALPARENusizeCOMMASizeRPARENRABRA(Vec<(usize,Size)>),
+    
+    String(std::string::String),
+    
+    crateCOCOtypesCOCOFont(pax_std::types::Font),
+    
+    crateCOCOtypesCOCOColor(pax_std::types::Color),
+    
+    crateCOCOtypesCOCOStroke(pax_std::types::Stroke),
+    
+    crateCOCOtypesCOCOColor(pax_std::types::Color),
+    
+    i64(i64),
+    
     f64(f64),
-    bool(bool),
-    isize(isize),
-    usize(usize), //used by Slot for index
-
-    Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
-    String(String),
-    Transform2D(pax_runtime_api::Transform2D),
-    SizePixels(pax_runtime_api::SizePixels),
-    Size(pax_runtime_api::Size),
-    //generated / userland
+    
 }
-
-
-//
-// pub enum PatchCoproduct {
-//
-//     // Rectangle(pax_example::exports::pax_std::primitives::rectangle::Rectangle),
-//     // Group(pax_example::exports::pax_std::primitives::group::Group),
-//     RootPatch(pax_example::RootPatch),
-// }
