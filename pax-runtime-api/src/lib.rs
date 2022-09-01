@@ -45,6 +45,9 @@ pub trait PropertyInstance<T: Default + Clone> {
     /// transition will be the final value upon completion of the current transition queue.
     fn ease_to_later(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve);
 
+
+    //to_default: set back to default value
+    //ease_to_default: set back to default value via interpolation
 }
 
 

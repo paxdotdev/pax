@@ -9,6 +9,7 @@ import SwiftUI
 
 let FPS = 70.0                   //Hz, ceiling
 let REFRESH_PERIOD = 1.0 / FPS   //seconds between frames (e.g. 16.667 for 60Hz)
+//TODO: refactor to use a dynamic wait between frames, to accommodate variable render compute time.  Essentially, write "requestAnimationFrame" logic.
 
 class TextElements: ObservableObject {
     static let singleton : TextElements = TextElements()

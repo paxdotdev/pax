@@ -247,54 +247,6 @@ Settings may be freely inlined inside template element declarations, too:
 <Rectangle fill=Color::rgb(100%,0,0) stroke=Stroke {color: Color::rgb(100%,0,0)} />
 ```
 
-#### 3. Pax Expression language (PAXEL)
-
-```
-<Rectangle transform={
-    rotate(engine.frames_elapsed / 200.0) *
-    translate(in.mouse_x, in.mouse_y)
-}/>
-```
-
-If you've used a templating language like JSX before, you might expect that the code within the braces above `{ ... }` is inline Rust code.  It's not.
-
-That is PAXEL -- part of Pax, a special-purpose language for declaring computed properties in the spirit of spreadsheet formulas.  
-
-You can create a PAXEL Expression anywhere you can declare a settings value, in `template` definitions or in `@settings` blocks.
-
-For example the expression `self.activeColor.adjustBrightness(50%)` might live in a template:
-
-```
-<Rectangle fill={ self.activeColor.adjustBrightness(50%) } />
-```
-or in a settings block:
-```
-@settings {
-  #my_rectangle {
-    fill: { self.activeColor.adjustBrightness(50%) }
-  }
-}
-```
-
-The Pax compiler builds all expressions to machine code, managing each as its own compiled function in a vtable.
-
-Because Pax Expressions are pure, side-effect free functions, the Pax runtime can make aggressive optimizations: caching values
-and only recomputing when one of the stated inputs changes.  Expressions are also readily parallelizable, a prospective future performance optimization.
-
-PAXEL is very similar to at least two existing languages: Microsoft's Excel spreadsheet formula language, and Google's Common Expression Language (CEL). PAXEL shares the following characteristics with CEL[3]:
-
-> **memory-safe**: programs cannot access unrelated memory, such as out-of-bounds array indexes or use-after-free pointer dereferences;
-> 
-> **side-effect-free**: a PAXEL program only computes an output from its inputs;
-> 
-> **terminating**: PAXEL programs cannot loop forever;
-> 
-> **strongly-typed**: values have a well-defined type, and operators and functions check that their arguments have the expected types;
-> 
-> **gradually-typed**: a type-checking phase occurs before runtime via `rustc`, which detects and rejects some programs that would violate type constraints.
-
-PAXEL has a tighter, more specialized scope than CEL and carries a much smaller runtime footprint.
-
 
 ### What is Pax's footprint?
 
@@ -312,16 +264,6 @@ The first versions of Pax were designed and built by [an individual](https://www
 Thus, even from its earliest days, Pax is stewarded through a non-profit: the [Pax Language Foundation](https://foundation.pax-lang.org/).  If you would like to participate in the non-profit, [reach out on Discord](https://discord.gg/4E6tcrtCRb).
 
 
-## Inspiration
-
-Pax draws design inspiration from, among others:
-- Verilog, VHDL
-- Macromedia Flash, Dreamweaver
-- The World Wide Web, HTML, CSS
-- React, Vue, Angular
-- Visual Basic, ASP.NET
-- VisiCalc, Lotus 1-2-3, Excel
-- The Nintendo Entertainment System
 
 
 ## Art credit
@@ -335,8 +277,6 @@ Pax draws design inspiration from, among others:
 [1] Note that Pax is currently in alpha and should only be used in settings where that's not a concern.
 
 [2] Native 2D drawing that _just works_ on every device — with a very light footprint — is available thanks to the admirable work behind [Piet](https://github.com/linebender/piet).
-
-[3] Text modified from source: https://github.com/google/cel-spec/blob/master/doc/langdef.md
 
 ---
 

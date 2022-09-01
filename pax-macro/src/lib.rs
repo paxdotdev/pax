@@ -121,6 +121,7 @@ fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut HashSet<String>) {
                                     .to_string()
                                     .replacen(&ident, "", 1)
                                     .replace(" ", "");
+
                                 accumulated_scoped_resolvable_type =
                                     accumulated_scoped_resolvable_type.clone() +
                                         &ident +
@@ -238,13 +239,10 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
     pax_internal(args, input, false)
 }
 
-// Exactly like `#[pax()]`, except specifies that the attached component is intended to be mounted at
-// the root of an app-contained cartridge
 #[proc_macro_attribute]
 pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     pax_internal(args, input, true)
 }
-
 
 #[proc_macro_attribute]
 pub fn pax_file(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -263,11 +261,26 @@ pub fn pax_on(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
     let _ = args;
     let _ = input;
 
+    unimplemented!("pax_on not yet supported");
     //TODO: register event handler (e.g. PreRender)
     //Handle incremental compilation
 
     input
 }
+
+
+#[proc_macro_attribute]
+pub fn pax_const(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let _ = args;
+    let _ = input;
+
+    unimplemented!("pax_const not yet supported");
+    //TODO: expose reference to assoc. constant through reexports; support scope resolution for consts for expressions
+    //Handle incremental compilation
+
+    input
+}
+
 
 // Needed because Cargo wouldn't otherwise watch for changes in pax files.
 // By include_str!ing the file contents,
