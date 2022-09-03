@@ -356,6 +356,9 @@ _RIL means Rust Intermediate Language, which is the
         [x] parse properties into manifest
         [x] bundle pax_reexports into nested mods
         [x] load reexports.partial.rs into userland project
+    [ ] introduce `pax-cli`, import compiler to be a dep
+        [ ] `pax demo`?
+        [ ] `pax create` with TODO
     [ ] generate properties coproduct
         [x] retrieve userland crate name (e.g. `pax-example`) and identifier (e.g. `pax_example`) 
             [-] alternatively, hard-code a single dependency, something like "host", which always points to "../.." (relative to ".pax/properties-coproduct")
@@ -364,7 +367,7 @@ _RIL means Rust Intermediate Language, which is the
             [x] include `pax-example = {path="../../"}`
                 -- where `pax-example` is the userland crate name
         [ ] PropertiesCoproduct
-            -- coproduct of ComponentName()
+            -- coproduct of ComponentName
             [ ] run through Tera template, iterating over dependencies
         [ ] TypesCoproduct
             -- coproduct of all types from PropertyDefinitions 
@@ -381,11 +384,15 @@ _RIL means Rust Intermediate Language, which is the
             [ ] `instantiate_root_component`
             [ ] `properties: PropertiesCoproduct::Stacker(Stacker {...})`
             [ ] PropertiesLiteral vs. PropertiesExpression generation
-    [ ] generate chassis cargo.toml
-    [ ] lightly refactor `pax-compiler` -- break out some files
+    [ ] generate / patch chassis cargo.toml
     [ ] hook up `pax_on` and basic lifecycle events
         [ ] possibly worth considering design for async while doing this
     [ ] expression compilation
+        [ ] fully qualified resolution of expression symbols, e.g. `Transform2d`
+            [ ] Alternatively: don't support arbitrary imports yet:
+                [ ] Support referring to `T` for any Property<T> (already parsed + resolvable)
+                [ ] Import Transform2d::*, Color::*, and a few others via prelude
+                    -- Note that each prelude import prohibits any other top-level symbols with colliding names; increases DX snafu likelihood via compiler errors
         [ ] expression string => RIL generation
             [ ] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
             [ ] grouping of units, e.g. `(5 + 10)%` 
@@ -395,7 +402,7 @@ _RIL means Rust Intermediate Language, which is the
             [ ] Nested object references + injected context
                 [ ] incantation for deriving values from scope
                 [ ] type-matching
-                [ ] Numeric type management, casting ("gradual typing"?)
+                [ ] Numeric type management, type inference / casting
         [ ] Dependency tracking & dirty-watching
             [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender`
             [ ] address use-case of `Property<Vec<T>>`, inserting/changing an element without setting the whole

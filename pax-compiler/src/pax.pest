@@ -223,7 +223,6 @@ statement_for_predicate_declaration = {
     ("(" ~ identifier ~ ","~ identifier ~")")
 }
 
-
 //Examples:
 // in some_symbol
 // in self.some_symbol

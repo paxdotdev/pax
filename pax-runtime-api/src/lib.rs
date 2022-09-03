@@ -76,8 +76,6 @@ pub enum ArgsCoproduct {
 
 pub type Property<T: Interpolatable> = Box<dyn PropertyInstance<T>>;
 
-
-
 #[derive(Clone)]
 pub struct ArgsRender {
     /// The current global engine tick count
@@ -87,7 +85,6 @@ pub struct ArgsRender {
     // /// The number of adoptees passed to the current component (used by Stacker for auto cell-count calc; might be extended/adjusted for other use-cases)
     // pub adoptee_count: usize,
 }
-
 
 /// A Click occurs when the following sequence occurs:
 ///   0. mousedown
