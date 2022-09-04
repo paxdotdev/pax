@@ -190,7 +190,7 @@ _RIL means Rust Intermediate Language, which is the
 
 
 
-## Milestone: OSS release
+## Milestone: Alpha
 
 ```
 [x] resolve the `Any` question
@@ -376,6 +376,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] generate cartridge definition
         [ ] prelude / hard-coded template
         [ ] imports via `pax_example::pax_reexports::*`
+            -- or, fully resolve every import when using
         [ ] consts
             -- perhaps decorate with `#[pax_const]`; copy tokens? or refer to orig?  consider component/namespace reqs
         [ ] expression vtable (see also: expression compilation)
