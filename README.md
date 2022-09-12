@@ -88,13 +88,17 @@ Refer to the [guide for getting started](https://docs.pax-lang.org/start-creatin
 
 ### Running Development Environment
 
-You can develop the engine, runtime, and compiler by running `pax-example` end-to-end.
+The current leading edge of development is in the compiler —
+```
+cd pax-compiler
+./run-example.sh
+```
 
-You can use the script:
 
-`./run.sh` or `./run-web.sh`
-
-For debugging, run the macOS example (`run.sh`) and attach to the `pax-dev-harness-macos` process using your IDE or debugging client.
-(TODO: make these instructions Linux and Windows friendly)
+To run `pax-example`'s parser binary and print its output to stdout:
+```
+cd pax-example
+cargo build --bin=parser --features=parser
+```
 
 

@@ -7,13 +7,13 @@ pub enum PropertiesCoproduct {
     
     Stacker(pax_example::pax_reexports::pax_std::stacker::Stacker),
     
-    Text(pax_example::pax_reexports::pax_std::primitives::Text),
+    Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
     Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
-    Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
+    Text(pax_example::pax_reexports::pax_std::primitives::Text),
     
-    HelloWorld(pax_example::pax_reexports::crate::HelloWorld),
+    Jabberwocky(pax_example::pax_reexports::crate::Jabberwocky),
     
 }
 
@@ -32,13 +32,13 @@ pub enum TypesCoproduct {
     
     VecLABRALPARENusizeCOMMASizeRPARENRABRA(Vec<(usize,Size)>),
     
-    String(std::string::String),
-    
-    crateCOCOtypesCOCOFont(pax_std::types::Font),
+    crateCOCOtypesCOCOStroke(pax_std::types::Stroke),
     
     crateCOCOtypesCOCOColor(pax_std::types::Color),
     
-    crateCOCOtypesCOCOStroke(pax_std::types::Stroke),
+    String(std::string::String),
+    
+    crateCOCOtypesCOCOFont(pax_std::types::Font),
     
     crateCOCOtypesCOCOColor(pax_std::types::Color),
     

@@ -1,5 +1,5 @@
 pub mod pax_reexports { 
-	pub use crate::HelloWorld;
+	pub use crate::Jabberwocky;
 	pub use f64;
 	pub use i64;
 	pub mod pax {
