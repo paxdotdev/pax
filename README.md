@@ -85,7 +85,6 @@ Refer to the [guide for getting started](https://docs.pax-lang.org/start-creatin
 
 - Install xcode, command line utils
 
-
 ### Running Development Environment
 
 The current leading edge of development is in the compiler —
@@ -94,11 +93,15 @@ cd pax-compiler
 ./run-example.sh
 ```
 
-
 To run `pax-example`'s parser binary and print its output to stdout:
 ```
 cd pax-example
 cargo build --bin=parser --features=parser
 ```
 
-
+To run a full, compiled Pax example you must check out an older branch and run the demo there.  
+```
+git checkout jabberwocky-demo
+./run.sh # or ./run-web.sh
+```
+Note: the Jabberwocky demo was manually expanded to RIL by hand: look for `lib-expanded.rs` and look into the contents of `pax-cartridge`. Currently `master` is in the process of automating that compilation, but examples cannot yet be compiled & run end-to-end.
