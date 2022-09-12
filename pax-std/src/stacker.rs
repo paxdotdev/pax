@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use pax::*;
 use pax::api::{Size2D, Size, ArgsRender, Property};
-use crate::primitives::Frame;
+use crate::primitives::{Frame, Group};
 use crate::types::{StackerDirection, StackerCellProperties};
 
 /// Stacker lays out a series of nodes either
@@ -10,7 +10,7 @@ use crate::types::{StackerDirection, StackerCellProperties};
 /// and vertically, along with `Transform.align` and `Transform.anchor` to compose any rectilinear 2D layout.
 #[pax(
     for (elem, i) in self.computed_layout_spec {
-        <Frame transform={translate(elem.x_px, elem.y_px)} size={[elem.width_px, elem.height_px]}>
+        <Frame transform={translate(elem.x_px, elem.y_px)} size={(elem.width_px, elem.height_px)}>
             slot(i)
         </Frame>
     }

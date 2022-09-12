@@ -8,8 +8,6 @@ use pax_std::components::{Stacker};
     <Stacker cell_count=10 >
 
         //First column: split into five rows
-        <Stacker cell_count=5 direction=StackerDirection::Vertical >
-    <Stacker cells=10 >
         <Stacker cells=5 direction=Vertical >
             for i in 0..5 {
                 <Rectangle fill={
@@ -31,20 +29,20 @@ use pax_std::components::{Stacker};
         //Final column: clickable, animated
         <Group @click=self.handle_click transform={rotate(self.current_rotation)}>
             <Text>{JABBERWOCKY}</Text>
-            <Rectangle fill=rgb(100%, 100%, 0) />
+            <Rectangle fill={rgb(100%, 100%, 0)} />
         </Group>
 
     </Stacker>
 
     @settings {
         #index_text {
-            transform: { Align(0%, i * 12.5%) }
+            transform: { align(0%, i * 12.5%) }
             font: {
                 family: "Real Text Pro",
                 variant: "Demibold",
                 size: {(20 + (i * 5))px},
             }
-            fill: rgb(0,0,0)
+            fill: {rgb(0,0,0)}
         }
     }
 )]
@@ -56,7 +54,7 @@ pub struct Jabberwocky {
 impl Jabberwocky {
 
     #[pax_on(WillRender)]
-    pub fn handle_will_render(&mut self, args: ArgsTick) {
+    pub fn handle_will_render(&mut self, args: ArgsRender) {
         if args.frames_elapsed % 180 == 0 {
             //every 3s
             pax::log(&format!("pax::log from frame {}", args.frames_elapsed));

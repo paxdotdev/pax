@@ -261,7 +261,7 @@ pub fn pax_on(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> 
     let _ = args;
     let _ = input;
 
-    unimplemented!("pax_on not yet supported");
+    // unimplemented!("pax_on not yet supported");
     //TODO: register event handler (e.g. PreRender)
     //Handle incremental compilation
 
@@ -274,7 +274,7 @@ pub fn pax_const(args: proc_macro::TokenStream, input: proc_macro::TokenStream) 
     let _ = args;
     let _ = input;
 
-    unimplemented!("pax_const not yet supported");
+    // unimplemented!("pax_const not yet supported");
     //TODO: expose reference to assoc. constant through reexports; support scope resolution for consts for expressions
     //Handle incremental compilation
 

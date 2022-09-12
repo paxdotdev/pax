@@ -436,8 +436,8 @@ fn derive_literal_value_from_pair(literal_value_pair: Pair<Rule>) -> SettingsLit
             let num_str = inner_literal.as_str();
             SettingsLiteralValue::LiteralNumber(handle_number_string(num_str))
         },
-        Rule::literal_array => {
-            unimplemented!("literal arrays aren't supported but should be. fix me!")
+        Rule::literal_tuple => {
+            unimplemented!("literal tuples aren't supported but should be. fix me!")
             //in particular, need to handle heterogeneous types (i.e. not allow them)
             //might just be able to rely on rustc to enforce
         },
