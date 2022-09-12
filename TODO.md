@@ -357,7 +357,7 @@ _RIL means Rust Intermediate Language, which is the
         [x] bundle pax_reexports into nested mods
         [x] load reexports.partial.rs into userland project
     [ ] introduce `pax-cli`, import compiler to be a dep
-        [ ] `pax demo`?
+        [-] `pax demo`?
         [ ] `pax create` with TODO
     [ ] generate properties coproduct
         [x] retrieve userland crate name (e.g. `pax-example`) and identifier (e.g. `pax_example`) 

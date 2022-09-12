@@ -59,6 +59,16 @@ Refer to the [guide for getting started](https://docs.pax-lang.org/start-creatin
 | ⏲ Not yet supported |
 
 
+## License
+
+© 2022 The Pax Foundation [contact@pax-lang.org].
+
+This project is licensed under either of:
+- [MIT license](LICENSE-MIT)
+- [Apache 2.0 License](LICENSE-APACHE)
+
+at your option.
+
 ## Development
 
 ### Optional environment setup, web chassis
@@ -87,6 +97,8 @@ Refer to the [guide for getting started](https://docs.pax-lang.org/start-creatin
 
 ### Running Development Environment
 
+First, refer to [the latest project status](https://docs.pax-lang.org/status-sept-2022.html)
+
 The current leading edge of development is in the compiler —
 ```
 cd pax-compiler
@@ -104,4 +116,4 @@ To run a full, compiled Pax example you must check out an older branch and run t
 git checkout jabberwocky-demo
 ./run.sh # or ./run-web.sh
 ```
-Note: the Jabberwocky demo was manually expanded to RIL by hand: look for `lib-expanded.rs` and look into the contents of `pax-cartridge`. Currently `master` is in the process of automating that compilation, but examples cannot yet be compiled & run end-to-end.
+
