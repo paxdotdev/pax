@@ -2,9 +2,12 @@
 [package]
 name = "pax-std"
 version = "0.0.1"
+authors = ["Zack Brown <zack@pax-lang.org>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+license = "MIT OR Apache-2.0"
+homepage = "https://www.pax-lang.org/"
+repository = "https://www.github.com/pax-lang/pax"
+description = "Standard library for Pax, including layouts, drawing primitives, and form controls"
 
 
 [package.metadata.pax]
@@ -13,10 +16,10 @@ primitives_crate = "./pax-std-primitives"
 [dependencies]
 piet = "0.5.0"
 kurbo = "0.8.3"
-pax = {package="pax-lang", path = "../pax-lang", features = ["parser"]}
-pax-message = {path = "../pax-message"}
-lazy_static = "*"
-pax-compiler = {path="../pax-compiler", optional = true}
+pax = {package="pax-lang", path = "../pax-lang", features = ["parser"], version="0.0.1"}
+pax-message = {path = "../pax-message", version="0.0.1"}
+lazy_static = "1.4.0"
+pax-compiler = {path="../pax-compiler", optional = true, version="0.0.1"}
 serde_json = {version="1", optional = true}
 
 [features]

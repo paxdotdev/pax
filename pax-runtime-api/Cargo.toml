@@ -1,7 +1,12 @@
 [package]
 name = "pax-runtime-api"
 version = "0.0.1"
+authors = ["Zack Brown <zack@pax-lang.org>"]
 edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://www.pax-lang.org/"
+repository = "https://www.github.com/pax-lang/pax"
+description = "API exposed by the Pax runtime, for runtime manipulation of Pax programs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -9,9 +14,9 @@ edition = "2021"
 kurbo = "0.8.3"
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
-pax-macro = {path = "../pax-macro"}
+pax-macro = {version="0.0.1", path = "../pax-macro"}
 uuid = {version = "0.8", features = ["v4", "wasm-bindgen"]}
-pax-compiler = {path="../pax-compiler", optional = true}
+pax-compiler = {version="0.0.1", path="../pax-compiler", optional = true}
 
 [features]
 parser = ["dep:pax-compiler"]

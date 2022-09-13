@@ -10,6 +10,7 @@ members = [
     "pax-compiler",
     "pax-properties-coproduct",
     "pax-runtime-api",
+    "pax-cli",
 
 ]
 

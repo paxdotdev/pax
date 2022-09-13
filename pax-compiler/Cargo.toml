@@ -3,14 +3,14 @@ name = "pax-compiler"
 version = "0.0.1"
 authors = ["Zack Brown <zack@pax-lang.org>"]
 edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://www.pax-lang.org/"
+repository = "https://www.github.com/pax-lang/pax"
+description = "Compiler for parsing and building Pax projects into application executables"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
-#
 [lib]
 name = "pax_compiler_api"
 path = "src/api/mod.rs"
-
 
 [features]
 default = ["console_error_panic_hook", "cbor", "json", "messagepack"]
@@ -19,7 +19,7 @@ messagepack = ["serde"]
 cbor = ["serde"]
 
 [dependencies]
-pax-message = { path = "../pax-message" }
+pax-message = {version = "0.0.1", path="../pax-message"}
 pest = "2.1.3"
 pest_derive = "2.1.0"
 include_dir = {version = "0.7.2", features = ["glob"]}

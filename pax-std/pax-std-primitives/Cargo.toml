@@ -1,17 +1,23 @@
 [package]
 name = "pax-std-primitives"
 version = "0.0.1"
+authors = ["Zack Brown <zack@pax-lang.org>"]
 edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://www.pax-lang.org/"
+repository = "https://www.github.com/pax-lang/pax"
+description = "Primitives crate for Pax's standard library"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pax = {package="pax-lang", path = "../pax-lang"}
-pax-core = {path = "../../pax-core"}
-pax-std = {path = "../"}
-pax-runtime-api = {path = "../../pax-runtime-api"}
-pax-message = {path = "../../pax-message" }
-pax-properties-coproduct = {path = "../../pax-properties-coproduct"}
+pax = {package="pax-lang", path = "../pax-lang", version="0.0.1"}
+pax-core = {path = "../../pax-core", version="0.0.1"}
+pax-std = {path = "../", version="0.0.1"}
+pax-runtime-api = {path = "../../pax-runtime-api", version="0.0.1"}
+pax-message = {path = "../../pax-message", version="0.0.1" }
+pax-properties-coproduct = {path = "../../pax-properties-coproduct", version="0.0.1"}
 piet = "0.5.0"
 piet-common = "0.5.0"
 kurbo = "0.8.3"

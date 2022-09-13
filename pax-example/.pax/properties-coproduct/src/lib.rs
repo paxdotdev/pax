@@ -3,15 +3,15 @@ use std::rc::Rc;
 
 pub enum PropertiesCoproduct {
     
+    Text(pax_example::pax_reexports::pax_std::primitives::Text),
+    
+    Group(pax_example::pax_reexports::pax_std::primitives::Group),
+    
     Frame(pax_example::pax_reexports::pax_std::primitives::Frame),
     
     Stacker(pax_example::pax_reexports::pax_std::stacker::Stacker),
     
     Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
-    
-    Group(pax_example::pax_reexports::pax_std::primitives::Group),
-    
-    Text(pax_example::pax_reexports::pax_std::primitives::Text),
     
     Jabberwocky(pax_example::pax_reexports::crate::Jabberwocky),
     
@@ -19,6 +19,12 @@ pub enum PropertiesCoproduct {
 
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
+    
+    String(std::string::String),
+    
+    crateCOCOtypesCOCOFont(pax_std::types::Font),
+    
+    crateCOCOtypesCOCOColor(pax_std::types::Color),
     
     VecLABRARcLABRAStackerCellPropertiesRABRARABRA(Vec<Rc<StackerCellProperties>>),
     
@@ -33,12 +39,6 @@ pub enum TypesCoproduct {
     VecLABRALPARENusizeCOMMASizeRPARENRABRA(Vec<(usize,Size)>),
     
     crateCOCOtypesCOCOStroke(pax_std::types::Stroke),
-    
-    crateCOCOtypesCOCOColor(pax_std::types::Color),
-    
-    String(std::string::String),
-    
-    crateCOCOtypesCOCOFont(pax_std::types::Font),
     
     crateCOCOtypesCOCOColor(pax_std::types::Color),
     

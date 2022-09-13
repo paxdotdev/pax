@@ -1,11 +1,17 @@
 [package]
 name = "pax-properties-coproduct"
 version = "0.0.1"
+
+authors = ["Zack Brown <zack@pax-lang.org>"]
 edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://www.pax-lang.org/"
+repository = "https://www.github.com/pax-lang/pax"
+description = "Static container for program-variable data structures and polymorphic components"
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 
-
-pax-runtime-api = {path="../pax-runtime-api"}
+pax-runtime-api = {version="0.0.1", path="../pax-runtime-api"}

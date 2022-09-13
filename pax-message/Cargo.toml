@@ -2,6 +2,13 @@
 name = "pax-message"
 version = "0.0.1"
 edition = "2021"
+authors = ["Zack Brown <zack@pax-lang.org>"]
+license = "MIT OR Apache-2.0"
+homepage = "https://www.pax-lang.org/"
+repository = "https://www.github.com/pax-lang/pax"
+description = "Shared message structs used by Pax runtimes"
+
+
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

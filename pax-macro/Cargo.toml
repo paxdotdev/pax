@@ -3,6 +3,10 @@ name = "pax-macro"
 version = "0.0.1"
 authors = ["Zack Brown <zack@pax-lang.org>"]
 edition = "2021"
+license = "MIT OR Apache-2.0"
+homepage = "https://www.pax-lang.org/"
+repository = "https://www.github.com/pax-lang/pax"
+description = "Macros for Pax, used both for parser codegen and for showing Pax where to attach to Rust code"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,4 +17,4 @@ proc-macro = true
 syn = {version = "1.0", features=["derive"]}
 proc-macro2 = "1.0"
 quote = "1.0"
-pax-compiler = {path="../pax-compiler"}
+pax-compiler = {path = "../pax-compiler", version = "0.0.1"}
