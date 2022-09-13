@@ -23,7 +23,7 @@ Refer to the [guide for getting started](https://docs.pax-lang.org/start-creatin
 
 ## Current status & support
 
-**Pax is pre-release** — Read [the lastest status](https://docs.pax-lang.org/status-sept-2022.html).
+Pax is in **alpha-preview** and is not yet viable for building apps — read [the lastest status](https://docs.pax-lang.org/status-sept-2022.html).
 
 #### End-to-end:
  - Syntax design  ✅
