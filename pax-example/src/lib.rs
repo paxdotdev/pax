@@ -8,7 +8,7 @@ use pax_std::components::{Stacker};
     <Stacker cell_count=10 >
 
         //First column: split into five rows
-        <Stacker cells=5 direction=Vertical >
+        <Stacker cells=5 direction=StackerDirection::Vertical >
             for i in 0..5 {
                 <Rectangle fill={
                     rgb((i * 20)%, 0, 100%)

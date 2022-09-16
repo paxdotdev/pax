@@ -8,7 +8,7 @@ Pax works as a companion language to Rust. Here's a simple example:
 #[pax(                              //rust
     <Text>"Hello, world!"</Text>    //pax
 )]                                  //rust
-pub struct HelloWorld {}            //rust
+pub struct HelloWorld {}            //rust; declares Pax component `HelloWorld`
 ```
 
 In addition to static content like the example above, Pax supports [high-performance](https://docs.pax-lang.org/intro-goals.html) 2D drawing, expressions, animations, composable responsive layouts, and form controls for GUIs.

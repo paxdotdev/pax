@@ -7,11 +7,10 @@ COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 //////
 
 //A template is expressed as an XML-like document with support for
-//@property binding, control-flow (if, for) and @{}-style templating (embedding expressions)
+//property binding, control-flow (if, for) and {}-style templating (embedding expressions)
 
 //A template has exactly one root tag, which cannot be control-flow (why?)
-//A template may be passed as the only content of a pax component definition, or one or more of a `@template{}` or `@settings{}` block may be passed.
-//If a `@settings` block is present, the template must be wrapped in `@template` rather than exposed at the root.
+//A component definition requires at least one element in its template; a `@settings` block may also be included, and any future relevant blocks like `@defaults`
 //The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
 pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration)+ ~ EOI }
 root_tag_pair = { any_tag_pair }
@@ -39,7 +38,7 @@ any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag}
 matched_tag = {open_tag ~ inner_nodes ~ closing_tag}
 //For example: <Text>"This is my inner content"</Text>
 //Presumably this content can be bare literal values other than strings like Color::hlca(...)
-//It could also be an `{...}` expression or presumably even a method `@binding`
+//It could also be an `{...}` expression
 node_inner_content = { literal_value | expression }
 
 //Describes a (leaf-node) self-closing element, like <SomeElement />
@@ -162,7 +161,7 @@ xo_literal = {literal_enum_value | xo_function_call  | literal_number_with_unit 
 
 //Note that `xo_literal_object` differs from `settings` literal_object because it accepts
 //expressions for property values without having to enter a {} context (because these
-//are already evaluated inside an `@{}` context)
+//are already evaluated inside an `{}` context)
 xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_settings_key_value_pair* ~ "}" }
 xo_literal_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
 
