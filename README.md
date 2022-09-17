@@ -2,20 +2,41 @@
 
 Pax is a Rust-based language for interactive graphics & GUIs. As of September 2022, Pax is in [alpha preview](https://docs.pax-lang.org/status-sept-2022.html).
 
-Pax works as a companion language to Rust. Here's a simple example:
+Pax works as a companion language to Rust. Here's a simple example of a Pax component called `IncrementMe`:
 
 ```rust
-#[pax(                              //rust
-    <Text>"Hello, world!"</Text>    //pax
-)]                                  //rust
-pub struct HelloWorld {}            //rust; declares Pax component `HelloWorld`
+//increment-me.rs
+
+use pax::*;
+use pax_std::{Text};
+use pax_std::forms::{Button, ArgsButtonSubmit};
+use pax_std::layout::{Stacker};
+
+#[pax(
+  <Stacker cells=2>
+    <Text>{"I have been clicked " + self.num_clicks + " times."}</Text>
+    <Button @submit=self.increment>"Increment me!"</Button>
+  </Stacker>
+)] 
+pub struct IncrementMe {
+  pub num_clicks: Property<i64>
+}
+impl IncrementMe {
+  pub async fn increment(mut self, args: ArgsButtonSubmit) {
+    let old_num_clicks = self.num_clicks.get();
+    self.num_clicks.set(old_num_clicks + 1);
+  }
+}
+
 ```
 
-In addition to static content like the example above, Pax supports [high-performance](https://docs.pax-lang.org/intro-goals.html) 2D drawing, expressions, animations, composable responsive layouts, and form controls for GUIs.
+In addition to responsive layouts, form controls, and GUIs, Pax supports [high-performance](./intro-goals-prior-art.md) 2D vector drawing and 120fps rendering with fine-grained, creativity-friendly animation APIs.
 
-The Pax compiler outputs platform-specific application executables, for example .apps for macOS or .wasm-powered webpages for browsers. Today, Pax supports only Web and macOS, though it is planned to extend to: iOS, Android, Windows, and Linux.
+Pax runs in browsers via WebAssembly and as native macOS apps via LLVM. Native support will be extended to: iOS, Android, Windows, and Linux.
+
 
 **Read more in [The Pax Docs](https://docs.pax-lang.org/)**
+
 
 ## Getting Started
 
@@ -49,9 +70,8 @@ Pax is in **alpha-preview** and is not yet viable for building apps — read [th
 | Native text rendering                   | ✅ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ✅ <br/>SwiftUI      | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
 | Native form elements                    | ⏲ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>SwiftUI      | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
 | Native event handling (e.g. Click, Tap) | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| Rust as host language                   | ✅ <br/>WASM   | ⏲ <br/>LLVM         | ⏲ <br/>LLVM       | ✅ <br/>LLVM         | ⏲ <br/>LLVM                 | ⏲ <br/>LLVM  |
-| JS/TypeScript as host language          | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
-| C++/Python/etc. as host languages       | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
+| Rust host language                      | ✅ <br/>WASM   | ⏲ <br/>LLVM         | ⏲ <br/>LLVM       | ✅ <br/>LLVM         | ⏲ <br/>LLVM                 | ⏲ <br/>LLVM  |
+| JS/TypeScript host language             | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
 
 | Legend:             |
 |---------------------|
@@ -70,6 +90,14 @@ This project is licensed under either of:
 at your option.
 
 ## Development
+
+### Architectural Reference 
+
+Runtime dependency graph
+<img src="runtime-arch.png" />
+
+Pax compiler sequence diagram
+<img src="compiler-sequence.png" />
 
 ### Optional environment setup, web chassis
 
