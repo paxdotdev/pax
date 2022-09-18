@@ -93,11 +93,13 @@ at your option.
 
 ### Architectural Reference 
 
-Runtime dependency graph
 <img src="runtime-arch.png" />
-
-Pax compiler sequence diagram
+<div style="text-align: center; font-style: italic;">Runtime dependency graph</div>
+<br /><br /><br />
 <img src="compiler-sequence.png" />
+<div style="text-align: center; font-style: italic;">
+Pax compiler sequence diagram | <a href="https://www.github.com/pax-lang/pax/blob/master/pax-compiler/">Compiler source</a>
+</div>.  
 
 ### Optional environment setup, web chassis
 
