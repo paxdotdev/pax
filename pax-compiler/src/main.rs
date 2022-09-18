@@ -145,7 +145,7 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     //gather module_path and PascalIdentifier --
     //  handle `parser` module_path and any sub-paths
     //re-expose module_path::PascalIdentifier underneath `pax_reexports`
-    //ensure that this partial.rs file is loaded included under the `pax_root` macro
+    //ensure that this partial.rs file is loaded included under the `pax_app` macro
     let mut reexport_components: Vec<String> = manifest.components.iter().map(|cd|{
         //e.g.: "some::module::path::SomePascalIdentifier"
         cd.module_path.clone() + "::" + &cd.pascal_identifier

@@ -258,7 +258,7 @@ _RIL means Rust Intermediate Language, which is the
     [x] .pax folder
         [x] manual .pax folder 'proof'
         [x] codegen + templating logic
-    [x] generate `pub mod pax_reexports` via `pax_root` -- tricky because full parse is required to
+    [x] generate `pub mod pax_reexports` via `pax_app` -- tricky because full parse is required to
         know how to build this tree.  Either: do a full parse during macro eval (possible! pending confirmation that parse_to_manifest can be called at macro-expansion time) or
         do some codegen/patching on the userland project (icky)
         (Tentative decision: refactor macro-time parse logic; probably do a full parse; return necessary dep strings along with pascal_identifiers)
@@ -312,7 +312,7 @@ _RIL means Rust Intermediate Language, which is the
             -- the goal is for this types re-export to be present at the root of the *userland project* by the time
             the chassis is attached / compiled
             [-] might need to "create if doesn't exist," or otherwise guard the lifecycle of the include_str! per best practice
-                -- a likely-viable approach: feature-gate two complementary `pax_root` macros, across binary values `is parser`
+                -- a likely-viable approach: feature-gate two complementary `pax_app` macros, across binary values `is parser`
                    parser mode passes an empty string; prod mode assumes presence of .pax/reexports.partial.rs and hard-code-includes it
             [x] solution: write another macro, gated behind `not(feature="parser")`, which gets
                 passed `env!("CARGO_MANIFEST_DIR")`

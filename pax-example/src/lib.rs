@@ -3,7 +3,7 @@ use pax::api::{EasingCurve, ArgsRender, ArgsClick};
 use pax_std::primitives::{Text, Rectangle, Group};
 use pax_std::components::{Stacker};
 
-#[pax_root(
+#[pax_app(
     //Fill screen with ten even columns
     <Stacker cell_count=10 >
 

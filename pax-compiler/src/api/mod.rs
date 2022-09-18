@@ -28,7 +28,7 @@ pub struct PaxParser;
 pub trait PathQualifiable {
     //Note: this default implementation is probably not the right approach, but it works hackily
     //      alongside e.g. `impl Stringable for i64{} pub use i64`.  A better alternative may be to `#[derive(Manifestable)]` (or
-    //      derive as part of `pax`, `pax_root`, and `pax_type` macros)
+    //      derive as part of `pax`, `pax_app`, and `pax_type` macros)
     fn get_fully_qualified_path(atomic_self_type: &str) -> String {
         let fully_qualified_path = module_path!().to_owned() + "::" + atomic_self_type;
         fully_qualified_path

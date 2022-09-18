@@ -221,7 +221,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let raw_pax = args.to_string();
     let template_dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
-    let output = pax_compiler_api::press_template_macro_pax_root(TemplateArgsMacroPax {
+    let output = pax_compiler_api::press_template_macro_pax_app(TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
         original_tokens,
@@ -240,7 +240,7 @@ pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> pro
 }
 
 #[proc_macro_attribute]
-pub fn pax_root(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn pax_app(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     pax_internal(args, input, true)
 }
 

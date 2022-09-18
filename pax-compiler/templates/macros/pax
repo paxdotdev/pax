@@ -35,7 +35,7 @@ pub fn main() {
 //will result in a macro error.
 //Finally: note that this code generates a macro call in order to load pax_reexports — this is necessary to load the
 //reexports.partial.rs file into a token stream, and this could not be evaluated by the normal
-//`pax_root` macro context because the local `CARGO_MANIFEST_DIR` is unknowable in that context.  Evaluating
+//`pax_app` macro context because the local `CARGO_MANIFEST_DIR` is unknowable in that context.  Evaluating
 //another macro here, `include_pax_reexports`, and passing the locally knowable `env!("CARGO_MANIFEST_DIR")`, is a solution to that problem.
 #[cfg(not(feature = "parser"))]
 include_pax_reexports!(concat!(env!("CARGO_MANIFEST_DIR"), "/.pax/"));
