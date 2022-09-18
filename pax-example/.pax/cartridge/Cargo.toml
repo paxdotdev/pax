@@ -11,7 +11,7 @@ pax-core = {path = "../../../pax-core"}
 pax-example = {path = "../.."}
 pax-runtime-api = {path = "../../../pax-runtime-api"}
 pax-std-primitives = {path = "../../../pax-std/pax-std-primitives"}
-#pax-properties-coproduct = {path="../pax-properties-coproduct"}
+pax-properties-coproduct = {path="../properties-coproduct"}
 
 #[patch.'file:///Users/zack/code/pax-lang/pax-properties-coproduct']
 #pax-properties-coproduct = {path = "./pax-properties-coproduct"}

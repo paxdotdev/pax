@@ -3,8 +3,10 @@ name = "pax-chassis-macos"
 edition = "2021"
 version = "0.0.1"
 authors = ["Zack Brown <zack@pax-lang.org>"]
-description = "Pax chassis for macOS"
-publish = false
+license = "MIT OR Apache-2.0"
+homepage = "https://www.pax-lang.org/"
+repository = "https://www.github.com/pax-lang/pax"
+description = "Platform-specific chassis allowing Pax cartridges to be executed as native macOS apps"
 
 [build]
 lto = true
@@ -17,15 +19,20 @@ crate-type = ["cdylib"]
 [dependencies]
 piet = "0.5.0"
 piet-coregraphics = "0.5.0"
-pax-core = { path = "../pax-core" }
-pax-cartridge = {path = "../pax-cartridge"}
-pax-message = {path = "../pax-message"}
-pax-runtime-api = {path = "../pax-runtime-api"}
+pax-core = { path = "../pax-core", version="0.0.1" }
+pax-cartridge = {path = "../pax-cartridge", version="0.0.1"}
+pax-message = {path = "../pax-message", version="0.0.1"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.0.1"}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 core-graphics = "0.22.3"
 serde = "1.0"
 flexbuffers = "2.0.0"
+
+
+[patch.crates-io]
+pax-properties-coproduct = { path = "../../properties-coproduct" }
+pax-cartridge = { path = "../../cartridge" }
 
 #be cautious about core-graphics' version number --
 #ideally this would be locked with `piet` (the specified version should exactly match the version used

@@ -289,9 +289,6 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
 
 fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
-
-
-
     let target_dir = pax_dir.join("properties-coproduct");
     clone_properties_coproduct_to_dot_pax(&target_dir).unwrap();
 
@@ -304,11 +301,13 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
         &mut Item::from_str("{ path=\"../..\" }").unwrap()
     );
 
+    //TODO: remove relative path for pax-runtime-api
+    //alt: expose some sort of pax-monorepo feature which instead patches pax-runtime-api to be "../../pax-runtime-api"
+
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
 
     let import_prefix = format!("{}::pax_reexports::", host_crate_info.identifier);
-
 
     //build tuples for PropertiesCoproduct
     let properties_coproduct_tuples = manifest.components.iter().map(|comp_def| {
@@ -379,11 +378,13 @@ fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: 
     // todo!("Generate Cargo.toml file in place");
     println!("TODO! Generate chassis Cargo.toml at: {:?}", &relative_chassis_specific_target_dir.join("Cargo.toml"));
 
-    let existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(
-        fs::canonicalize(relative_chassis_specific_target_dir.join("Cargo.toml")).unwrap()).unwrap());
 
-    //To proceed: use toml_edit -- edit Cargo.toml inline from chassis-specific directory
-    // include patched pax-cartridge/pax-properties-coproduct
+    let existing_cargo_toml_path = fs::canonicalize(relative_chassis_specific_target_dir.join("Cargo.toml")).unwrap();
+    let mut existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap()).unwrap();
+    existing_cargo_toml["patch"]["crates-io"]["pax-properties-coproduct"]["path"] = toml_edit::value("../../properties-coproduct");
+    existing_cargo_toml["patch"]["crates-io"]["pax-cartridge"]["path"] = toml_edit::value("../../cartridge");
+
+    fs::write(existing_cargo_toml_path, existing_cargo_toml.to_string() );
 
 }
 

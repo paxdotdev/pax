@@ -5,11 +5,11 @@ pub enum PropertiesCoproduct {
     
     Text(pax_example::pax_reexports::pax_std::primitives::Text),
     
-    Group(pax_example::pax_reexports::pax_std::primitives::Group),
-    
     Frame(pax_example::pax_reexports::pax_std::primitives::Frame),
     
     Stacker(pax_example::pax_reexports::pax_std::stacker::Stacker),
+    
+    Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
     Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
