@@ -1889,6 +1889,7 @@ dependencies = [
  "pax-cartridge",
  "pax-core",
  "pax-message",
+ "pax-properties-coproduct",
  "pax-runtime-api",
  "piet",
  "piet-coregraphics",

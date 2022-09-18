@@ -23,6 +23,7 @@ pax-core = { path = "../pax-core", version="0.0.1" }
 pax-cartridge = {path = "../pax-cartridge", version="0.0.1"}
 pax-message = {path = "../pax-message", version="0.0.1"}
 pax-runtime-api = {path = "../pax-runtime-api", version="0.0.1"}
+pax-properties-coproduct = {path = "../pax-properties-coproduct", version="0.0.1"}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 core-graphics = "0.22.3"

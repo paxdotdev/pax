@@ -23,13 +23,14 @@ pax-core = { version="0.0.1" }
 pax-cartridge = { version="0.0.1"}
 pax-message = { version="0.0.1"}
 pax-runtime-api = { version="0.0.1"}
+pax-properties-coproduct = { version="0.0.1"}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 core-graphics = "0.22.3"
 serde = "1.0"
 flexbuffers = "2.0.0"
 
-["patch.crates-io"]
+[patch.crates-io]
 pax-cartridge = { path = "../../cartridge" }
 pax-properties-coproduct = { path = "../../properties-coproduct" }
 

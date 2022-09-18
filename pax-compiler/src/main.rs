@@ -295,6 +295,10 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
 
+
+
+    clean_dependencies_table_of_relative_paths(target_cargo_toml_contents["dependencies"].as_table_mut().unwrap());
+
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
         target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
@@ -359,6 +363,20 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //project already cloned & mounted
 }
 
+fn clean_dependencies_table_of_relative_paths(dependencies: &mut toml_edit::Table) {
+    dependencies.iter_mut().for_each(|dep| {
+        match dep.1.get_mut("path") {
+            Some(existing_path) => {
+                std::mem::swap(
+                    existing_path,
+                    &mut Item::None,
+                );
+            },
+            _ => {}
+        }
+    });
+}
+
 fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: &str, manifest: &PaxManifest) {
     //1. clone (git or raw fs) pax-chassis-whatever into .pax/chassis/
     let chassis_dir = pax_dir.join("chassis");
@@ -373,18 +391,8 @@ fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: 
     let existing_cargo_toml_path = fs::canonicalize(relative_chassis_specific_target_dir.join("Cargo.toml")).unwrap();
     let mut existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap()).unwrap();
 
-    //remove all `path` entries from dependencies, so that we may patch.
-    existing_cargo_toml["dependencies"].as_table_mut().unwrap().iter_mut().for_each(|dep| {
-        match dep.1.get_mut("path") {
-            Some(existing_path) => {
-                std::mem::swap(
-                    existing_path,
-                    &mut Item::None,
-                );
-            },
-            _ => {}
-        }
-    });
+    //remove all relative `path` entries from dependencies, so that we may patch.
+    clean_dependencies_table_of_relative_paths(existing_cargo_toml["dependencies"].as_table_mut().unwrap());
 
     //add `patch`
     let mut patch_table = toml_edit::table();
@@ -393,7 +401,8 @@ fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: 
     existing_cargo_toml.insert("patch.crates-io", patch_table);
 
     //3. write Cargo.toml back to disk & done
-    fs::write(existing_cargo_toml_path, existing_cargo_toml.to_string() );
+    //   hack out the double-quotes inserted by toml_edit along the way
+    fs::write(existing_cargo_toml_path, existing_cargo_toml.to_string().replace("\"patch.crates-io\"", "patch.crates-io") );
 }
 
 static CHASSIS_MACOS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos");

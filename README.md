@@ -1,8 +1,10 @@
 # Pax
 
-Pax is a Rust-based language for interactive graphics & GUIs. As of September 2022, Pax is in [alpha preview](https://docs.pax-lang.org/status-sept-2022.html).
+Pax extends the Rust programming language with a syntax for declarative component-based GUIs.
 
-Pax works as a companion language to Rust. Here's a simple Pax component called `IncrementMe`:
+As of September 2022, Pax is being developed in the open, [in alpha preview](https://docs.pax-lang.org/status-sept-2022.html).
+
+Here's a simple Pax component called `IncrementMe`:
 
 ```rust
 //increment-me.rs
@@ -22,7 +24,7 @@ pub struct IncrementMe {
   pub num_clicks: Property<i64>
 }
 impl IncrementMe {
-  pub async fn increment(mut self, args: ArgsButtonSubmit) {
+  pub async fn increment(&self, args: ArgsButtonSubmit) {
     let old_num_clicks = self.num_clicks.get();
     self.num_clicks.set(old_num_clicks + 1);
   }
@@ -30,9 +32,9 @@ impl IncrementMe {
 
 ```
 
-In addition to responsive layouts, form controls, and GUIs, Pax [aims to maintain](https://docs.pax-lang.org/intro-goals-prior-art.html) high-performance 2D vector drawing and 120fps rendering with fine-grained, creativity-friendly animation APIs.
+In addition to responsive layouts, form controls, and GUIs, Pax [aims to maintain](https://www.pax-lang.org/intro-goals-prior-art.html) high-performance 2D vector drawing and 120fps rendering with fine-grained, creativity-friendly animation APIs.
 
-Pax runs in browsers via WebAssembly and as native macOS apps via LLVM. Native support will be extended to: iOS, Android, Windows, and Linux.
+Pax compiles across platforms: as native macOS apps via LLVM and in browsers via WebAssembly. Native targets will be extended to: iOS, Android, Windows, and Linux.
 
 ## Docs
 Read more in [The Pax Docs](https://docs.pax-lang.org/)
@@ -94,7 +96,7 @@ at your option.
 ### Architectural Reference 
 
 <img src="runtime-arch.png" />
-<div style="text-align: center; font-style: italic;">Runtime dependency graph</div>
+<div style="text-align: center; font-style: italic;">Runtime dependency & codegen graph</div>
 <br /><br /><br />
 <img src="compiler-sequence.png" />
 <div style="text-align: center; font-style: italic;">
@@ -147,9 +149,10 @@ git checkout jabberwocky-demo
 ./run.sh # or ./run-web.sh
 ```
 
-To initialize the docs submodule, for super-grep powers.
-As needed, review the [git submodule docs.](https://git-scm.com/docs/gitsubmodules)
+To initialize the docs submodule, for super-grep powers:
+
 ```
 git submodule update --init --recursive
 ```
 
+As needed, review the [git submodule docs.](https://git-scm.com/docs/gitsubmodules)
