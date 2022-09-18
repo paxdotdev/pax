@@ -2,7 +2,7 @@
 
 Pax is a Rust-based language for interactive graphics & GUIs. As of September 2022, Pax is in [alpha preview](https://docs.pax-lang.org/status-sept-2022.html).
 
-Pax works as a companion language to Rust. Here's a simple example of a Pax component called `IncrementMe`:
+Pax works as a companion language to Rust. Here's a simple Pax component called `IncrementMe`:
 
 ```rust
 //increment-me.rs
@@ -143,5 +143,11 @@ To run a full, compiled Pax example you must check out an older branch and run t
 ```
 git checkout jabberwocky-demo
 ./run.sh # or ./run-web.sh
+```
+
+To initialize the docs submodule, for super-grep powers.
+As needed, review the [git submodule docs.](https://git-scm.com/docs/gitsubmodules)
+```
+git submodule update --init --recursive
 ```
 
