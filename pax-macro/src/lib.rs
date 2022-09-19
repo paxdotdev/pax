@@ -93,10 +93,11 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
 }
 
 
-/// From a raw Property inner type (`T<K>` for `Property<T<K>>`):
-/// Retrieve a list of "resolvable types"; this is, a sequence of identifers that `rustc` can resolve
-/// to a namespace for a `::get_fully_qualified_path` call.
-/// For example: `K` and `T::<K>`.  This is used to bridge from static to dynamic analysis, parse-time "reflection,"
+/// Break apart a raw Property inner type (`T<K>` for `Property<T<K>>`):
+/// into a list of `rustc` resolvable identifiers, possible namespace-nested,
+/// which may be appended with `::get_fully_qualified_path(...)` for dynamic analysis.
+/// For example: `K` and `T::<K>`, which become `K::get_fully_qualified_path(...)` and `T::<K>::get_fully_qualified_path(...)`.
+/// This is used to bridge from static to dynamic analysis, parse-time "reflection,"
 /// so that the Pax compiler can resolve fully qualified paths.
 fn get_scoped_resolvable_types(t: &Type) -> HashSet<String> {
     let mut accum: HashSet<String> = HashSet::new();
@@ -221,13 +222,25 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let raw_pax = args.to_string();
     let template_dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
-    let output = pax_compiler_api::press_template_macro_pax_app(TemplateArgsMacroPax {
+    // std::time::SystemTime::now().elapsed().unwrap().subsec_nanos()
+
+    // Load reexports.partial.rs if PAX_DIR is set
+    let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
+    let reexports_snippet = if let Some(pax_dir) = pax_dir {
+        let reexports_path = std::path::Path::new(pax_dir).join("reexports.partial.rs");
+        fs::read_to_string(&reexports_path).unwrap()
+    } else {
+        "".to_string()
+    };
+
+    let output = pax_compiler_api::press_template_macro_pax(TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
         original_tokens,
         is_root,
         template_dependencies,
         compile_time_property_definitions,
+        reexports_snippet
     });
 
     TokenStream::from_str(&output).unwrap().into()

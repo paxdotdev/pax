@@ -356,11 +356,24 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     fs::write(target_dir.join("src/lib.rs"), generated_lib_rs);
 
 }
-fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest) {
-    // todo!()
+fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
+    let target_dir = pax_dir.join("cartridge");
+    clone_cartridge_to_dot_pax(&target_dir);
 
 
-    //project already cloned & mounted
+    let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
+    let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
+
+    clean_dependencies_table_of_relative_paths(target_cargo_toml_contents["dependencies"].as_table_mut().unwrap());
+
+    //insert new entry pointing to userland crate, where `pax_app` is defined
+    std::mem::swap(
+        target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
+        &mut Item::from_str("{ path=\"../..\" }").unwrap()
+    );
+
+    //write patched Cargo.toml
+    fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
 }
 
 fn clean_dependencies_table_of_relative_paths(dependencies: &mut toml_edit::Table) {
@@ -558,7 +571,7 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_properties_coproduct(&pax_dir, &build_id, &manifest, &host_crate_info);
-    generate_cartridge_definition(&pax_dir, &build_id, &manifest);
+    generate_cartridge_definition(&pax_dir, &build_id, &manifest, &host_crate_info);
     generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above

@@ -50,6 +50,7 @@ pub struct TemplateArgsMacroPax {
     pub is_root: bool,
     pub template_dependencies: Vec<String>,
     pub compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
+    pub reexports_snippet: String,
 }
 
 static TEMPLATE_PAX_PRIMITIVE : &str = include_str!("../../templates/macros/pax_primitive");
@@ -75,7 +76,7 @@ pub fn press_template_codegen_properties_coproduct_lib(args: TemplateArgsCodegen
 //something in _this file_ for `rustc` to detect the changes and recompile the included
 //template file.
 static TEMPLATE_PAX : &str = include_str!("../../templates/macros/pax");
-pub fn press_template_macro_pax_app(args: TemplateArgsMacroPax) -> String {
+pub fn press_template_macro_pax(args: TemplateArgsMacroPax) -> String {
     let template = TEMPLATE_DIR.get_file("macros/pax").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
