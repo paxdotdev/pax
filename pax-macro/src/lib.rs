@@ -13,14 +13,6 @@ use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, Temp
 
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument};
 
-
-#[proc_macro]
-pub fn include_pax_reexports(args: proc_macro::TokenStream)-> proc_macro::TokenStream {
-    let pax_dir = args.to_string();
-    let reexports_tokens_path = std::path::Path::new(&pax_dir).join("reexports.partial.rs");
-    proc_macro::TokenStream::from_str(&fs::read_to_string(reexports_tokens_path).expect("No reexports definition found")).unwrap()
-}
-
 #[proc_macro_attribute]
 pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let original_tokens = input.to_string();

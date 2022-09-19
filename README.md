@@ -32,7 +32,7 @@ impl IncrementMe {
 
 ```
 
-In addition to responsive layouts, form controls, and GUIs, Pax [aims to maintain](https://www.pax-lang.org/intro-goals-prior-art.html) high-performance 2D vector drawing and 120fps rendering with fine-grained, creativity-friendly animation APIs.
+In addition to responsive layouts, form controls, and GUIs, Pax [aims to maintain](https://docs.pax-lang.org/intro-goals-prior-art.html) high-performance 2D vector drawing and 120fps rendering with fine-grained, creativity-friendly animation APIs.
 
 Pax compiles across platforms: as native macOS apps via LLVM and in browsers via WebAssembly. Native targets will be extended to: iOS, Android, Windows, and Linux.
 
