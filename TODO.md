@@ -406,6 +406,7 @@ _RIL means Rust Intermediate Language, which is the
                 [ ] Numeric type management, type inference / casting
         [ ] Dependency tracking & dirty-watching
             [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender`
+            [ ] support "helpers", composable functions, which also serve the need of temporaries/lets
             [ ] address use-case of `Property<Vec<T>>`, inserting/changing an element without setting the whole
                 entity.  Might want to offer a `get_mut` API (keep an eye on async / ownership concerns)
                 -- In fact, probably address this on the heels of a Property -> channel refactor, as the implications for this
@@ -564,6 +565,12 @@ _RIL means Rust Intermediate Language, which is the
 ## Backlog
 
 ```
+[ ] Temporary lets in PAXEL?
+    [ ] Or: easy composition, "helpers"
+[ ] Support "skinning" the template subgrammar:
+    [ ] KDL
+    [ ] YAML
+    [ ] JSON
 [ ] "Media queries"
     [ ] built-ins for platforms (`@macos, @web`)
     [ ] `if` for dynamic application of properties, also responsive/screen-size concerns

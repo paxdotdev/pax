@@ -70,6 +70,9 @@ pub struct PropertyDefinition {
     pub fully_qualified_dependencies: Vec<String>,
     /// Same type as `original_type`, but dynamically normalized to be fully qualified, suitable for reexporting
     pub fully_qualified_type: String,
+
+    /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
+    pub pascalized_fully_qualified_type: String,
     //pub default_value ?
 }
 

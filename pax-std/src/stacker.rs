@@ -27,7 +27,7 @@ pub struct Stacker {
 impl Stacker {
 
     #[pax_on(WillRender)]
-    pub fn handle_will_render(&mut self, args: ArgsRender) {
+    pub fn compute_dimensions(&mut self, args: ArgsRender) {
 
         //TODO: dirty check
         let bounds = args.bounds;

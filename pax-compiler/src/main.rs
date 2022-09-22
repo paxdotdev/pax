@@ -322,13 +322,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //get reexports for TypesCoproduct, omitting Component/Property type definitions
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
         cd.property_definitions.iter().map(|pm|{
-            (pm.original_type.clone()
-                 .replace("(","LPAREN")
-                 .replace("::","COCO")
-                 .replace(")","RPAREN")
-                 .replace("<","LABRA")
-                 .replace(">","RABRA")
-                 .replace(",","COMMA"),
+            (pm.pascalized_fully_qualified_type.clone(),
             pm.fully_qualified_type.clone())
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();

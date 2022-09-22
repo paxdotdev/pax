@@ -54,11 +54,20 @@ impl {{pascal_identifier}} {
                         }).collect::<Vec<_>>().join(delim);
                     });
 
+                    let pascalized_fully_qualified_type = fully_qualified_type.clone()
+                                                                                       .replace("(","LPAR")
+                                                                                       .replace("::","COCO")
+                                                                                       .replace(")","RPAR")
+                                                                                       .replace("<","LABR")
+                                                                                       .replace(">","RABR")
+                                                                                       .replace(",","COMM");
+
                     property_definitions.push(pax_compiler_api::PropertyDefinition {
                         name: "{{ctpd.field_name}}".to_string(),
                         original_type: "{{ctpd.original_type}}".to_string(),
                         fully_qualified_dependencies,
                         fully_qualified_type,
+                        pascalized_fully_qualified_type,
                     });
                 {% endfor %}
                 ctx.all_property_definitions.insert(source_id.to_string(), property_definitions.clone());
