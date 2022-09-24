@@ -97,6 +97,35 @@ pub fn is_prelude_type(identifier: &str) -> bool {
     false
 }
 
+//Returns a fully expanded path and a pascalized version of that fully expanded path — for example:
+// Vec<Rc<StackerCellProperties>> becomes
+// std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCellProperties>>
+pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_fqd_map: &HashMap<&str, String>) -> (String, String) {
+
+    let mut fully_qualified_type = unexpanded_path.to_string();
+
+    //extract dep_to_fqd_map into a Vec<String>; string-replace each looked-up value present in
+    //unexpanded_path, ensuring that each looked-up value is not preceded by a `::`
+    dep_to_fqd_map.keys().for_each(|key| {
+       fully_qualified_type.clone().match_indices(key).for_each(|i|{
+           if i.0 < 3 || {let maybe_coco : String = key.chars().skip(i.0).take(2).collect(); maybe_coco != "::" } {
+               fully_qualified_type.replace_range(i.0..(i.0 + i.1.len()), &dep_to_fqd_map.get(key).unwrap());
+           }
+       });
+    });
+
+    let pascalized_fully_qualified_type = fully_qualified_type.clone()
+        .replace("(","LPAR")
+        .replace("::","COCO")
+        .replace(")","RPAR")
+        .replace("<","LABR")
+        .replace(">","RABR")
+        .replace(",","COMM");
+
+    (fully_qualified_type, pascalized_fully_qualified_type)
+
+}
+
 pub enum PaxContents {
     FilePath(String),
     Inline(String),

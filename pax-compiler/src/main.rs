@@ -248,7 +248,7 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
             match sorted_reexports.get(i + 1) {
                 Some(next_reexport) => {
                     let next_symbols : Vec<String> = next_reexport.split("::").map(|s|{s.to_string()}).collect();
-                    if (is_reexport_crate_prefixed(&next_symbols) || is_reexport_namespaceless(&next_symbols)) {
+                    if is_reexport_crate_prefixed(&next_symbols) || is_reexport_namespaceless(&next_symbols) {
                         dump_stack(&mut namespace_stack, &mut output_string);
                     } else {
                         //for the CURRENT first n-1 symbols, check against same position in
@@ -326,6 +326,11 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
             pm.fully_qualified_type.clone())
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
+
+    let set: HashSet<_> = types_coproduct_tuples.drain(..).collect();
+    types_coproduct_tuples.extend(set.into_iter());
+    types_coproduct_tuples.sort();
+
     //
     // //make reexports unique
     // let set: HashSet<_> = reexports.drain(..).collect();

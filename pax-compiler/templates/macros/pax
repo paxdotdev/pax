@@ -48,6 +48,14 @@ impl {{pascal_identifier}} {
         let source_id = "component::{{pascal_identifier}}";
         let mut property_definitions = vec![];
 
+
+        //TODO: we need to be able to resolve Vec<Rc<StackerCellProperties>> into
+        // std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCellProperties>>
+        //  This requires keeping track of the positions of each scoped atomic type while traversing the AST.
+        //  Perhaps the easiest way to do this is to assemble the "expanded fully qualified type" along the way
+        //  WRONG: this can't be assembled fully statically.  probably easiest to do string replacement, from "original type" => "fully qualified type",
+        //  ensuring string replacements aren't preceded by "::".  This should be done at "parser binary" time
+
         // Populate `PropertyDefinition`s
         {% for ctpd in compile_time_property_definitions %}
             //Here we bridge from pure static analysis into some dynamic analysis via `parser`, in order
@@ -70,27 +78,7 @@ impl {{pascal_identifier}} {
                 );
             {% endfor %}
 
-            let mut fully_qualified_type = "{{ctpd.original_type}}".to_string();
-            //break original_type into tokens; map each token through dep_to_fqd
-            vec!["<", ">", "(", ")", ","].iter().for_each(|delim| {
-                //split by delim; pass each part through dep_to_fqd map; re-splice with same delims
-                fully_qualified_type = fully_qualified_type.split(delim).map(|part|{
-                    if let Some(more_qualified) = dep_to_fqd_map.get(&part) {
-                        more_qualified
-                    } else {
-                        //if we can't further-qualify this segment, return the original segment
-                        part
-                    }
-                }).collect::<Vec<_>>().join(delim);
-            });
-
-            let pascalized_fully_qualified_type = fully_qualified_type.clone()
-                                                                   .replace("(","LPAR")
-                                                                   .replace("::","COCO")
-                                                                   .replace(")","RPAR")
-                                                                   .replace("<","LABR")
-                                                                   .replace(">","RABR")
-                                                                   .replace(",","COMM");
+            let (fully_qualified_type, pascalized_fully_qualified_type) =  pax_compiler_api::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
 
             property_definitions.push(pax_compiler_api::PropertyDefinition {
                 name: "{{ctpd.field_name}}".to_string(),
