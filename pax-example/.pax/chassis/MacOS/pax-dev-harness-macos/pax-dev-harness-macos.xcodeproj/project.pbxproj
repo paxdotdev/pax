@@ -39,8 +39,8 @@
 		140C6AF72825C99B003BACE3 /* FlexBuffers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FlexBuffers.swift; sourceTree = "<group>"; };
 		140C6AF82825C99C003BACE3 /* FlexBuffers.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FlexBuffers.h; sourceTree = "<group>"; };
 		140C6AFD28276BCD003BACE3 /* Messages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Messages.swift; sourceTree = "<group>"; };
-		1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libpaxchassismacos.dylib; path = ../../target/debug/libpaxchassismacos.dylib; sourceTree = "<group>"; };
-		1459D7E7280F2922006391F8 /* libpaxchassismacos.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpaxchassismacos.a; path = ../../target/debug/libpaxchassismacos.a; sourceTree = "<group>"; };
+		1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libpaxchassismacos.dylib; path = ../target/debug/libpaxchassismacos.dylib; sourceTree = "<group>"; };
+		1459D7E7280F2922006391F8 /* libpaxchassismacos.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpaxchassismacos.a; path = ../target/debug/libpaxchassismacos.a; sourceTree = "<group>"; };
 		14965C0127FE3D0F00A38CA1 /* Pax macOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pax macOS.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		14965C0427FE3D0F00A38CA1 /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Main.swift; sourceTree = "<group>"; };
 		14965C0627FE3D0F00A38CA1 /* PaxView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaxView.swift; sourceTree = "<group>"; };
@@ -50,8 +50,8 @@
 		14965C142805E47D00A38CA1 /* src */ = {isa = PBXFileReference; lastKnownFileType = folder; name = src; path = ../src; sourceTree = "<group>"; };
 		14965C152805E4BF00A38CA1 /* paxchassismacos.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = paxchassismacos.h; path = ../src/paxchassismacos.h; sourceTree = "<group>"; };
 		14965C162805E4EF00A38CA1 /* Paxchassismacos-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "Paxchassismacos-Bridging-Header.h"; sourceTree = "<group>"; };
-		14965C172805EA3B00A38CA1 /* libpaxchassismacos.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpaxchassismacos.a; path = ../../target/release/libpaxchassismacos.a; sourceTree = "<group>"; };
-		14965C192805EAA700A38CA1 /* libpaxchassismacos.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libpaxchassismacos.dylib; path = ../../target/release/libpaxchassismacos.dylib; sourceTree = "<group>"; };
+		14965C172805EA3B00A38CA1 /* libpaxchassismacos.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpaxchassismacos.a; path = ../target/release/libpaxchassismacos.a; sourceTree = "<group>"; };
+		14965C192805EAA700A38CA1 /* libpaxchassismacos.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libpaxchassismacos.dylib; path = ../target/release/libpaxchassismacos.dylib; sourceTree = "<group>"; };
 		14965C1D2805EAF500A38CA1 /* libresolv.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
 /* End PBXFileReference section */
 
@@ -363,7 +363,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../../target/debug";
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../target/debug";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "org.pax-lang.pax-dev-harness-macos";
@@ -395,7 +395,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../../target/debug";
+				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../target/debug";
 				MACOSX_DEPLOYMENT_TARGET = 12.0;
 				MARKETING_VERSION = 1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = "org.pax-lang.pax-dev-harness-macos";

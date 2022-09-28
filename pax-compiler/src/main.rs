@@ -328,12 +328,15 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     }).flatten().collect::<Vec<_>>();
 
     let mut set: HashSet<_> = types_coproduct_tuples.drain(..).collect();
-    // let builtins = vec!["f64", "bool", "isize", "usize", "Vec<Rc<PropertiesCoproduct>>"];
+    // builtins
     vec![
         ("f64", "f64"),
         ("bool", "bool"),
         ("isize", "isize"),
-        ("isize", "isize"),
+        ("usize", "usize"),
+        ("String", "String"),
+        ("Vec_Rc_PropertiesCoproduct___", "Vec<Rc<PropertiesCoproduct>>"),
+        ("Transform2D", "pax_runtime_api::Transform2D"),
     ].iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
     types_coproduct_tuples.extend(set.into_iter());
     types_coproduct_tuples.sort();
@@ -446,7 +449,11 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
     println!("Cloning {} chassis to {:?}", target_str, chassis_specific_dir);
     match RunTarget::from(target_str) {
         RunTarget::MacOS => {
-            CHASSIS_MACOS_DIR.extract(&chassis_specific_dir)
+            CHASSIS_MACOS_DIR.extract(&chassis_specific_dir);
+            //HACK: patch the relative directory for the cdylib, because in a rust monorepo the `target` dir
+            //      is at the monorepo root, while in this isolated project it will be in `pax-chassis-macos`.
+            let pbx_path = &chassis_specific_dir.join("pax-dev-harness-macos").join("pax-dev-harness-macos.xcodeproj").join("project.pbxproj");
+            fs::write(pbx_path, fs::read_to_string(pbx_path).unwrap().replace("../../target", "../target"))
         }
         RunTarget::Web => {
             CHASSIS_WEB_DIR.extract(&chassis_specific_dir)
