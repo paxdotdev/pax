@@ -311,10 +311,10 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let import_prefix = format!("{}::pax_reexports::", host_crate_info.identifier);
 
     //build tuples for PropertiesCoproduct
-    let properties_coproduct_tuples = manifest.components.iter().map(|comp_def| {
+    let properties_coproduct_tuples= manifest.components.iter().map(|comp_def| {
         (
             comp_def.pascal_identifier.clone(),
-            format!("{}{}::{}", &import_prefix, &comp_def.module_path.replace("crate::", ""), &comp_def.pascal_identifier)
+            format!("{}{}{}{}", &import_prefix, &comp_def.module_path.replace("crate", ""), {if comp_def.module_path == "crate" {""} else {"::"}}, &comp_def.pascal_identifier)
         )
     }).collect();
 
@@ -322,12 +322,19 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //get reexports for TypesCoproduct, omitting Component/Property type definitions
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
         cd.property_definitions.iter().map(|pm|{
-            (pm.pascalized_fully_qualified_type.clone(),
-            pm.fully_qualified_type.clone())
+            (pm.pascalized_fully_qualified_type.clone().replace("{PREFIX}","__"),
+            pm.fully_qualified_type.clone().replace("{PREFIX}",&import_prefix))
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
-    let set: HashSet<_> = types_coproduct_tuples.drain(..).collect();
+    let mut set: HashSet<_> = types_coproduct_tuples.drain(..).collect();
+    // let builtins = vec!["f64", "bool", "isize", "usize", "Vec<Rc<PropertiesCoproduct>>"];
+    vec![
+        ("f64", "f64"),
+        ("bool", "bool"),
+        ("isize", "isize"),
+        ("isize", "isize"),
+    ].iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
     types_coproduct_tuples.extend(set.into_iter());
     types_coproduct_tuples.sort();
 
