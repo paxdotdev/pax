@@ -53,21 +53,21 @@ pub struct TemplateArgsMacroPax {
     pub reexports_snippet: String,
 }
 
-static TEMPLATE_PAX_PRIMITIVE : &str = include_str!("../../templates/macros/pax_primitive");
+static TEMPLATE_PAX_PRIMITIVE : &str = include_str!("../../templates/macros/pax_primitive.tera");
 pub fn press_template_macro_pax_primitive(args: TemplateArgsMacroPaxPrimitive ) -> String {
-    let template = TEMPLATE_DIR.get_file("macros/pax_primitive").unwrap().contents_utf8().unwrap();
+    let template = TEMPLATE_DIR.get_file("macros/pax_primitive.tera").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
-static TEMPLATE_PAX_TYPE : &str = include_str!("../../templates/macros/pax_type");
+static TEMPLATE_PAX_TYPE : &str = include_str!("../../templates/macros/pax_type.tera");
 pub fn press_template_macro_pax_type(args: TemplateArgsMacroPaxType ) -> String {
-    let template = TEMPLATE_DIR.get_file("macros/pax_type").unwrap().contents_utf8().unwrap();
+    let template = TEMPLATE_DIR.get_file("macros/pax_type.tera").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
-static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB : &str = include_str!("../../templates/codegen/properties-coproduct-lib");
+static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB : &str = include_str!("../../templates/codegen/properties-coproduct-lib.tera");
 pub fn press_template_codegen_properties_coproduct_lib(args: TemplateArgsCodegenPropertiesCoproductLib ) -> String {
-    let template = TEMPLATE_DIR.get_file("codegen/properties-coproduct-lib").unwrap().contents_utf8().unwrap();
+    let template = TEMPLATE_DIR.get_file("codegen/properties-coproduct-lib.tera").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
@@ -75,8 +75,8 @@ pub fn press_template_codegen_properties_coproduct_lib(args: TemplateArgsCodegen
 //Otherwise, after changing one of those files, the author must also change
 //something in _this file_ for `rustc` to detect the changes and recompile the included
 //template file.
-static TEMPLATE_PAX : &str = include_str!("../../templates/macros/pax");
+static TEMPLATE_PAX : &str = include_str!("../../templates/macros/pax.tera");
 pub fn press_template_macro_pax(args: TemplateArgsMacroPax) -> String {
-    let template = TEMPLATE_DIR.get_file("macros/pax").unwrap().contents_utf8().unwrap();
+    let template = TEMPLATE_DIR.get_file("macros/pax.tera").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }

@@ -8,15 +8,15 @@ pub enum PropertiesCoproduct {
     
     Frame(pax_example::pax_reexports::pax_std::primitives::Frame),
     
-    Stacker(pax_example::pax_reexports::pax_std::stacker::Stacker),
-    
     Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
-    Text(pax_example::pax_reexports::pax_std::primitives::Text),
+    Jabberwocky(pax_example::pax_reexports::Jabberwocky),
     
     Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
-    Jabberwocky(pax_example::pax_reexports::Jabberwocky),
+    Stacker(pax_example::pax_reexports::pax_std::stacker::Stacker),
+    
+    Text(pax_example::pax_reexports::pax_std::primitives::Text),
     
 }
 

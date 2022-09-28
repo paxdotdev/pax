@@ -311,12 +311,16 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let import_prefix = format!("{}::pax_reexports::", host_crate_info.identifier);
 
     //build tuples for PropertiesCoproduct
-    let properties_coproduct_tuples= manifest.components.iter().map(|comp_def| {
+    let mut properties_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|comp_def| {
         (
             comp_def.pascal_identifier.clone(),
             format!("{}{}{}{}", &import_prefix, &comp_def.module_path.replace("crate", ""), {if comp_def.module_path == "crate" {""} else {"::"}}, &comp_def.pascal_identifier)
         )
     }).collect();
+    let mut set: HashSet<(String, String)> = properties_coproduct_tuples.drain(..).collect();
+    properties_coproduct_tuples.extend(set.into_iter());
+    properties_coproduct_tuples.sort();
+
 
     //build tuples for PropertiesCoproduct
     //get reexports for TypesCoproduct, omitting Component/Property type definitions
