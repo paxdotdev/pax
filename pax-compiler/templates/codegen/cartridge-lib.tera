@@ -1,0 +1,74 @@
+
+//Prelude: Rust
+use std::cell::RefCell;
+use std::collections::{HashMap, VecDeque};
+use std::ops::Deref;
+use std::rc::Rc;
+//Prelude: Pax
+use pax_runtime_api::{ArgsCoproduct, SizePixels, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
+use pax_core::{ComponentInstance, RenderNodePtr, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceRegistry, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
+use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use pax_core::repeat::{RepeatInstance};
+use piet_common::RenderContext;
+
+// generate imports, pointing to userland cartridge `pub mod pax_reexports`
+{% for import in imports %}
+    use {{ import }};
+    /*
+    use pax_example::pax_reexports::{Root};
+    use pax_example::pax_reexports::pax_std::primitives::{Rectangle, Group, Text};
+    use pax_example::pax_reexports::pax_std::types::{Color, Font, Stroke, Size, StackerCellProperties, StackerDirection};
+    use pax_example::pax_reexports::pax_std::components::Stacker;
+    */
+{% endfor %}
+
+
+
+//dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
+{% for primitive in primitives %}
+    //TODO:
+
+    //use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};
+{% endfor %}
+
+{% for const in consts %}
+    //TODO:
+
+    //pull entire const token stream in here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
+{% endfor %}
+
+
+pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
+    let mut vtable: HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
+
+
+    {% for vtable_entry in vtable_entries %}
+    //TODO:
+        // need: properties type (for accessing coproduct + invocation)
+        // need: return type, for wrapping transpiled return value in TypesCoproduct
+        // need: invocation rust string literal for each dep
+        // need: rust string literal for contents of return statement
+
+    /* // {Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)}
+vtable.insert(9, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+    (Rc::clone(datum), *i)
+    } else { unreachable!(9) };
+
+    return TypesCoproduct::Color(
+    Color::rgba(1.0, 1.0 - (i as f64 * 0.125), i as f64 * 0.125, 1.0)
+    );
+    })); */
+
+    {% endfor %}
+
+
+    vtable
+}
+
+{% for factory_literal in component_factories_literal %}
+    //TODO: generate component instance factory as a literal block of code
+    //      BEFORE passing it to Tera.  This is because there's not an apparent
+    //      with-the-grain way to recurse in Tera
+   {{ factory_literal }}
+{% endfor %}

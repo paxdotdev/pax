@@ -345,20 +345,6 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     types_coproduct_tuples.extend(set.into_iter());
     types_coproduct_tuples.sort();
 
-    //
-    // //make reexports unique
-    // let set: HashSet<_> = reexports.drain(..).collect();
-    // reexports.extend(set.into_iter());
-    // reexports.sort();
-    //
-    // let mut types_coproduct_tuples = reexports.iter().map(|rx|{
-    //     (
-    //         rx.split("::").last().unwrap().to_string(),
-    //         format!("{}{}", &import_prefix, rx)
-    //     )
-    //
-    // }).collect();
-
     //press template into String
     let generated_lib_rs = press_template_codegen_properties_coproduct_lib(TemplateArgsCodegenPropertiesCoproductLib {
         properties_coproduct_tuples,
