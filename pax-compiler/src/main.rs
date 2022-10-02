@@ -42,7 +42,7 @@ use tokio_serde::formats::*;
 
 use toml_edit::{Document, Item, value};
 use uuid::Uuid;
-use crate::api::{PaxManifest, press_template_codegen_properties_coproduct_lib, TemplateArgsCodegenPropertiesCoproductLib};
+use crate::api::{PaxManifest, press_template_codegen_properties_coproduct_lib, press_template_codegen_cartridge_lib, TemplateArgsCodegenCartridgeLib, TemplateArgsCodegenPropertiesCoproductLib};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -359,7 +359,6 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let target_dir = pax_dir.join("cartridge");
     clone_cartridge_to_dot_pax(&target_dir);
 
-
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
 
@@ -373,6 +372,56 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
+
+    let imports = todo!();
+
+    let primitive_imports = todo!();
+
+    let consts = todo!();
+
+    //Traverse component tree starting at root
+    //build a N/PIT in memory for each component (maybe this can be automatically serialized for component factories?)
+    // handle each kind of attribute:
+    //   Literal(String),
+    //      inline into N/PIT
+    //   Expression(String),
+    //      pencil in the ID; handle the expression separately (build ExpressionSpec & friends)
+    //   Identifier(String),
+    //      syntactic sugar for an expression with a single dependency, returning that dependency
+    //   EventBindingTarget(String),
+    //      ensure this gets added to the HandlerRegistry for this component; rely on ugly error messages for now
+    //
+    // Also decide whether to join settings blocks in this work
+    //
+    // Compile expressions during traversal, keeping track of "compile-time stack" for symbol resolution
+    //   If `const` is bit off for this work, must first populate symbols via pax_const => PaxManifest
+    //     -- must also choose scoping rules; probably just component-level scoping for now
+    //
+    // Throw errors when symbols in expressions cannot be resolved; ensure path forward to developer-friendly error messages
+    //     For reference, Rust's message is:
+    //  error[E0425]: cannot find value `not_defined` in this scope
+    //         --> pax-compiler/src/main.rs:404:13
+    //          |
+    //      404 |     let y = not_defined + 6;
+    //          |             ^^^^^^^^^^^ not found in this scope
+    //     Python uses:
+    // NameError: name 'z' is not defined
+    //     JavaScript uses:
+    // Uncaught ReferenceError: not_defined is not defined
+
+    let expression_specs = todo!();
+
+    //press template into String
+    let generated_lib_rs = press_template_codegen_cartridge_lib(TemplateArgsCodegenCartridgeLib {
+        imports,
+        primitive_imports,
+        consts,
+        expression_specs,
+    });
+
+    //write String to file
+    fs::write(target_dir.join("src/lib.rs"), generated_lib_rs);
+
 }
 
 fn clean_dependencies_table_of_relative_paths(dependencies: &mut toml_edit::Table) {

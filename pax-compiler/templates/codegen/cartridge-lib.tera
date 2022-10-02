@@ -22,12 +22,10 @@ use piet_common::RenderContext;
     */
 {% endfor %}
 
-
-
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
-{% for primitive in primitives %}
+{% for primitive in primitive_imports %}
     //TODO:
-
+    use {{ primitive }};
     //use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};
 {% endfor %}
 
@@ -35,40 +33,69 @@ use piet_common::RenderContext;
     //TODO:
 
     //pull entire const token stream in here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
+    {{ const }}
 {% endfor %}
 
-
 pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
-    let mut vtable: HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
+    let mut vtable: HashMap<u32, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
+    /* Repeat example:
+        // {Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)}
+        vtable.insert(9, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+        (Rc::clone(datum), *i)
+        } else { unreachable!(9) };
 
-    {% for vtable_entry in vtable_entries %}
-    //TODO:
-        // need: properties type (for accessing coproduct + invocation)
-        // need: return type, for wrapping transpiled return value in TypesCoproduct
-        // need: invocation rust string literal for each dep
-        // need: rust string literal for contents of return statement
+        return TypesCoproduct::Color(
+        Color::rgba(1.0, 1.0 - (i as f64 * 0.125), i as f64 * 0.125, 1.0)
+        );
+        })); */
 
-    /* // {Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)}
-vtable.insert(9, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-    let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
-    (Rc::clone(datum), *i)
-    } else { unreachable!(9) };
+    /* Offset example:
+        const STACK_FRAME_OFFSET : isize = 2;
+        let SCOPED_STACK_FRAME = (*ec.stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
 
-    return TypesCoproduct::Color(
-    Color::rgba(1.0, 1.0 - (i as f64 * 0.125), i as f64 * 0.125, 1.0)
-    );
-    })); */
+        let properties = SCOPED_STACK_FRAME.deref().borrow().get_properties();
+        let properties = &*(*properties).borrow();
 
+        let current_rotation = if let PropertiesCoproduct::HelloWorld(p) = properties {
+        *p.current_rotation.get() as f64
+        } else { unreachable!(5) };
+
+        TypesCoproduct::Transform2D(
+        Transform2D::anchor(Size::Percent(50.0), Size::Percent(50.0))
+        * Transform2D::align(Size::Percent(50.0), Size::Percent(50.0))
+        * Transform2D::rotate(current_rotation)
+        )
+    */
+    {% for expression_spec in expression_specs %}
+    //{{ expression_spec.input_statement}}
+    vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        {% for invocation in expression_spec.invocations %}
+            let {{ invocation.identifier }} = {
+                let properties = (*ec.stack_frame).borrow().nth_descendant({{ invocation.stack_offset }});
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::{{ invocation.properties_type }}(p) = properties {
+                    *p.{{invocation.identifier}}.get()
+                } else {
+                    unreachable!({{ expression_spec.id }})
+                }
+            };
+        {% endfor %}
+
+        TypesCoproduct::{{ expression_spec.return_type }}(
+            {{ expression_spec.output_statement }}
+        )
+    }
     {% endfor %}
 
-
     vtable
-}
+}}
 
 {% for factory_literal in component_factories_literal %}
     //TODO: generate component instance factory as a literal block of code
     //      BEFORE passing it to Tera.  This is because there's not an apparent
-    //      with-the-grain way to recurse in Tera
+    //      with-the-grain way to recurse in Tera (or: maybe a template can load itself..?)
    {{ factory_literal }}
 {% endfor %}

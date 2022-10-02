@@ -138,6 +138,7 @@ pub struct StackFrame<R: 'static + RenderContext>
     properties: Rc<RefCell<PropertiesCoproduct>>,
     parent: Option<Rc<RefCell<StackFrame<R>>>>,
     timeline: Option<Rc<RefCell<Timeline>>>,
+    properties_type: String,
 }
 
 impl<R: 'static + RenderContext> StackFrame<R> {
@@ -168,11 +169,15 @@ impl<R: 'static + RenderContext> StackFrame<R> {
         }
     }
 
-    // Traverses stack recursively `n` times to retrieve
-    // Unchecked: will throw a runtime error if there are fewer than `n` descendants to traverse.
+    // Traverses stack recursively `n` times to retrieve descendant;
+    // useful for runtime lookups for identifiers
     pub fn nth_descendant(&self, n: isize) -> Rc<RefCell<StackFrame<R>>> {
-        assert!(n > 0);
-        self.nth_descendant_recursive(n, 0)
+        if n == 0 {
+            //0th descendant is self
+            Rc::clone(self)
+        } else {
+            self.nth_descendant_recursive(n, 0)
+        }
     }
 
     fn nth_descendant_recursive(&self, n: isize, depth: isize) -> Rc<RefCell<StackFrame<R>>> {

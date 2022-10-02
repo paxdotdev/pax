@@ -53,6 +53,45 @@ pub struct TemplateArgsMacroPax {
     pub reexports_snippet: String,
 }
 
+#[derive(Serialize)]
+pub struct TemplateArgsCodegenCartridgeLib {
+    /// List of fully qualified import strings, e.g. pax_example::pax_reexports::...
+    pub imports: Vec<String>,
+
+    /// List of fully qualified primitive Instance imports, as annotated by `pax_primitive` macro
+    pub primitive_imports: Vec<String>,
+
+    /// List of `const `declarations: full token streams ready to re-write
+    pub consts: Vec<String>,
+
+    /// List of compiled expression specs
+    pub expression_specs: Vec<ExpressionSpec>,
+}
+
+#[derive(Serialize)]
+pub struct ExpressionSpec {
+    pub id: u32,
+    pub properties_type: String,
+    pub return_type: String,
+    pub invocations: String,
+    pub output_statement: String,
+    pub input_statement: String,
+}
+
+#[derive(Serialize)]
+pub struct ExpressionSpecInvocation {
+    pub identifier: String, //for example:
+    pub atomic_identifier: String, //for example `some_prop` from `self.some_prop`
+    pub stack_offset: usize,
+    pub properties_type: String, //e.g. PropertiesCoproduct::Foo or PropertiesCoproduct::RepeatItem
+}
+
+
+//The following `include_str!()` calls allow `rustc` to "dirty-watch" these template files.
+//Otherwise, after changing one of those files, the author would also need to change
+//something in _this file_ for `rustc` to detect the changes and recompile the included
+//template file.
+
 static TEMPLATE_PAX_PRIMITIVE : &str = include_str!("../../templates/macros/pax_primitive.tera");
 pub fn press_template_macro_pax_primitive(args: TemplateArgsMacroPaxPrimitive ) -> String {
     let template = TEMPLATE_DIR.get_file("macros/pax_primitive.tera").unwrap().contents_utf8().unwrap();
@@ -71,10 +110,12 @@ pub fn press_template_codegen_properties_coproduct_lib(args: TemplateArgsCodegen
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
-//Included to allows `rustc` to "dirty-watch" these template files.
-//Otherwise, after changing one of those files, the author must also change
-//something in _this file_ for `rustc` to detect the changes and recompile the included
-//template file.
+static TEMPLATE_CODEGEN_CARTRIDGE_LIB : &str = include_str!("../../templates/codegen/cartridge-lib.tera");
+pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLib ) -> String {
+    let template = TEMPLATE_DIR.get_file("codegen/cartridge-lib.tera").unwrap().contents_utf8().unwrap();
+    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
+}
+
 static TEMPLATE_PAX : &str = include_str!("../../templates/macros/pax.tera");
 pub fn press_template_macro_pax(args: TemplateArgsMacroPax) -> String {
     let template = TEMPLATE_DIR.get_file("macros/pax.tera").unwrap().contents_utf8().unwrap();
