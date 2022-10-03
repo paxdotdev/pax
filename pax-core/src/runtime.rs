@@ -138,7 +138,6 @@ pub struct StackFrame<R: 'static + RenderContext>
     properties: Rc<RefCell<PropertiesCoproduct>>,
     parent: Option<Rc<RefCell<StackFrame<R>>>>,
     timeline: Option<Rc<RefCell<Timeline>>>,
-    properties_type: String,
 }
 
 impl<R: 'static + RenderContext> StackFrame<R> {

@@ -391,6 +391,8 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //   EventBindingTarget(String),
     //      ensure this gets added to the HandlerRegistry for this component; rely on ugly error messages for now
     //
+    // for serialization to RIL, generate InstantiationArgs for each node, special-casing built-ins like Repeat, Slot
+    //
     // Also decide whether to join settings blocks in this work
     //
     // Compile expressions during traversal, keeping track of "compile-time stack" for symbol resolution
@@ -632,60 +634,11 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
 
     //see pax-compiler-sequence-diagram.png
 
-    /*
-    Problem: the location of the cargo file acts as the root for relative paths, e.g. `../pax-lang`
-    Possible solutions:
-        - require manual or one-time addition/injection of the [[bin]] target, plus the `pax-compiler` dependency and the `parser = ["pax-std/parser"]` feature
-        - gen the cargo file into PWD _as_ Cargo.toml; restore the old cargo file afterwards (store as Cargo.toml.bak, perhaps)
-        - gen a complete copy of the project elsewhere (still would have trouble with ../ paths)
-        - try to patch any "../" paths detected in the input Cargo.toml with `fs::canonicalize`d full paths
-            ^ this feels slightly hacky... but also maybe the cleanest option here
-              Note: tried it by hand (expanding absolute paths) and it worked a charm
-
-              Maybe just regex replace any `../` for now?  Could make more robust for e.g. Windows
-
-    ------
-
-    zack@Quixote pax-example % cargo run --features parser --manifest-path ./.pax/tmp/8ebadfe9-61ce-4a27-bdf7-ab6b0b2666af/Cargo.toml
-    error: failed to get `pax-lang` as a dependency of package `pax-example v0.0.1 (/Users/zack/code/pax-lang/pax-example/.pax/tmp/8ebadfe9-61ce-4a27-bdf7-ab6b0b2666af)`
-
-    Caused by:
-      failed to load source for dependency `pax-lang`
-
-    Caused by:
-      Unable to update /Users/zack/code/pax-lang/pax-example/.pax/tmp/pax-lang
-
-    Caused by:
-      failed to read `/Users/zack/code/pax-lang/pax-example/.pax/tmp/pax-lang/Cargo.toml`
-
-    Caused by:
-      No such file or directory (os error 2)
-
-     */
 
     Ok(())
 }
 
-
-
-// Appendix
-//** PROBLEM: at this point, e.g. with wasm, the browser is the host for the
-//    entire program — meaning that hosting an HTTP server (in the browser, via wasm) is a no-go
-//    That said, web-sockets might work...
-//    Another option: debug using a native chassis, which could expose an HTTP
-//    server in the same process without browser sandbox hurdles
-//    Another option (maybe MVP) — parse Pax headlessly; transpile to RIL and compile
-//    to wasm in order to view in browser (rules out live updates)
-//
-//   Major options seems to be (a) desktop/native renderer + web server, or
-//                             (b) websocket/webrtc comms from browser
-//         Browser surfaces several problems:
-//           1.  ability to host the HTTP server
-//               (could be worked out with websockets + hacks)
-//           2.  fs access (e.g. to write back to RIL)
-//               (could be delegated back to compiler process — wasm process can yield strings, which compiler/designtime process writes to FS)
-//           3.  calling `cargo`/`rustc`, and more...
-//               (could be handled by compiler/host process)
-//         At the same time, relying on a native renderer + process would dead-end
-//         us from supporting "live design" in the browser.
+pub struct PaxManifestExpanded {
+    component_instances: Vec<ComponentInstance>,
+}
 

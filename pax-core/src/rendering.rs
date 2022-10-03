@@ -49,10 +49,6 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub compute_properties_fn: Option<Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>>,
 }
 
-
-//TODO: don't use this!
-//      Instead: keep
-
 fn recurse_get_rendering_subtree_flattened<R: 'static + RenderContext>(children: RenderNodePtrList<R>) -> Vec<RenderNodePtr<R>> {
     //For each node:
     // - push self to list
@@ -70,15 +66,12 @@ fn recurse_get_rendering_subtree_flattened<R: 'static + RenderContext>(children:
     ret
 }
 
-
-
 /// Stores the computed transform and the pre-transform bounding box (where the
 /// other corner is the origin).  Useful for ray-casting, along with
 pub struct TransformAndBounds {
     pub transform: Affine,
     pub bounds: (f64, f64),
 }
-
 
 /// "Transform And Bounds" — a helper struct for storing necessary data for event propagation and ray casting
 pub struct TabCache<R: 'static + RenderContext> {
@@ -100,9 +93,6 @@ impl<R: 'static + RenderContext> TabCache<R> {
         self.parents = HashMap::new();
     }
 }
-
-
-
 
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
