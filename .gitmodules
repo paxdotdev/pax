@@ -1,3 +1,6 @@
 [submodule "docs"]
 	path = docs
 	url = git@github.com:pax-lang/docs.git
+[submodule "www.pax-lang.org"]
+	path = www.pax-lang.org
+	url = git@github.com:pax-lang/www.pax-lang.org
