@@ -2967,3 +2967,18 @@ Probably authored early 2022
 // a separate manifest-generating step after all?  (Except we still need to generate the PropertiesCoproduct).
 
 
+### Compiling expressions
+2022 10 03
+
+How do we represent NPIT in memory?
+      — use actual instance data structures? (along with dep. on core)
+        ^ probably not.  the core dep. gets too messy & complicated, especially with Rust _mise en place_.
+      — create companion data structures for NPIT nodes, including:
+         - instantiation args info (for ser. into RIL Instance declarations)
+         - node / property types (as strings, for codegen — must be able to generate `compute_properties_fn`)
+         - template, traversable
+
+Decision:  introduce a `compile_expressions` method on `PaxManifest`, as well as an `Option<T>`-wrapped field 
+           for storing computed expression specs.  In the future, expressions may be rebuilt individually, e.g. for hot reloading
+
+

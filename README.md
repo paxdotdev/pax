@@ -106,7 +106,7 @@ at your option.
 <img src="compiler-sequence.png" />
 <div style="text-align: center; font-style: italic;">
 Pax compiler sequence diagram | <a href="https://www.github.com/pax-lang/pax/blob/master/pax-compiler/">Compiler source</a>
-</div>.  
+</div>
 
 ### Optional environment setup, web chassis
 

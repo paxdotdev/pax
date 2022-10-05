@@ -11,6 +11,7 @@ use pest::Parser;
 
 use serde_derive::{Serialize, Deserialize};
 use serde_json;
+use crate::ExpressionSpec;
 
 
 //definition container for an entire Pax cartridge
@@ -18,23 +19,36 @@ use serde_json;
 pub struct PaxManifest {
     pub components: Vec<ComponentDefinition>,
     pub root_component_id: String,
+    pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
 }
 
 
+impl PaxManifest {
+    pub fn compile_all_expressions(&mut self) {
+        //traverse each component definition; keep track of "compile-time stack"
+        //for each property that is an Expression, build a spec:
+        //  - transpile expression to Rust (PrecClimb ?)
+        //  - populate ExpressionSpecInvocation
+        //  - handle usize ids
 
-// FOR BINCODE:
-// these methods are exposed to encapsulate the serialization method/version (at time of writing: bincode 1.3.3)
-// though that particular version isn't important, this prevents consuming libraries from having to
-// coordinate versions/strategies for serialization
-// impl PaxManifest {
-//     pub fn serialize(&self) -> Vec<u8> {
-//         serialize(&self).unwrap()
-//     }
-//
-//     pub fn deserialize(bytes: &[u8]) -> Self {
-//         deserialize(bytes).unwrap()
-//     }
-// }
+        let new_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
+
+        self.expression_specs = Some(new_expression_specs);
+
+        self.components.iter_mut().for_each(|component |{
+            //traverse template, but no need to recurse into other component defs
+            // - yes need to traverse slot, if, for, keeping track of compile-time stack
+            //for each found expression & expression-like (e.g. identifier binding):
+            // - write back to Manifest with unique usize id, as lookup ID for RIL component tree gen
+            // - use same usize id to populate an ExpressionSpec, for entry into vtable as ID
+            // - parse RIL string expression with pest::PrattParser
+            // - track unique identifiers from parsing step; use these to populate ExpressionSpecInvoations, along with compile-time stack info
+
+        });
+    }
+
+}
+
 
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -129,25 +143,3 @@ pub enum Unit {
     Pixels,
     Percent
 }
-
-//
-//
-// pub enum SettingsValue {
-//     Literal(String),
-//     Block(SettingsValueBlock),
-// }
-//
-// #[allow(dead_code)]
-// pub struct SettingsDefinition {
-//     id: String,
-//     selector: String,
-//     value: SettingsValueBlock,
-// }
-//
-// #[allow(dead_code)]
-// pub struct SettingsValueBlock {
-//     pairs: Option<Vec<(String, SettingsValue)>>,
-// }
-
-// use message::{AttributeValueDefinition, ComponentDefinition, Number, PaxManifest, SettingsLiteralBlockDefinition, SettingsSelectorBlockDefinition, SettingsValueDefinition, SettingsLiteralValue, TemplateNodeDefinition, Unit};
-// use pest::prec_climber::PrecClimber;

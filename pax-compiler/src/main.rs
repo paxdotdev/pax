@@ -637,15 +637,6 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     Ok(())
 }
 
-
-// TODO:
-// - determine how to represent NPIT in memory
-//      — use actual instance data structures? (along with dep. on core)
-//        ^ probably not.  the core dep. gets too messy & complicated, especially with Rust _mise en place_.
-//      — create companion data structures for NPIT nodes, including:
-//         - instantiation args info (for ser. into RIL Instance declarations)
-//         - node / property types (as strings, for codegen — must be able to generate `compute_properties_fn`)
-//         - template, traversable
 pub struct PaxManifestExpanded {
     component_instances: Vec<ComponentInstance>,
 }
