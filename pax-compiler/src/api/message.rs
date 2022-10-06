@@ -33,9 +33,10 @@ impl PaxManifest {
 
         let new_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
 
-        self.expression_specs = Some(new_expression_specs);
+        let mut compiletime_stack : Vec<()> = vec![];
 
-        self.components.iter_mut().for_each(|component |{
+        let recurse_template_fn = |node_def|{
+
             //traverse template, but no need to recurse into other component defs
             // - yes need to traverse slot, if, for, keeping track of compile-time stack
             //for each found expression & expression-like (e.g. identifier binding):
@@ -43,8 +44,39 @@ impl PaxManifest {
             // - use same usize id to populate an ExpressionSpec, for entry into vtable as ID
             // - parse RIL string expression with pest::PrattParser
             // - track unique identifiers from parsing step; use these to populate ExpressionSpecInvoations, along with compile-time stack info
-
+            /* Example use of Pratt parser, from Pest repo:
+            fn parse_to_str(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
+                pratt
+                    .map_primary(|primary| match primary.as_rule() {
+                        Rule::int => primary.as_str().to_owned(),
+                        Rule::expr => parse_to_str(primary.into_inner(), pratt),
+                        _ => unreachable!(),
+                    })
+                    .map_prefix(|op, rhs| match op.as_rule() {
+                        Rule::neg => format!("(-{})", rhs),
+                        _ => unreachable!(),
+                    })
+                    .map_postfix(|lhs, op| match op.as_rule() {
+                        Rule::fac => format!("({}!)", lhs),
+                        _ => unreachable!(),
+                    })
+                    .map_infix(|lhs, op, rhs| match op.as_rule() {
+                        Rule::add => format!("({}+{})", lhs, rhs),
+                        Rule::sub => format!("({}-{})", lhs, rhs),
+                        Rule::mul => format!("({}*{})", lhs, rhs),
+                        Rule::div => format!("({}/{})", lhs, rhs),
+                        Rule::pow => format!("({}^{})", lhs, rhs),
+                        _ => unreachable!(),
+                    })
+                    .parse(pairs)
+            }
+             */
+        };
+        self.components.iter_mut().for_each(|component_def|{
+            component_def.template.unwrap().iter().for_each(&recurse_template_fn);
         });
+
+        self.expression_specs = Some(new_expression_specs);
     }
 
 }
