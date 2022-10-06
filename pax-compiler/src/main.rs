@@ -637,7 +637,3 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     Ok(())
 }
 
-pub struct PaxManifestExpanded {
-    component_instances: Vec<ComponentInstance>,
-}
-

@@ -11,7 +11,6 @@ use pest::Parser;
 
 use serde_derive::{Serialize, Deserialize};
 use serde_json;
-use crate::ExpressionSpec;
 
 
 //definition container for an entire Pax cartridge
@@ -23,6 +22,24 @@ pub struct PaxManifest {
 }
 
 
+#[derive(Serialize, Deserialize)]
+pub struct ExpressionSpec {
+    pub id: u32,
+    pub properties_type: String,
+    pub return_type: String,
+    pub invocations: String,
+    pub output_statement: String,
+    pub input_statement: String,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct ExpressionSpecInvocation {
+    pub identifier: String, //for example:
+    pub atomic_identifier: String, //for example `some_prop` from `self.some_prop`
+    pub stack_offset: usize,
+    pub properties_type: String, //e.g. PropertiesCoproduct::Foo or PropertiesCoproduct::RepeatItem
+}
+
 impl PaxManifest {
     pub fn compile_all_expressions(&mut self) {
         //traverse each component definition; keep track of "compile-time stack"
@@ -33,9 +50,10 @@ impl PaxManifest {
 
         let new_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
 
-        let mut compiletime_stack : Vec<()> = vec![];
+        let mut stack_offset = 0;
 
         let recurse_template_fn = |node_def|{
+
 
             //traverse template, but no need to recurse into other component defs
             // - yes need to traverse slot, if, for, keeping track of compile-time stack
@@ -73,7 +91,7 @@ impl PaxManifest {
              */
         };
         self.components.iter_mut().for_each(|component_def|{
-            component_def.template.unwrap().iter().for_each(&recurse_template_fn);
+            component_def.template.as_ref().unwrap().iter().for_each(recurse_template_fn);
         });
 
         self.expression_specs = Some(new_expression_specs);

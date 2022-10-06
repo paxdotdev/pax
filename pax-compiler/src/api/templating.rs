@@ -1,9 +1,11 @@
 
-use serde_derive::Serialize;
+use serde_derive::{Serialize, Deserialize};
 use serde_json;
 use include_dir::{include_dir, Dir};
 use tera::{Context, Tera};
 use std::collections::HashSet;
+
+use super::ExpressionSpec;
 
 static ROOT_PATH : &str = "$CARGO_MANIFEST_DIR/templates";
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
@@ -68,23 +70,7 @@ pub struct TemplateArgsCodegenCartridgeLib {
     pub expression_specs: Vec<ExpressionSpec>,
 }
 
-#[derive(Serialize)]
-pub struct ExpressionSpec {
-    pub id: u32,
-    pub properties_type: String,
-    pub return_type: String,
-    pub invocations: String,
-    pub output_statement: String,
-    pub input_statement: String,
-}
 
-#[derive(Serialize)]
-pub struct ExpressionSpecInvocation {
-    pub identifier: String, //for example:
-    pub atomic_identifier: String, //for example `some_prop` from `self.some_prop`
-    pub stack_offset: usize,
-    pub properties_type: String, //e.g. PropertiesCoproduct::Foo or PropertiesCoproduct::RepeatItem
-}
 
 
 //The following `include_str!()` calls allow `rustc` to "dirty-watch" these template files.
