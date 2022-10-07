@@ -1,4 +1,3 @@
-
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::{fs, env};
@@ -12,7 +11,6 @@ use pest::Parser;
 use serde_derive::{Serialize, Deserialize};
 use serde_json;
 
-
 //definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
 pub struct PaxManifest {
@@ -21,13 +19,12 @@ pub struct PaxManifest {
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
 }
 
-
 #[derive(Serialize, Deserialize)]
 pub struct ExpressionSpec {
-    pub id: u32,
+    pub id: usize,
     pub properties_type: String,
     pub return_type: String,
-    pub invocations: String,
+    pub invocations: Vec<ExpressionSpecInvocation>,
     pub output_statement: String,
     pub input_statement: String,
 }
@@ -48,20 +45,52 @@ impl PaxManifest {
         //  - populate ExpressionSpecInvocation
         //  - handle usize ids
 
-        let new_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
-
+        let mut new_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
         let mut stack_offset = 0;
+        let mut uid_gen = 0..;
 
-        let recurse_template_fn = |node_def|{
 
+        let mut fn_recurse_template = |node_def: &mut TemplateNodeDefinition|{
+            let mut incremented = false;
+            if node_def.pascal_identifier == "Slot" || node_def.pascal_identifier == "Repeat" || node_def.pascal_identifier == "Conditional" {
+                stack_offset += 1;
+                incremented = true;
+            }
+
+            //TODO: join settings blocks here, merge with inline_attributes
+            node_def.inline_attributes.as_ref().unwrap().iter().for_each(|attr|{
+                match &attr.1 {
+                    AttributeValueDefinition::LiteralValue(_) => {},
+                    AttributeValueDefinition::EventBindingTarget(s ) => {
+                        //TODO: bind events here, or on a separate pass?
+                        // e.g. the self.foo in `@click=self.foo`
+                    },
+                    AttributeValueDefinition::Identifier(s) => {
+                        // e.g. the self.active_color in `bg_color=self.active_color`
+
+                        let id = uid_gen.next().unwrap();
+                        new_expression_specs.insert( id, ExpressionSpec {
+                            id,
+                            properties_type: node_def.pascal_identifier.clone(),
+                            return_type:  unimplemented!(),
+                            invocations: vec![],
+                            output_statement: "".to_string(),
+                            input_statement: "".to_string()
+                        });
+                    },
+                    AttributeValueDefinition::Expression(s) => {
+
+                    },
+                }
+            });
 
             //traverse template, but no need to recurse into other component defs
-            // - yes need to traverse slot, if, for, keeping track of compile-time stack
+            // [x] yes need to traverse slot, if, for, keeping track of compile-time stack
             //for each found expression & expression-like (e.g. identifier binding):
-            // - write back to Manifest with unique usize id, as lookup ID for RIL component tree gen
-            // - use same usize id to populate an ExpressionSpec, for entry into vtable as ID
-            // - parse RIL string expression with pest::PrattParser
-            // - track unique identifiers from parsing step; use these to populate ExpressionSpecInvoations, along with compile-time stack info
+            // [ ] write back to Manifest with unique usize id, as lookup ID for RIL component tree gen
+            // [ ] use same usize id to populate an ExpressionSpec, for entry into vtable as ID
+            // [ ] parse RIL string expression with pest::PrattParser
+            // [ ] track unique identifiers from parsing step; use these to populate ExpressionSpecInvoations, along with compile-time stack info
             /* Example use of Pratt parser, from Pest repo:
             fn parse_to_str(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
                 pratt
@@ -89,17 +118,17 @@ impl PaxManifest {
                     .parse(pairs)
             }
              */
+            if incremented {
+                stack_offset -= 1;
+            }
         };
         self.components.iter_mut().for_each(|component_def|{
-            component_def.template.as_ref().unwrap().iter().for_each(recurse_template_fn);
+            component_def.template.as_mut().unwrap().iter_mut().for_each(&mut fn_recurse_template);
         });
 
         self.expression_specs = Some(new_expression_specs);
     }
-
 }
-
-
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct ComponentDefinition {
@@ -123,6 +152,7 @@ pub struct TemplateNodeDefinition {
     pub component_id: String,
     pub inline_attributes: Option<Vec<(String, AttributeValueDefinition)>>,
     pub children_ids: Vec<String>,
+    pub pascal_identifier: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -135,7 +165,6 @@ pub struct PropertyDefinition {
     pub fully_qualified_dependencies: Vec<String>,
     /// Same type as `original_type`, but dynamically normalized to be fully qualified, suitable for reexporting
     pub fully_qualified_type: String,
-
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
     pub pascalized_fully_qualified_type: String,
     //pub default_value ?

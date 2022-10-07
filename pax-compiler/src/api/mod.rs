@@ -281,6 +281,9 @@ struct TemplateParseContext {
     pub children_id_tracking_stack: Vec<Vec<String>>,
 }
 
+static COMPONENT_ID_IF : &str = "IF";
+static COMPONENT_ID_REPEAT : &str = "REPEAT";
+static COMPONENT_ID_SLOT : &str = "SLOT";
 
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_pair: Pair<Rule>)  {
     match any_tag_pair.as_rule() {
@@ -319,9 +322,10 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
 
             let template_node = TemplateNodeDefinition {
                 id: new_id,
-                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
+                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                pascal_identifier: pascal_identifier.to_string(),
             };
             ctx.template_node_definitions.push(template_node);
 
@@ -344,7 +348,8 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
                 id: new_id,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
-                children_ids: vec![]
+                children_ids: vec![],
+                pascal_identifier: pascal_identifier.to_string(),
             };
             ctx.template_node_definitions.push(template_node);
         },
@@ -365,25 +370,28 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
                 Rule::statement_if => {
                     TemplateNodeDefinition {
                         id: new_id,
-                        component_id: "Conditional".to_string(),
+                        component_id: COMPONENT_ID_IF.to_string(),
                         inline_attributes: None,// todo!("package attributes from control-flow; keep as strings"),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                        pascal_identifier: "Conditional".to_string(),
                     }
                 },
                 Rule::statement_for => {
                     TemplateNodeDefinition {
                         id: new_id,
-                        component_id: "Repeat".to_string(),
+                        component_id: COMPONENT_ID_REPEAT.to_string(),
                         inline_attributes: None,// todo!("package attributes from control-flow; keep as strings"),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                        pascal_identifier: "Repeat".to_string(),
                     }
                 },
                 Rule::statement_slot => {
                     TemplateNodeDefinition {
                         id: new_id,
-                        component_id: "Slot".to_string(),
+                        component_id: COMPONENT_ID_SLOT.to_string(),
                         inline_attributes: None,// todo!("package attributes from control-flow; keep as strings"),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                        pascal_identifier: "Slot".to_string(),
                     }
                 },
                 _ => {

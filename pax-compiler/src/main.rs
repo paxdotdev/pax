@@ -611,7 +611,9 @@ async fn perform_run(ctx: RunContext) -> Result<(), Error> {
     // println!("PARSING: {}", &out);
     assert_eq!(output.status.code().unwrap(), 0);
 
-    let manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+    let mut manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+
+    manifest.compile_all_expressions();
 
     let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
