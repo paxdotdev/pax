@@ -13,13 +13,14 @@ use serde_json;
 use serde_derive::{Serialize, Deserialize};
 use uuid::Uuid;
 
-pub mod message;
-pub use message::*;
+pub mod manifest;
+pub use manifest::*;
 
 pub mod templating;
 pub use templating::*;
 
 pub use lazy_static::lazy_static;
+use tera::Template;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -249,7 +250,7 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
     }
 }
 
-fn parse_template_from_component_definition_string(ctx: &mut TemplateParseContext, pax: &str)  {
+fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseContext, pax: &str)  {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
@@ -269,7 +270,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateParseContex
     });
 }
 
-struct TemplateParseContext {
+struct TemplateNodeParseContext {
     pub template_node_definitions: Vec<TemplateNodeDefinition>,
     pub is_root: bool,
     pub pascal_identifier_to_component_id_map: HashMap<String, String>,
@@ -285,7 +286,7 @@ static COMPONENT_ID_IF : &str = "IF";
 static COMPONENT_ID_REPEAT : &str = "REPEAT";
 static COMPONENT_ID_SLOT : &str = "SLOT";
 
-fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_pair: Pair<Rule>)  {
+fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_tag_pair: Pair<Rule>)  {
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
             //matched_tag => open_tag > pascal_identifier
@@ -327,7 +328,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
                 children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
             };
-            ctx.template_node_definitions.push(template_node);
+            ctx.template_node_definitions.push( template_node.clone());
 
         },
         Rule::self_closing_tag => {
@@ -351,7 +352,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
                 children_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
             };
-            ctx.template_node_definitions.push(template_node);
+            ctx.template_node_definitions.push( template_node.clone());
         },
         Rule::statement_control_flow => {
 
@@ -399,7 +400,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateParseContext, any_tag_
                 }
             };
 
-            ctx.template_node_definitions.push(template_node);
+            ctx.template_node_definitions.push( template_node.clone());
 
         },
         Rule::node_inner_content => {
@@ -429,8 +430,8 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                 let mut raw_value = kv.next().unwrap().into_inner().next().unwrap();
                 let value = match raw_value.as_rule() {
                     Rule::literal_value => {AttributeValueDefinition::LiteralValue(raw_value.as_str().to_string())},
-                    Rule::expression => {AttributeValueDefinition::Expression(raw_value.as_str().to_string())},
-                    Rule::identifier => {AttributeValueDefinition::Identifier(raw_value.as_str().to_string())},
+                    Rule::expression => {AttributeValueDefinition::Expression(raw_value.as_str().to_string(), None)},
+                    Rule::identifier => {AttributeValueDefinition::Identifier(raw_value.as_str().to_string(), None)},
                     _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}
                 };
                 (key, value)
@@ -573,6 +574,8 @@ pub struct ManifestContext {
 
     //(SourceID, associated Strings)
     pub all_property_definitions: HashMap<String, Vec<PropertyDefinition>>,
+
+    pub template_node_definitions: HashMap<String, TemplateNodeDefinition>,
 }
 
 impl Default for ManifestContext {
@@ -583,6 +586,7 @@ impl Default for ManifestContext {
             component_definitions: vec![],
             template_map: HashMap::new(),
             all_property_definitions: HashMap::new(),
+            template_node_definitions: HashMap::new(),
         }
     }
 }
@@ -597,7 +601,7 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
         ctx.root_component_id = source_id.to_string();
     }
 
-    let mut tpc = TemplateParseContext {
+    let mut tpc = TemplateNodeParseContext {
         pascal_identifier_to_component_id_map: template_map,
         template_node_definitions: vec![],
         root_template_node_id: None,
@@ -618,6 +622,9 @@ pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &st
     };
 
     let property_definitions = ctx.all_property_definitions.get(source_id).unwrap().clone();
+
+    //populate template_node_definitions map, needed for traversing node tree at codegen-time
+    ctx.template_node_definitions = tpc.template_node_definitions.iter().map(|tnd|{(tnd.id.clone(),tnd.clone())}).collect();
 
     let mut new_def = ComponentDefinition {
         source_id: source_id.into(),
