@@ -16,4 +16,4 @@ wasm-pack build --release -d pax-dev-harness-web/dist
 # Finally, package everything up using Webpack and start a server so we can
 # browse the result
 cd pax-dev-harness-web
-yarn serve || (yarn && yarn serve)
+yarn && yarn serve
