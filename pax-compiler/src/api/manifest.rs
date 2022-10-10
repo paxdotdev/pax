@@ -149,12 +149,15 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     let id = ctx.uid_gen.next().unwrap();
 
                     //Write this id back to the manifest, for downstream use by RIL component tree generator
-                    let mut manifest_id_insert: usize = id;
-                    std::mem::swap(&mut manifest_id.take().unwrap(), &mut manifest_id_insert);
+                    let mut manifest_id_insert = Some(id);
+                    std::mem::swap(manifest_id, &mut manifest_id_insert);
                 }
             }
         });
     }
+
+
+
 
     for id in ctx.active_node_def.children_ids.clone().iter() {
         let mut active_node_def = ctx.template_node_definitions.remove(id).unwrap();
