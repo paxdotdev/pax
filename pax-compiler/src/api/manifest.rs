@@ -105,6 +105,10 @@ impl PaxManifest {
 
 }
 
+// Returns (RIL string, list of invocation specs for any symbols used)
+fn compile_paxel_to_ril<'a>(paxel: &str, ctx: TemplateTraversalContext<'a>) -> (String, Vec<ExpressionSpecInvocation>) {
+    todo!("")
+}
 
 
 fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContext<'a>) -> TemplateTraversalContext<'a> {
@@ -118,12 +122,14 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
     if let Some(ref mut inline_attributes) = ctx.active_node_def.inline_attributes {
         inline_attributes.iter_mut().for_each(|attr| {
             match &mut attr.1 {
-                AttributeValueDefinition::LiteralValue(_) => {}
+                AttributeValueDefinition::LiteralValue(_) => {
+                    //no need to compile literal values
+                }
                 AttributeValueDefinition::EventBindingTarget(s) => {
                     //TODO: bind events here, or on a separate pass?
                     // e.g. the self.foo in `@click=self.foo`
                 }
-                AttributeValueDefinition::Identifier(s, manifest_id) => {
+                AttributeValueDefinition::Identifier(identifier, manifest_id) => {
                     // e.g. the self.active_color in `bg_color=self.active_color`
 
                     let id = ctx.uid_gen.next().unwrap();
@@ -132,7 +138,10 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     let mut manifest_id_insert: usize = id;
                     std::mem::swap(&mut manifest_id.take().unwrap(), &mut manifest_id_insert);
 
-                    //TODO: run Pratt parser on input string
+
+                    //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
+                    //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
+                    let output_statement = Some(compile_paxel_to_ril(&identifier));
 
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
@@ -140,13 +149,40 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                         pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
                         }).unwrap().pascalized_fully_qualified_type).clone(),
-                        invocations: vec![],
+                        invocations: vec![
+                            todo!("add unique identifiers found during PAXEL parsing; include stack offset")
+                            //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
+                            //(requires looking up identifiers per "compiletime stack frame," e.g. components/control flow, plus error handling if symbols aren't found.)
+                        ],
                         output_statement: "".to_string(),
-                        input_statement: s.clone(),
+                        input_statement: identifier.clone(),
                     });
                 }
-                AttributeValueDefinition::Expression(s, manifest_id) => {
+                AttributeValueDefinition::Expression(input, manifest_id) => {
+                    // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
                     let id = ctx.uid_gen.next().unwrap();
+
+                    //Write this id back to the manifest, for downstream use by RIL component tree generator
+                    let mut manifest_id_insert: usize = id;
+                    std::mem::swap(&mut manifest_id.take().unwrap(), &mut manifest_id_insert);
+
+                    let output_statement = Some(compile_paxel_to_ril(&input));
+
+                    ctx.expression_specs.insert(id, ExpressionSpec {
+                        id,
+                        properties_type: ctx.active_node_def.pascal_identifier.clone(),
+                        pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
+                            property_def.name == attr.0
+                        }).unwrap().pascalized_fully_qualified_type).clone(),
+                        invocations: vec![
+                            todo!("add unique identifiers found during PAXEL parsing; include stack offset")
+                            //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
+                            //(requires looking up identifiers per "compiletime stack frame," e.g. components/control flow, plus error handling if symbols aren't found.)
+                        ],
+                        output_statement: "".to_string(),
+                        input_statement: identifier.clone(),
+                    });
+
 
                     //Write this id back to the manifest, for downstream use by RIL component tree generator
                     let mut manifest_id_insert = Some(id);
@@ -169,10 +205,10 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
 //traverse template, but no need to recurse into other component defs
 // [x] yes need to traverse slot, if, for, keeping track of compile-time stack
 //for each found expression & expression-like (e.g. identifier binding):
-// [ ] write back to Manifest with unique usize id, as lookup ID for RIL component tree gen
-// [ ] use same usize id to populate an ExpressionSpec, for entry into vtable as ID
-// [ ] parse RIL string expression with pest::PrattParser
-// [ ] track unique identifiers from parsing step; use these to populate ExpressionSpecInvoations, along with compile-time stack info
+// [x] write back to Manifest with unique usize id, as lookup ID for RIL component tree gen
+// [ ] use same usize id as above to populate an ExpressionSpec, for entry into vtable as ID
+// [ ] parse string PAXEL expression into RIL string with pest::PrattParser
+// [ ] track unique identifiers from parsing step; use these to populate ExpressionSpecInvoations, along with compile-time stack info (offset)
     /* Example use of Pratt parser, from Pest repo:
     fn parse_to_str(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
         pratt
@@ -212,12 +248,8 @@ pub struct ComponentDefinition {
     pub source_id: String,
     pub pascal_identifier: String,
     pub module_path: String,
-    //optional not because it cannot exist, but because
-    //there are times in this data structure's lifecycle when it
-    //is not yet known
     pub root_template_node_id: Option<String>,
     pub template: Option<Vec<TemplateNodeDefinition>>,
-    //can be hydrated as a tree via child_ids/parent_id
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
     pub property_definitions: Vec<PropertyDefinition>,
 }
