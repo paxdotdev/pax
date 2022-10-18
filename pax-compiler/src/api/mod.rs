@@ -178,7 +178,7 @@ pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> V
 fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pascal_identifiers: Rc<RefCell<HashSet<String>>>)  {
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
-            //matched_tag => open_tag > pascal_identifier
+            //matched_tag => open_tag => pascal_identifier
             let matched_tag = any_tag_pair;
             let open_tag = matched_tag.clone().into_inner().next().unwrap();
             let pascal_identifier = open_tag.into_inner().next().unwrap().as_str();
@@ -372,7 +372,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     TemplateNodeDefinition {
                         id: new_id,
                         component_id: COMPONENT_ID_IF.to_string(),
-                        inline_attributes: None,// todo!("package attributes from control-flow; keep as strings"),
+                        inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(matched_tag.into_inner()),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
                     }
@@ -381,7 +381,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     TemplateNodeDefinition {
                         id: new_id,
                         component_id: COMPONENT_ID_REPEAT.to_string(),
-                        inline_attributes: None,// todo!("package attributes from control-flow; keep as strings"),
+                        inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(matched_tag.into_inner()),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Repeat".to_string(),
                     }
@@ -390,7 +390,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     TemplateNodeDefinition {
                         id: new_id,
                         component_id: COMPONENT_ID_SLOT.to_string(),
-                        inline_attributes: None,// todo!("package attributes from control-flow; keep as strings"),
+                        inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(matched_tag.into_inner()),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
                     }

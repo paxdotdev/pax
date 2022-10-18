@@ -153,7 +153,7 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
 
     let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
         cd.property_definitions.iter().map(|pm|{
-            pm.fully_qualified_dependencies.clone()
+            pm.fully_qualified_identifiers.clone()
         }).flatten().collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -378,6 +378,8 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let primitive_imports = todo!();
 
     let consts = todo!();
+
+
 
     //Traverse component tree starting at root
     //build a N/PIT in memory for each component (maybe this can be automatically serialized for component factories?)

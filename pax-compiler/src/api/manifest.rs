@@ -43,7 +43,7 @@ pub struct ExpressionSpecInvocation {
 pub struct TemplateTraversalContext<'a> {
     active_node_def: TemplateNodeDefinition,
     component_def: &'a ComponentDefinition,
-    stack_offset: usize,
+    compiletime_stack: Vec<Vec<PropertyDefinition>>,
     uid_gen: RangeFrom<usize>,
     expression_specs: &'a mut HashMap<usize, ExpressionSpec>,
     template_node_definitions: HashMap<String, TemplateNodeDefinition>,
@@ -76,7 +76,7 @@ impl PaxManifest {
                     let mut new_node_def = node_def.clone();
                     let mut ctx = TemplateTraversalContext {
                         active_node_def: new_node_def,
-                        stack_offset: 0,
+                        compiletime_stack: vec![],
                         uid_gen: 0..,
                         expression_specs: &mut new_expression_specs,
                         component_def: &read_only_component_def,
@@ -105,8 +105,9 @@ impl PaxManifest {
 
 }
 
+
 // Returns (RIL string, list of invocation specs for any symbols used)
-fn compile_paxel_to_ril<'a>(paxel: &str, ctx: TemplateTraversalContext<'a>) -> (String, Vec<ExpressionSpecInvocation>) {
+fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &TemplateTraversalContext<'a>) -> (String, Vec<ExpressionSpecInvocation>) {
     todo!("")
 }
 
@@ -114,12 +115,15 @@ fn compile_paxel_to_ril<'a>(paxel: &str, ctx: TemplateTraversalContext<'a>) -> (
 fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContext<'a>) -> TemplateTraversalContext<'a> {
     let mut incremented = false;
     if ctx.active_node_def.pascal_identifier == "Slot" || ctx.active_node_def.pascal_identifier == "Repeat" || ctx.active_node_def.pascal_identifier == "Conditional" {
-        ctx.stack_offset += 1;
+        // ctx.compiletime_stack.push(ctx.active_node_def)
+        // ctx.compiletime_stack
+        todo!("instead of keeping an int counter, add a compiletimestackframe");
         incremented = true;
     }
 
     //TODO: join settings blocks here, merge with inline_attributes
-    if let Some(ref mut inline_attributes) = ctx.active_node_def.inline_attributes {
+    let mut cloned_inline_attributes = ctx.active_node_def.inline_attributes.clone();
+    if let Some(ref mut inline_attributes) = cloned_inline_attributes {
         inline_attributes.iter_mut().for_each(|attr| {
             match &mut attr.1 {
                 AttributeValueDefinition::LiteralValue(_) => {
@@ -138,10 +142,9 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     let mut manifest_id_insert: usize = id;
                     std::mem::swap(&mut manifest_id.take().unwrap(), &mut manifest_id_insert);
 
-
                     //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
                     //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
-                    let output_statement = Some(compile_paxel_to_ril(&identifier));
+                    let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
 
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
@@ -154,7 +157,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                             //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
                             //(requires looking up identifiers per "compiletime stack frame," e.g. components/control flow, plus error handling if symbols aren't found.)
                         ],
-                        output_statement: "".to_string(),
+                        output_statement: output_statement,
                         input_statement: identifier.clone(),
                     });
                 }
@@ -166,7 +169,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     let mut manifest_id_insert: usize = id;
                     std::mem::swap(&mut manifest_id.take().unwrap(), &mut manifest_id_insert);
 
-                    let output_statement = Some(compile_paxel_to_ril(&input));
+                    let output_statement = Some(compile_paxel_to_ril(&input, &ctx));
 
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
@@ -180,7 +183,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                             //(requires looking up identifiers per "compiletime stack frame," e.g. components/control flow, plus error handling if symbols aren't found.)
                         ],
                         output_statement: "".to_string(),
-                        input_statement: identifier.clone(),
+                        input_statement: input.clone(),
                     });
 
 
@@ -192,8 +195,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
         });
     }
 
-
-
+    std::mem::swap(&mut cloned_inline_attributes, &mut ctx.active_node_def.inline_attributes);
 
     for id in ctx.active_node_def.children_ids.clone().iter() {
         let mut active_node_def = ctx.template_node_definitions.remove(id).unwrap();
@@ -237,7 +239,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
     }
      */
     if incremented {
-        ctx.stack_offset -= 1;
+        ctx.compiletime_stack.pop();
     }
     ctx
 }
@@ -270,8 +272,8 @@ pub struct PropertyDefinition {
     pub name: String,
     /// Type as authored, literally.  May be partially namespace-qualified or aliased.
     pub original_type: String,
-    /// Vec of constituent components of a type, for example `Rc<String>` would have the dependencies [`std::rc::Rc` and `std::string::String`]
-    pub fully_qualified_dependencies: Vec<String>,
+    /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
+    pub fully_qualified_identifiers: Vec<String>,
     /// Same type as `original_type`, but dynamically normalized to be fully qualified, suitable for reexporting
     pub fully_qualified_type: String,
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
