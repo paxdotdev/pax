@@ -286,6 +286,10 @@ static COMPONENT_ID_IF : &str = "IF";
 static COMPONENT_ID_REPEAT : &str = "REPEAT";
 static COMPONENT_ID_SLOT : &str = "SLOT";
 
+pub static CONDITIONAL_EXPRESSION_FIELD : &str = "CONDITIONAL_EXPRESSION";
+pub static REPEAT_PREDICATE_FIELD : &str = "REPEAT_PREDICATE";
+pub static SLOT_INDEX_FIELD : &str = "SLOT_INDEX";
+
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_tag_pair: Pair<Rule>)  {
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
@@ -323,6 +327,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
             let template_node = TemplateNodeDefinition {
                 id: new_id,
+                control_flow_attributes: None,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
@@ -347,6 +352,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
             let template_node = TemplateNodeDefinition {
                 id: new_id,
+                control_flow_attributes: None,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 children_ids: vec![],
@@ -371,17 +377,54 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 Rule::statement_if => {
                     TemplateNodeDefinition {
                         id: new_id,
+                        control_flow_attributes: Some(todo!()),
                         component_id: COMPONENT_ID_IF.to_string(),
-                        inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(matched_tag.into_inner()),
+                        //e.g. `if self.
+                        inline_attributes: Some(vec![(CONDITIONAL_EXPRESSION_FIELD.to_string(), AttributeValueDefinition::Expression(matched_tag.into_inner().as_str().to_string(), None))]),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
                     }
                 },
                 Rule::statement_for => {
+
+                    // handle forms:
+                    //
+                    // statement_for_predicate_declaration = {
+                    //     identifier |
+                    //     ("(" ~ identifier ~ ","~ identifier ~")")
+                    // }
+                    //
+                    //   x
+                    //
+                    // statement_for_predicate_source = { xo_range | expression_symbolic_binding }
+                    //
+                    // The latter, `predicate_source`, can simply be parsed as an expression, even if it's static like `0..5`.
+                    // Thus, we load it wholesale into a String for subsequent handling by compiler as an Expression
+
+                    let mut cfavd = ControlFlowAttributeValueDefinition::default();
+                    let mut for_statement = matched_tag.clone().into_inner();
+                    let mut predicate_declaration = for_statement.next().unwrap().into_inner();
+                    let mut predicate_source = for_statement.next().unwrap();
+
+                    if predicate_declaration.clone().count() > 1 {
+                        //tuple, like the `elem, i` in `for (elem, i) in self.some_list`
+                        cfavd.repeat_predicate_declaration = Some(ControlFlowRepeatPredicateDeclaration::IdentifierTuple(
+                            (&predicate_declaration.next().unwrap().as_str()).to_string(),
+                            (&predicate_declaration.next().unwrap().as_str()).to_string()
+                        ));
+
+                    } else {
+                        //single identifier, like the `elem` in `for elem in self.some_list`
+                        cfavd.repeat_predicate_declaration = Some(ControlFlowRepeatPredicateDeclaration::Identifier(predicate_declaration.as_str().to_string()));
+                    }
+
+                    cfavd.repeat_predicate_source_expression = Some(predicate_source.as_str().to_string());
+
                     TemplateNodeDefinition {
                         id: new_id,
                         component_id: COMPONENT_ID_REPEAT.to_string(),
-                        inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(matched_tag.into_inner()),
+                        control_flow_attributes: Some(cfavd),
+                        inline_attributes: Some(vec![(REPEAT_PREDICATE_FIELD.to_string(), AttributeValueDefinition::Expression(matched_tag.into_inner().as_str().to_string(), None))]),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Repeat".to_string(),
                     }
@@ -389,8 +432,9 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 Rule::statement_slot => {
                     TemplateNodeDefinition {
                         id: new_id,
+                        control_flow_attributes: Some(todo!()),
                         component_id: COMPONENT_ID_SLOT.to_string(),
-                        inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(matched_tag.into_inner()),
+                        inline_attributes: Some(vec![(SLOT_INDEX_FIELD.to_string(), AttributeValueDefinition::Expression(matched_tag.into_inner().as_str().to_string(), None))]),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
                     }

@@ -32,9 +32,6 @@ pub struct SlotInstance<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
 
-
-
-
     fn get_instance_id(&self) -> u64 {
         self.instance_id
     }

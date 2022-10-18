@@ -261,6 +261,7 @@ pub struct ComponentDefinition {
 pub struct TemplateNodeDefinition {
     pub id: String,
     pub component_id: String,
+    pub control_flow_attributes: Option<ControlFlowAttributeValueDefinition>,
     pub inline_attributes: Option<Vec<(String, AttributeValueDefinition)>>,
     pub children_ids: Vec<String>,
     pub pascal_identifier: String,
@@ -289,6 +290,31 @@ pub enum AttributeValueDefinition {
     //(Expression contents, vtable id binding)
     Identifier(String, Option<usize>),
     EventBindingTarget(String),
+}
+
+
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum ControlFlowRepeatPredicateDeclaration {
+    Identifier(String),
+    IdentifierTuple(String, String),
+}
+
+
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub enum ControlFlowRepeatPredicateSource {
+    Identifier(String),
+    IdentifierTuple(String, String),
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct ControlFlowAttributeValueDefinition {
+    pub condition_expression: Option<String>,
+    pub slot_index: Option<String>,
+    pub repeat_predicate_declaration: Option<ControlFlowRepeatPredicateDeclaration>,
+    pub repeat_predicate_source_expression: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -217,10 +217,9 @@ statement_for = {"for" ~ statement_for_predicate_declaration ~ "in" ~ statement_
 statement_slot = {"slot" ~ expression_body}
 
 //Examples:
-//for i | for (i) | for (i, elem)
+//for i | for (i, elem)
 statement_for_predicate_declaration = {
     identifier |
-    ("(" ~ identifier ~ ")") |
     ("(" ~ identifier ~ ","~ identifier ~")")
 }
 
@@ -229,4 +228,6 @@ statement_for_predicate_declaration = {
 // in self.some_symbol
 // in this.Pascal_snake-kebab
 // in 0..5
+// in this.some_symbol..25
+// in 25..some_symbolx
 statement_for_predicate_source = { xo_range | expression_symbolic_binding }  //Uses `expression_symbolic_binding` for the definition, which is reasonable because `for` preambles are evaluated as expressions
