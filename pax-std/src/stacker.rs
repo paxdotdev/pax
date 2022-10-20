@@ -1,6 +1,6 @@
 use std::rc::Rc;
 use pax::*;
-use pax::api::{Size2D, Size, ArgsRender, Property};
+use pax::api::{Size2D, Size, ArgsRender, Property, Transform2D};
 use crate::primitives::{Frame, Group};
 use crate::types::{StackerDirection, StackerCellProperties};
 
@@ -9,8 +9,8 @@ use crate::types::{StackerDirection, StackerCellProperties};
 /// each node.  `Stacker`s can be stacked inside of each other, horizontally
 /// and vertically, along with `Transform.align` and `Transform.anchor` to compose any rectilinear 2D layout.
 #[pax(
-    for (elem, i) in self.computed_layout_spec {
-        <Frame transform={translate(elem.x_px, elem.y_px)} size={(elem.width_px, elem.height_px)}>
+    for i in 0..self.cells {
+        <Frame transform={get_frame_transform(i, $bounds)} size={(get_frame_size(i, $bounds))}>
             slot(i)
         </Frame>
     }
@@ -20,11 +20,20 @@ pub struct Stacker {
     pub direction: Property<StackerDirection>,
     pub cells: Property<usize>,
     pub gutter_width: Property<Size>,
+
     pub overrides_cell_size: Property<Vec<(usize, Size)>>,
     pub overrides_gutter_size: Property<Vec<(usize, Size)>>,
 }
 
 impl Stacker {
+
+    pub fn get_frame_transform(index: usize, bounds: (Size2D, Size2D), direction: StackerDirection) -> Transform2D {
+        todo!()
+    }
+
+    pub fn get_frame_size(index: usize, bounds: (Size2D, Size2D), direction: StackerDirection) -> Size2D {
+        todo!()
+    }
 
     #[pax_on(WillRender)]
     pub fn compute_dimensions(&mut self, args: ArgsRender) {
@@ -89,8 +98,6 @@ impl Stacker {
             self.computed_layout_spec.set(new);
         }
 
-
     }
-
 
 }

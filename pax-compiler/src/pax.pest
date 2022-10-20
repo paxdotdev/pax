@@ -165,15 +165,10 @@ xo_literal = {literal_enum_value | xo_function_call  | literal_number_with_unit 
 xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_settings_key_value_pair* ~ "}" }
 xo_literal_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
 
-xo_symbol = {identifier ~ (("." ~ identifier) | ("::" ~ identifier))*}
-xo_tuple = {"(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
+xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("::" ~ identifier) |  ("[" ~ expression_body ~ "]") )* }
+xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
 
 
-xo_group_open = {"("}
-xo_group_close = {")"}
-xo_obj_open = {"{"}
-xo_obj_close = {"{"}
-xo_obj_separator = {","}
 xo_bool_or = {"||"}
 xo_bool_and = {"&&"}
 xo_add = {"+"}
@@ -192,9 +187,9 @@ xo_rel_gte = {">="}
 xo_rel_eq = {"=="}
 xo_rel_neq = {"!="}
 //Examples:
-//(0..10)
-//("abc".."def") <- will parse OK but will rely on Rust's support for constructing ranges from these types/operands
-//(this.num_clicks..25)
+//`0..10`
+//`"abc".."def"` <- will parse OK but will rely on Rust's support for constructing ranges from these types/operands
+//`this.num_clicks..25`
 xo_range = { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | expression_symbolic_binding)}
 xo_range_exclusive = @{".."}
 xo_range_inclusive = @{"..."}

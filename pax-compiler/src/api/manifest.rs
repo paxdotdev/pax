@@ -123,6 +123,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
 
     //TODO: join settings blocks here, merge with inline_attributes
     let mut cloned_inline_attributes = ctx.active_node_def.inline_attributes.clone();
+    let mut cloned_control_flow_attributes = ctx.active_node_def.control_flow_attributes.clone();
     if let Some(ref mut inline_attributes) = cloned_inline_attributes {
         inline_attributes.iter_mut().for_each(|attr| {
             match &mut attr.1 {
@@ -193,6 +194,25 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                 }
             }
         });
+    } else if let Some(ref mut cfa) = cloned_control_flow_attributes {
+        if let Some(ref expression) = cfa.repeat_predicate_source_expression {
+            let id = ctx.uid_gen.next().unwrap();
+
+            ctx.expression_specs.insert(id, ExpressionSpec {
+                id,
+                properties_type: ctx.active_node_def.pascal_identifier.clone(),
+                pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
+                    property_def.name == ""
+                }).unwrap().pascalized_fully_qualified_type).clone(),
+                invocations: vec![
+                    todo!("add unique identifiers found during PAXEL parsing; include stack offset")
+                    //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
+                    //(requires looking up identifiers per "compiletime stack frame," e.g. components/control flow, plus error handling if symbols aren't found.)
+                ],
+                output_statement: "".to_string(),
+                input_statement: expression.clone(),
+            });
+        }
     }
 
     std::mem::swap(&mut cloned_inline_attributes, &mut ctx.active_node_def.inline_attributes);
@@ -207,8 +227,11 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
 //traverse template, but no need to recurse into other component defs
 // [x] yes need to traverse slot, if, for, keeping track of compile-time stack
 //for each found expression & expression-like (e.g. identifier binding):
-// [x] write back to Manifest with unique usize id, as lookup ID for RIL component tree gen
-// [ ] use same usize id as above to populate an ExpressionSpec, for entry into vtable as ID
+// [x] write back to Manifest with unique usize id, as lookup ID for RIL component tree ge
+// [ ] handle control-flow
+//     [x] parsing & container structs
+//     [ ] expression-binding
+// [ ] Populate an ExpressionSpec, using same usize id as above for vtable entry id
 // [ ] parse string PAXEL expression into RIL string with pest::PrattParser
 // [ ] track unique identifiers from parsing step; use these to populate ExpressionSpecInvoations, along with compile-time stack info (offset)
     /* Example use of Pratt parser, from Pest repo:
@@ -274,7 +297,7 @@ pub struct PropertyDefinition {
     /// Type as authored, literally.  May be partially namespace-qualified or aliased.
     pub original_type: String,
     /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
-    pub fully_qualified_identifiers: Vec<String>,
+    pub fully_qualified_types: Vec<String>,
     /// Same type as `original_type`, but dynamically normalized to be fully qualified, suitable for reexporting
     pub fully_qualified_type: String,
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
@@ -292,16 +315,11 @@ pub enum AttributeValueDefinition {
     EventBindingTarget(String),
 }
 
-
-
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ControlFlowRepeatPredicateDeclaration {
     Identifier(String),
     IdentifierTuple(String, String),
 }
-
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ControlFlowRepeatPredicateSource {
@@ -321,11 +339,6 @@ pub struct ControlFlowAttributeValueDefinition {
 pub struct SettingsSelectorBlockDefinition {
     pub selector: String,
     pub value_block: SettingsLiteralBlockDefinition,
-    //TODO: think through this recursive data structure and de/serialization.
-    //      might need to normalize it, keeping a tree of `SettingsLiteralBlockDefinition`s
-    //      where nodes are flattened into a list.
-    //     First: DO we need to normalize it?  Will something like Serde magically fix this?
-    //     It's possible that it will.  Revisit only if we have trouble serializing this data.
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -28,13 +28,13 @@ impl {{pascal_identifier}} {
                     //4. (default value?  punt)
 
 
-                    let mut fully_qualified_identifiers = vec![];
+                    let mut fully_qualified_types = vec![];
                     let mut dep_to_fqd_map = std::collections::HashMap::new();
                     {% for scoped_resolvable_type in ctpd.scoped_resolvable_types %}
                         let fqd = {{scoped_resolvable_type}}::get_fully_qualified_path("{{scoped_resolvable_type}}");
                         dep_to_fqd_map.insert("{{scoped_resolvable_type}}",fqd.clone());
 
-                        fully_qualified_identifiers.push(
+                        fully_qualified_types.push(
                             fqd
                         );
                     {% endfor %}
@@ -44,7 +44,7 @@ impl {{pascal_identifier}} {
                     property_definitions.push(pax_compiler_api::PropertyDefinition {
                         name: "{{ctpd.field_name}}".to_string(),
                         original_type: "{{ctpd.original_type}}".to_string(),
-                        fully_qualified_identifiers,
+                        fully_qualified_types,
                         fully_qualified_type,
                         pascalized_fully_qualified_type,
                     });

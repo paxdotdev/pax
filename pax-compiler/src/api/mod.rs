@@ -286,10 +286,6 @@ static COMPONENT_ID_IF : &str = "IF";
 static COMPONENT_ID_REPEAT : &str = "REPEAT";
 static COMPONENT_ID_SLOT : &str = "SLOT";
 
-pub static CONDITIONAL_EXPRESSION_FIELD : &str = "CONDITIONAL_EXPRESSION";
-pub static REPEAT_PREDICATE_FIELD : &str = "REPEAT_PREDICATE";
-pub static SLOT_INDEX_FIELD : &str = "SLOT_INDEX";
-
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_tag_pair: Pair<Rule>)  {
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
@@ -380,7 +376,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         control_flow_attributes: Some(todo!()),
                         component_id: COMPONENT_ID_IF.to_string(),
                         //e.g. `if self.
-                        inline_attributes: Some(vec![(CONDITIONAL_EXPRESSION_FIELD.to_string(), AttributeValueDefinition::Expression(matched_tag.into_inner().as_str().to_string(), None))]),
+                        inline_attributes: None,
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
                     }
@@ -424,7 +420,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         id: new_id,
                         component_id: COMPONENT_ID_REPEAT.to_string(),
                         control_flow_attributes: Some(cfavd),
-                        inline_attributes: Some(vec![(REPEAT_PREDICATE_FIELD.to_string(), AttributeValueDefinition::Expression(matched_tag.into_inner().as_str().to_string(), None))]),
+                        inline_attributes: None,
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Repeat".to_string(),
                     }
@@ -434,7 +430,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         id: new_id,
                         control_flow_attributes: Some(todo!()),
                         component_id: COMPONENT_ID_SLOT.to_string(),
-                        inline_attributes: Some(vec![(SLOT_INDEX_FIELD.to_string(), AttributeValueDefinition::Expression(matched_tag.into_inner().as_str().to_string(), None))]),
+                        inline_attributes: None,
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
                     }

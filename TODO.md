@@ -2982,3 +2982,91 @@ Decision:  introduce a `compile_expressions` method on `PaxManifest`, as well as
            for storing computed expression specs.  In the future, expressions may be rebuilt individually, e.g. for hot reloading
 
 
+### Helper / function-call (plus dirty watch) API
+
+2022-10-19
+
+Use-case: Stacker, without the `pax_on(WillRender)` hack.
+
+Possible approaches:
+
+#### 1. Bind a property with PAXEL in the struct declaration
+ ```
+pub struct Stacker {a
+
+    //can `i` below be used implicitly, but only in a scope where `i` exists?
+    //or should it be passed explicitly, as a "special" argument? (`translate(i)`)
+    //neither feels ideal, but the former is more powerful
+    //...another possibility is using a `let` statement or similar in template,
+    //   which would require figuring out return type of expression (contrast with leveraging Rust's type system, via `Property<T>`)
+    //   so this approach isn't ideal.
+    #[paxel( self.cells * (i / n) )]
+    pub helper_translate: Property<f64>,
+
+}
+````
+ Pros:
+ - Solves typing (`T` in `Property<T>`)
+ - Feels conceptually sound à la spreadsheet
+ Cons:
+ - gets confusing with dynamic scopes, like `(elem, i)` with `Repeat`
+
+1a:  One with-the-grain way to approach expression declarations is with `@defaults` —
+```
+#[pax(
+    
+    @defaults {
+        foo: {
+            Bar::random()
+        }
+    }
+)]
+pub struct Hello {
+    pub foo: Property<Bar>,
+}
+```
+
+Same pros & cons as above
+
+
+#### 2. Call a function directly on impl
+Probably the winner
+```
+impl Stacker {
+    pub fn get_transform(index: usize, bounds: (Size2D, Size2D)) -> Transform2D {
+        
+    }
+}
+```
+ Pros:
+ - Feels intuitive
+ - Gets to use arbitrary Rust, particularly useful with complex types
+ - Provides nice escape hatch for imperative / complex logic
+ Cons:
+ - Requires managing argument types, maybe just with `.into()`
+ - Probably requires manually annotating stream dependencies, like `#[pax_watch($bounds)]`
+   - Alternatively: require that it's an assc fn, no `self`, and that each dep must be wired in as arg.  This means the host expression's dirty-watching & scoped resolution will _just work_, because the relevant symbols are made explicit when calling the function
+ 
+
+#### 3. Let statements / scoped temporaries
+
+```
+#[pax(
+    for i in 0..self.cells {
+        let cell_width = ($bounds.0 - ((cells + 1) * gutter_width)) / cells
+        let cell_height = ($bounds.1 - ((cells + 1) * gutter_width)) / cells
+        <Frame transform={get_transform(i)} size={(cell_width, cell_height)}>
+            slot(i)
+        </Frame>
+    }
+)]
+```
+
+Pros:
+ - Makes use of PAXEL and spreadsheet model
+Cons:
+ - Requires figuring out types
+ - seems to promote complex and ternary-nested logic
+ - Requires managing stack frames / etc.
+
+

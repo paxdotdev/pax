@@ -9,8 +9,8 @@ use crate::{ComponentInstance, TabCache, RenderNode, RenderNodePtr, RenderNodePt
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-/// A special "control-flow" primitive, Repeat allows for nodes
-/// to be rendered dynamically per data specified in `data_list`.
+/// A special "control-flow" primitive associated with the `for` statement.
+/// Repeat allows for nodes to be rendered dynamically per data specified in `data_list`.
 /// That is: for a `data_list` of length `n`, `Repeat` will render its
 /// template `n` times, each with an embedded component context (`RepeatItem`)
 /// with an index `i` and a pointer to that relevant datum `data_list[i]`
