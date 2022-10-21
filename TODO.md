@@ -3046,6 +3046,35 @@ impl Stacker {
  - Requires managing argument types, maybe just with `.into()`
  - Probably requires manually annotating stream dependencies, like `#[pax_watch($bounds)]`
    - Alternatively: require that it's an assc fn, no `self`, and that each dep must be wired in as arg.  This means the host expression's dirty-watching & scoped resolution will _just work_, because the relevant symbols are made explicit when calling the function
+ - Might encourage (erroneously) writing side-effectful code, and or expecting it to trigger at the wrong time
+ - Requires tediously wiring up dependencies... (could this be automated with a macro on the function, which naively looks for all `self.` references?)
+```
+#[pax_helper]  //through naive static analysis, we can infer that `\self\..*\`, like `self.some_symbol`, is a "dependency" of this calculation
+pub fn get_transform(&self) {
+    let x = self.some_symbol + 6;
+}
+```
+- What about stack-introduced symbols like `i` or `elem`?  These could be introduced manually like:
+```
+pub fn get_transform(&self) {
+    let i = pax_scoped!();
+    let elem = pax_scoped!();
+}
+```
+Or, more reasonably, if still not 100% ideally, these could be passed as explicit arguments like:
+```
+pub fn get_frame_transform(&self, i: usize, container: (Size2D, Size2D)) {
+    
+}
+```
+and called as such:
+```
+<Frame transform={get_frame_transform(i, $container)} ...
+```
+
+
+
+
  
 
 #### 3. Let statements / scoped temporaries
