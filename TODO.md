@@ -359,22 +359,22 @@ _RIL means Rust Intermediate Language, which is the
     [ ] introduce `pax-cli`, import compiler to be a dep
         [-] `pax demo`?
         [ ] `pax create` with TODO
-    [ ] generate properties coproduct
+    [x] generate properties coproduct
         [x] retrieve userland crate name (e.g. `pax-example`) and identifier (e.g. `pax_example`) 
             [-] alternatively, hard-code a single dependency, something like "host", which always points to "../.." (relative to ".pax/properties-coproduct")
                 -- don't think the above will work; cargo needs a symbol that maps to the target Cargo.toml
         [x] patch / generate Cargo.toml
             [x] include `pax-example = {path="../../"}`
                 -- where `pax-example` is the userland crate name
-        [ ] PropertiesCoproduct
+        [x] PropertiesCoproduct
             -- coproduct of ComponentName
-            [ ] run through Tera template, iterating over dependencies
-        [ ] TypesCoproduct
+            [x] run through Tera template, iterating over dependencies
+        [x] TypesCoproduct
             -- coproduct of all types from PropertyDefinitions 
             [x] if necessary, supporting type parsing & inference work for TypesCoproduct
-            [ ] run through Tera template
+            [x] run through Tera template
     [ ] generate cartridge definition
-        [ ] prelude / hard-coded template
+        [x] prelude / hard-coded template
         [ ] imports via `pax_example::pax_reexports::*`
             -- or, fully resolve every import when using
         [ ] consts
@@ -389,12 +389,13 @@ _RIL means Rust Intermediate Language, which is the
     [ ] hook up `pax_on` and basic lifecycle events
         [ ] possibly worth considering design for async while doing this
     [ ] expression compilation
-        [ ] fully qualified resolution of expression symbols, e.g. `Transform2d`
-            [ ] Alternatively: don't support arbitrary imports yet:
-                [ ] Support referring to `T` for any Property<T> (already parsed + resolvable)
-                [ ] Import Transform2d::*, Color::*, and a few others via prelude
+        [x] fully qualified resolution of expression symbols, e.g. `Transform2d`
+            [-] Alternatively: don't support arbitrary imports yet:
+                [-] Support referring to `T` for any Property<T> (already parsed + resolvable)
+                [-] Import Transform2d::*, Color::*, and a few others via prelude
                     -- Note that each prelude import prohibits any other top-level symbols with colliding names; increases DX snafu likelihood via compiler errors
         [ ] expression string => RIL generation
+            [ ] Pratt parser "hello world"
             [ ] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
             [ ] grouping of units, e.g. `(5 + 10)%` 
             [ ] boolean ops: `==`, `&&`, and `||`
@@ -411,7 +412,6 @@ _RIL means Rust Intermediate Language, which is the
                 entity.  Might want to offer a `get_mut` API (keep an eye on async / ownership concerns)
                 -- In fact, probably address this on the heels of a Property -> channel refactor, as the implications for this
                 intersection are significant  
-        [ ] symbol resolution & code-gen, incl. shadowing with `@for`
     [ ] control flow
         [ ] for
             [ ] parse declaration `i`, `(i)`, `(i, elem)`
@@ -3054,7 +3054,7 @@ pub fn get_transform(&self) {
     let x = self.some_symbol + 6;
 }
 ```
-- What about stack-introduced symbols like `i` or `elem`?  These could be introduced manually like:
+- What about stack-introduced symbols like `i` or `elem`?  These could be introduced manually/magically like:
 ```
 pub fn get_transform(&self) {
     let i = pax_scoped!();
@@ -3068,12 +3068,10 @@ pub fn get_frame_transform(&self, i: usize, container: (Size2D, Size2D)) {
 }
 ```
 and called as such:
+
 ```
 <Frame transform={get_frame_transform(i, $container)} ...
 ```
-
-
-
 
  
 
@@ -3093,9 +3091,29 @@ and called as such:
 
 Pros:
  - Makes use of PAXEL and spreadsheet model
+ - familiar imperative-style logic
 Cons:
  - Requires figuring out types
  - seems to promote complex and ternary-nested logic
  - Requires managing stack frames / etc.
 
 
+
+
+
+### Binding symbols from Repeat
+
+Example of casting an `elem` and `i` from a RepeatItem:
+```
+let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+
+    (Rc::clone(datum), *i)
+} else { unreachable!(1) };
+
+let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!(1)};
+```
+
+Note: in other to invoke a cast datum OR index from a RepeatItem, the compiler
+must be aware that a given symbol maps to RepeatItems.
+
+This can be managed through the compiletime stack, for e.g. `elem` may  

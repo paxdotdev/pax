@@ -224,43 +224,51 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
         ctx.template_node_definitions.insert(id.to_string(), ctx.active_node_def.clone());
     };
 
-//traverse template, but no need to recurse into other component defs
-// [x] yes need to traverse slot, if, for, keeping track of compile-time stack
-//for each found expression & expression-like (e.g. identifier binding):
-// [x] write back to Manifest with unique usize id, as lookup ID for RIL component tree ge
-// [ ] handle control-flow
-//     [x] parsing & container structs
-//     [ ] expression-binding
-// [ ] Populate an ExpressionSpec, using same usize id as above for vtable entry id
-// [ ] parse string PAXEL expression into RIL string with pest::PrattParser
-// [ ] track unique identifiers from parsing step; use these to populate ExpressionSpecInvoations, along with compile-time stack info (offset)
-    /* Example use of Pratt parser, from Pest repo:
-    fn parse_to_str(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
-        pratt
-            .map_primary(|primary| match primary.as_rule() {
-                Rule::int => primary.as_str().to_owned(),
-                Rule::expr => parse_to_str(primary.into_inner(), pratt),
-                _ => unreachable!(),
-            })
-            .map_prefix(|op, rhs| match op.as_rule() {
-                Rule::neg => format!("(-{})", rhs),
-                _ => unreachable!(),
-            })
-            .map_postfix(|lhs, op| match op.as_rule() {
-                Rule::fac => format!("({}!)", lhs),
-                _ => unreachable!(),
-            })
-            .map_infix(|lhs, op, rhs| match op.as_rule() {
-                Rule::add => format!("({}+{})", lhs, rhs),
-                Rule::sub => format!("({}-{})", lhs, rhs),
-                Rule::mul => format!("({}*{})", lhs, rhs),
-                Rule::div => format!("({}/{})", lhs, rhs),
-                Rule::pow => format!("({}^{})", lhs, rhs),
-                _ => unreachable!(),
-            })
-            .parse(pairs)
-    }
-     */
+/* traverse template for a single component:
+ [x] traverse slot, if, for, keeping track of compile-time stack
+for each found expression & expression-like (e.g. identifier binding):
+ [x] write back to Manifest with unique usize id, as lookup ID for RIL component tree ge
+ [ ] build lookup mechanism for symbols: "compiletime stack" + hashmaps
+ [ ] handle control-flow
+     [x] parsing & container structs
+     [ ] special expression-binding for control flow:
+         [ ] Conditional `boolean_expression`
+         [ ] Repeat `data_source`
+         [ ] Slot `index`
+     [ ] special invocation + symbol redirection for Repeat (RepeatItem, datum_cast, i)
+ [ ] Populate an ExpressionSpec, using same usize id as above for vtable entry id
+     [ ] parse string PAXEL expression into RIL string with pest::PrattParser
+        [ ] `.into`, `as` or `.custom_into` likely gets injected at this stage
+     [ ] track unique identifiers from parsing step; use these to populate ExpressionSpecInvoations, along with compile-time stack info (offset)
+        Example use of Pratt parser, from Pest repo:
+        fn parse_to_str(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
+            pratt
+                .map_primary(|primary| match primary.as_rule() {
+                    Rule::int => primary.as_str().to_owned(),
+                    Rule::expr => parse_to_str(primary.into_inner(), pratt),
+                    _ => unreachable!(),
+                })
+                .map_prefix(|op, rhs| match op.as_rule() {
+                    Rule::neg => format!("(-{})", rhs),
+                    _ => unreachable!(),
+                })
+                .map_postfix(|lhs, op| match op.as_rule() {
+                    Rule::fac => format!("({}!)", lhs),
+                    _ => unreachable!(),
+                })
+                .map_infix(|lhs, op, rhs| match op.as_rule() {
+                    Rule::add => format!("({}+{})", lhs, rhs),
+                    Rule::sub => format!("({}-{})", lhs, rhs),
+                    Rule::mul => format!("({}*{})", lhs, rhs),
+                    Rule::div => format!("({}/{})", lhs, rhs),
+                    Rule::pow => format!("({}^{})", lhs, rhs),
+                    _ => unreachable!(),
+                })
+                .parse(pairs)
+        }
+
+
+ */
     if incremented {
         ctx.compiletime_stack.pop();
     }
