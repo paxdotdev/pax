@@ -117,7 +117,7 @@ expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
 expression_body = { expression_operand ~ (xo_infix_binary ~ expression_operand)* }
 
 //terminal, or recurse into `(...)`
-expression_operand = { expression_grouped | xo_range | xo_literal | xo_tuple | xo_symbol }
+expression_operand = { expression_grouped | xo_function_call | xo_range | xo_literal | xo_tuple | xo_symbol }
 expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? }
 
 /*
@@ -157,7 +157,7 @@ xo_prefix_unary = {
     xo_bool_not | xo_sub
 }
 
-xo_literal = {literal_enum_value | xo_function_call  | literal_number_with_unit | literal_number  | string | literal_tuple  | xo_literal_object}
+xo_literal = {literal_enum_value  | literal_number_with_unit | literal_number  | string | literal_tuple  | xo_literal_object}
 
 //Note that `xo_literal_object` differs from `settings` literal_object because it accepts
 //expressions for property values without having to enter a {} context (because these
@@ -194,7 +194,7 @@ xo_range = { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | 
 xo_range_exclusive = @{".."}
 xo_range_inclusive = @{"..."}
 
-xo_function_call = {identifier ~ ("::" ~ identifier)* ~ ("("~xo_function_args_list~")")}
+xo_function_call = {identifier ~ (("::" | ".") ~ identifier)* ~ ("("~xo_function_args_list~")")}
 xo_function_args_list = {expression_body ~ ("," ~ expression_body)*}
 
 //////  //////  //////
@@ -212,7 +212,7 @@ statement_for = {"for" ~ statement_for_predicate_declaration ~ "in" ~ statement_
 statement_slot = {"slot" ~ expression_body}
 
 //Examples:
-//for i | for (i, elem)
+//for i | for (elem, i)
 statement_for_predicate_declaration = {
     identifier |
     ("(" ~ identifier ~ ","~ identifier ~")")

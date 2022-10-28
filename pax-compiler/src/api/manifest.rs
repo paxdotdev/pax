@@ -43,7 +43,7 @@ pub struct ExpressionSpecInvocation {
 pub struct TemplateTraversalContext<'a> {
     active_node_def: TemplateNodeDefinition,
     component_def: &'a ComponentDefinition,
-    compiletime_stack: Vec<Vec<PropertyDefinition>>,
+    compiletime_stack: Vec<HashSet<String>>,
     uid_gen: RangeFrom<usize>,
     expression_specs: &'a mut HashMap<usize, ExpressionSpec>,
     template_node_definitions: HashMap<String, TemplateNodeDefinition>,
@@ -76,13 +76,12 @@ impl PaxManifest {
                     let mut new_node_def = node_def.clone();
                     let mut ctx = TemplateTraversalContext {
                         active_node_def: new_node_def,
-                        compiletime_stack: vec![],
+                        compiletime_stack: vec![component_def.property_definitions.iter().map(|pd| {pd.name.clone()}).collect()],
                         uid_gen: 0..,
                         expression_specs: &mut new_expression_specs,
                         component_def: &read_only_component_def,
                         template_node_definitions: self.template_node_definitions.clone(),
                     };
-
 
                     ctx = recurse_template_and_compile_expressions(ctx);
 
@@ -109,15 +108,76 @@ impl PaxManifest {
 // Returns (RIL string, list of invocation specs for any symbols used)
 fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &TemplateTraversalContext<'a>) -> (String, Vec<ExpressionSpecInvocation>) {
     todo!("")
+
+    /*Example use of Pratt parser, from Pest repo:
+    fn parse_to_str(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
+        pratt
+            .map_primary(|primary| match primary.as_rule() {
+                Rule::int => primary.as_str().to_owned(),
+                Rule::expr => parse_to_str(primary.into_inner(), pratt),
+                _ => unreachable!(),
+            })
+            .map_prefix(|op, rhs| match op.as_rule() {
+                Rule::neg => format!("(-{})", rhs),
+                _ => unreachable!(),
+            })
+            .map_postfix(|lhs, op| match op.as_rule() {
+                Rule::fac => format!("({}!)", lhs),
+                _ => unreachable!(),
+            })
+            .map_infix(|lhs, op, rhs| match op.as_rule() {
+                Rule::add => format!("({}+{})", lhs, rhs),
+                Rule::sub => format!("({}-{})", lhs, rhs),
+                Rule::mul => format!("({}*{})", lhs, rhs),
+                Rule::div => format!("({}/{})", lhs, rhs),
+                Rule::pow => format!("({}^{})", lhs, rhs),
+                _ => unreachable!(),
+            })
+            .parse(pairs)
+    }*/
 }
 
 
 fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContext<'a>) -> TemplateTraversalContext<'a> {
     let mut incremented = false;
-    if ctx.active_node_def.pascal_identifier == "Slot" || ctx.active_node_def.pascal_identifier == "Repeat" || ctx.active_node_def.pascal_identifier == "Conditional" {
-        // ctx.compiletime_stack.push(ctx.active_node_def)
-        // ctx.compiletime_stack
-        todo!("instead of keeping an int counter, add a compiletimestackframe");
+    if ctx.active_node_def.pascal_identifier == "Repeat" {
+        //Why do we need this stack....
+        // When compiling expressions, we need to resolve `symbols` by pointing them
+        // to the appropriate `definition` -- (pointer to a property (incl. stack-introduced via Repeat), or a self.function_call())
+        // That definition is by default on `self`, but may also exist in a `Repeat` instance, or it may
+        // in the future point to a child component's property `self.some_node_id.some_child_property`
+        //
+        // For simple symbol binding, within the scope of a single component, all we need is the stack offset.
+        // That is, from `self.foo` or `i`, how many stack frames will we need to traverse
+        // AT RUNTIME (via codegen) to invoke
+        // Thus, at compiletime, what we need is a way to turn `i` into an int representing how many "compiletime_stack" frames were
+        // traversed to find the symbol `i`.
+
+        //only need to push stack frames for Repeat, not for Conditional or Slot
+        let predicate_declaration = ctx.active_node_def.control_flow_attributes.clone().unwrap().repeat_predicate_declaration.unwrap();
+        match predicate_declaration {
+            ControlFlowRepeatPredicateDeclaration::Identifier(elem_id) => {
+                ctx.compiletime_stack.push(HashSet::from([elem_id.to_string()]));
+            },
+            ControlFlowRepeatPredicateDeclaration::IdentifierTuple(elem_id, index_id) => {
+                ctx.compiletime_stack.push(HashSet::from([elem_id.to_string(), index_id.to_string()]));
+            }
+        };
+
+        //TODO: turn compiletime stack into HashMap<String, PropertyDefinition>
+        //   (allows us both to look up presence of a symbol (HashSet-like behavior) and to resolve the PropertiesCoproduct::xxx lookup and to standardize the TypesCoproduct::xxx return, required for vtable codegen)
+
+        // ctx.compiletime_stack.push(vec![
+        //     PropertyDefinition {
+        //         name: "slot_index".to_string(),
+        //         original_type: "usize".to_string(),
+        //         fully_qualified_types: vec!["usize"],
+        //         fully_qualified_type: "usize".to_string(),
+        //         pascalized_fully_qualified_type: "__usize".to_string()
+        //     }]);
+            // ctx.active_node_def.control_flow_attributes.unwrap().slot_index)
+
+        // todo!("instead of keeping an int counter, add a compiletimestackframe");
         incremented = true;
     }
 
@@ -220,6 +280,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
     for id in ctx.active_node_def.children_ids.clone().iter() {
         let mut active_node_def = ctx.template_node_definitions.remove(id).unwrap();
         ctx.active_node_def = active_node_def;
+
         ctx = recurse_template_and_compile_expressions(ctx);
         ctx.template_node_definitions.insert(id.to_string(), ctx.active_node_def.clone());
     };
@@ -240,33 +301,6 @@ for each found expression & expression-like (e.g. identifier binding):
      [ ] parse string PAXEL expression into RIL string with pest::PrattParser
         [ ] `.into`, `as` or `.custom_into` likely gets injected at this stage
      [ ] track unique identifiers from parsing step; use these to populate ExpressionSpecInvoations, along with compile-time stack info (offset)
-        Example use of Pratt parser, from Pest repo:
-        fn parse_to_str(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
-            pratt
-                .map_primary(|primary| match primary.as_rule() {
-                    Rule::int => primary.as_str().to_owned(),
-                    Rule::expr => parse_to_str(primary.into_inner(), pratt),
-                    _ => unreachable!(),
-                })
-                .map_prefix(|op, rhs| match op.as_rule() {
-                    Rule::neg => format!("(-{})", rhs),
-                    _ => unreachable!(),
-                })
-                .map_postfix(|lhs, op| match op.as_rule() {
-                    Rule::fac => format!("({}!)", lhs),
-                    _ => unreachable!(),
-                })
-                .map_infix(|lhs, op, rhs| match op.as_rule() {
-                    Rule::add => format!("({}+{})", lhs, rhs),
-                    Rule::sub => format!("({}-{})", lhs, rhs),
-                    Rule::mul => format!("({}*{})", lhs, rhs),
-                    Rule::div => format!("({}/{})", lhs, rhs),
-                    Rule::pow => format!("({}^{})", lhs, rhs),
-                    _ => unreachable!(),
-                })
-                .parse(pairs)
-        }
-
 
  */
     if incremented {
@@ -326,6 +360,7 @@ pub enum AttributeValueDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ControlFlowRepeatPredicateDeclaration {
     Identifier(String),
+    ///(Element ID, Index ID)
     IdentifierTuple(String, String),
 }
 
