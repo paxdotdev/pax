@@ -11,14 +11,13 @@ pub mod components {
     pub use super::stacker::*;
 }
 
-
 pub mod primitives {
     use pax::pax_primitive;
 
     #[cfg(feature = "parser")]
     use pax_compiler;
     #[cfg(feature = "parser")]
-    use pax_compiler::ParsingContext;
+    use pax_compiler::parsing::ParsingContext;
     #[cfg(feature = "parser")]
     use pax_compiler::reflection::PathQualifiable;
 

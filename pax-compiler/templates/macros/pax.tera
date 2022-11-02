@@ -1,12 +1,6 @@
 #[cfg(feature = "parser")]
 use pax::internal::{PropertyManifestable};
 #[cfg(feature = "parser")]
-use pax_compiler::manifest::PaxManifest;
-#[cfg(feature = "parser")]
-use pax_compiler::ParsingContext;
-#[cfg(feature = "parser")]
-use std::collections::{HashSet, HashMap};
-#[cfg(feature = "parser")]
 use serde_json;
 
 {% if is_root %}
@@ -17,11 +11,11 @@ use serde_json;
 #[cfg(feature = "parser")]
 pub fn main() {
 
-    let mut ctx = ParsingContext::default();
+    let mut ctx = pax_compiler::parsing::ParsingContext::default();
 
     let (mut ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
 
-    let manifest = PaxManifest {
+    let manifest = pax_compiler::manifest::PaxManifest {
         components: ctx.component_definitions,
         root_component_id: ctx.root_component_id,
         expression_specs: None,
@@ -47,7 +41,7 @@ impl {{pascal_identifier}} {
     // so that the parser binary may traverse all dependencies.
     // This method is the recursive workhorse of parsing logic.
     // One way to look at this, in conjunction with the `parser` bin target: a solution to "coordinating between macros"
-    pub fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, String) {
+    pub fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, String) {
 
         let source_id = "component::{{pascal_identifier}}";
         let mut property_definitions = vec![];
@@ -116,7 +110,7 @@ impl {{pascal_identifier}} {
                 let template_map= ctx.template_map.clone();
 
                 let (mut ctx, comp_def) =
-                    pax_compiler::parse_full_component_definition_string(
+                    pax_compiler::parsing::parse_full_component_definition_string(
                         ctx,
                         &raw_pax,
                         PASCAL_IDENTIFIER,

@@ -212,7 +212,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
 
     let raw_pax = args.to_string();
-    let template_dependencies = pax_compiler::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+    let template_dependencies = pax_compiler::parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
     // std::time::SystemTime::now().elapsed().unwrap().subsec_nanos()
 

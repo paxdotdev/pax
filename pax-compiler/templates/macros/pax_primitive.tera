@@ -2,7 +2,7 @@
 {{original_tokens}}
 #[cfg(feature = "parser")]
 impl {{pascal_identifier}} {
-    pub fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, String) {
+    pub fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, String) {
         let source_id = "primitive::{{pascal_identifier}}";
         match ctx.visited_source_ids.get(&source_id as &str) {
             None => {
@@ -51,7 +51,7 @@ impl {{pascal_identifier}} {
                 {% endfor %}
                 ctx.all_property_definitions.insert(source_id.to_string(), property_definitions.clone());
 
-                let comp_def = pax_compiler::get_primitive_definition(PASCAL_IDENTIFIER, module_path!(), &source_id, &property_definitions);
+                let comp_def = pax_compiler::parsing::assemble_primitive_definition(PASCAL_IDENTIFIER, module_path!(), &source_id, &property_definitions);
                 ctx.component_definitions
                     .push(comp_def);
                 (ctx, source_id.to_string())
