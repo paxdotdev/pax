@@ -24,32 +24,54 @@ pub struct PaxManifest {
 
 #[derive(Serialize, Deserialize)]
 pub struct ExpressionSpec {
+    /// Unique id for vtable entry — used for binding a node definition property to vtable
     pub id: usize,
-    pub properties_type: String,
+
+    /// Used to wrap the return type in TypesCoproduct
     pub pascalized_return_type: String,
+
+    /// Representations of symbols used in an expression, and the necessary
+    /// metadata to "invoke" those symbols from the runtime
     pub invocations: Vec<ExpressionSpecInvocation>,
+
+    /// String (RIL) representation of the compiled expression
     pub output_statement: String,
+
+    /// String representation of the original input statement
     pub input_statement: String,
+
+    // Note: provisionally removed because this data is
+    // For data structures that Repeat can iterate over (starting with std::vec::Vec<T>),
+    // this field stores a string representation of the iterable type `T`.  Note that
+    // this type must be available in the PropertiesCoproduct, which can be achieved
+    // by using a built-in primitive type, or by annotating a custom type with the `pax_type` macro.
+    // pub iter_type: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
 pub struct ExpressionSpecInvocation {
-    pub identifier: String, //for example:
-    pub atomic_identifier: String, //for example `some_prop` from `self.some_prop`
+    /// Identifier as authored, for example: `self.some_prop`
+    pub identifier: String,
+    /// Representation of the symbol to be invoked: for example `some_prop` from `self.some_prop`
+    pub atomic_identifier: String,
+    /// Statically known stack offset for traversing Repeat-based scopes at runtime
     pub stack_offset: usize,
-    pub properties_type: String, //e.g. PropertiesCoproduct::Foo or PropertiesCoproduct::RepeatItem
+    /// Type of the containing Properties struct, for unwrapping from PropertiesCoproduct.  For example, `Foo` for `PropertiesCoproduct::Foo` or `RepeatItem` for PropertiesCoproduct::RepeatItem
+    pub properties_type: String,
+    /// Flag describing whether this invocation should be bound to the `elem` in `(elem, i)`
+    pub is_repeat_elem: bool,
+    /// Flag describing whether this invocation should be bound to the `i` in `(elem, i)`
+    pub is_repeat_index: bool,
 }
 
 pub struct TemplateTraversalContext<'a> {
     active_node_def: TemplateNodeDefinition,
     component_def: &'a ComponentDefinition,
-    compiletime_stack: Vec<HashSet<String>>,
+    scope_stack: Vec<HashMap<String, PropertyDefinition>>,
     uid_gen: RangeFrom<usize>,
     expression_specs: &'a mut HashMap<usize, ExpressionSpec>,
     template_node_definitions: HashMap<String, TemplateNodeDefinition>,
 }
-
-
 
 impl PaxManifest {
     pub fn compile_all_expressions<'a>(&mut self) {
@@ -76,7 +98,7 @@ impl PaxManifest {
                     let mut new_node_def = node_def.clone();
                     let mut ctx = TemplateTraversalContext {
                         active_node_def: new_node_def,
-                        compiletime_stack: vec![component_def.property_definitions.iter().map(|pd| {pd.name.clone()}).collect()],
+                        scope_stack: vec![component_def.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
                         uid_gen: 0..,
                         expression_specs: &mut new_expression_specs,
                         component_def: &read_only_component_def,
@@ -140,41 +162,57 @@ fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &TemplateTraversalContext<'a>) -> 
 
 fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContext<'a>) -> TemplateTraversalContext<'a> {
     let mut incremented = false;
-    if ctx.active_node_def.pascal_identifier == "Repeat" {
-        //Why do we need this stack....
-        // When compiling expressions, we need to resolve `symbols` by pointing them
-        // to the appropriate `definition` -- (pointer to a property (incl. stack-introduced via Repeat), or a self.function_call())
-        // That definition is by default on `self`, but may also exist in a `Repeat` instance, or it may
-        // in the future point to a child component's property `self.some_node_id.some_child_property`
-        //
-        // For simple symbol binding, within the scope of a single component, all we need is the stack offset.
-        // That is, from `self.foo` or `i`, how many stack frames will we need to traverse
-        // AT RUNTIME (via codegen) to invoke
-        // Thus, at compiletime, what we need is a way to turn `i` into an int representing how many "compiletime_stack" frames were
-        // traversed to find the symbol `i`.
 
-        //only need to push stack frames for Repeat, not for Conditional or Slot
+    //only need to push stack frame for Repeat, not for Conditional or Slot
+    if ctx.active_node_def.pascal_identifier == "Repeat" {
+
         let predicate_declaration = ctx.active_node_def.control_flow_attributes.clone().unwrap().repeat_predicate_declaration.unwrap();
         match predicate_declaration {
             ControlFlowRepeatPredicateDeclaration::Identifier(elem_id) => {
-                ctx.compiletime_stack.push(HashSet::from([elem_id.to_string()]));
+                ctx.scope_stack.push(HashMap::from([(elem_id.to_string(), PropertyDefinition {
+                    name: "".to_string(),
+                    original_type: todo!("get inner type from Iterable -- special-case `Property<Vec>`"),
+
+                    fully_qualified_types: vec![],
+                    fully_qualified_type: "".to_string(),
+                    pascalized_fully_qualified_type: "".to_string()
+                })]));
             },
             ControlFlowRepeatPredicateDeclaration::IdentifierTuple(elem_id, index_id) => {
-                ctx.compiletime_stack.push(HashSet::from([elem_id.to_string(), index_id.to_string()]));
+                ctx.scope_stack.push(HashMap::from([
+                    (elem_id.to_string(),PropertyDefinition {
+                        name: elem_id.to_string(),
+                        original_type: "".to_string(),
+                        fully_qualified_types: vec![],
+                        fully_qualified_type: "".to_string(),
+                        pascalized_fully_qualified_type: "".to_string()
+                    }),
+                    (index_id.to_string(),PropertyDefinition {
+                        name: index_id.to_string(),
+                        original_type: "usize".to_string(),
+                        fully_qualified_types: vec![],
+                        fully_qualified_type: "".to_string(),
+                        pascalized_fully_qualified_type: "".to_string()
+                    })
+                ]));
             }
         };
 
         //TODO: turn compiletime stack into HashMap<String, PropertyDefinition>
         //   (allows us both to look up presence of a symbol (HashSet-like behavior) and to resolve the PropertiesCoproduct::xxx lookup and to standardize the TypesCoproduct::xxx return, required for vtable codegen)
 
-        // ctx.compiletime_stack.push(vec![
-        //     PropertyDefinition {
-        //         name: "slot_index".to_string(),
-        //         original_type: "usize".to_string(),
-        //         fully_qualified_types: vec!["usize"],
-        //         fully_qualified_type: "usize".to_string(),
-        //         pascalized_fully_qualified_type: "__usize".to_string()
-        //     }]);
+
+
+        ctx.scope_stack.push(HashMap::from([
+            ("foo".to_string(),
+             PropertyDefinition {
+                name: "slot_index".to_string(),
+                original_type: "usize".to_string(),
+                fully_qualified_types: vec!["usize".to_string()],
+                fully_qualified_type: "usize".to_string(),
+                pascalized_fully_qualified_type: "__usize".to_string()
+            })]
+            ));
             // ctx.active_node_def.control_flow_attributes.unwrap().slot_index)
 
         // todo!("instead of keeping an int counter, add a compiletimestackframe");
@@ -209,7 +247,6 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
 
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
-                        properties_type: ctx.active_node_def.pascal_identifier.clone(),
                         pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
                         }).unwrap().pascalized_fully_qualified_type).clone(),
@@ -234,7 +271,6 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
 
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
-                        properties_type: ctx.active_node_def.pascal_identifier.clone(),
                         pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
                         }).unwrap().pascalized_fully_qualified_type).clone(),
@@ -260,7 +296,6 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
 
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
-                properties_type: ctx.active_node_def.pascal_identifier.clone(),
                 pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
                     property_def.name == ""
                 }).unwrap().pascalized_fully_qualified_type).clone(),
@@ -304,11 +339,10 @@ for each found expression & expression-like (e.g. identifier binding):
 
  */
     if incremented {
-        ctx.compiletime_stack.pop();
+        ctx.scope_stack.pop();
     }
     ctx
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ComponentDefinition {
@@ -344,7 +378,6 @@ pub struct PropertyDefinition {
     pub fully_qualified_type: String,
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
     pub pascalized_fully_qualified_type: String,
-    //pub default_value ?
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

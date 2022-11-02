@@ -3117,3 +3117,38 @@ Note: in other to invoke a cast datum OR index from a RepeatItem, the compiler
 must be aware that a given symbol maps to RepeatItems.
 
 This can be managed through the compiletime stack, for e.g. `elem` may  
+
+
+### Reflecting on the T in `Vec<T>`
+
+Consider `for elem in self.some_iterable`
+
+We must know the type of `elem` (and it must be a member of PropertiesCoproduct, either as a primitive type or a `pax_type`-annotated type)
+so that we may access that elem inside expressions — consider the vtable entry:
+
+```
+//Frame size y
+vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+
+        (Rc::clone(datum), *i)
+    } else { unreachable!(3) };
+
+    let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!()};
+
+    return TypesCoproduct::Size(
+        Size::Pixels(datum_cast.height_px)
+    )
+}));
+```
+
+Some approaches:
+- could naively statically analyze it, e.g. pull the contents of the outermost `<>`s.
+- could require annotation by author, e.g. `for (elem: StackerCellProperties, i) in self.properties`
+- could punt on iterating over anything other than `usize` ranges for now — could at least hack a solution
+where type annotations are explicit.  Alternatively, all of the `elem` iteration behavior
+is available by array access with `i` — `some_collection[i]`
+- could introduce PropertyVec<T>, which offers a Vec-like API and knows how to reflect and offer "T"
+- might be able to impl a new parser method via traits, populating an Optional field representing `iter`'s `<T>` if present
+- 
+- could hard-code support for `Vec`, special-handling pulling the `T` out of `Property<Vec<T>>` or `Property<std::vec::Vec<T>>`, and later extending that support to other built-ins.  

@@ -1,10 +1,8 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::fmt::{Formatter};
-use std::ops::Mul;
+use std::ops::{Index, Mul};
 use std::rc::Rc;
-use uuid::Uuid;
 use std::ffi::CString;
 
 pub extern crate pax_macro;
@@ -75,6 +73,34 @@ pub enum ArgsCoproduct {
 }
 
 pub type Property<T: Interpolatable> = Box<dyn PropertyInstance<T>>;
+//
+// pub struct VecProperty<T: Interpolatable> {
+//     internal_properties: Vec<Property<T>>,
+//     //expose Vec api
+//     //handle internal propertyinstances
+// }
+//
+
+// impl<T: Interpolatable, I: Sized> Index<I> for VecProperty<T> {
+//     type Output = Property<T>;
+//
+//     fn index(&self, index: I) -> &Self::Output {
+//         self.internal_properties.get(index)
+//     }
+// }
+//
+// impl<T: Interpolatable, I: Sized> std::ops::IndexMut<I> for VecProperty<T> {
+//     fn index_mut(&mut self, index: I) -> &mut Property<T> {
+//         &mut self.internal_properties.get_mut(index)
+//     }
+// }
+//
+// impl<T: Interpolatable> VecProperty<T> {
+//     fn push(&mut self, elem: T) {
+//         self.internal_properties.push(Box::new(PropertyLiteral::new(elem)));
+//     }
+// }
+
 
 #[derive(Clone)]
 pub struct ArgsRender {

@@ -16,7 +16,6 @@ use crate::types::{StackerDirection, StackerCellProperties};
     }
 )]
 pub struct Stacker {
-    pub computed_layout_spec: Property<Vec<Rc<StackerCellProperties>>>,
     pub direction: Property<StackerDirection>,
     pub cells: Property<usize>,
     pub gutter_width: Property<Size>,
@@ -65,38 +64,38 @@ impl Stacker {
 
         //Manual dirty-check: intended to be supplanted by reactive dirty-check mechanism
         //was needed to stop instance churn that was happening with
-
-        let old = self.computed_layout_spec.get();
-        let new : Vec<Rc<StackerCellProperties>> = (0..(cells as usize)).into_iter().map(|i| {
-            match self.direction.get() {
-                StackerDirection::Horizontal =>
-                    Rc::new(StackerCellProperties {
-                        height_px: bounds.1,
-                        width_px: per_cell_space,
-                        x_px: ((i) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
-                        y_px: 0.0,
-                    }),
-                StackerDirection::Vertical =>
-                    Rc::new(StackerCellProperties {
-                        height_px: per_cell_space,
-                        width_px: bounds.0,
-                        x_px: 0.0,
-                        y_px: ((i) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
-                    }),
-            }
-        }).collect();
-        let is_dirty = old.len() != new.len() || old.iter().enumerate().any(|(i,p_old)|{
-            let p_new = new.get(i).unwrap();
-
-            p_old.height_px != p_new.height_px ||
-                p_old.width_px != p_new.width_px ||
-                p_old.x_px != p_new.x_px ||
-                p_old.y_px != p_new.y_px
-        });
-
-        if is_dirty {
-            self.computed_layout_spec.set(new);
-        }
+        //
+        // let old = self.computed_layout_spec.get();
+        // let new : Vec<Rc<StackerCellProperties>> = (0..(cells as usize)).into_iter().map(|i| {
+        //     match self.direction.get() {
+        //         StackerDirection::Horizontal =>
+        //             Rc::new(StackerCellProperties {
+        //                 height_px: bounds.1,
+        //                 width_px: per_cell_space,
+        //                 x_px: ((i) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
+        //                 y_px: 0.0,
+        //             }),
+        //         StackerDirection::Vertical =>
+        //             Rc::new(StackerCellProperties {
+        //                 height_px: per_cell_space,
+        //                 width_px: bounds.0,
+        //                 x_px: 0.0,
+        //                 y_px: ((i) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
+        //             }),
+        //     }
+        // }).collect();
+        // let is_dirty = old.len() != new.len() || old.iter().enumerate().any(|(i,p_old)|{
+        //     let p_new = new.get(i).unwrap();
+        //
+        //     p_old.height_px != p_new.height_px ||
+        //         p_old.width_px != p_new.width_px ||
+        //         p_old.x_px != p_new.x_px ||
+        //         p_old.y_px != p_new.y_px
+        // });
+        //
+        // if is_dirty {
+        //     self.computed_layout_spec.set(new);
+        // }
 
     }
 
