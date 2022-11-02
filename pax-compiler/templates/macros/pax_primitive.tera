@@ -2,7 +2,7 @@
 {{original_tokens}}
 #[cfg(feature = "parser")]
 impl {{pascal_identifier}} {
-    pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
+    pub fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, String) {
         let source_id = "primitive::{{pascal_identifier}}";
         match ctx.visited_source_ids.get(&source_id as &str) {
             None => {
@@ -39,9 +39,9 @@ impl {{pascal_identifier}} {
                         );
                     {% endfor %}
 
-                    let (fully_qualified_type, pascalized_fully_qualified_type) =  pax_compiler_api::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
+                    let (fully_qualified_type, pascalized_fully_qualified_type) =  pax_compiler::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
 
-                    property_definitions.push(pax_compiler_api::PropertyDefinition {
+                    property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                         name: "{{ctpd.field_name}}".to_string(),
                         original_type: "{{ctpd.original_type}}".to_string(),
                         fully_qualified_types,
@@ -51,7 +51,7 @@ impl {{pascal_identifier}} {
                 {% endfor %}
                 ctx.all_property_definitions.insert(source_id.to_string(), property_definitions.clone());
 
-                let comp_def = pax_compiler_api::get_primitive_definition(PASCAL_IDENTIFIER, module_path!(), &source_id, &property_definitions);
+                let comp_def = pax_compiler::get_primitive_definition(PASCAL_IDENTIFIER, module_path!(), &source_id, &property_definitions);
                 ctx.component_definitions
                     .push(comp_def);
                 (ctx, source_id.to_string())

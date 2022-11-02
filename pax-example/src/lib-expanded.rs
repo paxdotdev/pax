@@ -1,7 +1,7 @@
 // #[macro_use]
-// extern crate pax_compiler_api;
+// extern crate pax_compiler;
 //
-// use pax_compiler_api::lazy_static;
+// use pax_compiler::lazy_static;
 //
 //
 // use pax::*;
@@ -59,7 +59,7 @@
 // #[cfg(feature = "parser")]
 // use pax::internal::message::ComponentDefinition;
 // #[cfg(feature = "parser")]
-// use pax_compiler_api::ManifestContext;
+// use pax_compiler::ParsingContext;
 // #[cfg(feature = "parser")]
 // use std::collections::HashMap;
 // #[cfg(feature = "parser")]
@@ -72,11 +72,11 @@
 // use pax::internal::message::{SettingsValueDefinition, PaxManifest ,SettingsLiteralBlockDefinition};
 // #[cfg(feature = "parser")]
 // lazy_static! {
-//     static ref source_id: String = pax_compiler_api::create_uuid();
+//     static ref source_id: String = pax_compiler::create_uuid();
 // }
 // #[cfg(feature = "parser")]
 // pub fn main() {
-//     let mut ctx = ManifestContext {
+//     let mut ctx = ParsingContext {
 //         root_component_id: "".into(),
 //         visited_source_ids: HashSet::new(),
 //         component_definitions: vec![],
@@ -85,7 +85,7 @@
 //
 //     let (ctx, _) = Root::parse_to_manifest(ctx);
 //
-//     //TODO: should be able to de-dupe PaxManifest and ManifestContext data structures
+//     //TODO: should be able to de-dupe PaxManifest and ParsingContext data structures
 //     let manifest = PaxManifest {
 //         components: ctx.component_definitions,
 //         root_component_id: ctx.root_component_id,
@@ -99,7 +99,7 @@
 // #[cfg(feature = "parser")]
 // //GENERATE pascal_identifier
 // impl Root {
-//     pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
+//     pub fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, String) {
 //         //a given source may be EITHER a.) inline pax, or b.) code-behind pax.
 //         //this is decided based on which macro is used: [#pax(contents)] for inline and [#pax_file("path")] for file
 //         //those two macros should be otherwise equivalent, generating simply a different line that
@@ -163,7 +163,7 @@
 //                 let template_map= ctx.template_map.clone();
 //
 //                 let (mut ctx, comp_def) =
-//                     pax_compiler_api::parse_full_component_definition_string(
+//                     pax_compiler::parse_full_component_definition_string(
 //                         ctx,
 //                         &raw_pax,
 //                         PASCAL_IDENTIFIER,

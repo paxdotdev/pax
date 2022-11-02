@@ -1,3 +1,10 @@
+
+
+pub mod manifest;
+
+pub mod templating;
+
+
 extern crate pest;
 use pest_derive::Parser;
 use pest::Parser;
@@ -12,12 +19,9 @@ use pest::iterators::{Pair, Pairs};
 use serde_json;
 use serde_derive::{Serialize, Deserialize};
 use uuid::Uuid;
+use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowAttributeValueDefinition, ControlFlowRepeatPredicateDeclaration, AttributeValueDefinition, Number, SettingsLiteralValue, SettingsSelectorBlockDefinition, SettingsLiteralBlockDefinition, SettingsValueDefinition};
 
-pub mod manifest;
-pub use manifest::*;
 
-pub mod templating;
-pub use templating::*;
 
 pub use lazy_static::lazy_static;
 use tera::Template;
@@ -108,15 +112,15 @@ pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_f
     //extract dep_to_fqd_map into a Vec<String>; string-replace each looked-up value present in
     //unexpanded_path, ensuring that each looked-up value is not preceded by a `::`
     dep_to_fqd_map.keys().for_each(|key| {
-       fully_qualified_type.clone().match_indices(key).for_each(|i|{
-           if i.0 < 2 || {let maybe_coco : String = fully_qualified_type.chars().skip((i.0 as i64) as usize - 2).take(2).collect(); maybe_coco != "::" } {
-               let new_value = "{PREFIX}".to_string() + &dep_to_fqd_map.get(key).unwrap();
-               let length_difference: i64 = new_value.len() as i64 - key.len() as i64;
-               let starting_index : i64 = i.0 as i64;
-               let end_index_exclusive = starting_index + key.len() as i64;
-               fully_qualified_type.replace_range(starting_index as usize..end_index_exclusive as usize, &new_value);
-           }
-       });
+        fully_qualified_type.clone().match_indices(key).for_each(|i|{
+            if i.0 < 2 || {let maybe_coco : String = fully_qualified_type.chars().skip((i.0 as i64) as usize - 2).take(2).collect(); maybe_coco != "::" } {
+                let new_value = "{PREFIX}".to_string() + &dep_to_fqd_map.get(key).unwrap();
+                let length_difference: i64 = new_value.len() as i64 - key.len() as i64;
+                let starting_index : i64 = i.0 as i64;
+                let end_index_exclusive = starting_index + key.len() as i64;
+                fully_qualified_type.replace_range(starting_index as usize..end_index_exclusive as usize, &new_value);
+            }
+        });
     });
 
     let pascalized_fully_qualified_type = fully_qualified_type.clone()
@@ -601,7 +605,7 @@ pub fn create_uuid() -> String {
     Uuid::new_v4().to_string()
 }
 
-pub struct ManifestContext {
+pub struct ParsingContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
     pub visited_source_ids: HashSet<String>,
@@ -618,7 +622,7 @@ pub struct ManifestContext {
     pub template_node_definitions: HashMap<String, TemplateNodeDefinition>,
 }
 
-impl Default for ManifestContext {
+impl Default for ParsingContext {
     fn default() -> Self {
         Self {
             root_component_id: "".into(),
@@ -632,7 +636,7 @@ impl Default for ManifestContext {
 }
 
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
-pub fn parse_full_component_definition_string(mut ctx: ManifestContext, pax: &str, pascal_identifier: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ManifestContext, ComponentDefinition) {
+pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
     let ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule

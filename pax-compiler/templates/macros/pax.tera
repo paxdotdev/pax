@@ -1,7 +1,9 @@
 #[cfg(feature = "parser")]
 use pax::internal::{PropertyManifestable};
 #[cfg(feature = "parser")]
-use pax_compiler_api::{ManifestContext, PaxManifest};
+use pax_compiler::manifest::PaxManifest;
+#[cfg(feature = "parser")]
+use pax_compiler::ParsingContext;
 #[cfg(feature = "parser")]
 use std::collections::{HashSet, HashMap};
 #[cfg(feature = "parser")]
@@ -15,7 +17,7 @@ use serde_json;
 #[cfg(feature = "parser")]
 pub fn main() {
 
-    let mut ctx = ManifestContext::default();
+    let mut ctx = ParsingContext::default();
 
     let (mut ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
 
@@ -45,7 +47,7 @@ impl {{pascal_identifier}} {
     // so that the parser binary may traverse all dependencies.
     // This method is the recursive workhorse of parsing logic.
     // One way to look at this, in conjunction with the `parser` bin target: a solution to "coordinating between macros"
-    pub fn parse_to_manifest(mut ctx: ManifestContext) -> (ManifestContext, String) {
+    pub fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, String) {
 
         let source_id = "component::{{pascal_identifier}}";
         let mut property_definitions = vec![];
@@ -80,9 +82,9 @@ impl {{pascal_identifier}} {
                 );
             {% endfor %}
 
-            let (fully_qualified_type, pascalized_fully_qualified_type) =  pax_compiler_api::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
+            let (fully_qualified_type, pascalized_fully_qualified_type) =  pax_compiler::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
 
-            property_definitions.push(pax_compiler_api::PropertyDefinition {
+            property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                 name: "{{ctpd.field_name}}".to_string(),
                 original_type: "{{ctpd.original_type}}".to_string(),
                 fully_qualified_types,
@@ -114,7 +116,7 @@ impl {{pascal_identifier}} {
                 let template_map= ctx.template_map.clone();
 
                 let (mut ctx, comp_def) =
-                    pax_compiler_api::parse_full_component_definition_string(
+                    pax_compiler::parse_full_component_definition_string(
                         ctx,
                         &raw_pax,
                         PASCAL_IDENTIFIER,

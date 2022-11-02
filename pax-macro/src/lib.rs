@@ -9,7 +9,7 @@ use std::env::current_dir;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
 use quote::{quote, ToTokens};
-use pax_compiler_api::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, TemplateArgsMacroPaxType, CompileTimePropertyDefinition};
+use pax_compiler::templating::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, TemplateArgsMacroPaxType, CompileTimePropertyDefinition};
 
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument};
 
@@ -22,7 +22,7 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
 
     let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
 
-    let output = pax_compiler_api::press_template_macro_pax_primitive(TemplateArgsMacroPaxPrimitive{
+    let output = pax_compiler::templating::press_template_macro_pax_primitive(TemplateArgsMacroPaxPrimitive{
         pascal_identifier,
         original_tokens,
         compile_time_property_definitions,
@@ -40,7 +40,7 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
     let pascal_identifier = input.ident.to_string();
 
-    let output = pax_compiler_api::press_template_macro_pax_type(TemplateArgsMacroPaxType{
+    let output = pax_compiler::templating::press_template_macro_pax_type(TemplateArgsMacroPaxType{
         pascal_identifier,
         original_tokens,
     });
@@ -212,7 +212,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
 
     let raw_pax = args.to_string();
-    let template_dependencies = pax_compiler_api::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+    let template_dependencies = pax_compiler::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
     // std::time::SystemTime::now().elapsed().unwrap().subsec_nanos()
 
@@ -225,7 +225,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         "".to_string()
     };
 
-    let output = pax_compiler_api::press_template_macro_pax(TemplateArgsMacroPax {
+    let output = pax_compiler::templating::press_template_macro_pax(TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
         original_tokens,

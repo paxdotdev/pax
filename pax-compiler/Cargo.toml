@@ -6,17 +6,15 @@ edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://www.pax-lang.org/"
 repository = "https://www.github.com/pax-lang/pax"
-description = "Compiler for parsing and building Pax projects into application executables"
-
-[lib]
-name = "pax_compiler_api"
-path = "src/api/mod.rs"
+description = "Compiler APIs for parsing and building Pax projects into application executables"
 
 [features]
 default = ["console_error_panic_hook", "cbor", "json", "messagepack"]
 json = ["serde", "serde_json"]
 messagepack = ["serde"]
 cbor = ["serde"]
+
+[lib]
 
 [dependencies]
 pax-message = {version = "0.0.1", path="../pax-message"}

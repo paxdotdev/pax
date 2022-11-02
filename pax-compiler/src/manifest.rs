@@ -74,89 +74,49 @@ pub struct TemplateTraversalContext<'a> {
 }
 
 impl PaxManifest {
-    pub fn compile_all_expressions<'a>(&mut self) {
 
-        let mut new_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
-        let mut stack_offset = 0;
-        let mut uid_gen = 0..;
-
-        let mut component_id_map = HashMap::new();
-
-        for cd in self.components.iter() {
-            component_id_map.insert(&cd.source_id, &*cd);
-        }
-
-        let mut new_components = self.components.clone();
-        new_components.iter_mut().for_each(|component_def : &mut ComponentDefinition|{
-
-            let mut new_component_def = component_def.clone();
-            let read_only_component_def = component_def.clone();
-
-
-            if let Some(ref mut template) = new_component_def.template {
-                template.iter_mut().for_each(|node_def| {
-                    let mut new_node_def = node_def.clone();
-                    let mut ctx = TemplateTraversalContext {
-                        active_node_def: new_node_def,
-                        scope_stack: vec![component_def.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
-                        uid_gen: 0..,
-                        expression_specs: &mut new_expression_specs,
-                        component_def: &read_only_component_def,
-                        template_node_definitions: self.template_node_definitions.clone(),
-                    };
-
-                    ctx = recurse_template_and_compile_expressions(ctx);
-
-                    std::mem::swap(node_def, &mut ctx.active_node_def);
-                    std::mem::swap(&mut self.template_node_definitions, &mut ctx.template_node_definitions);
-                });
-            }
-
-            std::mem::swap(component_def, &mut new_component_def);
-
-        });
-        self.components = new_components;
-        self.expression_specs = Some(new_expression_specs);
-
-        println!("{}", serde_json::to_string_pretty(&self).unwrap());
-    }
 
 
 
 
 }
 
+// fn recurse_pratt_parse_to_string(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
+//     pratt
+//         .map_primary(|primary| match primary.as_rule() {
+//             Rule::int => primary.as_str().to_owned(),
+//             Rule::expr => parse_to_str(primary.into_inner(), pratt),
+//             _ => unreachable!(),
+//         })
+//         .map_prefix(|op, rhs| match op.as_rule() {
+//             Rule::neg => format!("(-{})", rhs),
+//             _ => unreachable!(),
+//         })
+//         .map_postfix(|lhs, op| match op.as_rule() {
+//             Rule::fac => format!("({}!)", lhs),
+//             _ => unreachable!(),
+//         })
+//         .map_infix(|lhs, op, rhs| match op.as_rule() {
+//             Rule::add => format!("({}+{})", lhs, rhs),
+//             Rule::sub => format!("({}-{})", lhs, rhs),
+//             Rule::mul => format!("({}*{})", lhs, rhs),
+//             Rule::div => format!("({}/{})", lhs, rhs),
+//             Rule::pow => format!("({}^{})", lhs, rhs),
+//             _ => unreachable!(),
+//         })
+//         .parse(pairs)
+// }
 
 // Returns (RIL string, list of invocation specs for any symbols used)
 fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &TemplateTraversalContext<'a>) -> (String, Vec<ExpressionSpecInvocation>) {
-    todo!("")
+    todo!("");
 
-    /*Example use of Pratt parser, from Pest repo:
-    fn parse_to_str(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
-        pratt
-            .map_primary(|primary| match primary.as_rule() {
-                Rule::int => primary.as_str().to_owned(),
-                Rule::expr => parse_to_str(primary.into_inner(), pratt),
-                _ => unreachable!(),
-            })
-            .map_prefix(|op, rhs| match op.as_rule() {
-                Rule::neg => format!("(-{})", rhs),
-                _ => unreachable!(),
-            })
-            .map_postfix(|lhs, op| match op.as_rule() {
-                Rule::fac => format!("({}!)", lhs),
-                _ => unreachable!(),
-            })
-            .map_infix(|lhs, op, rhs| match op.as_rule() {
-                Rule::add => format!("({}+{})", lhs, rhs),
-                Rule::sub => format!("({}-{})", lhs, rhs),
-                Rule::mul => format!("({}*{})", lhs, rhs),
-                Rule::div => format!("({}/{})", lhs, rhs),
-                Rule::pow => format!("({}^{})", lhs, rhs),
-                _ => unreachable!(),
-            })
-            .parse(pairs)
-    }*/
+    //1. run Pratt parser; generate output RIL
+    //2. for each xo_symbol discovered during parsing, resolve that symbol through scope_stack and populate an ExpressionSpecInvocation
+    //3. return tuple of (RIL string,ExpressionSpecInvocations)
+
+
+
 }
 
 

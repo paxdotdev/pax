@@ -10,8 +10,6 @@ use tokio::runtime::Handle;
 use tokio::sync::mpsc::{Sender, Receiver, UnboundedReceiver};
 use tokio_stream::wrappers::{ReceiverStream};
 
-mod api;
-
 use std::io::{Error};
 use std::task::{Poll, Context};
 use std::{fs, thread::{Thread, self}, time::Duration};
@@ -38,11 +36,15 @@ use tokio::sync::oneshot;
 use tokio_serde::SymmetricallyFramed;
 use tokio_util::codec::{FramedRead, LengthDelimitedCodec};
 use tokio_serde::formats::*;
-// use pax_compiler_api::PaxManifest;
+// use pax_compiler::PaxManifest;
 
 use toml_edit::{Document, Item, value};
 use uuid::Uuid;
-use crate::api::{PaxManifest, press_template_codegen_properties_coproduct_lib, press_template_codegen_cartridge_lib, TemplateArgsCodegenCartridgeLib, TemplateArgsCodegenPropertiesCoproductLib};
+
+
+use crate::manifest::PaxManifest;
+
+// use crate::{PaxManifest, press_template_codegen_properties_coproduct_lib, press_template_codegen_cartridge_lib, TemplateArgsCodegenCartridgeLib, TemplateArgsCodegenPropertiesCoproductLib};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {

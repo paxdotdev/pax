@@ -143,7 +143,7 @@ pub enum Size {
 }
 
 #[cfg(feature = "parser")]
-impl pax_compiler_api::PathQualifiable for Size {
+impl pax_compiler::PathQualifiable for Size {
     fn get_fully_qualified_path(atomic_self_type: &str) -> String {
         "pax::api::Size".to_string()
     }
