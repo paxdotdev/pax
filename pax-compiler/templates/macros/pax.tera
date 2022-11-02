@@ -82,7 +82,7 @@ impl {{pascal_identifier}} {
                 );
             {% endfor %}
 
-            let (fully_qualified_type, pascalized_fully_qualified_type) =  pax_compiler::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
+            let (fully_qualified_type, pascalized_fully_qualified_type) =  pax_compiler::reflection::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
 
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                 name: "{{ctpd.field_name}}".to_string(),

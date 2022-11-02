@@ -12,3 +12,7 @@ description = "Command line interface tool for developing, packaging, and managi
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
+tokio = { version = "1", features = ["full"] }
+tokio-serde = { version = "0.8.0", features = ["json"]}
+tokio-stream = "0.1.8"
+tokio-util = { version = "0.6", features = ["codec"] }

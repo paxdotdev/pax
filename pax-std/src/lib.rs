@@ -20,7 +20,7 @@ pub mod primitives {
     #[cfg(feature = "parser")]
     use pax_compiler::ParsingContext;
     #[cfg(feature = "parser")]
-    use pax_compiler::PathQualifiable;
+    use pax_compiler::reflection::PathQualifiable;
 
     #[pax_primitive("./pax-std-primitives",  crate::FrameInstance)]
     pub struct Frame {}

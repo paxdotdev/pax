@@ -9,5 +9,5 @@ pub use pax_runtime_api::Property;
 #[cfg(feature = "parser")]
 pub mod internal {
     pub use pax_compiler::manifest as message;
-    pub use pax_compiler::PathQualifiable as PropertyManifestable;
+    pub use pax_compiler::reflection::PathQualifiable as PropertyManifestable;
 }
