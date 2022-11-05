@@ -448,7 +448,7 @@ static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
-async fn perform_run(ctx: RunContext) -> Result<(), ()> {
+pub fn perform_run(ctx: RunContext) -> Result<(), ()> {
 
     println!("Performing run");
 
@@ -517,12 +517,12 @@ async fn perform_run(ctx: RunContext) -> Result<(), ()> {
 
 
 
-struct RunContext {
-    target: RunTarget,
-    path: String,
+pub struct RunContext {
+    pub target: RunTarget,
+    pub path: String,
 }
 
-enum RunTarget {
+pub enum RunTarget {
     MacOS,
     Web,
 }

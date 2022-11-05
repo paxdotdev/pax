@@ -1,5 +1,6 @@
 
-
+use clap::{App, AppSettings, Arg, Error};
+use pax_compiler::{RunTarget, RunContext};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -40,11 +41,10 @@ async fn main() -> Result<(), Error> {
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
 
-            perform_run(RunContext{
+            pax_compiler::perform_run(RunContext{
                 target: RunTarget::from(target.as_str()),
                 path,
-                handle: Handle::current(),
-            }).await?;
+            });
 
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
