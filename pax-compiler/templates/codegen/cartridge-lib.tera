@@ -17,7 +17,7 @@ use piet_common::RenderContext;
     /*
     use pax_example::pax_reexports::{Root};
     use pax_example::pax_reexports::pax_std::primitives::{Rectangle, Group, Text};
-    use pax_example::pax_reexports::pax_std::types::{Color, Font, Stroke, Size, StackerCellProperties, StackerDirection};
+    use pax_example::pax_reexports::pax_std::types::{Color, Font, Stroke, Size, StackerCell, StackerDirection};
     use pax_example::pax_reexports::pax_std::components::Stacker;
     */
 {% endfor %}

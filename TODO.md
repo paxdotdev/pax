@@ -277,7 +277,7 @@ _RIL means Rust Intermediate Language, which is the
                                 [x] parser returns fully qualified types in manifest by dynamically calling `get_module_path` on each discovered type during parsing
                                 [x] refactor: punch `parser` features through all necessary Cargo.tomls — `impl PropertyManifestable` manually for `Size` and `Size2D`
                                 [-] refactor: instead of `scoped_resolvable_types`, might need to `impl PropertyManifestable` for concrete nested generic types, e.g.
-                                    instead of Vec::get_property_manifest and Rc::get_property_manifest, Vec<Rc<StackerCellProperties>>::get_property_manifest
+                                    instead of Vec::get_property_manifest and Rc::get_property_manifest, Vec<Rc<StackerCell>>::get_property_manifest
                                     -- this addresses compiler error `cannot infer type T for Rc<T>` (non-viable approach)
                                         [x] Alternatively: hard-code a list of prelude types; treat as blacklist for re-exporting
                                             -- note that this adds additional complexity/weakness around "global identifier" constraints, i.e. that as currently implemented, there can be no userland `**::**::Rc` or `**::**::Vec`  
@@ -1766,7 +1766,7 @@ Decision: port to Size, panic if px value is passed
 
 Stacker needs to update its cached computed layout as a function of its ~six properties:
 
-pub computed_layout_spec: Vec<Rc<StackerCellProperties>>,
+pub computed_layout_spec: Vec<Rc<StackerCell>>,
 pub direction:  Box<dyn pax::api::Property<StackerDirection>>,
 pub cells: Box<dyn pax::api::Property<usize>>,
 pub gutter_width: Box<dyn pax::api::Property<pax::api::Size>>,
@@ -3110,7 +3110,7 @@ let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.sta
     (Rc::clone(datum), *i)
 } else { unreachable!(1) };
 
-let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!(1)};
+let datum_cast = if let PropertiesCoproduct::StackerCell(d)= &*datum {d} else {unreachable!(1)};
 ```
 
 Note: in other to invoke a cast datum OR index from a RepeatItem, the compiler
@@ -3134,7 +3134,7 @@ vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         (Rc::clone(datum), *i)
     } else { unreachable!(3) };
 
-    let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!()};
+    let datum_cast = if let PropertiesCoproduct::StackerCell(d)= &*datum {d} else {unreachable!()};
 
     return TypesCoproduct::Size(
         Size::Pixels(datum_cast.height_px)
@@ -3144,11 +3144,77 @@ vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
 
 Some approaches:
 - could naively statically analyze it, e.g. pull the contents of the outermost `<>`s.
-- could require annotation by author, e.g. `for (elem: StackerCellProperties, i) in self.properties`
+- could require annotation by author, e.g. `for (elem: StackerCell, i) in self.properties`
 - could punt on iterating over anything other than `usize` ranges for now — could at least hack a solution
 where type annotations are explicit.  Alternatively, all of the `elem` iteration behavior
 is available by array access with `i` — `some_collection[i]`
 - could introduce PropertyVec<T>, which offers a Vec-like API and knows how to reflect and offer "T"
 - might be able to impl a new parser method via traits, populating an Optional field representing `iter`'s `<T>` if present
-- 
+  - something like `impl<T> IterableQualifiable for Iter<T> where T: PathQualifiable { fn get_iter_type() -> String {...} }`
 - could hard-code support for `Vec`, special-handling pulling the `T` out of `Property<Vec<T>>` or `Property<std::vec::Vec<T>>`, and later extending that support to other built-ins.  
+
+
+
+
+### When binding repeat...
+
+parse the name for the identifier & index
+map those ids t
+
+
+
+resolve symbol:
+ - consult scope_stack
+ - provide an ExpressionSpecInvocation (anything else?)
+ - 
+
+
+When compiling an expression, we need to be able to "bind a symbol" — that is, 
+from a string identifier like `elem`, we want to retrieve a stack offset that will allow that id to 
+be dynamically passed into the runtime stack before performing a string symbol lookup 
+
+
+
+## elem
+ becomes an effective PropertyDefinition -- in particular, its type
+ metadata is needed by `compile_paxel_to_ril` so that it can use that type data
+ in generating vtable entries, like:
+
+```
+
+let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
+
+            (Rc::clone(datum), *i)
+        } else { unreachable!(3) };
+
+        let datum_cast = if let PropertiesCoproduct::StackerCell(d)= &*datum {d} else {unreachable!()};
+
+        return TypesCoproduct::Size(
+            Size::Pixels(datum_cast.height_px)
+        )
+        
+```
+
+This PropertyDefinition should be declared
+
+That type data must be retrieved or inferred somewhere, likely in the `parsing` phase, which
+is the only time that we have reflection available to us.
+
+### Where to store this data
+
+Should this type be added to the PropertiesCoproduct or the TypesCoproduct?  Arguably the distinction
+is becoming less and less valuable — PropertiesCoproduct represents "inputs" so perhaps it's best to keep it there,
+but PropertiesCoproduct also represents "aggregates" (component structs) while TypesCoproduct is a
+collection of atomic types
+
+TypesCoproduct also includes logic for case manipulation and storing complex types, like Vec<T<R>>, while PropertiesCoproduct
+is focused on storing simple types (like `Stacker` or `Rectangle`).  This distinction alone seems to suggest
+that we use the TypesCoproduct for storing the T<R> of Property<Vec<T<R>>> 
+
+
+
+
+## i -- same treatment as elem
+
+## datasource
+ is an `expression` and is probably already handled

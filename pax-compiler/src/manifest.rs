@@ -40,12 +40,6 @@ pub struct ExpressionSpec {
     /// String representation of the original input statement
     pub input_statement: String,
 
-    // Note: provisionally removed because this data is
-    // For data structures that Repeat can iterate over (starting with std::vec::Vec<T>),
-    // this field stores a string representation of the iterable type `T`.  Note that
-    // this type must be available in the PropertiesCoproduct, which can be achieved
-    // by using a built-in primitive type, or by annotating a custom type with the `pax_type` macro.
-    // pub iter_type: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -58,6 +52,11 @@ pub struct ExpressionSpecInvocation {
     pub stack_offset: usize,
     /// Type of the containing Properties struct, for unwrapping from PropertiesCoproduct.  For example, `Foo` for `PropertiesCoproduct::Foo` or `RepeatItem` for PropertiesCoproduct::RepeatItem
     pub properties_type: String,
+
+    /// For invocations that reference repeat elements, this is the enum identifier within
+    /// the TypesCoproduct that represents the appropriate `datum_cast` type
+    pub pascalized_datum_cast_type: Option<String>,
+
     /// Flag describing whether this invocation should be bound to the `elem` in `(elem, i)`
     pub is_repeat_elem: bool,
     /// Flag describing whether this invocation should be bound to the `i` in `(elem, i)`
@@ -123,9 +122,17 @@ pub struct PropertyDefinition {
     /// Type as authored, literally.  May be partially namespace-qualified or aliased.
     pub original_type: String,
     /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
-    pub fully_qualified_types: Vec<String>,
-    /// Same type as `original_type`, but dynamically normalized to be fully qualified, suitable for reexporting
+    pub qualified_constituent_types: Vec<String>,
+
+    /// Store of fully qualified types that may be needed for expression vtable generation
+    pub types: Vec<PropertyType>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PropertyType {
+    /// Same type as `PropertyDefinition#original_type`, but dynamically normalized to be fully qualified, suitable for reexporting.  For example, the original_type `Vec<SomeStruct>` would be fully qualified as `std::vec::Vec<some_crate::SomeStruct>`
     pub fully_qualified_type: String,
+
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
     pub pascalized_fully_qualified_type: String,
 }
@@ -142,9 +149,8 @@ pub enum AttributeValueDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ControlFlowRepeatPredicateDeclaration {
-    Identifier(String),
-    ///(Element ID, Index ID)
-    IdentifierTuple(String, String),
+    ElemId(String),
+    ElemIdIndexId(String, String),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -158,7 +164,14 @@ pub struct ControlFlowAttributeValueDefinition {
     pub condition_expression: Option<String>,
     pub slot_index: Option<String>,
     pub repeat_predicate_declaration: Option<ControlFlowRepeatPredicateDeclaration>,
-    pub repeat_predicate_source_expression: Option<String>,
+    pub repeat_source_definition: RepeatSourceDefinition,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct RepeatSourceDefinition {
+    range: Option<std::ops::Range<usize>>,
+    symbolic_binding: Option<String>,
+    elem_type: PropertyDefinition,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -8,7 +8,7 @@ pub enum PropertiesCoproduct {
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     isize(isize), //used by range for repeat (0..10)
     //generated
-    StackerCellProperties(pax_example::pax_reexports::pax_std::types::StackerCellProperties),
+    StackerCell(pax_example::pax_reexports::pax_std::types::StackerCell),
     Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     Text(pax_example::pax_reexports::pax_std::primitives::Text),
     Group(pax_example::pax_reexports::pax_std::primitives::Group),
@@ -33,7 +33,7 @@ pub enum TypesCoproduct {
     Color(pax_example::pax_reexports::pax_std::types::Color),
     Size(pax_example::pax_reexports::pax_std::types::Size),
     StackerDirection(pax_example::pax_reexports::pax_std::types::StackerDirection),
-    Vec_StackerCellProperties_(Vec<pax_example::pax_reexports::pax_std::types::StackerCellProperties>),
+    Vec_StackerCell_(Vec<pax_example::pax_reexports::pax_std::types::StackerCell>),
     Vec_LPAREN_usize_COMMA_Size_RPAREN(Vec<(usize, pax_example::pax_reexports::pax_std::types::Size)>),
 }
 

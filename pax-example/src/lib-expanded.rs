@@ -21,7 +21,7 @@
 //             pub use pax_std::components::Stacker;
 //         }
 //         pub mod pax_reexports {
-//             pub use pax_std::types::StackerCellProperties;
+//             pub use pax_std::types::StackerCell;
 //             pub use pax_std::types::Color;
 //             pub use pax_std::types::Font;
 //             pub use pax_std::types::Stroke;

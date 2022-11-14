@@ -31,7 +31,7 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
 
     let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
         cd.property_definitions.iter().map(|pm|{
-            pm.fully_qualified_types.clone()
+            pm.qualified_constituent_types.clone()
         }).flatten().collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -173,8 +173,6 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
 
-
-
     clean_dependencies_table_of_relative_paths(target_cargo_toml_contents["dependencies"].as_table_mut().unwrap());
 
     //insert new entry pointing to userland crate, where `pax_app` is defined
@@ -199,8 +197,9 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     properties_coproduct_tuples.extend(set.into_iter());
     properties_coproduct_tuples.sort();
 
-    //build tuples for PropertiesCoproduct
-    //get reexports for TypesCoproduct, omitting Component/Property type definitions
+    //build tuples for TypesCoproduct
+    // - include all Property types, representing all possible return types for Expressions
+    // - include all T such that T is the iterator type for some Property<Vec<T>>
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
         cd.property_definitions.iter().map(|pm|{
             (pm.pascalized_fully_qualified_type.clone().replace("{PREFIX}","__"),
@@ -448,7 +447,7 @@ static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
-pub fn perform_run(ctx: RunContext) -> Result<(), ()> {
+pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
 
     println!("Performing run");
 
@@ -484,7 +483,6 @@ pub fn perform_run(ctx: RunContext) -> Result<(), ()> {
     // TODO: error handle calling `cargo run` here -- need to forward
     //       cargo/rustc errors, to handle the broad set of cases where
     //       there are vanilla Rust errors (dep/config issues, syntax errors, etc.)
-    // println!("PARSING: {}", &out);
     assert_eq!(output.status.code().unwrap(), 0);
 
     let mut manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
@@ -494,11 +492,6 @@ pub fn perform_run(ctx: RunContext) -> Result<(), ()> {
     let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
 
-    //6. Codegen:
-    //   - reexports.partial.rs
-    //   - Properties Coproduct
-    //   - Cartridge
-    //   - Cargo.toml for the appropriate `chassis` (including patches for Properties Coproduct & Cartridge)
     let build_id = uuid::Uuid::new_v4().to_string();
 
     generate_reexports_partial_rs(&pax_dir, &manifest);

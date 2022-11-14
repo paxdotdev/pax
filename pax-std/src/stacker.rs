@@ -2,7 +2,7 @@ use std::rc::Rc;
 use pax::*;
 use pax::api::{Size2D, Size, ArgsRender, Property, Transform2D};
 use crate::primitives::{Frame, Group};
-use crate::types::{StackerDirection, StackerCellProperties};
+use crate::types::{StackerDirection, StackerCell};
 
 /// Stacker lays out a series of nodes either
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
@@ -17,7 +17,7 @@ use crate::types::{StackerDirection, StackerCellProperties};
 )]
 pub struct Stacker {
     pub direction: Property<StackerDirection>,
-    pub cells: Property<usize>,
+    pub cells: Property<Vec<StackerCell>>,
     pub gutter_width: Property<Size>,
 
     pub overrides_cell_size: Property<Vec<(usize, Size)>>,
@@ -66,17 +66,17 @@ impl Stacker {
         //was needed to stop instance churn that was happening with
         //
         // let old = self.computed_layout_spec.get();
-        // let new : Vec<Rc<StackerCellProperties>> = (0..(cells as usize)).into_iter().map(|i| {
+        // let new : Vec<Rc<StackerCell>> = (0..(cells as usize)).into_iter().map(|i| {
         //     match self.direction.get() {
         //         StackerDirection::Horizontal =>
-        //             Rc::new(StackerCellProperties {
+        //             Rc::new(StackerCell {
         //                 height_px: bounds.1,
         //                 width_px: per_cell_space,
         //                 x_px: ((i) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
         //                 y_px: 0.0,
         //             }),
         //         StackerDirection::Vertical =>
-        //             Rc::new(StackerCellProperties {
+        //             Rc::new(StackerCell {
         //                 height_px: per_cell_space,
         //                 width_px: bounds.0,
         //                 x_px: 0.0,

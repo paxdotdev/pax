@@ -11,6 +11,17 @@ pub trait PathQualifiable {
     }
 }
 
+//
+// pub trait IterableQualifiable {
+//     fn hello() {}
+// }
+//
+// impl<T> IterableQualifiable for Iter<T> where T: PathQualifiable {
+//     fn hello() {
+//         T::get_fully_qualified_path("hello");
+//     }
+// }
+
 impl PathQualifiable for usize {
     fn get_fully_qualified_path(atomic_self_type: &str) -> String {
         "usize".to_string()
@@ -74,8 +85,8 @@ pub fn is_prelude_type(identifier: &str) -> bool {
 }
 
 //Returns a fully expanded path and a pascalized version of that fully expanded path — for example:
-// Vec<Rc<StackerCellProperties>> becomes
-// std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCellProperties>>
+// Vec<Rc<StackerCell>> becomes
+// std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCell>>
 pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_fqd_map: &HashMap<&str, String>) -> (String, String) {
 
     let mut fully_qualified_type = unexpanded_path.to_string();

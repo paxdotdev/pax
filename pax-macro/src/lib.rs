@@ -67,7 +67,7 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
                                             GenericArgument::Type(gat) => {
                                                 ret = Some(gat.to_owned());
                                             },
-                                            _ => {}
+                                            _ => {/* lifetimes and more */}
                                         };
                                     })
                                 },

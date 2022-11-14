@@ -19,7 +19,7 @@ use piet_common::RenderContext;
 // (? shared logic with PropertiesCoproduct gen ?)
 use pax_example::pax_reexports::{Root};
 use pax_example::pax_reexports::pax_std::primitives::{Rectangle, Group, Text};
-use pax_example::pax_reexports::pax_std::types::{Color, Font, Stroke, Size, StackerCellProperties, StackerDirection};
+use pax_example::pax_reexports::pax_std::types::{Color, Font, Stroke, Size, StackerCell, StackerDirection};
 use pax_example::pax_reexports::pax_std::components::Stacker;
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
@@ -79,7 +79,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
                 let cloned = Rc::clone(e);
 
                 //TODO: there should be a way to pull off this re-wrapping without cloning the data structure (below).
-                let rewrapped = PropertiesCoproduct::StackerCellProperties((*cloned).clone());
+                let rewrapped = PropertiesCoproduct::StackerCell((*cloned).clone());
                 Rc::new(rewrapped)
             }).collect());
         } else { unreachable!(0) };
@@ -92,7 +92,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
             (Rc::clone(datum), *i)
         } else { unreachable!(1) };
 
-        let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!(1)};
+        let datum_cast = if let PropertiesCoproduct::StackerCell(d)= &*datum {d} else {unreachable!(1)};
 
         return TypesCoproduct::Transform2D(
             Transform2D::translate(datum_cast.x_px, datum_cast.y_px)
@@ -106,7 +106,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
             (Rc::clone(datum), *i)
         } else { unreachable!(2) };
 
-        let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!("epsilon")};
+        let datum_cast = if let PropertiesCoproduct::StackerCell(d)= &*datum {d} else {unreachable!("epsilon")};
 
         return TypesCoproduct::Size(
             Size::Pixels(datum_cast.width_px)
@@ -120,7 +120,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
             (Rc::clone(datum), *i)
         } else { unreachable!(3) };
 
-        let datum_cast = if let PropertiesCoproduct::StackerCellProperties(d)= &*datum {d} else {unreachable!()};
+        let datum_cast = if let PropertiesCoproduct::StackerCell(d)= &*datum {d} else {unreachable!()};
 
         return TypesCoproduct::Size(
             Size::Pixels(datum_cast.height_px)

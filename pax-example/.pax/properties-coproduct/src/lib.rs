@@ -29,7 +29,7 @@ pub enum TypesCoproduct {
     
     VecLABRLPAR__usizeCOMM__paxCOCOapiCOCOSizeRPARRABR(Vec<(pax_example::pax_reexports::usize,pax_example::pax_reexports::pax::api::Size)>),
     
-    VecLABRRcLABR__pax_stdCOCOtypesCOCOStackerCellPropertiesRABRRABR(Vec<Rc<pax_example::pax_reexports::pax_std::types::StackerCellProperties>>),
+    VecLABRRcLABR__pax_stdCOCOtypesCOCOStackerCellRABRRABR(Vec<Rc<pax_example::pax_reexports::pax_std::types::StackerCell>>),
     
     Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
     

@@ -47,8 +47,8 @@ impl {{pascal_identifier}} {
         let mut property_definitions = vec![];
 
 
-        //TODO: we need to be able to resolve Vec<Rc<StackerCellProperties>> into
-        // std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCellProperties>>
+        //TODO: we need to be able to resolve Vec<Rc<StackerCell>> into
+        // std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCell>>
         //  This requires keeping track of the positions of each scoped atomic type while traversing the AST.
         //  Perhaps the easiest way to do this is to assemble the "expanded fully qualified type" along the way
         //  WRONG: this can't be assembled fully statically.  probably easiest to do string replacement, from "original type" => "fully qualified type",
@@ -65,13 +65,13 @@ impl {{pascal_identifier}} {
             //3. unique, fully qualified dependencies (HashSet, perhaps) | AT PARSE-TIME: from imperative calls to `get_fully_qualified_path`
             //4. (default settings value?  punt) | from default-block parsing
 
-            let mut fully_qualified_types = vec![];
+            let mut qualified_constituent_types = vec![];
             let mut dep_to_fqd_map = std::collections::HashMap::new();
             {% for scoped_resolvable_type in ctpd.scoped_resolvable_types %}
                 let fqd = {{scoped_resolvable_type}}::get_fully_qualified_path("{{scoped_resolvable_type}}");
                 dep_to_fqd_map.insert("{{scoped_resolvable_type}}",fqd.clone());
 
-                fully_qualified_types.push(
+                qualified_constituent_types.push(
                     fqd
                 );
             {% endfor %}
@@ -81,7 +81,7 @@ impl {{pascal_identifier}} {
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                 name: "{{ctpd.field_name}}".to_string(),
                 original_type: "{{ctpd.original_type}}".to_string(),
-                fully_qualified_types,
+                qualified_constituent_types,
                 fully_qualified_type,
                 pascalized_fully_qualified_type,
             });

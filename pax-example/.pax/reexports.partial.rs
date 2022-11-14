@@ -20,7 +20,7 @@ pub mod pax_reexports {
 		pub mod types {
 			pub use pax_std::types::Color;
 			pub use pax_std::types::Font;
-			pub use pax_std::types::StackerCellProperties;
+			pub use pax_std::types::StackerCell;
 			pub use pax_std::types::StackerDirection;
 			pub use pax_std::types::Stroke;
 		}

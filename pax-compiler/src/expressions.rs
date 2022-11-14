@@ -1,6 +1,7 @@
 use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDeclaration, AttributeValueDefinition, PropertyDefinition};
 use std::collections::HashMap;
-use std::ops::RangeFrom;
+use std::ops::{Range, RangeFrom};
+use futures::StreamExt;
 
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
@@ -54,66 +55,13 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContext<'a>) -> TemplateTraversalContext<'a> {
     let mut incremented = false;
 
-    //only need to push stack frame for Repeat, not for Conditional or Slot
-    if ctx.active_node_def.pascal_identifier == "Repeat" {
-
-        let predicate_declaration = ctx.active_node_def.control_flow_attributes.clone().unwrap().repeat_predicate_declaration.unwrap();
-        match predicate_declaration {
-            ControlFlowRepeatPredicateDeclaration::Identifier(elem_id) => {
-                ctx.scope_stack.push(HashMap::from([(elem_id.to_string(), PropertyDefinition {
-                    name: "".to_string(),
-                    original_type: todo!("get inner type from Iterable -- special-case `Property<Vec>`"),
-
-                    fully_qualified_types: vec![],
-                    fully_qualified_type: "".to_string(),
-                    pascalized_fully_qualified_type: "".to_string()
-                })]));
-            },
-            ControlFlowRepeatPredicateDeclaration::IdentifierTuple(elem_id, index_id) => {
-                ctx.scope_stack.push(HashMap::from([
-                    (elem_id.to_string(),PropertyDefinition {
-                        name: elem_id.to_string(),
-                        original_type: "".to_string(),
-                        fully_qualified_types: vec![],
-                        fully_qualified_type: "".to_string(),
-                        pascalized_fully_qualified_type: "".to_string()
-                    }),
-                    (index_id.to_string(),PropertyDefinition {
-                        name: index_id.to_string(),
-                        original_type: "usize".to_string(),
-                        fully_qualified_types: vec![],
-                        fully_qualified_type: "".to_string(),
-                        pascalized_fully_qualified_type: "".to_string()
-                    })
-                ]));
-            }
-        };
-
-        //TODO: turn compiletime stack into HashMap<String, PropertyDefinition>
-        //   (allows us both to look up presence of a symbol (HashSet-like behavior) and to resolve the PropertiesCoproduct::xxx lookup and to standardize the TypesCoproduct::xxx return, required for vtable codegen)
-
-
-
-        ctx.scope_stack.push(HashMap::from([
-            ("foo".to_string(),
-             PropertyDefinition {
-                 name: "slot_index".to_string(),
-                 original_type: "usize".to_string(),
-                 fully_qualified_types: vec!["usize".to_string()],
-                 fully_qualified_type: "usize".to_string(),
-                 pascalized_fully_qualified_type: "__usize".to_string()
-             })]
-        ));
-        // ctx.active_node_def.control_flow_attributes.unwrap().slot_index)
-
-        // todo!("instead of keeping an int counter, add a compiletimestackframe");
-        incremented = true;
-    }
-
     //TODO: join settings blocks here, merge with inline_attributes
     let mut cloned_inline_attributes = ctx.active_node_def.inline_attributes.clone();
     let mut cloned_control_flow_attributes = ctx.active_node_def.control_flow_attributes.clone();
+
+
     if let Some(ref mut inline_attributes) = cloned_inline_attributes {
+        //Handle non-control-flow declarations here
         inline_attributes.iter_mut().for_each(|attr| {
             match &mut attr.1 {
                 AttributeValueDefinition::LiteralValue(_) => {
@@ -140,7 +88,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                         id,
                         pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
-                        }).unwrap().pascalized_fully_qualified_type).clone(),
+                        }).unwrap().types.get(0).unwrap().pascalized_fully_qualified_type).clone(),
                         invocations: vec![
                             todo!("add unique identifiers found during PAXEL parsing; include stack offset")
                             //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
@@ -164,7 +112,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                         id,
                         pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
-                        }).unwrap().pascalized_fully_qualified_type).clone(),
+                        }).unwrap().types.get(0).unwrap().pascalized_fully_qualified_type).clone(),
                         invocations: vec![
                             todo!("add unique identifiers found during PAXEL parsing; include stack offset")
                             //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
@@ -182,8 +130,24 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
             }
         });
     } else if let Some(ref mut cfa) = cloned_control_flow_attributes {
-        if let Some(ref expression) = cfa.repeat_predicate_source_expression {
+        //Handle control flow declarations
+
+        if let Some(ref expression) = cfa.repeat_source_expression {
             let id = ctx.uid_gen.next().unwrap();
+
+            match cfa.repeat_predicate_declaration.unwrap() {
+                ControlFlowRepeatPredicateDeclaration::ElemId(elem_id) => {
+                    ctx.scope_stack.push(HashMap::from((
+                        (elem_id.clone(), PropertyDefinition {
+                            name: elem_id.clone(),
+                            fully_qualified_type: cfa
+                        })
+                    )));
+                },
+                ControlFlowRepeatPredicateDeclaration::ElemIdIndexId(elem_id, index_id) => {
+
+                },
+            }
 
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,

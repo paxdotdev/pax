@@ -27,7 +27,7 @@ pub struct Text {
 
 #[derive(Clone)]
 #[pax_type]
-pub struct StackerCellProperties {
+pub struct StackerCell {
     pub x_px: f64,
     pub y_px: f64,
     pub width_px: f64,

@@ -15,6 +15,11 @@ use pest::iterators::{Pair, Pairs};
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
+pub fn parse_for_source<'i>(for_source_paxel: &'i str) -> Pair<'i, Rule> {
+    PaxParser::parse(Rule::statement_for_source, for_source_paxel).expect(&format!("unsuccessful parse from {}", for_source_paxel)) // unwrap the parse result
+        .next().unwrap()
+}
+
 pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>) -> ComponentDefinition {
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
@@ -271,29 +276,27 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     //
                     //   x
                     //
-                    // statement_for_predicate_source = { xo_range | expression_symbolic_binding }
+                    // statement_for_source = { xo_range | expression_symbolic_binding }
                     //
-                    // The latter, `predicate_source`, can simply be parsed as an expression, even if it's static like `0..5`.
+                    // The latter, `source`, can simply be parsed as an expression, even if it's static like `0..5`.
                     // Thus, we load it wholesale into a String for subsequent handling by compiler as an Expression
 
                     let mut cfavd = ControlFlowAttributeValueDefinition::default();
                     let mut for_statement = matched_tag.clone().into_inner();
                     let mut predicate_declaration = for_statement.next().unwrap().into_inner();
-                    let mut predicate_source = for_statement.next().unwrap();
+                    let mut source = for_statement.next().unwrap();
 
                     if predicate_declaration.clone().count() > 1 {
                         //tuple, like the `elem, i` in `for (elem, i) in self.some_list`
-                        cfavd.repeat_predicate_declaration = Some(ControlFlowRepeatPredicateDeclaration::IdentifierTuple(
+                        cfavd.repeat_predicate_declaration = Some(ControlFlowRepeatPredicateDeclaration::ElemIdIndexId(
                             (&predicate_declaration.next().unwrap().as_str()).to_string(),
                             (&predicate_declaration.next().unwrap().as_str()).to_string()
                         ));
 
                     } else {
                         //single identifier, like the `elem` in `for elem in self.some_list`
-                        cfavd.repeat_predicate_declaration = Some(ControlFlowRepeatPredicateDeclaration::Identifier(predicate_declaration.as_str().to_string()));
+                        cfavd.repeat_predicate_declaration = Some(ControlFlowRepeatPredicateDeclaration::ElemId(predicate_declaration.as_str().to_string()));
                     }
-
-                    cfavd.repeat_predicate_source_expression = Some(predicate_source.as_str().to_string());
 
                     TemplateNodeDefinition {
                         id: new_id,
