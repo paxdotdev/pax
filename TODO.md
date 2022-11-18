@@ -3116,8 +3116,6 @@ let datum_cast = if let PropertiesCoproduct::StackerCell(d)= &*datum {d} else {u
 Note: in other to invoke a cast datum OR index from a RepeatItem, the compiler
 must be aware that a given symbol maps to RepeatItems.
 
-This can be managed through the compiletime stack, for e.g. `elem` may  
-
 
 ### Reflecting on the T in `Vec<T>`
 
@@ -3158,21 +3156,15 @@ is available by array access with `i` — `some_collection[i]`
 
 ### When binding repeat...
 
-parse the name for the identifier & index
-map those ids t
-
-
+Compile source as an expression; infer type based on "range => usize; Vec<T> => T" heuristic
 
 resolve symbol:
  - consult scope_stack
- - provide an ExpressionSpecInvocation (anything else?)
- - 
-
+ - provide an ExpressionSpecInvocation
 
 When compiling an expression, we need to be able to "bind a symbol" — that is, 
 from a string identifier like `elem`, we want to retrieve a stack offset that will allow that id to 
 be dynamically passed into the runtime stack before performing a string symbol lookup 
-
 
 
 ## elem
@@ -3195,8 +3187,6 @@ let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.sta
         
 ```
 
-This PropertyDefinition should be declared
-
 That type data must be retrieved or inferred somewhere, likely in the `parsing` phase, which
 is the only time that we have reflection available to us.
 
@@ -3209,12 +3199,5 @@ collection of atomic types
 
 TypesCoproduct also includes logic for case manipulation and storing complex types, like Vec<T<R>>, while PropertiesCoproduct
 is focused on storing simple types (like `Stacker` or `Rectangle`).  This distinction alone seems to suggest
-that we use the TypesCoproduct for storing the T<R> of Property<Vec<T<R>>> 
+that we use the TypesCoproduct for storing the T<R> of Property<Vec<T<R>>
 
-
-
-
-## i -- same treatment as elem
-
-## datasource
- is an `expression` and is probably already handled

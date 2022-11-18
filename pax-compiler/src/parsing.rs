@@ -11,14 +11,13 @@ use pest_derive::Parser;
 use pest::Parser;
 use pest::iterators::{Pair, Pairs};
 
+use pest::{
+    pratt_parser::{Assoc::*, Op, PrattParser},
+};
+
 #[derive(Parser)]
 #[grammar = "pax.pest"]
 pub struct PaxParser;
-
-pub fn parse_for_source<'i>(for_source_paxel: &'i str) -> Pair<'i, Rule> {
-    PaxParser::parse(Rule::statement_for_source, for_source_paxel).expect(&format!("unsuccessful parse from {}", for_source_paxel)) // unwrap the parse result
-        .next().unwrap()
-}
 
 pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>) -> ComponentDefinition {
     let modified_module_path = if module_path.starts_with("parser") {
@@ -36,6 +35,56 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
         property_definitions: property_definitions.to_vec(),
     }
 }
+
+
+
+
+/// Returns (RIL output string, `symbolic id`s found during parse)
+/// where a `symbolic id` may be something like `self.num_clicks` or `i`
+fn run_pratt_parser(input_paxel: String) -> (String, Vec<String>) {
+
+    let pratt = PrattParser::new()
+        .op(Op::infix(Rule::add, Left) | Op::infix(Rule::sub, Left))
+        .op(Op::infix(Rule::mul, Left) | Op::infix(Rule::div, Left))
+        .op(Op::infix(Rule::pow, Right))
+        .op(Op::postfix(Rule::fac))
+        .op(Op::prefix(Rule::neg));
+
+    let pairs =PaxParser::parse(Rule::expression_body, &input_paxel).expect(&format!("unsuccessful parse from {}", &input_paxel)) // unwrap the parse result
+            .next().unwrap();
+
+    let mut symbolic_ids : Vec<String> = vec![];
+
+    let ril = recurse_pratt_parse_to_string(&mut symbolic_ids, pairs, &pratt);
+}
+
+
+fn recurse_pratt_parse_to_string(symbolic_ids: &mut Vec<String>, pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
+    pratt
+        .map_primary(|primary| match primary.as_rule() {
+            Rule::int => primary.as_str().to_owned(),
+            Rule::expr => parse_to_str(primary.into_inner(), pratt),
+            _ => unreachable!(),
+        })
+        .map_prefix(|op, rhs| match op.as_rule() {
+            Rule::neg => format!("(-{})", rhs),
+            _ => unreachable!(),
+        })
+        .map_postfix(|lhs, op| match op.as_rule() {
+            Rule::fac => format!("({}!)", lhs),
+            _ => unreachable!(),
+        })
+        .map_infix(|lhs, op, rhs| match op.as_rule() {
+            Rule::add => format!("({}+{})", lhs, rhs),
+            Rule::sub => format!("({}-{})", lhs, rhs),
+            Rule::mul => format!("({}*{})", lhs, rhs),
+            Rule::div => format!("({}/{})", lhs, rhs),
+            Rule::pow => format!("({}^{})", lhs, rhs),
+            _ => unreachable!(),
+        })
+        .parse(pairs)
+}
+
 
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)

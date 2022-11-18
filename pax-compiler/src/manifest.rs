@@ -43,11 +43,9 @@ pub struct ExpressionSpec {
 }
 
 #[derive(Serialize, Deserialize)]
-pub struct ExpressionSpecInvocation {
+pub struct  ExpressionSpecInvocation {
     /// Identifier as authored, for example: `self.some_prop`
     pub identifier: String,
-    /// Representation of the symbol to be invoked: for example `some_prop` from `self.some_prop`
-    pub atomic_identifier: String,
     /// Statically known stack offset for traversing Repeat-based scopes at runtime
     pub stack_offset: usize,
     /// Type of the containing Properties struct, for unwrapping from PropertiesCoproduct.  For example, `Foo` for `PropertiesCoproduct::Foo` or `RepeatItem` for PropertiesCoproduct::RepeatItem
@@ -62,35 +60,6 @@ pub struct ExpressionSpecInvocation {
     /// Flag describing whether this invocation should be bound to the `i` in `(elem, i)`
     pub is_repeat_index: bool,
 }
-
-
-
-// fn recurse_pratt_parse_to_string(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
-//     pratt
-//         .map_primary(|primary| match primary.as_rule() {
-//             Rule::int => primary.as_str().to_owned(),
-//             Rule::expr => parse_to_str(primary.into_inner(), pratt),
-//             _ => unreachable!(),
-//         })
-//         .map_prefix(|op, rhs| match op.as_rule() {
-//             Rule::neg => format!("(-{})", rhs),
-//             _ => unreachable!(),
-//         })
-//         .map_postfix(|lhs, op| match op.as_rule() {
-//             Rule::fac => format!("({}!)", lhs),
-//             _ => unreachable!(),
-//         })
-//         .map_infix(|lhs, op, rhs| match op.as_rule() {
-//             Rule::add => format!("({}+{})", lhs, rhs),
-//             Rule::sub => format!("({}-{})", lhs, rhs),
-//             Rule::mul => format!("({}*{})", lhs, rhs),
-//             Rule::div => format!("({}/{})", lhs, rhs),
-//             Rule::pow => format!("({}^{})", lhs, rhs),
-//             _ => unreachable!(),
-//         })
-//         .parse(pairs)
-// }
-
 
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -122,10 +91,11 @@ pub struct PropertyDefinition {
     /// Type as authored, literally.  May be partially namespace-qualified or aliased.
     pub original_type: String,
     /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
-    pub qualified_constituent_types: Vec<String>,
+    pub fully_qualified_constituent_types: Vec<String>,
 
     /// Store of fully qualified types that may be needed for expression vtable generation
-    pub types: Vec<PropertyType>,
+    pub fully_qualified_type: PropertyType,
+    pub datum_cast_type: Option<PropertyType>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -169,10 +139,32 @@ pub struct ControlFlowAttributeValueDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct RepeatSourceDefinition {
-    range: Option<std::ops::Range<usize>>,
-    symbolic_binding: Option<String>,
-    elem_type: PropertyDefinition,
+    pub range_expression: Option<String>,
+    pub symbolic_binding: Option<String>,
+    pub elem_type: PropertyDefinition,
 }
+
+// Instead of mapping out Repeat Source ontology, we can
+// resolve any Source as an expression
+//
+// #[derive(Serialize, Deserialize, Debug, Clone, Default)]
+// pub struct RepeatSourceRangeDefinition {
+//     start: RepeatSourceRangeBoundary,
+//     end: RepeatSourceRangeBoundary,
+//     operator: RepeatSourceRangeOperator,
+// }
+//
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// pub enum RepeatSourceRangeBoundary {
+//     SymbolicIdentifier(String),
+//     IntegerLiteral(usize),
+// }
+//
+// #[derive(Serialize, Deserialize, Debug, Clone)]
+// pub enum RepeatSourceRangeOperator {
+//     Inclusive,
+//     Exclusive,
+// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SettingsSelectorBlockDefinition {

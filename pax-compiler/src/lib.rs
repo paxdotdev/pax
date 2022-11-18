@@ -31,7 +31,7 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
 
     let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
         cd.property_definitions.iter().map(|pm|{
-            pm.qualified_constituent_types.clone()
+            pm.fully_qualified_constituent_types.clone()
         }).flatten().collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
