@@ -84,7 +84,7 @@ pub struct TemplateNodeDefinition {
     pub pascal_identifier: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PropertyDefinition {
     /// String representation of the identifier of a declared Property
     pub name: String,
@@ -98,7 +98,7 @@ pub struct PropertyDefinition {
     pub datum_cast_type: Option<PropertyType>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PropertyType {
     /// Same type as `PropertyDefinition#original_type`, but dynamically normalized to be fully qualified, suitable for reexporting.  For example, the original_type `Vec<SomeStruct>` would be fully qualified as `std::vec::Vec<some_crate::SomeStruct>`
     pub fully_qualified_type: String,

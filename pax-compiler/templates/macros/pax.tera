@@ -65,25 +65,25 @@ impl {{pascal_identifier}} {
             //3. unique, fully qualified dependencies (HashSet, perhaps) | AT PARSE-TIME: from imperative calls to `get_fully_qualified_path`
             //4. (default settings value?  punt) | from default-block parsing
 
-            let mut qualified_constituent_types = vec![];
+            let mut fully_qualified_constituent_types = vec![];
             let mut dep_to_fqd_map = std::collections::HashMap::new();
             {% for scoped_resolvable_type in ctpd.scoped_resolvable_types %}
                 let fqd = {{scoped_resolvable_type}}::get_fully_qualified_path("{{scoped_resolvable_type}}");
                 dep_to_fqd_map.insert("{{scoped_resolvable_type}}",fqd.clone());
 
-                qualified_constituent_types.push(
+                fully_qualified_constituent_types.push(
                     fqd
                 );
             {% endfor %}
 
-            let (fully_qualified_type, pascalized_fully_qualified_type) =  pax_compiler::reflection::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
+            let fully_qualified_type =  pax_compiler::reflection::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
 
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                 name: "{{ctpd.field_name}}".to_string(),
                 original_type: "{{ctpd.original_type}}".to_string(),
-                qualified_constituent_types,
+                fully_qualified_constituent_types,
                 fully_qualified_type,
-                pascalized_fully_qualified_type,
+                datum_cast_type: None,
             });
         {% endfor %}
         ctx.all_property_definitions.insert(source_id.to_string(), property_definitions);

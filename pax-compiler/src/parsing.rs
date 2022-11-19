@@ -12,7 +12,7 @@ use pest::Parser;
 use pest::iterators::{Pair, Pairs};
 
 use pest::{
-    pratt_parser::{Assoc::*, Op, PrattParser},
+    pratt_parser::{Assoc, Op, PrattParser},
 };
 
 #[derive(Parser)]
@@ -39,50 +39,162 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
 
 
 
+
+/*
+
+//Expressions can be:
+// a.) symbolic bindings to component properties, e.g. `@num_clicks`
+// b.) lambdas, where types will be enforced by downstream compiler
+expression_wrapped = {
+    "{" ~ (expression_body) ~ "}"
+}
+
+expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
+
+//Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
+//or a literal returned value like `Color { ... }` or `5`
+expression_body = { expression_operand ~ (xo_infix_binary ~ expression_operand)* }
+
+//terminal, or recurse into `(...)`
+expression_operand = { expression_grouped | xo_function_call | xo_range | xo_literal | xo_tuple | xo_symbol }
+expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? }
+
+/*
+Some examples of valid expressions:
+
+[Object construction]
+Color {h: 360, s: 1, l: 1, a: 1}
+
+[Object construction with implicit type (type enforced by downstream compiler)
+{h: 360, s: 1, l: 1, a: 1}
+
+[Boolean statements]
+num_clicks % 2 == 0
+
+[Complex statements including ternaries, grouping, logical operators, and object construction]
+(num_clicks % 2 == 0 && is_selected) ?
+    {r: 255 * color_intensity, g: 0, b: 0, a: 1} :
+    {r: 0, g: 255 * color_intensity, b: 0, a: 1}
+
+[String literals + operations]
+"Is " + (is_selected ? "" : "not ") + "selected."
+*/
+
+//`xo` is short for both "expression operator" and "expression operand", collectively all symbols
+//that can be expressed inside expressions
+xo_infix_binary = {
+    xo_bool_or | xo_bool_and |
+    xo_rel_eq | xo_rel_neq | xo_rel_lte |
+    xo_rel_gte | xo_rel_gt | xo_rel_lt |
+    xo_add | xo_sub |
+    xo_mul | xo_div |
+    xo_mod | xo_exp
+}
+
+//Our only unary operators are both prefix:
+//`-` for numeric negation and `!` for boolean negation
+xo_prefix_unary = {
+    xo_bool_not | xo_sub
+}
+
+xo_literal = {literal_enum_value  | literal_number_with_unit | literal_number  | string | literal_tuple  | xo_literal_object}
+
+//Note that `xo_literal_object` differs from `settings` literal_object because it accepts
+//expressions for property values without having to enter a {} context (because these
+//are already evaluated inside an `{}` context)
+xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_settings_key_value_pair* ~ "}" }
+xo_literal_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
+
+xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("::" ~ identifier) |  ("[" ~ expression_body ~ "]") )* }
+xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
+
+
+xo_bool_or = {"||"}
+xo_bool_and = {"&&"}
+xo_add = {"+"}
+xo_sub = {"-"}
+xo_mul = {"*"}
+xo_div = {"/"}
+xo_mod = {"%%"}
+xo_exp = {"^"}
+xo_bool_not = {"!"}
+xo_tern_then = {"?"}
+xo_tern_else = {":"}
+xo_rel_lt = {"<"}
+xo_rel_gt = {">"}
+xo_rel_lte = {"<="}
+xo_rel_gte = {">="}
+xo_rel_eq = {"=="}
+xo_rel_neq = {"!="}
+//Examples:
+//`0..10`
+//`"abc".."def"` <- will parse OK but will rely on Rust's support for constructing ranges from these types/operands
+//`this.num_clicks..25`
+xo_range = { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | expression_symbolic_binding)}
+xo_range_exclusive = @{".."}
+xo_range_inclusive = @{"..."}
+
+xo_function_call = {identifier ~ (("::" | ".") ~ identifier)* ~ ("("~xo_function_args_list~")")}
+xo_function_args_list = {expression_body ~ ("," ~ expression_body)*}
+
+ */
+
+
+
+
+
+
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
-fn run_pratt_parser(input_paxel: String) -> (String, Vec<String>) {
+pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
 
-    let pratt = PrattParser::new()
-        .op(Op::infix(Rule::add, Left) | Op::infix(Rule::sub, Left))
-        .op(Op::infix(Rule::mul, Left) | Op::infix(Rule::div, Left))
-        .op(Op::infix(Rule::pow, Right))
-        .op(Op::postfix(Rule::fac))
-        .op(Op::prefix(Rule::neg));
+    let pratt = PrattParser::new();
+        // .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left))
+        // .op(Op::infix(Rule::xo_mul, Assoc::Left) | Op::infix(Rule::xo_div, Assoc::Left))
+        // .op(Op::infix(Rule::pow, Assoc::Right))
+        // .op(Op::postfix(Rule::fac))
+        // .op(Op::prefix(Rule::neg));
 
-    let pairs =PaxParser::parse(Rule::expression_body, &input_paxel).expect(&format!("unsuccessful parse from {}", &input_paxel)) // unwrap the parse result
-            .next().unwrap();
+    let pairs = PaxParser::parse(Rule::expression_body, input_paxel).expect(&format!("unsuccessful parse from {}", &input_paxel));
 
     let mut symbolic_ids : Vec<String> = vec![];
 
     let ril = recurse_pratt_parse_to_string(&mut symbolic_ids, pairs, &pratt);
+
+    (ril, symbolic_ids)
 }
 
 
 fn recurse_pratt_parse_to_string(symbolic_ids: &mut Vec<String>, pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
-    pratt
-        .map_primary(|primary| match primary.as_rule() {
-            Rule::int => primary.as_str().to_owned(),
-            Rule::expr => parse_to_str(primary.into_inner(), pratt),
-            _ => unreachable!(),
-        })
-        .map_prefix(|op, rhs| match op.as_rule() {
-            Rule::neg => format!("(-{})", rhs),
-            _ => unreachable!(),
-        })
-        .map_postfix(|lhs, op| match op.as_rule() {
-            Rule::fac => format!("({}!)", lhs),
-            _ => unreachable!(),
-        })
-        .map_infix(|lhs, op, rhs| match op.as_rule() {
-            Rule::add => format!("({}+{})", lhs, rhs),
-            Rule::sub => format!("({}-{})", lhs, rhs),
-            Rule::mul => format!("({}*{})", lhs, rhs),
-            Rule::div => format!("({}/{})", lhs, rhs),
-            Rule::pow => format!("({}^{})", lhs, rhs),
-            _ => unreachable!(),
-        })
-        .parse(pairs)
+    // pratt
+    //     .map_primary(|primary| match primary.as_rule() {
+    //         Rule::expression_symbolic_binding => {
+    //             symbolic_ids.push(primary.as_str().to_string());
+    //             primary.as_str().to_owned()
+    //         }
+    //         Rule::int => primary.as_str().to_owned(),
+    //         Rule::expr => parse_to_str(primary.into_inner(), pratt),
+    //         _ => unreachable!(),
+    //     })
+    //     .map_prefix(|op, rhs| match op.as_rule() {
+    //         Rule::neg => format!("(-{})", rhs),
+    //         _ => unreachable!(),
+    //     })
+    //     .map_postfix(|lhs, op| match op.as_rule() {
+    //         Rule::fac => format!("({}!)", lhs),
+    //         _ => unreachable!(),
+    //     })
+    //     .map_infix(|lhs, op, rhs| match op.as_rule() {
+    //         Rule::add => format!("({}+{})", lhs, rhs),
+    //         Rule::sub => format!("({}-{})", lhs, rhs),
+    //         Rule::mul => format!("({}*{})", lhs, rhs),
+    //         Rule::div => format!("({}/{})", lhs, rhs),
+    //         Rule::pow => format!("({}^{})", lhs, rhs),
+    //         _ => unreachable!(),
+    //     })
+    //     .parse(pairs)
+
+    unimplemented!()
 }
 
 
@@ -401,7 +513,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                 let mut raw_value = kv.next().unwrap().into_inner().next().unwrap();
                 let value = match raw_value.as_rule() {
                     Rule::literal_value => {AttributeValueDefinition::LiteralValue(raw_value.as_str().to_string())},
-                    Rule::expression => {AttributeValueDefinition::Expression(raw_value.as_str().to_string(), None)},
+                    Rule::expression_wrapped => {AttributeValueDefinition::Expression(raw_value.as_str().to_string(), None)},
                     Rule::identifier => {AttributeValueDefinition::Identifier(raw_value.as_str().to_string(), None)},
                     _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}
                 };
@@ -484,7 +596,7 @@ fn derive_settings_value_definition_from_literal_object_pair(mut literal_object:
                     derive_settings_value_definition_from_literal_object_pair(raw_value)
                 )},
                 // Rule::literal_enum_value => {SettingsValueDefinition::Enum(raw_value.as_str().to_string())},
-                Rule::expression => { SettingsValueDefinition::Expression(raw_value.as_str().to_string())},
+                Rule::expression_wrapped => { SettingsValueDefinition::Expression(raw_value.as_str().to_string())},
                 _ => {unreachable!("Parsing error 231453468: {:?}", raw_value.as_rule());}
             };
 

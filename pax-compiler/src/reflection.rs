@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use crate::manifest::PropertyType;
 
 
 pub trait PathQualifiable {
@@ -87,7 +88,7 @@ pub fn is_prelude_type(identifier: &str) -> bool {
 //Returns a fully expanded path and a pascalized version of that fully expanded path — for example:
 // Vec<Rc<StackerCell>> becomes
 // std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCell>>
-pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_fqd_map: &HashMap<&str, String>) -> (String, String) {
+pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_fqd_map: &HashMap<&str, String>) -> PropertyType {
 
     let mut fully_qualified_type = unexpanded_path.to_string();
 
@@ -113,6 +114,8 @@ pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_f
         .replace(">","RABR")
         .replace(",","COMM");
 
-    (fully_qualified_type, pascalized_fully_qualified_type)
-
+    PropertyType {
+        pascalized_fully_qualified_type,
+        fully_qualified_type,
+    }
 }

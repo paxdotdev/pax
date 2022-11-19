@@ -88,7 +88,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                         id,
                         pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
-                        }).unwrap().fully_qualified_type.get(0).unwrap().pascalized_fully_qualified_type).clone(),
+                        }).unwrap().fully_qualified_type.pascalized_fully_qualified_type).clone(),
                         invocations: vec![
                             todo!("add unique identifiers found during PAXEL parsing; include stack offset")
                             //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
@@ -112,7 +112,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                         id,
                         pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
-                        }).unwrap().fully_qualified_type.get(0).unwrap().pascalized_fully_qualified_type).clone(),
+                        }).unwrap().fully_qualified_type.pascalized_fully_qualified_type).clone(),
                         invocations: vec![
                             todo!("add unique identifiers found during PAXEL parsing; include stack offset")
                             //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
@@ -132,7 +132,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
     } else if let Some(ref mut cfa) = cloned_control_flow_attributes {
         //Handle control flow declarations
 
-        if let Some(range) = cfa.repeat_source_definition.range_expression {
+        if let Some(range) = &cfa.repeat_source_definition.range_expression {
 
             todo!("Register `range` as an expression with return type usize — allow expression compiler to handle everything else")
             //
@@ -173,7 +173,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
             //     output_statement: "".to_string(),
             //     input_statement: expression.clone(),
             // });
-        } else if let Some(symbol) = cfa.repeat_source_definition.symbolic_binding {
+        } else if let Some(symbol) = &cfa.repeat_source_definition.symbolic_binding {
             //for example the `self.entries` in `for n in self.entries`
 
             //Do we resolve `symbol` as an expression with known return type -- or
@@ -204,18 +204,18 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
 fn resolve_symbol_as_invocation(sym: &str, ctx: &TemplateTraversalContext) -> ExpressionSpecInvocation {
 
     let identifier =  if sym.starts_with("self.") {
-        sym.replacen("self.", "", 1);
+        sym.replacen("self.", "", 1)
     } else if sym.starts_with("this.") {
-        sym.replacen("this.", "", 1);
+        sym.replacen("this.", "", 1)
     } else {
         sym.to_string()
     };
 
-    let prop_def = ctx.component_def.property_definitions.iter().find(|ppd|{ppd.name}).expect(format!("Symbol not found: {}", &identifier));
-    let properties_type = prop_def.fully_qualified_type.fully_qualified_type;
+    let prop_def = ctx.component_def.property_definitions.iter().find(|ppd|{ppd.name == identifier}).expect(&format!("Symbol not found: {}", &identifier));
+    let properties_type = prop_def.fully_qualified_type.fully_qualified_type.clone();
 
     let pascalized_datum_cast_type = if let Some(x) = &prop_def.datum_cast_type {
-        Some(x.pascalized_fully_qualified_type)
+        Some(x.pascalized_fully_qualified_type.clone())
     } else {
         None
     };
@@ -240,13 +240,13 @@ fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &TemplateTraversalContext<'a>) -> 
     todo!("");
 
     //1. run Pratt parser; generate output RIL
-    let (output_string, symbolic_ids) = run_pratt_parser();
+    let (output_string, symbolic_ids) = crate::parsing::run_pratt_parser(paxel);
 
     //2. for each xo_symbol discovered during parsing, resolve that symbol through scope_stack and populate an ExpressionSpecInvocation
     let invocations = symbolic_ids.iter().map(|sym| {
         let inv = resolve_symbol_as_invocation(&sym, ctx);
         inv
-    });
+    }).collect();
     //3. return tuple of (RIL string,ExpressionSpecInvocations)
 
     (output_string ,invocations)

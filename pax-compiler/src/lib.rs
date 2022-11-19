@@ -202,8 +202,8 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     // - include all T such that T is the iterator type for some Property<Vec<T>>
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
         cd.property_definitions.iter().map(|pm|{
-            (pm.pascalized_fully_qualified_type.clone().replace("{PREFIX}","__"),
-             pm.fully_qualified_type.clone().replace("{PREFIX}",&import_prefix))
+            (pm.fully_qualified_type.pascalized_fully_qualified_type.clone().replace("{PREFIX}","__"),
+             pm.fully_qualified_type.fully_qualified_type.clone().replace("{PREFIX}",&import_prefix))
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 

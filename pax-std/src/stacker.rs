@@ -50,7 +50,7 @@ impl Stacker {
             Size::Percent(pct) => active_bound * (pct / 100.0),
         };
 
-        let cells = *self.cells.get() as f64;
+        let cells = self.cells.get().len() as f64;
 
         let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc;
         let per_cell_space = usable_interior_space / cells;
