@@ -104,7 +104,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
 
                     //Write this id back to the manifest, for downstream use by RIL component tree generator
                     let mut manifest_id_insert: usize = id;
-                    std::mem::swap(&mut manifest_id.take().unwrap(), &mut manifest_id_insert);
+                    std::mem::swap(&mut manifest_id.take(), &mut Some(manifest_id_insert));
 
                     let output_statement = Some(compile_paxel_to_ril(&input, &ctx));
 
@@ -220,7 +220,18 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &TemplateTraversalContext) -> Ex
         None
     };
 
-    let stack_offset = todo!("traverse stack to determine the first depth where this id occurs");
+    let mut found_depth : Option<usize> = None;
+    let mut current_depth = 0;
+    while let None = found_depth {
+        let map = ctx.scope_stack.get((ctx.scope_stack.len() - 1) - current_depth).expect(&format!("Symbol not found: {}", &identifier));
+        if let Some(val) = map.get(&identifier) {
+            found_depth = Some(current_depth);
+        } else {
+            current_depth += 1;
+        }
+    }
+
+    let stack_offset = found_depth.unwrap();
 
     ExpressionSpecInvocation {
         identifier,
@@ -237,19 +248,17 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &TemplateTraversalContext) -> Ex
 
 /// Returns (RIL string, list of invocation specs for any symbols used)
 fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &TemplateTraversalContext<'a>) -> (String, Vec<ExpressionSpecInvocation>) {
-    todo!("");
 
-    //1. run Pratt parser; generate output RIL
+    //1. run Pratt parser; generate output RIL and collected symbolic_ids
     let (output_string, symbolic_ids) = crate::parsing::run_pratt_parser(paxel);
 
-    //2. for each xo_symbol discovered during parsing, resolve that symbol through scope_stack and populate an ExpressionSpecInvocation
+    //2. for each symbolic id discovered during parsing, resolve that id through scope_stack and populate an ExpressionSpecInvocation
     let invocations = symbolic_ids.iter().map(|sym| {
-        let inv = resolve_symbol_as_invocation(&sym, ctx);
-        inv
+        resolve_symbol_as_invocation(&sym, ctx)
     }).collect();
-    //3. return tuple of (RIL string,ExpressionSpecInvocations)
 
-    (output_string ,invocations)
+    //3. return tuple of (RIL string,ExpressionSpecInvocations)
+    (output_string, invocations)
 
 }
 

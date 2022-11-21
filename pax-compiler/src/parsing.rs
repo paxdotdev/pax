@@ -143,58 +143,110 @@ xo_function_args_list = {expression_body ~ ("," ~ expression_body)*}
 
 
 
+struct PrattParserContext {
+    pub symbolic_ids: Vec<String>,
+    pub pratt_parser: PrattParser<Rule>,
+}
+
 
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
 pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
 
-    let pratt = PrattParser::new();
+    let pratt = PrattParser::new()
+        .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left));
         // .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left))
+    // .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left))
         // .op(Op::infix(Rule::xo_mul, Assoc::Left) | Op::infix(Rule::xo_div, Assoc::Left))
         // .op(Op::infix(Rule::pow, Assoc::Right))
         // .op(Op::postfix(Rule::fac))
         // .op(Op::prefix(Rule::neg));
 
-    let pairs = PaxParser::parse(Rule::expression_body, input_paxel).expect(&format!("unsuccessful parse from {}", &input_paxel));
+    let pairs = PaxParser::parse(Rule::expression_body, input_paxel).expect(&format!("unsuccessful pratt parse {}", &input_paxel));
 
     let mut symbolic_ids : Vec<String> = vec![];
 
-    let ril = recurse_pratt_parse_to_string(&mut symbolic_ids, pairs, &pratt);
+    let mut ctx = PrattParserContext {
+        symbolic_ids,
+        pratt_parser: pratt,
+    };
+    let ril = recurse_pratt_parse_to_string(pairs, &mut ctx);
 
-    (ril, symbolic_ids)
+    (ril, ctx.symbolic_ids)
 }
 
 
-fn recurse_pratt_parse_to_string(symbolic_ids: &mut Vec<String>, pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> String {
-    // pratt
-    //     .map_primary(|primary| match primary.as_rule() {
-    //         Rule::expression_symbolic_binding => {
-    //             symbolic_ids.push(primary.as_str().to_string());
-    //             primary.as_str().to_owned()
-    //         }
-    //         Rule::int => primary.as_str().to_owned(),
-    //         Rule::expr => parse_to_str(primary.into_inner(), pratt),
-    //         _ => unreachable!(),
-    //     })
-    //     .map_prefix(|op, rhs| match op.as_rule() {
-    //         Rule::neg => format!("(-{})", rhs),
-    //         _ => unreachable!(),
-    //     })
-    //     .map_postfix(|lhs, op| match op.as_rule() {
-    //         Rule::fac => format!("({}!)", lhs),
-    //         _ => unreachable!(),
-    //     })
-    //     .map_infix(|lhs, op, rhs| match op.as_rule() {
-    //         Rule::add => format!("({}+{})", lhs, rhs),
-    //         Rule::sub => format!("({}-{})", lhs, rhs),
-    //         Rule::mul => format!("({}*{})", lhs, rhs),
-    //         Rule::div => format!("({}/{})", lhs, rhs),
-    //         Rule::pow => format!("({}^{})", lhs, rhs),
-    //         _ => unreachable!(),
-    //     })
-    //     .parse(pairs)
+//handle parsing recursive cases of literal definitions, such as tuples and
+fn recurse_parse_literal(literal_kind: Pair<Rule>) -> String {
+    match literal_kind.as_rule() {
+        /* {  |   | string |   | xo_literal_object} */
+        Rule::literal_number_with_unit => {
+            let unit = "px";//todo!("parse unit");
+            let value = "100";//todo!("parse value; maybe recurse");
+            if unit == "px" {
+                format!("Size::Pixel({})", value)
+            } else if unit == "%" {
+                format!("Size::Percent({})", value)
+            } else {
+                unreachable!()
+            }
+        },
+        _ => {
+            /* {literal_enum_value | literal_number | } */
+            literal_kind.as_str().to_string()
+        }
+    }
+}
 
-    unimplemented!()
+fn recurse_pratt_parse_to_string(pairs: Pairs<Rule>, ctx: &mut PrattParserContext) -> String {
+    ctx.pratt_parser
+        .map_primary(|primary| match primary.as_rule() {
+
+            /* expression_grouped | xo_function_call | xo_range | xo_literal    */
+            Rule::xo_literal => {
+                /* {literal_enum_value | literal_number  | string | literal_tuple  | xo_literal_object} */
+                let literal_kind = primary.into_inner().next().unwrap();
+                recurse_parse_literal(literal_kind)
+            },
+            Rule::xo_object => {
+                //iterate over key-value pairs; recurse into 
+            },
+            Rule::xo_symbol => {
+                ctx.symbolic_ids.push(primary.as_str().to_string());
+                primary.as_str().to_owned()
+            },
+            Rule::xo_tuple => {
+                let mut tuple = primary.into_inner();
+                let exp0 = tuple.next().unwrap();
+                let exp1 = tuple.next().unwrap();
+                let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), ctx);
+                let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), ctx);
+                format!("({},{})", exp0, exp1)
+            },
+            // Rule::literal_number | Rule::literal_tuple | Rule::literal_enum_value => {
+            //     primary.as_str().to_owned()
+            // },
+            Rule::expression_body => recurse_pratt_parse_to_string(primary.into_inner(), ctx),
+            _ => unreachable!(),
+        })
+        .map_prefix(|op, rhs| match op.as_rule() {
+            Rule::xo_neg => format!("(-{})", rhs),
+            Rule::xo_bool_not => format!("(!{})", rhs),
+            _ => unreachable!(),
+        })
+        // .map_postfix(|lhs, op| match op.as_rule() {
+        //     Rule::fac => format!("({}!)", lhs),
+        //     _ => unreachable!(),
+        // })
+        .map_infix(|lhs, op, rhs| match op.as_rule() {
+            // Rule::add => format!("({}+{})", lhs, rhs),
+            // Rule::sub => format!("({}-{})", lhs, rhs),
+            // Rule::mul => format!("({}*{})", lhs, rhs),
+            // Rule::div => format!("({}/{})", lhs, rhs),
+            // Rule::pow => format!("({}^{})", lhs, rhs),
+            _ => unreachable!(),
+        })
+        .parse(pairs)
 }
 
 
@@ -513,7 +565,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                 let mut raw_value = kv.next().unwrap().into_inner().next().unwrap();
                 let value = match raw_value.as_rule() {
                     Rule::literal_value => {AttributeValueDefinition::LiteralValue(raw_value.as_str().to_string())},
-                    Rule::expression_wrapped => {AttributeValueDefinition::Expression(raw_value.as_str().to_string(), None)},
+                    Rule::expression_body => {AttributeValueDefinition::Expression(raw_value.as_str().to_string(), None)},
                     Rule::identifier => {AttributeValueDefinition::Identifier(raw_value.as_str().to_string(), None)},
                     _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}
                 };
@@ -596,7 +648,7 @@ fn derive_settings_value_definition_from_literal_object_pair(mut literal_object:
                     derive_settings_value_definition_from_literal_object_pair(raw_value)
                 )},
                 // Rule::literal_enum_value => {SettingsValueDefinition::Enum(raw_value.as_str().to_string())},
-                Rule::expression_wrapped => { SettingsValueDefinition::Expression(raw_value.as_str().to_string())},
+                Rule::expression_body => { SettingsValueDefinition::Expression(raw_value.as_str().to_string())},
                 _ => {unreachable!("Parsing error 231453468: {:?}", raw_value.as_rule());}
             };
 

@@ -103,7 +103,9 @@ literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 /// BEGIN EXPRESSIONS (PAXEL)
 //////
 
-// expr       =   { xo_prefix* ~ xo_primary ~ xo_postfix* ~ (xo_infix ~ xo_prefix* ~ xo_primary ~ xo_postfix* )* }
+// If we wish to include postfix operators, or e.g. refactor `px` and `%` to be treated as postfix operators,
+// the following is the order of xo that the Pratt parser expects
+// expr_with_postfix  =   { xo_prefix* ~ xo_primary ~ xo_postfix* ~ (xo_infix ~ xo_prefix* ~ xo_primary ~ xo_postfix* )* }
 expression_body =   { xo_prefix* ~ xo_primary ~ (xo_infix ~ xo_prefix* ~ xo_primary )* }
 //
 // prefix   =  _{ neg }
@@ -114,11 +116,8 @@ expression_body =   { xo_prefix* ~ xo_primary ~ (xo_infix ~ xo_prefix* ~ xo_prim
 //   int    =  @{ (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT) }
 //
 
-
-xo_primary = _{ expression_grouped | xo_function_call | xo_range | xo_literal | xo_tuple | xo_symbol }
-
-expression_wrapped = {
-    "{" ~ (expression_body) ~ "}"
+expression_wrapped = _{
+    "{" ~ expression_body ~ "}"
 }
 
 expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
@@ -153,6 +152,8 @@ num_clicks % 2 == 0
 
 //`xo` is short for both "expression operator" and "expression operand", collectively all symbols
 //that can be expressed inside expressions
+
+xo_primary = _{ expression_grouped | xo_function_call | xo_object | xo_literal | xo_range | xo_tuple | xo_symbol }
 
 xo_prefix = _{xo_neg | xo_bool_not}
     xo_neg = {"-"}
@@ -199,20 +200,17 @@ xo_infix = _{
     xo_tern_then = {"?"}
     xo_tern_else = {":"}
 
-xo_literal = {literal_enum_value  | literal_number_with_unit | literal_number  | string | literal_tuple  | xo_literal_object}
+xo_literal = {literal_enum_value  | literal_number_with_unit | literal_number  | string | literal_tuple }
 
-xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_settings_key_value_pair* ~ "}" }
-xo_literal_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
+//in an expression, what is as valid object?
+
+// some_prop={ TypedReturn {key_0: 0, key_1: "one", key_2: 1.0 + 1.0} }
+
+xo_object = { identifier? ~ "{" ~ xo_object_settings_key_value_pair* ~ "}" }
+xo_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
 
 xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("::" ~ identifier) |  ("[" ~ expression_body ~ "]") )* }
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
-
-
-
-
-
-
-
 
 xo_function_call = {identifier ~ (("::" | ".") ~ identifier)* ~ ("("~xo_function_args_list~")")}
 xo_function_args_list = {expression_body ~ ("," ~ expression_body)*}
