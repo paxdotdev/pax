@@ -66,7 +66,6 @@ identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 //for namespaced access of symbolic ids, like `Orientation::Vertical`
 pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 
-
 //////  //////  //////
 /// BEGIN SETTINGS
 //////
@@ -103,18 +102,13 @@ literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 /// BEGIN EXPRESSIONS (PAXEL)
 //////
 
+// Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
+// or a literal returned value like `Color { ... }` or `5`
+//
 // If we wish to include postfix operators, or e.g. refactor `px` and `%` to be treated as postfix operators,
 // the following is the order of xo that the Pratt parser expects
 // expr_with_postfix  =   { xo_prefix* ~ xo_primary ~ xo_postfix* ~ (xo_infix ~ xo_prefix* ~ xo_primary ~ xo_postfix* )* }
 expression_body =   { xo_prefix* ~ xo_primary ~ (xo_infix ~ xo_prefix* ~ xo_primary )* }
-//
-// prefix   =  _{ neg }
-//   neg    =   { "-" } // Negation
-// postfix  =  _{ fac }
-//   fac    =   { "!" } // Factorial
-// primary  =  _{ int | "(" ~ expr ~ ")" }
-//   int    =  @{ (ASCII_NONZERO_DIGIT ~ ASCII_DIGIT+ | ASCII_DIGIT) }
-//
 
 expression_wrapped = _{
     "{" ~ expression_body ~ "}"
@@ -122,11 +116,6 @@ expression_wrapped = _{
 
 expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
 
-//Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
-//or a literal returned value like `Color { ... }` or `5`
-// expression_body = { xo_prefix* ~ expression_operand ~ (xo_infix ~ expression_body)? }
-
-//terminal, or recurse into `(...)`
 expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? }
 
 /*
@@ -202,10 +191,8 @@ xo_infix = _{
 
 xo_literal = {literal_enum_value  | literal_number_with_unit | literal_number  | string | literal_tuple }
 
-//in an expression, what is as valid object?
-
-// some_prop={ TypedReturn {key_0: 0, key_1: "one", key_2: 1.0 + 1.0} }
-
+//objects may recurse into arbitrary expressions for any value -- consider the `key_2` in:
+// `some_prop={ TypedReturn {key_0: 0, key_1: "one", key_2: 1.0 + 1.0} }`
 xo_object = { identifier? ~ "{" ~ xo_object_settings_key_value_pair* ~ "}" }
 xo_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
 

@@ -198,10 +198,9 @@ fn recurse_parse_literal(literal_kind: Pair<Rule>) -> String {
     }
 }
 
-fn recurse_pratt_parse_to_string(pairs: Pairs<Rule>, ctx: &mut PrattParserContext) -> String {
+fn recurse_pratt_parse_to_string(expression: Pairs<Rule>, ctx: &mut PrattParserContext) -> String {
     ctx.pratt_parser
         .map_primary(|primary| match primary.as_rule() {
-
             /* expression_grouped | xo_function_call | xo_range | xo_literal    */
             Rule::xo_literal => {
                 /* {literal_enum_value | literal_number  | string | literal_tuple  | xo_literal_object} */
@@ -209,7 +208,31 @@ fn recurse_pratt_parse_to_string(pairs: Pairs<Rule>, ctx: &mut PrattParserContex
                 recurse_parse_literal(literal_kind)
             },
             Rule::xo_object => {
-                //iterate over key-value pairs; recurse into 
+                let mut inner = primary.into_inner();
+                let maybe_identifier = inner.next().unwrap();
+                let rule = maybe_identifier.as_rule();
+
+                //for parsing xo_object_settings_key_value_pair
+                //iterate over key-value pairs; recurse into expressions
+                fn handle_xoskvp(xoskvp: Pair<Rule>) {
+                    let inner_kvp = xoskvp.into_inner();
+                    let settings_key = inner_kvp.next().unwrap().as_str().to_string();
+                    let expression_body = inner_kvp.next().unwrap().as_str().to_string();
+                    todo!("handle settings_key and expression_body")
+                }
+
+                if let Rule::identifier = rule {
+                    todo!("handle explicit type def");
+                } else {
+                    //handle one-off first element
+                    handle_xoskvp(maybe_identifier);
+                }
+
+                inner.into_iter().for_each(|xoskkvp|{
+                    handle_xoskvp(xoskkvp)
+                });
+
+                "todo!!".to_string()
             },
             Rule::xo_symbol => {
                 ctx.symbolic_ids.push(primary.as_str().to_string());
@@ -246,7 +269,7 @@ fn recurse_pratt_parse_to_string(pairs: Pairs<Rule>, ctx: &mut PrattParserContex
             // Rule::pow => format!("({}^{})", lhs, rhs),
             _ => unreachable!(),
         })
-        .parse(pairs)
+        .parse(expression)
 }
 
 
