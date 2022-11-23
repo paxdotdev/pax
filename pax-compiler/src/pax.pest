@@ -156,9 +156,6 @@ xo_infix = _{
     xo_exp |
     xo_mod |
     xo_mul |
-    xo_range |
-    xo_range_exclusive |
-    xo_range_inclusive |
     xo_rel_eq |
     xo_rel_gt |
     xo_rel_gte |
@@ -176,9 +173,6 @@ xo_infix = _{
     xo_exp = {"^"}
     xo_mod = {"%%"}
     xo_mul = {"*"}
-    xo_range = { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | expression_symbolic_binding)}
-    xo_range_exclusive = @{".."}
-    xo_range_inclusive = @{"..."}
     xo_rel_eq = {"=="}
     xo_rel_gt = {">"}
     xo_rel_gte = {">="}
@@ -188,6 +182,10 @@ xo_infix = _{
     xo_sub = {"-"}
     xo_tern_then = {"?"}
     xo_tern_else = {":"}
+
+xo_range = { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | expression_symbolic_binding)}
+    xo_range_exclusive = @{".."}
+    xo_range_inclusive = @{"..."}
 
 xo_literal = {literal_enum_value  | literal_number_with_unit | literal_number  | string | literal_tuple }
 

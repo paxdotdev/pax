@@ -36,113 +36,6 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
     }
 }
 
-
-
-
-
-/*
-
-//Expressions can be:
-// a.) symbolic bindings to component properties, e.g. `@num_clicks`
-// b.) lambdas, where types will be enforced by downstream compiler
-expression_wrapped = {
-    "{" ~ (expression_body) ~ "}"
-}
-
-expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
-
-//Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
-//or a literal returned value like `Color { ... }` or `5`
-expression_body = { expression_operand ~ (xo_infix_binary ~ expression_operand)* }
-
-//terminal, or recurse into `(...)`
-expression_operand = { expression_grouped | xo_function_call | xo_range | xo_literal | xo_tuple | xo_symbol }
-expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? }
-
-/*
-Some examples of valid expressions:
-
-[Object construction]
-Color {h: 360, s: 1, l: 1, a: 1}
-
-[Object construction with implicit type (type enforced by downstream compiler)
-{h: 360, s: 1, l: 1, a: 1}
-
-[Boolean statements]
-num_clicks % 2 == 0
-
-[Complex statements including ternaries, grouping, logical operators, and object construction]
-(num_clicks % 2 == 0 && is_selected) ?
-    {r: 255 * color_intensity, g: 0, b: 0, a: 1} :
-    {r: 0, g: 255 * color_intensity, b: 0, a: 1}
-
-[String literals + operations]
-"Is " + (is_selected ? "" : "not ") + "selected."
-*/
-
-//`xo` is short for both "expression operator" and "expression operand", collectively all symbols
-//that can be expressed inside expressions
-xo_infix_binary = {
-    xo_bool_or | xo_bool_and |
-    xo_rel_eq | xo_rel_neq | xo_rel_lte |
-    xo_rel_gte | xo_rel_gt | xo_rel_lt |
-    xo_add | xo_sub |
-    xo_mul | xo_div |
-    xo_mod | xo_exp
-}
-
-//Our only unary operators are both prefix:
-//`-` for numeric negation and `!` for boolean negation
-xo_prefix_unary = {
-    xo_bool_not | xo_sub
-}
-
-xo_literal = {literal_enum_value  | literal_number_with_unit | literal_number  | string | literal_tuple  | xo_literal_object}
-
-//Note that `xo_literal_object` differs from `settings` literal_object because it accepts
-//expressions for property values without having to enter a {} context (because these
-//are already evaluated inside an `{}` context)
-xo_literal_object = { identifier? ~ "{" ~ xo_literal_object_settings_key_value_pair* ~ "}" }
-xo_literal_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
-
-xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("::" ~ identifier) |  ("[" ~ expression_body ~ "]") )* }
-xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
-
-
-xo_bool_or = {"||"}
-xo_bool_and = {"&&"}
-xo_add = {"+"}
-xo_sub = {"-"}
-xo_mul = {"*"}
-xo_div = {"/"}
-xo_mod = {"%%"}
-xo_exp = {"^"}
-xo_bool_not = {"!"}
-xo_tern_then = {"?"}
-xo_tern_else = {":"}
-xo_rel_lt = {"<"}
-xo_rel_gt = {">"}
-xo_rel_lte = {"<="}
-xo_rel_gte = {">="}
-xo_rel_eq = {"=="}
-xo_rel_neq = {"!="}
-//Examples:
-//`0..10`
-//`"abc".."def"` <- will parse OK but will rely on Rust's support for constructing ranges from these types/operands
-//`this.num_clicks..25`
-xo_range = { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | expression_symbolic_binding)}
-xo_range_exclusive = @{".."}
-xo_range_inclusive = @{"..."}
-
-xo_function_call = {identifier ~ (("::" | ".") ~ identifier)* ~ ("("~xo_function_args_list~")")}
-xo_function_args_list = {expression_body ~ ("," ~ expression_body)*}
-
- */
-
-
-
-
-
 struct PrattParserContext {
     pub symbolic_ids: Vec<String>,
     pub pratt_parser: PrattParser<Rule>,
@@ -152,6 +45,38 @@ struct PrattParserContext {
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
 pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
+
+
+    /*
+    xo_prefix = _{xo_neg | xo_bool_not}
+
+
+    xo_infix = _{
+
+    xo_bool_and |
+    xo_bool_or |
+    xo_div |
+    xo_exp |
+    xo_mod |
+    xo_mul |
+    xo_range |
+    xo_range_exclusive |
+    xo_range_inclusive |
+    xo_rel_eq |
+    xo_rel_gt |
+    xo_rel_gte |
+    xo_rel_lt |
+    xo_rel_lte |
+    xo_rel_neq |
+    xo_sub |
+    xo_tern_then |
+    xo_tern_else
+}
+
+
+     */
+
+
 
     let pratt = PrattParser::new()
         .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left));
@@ -215,7 +140,7 @@ fn recurse_pratt_parse_to_string(expression: Pairs<Rule>, ctx: &mut PrattParserC
                 //for parsing xo_object_settings_key_value_pair
                 //iterate over key-value pairs; recurse into expressions
                 fn handle_xoskvp(xoskvp: Pair<Rule>) {
-                    let inner_kvp = xoskvp.into_inner();
+                    let mut inner_kvp = xoskvp.into_inner();
                     let settings_key = inner_kvp.next().unwrap().as_str().to_string();
                     let expression_body = inner_kvp.next().unwrap().as_str().to_string();
                     todo!("handle settings_key and expression_body")
@@ -242,14 +167,14 @@ fn recurse_pratt_parse_to_string(expression: Pairs<Rule>, ctx: &mut PrattParserC
                 let mut tuple = primary.into_inner();
                 let exp0 = tuple.next().unwrap();
                 let exp1 = tuple.next().unwrap();
-                let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), ctx);
-                let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), ctx);
+                // let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), ctx);
+                // let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), ctx);
                 format!("({},{})", exp0, exp1)
             },
             // Rule::literal_number | Rule::literal_tuple | Rule::literal_enum_value => {
             //     primary.as_str().to_owned()
             // },
-            Rule::expression_body => recurse_pratt_parse_to_string(primary.into_inner(), ctx),
+            // Rule::expression_body => recurse_pratt_parse_to_string(primary.into_inner(), ctx),
             _ => unreachable!(),
         })
         .map_prefix(|op, rhs| match op.as_rule() {
