@@ -14,8 +14,6 @@ use std::rc::Rc;
 
 /// A basic 2D vector rectangle, drawn to fill the bounds specified
 /// by `size`, transformed by `transform`
-///
-/// maybe #[pax primitive]
 pub struct RectangleInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u64,
@@ -23,9 +21,6 @@ pub struct RectangleInstance<R: 'static + RenderContext> {
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 }
-
-
-
 
 impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 

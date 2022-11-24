@@ -36,12 +36,6 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
     }
 }
 
-struct PrattParserContext {
-    pub symbolic_ids: Vec<String>,
-    pub pratt_parser: PrattParser<Rule>,
-}
-
-
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
 pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
@@ -91,76 +85,86 @@ pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
 
     let mut symbolic_ids : Vec<String> = vec![];
 
-    let mut ctx = PrattParserContext {
-        symbolic_ids,
-        pratt_parser: pratt,
-    };
-    let ril = recurse_pratt_parse_to_string(pairs, &mut ctx);
-
-    (ril, ctx.symbolic_ids)
+    let mut symbolic_ids = Rc::new(RefCell::new(vec![]));
+    let output = recurse_pratt_parse_to_string(pairs, &pratt, Rc::clone(&symbolic_ids));
+    (output, symbolic_ids.take())
 }
 
 
-//handle parsing recursive cases of literal definitions, such as tuples and
-fn recurse_parse_literal(literal_kind: Pair<Rule>) -> String {
-    match literal_kind.as_rule() {
-        /* {  |   | string |   | xo_literal_object} */
-        Rule::literal_number_with_unit => {
-            let unit = "px";//todo!("parse unit");
-            let value = "100";//todo!("parse value; maybe recurse");
-            if unit == "px" {
-                format!("Size::Pixel({})", value)
-            } else if unit == "%" {
-                format!("Size::Percent({})", value)
-            } else {
-                unreachable!()
-            }
-        },
-        _ => {
-            /* {literal_enum_value | literal_number | } */
-            literal_kind.as_str().to_string()
-        }
-    }
-}
-
-fn recurse_pratt_parse_to_string(expression: Pairs<Rule>, ctx: &mut PrattParserContext) -> String {
-    ctx.pratt_parser
-        .map_primary(|primary| match primary.as_rule() {
-            /* expression_grouped | xo_function_call | xo_range | xo_literal    */
+fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &PrattParser<Rule>, symbolic_ids: Rc<RefCell<Vec<String>>>) -> String {
+    pratt_parser
+        .map_primary(move |primary| match primary.as_rule() {
+            /* expression_grouped | xo_function_call | xo_range     */
+            Rule::expression_grouped => {
+                "<<TODO: XO_EXPRESSION_GROUPED>>".to_string()
+            },
+            Rule::xo_function_call => {
+                "<<TODO: XO_FUNCTION_CALL>>".to_string()
+            },
+            Rule::xo_range => {
+                "<<TODO: XO_RANGE>>".to_string()
+            },
             Rule::xo_literal => {
-                /* {literal_enum_value | literal_number  | string | literal_tuple  | xo_literal_object} */
                 let literal_kind = primary.into_inner().next().unwrap();
-                recurse_parse_literal(literal_kind)
+
+                match literal_kind.as_rule() {
+                    Rule::literal_number_with_unit => {
+                        let mut inner = literal_kind.into_inner();
+
+                        let value = inner.next().unwrap();
+                        let unit = inner.next().unwrap().as_str();
+
+                        if unit == "px" {
+                            format!("Size::Pixel({})", value)
+                        } else if unit == "%" {
+                            format!("Size::Percent({})", value)
+                        } else {
+                            unreachable!()
+                        }
+                    },
+                    _ => {
+                        /* {literal_enum_value | literal_number |  string | literal_tuple } */
+                        literal_kind.as_str().to_string()
+                    }
+                }
             },
             Rule::xo_object => {
+                let mut output : String = "".to_string();
+
                 let mut inner = primary.into_inner();
                 let maybe_identifier = inner.next().unwrap();
                 let rule = maybe_identifier.as_rule();
 
                 //for parsing xo_object_settings_key_value_pair
                 //iterate over key-value pairs; recurse into expressions
-                fn handle_xoskvp(xoskvp: Pair<Rule>) {
+                fn handle_xoskvp<'a>(xoskvp: Pair<Rule>, pratt_parser: &PrattParser<Rule>, symbolic_ids: Rc<RefCell<Vec<String>>>) -> String {
                     let mut inner_kvp = xoskvp.into_inner();
                     let settings_key = inner_kvp.next().unwrap().as_str().to_string();
-                    let expression_body = inner_kvp.next().unwrap().as_str().to_string();
-                    todo!("handle settings_key and expression_body")
+                    let expression_body = inner_kvp.next().unwrap().into_inner();
+
+                    let ril = recurse_pratt_parse_to_string(expression_body, pratt_parser, Rc::clone(&symbolic_ids) );
+                    format!("{}: {},\n",settings_key, ril)
                 }
 
                 if let Rule::identifier = rule {
-                    todo!("handle explicit type def");
+                    todo!("handle explicit type declaration");
                 } else {
-                    //handle one-off first element
-                    handle_xoskvp(maybe_identifier);
+                    //no explicit type declaration -- handle first k/v pair of object declaration
+                    let ril = handle_xoskvp(maybe_identifier, pratt_parser.clone(), Rc::clone(&symbolic_ids));
+                    output += &ril;
                 }
 
-                inner.into_iter().for_each(|xoskkvp|{
-                    handle_xoskvp(xoskkvp)
-                });
+                let mut remaining_kvps = inner.into_iter();
 
-                "todo!!".to_string()
+                while let Some(xoskkvp) = remaining_kvps.next() {
+                    let ril =  handle_xoskvp(xoskkvp, pratt_parser.clone(), Rc::clone(&symbolic_ids));
+                    output += &ril;
+                }
+
+                output
             },
             Rule::xo_symbol => {
-                ctx.symbolic_ids.push(primary.as_str().to_string());
+                symbolic_ids.borrow_mut().push(primary.as_str().to_string());
                 primary.as_str().to_owned()
             },
             Rule::xo_tuple => {
@@ -171,15 +175,14 @@ fn recurse_pratt_parse_to_string(expression: Pairs<Rule>, ctx: &mut PrattParserC
                 // let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), ctx);
                 format!("({},{})", exp0, exp1)
             },
-            // Rule::literal_number | Rule::literal_tuple | Rule::literal_enum_value => {
-            //     primary.as_str().to_owned()
-            // },
-            // Rule::expression_body => recurse_pratt_parse_to_string(primary.into_inner(), ctx),
+            Rule::expression_body => {
+                recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser.clone(), Rc::clone(&symbolic_ids))
+            },
             _ => unreachable!(),
         })
         .map_prefix(|op, rhs| match op.as_rule() {
-            Rule::xo_neg => format!("(-{})", rhs),
-            Rule::xo_bool_not => format!("(!{})", rhs),
+            // Rule::xo_neg => format!("(-{})", rhs),
+            // Rule::xo_bool_not => format!("(!{})", rhs),
             _ => unreachable!(),
         })
         // .map_postfix(|lhs, op| match op.as_rule() {

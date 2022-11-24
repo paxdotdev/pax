@@ -112,7 +112,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                         id,
                         pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
-                        }).unwrap().fully_qualified_type.pascalized_fully_qualified_type).clone(),
+                        }).expect(&format!("Property not found: {}", &attr.0)).fully_qualified_type.pascalized_fully_qualified_type).clone(),
                         invocations: vec![
                             todo!("add unique identifiers found during PAXEL parsing; include stack offset")
                             //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
