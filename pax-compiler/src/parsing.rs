@@ -147,9 +147,11 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 }
 
                 if let Rule::identifier = rule {
+                    //explicit type declaration, like `SomeType {...}`
                     todo!("handle explicit type declaration");
                 } else {
-                    //no explicit type declaration -- handle first k/v pair of object declaration
+                    //no explicit type declaration, like `{...}`
+                    // -- this token is the first k/v pair of object declaration; handle as such
                     let ril = handle_xoskvp(maybe_identifier, pratt_parser.clone(), Rc::clone(&symbolic_ids));
                     output += &ril;
                 }
@@ -375,6 +377,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                addressable_properties: None,
                 pascal_identifier: pascal_identifier.to_string(),
             };
             ctx.template_node_definitions.push( template_node.clone());
@@ -394,12 +397,14 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
             parents_children_id_list.push(new_id.clone());
             ctx.children_id_tracking_stack.push(parents_children_id_list);
 
+
             let template_node = TemplateNodeDefinition {
                 id: new_id,
                 control_flow_attributes: None,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 children_ids: vec![],
+                addressable_properties: None,
                 pascal_identifier: pascal_identifier.to_string(),
             };
             ctx.template_node_definitions.push( template_node.clone());
@@ -423,8 +428,8 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         id: new_id,
                         control_flow_attributes: Some(todo!()),
                         component_id: COMPONENT_ID_IF.to_string(),
-                        //e.g. `if self.
                         inline_attributes: None,
+                        addressable_properties: None,
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
                     }
@@ -467,6 +472,22 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         component_id: COMPONENT_ID_REPEAT.to_string(),
                         control_flow_attributes: Some(cfavd),
                         inline_attributes: None,
+                        addressable_properties: Some(vec![
+                            PropertyDefinition {
+                                name: "<TODO>".to_string(),
+                                original_type: "<TODO>".to_string(),
+                                fully_qualified_constituent_types: vec![],
+                                fully_qualified_type: Default::default(),
+                                datum_cast_type: None
+                            },
+                            PropertyDefinition {
+                                name: "<TODO>".to_string(),
+                                original_type: "<TODO>".to_string(),
+                                fully_qualified_constituent_types: vec![],
+                                fully_qualified_type: Default::default(),
+                                datum_cast_type: None
+                            },
+                        ]),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Repeat".to_string(),
                     }
@@ -477,6 +498,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         control_flow_attributes: Some(todo!()),
                         component_id: COMPONENT_ID_SLOT.to_string(),
                         inline_attributes: None,
+                        addressable_properties: None,
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
                     }

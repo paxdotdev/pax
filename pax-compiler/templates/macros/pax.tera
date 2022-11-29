@@ -46,14 +46,6 @@ impl {{pascal_identifier}} {
         let source_id = "component::{{pascal_identifier}}";
         let mut property_definitions = vec![];
 
-
-        //TODO: we need to be able to resolve Vec<Rc<StackerCell>> into
-        // std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCell>>
-        //  This requires keeping track of the positions of each scoped atomic type while traversing the AST.
-        //  Perhaps the easiest way to do this is to assemble the "expanded fully qualified type" along the way
-        //  WRONG: this can't be assembled fully statically.  probably easiest to do string replacement, from "original type" => "fully qualified type",
-        //  ensuring string replacements aren't preceded by "::".  This should be done at "parser binary" time
-
         // Populate `PropertyDefinition`s
         {% for ctpd in compile_time_property_definitions %}
             //Here we bridge from pure static analysis into some dynamic analysis via `parser`, in order

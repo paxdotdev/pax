@@ -3,25 +3,18 @@ use std::collections::HashMap;
 use std::ops::{Range, RangeFrom};
 use futures::StreamExt;
 
-
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
     let mut new_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
     let mut stack_offset = 0;
     let mut uid_gen = 0..;
 
-    let mut component_id_map = HashMap::new();
-
-    for cd in manifest.components.iter() {
-        component_id_map.insert(&cd.source_id, &*cd);
-    }
 
     let mut new_components = manifest.components.clone();
-    new_components.iter_mut().for_each(|component_def : &mut ComponentDefinition|{
+    new_components.values_mut().for_each(|component_def : &mut ComponentDefinition|{
 
         let mut new_component_def = component_def.clone();
         let read_only_component_def = component_def.clone();
-
 
         if let Some(ref mut template) = new_component_def.template {
             template.iter_mut().for_each(|node_def| {
@@ -30,6 +23,7 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
                     active_node_def: new_node_def,
                     scope_stack: vec![component_def.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
                     uid_gen: 0..,
+                    all_components: manifest.components.clone(),
                     expression_specs: &mut new_expression_specs,
                     component_def: &read_only_component_def,
                     template_node_definitions: manifest.template_node_definitions.clone(),
@@ -84,16 +78,16 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
                     let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
 
+                    let pascalized_return_type = (&ctx.component_def.property_definitions.iter().find(
+                        |property_def| {
+                            property_def.name == attr.0
+                        }
+                    ).unwrap().fully_qualified_type.pascalized_fully_qualified_type).clone();
+
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
-                        pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
-                            property_def.name == attr.0
-                        }).unwrap().fully_qualified_type.pascalized_fully_qualified_type).clone(),
-                        invocations: vec![
-                            todo!("add unique identifiers found during PAXEL parsing; include stack offset")
-                            //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
-                            //(requires looking up identifiers per "compiletime stack frame," e.g. components/control flow, plus error handling if symbols aren't found.)
-                        ],
+                        pascalized_return_type,
+                        invocations,
                         output_statement: output_statement,
                         input_statement: identifier.clone(),
                     });
@@ -107,12 +101,17 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     std::mem::swap(&mut manifest_id.take(), &mut Some(manifest_id_insert));
 
                     let output_statement = Some(compile_paxel_to_ril(&input, &ctx));
+                    let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
+
+                    let pascalized_return_type =  (active_node_component.property_definitions.iter().find(|property_def| {
+                        property_def.name == attr.0
+                    }).expect(
+                        &format!("Property `{}` not found on component `{}`", &attr.0, &ctx.component_def.pascal_identifier)
+                    ).fully_qualified_type.pascalized_fully_qualified_type).clone();
 
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
-                        pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
-                            property_def.name == attr.0
-                        }).expect(&format!("Property not found: {}", &attr.0)).fully_qualified_type.pascalized_fully_qualified_type).clone(),
+                        pascalized_return_type,
                         invocations: vec![
                             todo!("add unique identifiers found during PAXEL parsing; include stack offset")
                             //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
@@ -266,6 +265,7 @@ pub struct TemplateTraversalContext<'a> {
     pub active_node_def: TemplateNodeDefinition,
     pub component_def: &'a ComponentDefinition,
     pub scope_stack: Vec<HashMap<String, PropertyDefinition>>,
+    pub all_components: HashMap<String, ComponentDefinition>,
     pub uid_gen: RangeFrom<usize>,
     pub expression_specs: &'a mut HashMap<usize, ExpressionSpec>,
     pub template_node_definitions: HashMap<String, TemplateNodeDefinition>,

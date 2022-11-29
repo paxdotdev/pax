@@ -16,10 +16,14 @@ use tera::Template;
 //definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
 pub struct PaxManifest {
-    pub components: Vec<ComponentDefinition>,
+    pub components: HashMap<String, ComponentDefinition>,
     pub root_component_id: String,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
     pub template_node_definitions: HashMap<String, TemplateNodeDefinition>
+}
+
+impl PaxManifest {
+
 }
 
 #[derive(Serialize, Deserialize)]
@@ -80,6 +84,7 @@ pub struct TemplateNodeDefinition {
     pub component_id: String,
     pub control_flow_attributes: Option<ControlFlowAttributeValueDefinition>,
     pub inline_attributes: Option<Vec<(String, AttributeValueDefinition)>>,
+    pub addressable_properties: Option<Vec<PropertyDefinition>>,
     pub children_ids: Vec<String>,
     pub pascal_identifier: String,
 }

@@ -26,11 +26,11 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     //ensure that this partial.rs file is loaded included under the `pax_app` macro
     let mut reexport_components: Vec<String> = manifest.components.iter().map(|cd|{
         //e.g.: "some::module::path::SomePascalIdentifier"
-        cd.module_path.clone() + "::" + &cd.pascal_identifier
+        cd.1.module_path.clone() + "::" + &cd.1.pascal_identifier
     }).collect();
 
     let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
-        cd.property_definitions.iter().map(|pm|{
+        cd.1.property_definitions.iter().map(|pm|{
             pm.fully_qualified_constituent_types.clone()
         }).flatten().collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
@@ -189,8 +189,8 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //build tuples for PropertiesCoproduct
     let mut properties_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|comp_def| {
         (
-            comp_def.pascal_identifier.clone(),
-            format!("{}{}{}{}", &import_prefix, &comp_def.module_path.replace("crate", ""), {if comp_def.module_path == "crate" {""} else {"::"}}, &comp_def.pascal_identifier)
+            comp_def.1.pascal_identifier.clone(),
+            format!("{}{}{}{}", &import_prefix, &comp_def.1.module_path.replace("crate", ""), {if comp_def.1.module_path == "crate" {""} else {"::"}}, &comp_def.1.pascal_identifier)
         )
     }).collect();
     let mut set: HashSet<(String, String)> = properties_coproduct_tuples.drain(..).collect();
@@ -201,7 +201,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     // - include all Property types, representing all possible return types for Expressions
     // - include all T such that T is the iterator type for some Property<Vec<T>>
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
-        cd.property_definitions.iter().map(|pm|{
+        cd.1.property_definitions.iter().map(|pm|{
             (pm.fully_qualified_type.pascalized_fully_qualified_type.clone().replace("{PREFIX}","__"),
              pm.fully_qualified_type.fully_qualified_type.clone().replace("{PREFIX}",&import_prefix))
         }).collect::<Vec<_>>()
