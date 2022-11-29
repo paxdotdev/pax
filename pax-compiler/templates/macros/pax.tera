@@ -113,7 +113,7 @@ impl {{pascal_identifier}} {
                     );
 
                 ctx.component_definitions
-                    .push(comp_def);
+                    .insert(comp_def.source_id.clone(), comp_def);
 
                 (ctx, source_id.to_string())
             },

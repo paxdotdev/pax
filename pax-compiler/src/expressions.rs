@@ -100,7 +100,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     let mut manifest_id_insert: usize = id;
                     std::mem::swap(&mut manifest_id.take(), &mut Some(manifest_id_insert));
 
-                    let output_statement = Some(compile_paxel_to_ril(&input, &ctx));
+                    let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
                     let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
 
                     let pascalized_return_type =  (active_node_component.property_definitions.iter().find(|property_def| {
@@ -112,15 +112,10 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
                         pascalized_return_type,
-                        invocations: vec![
-                            todo!("add unique identifiers found during PAXEL parsing; include stack offset")
-                            //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
-                            //(requires looking up identifiers per "compiletime stack frame," e.g. components/control flow, plus error handling if symbols aren't found.)
-                        ],
-                        output_statement: "".to_string(),
+                        invocations,
+                        output_statement,
                         input_statement: input.clone(),
                     });
-
 
                     //Write this id back to the manifest, for downstream use by RIL component tree generator
                     let mut manifest_id_insert = Some(id);

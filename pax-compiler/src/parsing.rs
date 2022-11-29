@@ -676,7 +676,7 @@ pub struct ParsingContext {
 
     pub root_component_id: String,
 
-    pub component_definitions: Vec<ComponentDefinition>,
+    pub component_definitions: HashMap<String, ComponentDefinition>,
 
     pub template_map: HashMap<String, String>,
 
@@ -691,7 +691,7 @@ impl Default for ParsingContext {
         Self {
             root_component_id: "".into(),
             visited_source_ids: HashSet::new(),
-            component_definitions: vec![],
+            component_definitions: HashMap::new(),
             template_map: HashMap::new(),
             all_property_definitions: HashMap::new(),
             template_node_definitions: HashMap::new(),

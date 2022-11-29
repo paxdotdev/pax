@@ -53,7 +53,7 @@ impl {{pascal_identifier}} {
 
                 let comp_def = pax_compiler::parsing::assemble_primitive_definition(PASCAL_IDENTIFIER, module_path!(), &source_id, &property_definitions);
                 ctx.component_definitions
-                    .push(comp_def);
+                    .insert(comp_def.source_id.clone(), comp_def);
                 (ctx, source_id.to_string())
             },
             _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
