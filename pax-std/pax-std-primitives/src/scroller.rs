@@ -26,18 +26,13 @@ pub struct ScrollerInstance<R: 'static + RenderContext> {
     pub size_inner_pane: Rc<RefCell<[Box<dyn PropertyInstance<f64>>;2]>>,
     pub size_frame: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub scrollX: Box<dyn PropertyInstance<bool>>,
-    pub scrollY: Box<dyn PropertyInstance<bool>>,
-
-
+    pub scroll_enabled_x: Box<dyn PropertyInstance<bool>>,
+    pub scroll_enabled_y: Box<dyn PropertyInstance<bool>>,
 
     last_patches: HashMap<Vec<u64>, ScrollerPatch>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
-
-
-
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -52,8 +47,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         let mut scroller_args = args.scroller_args.unwrap(); // Scroller args required
         let mut size_inner_pane = scroller_args.size_inner_pane;
         let mut axes_enabled = scroller_args.axes_enabled;
-        let scrollX = std::mem::replace(&mut axes_enabled[0], Box::new(PropertyLiteral::new(false)));
-        let scrollY = std::mem::replace(&mut axes_enabled[1], Box::new(PropertyLiteral::new(false)));
+        let scroll_enabled_x = std::mem::replace(&mut axes_enabled[0], Box::new(PropertyLiteral::new(false)));
+        let scroll_enabled_y = std::mem::replace(&mut axes_enabled[1], Box::new(PropertyLiteral::new(false)));
 
         let mut instance_registry = args.instance_registry.borrow_mut();
         let instance_id = instance_registry.mint_id();
@@ -64,8 +59,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
                 size_inner_pane: Rc::new(RefCell::new(size_inner_pane)),
                 size_frame: Rc::new(RefCell::new(args.size.expect("Scroller requires size_frame"))),
                 transform: args.transform,
-                scrollX,
-                scrollY,
+                scroll_enabled_x,
+                scroll_enabled_y,
                 last_patches: HashMap::new(),
 
             }
@@ -73,6 +68,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
+    }
+
+    fn is_clipping(&self) -> bool {
+        true
     }
 
     fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>) {
@@ -118,7 +117,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         }
 
         let val = *(*self.size_inner_pane).borrow()[0].get();
-        let is_new_value = match &last_patch.size_frame_x {
+        let is_new_value = match &last_patch.size_inner_pane_x {
             Some(cached_value) => {
                 !val.eq(cached_value)
             },
@@ -127,13 +126,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             },
         };
         if is_new_value {
-            new_message.size_frame_x = Some(val.clone());
-            last_patch.size_frame_x = Some(val.clone());
+            new_message.size_inner_pane_x = Some(val.clone());
+            last_patch.size_inner_pane_x = Some(val.clone());
             has_any_updates = true;
         }
 
         let val = *(*self.size_inner_pane).borrow()[1].get();
-        let is_new_value = match &last_patch.size_frame_y {
+        let is_new_value = match &last_patch.size_inner_pane_y {
             Some(cached_value) => {
                 !val.eq(cached_value)
             },
@@ -142,12 +141,42 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             },
         };
         if is_new_value {
-            new_message.size_frame_y = Some(val.clone());
-            last_patch.size_frame_y = Some(val.clone());
+            new_message.size_inner_pane_y = Some(val.clone());
+            last_patch.size_inner_pane_y = Some(val.clone());
             has_any_updates = true;
         }
 
 
+        let val = *(*self.scroll_enabled_x).borrow().get();
+        let is_new_value = match &last_patch.scroll_enabled_x {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.scroll_enabled_x = Some(val.clone());
+            last_patch.scroll_enabled_x = Some(val.clone());
+            has_any_updates = true;
+        }
+
+        let val = *(*self.scroll_enabled_y).borrow().get();
+        let is_new_value = match &last_patch.scroll_enabled_y {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.scroll_enabled_y = Some(val.clone());
+            last_patch.scroll_enabled_y = Some(val.clone());
+            has_any_updates = true;
+        }
+        
         let latest_transform = transform_coeffs;
         let is_new_transform = match &last_patch.transform {
             Some(cached_transform) => {
@@ -195,6 +224,26 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             size[1].set(new_value);
         }
 
+        let mut size = &mut *self.size_inner_pane.as_ref().borrow_mut();
+
+        if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+            size[0].set(new_value);
+        }
+
+        if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+            size[1].set(new_value);
+        }
+        
+
+        let mut transform = &mut *self.transform.as_ref().borrow_mut();
+        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
+            transform.set(new_value);
+        }
+
+
         let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
@@ -203,10 +252,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     }
 
     fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
-        // construct a BezPath of this frame's bounds * its transform,
-        // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
-        //TODO:  if clipping is TURNED OFF for this Scroller, don't do any of this
-
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounds;
 
@@ -251,23 +296,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     }
 
     fn handle_will_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
-
-        // The following, sending a `ScrollerDelete` message, was unplugged in desperation on May 11 2022
-        // There was a bug wherein a flood of `ScrollerDelete` messages was getting
-        // sent across the native bridge, causing debugging & performance concerns.
-        // After investigating, zb's best hypothesis was that the flood of `Deletes`
-        // was being triggered by the less-than-ideal hard-coded `Repeat` logic (for preparing its data list)
-        // which destroys its list each tick when calculating an expression for its datalist.
-        // In short: it's expected that expression lazy-evaluation will fix this "bug", and hopefully
-        // by the time we actually need `Scroller` removal from native (maybe never!  might just cause some memory bloat)
-        // then we can freely send ScrollerDelete messages without headaches.
-        //
-        // let id_chain = rtc.get_id_chain(self.instance_id);
-        // (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-        //     pax_message::NativeMessage::ScrollerDelete(id_chain)
-        // );
-
-
+        unimplemented!("Scroller unmount not yet handled")
     }
 
 }
