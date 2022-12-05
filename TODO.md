@@ -356,9 +356,9 @@ _RIL means Rust Intermediate Language, which is the
         [x] parse properties into manifest
         [x] bundle pax_reexports into nested mods
         [x] load reexports.partial.rs into userland project
-    [ ] introduce `pax-cli`, import compiler to be a dep
+    [x] introduce `pax-cli`, import compiler to be a dep
         [-] `pax demo`?
-        [ ] `pax create` with TODO
+        [-] `pax create` with TODO
     [x] generate properties coproduct
         [x] retrieve userland crate name (e.g. `pax-example`) and identifier (e.g. `pax_example`) 
             [-] alternatively, hard-code a single dependency, something like "host", which always points to "../.." (relative to ".pax/properties-coproduct")
@@ -375,54 +375,61 @@ _RIL means Rust Intermediate Language, which is the
             [x] run through Tera template
     [ ] generate cartridge definition
         [x] prelude / hard-coded template
-        [ ] imports via `pax_example::pax_reexports::*`
+        [x] imports via `pax_example::pax_reexports::*`
             -- or, fully resolve every import when using
         [ ] consts
             -- perhaps decorate with `#[pax_const]`; copy tokens? or refer to orig?  consider component/namespace reqs
-        [ ] expression vtable (see also: expression compilation)
         [ ] component factories
-            [ ] compute_properties_fn generation
-            [ ] `instantiate_root_component`
-            [ ] `properties: PropertiesCoproduct::Stacker(Stacker {...})`
-            [ ] PropertiesLiteral vs. PropertiesExpression generation
-    [ ] generate / patch chassis cargo.toml
-    [ ] hook up `pax_on` and basic lifecycle events
-        [ ] possibly worth considering design for async while doing this
-    [ ] expression compilation
+            [ ] `compute_properties_fn` generation
+            [ ] `handler_registry` generation
+            [ ] `instantiate_root_component` generation, based on `pax_root` declaration
+            [ ] `properties: PropertiesCoproduct::Stacker(Stacker {...})` generation
+            [ ] PropertiesLiteral inline embedding vs. PropertiesExpression vtable id embedding
         [x] fully qualified resolution of expression symbols, e.g. `Transform2d`
             [-] Alternatively: don't support arbitrary imports yet:
                 [-] Support referring to `T` for any Property<T> (already parsed + resolvable)
                 [-] Import Transform2d::*, Color::*, and a few others via prelude
                     -- Note that each prelude import prohibits any other top-level symbols with colliding names; increases DX snafu likelihood via compiler errors
-        [ ] expression string => RIL generation
-            [ ] Pratt parser "hello world"
-            [ ] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
-            [ ] grouping of units, e.g. `(5 + 10)%` 
-            [ ] boolean ops: `==`, `&&`, and `||`
-            [ ] parenthetical grouping  `(.*)`
-            [ ] Literals for strings, bools, ints, floats
-            [ ] Nested object references + injected context
-                [ ] incantation for deriving values from scope
-                [ ] type-matching
-                [ ] Numeric type management, type inference / casting
-        [ ] Dependency tracking & dirty-watching
-            [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender`
-            [ ] support "helpers", composable functions, which also serve the need of temporaries/lets
-            [ ] address use-case of `Property<Vec<T>>`, inserting/changing an element without setting the whole
-                entity.  Might want to offer a `get_mut` API (keep an eye on async / ownership concerns)
-                -- In fact, probably address this on the heels of a Property -> channel refactor, as the implications for this
-                intersection are significant  
+        [ ] expression compilation
+            [x] fully qualified resolution of expression symbols, e.g. `Transform2d`
+                [-] Alternatively: don't support arbitrary imports yet:
+                    [-] Support referring to `T` for any Property<T> (already parsed + resolvable)
+                    [-] Import Transform2d::*, Color::*, and a few others via prelude
+                        -- Note that each prelude import prohibits any other top-level symbols with colliding names; increases DX snafu likelihood via compiler errors
+            [ ] expression string => RIL generation
+                [x] Pratt parser "hello world"
+                [ ] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
+                [ ] grouping of units, e.g. `(5 + 10)%` 
+                [ ] boolean ops: `==`, `&&`, and `||`
+                [ ] parenthetical grouping  `(.*)`
+                [ ] Literals for strings, bools, ints, floats
+                [ ] Nested object references + injected context
+                    [ ] invocations for deriving values from scope
+                    [ ] type-matching
+                    [ ] Numeric type management, type inference / casting
+            [ ] Dependency tracking & dirty-watching
+                [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender` (early, hacky Stacker use-case)
+                [ ] support "helpers", composable functions, which also serve the need of temporaries/`let`s
+                [ ] address use-case of `Property<Vec<T>>`, inserting/changing an element without setting the whole
+                    entity.  Might want to offer a `get_mut` API (keep an eye on async / ownership concerns)
+                    -- In fact, probably address this on the heels of a Property -> channel refactor, as the implications for this
+                    intersection are significant  
+                    -- Solution for now: 1. store Vec<T> inside Property<Vec<T>> — .get_mut() the Vec, mutate, then set() the updated value -- treat the entire property as dirty when this `set` occurs
+    [x] generate / patch chassis cargo.toml
+    [ ] hook up `pax_on` and basic lifecycle events
+        [ ] consider design for async while doing this
     [ ] control flow
-        [ ] for
-            [ ] parse declaration `i`, `(i)`, `(i, elem)`
-            [ ] handle range literals 0..10 
-            [ ] shuttle data into RepeatInstance via Manifest
+        [x] for
+            [x] parse declaration `i`, `(i)`, `(i, elem)`
+            [x] handle range literals 0..10 
+            [x] shuttle data into RepeatInstance via Manifest
         [ ] if
             [ ] parse condition, handle as expression
         [ ] slot
             [ ] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
 [x] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
 [ ] e2e `pax run`
+[ ] e2e `pax build` for distributable binaries
 [ ] documentation pass
     [ ] clean up codebase; reduce warnings
     [ ] README pass & updates
@@ -432,50 +439,78 @@ _RIL means Rust Intermediate Language, which is the
         [ ] Writing a primitive
 [ ] publication to crates.io
     [x] reserve pax-lang crate on crates.io
-    [ ] update relative paths in all cargo.tomls, point to hard-coded published versions
+    [x] update relative paths in all cargo.tomls, point to hard-coded published versions
+        - can include both a relative path & version number, a feature of Cargo for this exact use-case
     [ ] publish all crates
-    [ ] e2e testing
+    [ ] e2e manual testing, fresh machines
+        [ ] macOS: macOS & Web
+        [ ] Windows: Web
+        [ ] Linux: Web
 ```
 
 
 ## Milestone: usability & functionality++
+
 ```
-[ ] `pax build` for distributable binaries
 [ ] Support async
     [ ] `Property` => channels 'smart object'; disposable `mut self` => lifecycle methods (support async lifecycle event handlers)
     [ ] Pencil out error handling (userland)
+    [ ] update runtime to dispatch event handlers asynchronously, creating and passing "disposable self"s as needed
+[ ] Dependency tracking & dirty-watching
+    [ ] support "helpers", composable functions, which also serve the need of temporaries/`let`s
+    [ ] dependency DAG + lazy evaluation, a la Excel
+        [ ] cache last known values
+        [ ] consider keeping a cache of `state tuple => output value`
+    [ ] address use-case of `Property<Vec<T>>`, inserting/changing an element without setting the whole
+        entity.  Might want to offer a `get_mut` API (keep an eye on async / ownership concerns)
+        -- In fact, probably address this on the heels of a Property -> channel refactor, as the implications for this
+        intersection are significant  
+        -- Solution for now: 1. store Vec<T> inside Property<Vec<T>> — .get_mut() the Vec, mutate, then set() the updated value -- treat the entire property as dirty when this `set` occurs
 [ ] usable error messages
-    [ ] compiletime (macro) errors:
+    [ ] macro-time errors:
         [ ] write to stderr? or other pipe/file/channel readable by `pax-compiler`
     [ ] parsetime errors:
-        [ ] pax syntax errors
-            [ ]
+        [ ] pax syntax errors -- error handling with Pest (add "overflow" final rule to grammar at necessary junctures, e.g. `foo = bar | baz | error` — then handle `error` matches at parse-time)
+        [ ] track line/column numbers; figure out how to report back to Rust/editor language server (if possible)
+    [ ] compile-time errors:
+        [ ] handle ad-hoc 
+    [-] runtime errors: probably no special handling needed
 [ ] `with` + event bindings
     [ ] vtable + wrapper functions for event dispatch; play nicely with HandlerRegistry; add `Scope` or most relevant thing to args list in HandlerRegistry
+    [ ] update `handler_registry` closure codegen in cartridge — call methods with correct signature based on specified `with` 
     [ ] grammar+parser support
     [ ] single variables, with option parens (e.g. `with (i)` or `with i`, or `with (i,j,k)`)
-    [ ] multiple variables in tuple `(i,j,k)` 
+    [ ] multiple variables in tuple `(i,j,k)`
+[ ] Scrolling
+    [ ] Create `Scroller` primitive -- refer to `Text` primitive for closest reference: pax-std-primitives
+        [ ] Register `Scroller` in `pax-std` and surface for use in `pax-example`
+    [ ] native scrolling container, passes scroll events / position to engine
+        - refer to how `click` events are handled from chassis-macos through the runtime
+    [ ] bounds for scrolling container passed to chassis by engine; chassis instantiates a scrolling container
+    [ ] attach native content as children of the native scroll container, so that native content scrolls natively with no need for Pax runtime intervention
+        - if this introduces "jello" sync problems, instead try updating native elements positions through the vanilla CRUD operations — refer to how `Text` content is updated in `chassis-macos` or `chassis-web`
+    [ ] Update `HandlerRegistry` to account for scroll event handlers; support `@scroll=self.some_handler` registration
 ```
 
 ## Milestone: form controls
 ```
-[ ] Scrolling
-    [ ] native scrolling container, passes scroll events / position to engine
-    [ ] bounds for scrolling container passed to chassis by engine
-    [ ] attach native content inside native scroll container
 [ ] `Text` upgrades:
     [ ] alignment horizontal within bounding box
     [ ] alignment vertical within bounding box
     [ ] auto-sizing?  (makes for super-easy alignment; requires letting OS render one frame, possibly off-screen, then applying that calculation.  Requires `interrupt` from chassis after size is measured.
 [ ] Rich text display (Possibly support markdown as authoring format)
 [ ] Dropdown list
-[ ] Data transfer
+[ ] Slider
+[ ] Toggle buttons (iOS "on/off" style)
+[ ] Button + content (arbitrary rendering content?  or just text to start?)
+[ ] File controls
     [ ] Upload/open control?
     [ ] save/download control?
 [ ] Text input boxes
     [ ] single-line
     [ ] multi-line?
     [ ] rich text?
+    [ ] Numeric + stepper?
 [ ] Databinding: event-based changes + two-way binding
 ```
 
@@ -565,6 +600,7 @@ _RIL means Rust Intermediate Language, which is the
 ## Backlog
 
 ```
+[ ] Imperative dirty-tracking API (a la MutationObserver)
 [ ] Temporary lets in PAXEL?
     [ ] Or: easy composition, "helpers"
 [ ] Support "skinning" the template subgrammar:
@@ -607,26 +643,17 @@ _RIL means Rust Intermediate Language, which is the
 [ ] Component-level defaults ("default masks") for properties (think: design system) -- e.g. "if not specified, all Rectangle > Stroke is _this value_"
 [ ] Frames: overflow scrolling
 [ ] chassis:
-    [ ] macOS
     [ ] iOS
     [ ] Windows    
     [ ] Android
-
+    [ ] Linux (GTK?)
 [ ] Gradients
     [ ] Multiple (stacked, polymorphic) fills
+    [ ] Gradient strokes?
 [ ] Production compilation
-    [  ] Generation of RIL, feature-gating `designtime`
+    [ ] Generation of RIL, feature-gating `designtime`
 [ ] Packaging & imports
     [ ] Ensure that 3rd party components can be loaded via vanilla import mechanism
-[ ] Mixed mode, Web
-    [x] Rust -> JS data bridge
-    [x] DOM pooling & recycling mechanism
-    [ ] Text primitives + basic styling
-    [ ] Native-layer clipping (accumulate clipping path for elements above DOM elements, communicate as Path to web layer for foreignObject + SVG clipping)
-    [ ] Form controls
-    [ ] ButtonNative (vs. ButtonGroup/ButtonContainer/ButtonFrame?) (or vs. a click event on any ol element)
-    [ ] Text input
-    [ ] Dropdown
 [ ] JavaScript runtime
     [ ] First-class TypeScript support
     [ ] API design
@@ -634,14 +661,9 @@ _RIL means Rust Intermediate Language, which is the
     [ ] Bindings to `runtime` API, plus IPC mechanism for triggering
 [ ] Language server, syntax highlighting, IDE errors (VSCode, JetBrains)
 [ ] Transform.shear
+[ ] 3D renderers
 [ ] Audio/video components
-    [ ] "headless" components
-[ ] Expression pre-compiler
-    [ ] Enforce uniqueness and valid node/var naming, e.g. for `my_node.var.name`
-    [ ] Parser for custom expression lang
-[ ] Debugging chassis
-[ ] Perf-optimize Rectangle (assuming BezPath is inefficient)
-[x] Should (can?) `align` be something like (Size::Percent, Size::Percent) instead of a less explicit (f64, f64)?
+    [ ] "headless" components?
 ```
 
 ```
@@ -1052,8 +1074,6 @@ Next steps: pencil in second rectangle
 — then bite of expressions with manually written harness code, because there's a potential design dead end
 here if we hit a wall with wiring up Expressions, Properties, Scopes, etc.
 
-
-
 ### on expressions
 expressions will be transpiled to Rust — so some semantics will likely
 carry over, e.g. symbol names, :: for namespace access or associated functions, etc.
@@ -1116,7 +1136,6 @@ Color::rgba(
 4. codegenned into cartridge runtime, as closure in ExpressionTable
 
 In RIl (cartridge runtime),
-
 
 
 ### More dependency graph untangling
@@ -1190,9 +1209,6 @@ when combining transformations, align should be thought of a bit differently vs 
 compute_transform_matrix can return two values: an Affine for Align, and an Affine for "everything else."
 remove multiplication of align @ compute_transform_matrix
 add multiplication of align at the caller of compute_transform_matrix()
-
-
-
 
 
 ### on nestable Properties, TypesCoproduct, Types in general
@@ -1566,7 +1582,6 @@ Another option: add `instantiate` to RenderNode, thereby firming the contract of
 
 
 
-
 ### children vs template vs adoptees
 2022-02-28
 
@@ -1749,7 +1764,6 @@ pub struct TimelineSegment {
 ```
 
 Note that a segment's value can be a literal (as described here with `Transform::rotate(12.0)`) or it can be an expression (e.g. `@{Transform::rotate(12.0) * Transform::translate(100.0, 200.0)}`)
-
 
 
 ### on align
