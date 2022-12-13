@@ -17,8 +17,8 @@ name = "paxchassismacos"
 crate-type = ["cdylib"]
 
 [dependencies]
-piet = "0.5.0"
-piet-coregraphics = "0.5.0"
+piet = "0.6.0"
+piet-coregraphics = "0.6.0"
 pax-core = { version="0.0.1" }
 pax-cartridge = { version="0.0.1"}
 pax-message = { version="0.0.1"}
@@ -36,7 +36,7 @@ pax-properties-coproduct = { path = "../../properties-coproduct" }
 
 #be cautious about core-graphics' version number --
 #ideally this would be locked with `piet` (the specified version should exactly match the version used
-#internally by piet-coregraphics, e.g. 0.5.0 => 0.22.3)
+#internally by piet-coregraphics, e.g. 0.6.0 => 0.22.3)
 
 
 #[patch.'file:///Users/zack/code/pax-lang/pax-properties-coproduct']

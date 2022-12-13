@@ -98,15 +98,10 @@ at your option.
 
 ## Development
 
-### Architectural Reference 
+### Environment setup
 
-<img src="runtime-arch.png" />
-<div style="text-align: center; font-style: italic;">Runtime dependency & codegen graph</div>
-<br /><br /><br />
-<img src="compiler-sequence.png" />
-<div style="text-align: center; font-style: italic;">
-Pax compiler sequence diagram | <a href="https://www.github.com/pax-lang/pax/blob/master/pax-compiler/">Compiler source</a>
-</div>
+Use `rustc` 1.65.0 via `rustup`
+
 
 ### Optional environment setup, web chassis
 
@@ -161,3 +156,14 @@ git submodule update --init --recursive
 ```
 
 As needed, review the [git submodule docs.](https://git-scm.com/docs/gitsubmodules)
+
+
+### Architectural Reference
+
+<img src="runtime-arch.png" />
+<div style="text-align: center; font-style: italic;">Runtime dependency & codegen graph</div>
+<br /><br /><br />
+<img src="compiler-sequence.png" />
+<div style="text-align: center; font-style: italic;">
+Pax compiler sequence diagram | <a href="https://www.github.com/pax-lang/pax/blob/master/pax-compiler/">Compiler source</a>
+</div>

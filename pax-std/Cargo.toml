@@ -14,7 +14,7 @@ description = "Standard library for Pax, including layouts, drawing primitives, 
 primitives_crate = "./pax-std-primitives"
 
 [dependencies]
-piet = "0.5.0"
+piet = "0.6.0"
 kurbo = "0.8.3"
 pax = {package="pax-lang", path = "../pax-lang", features = ["parser"], version="0.0.1"}
 pax-message = {path = "../pax-message", version="0.0.1"}
