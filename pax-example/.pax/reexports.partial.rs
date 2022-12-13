@@ -26,9 +26,6 @@ pub mod pax_reexports {
 		}
 	}
 	pub mod std {
-		pub mod rc {
-			pub use std::rc::Rc;
-		}
 		pub mod string {
 			pub use std::string::String;
 		}

@@ -103,11 +103,23 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
                     let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
 
-                    let pascalized_return_type =  (active_node_component.property_definitions.iter().find(|property_def| {
-                        property_def.name == attr.0
-                    }).expect(
-                        &format!("Property `{}` not found on component `{}`", &attr.0, &ctx.component_def.pascal_identifier)
-                    ).fully_qualified_type.pascalized_fully_qualified_type).clone();
+                    let BUILT_IN_PROPERTIES = vec![
+                        "transform",
+                        "size",
+                    ];
+
+                    let pascalized_return_type = if attr.0 == "transform" {
+                        "Transform2D".to_string()
+                    } else if attr.0 == "size" {
+                        "Size2D".to_string()
+                    } else {
+                        (active_node_component.property_definitions.iter().find(|property_def| {
+                            property_def.name == attr.0
+                        }).expect(
+                            &format!("Property `{}` not found on component `{}`", &attr.0, &ctx.component_def.pascal_identifier)
+                        ).fully_qualified_type.pascalized_fully_qualified_type).clone()
+                    };
+
 
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,

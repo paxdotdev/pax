@@ -5,7 +5,7 @@ use pax_compiler::{RunTarget, RunContext};
 
 
 
-fn main() -> Result<(), Error> {
+fn main() -> Result<(), ()> {
 
     let ARG_PATH = Arg::with_name("path")
         .short("p")
@@ -57,7 +57,7 @@ fn main() -> Result<(), Error> {
             pax_compiler::perform_build(RunContext{
                 target: RunTarget::from(target.as_str()),
                 path,
-            }, true);
+            }, true)
 
         },
         ("build", Some(args)) => {
@@ -67,13 +67,12 @@ fn main() -> Result<(), Error> {
             pax_compiler::perform_build(RunContext{
                 target: RunTarget::from(target.as_str()),
                 path,
-            }, false);
+            }, false)
         },
         ("clean", _) => {
-            unimplemented!();
+            unimplemented!()
         },
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }
 
-    Ok(())
 }
