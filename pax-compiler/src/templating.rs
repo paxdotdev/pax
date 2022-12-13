@@ -68,6 +68,9 @@ pub struct TemplateArgsCodegenCartridgeLib {
 
     /// List of compiled expression specs
     pub expression_specs: Vec<ExpressionSpec>,
+
+    /// List of component factory definitions, as pre-assembled literal Strings.
+    pub component_factories_literal: Vec<String>,
 }
 
 

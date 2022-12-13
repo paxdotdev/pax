@@ -250,11 +250,11 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
 
-    let imports = todo!();
+    let imports = vec![];//TODO!
 
-    let primitive_imports = todo!();
+    let primitive_imports = vec![];//TODO!
 
-    let consts = todo!();
+    let consts = vec![];//TODO!
 
     //Traverse component tree starting at root
     //build a N/PIT in memory for each component (maybe this can be automatically serialized for component factories?)
@@ -288,7 +288,9 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //     JavaScript uses:
     // Uncaught ReferenceError: not_defined is not defined
 
-    let expression_specs = todo!();
+    let expression_specs = vec![];//TODO!
+
+    let component_factories_literal = vec![];//TODO!
 
     //press template into String
     let generated_lib_rs = templating::press_template_codegen_cartridge_lib(templating::TemplateArgsCodegenCartridgeLib {
@@ -296,6 +298,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
         primitive_imports,
         consts,
         expression_specs,
+        component_factories_literal,
     });
 
     //write String to file

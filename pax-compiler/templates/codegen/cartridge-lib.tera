@@ -91,7 +91,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
     {% endfor %}
 
     vtable
-}}
+}
 
 {% for factory_literal in component_factories_literal %}
     //TODO: generate component instance factory as a literal block of code
