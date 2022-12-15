@@ -49,7 +49,7 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContext<'a>) -> TemplateTraversalContext<'a> {
     let mut incremented = false;
 
-    //TODO: join settings blocks here, merge with inline_attributes
+    //FUTURE: join settings blocks here, merge with inline_attributes
     let mut cloned_inline_attributes = ctx.active_node_def.inline_attributes.clone();
     let mut cloned_control_flow_attributes = ctx.active_node_def.control_flow_attributes.clone();
 
@@ -62,7 +62,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     //no need to compile literal values
                 }
                 AttributeValueDefinition::EventBindingTarget(s) => {
-                    //TODO: bind events here, or on a separate pass?
+                    //TODO: bind events here
                     // e.g. the self.foo in `@click=self.foo`
                 }
                 AttributeValueDefinition::Identifier(identifier, manifest_id) => {

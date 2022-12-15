@@ -237,7 +237,7 @@ impl Mul for Size {
     }
 }
 
-// TODO: revisit if 100% is the most ergonomic default size (remember Dreamweaver)
+// NOTE: may be worth revisiting if 100% is the most ergonomic default size (remember Dreamweaver)
 impl Default for Size {
     fn default() -> Self {
         Self::Percent(100.0)
@@ -385,7 +385,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         self.value = value;
     }
 
-    //TODO: when trait fields land in Rust, DRY this implementation vs. other <T: PropertyInstance> implementations
+    //FUTURE: when trait fields land in Rust, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
         self.transition_manager.value = Some(self.get().clone());
         &self.transition_manager.queue.clear();

@@ -9,7 +9,7 @@ import SwiftUI
 
 let FPS = 85.0                   //Hz, ceiling
 let REFRESH_PERIOD = 1.0 / FPS   //seconds between frames (e.g. 16.667 for 60Hz)
-//TODO: refactor to use a dynamic wait between frames, to accommodate variable render compute time.  Essentially, write "requestAnimationFrame" logic.
+//FUTURE: refactor to use a dynamic wait between frames, to accommodate variable render compute time.  Essentially, write "requestAnimationFrame" logic.
 
 class TextElements: ObservableObject {
     static let singleton : TextElements = TextElements()
@@ -50,7 +50,7 @@ struct PaxView: View {
             self.canvasView
             NativeRenderingLayer()
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
-            //TODO: especially if parsing is a bottleneck, could use a different encoding than JSON
+            //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
             let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f} }", dragGesture.location.x, dragGesture.location.y);
             let buffer = try! FlexBufferBuilder.fromJSON(json)
             
@@ -138,7 +138,6 @@ struct PaxCanvasViewRepresentable: NSViewRepresentable {
     
     func makeNSView(context: Context) -> PaxCanvasView {
         let view = PaxCanvasView()
-        //TODO: BG transparency
         return view
     }
     
@@ -245,7 +244,6 @@ class PaxCanvasView: NSView {
         //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which
         //would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
         //This cancellation + shared singleton (`tickWorkItem`) ensures that only one DispatchWorkItem is enqueued at a time.
-        //TODO: revisit looping mechanism, especially around target framerate
         if currentTickWorkItem != nil {
             currentTickWorkItem!.cancel()
         }

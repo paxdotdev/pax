@@ -17,7 +17,7 @@ wasm-pack build --release -d pax-dev-harness-web/dist
 # wasm-opt was installed with `brew install binaryen`
 wasm-opt -Oz -o pax-dev-harness-web/dist/pax_chassis_web_bg_opt.wasm pax-dev-harness-web/dist/pax_chassis_web_bg.wasm
 #mv pax-dev-harness-web/dist/pax_chassis_web_bg_opt.wasm pax-dev-harness-web/dist/pax_chassis_web_bg.wasm
-##TODO:  gzip
+##FUTURE:  gzip
 
 # Finally, package everything up using Webpack and start a server so we can
 # browse the result

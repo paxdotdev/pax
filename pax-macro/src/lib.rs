@@ -127,7 +127,7 @@ fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut HashSet<String>) {
                                             //break apart, for example, `Vec` from `Vec<(usize, Size)` >
                                             recurse_get_scoped_resolvable_types(gat, accum);
                                         },
-                                        //TODO: _might_ need to extract and deal with lifetimes, most notably where the "full string type" is used.
+                                        //FUTURE: _might_ need to extract and deal with lifetimes, most notably where the "full string type" is used.
                                         //      May be a non-issue, but this is where that data would need to be extracted.
                                         //      Finally: might want to choose whether to require that any lifetimes used in Pax `Property<...>` are compatible with `'static`
                                         _ => { }
@@ -251,10 +251,10 @@ pub fn pax_app(args: proc_macro::TokenStream, input: proc_macro::TokenStream) ->
 
 #[proc_macro_attribute]
 pub fn pax_file(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    //TODO: use generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
+    //NOTE: can use generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
     //let include = generate_include(...);
 
-    //TODO: load specified file contents, hack into `args: proc_macro::TokenStream`, and call `pax(args, input)`
+    //load specified file contents, hack into `args: proc_macro::TokenStream`, and call `pax(args, input)`
     let _ = args;
     let _ = input;
 

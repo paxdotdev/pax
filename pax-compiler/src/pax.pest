@@ -22,7 +22,7 @@ inner_nodes = { node_inner_content | (any_tag_pair)* }
 //This duo describes an XML-style open-tag, like <SomeElement id="...">
 //and matching close-tag, like </SomeElement>
 open_tag = {"<" ~ PUSH(pascal_identifier) ~ attribute_key_value_pair* ~ ">"}
-closing_tag = {"<" ~ "/" ~ POP ~ ">"} //TODO: should we accept whitespace like < / SomeElement > ?
+closing_tag = {"<" ~ "/" ~ POP ~ ">"}
 
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
 attribute_key_value_pair = {attribute_event_binding | (identifier ~ "=" ~ any_template_value)}
@@ -210,7 +210,7 @@ xo_function_args_list = {expression_body ~ ("," ~ expression_body)*}
 //These statements work as syntactic sugar for built-in primitives: Conditional, Repeat, and Slot.
 statement_control_flow = {(statement_if | statement_for | statement_slot)}
 
-statement_if = {"if" ~ expression_body ~ "{" ~ inner_nodes ~ "}"} //TODO: else
+statement_if = {"if" ~ expression_body ~ "{" ~ inner_nodes ~ "}"} //FUTURE: support else, else if
 statement_for = {"for" ~ statement_for_predicate_declaration ~ "in" ~ statement_for_source ~ "{" ~ inner_nodes ~ "}"}
 statement_slot = {"slot" ~ expression_body}
 

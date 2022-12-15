@@ -33,7 +33,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
         }
     }
 
-    // TODO: this value could be cached on stackframes, registered & cached during engine rendertree traversal (specifically: when stackframes are pushed)
+    // NOTE: this value could be cached on stackframes, registered & cached during engine rendertree traversal (specifically: when stackframes are pushed)
     //       This would make id_chain resolution essentially free, O(1) instead of O(log(n))
     //       Profile first to understand the impact before optimizing
     pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u64> {
@@ -69,7 +69,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
     /// Remove the top element from the stack.  Currently does
     /// nothing with the value of the popped StackFrame.
     pub fn pop_stack_frame(&mut self){
-        self.stack.pop(); //TODO: handle value here if needed
+        self.stack.pop(); //NOTE: handle value here if needed
     }
 
     /// Add a new frame to the stack, passing a list of adoptees
@@ -114,7 +114,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
             (*adoptee_borrowed.get_rendering_children()).borrow().iter().map(|top_level_child_node|{
                 Runtime::process__should_flatten__adoptees_recursive(top_level_child_node, rtc)
             }).flatten().collect()
-            //TODO: probably worth optimizing (pending profiling.)  Lots of allocation happening here -- flattening and collecting `Vec`s is probably not
+            //NOTE: probably worth optimizing (pending profiling.)  Lots of allocation happening here -- flattening and collecting `Vec`s is probably not
             //the most efficient possible approach, and this is fairly hot-running code.
         } else {
             vec![Rc::clone(adoptee)]

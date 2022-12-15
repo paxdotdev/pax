@@ -358,7 +358,7 @@ _RIL means Rust Intermediate Language, which is the
         [x] load reexports.partial.rs into userland project
     [x] introduce `pax-cli`, import compiler to be a dep
         [-] `pax demo`?
-        [-] `pax create` with TODO
+        [-] `pax create` 
     [x] generate properties coproduct
         [x] retrieve userland crate name (e.g. `pax-example`) and identifier (e.g. `pax_example`) 
             [-] alternatively, hard-code a single dependency, something like "host", which always points to "../.." (relative to ".pax/properties-coproduct")
@@ -1673,7 +1673,6 @@ Can "manually unroll" the code for importing in pax-std in order to "derive the 
 
 ### on demo story
 
-// TODO
 Performative coding or compelling example?
 Former requires automated compiler
 Latter requires "PoodleSurf" effort, plus support for images, text styling, full layouts, animations, interactions, more.
@@ -3215,3 +3214,81 @@ TypesCoproduct also includes logic for case manipulation and storing complex typ
 is focused on storing simple types (like `Stacker` or `Rectangle`).  This distinction alone seems to suggest
 that we use the TypesCoproduct for storing the T<R> of Property<Vec<T<R>>
 
+
+### `designtime` sketches
+
+2022-12-15
+pulled from `pax-std/.../rectangle.rs` during a cleanup pass
+
+```
+//
+// #[cfg(feature="designtime")]
+// lazy_static! {
+//     static ref RECTANGLE_PROPERTIES_MANIFEST: Vec<(&'static str, &'static str)> = {
+//         vec![
+//             ("transform", "Transform"),
+//             ("size", "Size2D"),
+//             ("stroke", "Stroke"),
+//             ("fill", "Color"),
+//         ]
+//     };
+// }
+//
+// #[cfg(feature="designtime")]
+// impl Manifestable for RectangleProperties {
+//     fn get_type_identifier() -> &'static str {
+//         &"Rectangle"
+//     }
+//     fn get_manifest() -> &'static Vec<(&'static str, &'static str)> {
+//         RECTANGLE_PROPERTIES_MANIFEST.as_ref()
+//     }
+// }
+//
+// #[cfg(feature="designtime")]
+// impl Patchable<RectanglePropertiesPatch> for RectangleProperties {
+//     fn patch(&mut self, patch: RectanglePropertiesPatch) {
+//         if let Some(p) = patch.transform {
+//             self.transform = Rc::clone(&p);
+//         }
+//         if let Some(p) = patch.size {
+//             self.size = Rc::clone(&p);
+//         }
+//         if let Some(p) = patch.stroke {
+//             self.stroke = p;
+//         }
+//         if let Some(p) = patch.fill {
+//             self.fill = p;
+//         }
+//     }
+// }
+//
+// #[cfg(feature="designtime")]
+// pub struct RectanglePropertiesPatch {
+//     pub size: Option<Size2D>,
+//     pub transform: Option<Rc<RefCell<Transform>>>,
+//     pub stroke: Option<Stroke>,
+//     pub fill: Option<Box<dyn Property<Color>>>,
+// }
+//
+// #[cfg(feature="designtime")]
+// impl Default for RectanglePropertiesPatch {
+//     fn default() -> Self {
+//         RectanglePropertiesPatch {
+//             transform: None,
+//             fill: None,
+//             size: None,
+//             stroke: None,
+//         }
+//     }
+// }
+//
+// #[cfg(feature="designtime")]
+// impl FromStr for RectanglePropertiesPatch {
+//     type Err = ();
+//
+//     fn from_str(_: &str) -> Result<Self, Self::Err> {
+//         unimplemented!()
+//     }
+// }
+//
+```

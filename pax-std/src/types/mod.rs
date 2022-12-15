@@ -127,7 +127,7 @@ impl PartialEq<ColorVariantMessage> for Color {
 }
 
 impl Interpolatable for Color {
-    //TODO: Colors can be meaningfully interpolated, thus
+    //FUTURE: Colors can be meaningfully interpolated, thus
     //      we should include interpolation logic here
     //      (Note that piet::Color offers a `to_rgba` method, probably
     //      useful to establish a common color space)

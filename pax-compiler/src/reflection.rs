@@ -77,7 +77,6 @@ pub fn get_fully_qualified_prelude_type(identifier: &str) -> String {
 
 pub fn is_prelude_type(identifier: &str) -> bool {
     for x in PRELUDE_TYPES.iter() {
-        //TODO: this logic for Rc and Vec is fragile.  Can we do better?
         if x.ends_with(identifier) {
             return true;
         }

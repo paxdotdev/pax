@@ -46,7 +46,7 @@ pub struct TimelineSegment {
 //     pub cached_evaluated_value: f64,
 // }
 
-//TODO: create an Interpolatable trait that allows us
+//FUTURE: create an Interpolatable trait that allows us
 //      to ease between values beyond f64 (e.g. a discrete interpolator
 // //      for ints or vecs; an interpolator for Colors)
 // impl ComputableProperty for PropertyTimeline {
@@ -62,7 +62,7 @@ pub struct TimelineSegment {
 //         };
 //
 //         //Scan through our list of timeline segments to find our active segment
-//         //TODO:  this lookup could be optimized to constant-time with something like
+//         //NOTE:  this lookup could be optimized to constant-time with something like
 //         //       a tree-map, or a "'''hashmap''' with ranges-of-frames for keys => pointers-to-segments for values"
 //         while timeline_playhead_position > active_segment.ending_frame_inclusive
 //             && segments_iter.peek().is_some()

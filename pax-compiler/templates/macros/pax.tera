@@ -80,7 +80,7 @@ impl {{pascal_identifier}} {
         {% endfor %}
         ctx.all_property_definitions.insert(source_id.to_string(), property_definitions);
 
-        // TODO: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate/parse `raw_pax` before templating.
+        //FUTURE: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate/parse `raw_pax` before templating.
 
         const raw_pax: &str = r#####"{{raw_pax}}
 "#####;

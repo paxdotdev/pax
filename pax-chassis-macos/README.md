@@ -18,5 +18,4 @@ Handles:
 - Mounting pax-chassis-macos + cartridge to a simple Mac app, delegating full window rendering to Pax.
 - Debug mode + LLDB support for debugging Pax projects on macOS
 - Production mode, suitable for packaging full-window Pax apps for end-users
-- TODO: register with CLI as an available dev-harness
     

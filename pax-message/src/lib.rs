@@ -5,7 +5,7 @@ extern crate serde;
 use std::ffi::CString;
 use std::os::raw::c_char;
 
-//TODO: feature-flag, only for Web builds
+//FUTURE: feature-flag, only for Web builds
 use wasm_bindgen::prelude::*;
 
 use serde::{Serialize};
@@ -21,7 +21,7 @@ pub enum NativeMessage {
     ScrollerCreate(AnyCreatePatch),
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(Vec<u64>),
-    //TODO: form controls
+    //FUTURE: native form controls
 
 }
 
@@ -57,7 +57,7 @@ pub struct ClickInterruptArgs {
     pub x: f64,
     pub y: f64,
 
-    //TODO: right/middle/left click
+    //FUTURE: right/middle/left click
 }
 
 #[derive(Deserialize)]
@@ -66,7 +66,6 @@ pub struct ScrollInterruptArgs {
     pub id_chain: Vec<u64>,
     pub delta_x: f64,
     pub delta_y: f64,
-    //TODO: right/middle/left click
 }
 
 
@@ -88,7 +87,7 @@ pub struct TextPatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub font: FontPatch,
-    pub fill: Option<ColorVariantMessage>, //TODO: more robust Fill support
+    pub fill: Option<ColorVariantMessage>, //FUTURE: more robust Fill support (multiple fills, ordering, gradients, opacity, etc.)
 }
 
 #[derive(Default, Serialize)]

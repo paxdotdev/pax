@@ -23,16 +23,14 @@ use piet_common::RenderContext;
 {% endfor %}
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
+//e.g.:  `use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};`
 {% for primitive in primitive_imports %}
-    //TODO:
     use {{ primitive }};
-    //use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};
 {% endfor %}
 
-{% for const in consts %}
-    //TODO:
 
-    //pull entire const token stream in here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
+//pull entire const token stream in here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
+{% for const in consts %}
     {{ const }}
 {% endfor %}
 
@@ -93,9 +91,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
     vtable
 }
 
+//Begin component factory literals
 {% for factory_literal in component_factories_literal %}
-    //TODO: generate component instance factory as a literal block of code
-    //      BEFORE passing it to Tera.  This is because there's not an apparent
-    //      with-the-grain way to recurse in Tera (or: maybe a template can load itself..?)
    {{ factory_literal }}
 {% endfor %}

@@ -1,1 +1,1 @@
-//TODO: ellipse primitive, for circle/ellipse drawing
+//FUTURE: ellipse primitive, for circle/ellipse drawing

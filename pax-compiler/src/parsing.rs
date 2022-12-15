@@ -148,7 +148,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
 
                 if let Rule::identifier = rule {
                     //explicit type declaration, like `SomeType {...}`
-                    todo!("handle explicit type declaration");
+                    unimplemented!("Explicit struct type declarations are not yet supported.  Instead of `SomeType {{ ... }}`, try using simply `{{ ... }}`.");
                 } else {
                     //no explicit type declaration, like `{...}`
                     // -- this token is the first k/v pair of object declaration; handle as such
@@ -436,15 +436,13 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 },
                 Rule::statement_for => {
 
-                    // handle forms:
-                    //
+                    // e.g. `i` | `(elem, i`)
                     // statement_for_predicate_declaration = {
                     //     identifier |
                     //     ("(" ~ identifier ~ ","~ identifier ~")")
                     // }
                     //
-                    //   x
-                    //
+                    // e.g. `0..10` | `self.some_iterable`
                     // statement_for_source = { xo_range | expression_symbolic_binding }
                     //
                     // The latter, `source`, can simply be parsed as an expression, even if it's static like `0..5`.
@@ -527,13 +525,11 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                 let mut attribute_event_binding = kv.next().unwrap().into_inner();
                 let event_id = attribute_event_binding.next().unwrap().as_str().to_string();
                 let symbolic_binding = attribute_event_binding.next().unwrap().as_str().to_string();
-                //TODO: handle expression
                 (event_id, AttributeValueDefinition::EventBindingTarget(symbolic_binding))
             },
             _ => { //Vanilla `key=value` pair
 
                 let mut kv = attribute_key_value_pair.into_inner();
-                //TODO: handle expression
                 let key = kv.next().unwrap().as_str().to_string();
                 let mut raw_value = kv.next().unwrap().into_inner().next().unwrap();
                 let value = match raw_value.as_rule() {

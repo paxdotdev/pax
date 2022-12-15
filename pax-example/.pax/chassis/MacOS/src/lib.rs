@@ -28,7 +28,7 @@ use pax_runtime_api::ArgsClick;
 #[repr(C)] //Exposed to Swift via paxchassismacos.h
 pub struct PaxEngineContainer {
     _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
-    //TODO: since that has become a single field, this data structure should be retired and `*mut PaxEngine` should be passed directly.
+    //NOTE: since that has become a single field, this data structure may be be retired and `*mut PaxEngine` could be passed directly.
 }
 
 /// Allocate an instance of the Pax engine, with a specified root component from the loaded `pax_cartridge`.
@@ -64,7 +64,8 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
 /// Destroy `engine` and clean up the `ManuallyDrop` container surround it.
 #[no_mangle]
 pub extern "C" fn pax_dealloc_engine(_container: *mut PaxEngineContainer) {
-    //TODO: support deallocing the engine container, particularly for when we need to support elegant clean-up from attached harness
+    //particularly for when we need to support elegant clean-up from attached harness
+    unimplemented!();
 }
 
 

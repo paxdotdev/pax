@@ -54,7 +54,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
         self.cached_value = value;
     }
 
-    //TODO: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
+    //FUTURE: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
         self.transition_manager.value = Some(self.get().clone());
         &self.transition_manager.queue.clear();
@@ -95,7 +95,6 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
 /// into Expressions, maintaining a pointer e.g. to the current
 /// stack frame to enable evaluation of properties & dependencies
 pub struct ExpressionContext<'a, R: 'static + RenderContext> {
-    //TODO: add scope tree, etc.
     pub engine: &'a PaxEngine<R>,
     pub stack_frame: Rc<RefCell<StackFrame<R>>>,
 }

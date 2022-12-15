@@ -70,12 +70,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 };
 
 
-            //TODO: this hacked dirty-check shouldn't be necessary once we have more robust dependency-DAG dirty-checking for expressions
+            //NOTE: this hacked dirty-check shouldn't be necessary once we have more robust dependency-DAG dirty-checking for expressions
             if is_dirty {
                 self.data_list.set(new_value);
             }
         } else {
-            //TODO: probably need better dirty-checking for PropertyLiteral; might be able to
+            //NOTE: probably need better dirty-checking for PropertyLiteral; might be able to
             //      patch into dirty-watching system
             is_dirty = self.data_list.get().len() != (*self.virtual_children).borrow().len();
         }
@@ -91,7 +91,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 None => {Rc::new(RefCell::new(vec![]))},
             };
 
-            //unmount all old virtual_children, permanently (TODO: this can be much-optimized)
+            //unmount all old virtual_children, permanently (NOTE: this can be much-optimized)
             (*(*self.virtual_children).borrow_mut()).iter_mut().for_each(|vc| {
                 (*(*(*vc).borrow_mut())).borrow_mut().unmount_recursive(rtc, true);
             });

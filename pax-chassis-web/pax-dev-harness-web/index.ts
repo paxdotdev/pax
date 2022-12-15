@@ -21,7 +21,7 @@ const CLIP_PREFIX = "clip"
 //This ID mechanism will also likely knock out most of the work for DOM element pooling/recycling
 
 function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
-    let mount = document.querySelector("#" + MOUNT_ID); // TODO: make more general; see approach used by Vue & React
+    let mount = document.querySelector("#" + MOUNT_ID); // FUTURE: make more general; see approach used by Vue & React
 
     //Create layer for native (DOM) rendering
     let nativeLayer = document.createElement("div");
@@ -84,8 +84,7 @@ class NativeElementPool {
 
         let runningChain = document.createElement("div")
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
-        
-        //TODO: instead of nativeLayer, get a reference to the correct clipping container
+
         let attachPoint = getAttachPointFromClippingIds(patch.clipping_ids);
 
         attachPoint?.appendChild(runningChain);
@@ -205,11 +204,13 @@ class NativeElementPool {
     }
 
     frameDelete(id_chain: number[]) {
+        // NOTE: this should be supported, and may cause a memory leak if left unaddressed;
+        //       was likely unplugged during v0 implementation due to some deeper bug that was interfering with 'hello world'
+
         // let oldNode = this.textNodes.get(id_chain);
         // console.assert(oldNode !== undefined);
         // this.textNodes.delete(id_chain);
 
-        // //TODO: instead of nativeLayer, get a reference to the correct clipping container
         // let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
         // nativeLayer?.removeChild(oldNode);
     }

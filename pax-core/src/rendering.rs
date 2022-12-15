@@ -75,7 +75,6 @@ pub struct TransformAndBounds {
 
 /// "Transform And Bounds" — a helper struct for storing necessary data for event propagation and ray casting
 pub struct TabCache<R: 'static + RenderContext> {
-    //TODO:  probably pub tabs: HashMap<Vec<u64>, TransformAndBounds>,
     pub tabs: HashMap<Vec<u64>, TransformAndBounds>,
     pub parents: HashMap<Vec<u64>, Option<RenderNodePtr<R>>>,
 }
@@ -372,6 +371,6 @@ pub struct StrokeInstance {
     pub color: Color,
     pub width: f64,
     pub style: StrokeStyle,
-    //TODO: stroke alignment, inner/outer/center?
+    //FUTURE: stroke alignment, inner/outer/center?
 }
 

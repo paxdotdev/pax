@@ -349,7 +349,7 @@ fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: 
 }
 
 static CHASSIS_MACOS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos");
-//TODO: including this whole pax-chassis-web directory, plus node_modules, adds >100MB to the size of the
+//NOTE: including this whole pax-chassis-web directory, plus node_modules, adds >100MB to the size of the
 //      compiler binary; also extends build times for Web and build times for pax-compiler itself.
 //      These are all development dependencies, namely around webpack/typescript -- this could be
 //      improved with a "production build" of `pax-chassis-web` that gets included into the compiler
@@ -438,7 +438,7 @@ fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
         fs::canonicalize(cargo_toml_path).unwrap()).unwrap()).expect("Error loading host Cargo.toml");
 
     let name = existing_cargo_toml["package"]["name"].as_str().unwrap().to_string();
-    let identifier = name.replace("-", "_"); //TODO: make this less naive?
+    let identifier = name.replace("-", "_"); //NOTE: perhaps this could be less naive?
 
     HostCrateInfo {
         name,
@@ -457,14 +457,7 @@ pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
     let pax_dir = get_or_create_pax_directory(&ctx.path);
     let tmp_dir =  get_or_create_pax_tmp_directory(&ctx.path);
 
-    //TODO: handle stand-alone .pax files
-
-    //TODO: automatically inject missing deps into host Cargo.toml (or offer to do so)
-    //      alternatively — offer a separate command, `pax init .` for example, which
-    //      can generate empty projects or patch existing ones.  in this world,
-    //      we can handle errors in running `cargo .. --features parser` and prompt
-    //      user to run `pax init`
-    // let parser_cargo_file_path = RunHelpers::create_parser_cargo_file(&ctx.path, &tmp_dir);
+    //FUTURE: handle stand-alone .pax files
 
     // Run parser bin from host project with `--features parser`
     let cargo_run_parser_process = Command::new("cargo")
@@ -483,9 +476,7 @@ pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
     let out = String::from_utf8(output.stdout).unwrap();
     let _err = String::from_utf8(output.stderr).unwrap();
 
-    // TODO: error handle calling `cargo run` here -- need to forward
-    //       cargo/rustc errors, to handle the broad set of cases where
-    //       there are vanilla Rust errors (dep/config issues, syntax errors, etc.)
+    //FUTURE: handle parsing errors here
     assert_eq!(output.status.code().unwrap(), 0);
 
     let mut manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));

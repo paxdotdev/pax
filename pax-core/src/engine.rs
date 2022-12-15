@@ -98,7 +98,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
                     current_transition.global_frame_started = Some(self.engine.frames_elapsed);
                 }
                 let progress = (self.engine.frames_elapsed as f64 - current_transition.global_frame_started.unwrap() as f64) / (current_transition.duration_frames as f64);
-                return if progress >= 1.0 { //TODO -- minus some epsilon for float imprecision?
+                return if progress >= 1.0 { //NOTE: we may encounter float imprecision here, consider `progress >= 1.0 - EPSILON` for some `EPSILON`
                     let new_value = current_transition.curve.interpolate(&current_transition.starting_value, &current_transition.ending_value, progress);
                     tm.value = Some(new_value.clone());
 
@@ -145,7 +145,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
                 };
                 return Some((**evaluator)(ec));
             }
-        } //TODO: else if present in timeline vtable...
+        } //FUTURE: for timelines: else if present in timeline vtable...
 
         None
     }
@@ -307,13 +307,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
             //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
             let repeat_indices = (*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack();
-            if !instance_registry.is_mounted(id, repeat_indices.clone()) { //TODO: make more efficient
+            if !instance_registry.is_mounted(id, repeat_indices.clone()) {
                 node.borrow_mut().handle_did_mount(rtc);
                 instance_registry.mark_mounted(id, repeat_indices.clone());
             }
         }
 
-        //TODO: double-check that this logic should be happening here, vs. after `compute_properties`
         //the "current component" will actually push its stack frame.)
         //peek at the current stack frame and set a scoped playhead position as needed
         match rtc.runtime.borrow_mut().peek_stack_frame() {
@@ -397,7 +396,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let mut new_rtc = rtc.clone();
             new_rtc.parent_hydrated_node = Some(Rc::clone(&hydrated_node));
             &self.recurse_hydrate_render_tree(&mut new_rtc, rc, Rc::clone(child));
-            //TODO: for dependency management, return computed values from subtree above
+            //FUTURE: for dependency management, return computed values from subtree above
         });
 
         //Note: ray-casting requires that the hydrated_node_cache is sorted by z-index,

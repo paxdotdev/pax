@@ -15,8 +15,11 @@ use piet_common::RenderContext;
 
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
+//e.g.:  `use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};`
 
 
+
+//pull entire const token stream in here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
 
 
 pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
@@ -56,4 +59,5 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
     vtable
 }
 
+//Begin component factory literals
 

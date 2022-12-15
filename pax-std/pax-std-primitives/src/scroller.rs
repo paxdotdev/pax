@@ -40,7 +40,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
 
-        //TODO: instantiate a `Group`, store it as a private field on the instance struct; attach the provided
+        //      instantiate a `Group`, store it as a private field on the instance struct; attach the provided
         //      children (here, in Inst.Args) to that `Group`.  Finally, `set` the `transform` of that Group to
         //      update the `translation` mandated by scroll events.
 

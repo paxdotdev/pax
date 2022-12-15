@@ -1,1 +1,1 @@
-//TODO: Path primitive, for arbitrary Bézier / line-segment chains
+//FUTURE: Path primitive, for arbitrary Bézier / line-segment chains
