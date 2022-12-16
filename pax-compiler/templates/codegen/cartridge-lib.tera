@@ -13,17 +13,11 @@ use piet_common::RenderContext;
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
 {% for import in imports %}
-    use {{ import }};
-    /*
-    use pax_example::pax_reexports::{Root};
-    use pax_example::pax_reexports::pax_std::primitives::{Rectangle, Group, Text};
-    use pax_example::pax_reexports::pax_std::types::{Color, Font, Stroke, Size, StackerCell, StackerDirection};
-    use pax_example::pax_reexports::pax_std::components::Stacker;
-    */
+use {{ import }};
 {% endfor %}
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
-//e.g.:  `use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};`
+//e.g.: `use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};`
 {% for primitive in primitive_imports %}
     use {{ primitive }};
 {% endfor %}

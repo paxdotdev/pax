@@ -23,6 +23,8 @@ pub enum PropertiesCoproduct {
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
     
+    Size2D(pax_runtime_api::Size2D),
+    
     String(String),
     
     Transform2D(pax_runtime_api::Transform2D),
@@ -31,7 +33,7 @@ pub enum TypesCoproduct {
     
     VecLABR__pax_stdCOCOtypesCOCOStackerCellRABR(Vec<pax_example::pax_reexports::pax_std::types::StackerCell>),
     
-    Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
+    Vec_Rc_PropertiesCoproduct___(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
     
     __f64(pax_example::pax_reexports::f64),
     

@@ -13,6 +13,28 @@ use piet_common::RenderContext;
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
 
+use pax_example::pax_reexports::pax_std::types::Color;
+
+use pax_example::pax_reexports::i64;
+
+use pax_example::pax_reexports::f64;
+
+use pax_example::pax_reexports::usize;
+
+use pax_example::pax_reexports::std::string::String;
+
+use pax_example::pax_reexports::pax_std::types::StackerCell;
+
+use pax_example::pax_reexports::pax::api::Size;
+
+use pax_example::pax_reexports::pax_std::types::StackerDirection;
+
+use pax_example::pax_reexports::pax_std::types::Stroke;
+
+use pax_example::pax_reexports::std::vec::Vec;
+
+use pax_example::pax_reexports::pax_std::types::Font;
+
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
 //e.g.:  `use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};`

@@ -39,13 +39,13 @@ impl {{pascal_identifier}} {
                         );
                     {% endfor %}
 
-                    let fully_qualified_type =  pax_compiler::reflection::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
+                    let property_type_info =  pax_compiler::reflection::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
 
                     property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                         name: "{{ctpd.field_name}}".to_string(),
                         original_type: "{{ctpd.original_type}}".to_string(),
                         fully_qualified_constituent_types,
-                        fully_qualified_type,
+                        property_type_info,
                         datum_cast_type: None,
                     });
                 {% endfor %}

@@ -14,6 +14,7 @@ use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Document, Item, value};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use crate::manifest::ComponentDefinition;
 
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
@@ -202,22 +203,25 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     // - include all T such that T is the iterator type for some Property<Vec<T>>
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
         cd.1.property_definitions.iter().map(|pm|{
-            (pm.fully_qualified_type.pascalized_fully_qualified_type.clone().replace("{PREFIX}","__"),
-             pm.fully_qualified_type.fully_qualified_type.clone().replace("{PREFIX}",&import_prefix))
+            (pm.property_type_info.pascalized_fully_qualified_type.clone().replace("{PREFIX}", "__"),
+             pm.property_type_info.fully_qualified_type.clone().replace("{PREFIX}", &import_prefix))
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
     let mut set: HashSet<_> = types_coproduct_tuples.drain(..).collect();
-    // builtins
-    vec![
+
+    let BUILT_INS = vec![
         ("f64", "f64"),
         ("bool", "bool"),
         ("isize", "isize"),
         ("usize", "usize"),
         ("String", "String"),
-        ("Vec_Rc_PropertiesCoproduct___", "Vec<Rc<PropertiesCoproduct>>"),
+        ("Vec_Rc_PropertiesCoproduct___", "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>"),
         ("Transform2D", "pax_runtime_api::Transform2D"),
-    ].iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
+        ("Size2D", "pax_runtime_api::Size2D"),
+    ];
+
+    BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
     types_coproduct_tuples.extend(set.into_iter());
     types_coproduct_tuples.sort();
 
@@ -250,7 +254,17 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
 
-    let imports = vec![];//TODO!
+    //Gather all fully_qualified_constituent_types from manifest; prepend with re-export prefix; make unique
+    let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
+    let mut imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
+        comp_def.property_definitions.iter().map(|prop_def|{
+            prop_def.fully_qualified_constituent_types.iter().map(|fqct|{
+                IMPORT_PREFIX.clone() + fqct
+            }).collect::<Vec<String>>()
+        }).flatten().collect::<Vec<String>>()
+    }).flatten().collect::<Vec<String>>();
+    let unique_imports: HashSet<String> = imports.drain(..).collect();
+    imports.extend(unique_imports.into_iter());
 
     let primitive_imports = vec![];//TODO!
 

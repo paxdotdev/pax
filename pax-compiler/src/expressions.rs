@@ -82,7 +82,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                         |property_def| {
                             property_def.name == attr.0
                         }
-                    ).unwrap().fully_qualified_type.pascalized_fully_qualified_type).clone();
+                    ).unwrap().property_type_info.pascalized_fully_qualified_type).clone();
 
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
@@ -103,23 +103,19 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
                     let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
                     let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
 
-                    let BUILT_IN_PROPERTIES = vec![
-                        "transform",
-                        "size",
-                    ];
-
                     let pascalized_return_type = if attr.0 == "transform" {
+                        //FUTURE: DRY & robustify
                         "Transform2D".to_string()
                     } else if attr.0 == "size" {
+                        //FUTURE: DRY & robustify
                         "Size2D".to_string()
                     } else {
                         (active_node_component.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
                         }).expect(
                             &format!("Property `{}` not found on component `{}`", &attr.0, &ctx.component_def.pascal_identifier)
-                        ).fully_qualified_type.pascalized_fully_qualified_type).clone()
+                        ).property_type_info.pascalized_fully_qualified_type).clone()
                     };
-
 
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
@@ -218,7 +214,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &TemplateTraversalContext) -> Ex
     };
 
     let prop_def = ctx.component_def.property_definitions.iter().find(|ppd|{ppd.name == identifier}).expect(&format!("Symbol not found: {}", &identifier));
-    let properties_type = prop_def.fully_qualified_type.fully_qualified_type.clone();
+    let properties_type = prop_def.property_type_info.fully_qualified_type.clone();
 
     let pascalized_datum_cast_type = if let Some(x) = &prop_def.datum_cast_type {
         Some(x.pascalized_fully_qualified_type.clone())

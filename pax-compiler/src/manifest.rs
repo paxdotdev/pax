@@ -99,7 +99,8 @@ pub struct PropertyDefinition {
     pub fully_qualified_constituent_types: Vec<String>,
 
     /// Store of fully qualified types that may be needed for expression vtable generation
-    pub fully_qualified_type: PropertyType,
+    pub property_type_info: PropertyType,
+
     pub datum_cast_type: Option<PropertyType>,
 }
 
