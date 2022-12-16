@@ -14,7 +14,7 @@ use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Document, Item, value};
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use crate::manifest::ComponentDefinition;
+use crate::manifest::{ComponentDefinition, ExpressionSpec};
 
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
@@ -302,7 +302,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //     JavaScript uses:
     // Uncaught ReferenceError: not_defined is not defined
 
-    let expression_specs = vec![];//TODO!
+    let expression_specs = manifest.expression_specs.as_ref().unwrap().values().map(|es: &ExpressionSpec|{es.clone()}).collect();
 
     let component_factories_literal = vec![];//TODO!
 

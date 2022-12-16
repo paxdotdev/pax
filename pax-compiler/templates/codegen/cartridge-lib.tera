@@ -76,7 +76,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
             };
         {% endfor %}
 
-        TypesCoproduct::{{ expression_spec.return_type }}(
+        TypesCoproduct::{{ expression_spec.pascalized_return_type }}(
             {{ expression_spec.output_statement }}
         )
     }

@@ -26,7 +26,7 @@ impl PaxManifest {
 
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct ExpressionSpec {
     /// Unique id for vtable entry — used for binding a node definition property to vtable
     pub id: usize,
@@ -46,7 +46,7 @@ pub struct ExpressionSpec {
 
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone)]
 pub struct  ExpressionSpecInvocation {
     /// Identifier as authored, for example: `self.some_prop`
     pub identifier: String,
