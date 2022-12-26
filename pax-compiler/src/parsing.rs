@@ -99,10 +99,36 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 "<<TODO: XO_EXPRESSION_GROUPED>>".to_string()
             },
             Rule::xo_function_call => {
-                "<<TODO: XO_FUNCTION_CALL>>".to_string()
+                /* xo_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
+                   xo_function_args_list = {expression_body ~ ("," ~ expression_body)*} */
+
+                //prepend identifiers; recurse-pratt-parse `xo_function_args`' `expression_body`s
+                let mut pairs = primary.into_inner();
+
+                let mut output = "".to_string();
+                let mut next_pair = pairs.next().unwrap();
+                while let Rule::identifier = next_pair.as_rule() {
+                    output = output + next_pair.as_str();
+                    next_pair = pairs.next().unwrap();
+                    if let Rule::identifier = next_pair.as_rule() {
+                        //look-ahead
+                        output = output + "::";
+                    }
+                };
+
+                let mut expression_body_pairs = next_pair.into_inner();
+
+                output = output + "(";
+                while let Some(next_pair) = expression_body_pairs.next() {
+                    output = output + "(" + &recurse_pratt_parse_to_string(next_pair.into_inner(), pratt_parser, Rc::clone(&symbolic_ids)) + "),"
+                }
+                output = output + ")";
+
+                output
             },
             Rule::xo_range => {
-                "<<TODO: XO_RANGE>>".to_string()
+                /* { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | expression_symbolic_binding)} */
+                primary.as_str().to_string() // can pass pairs converted directly to string, as this subset of syntax is compatible with Rust's
             },
             Rule::xo_literal => {
                 let literal_kind = primary.into_inner().next().unwrap();
@@ -111,7 +137,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                     Rule::literal_number_with_unit => {
                         let mut inner = literal_kind.into_inner();
 
-                        let value = inner.next().unwrap();
+                        let value = inner.next().unwrap().as_str();
                         let unit = inner.next().unwrap().as_str();
 
                         if unit == "px" {

@@ -197,7 +197,7 @@ xo_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
 xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("::" ~ identifier) |  ("[" ~ expression_body ~ "]") )* }
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
 
-xo_function_call = {identifier ~ (("::" | ".") ~ identifier)* ~ ("("~xo_function_args_list~")")}
+xo_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
 xo_function_args_list = {expression_body ~ ("," ~ expression_body)*}
 
 //////  //////  //////

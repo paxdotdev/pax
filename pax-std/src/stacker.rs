@@ -10,7 +10,7 @@ use crate::types::{StackerDirection, StackerCell};
 /// and vertically, along with `Transform.align` and `Transform.anchor` to compose any rectilinear 2D layout.
 #[pax(
     for i in 0..self.cells {
-        <Frame transform={self.get_frame_transform(i, $container)} size={(get_frame_size(i, $container))}>
+        <Frame transform={self::get_frame_transform(i, $container)} size={(get_frame_size(i, $container))}>
             slot(i)
         </Frame>
     }

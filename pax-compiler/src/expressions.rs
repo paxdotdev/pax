@@ -45,7 +45,6 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
     println!("{}", serde_json::to_string_pretty(&manifest).unwrap());
 }
 
-
 fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContext<'a>) -> TemplateTraversalContext<'a> {
     let mut incremented = false;
 
@@ -135,8 +134,9 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
         //Handle control flow declarations
 
         if let Some(range) = &cfa.repeat_source_definition.range_expression {
+            //e.g. `for i in 0..10` or `for j in self.some_id..25`
 
-            todo!("Register `range` as an expression with return type usize — allow expression compiler to handle everything else")
+            todo!("Register `range` as an expression with return type Range<usize> — allow expression compiler to handle everything else")
             //
             // let id = ctx.uid_gen.next().unwrap();
             //
