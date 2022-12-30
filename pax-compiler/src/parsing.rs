@@ -91,6 +91,54 @@ pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
 }
 
 
+fn compile_xo_symbol(xo_symbol: Pair<Rule>) -> String {
+    /* xo_symbol = {identifier ~ ("." ~ identifier)*} */
+    // 1. remove any initial `this` or `self`
+    // 2. return remaining pairs literally
+
+    let mut output = "".to_string();
+    let mut pairs = xo_symbol.into_inner();
+
+    let mut first_id = true;
+    let mut has_appended = false;
+    let mut next_pair = pairs.next();
+
+    while let Some(ref id) = next_pair {
+        if first_id && (id.as_str() == "this" || id.as_str() == "self") {
+            //no-op; intentionally ignore symbolic-binding-initial `this` or `self`
+        } else {
+            if has_appended {
+                output = output + "::";
+            }
+            output += id.as_str();
+            has_appended = true;
+        }
+
+        first_id = false;
+    };
+    output
+}
+
+fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
+    let mut pairs = xo_symbol.clone().into_inner();
+    let maybe_this_or_self = pairs.next().unwrap().as_str();
+
+    if maybe_this_or_self == "this" || maybe_this_or_self == "self" {
+        let mut output = "".to_string();
+
+        //accumulate remaining identifiers, having skipped `this` or `self` with the original `.next()`
+        pairs.for_each(|pair|{
+            output += &*(".".to_owned() + pair.as_str())
+        });
+
+        //remove initial fencepost "."
+        output.replacen(".", "", 1)
+    } else {
+        //remove original binding; no self or this
+        xo_symbol.as_str().to_string()
+    }
+}
+
 fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &PrattParser<Rule>, symbolic_ids: Rc<RefCell<Vec<String>>>) -> String {
     pratt_parser
         .map_primary(move |primary| match primary.as_rule() {
@@ -127,8 +175,25 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 output
             },
             Rule::xo_range => {
-                /* { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | expression_symbolic_binding)} */
-                primary.as_str().to_string() // can pass pairs converted directly to string, as this subset of syntax is compatible with Rust's
+                /* { (xo_literal | xo_symbol) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | xo_symbol)} */
+                //need to handle `self` and `this` elision
+                let mut pairs = primary.into_inner();
+                let mut output = "".to_string();
+
+                let mut op0 = pairs.next().unwrap();
+                match op0.as_rule() {
+                    Rule::xo_literal => {
+                        //return the literal exactly as it is
+                        op0.as_str().to_string()
+                    },
+                    Rule::xo_symbol => {
+                        //for symbolic identifiers, remove any "this" or "self", then return string
+                        trim_self_or_this_from_symbolic_binding(op0)
+                    },
+                    _ => unimplemented!("")
+                }
+
+                // primary.as_str().to_string() // can pass pairs converted directly to string, as this subset of syntax is compatible with Rust's
             },
             Rule::xo_literal => {
                 let literal_kind = primary.into_inner().next().unwrap();
@@ -193,7 +258,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
             },
             Rule::xo_symbol => {
                 symbolic_ids.borrow_mut().push(primary.as_str().to_string());
-                primary.as_str().to_owned()
+                trim_self_or_this_from_symbolic_binding(primary)
             },
             Rule::xo_tuple => {
                 let mut tuple = primary.into_inner();
@@ -469,7 +534,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     // }
                     //
                     // e.g. `0..10` | `self.some_iterable`
-                    // statement_for_source = { xo_range | expression_symbolic_binding }
+                    // statement_for_source = { xo_range | xo_symbol }
                     //
                     // The latter, `source`, can simply be parsed as an expression, even if it's static like `0..5`.
                     // Thus, we load it wholesale into a String for subsequent handling by compiler as an Expression
@@ -546,7 +611,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
     let vec : Vec<(String, AttributeValueDefinition)> = final_pairs_of_tag.map(|attribute_key_value_pair|{
         match attribute_key_value_pair.clone().into_inner().next().unwrap().as_rule() {
             Rule::attribute_event_binding => {
-                // attribute_event_binding = {attribute_event_id ~ "=" ~ expression_symbolic_binding}
+                // attribute_event_binding = {attribute_event_id ~ "=" ~ xo_symbol}
                 let mut kv = attribute_key_value_pair.into_inner();
                 let mut attribute_event_binding = kv.next().unwrap().into_inner();
                 let event_id = attribute_event_binding.next().unwrap().as_str().to_string();

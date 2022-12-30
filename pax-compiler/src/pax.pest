@@ -27,7 +27,7 @@ closing_tag = {"<" ~ "/" ~ POP ~ ">"}
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
 attribute_key_value_pair = {attribute_event_binding | (identifier ~ "=" ~ any_template_value)}
 attribute_event_id = {"@" ~ identifier}
-attribute_event_binding = {attribute_event_id ~ "=" ~ expression_symbolic_binding}
+attribute_event_binding = {attribute_event_id ~ "=" ~ xo_symbol}
 
 //`...=5.0`, `...={...}`, `id=some_id`
 any_template_value = {literal_value | expression_wrapped | identifier}
@@ -114,8 +114,6 @@ expression_wrapped = _{
     "{" ~ expression_body ~ "}"
 }
 
-expression_symbolic_binding = {identifier ~ ("." ~ identifier)*}
-
 expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? }
 
 /*
@@ -183,7 +181,7 @@ xo_infix = _{
     xo_tern_then = {"?"}
     xo_tern_else = {":"}
 
-xo_range = { (xo_literal | expression_symbolic_binding) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | expression_symbolic_binding)}
+xo_range = { (xo_literal | xo_symbol) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | xo_symbol)}
     xo_range_exclusive = @{".."}
     xo_range_inclusive = @{"..."}
 
@@ -194,7 +192,7 @@ xo_literal = {literal_enum_value  | literal_number_with_unit | literal_number  |
 xo_object = { identifier? ~ "{" ~ xo_object_settings_key_value_pair* ~ "}" }
 xo_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
 
-xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("::" ~ identifier) |  ("[" ~ expression_body ~ "]") )* }
+xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~ "]") )* }
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
 
 xo_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
@@ -228,4 +226,4 @@ statement_for_predicate_declaration = {
 // in 0..5
 // in this.some_symbol..25
 // in 25..some_symbol
-statement_for_source = { xo_range | expression_symbolic_binding }  //Uses `expression_symbolic_binding` for the definition, which is reasonable because `for` preambles are evaluated as expressions
+statement_for_source = { xo_range | xo_symbol }
