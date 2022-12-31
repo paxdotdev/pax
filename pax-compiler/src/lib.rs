@@ -166,6 +166,17 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
     output_string
 }
 
+fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
+    //update property types in-place
+    manifest.components.iter_mut().for_each(|cd| {
+        cd.1.property_definitions.iter_mut().for_each(|pm| {
+            pm.property_type_info.pascalized_fully_qualified_type = pm.property_type_info.pascalized_fully_qualified_type.replace("{PREFIX}", "__");
+            pm.property_type_info.fully_qualified_type = pm.property_type_info.fully_qualified_type.replace("{PREFIX}", &host_crate_info.import_prefix);
+        });
+    });
+}
+
+
 fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
     let target_dir = pax_dir.join("properties-coproduct");
@@ -185,26 +196,27 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
 
-    let import_prefix = format!("{}::pax_reexports::", host_crate_info.identifier);
 
     //build tuples for PropertiesCoproduct
     let mut properties_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|comp_def| {
         (
             comp_def.1.pascal_identifier.clone(),
-            format!("{}{}{}{}", &import_prefix, &comp_def.1.module_path.replace("crate", ""), {if comp_def.1.module_path == "crate" {""} else {"::"}}, &comp_def.1.pascal_identifier)
+            format!("{}{}{}{}", &host_crate_info.import_prefix, &comp_def.1.module_path.replace("crate", ""), {if comp_def.1.module_path == "crate" {""} else {"::"}}, &comp_def.1.pascal_identifier)
         )
     }).collect();
     let mut set: HashSet<(String, String)> = properties_coproduct_tuples.drain(..).collect();
     properties_coproduct_tuples.extend(set.into_iter());
     properties_coproduct_tuples.sort();
 
+
+
     //build tuples for TypesCoproduct
     // - include all Property types, representing all possible return types for Expressions
     // - include all T such that T is the iterator type for some Property<Vec<T>>
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
         cd.1.property_definitions.iter().map(|pm|{
-            (pm.property_type_info.pascalized_fully_qualified_type.clone().replace("{PREFIX}", "__"),
-             pm.property_type_info.fully_qualified_type.clone().replace("{PREFIX}", &import_prefix))
+            (pm.property_type_info.pascalized_fully_qualified_type.clone(),
+             pm.property_type_info.fully_qualified_type.clone())
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -445,6 +457,8 @@ struct HostCrateInfo {
     name: String,
     /// for example: `pax_example`
     identifier: String,
+    /// for example: `some_crate::pax_reexports`,
+    import_prefix: String,
 }
 
 fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
@@ -454,9 +468,12 @@ fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
     let name = existing_cargo_toml["package"]["name"].as_str().unwrap().to_string();
     let identifier = name.replace("-", "_"); //NOTE: perhaps this could be less naive?
 
+    let import_prefix = format!("{}::pax_reexports::", &identifier);
+
     HostCrateInfo {
         name,
         identifier,
+        import_prefix,
     }
 }
 
@@ -495,10 +512,11 @@ pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
 
     let mut manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
 
-    expressions::compile_all_expressions(&mut manifest);
-
     let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
+    update_property_prefixes_in_place(&mut manifest, &host_crate_info);
+
+    expressions::compile_all_expressions(&mut manifest);
 
     let build_id = uuid::Uuid::new_v4().to_string();
 
