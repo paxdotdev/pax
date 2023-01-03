@@ -50,6 +50,11 @@ pub struct ExpressionSpec {
 pub struct  ExpressionSpecInvocation {
     /// Identifier as authored, for example: `self.some_prop`
     pub identifier: String,
+
+    /// Identifier escaped so that all operations (like `.` or `[...]`) are
+    /// encoded as a valid single identifier — e.g. `self.foo` => `self__
+    pub escaped_identifier: String,
+
     /// Statically known stack offset for traversing Repeat-based scopes at runtime
     pub stack_offset: usize,
     /// Type of the containing Properties struct, for unwrapping from PropertiesCoproduct.  For example, `Foo` for `PropertiesCoproduct::Foo` or `RepeatItem` for PropertiesCoproduct::RepeatItem
@@ -97,7 +102,6 @@ pub struct PropertyDefinition {
     pub original_type: String,
     /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
     pub fully_qualified_constituent_types: Vec<String>,
-
     /// Store of fully qualified types that may be needed for expression vtable generation
     pub property_type_info: PropertyType,
 

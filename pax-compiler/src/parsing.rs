@@ -92,31 +92,13 @@ pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
 
 
 fn compile_xo_symbol(xo_symbol: Pair<Rule>) -> String {
-    /* xo_symbol = {identifier ~ ("." ~ identifier)*} */
-    // 1. remove any initial `this` or `self`
-    // 2. return remaining pairs literally
-
-    let mut output = "".to_string();
-    let mut pairs = xo_symbol.into_inner();
-
-    let mut first_id = true;
-    let mut has_appended = false;
-    let mut next_pair = pairs.next();
-
-    while let Some(ref id) = next_pair {
-        if first_id && (id.as_str() == "this" || id.as_str() == "self") {
-            //no-op; intentionally ignore symbolic-binding-initial `this` or `self`
-        } else {
-            if has_appended {
-                output = output + "::";
-            }
-            output += id.as_str();
-            has_appended = true;
-        }
-
-        first_id = false;
-    };
-    output
+    //refer to the "encoded" / "escaped" entire symbol / identifier in RIL, which should assuredly refer
+    //to the same `invocation` that is created earlier in each vtable entry
+    //future:  this will likely get hairy for complex expressions inside square brackets -- e.g.
+    //         `self.active_things[i + self.get_some_pure_value(j + i)]`
+    //         Likely the ideal solution is to _refer to another vtable entry_ for the inner expression,
+    //         then encode that id as part of the escaped identifier, e.g. `selfPERIactive_things[VTABLE]
+    crate::reflection::escape_identifier(xo_symbol.as_str().replace(" ", "").to_string())
 }
 
 fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {

@@ -235,8 +235,11 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &TemplateTraversalContext) -> Ex
 
     let stack_offset = found_depth.unwrap();
 
+    let escaped_identifier = crate::reflection::escape_identifier(identifier.clone());
+
     ExpressionSpecInvocation {
         identifier,
+        escaped_identifier,
         stack_offset,
         properties_type,
         pascalized_datum_cast_type,

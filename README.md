@@ -1,13 +1,15 @@
 # Pax  
 
-Pax is a cross-platform rendering engine & Rust framework for interactive graphics, animations, and GUIs.
+Pax is a user interface language and rendering engine.  Use Pax to build GUIs and interactive 2D graphics with Rust.
 
-Pax extends the Rust programming language with a syntax for declarative component-based graphical content and behavior. Pax programs compile through Rust into lightweight native app executables or WebAssembly-powered Web apps with a <100kB base footprint and up to 120FPS rendering.
+Pax compiles through Rust into native Mac apps (LLVM) or Web apps (WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
 
 As of September 2022, Pax is being developed in the open, [in alpha preview](https://docs.pax-lang.org/status-sept-2022.html).
 
 
 ## Example
+
+Writing Pax is intended to feel familiar, and the language borrows many ideas from [prior art](https://docs.pax-lang.org/intro-goals-prior-art.html).
 
 Following is a simple Pax component called `IncrementMe`:
 
@@ -18,6 +20,9 @@ use pax::*;
 use pax_std::{Text};
 use pax_std::forms::{Button, ArgsButtonSubmit};
 use pax_std::layout::{Stacker};
+
+/// Following is the description of a simple form GUI, encapsulated 
+/// into a reusable component called `IncrementMe`.
 
 #[pax(
   <Stacker cells=2>
@@ -38,8 +43,16 @@ impl IncrementMe {
 ```
 Any Pax component like the example above may be included inside other Pax components, or may be mounted as the root of a stand-alone app.
 
-See a more thorough and [running example in the docs](https://docs.pax-lang.org/intro-example.html).
+See a more thorough and [a running example](https://docs.pax-lang.org/intro-example.html).
 
+## Features
+
+ - **Fast** — native rendering targeting 120FPS animations
+ - **Accessible** — supports native screen readers for text & GUI elements
+ - **Lightweight** — targeting <100kB baseline for WebAssembly binary 
+ - **Declarative** UI language makes it easy to reason about complex scenes and GUIs
+ - **Reusable component system** includes an optional standard library of GUI components
+ - **Multi-platform** — currently supports building Web apps or native macOS apps
 
 ## Docs
 Read more in [The Pax Docs](https://docs.pax-lang.org/)

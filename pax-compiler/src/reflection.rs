@@ -105,16 +105,23 @@ pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_f
         });
     });
 
-    let pascalized_fully_qualified_type = fully_qualified_type.clone()
-        .replace("(","LPAR")
-        .replace("::","COCO")
-        .replace(")","RPAR")
-        .replace("<","LABR")
-        .replace(">","RABR")
-        .replace(",","COMM");
+    let pascalized_fully_qualified_type = escape_identifier(fully_qualified_type.clone());
 
     PropertyType {
         pascalized_fully_qualified_type,
         fully_qualified_type,
     }
+}
+
+pub fn escape_identifier(input: String) -> String {
+    input
+        .replace("(","LPAR")
+        .replace("::","COCO")
+        .replace(")","RPAR")
+        .replace("<","LABR")
+        .replace(">","RABR")
+        .replace(",","COMM")
+        .replace(".","PERI")
+        .replace("[","LSQB")
+        .replace("]","RSQB")
 }
