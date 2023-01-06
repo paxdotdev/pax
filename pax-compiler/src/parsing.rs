@@ -40,64 +40,40 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
 pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
 
-
-    /*
-    xo_prefix = _{xo_neg | xo_bool_not}
-
-
-    xo_infix = _{
-
-    xo_bool_and |
-    xo_bool_or |
-    xo_div |
-    xo_exp |
-    xo_mod |
-    xo_mul |
-    xo_range |
-    xo_range_exclusive |
-    xo_range_inclusive |
-    xo_rel_eq |
-    xo_rel_gt |
-    xo_rel_gte |
-    xo_rel_lt |
-    xo_rel_lte |
-    xo_rel_neq |
-    xo_sub |
-    xo_tern_then |
-    xo_tern_else
-}
-
-
-     */
-
-
-
+    // Operator precedence is declared via the ordering here:
     let pratt = PrattParser::new()
-        .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left));
-        // .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left))
-    // .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left))
-        // .op(Op::infix(Rule::xo_mul, Assoc::Left) | Op::infix(Rule::xo_div, Assoc::Left))
-        // .op(Op::infix(Rule::pow, Assoc::Right))
-        // .op(Op::postfix(Rule::fac))
-        // .op(Op::prefix(Rule::neg));
+        .op(Op::infix(Rule::xo_tern_then, Assoc::Left) | Op::infix(Rule::xo_tern_else, Assoc::Right))
+        .op(Op::infix(Rule::xo_bool_and, Assoc::Left) | Op::infix(Rule::xo_bool_or, Assoc::Left))
+        .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left))
+        .op(Op::infix(Rule::xo_mul, Assoc::Left) | Op::infix(Rule::xo_div, Assoc::Left))
+        .op(Op::infix(Rule::xo_mod, Assoc::Left))
+        .op(Op::infix(Rule::xo_exp, Assoc::Right))
+        .op(Op::prefix(Rule::xo_neg))
+        .op(Op::infix(Rule::xo_range, Assoc::Left))
+        .op(
+            Op::infix(Rule::xo_rel_eq, Assoc::Left) |
+            Op::infix(Rule::xo_rel_neq, Assoc::Left) |
+            Op::infix(Rule::xo_rel_lt, Assoc::Left) |
+            Op::infix(Rule::xo_rel_lte, Assoc::Left) |
+            Op::infix(Rule::xo_rel_gt, Assoc::Left) |
+            Op::infix(Rule::xo_rel_gte, Assoc::Left)
+        )
+        .op(Op::prefix(Rule::xo_bool_not));
 
     let pairs = PaxParser::parse(Rule::expression_body, input_paxel).expect(&format!("unsuccessful pratt parse {}", &input_paxel));
-
-    let mut symbolic_ids : Vec<String> = vec![];
 
     let mut symbolic_ids = Rc::new(RefCell::new(vec![]));
     let output = recurse_pratt_parse_to_string(pairs, &pratt, Rc::clone(&symbolic_ids));
     (output, symbolic_ids.take())
 }
 
-
 fn compile_xo_symbol(xo_symbol: Pair<Rule>) -> String {
-    //refer to the "encoded" / "escaped" entire symbol / identifier in RIL, which should assuredly refer
-    //to the same `invocation` that is created earlier in each vtable entry
     //future:  this will likely get hairy for complex expressions inside square brackets -- e.g.
     //         `self.active_things[i + self.get_some_pure_value(j + i)]`
     //         Likely the ideal solution is to _refer to another vtable entry_ for the inner expression,
     //         then encode that id as part of the escaped identifier, e.g. `selfPERIactive_things[VTABLE]
+    //return the "encoded" / "escaped" entire symbol / identifier in RIL, which should assuredly refer
+    //to the same `invocation` that is created earlier in each vtable entry
     crate::reflection::escape_identifier(xo_symbol.as_str().replace(" ", "").to_string())
 }
 
@@ -121,12 +97,28 @@ fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
     }
 }
 
+/// Workhorse method for compiling Expressions into Rust Intermediate Language (RIL, a string of Rust)
 fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &PrattParser<Rule>, symbolic_ids: Rc<RefCell<Vec<String>>>) -> String {
     pratt_parser
         .map_primary(move |primary| match primary.as_rule() {
             /* expression_grouped | xo_function_call | xo_range     */
             Rule::expression_grouped => {
-                "<<TODO: XO_EXPRESSION_GROUPED>>".to_string()
+                /* expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? } */
+                let mut inner = primary.into_inner();
+                let exp_bod = recurse_pratt_parse_to_string(inner.next().unwrap().into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
+                if let Some(literal_number_unit) = inner.next() {
+                    let unit = literal_number_unit.as_str();
+
+                    if unit == "px" {
+                        format!("Size::Pixel({})", exp_bod)
+                    } else if unit == "%" {
+                        format!("Size::Percent({})", exp_bod)
+                    } else {
+                        unreachable!()
+                    }
+                } else {
+                    exp_bod
+                }
             },
             Rule::xo_function_call => {
                 /* xo_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
@@ -160,7 +152,6 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 /* { (xo_literal | xo_symbol) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | xo_symbol)} */
                 //need to handle `self` and `this` elision
                 let mut pairs = primary.into_inner();
-                let mut output = "".to_string();
 
                 let mut op0 = pairs.next().unwrap();
                 match op0.as_rule() {
@@ -174,8 +165,6 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                     },
                     _ => unimplemented!("")
                 }
-
-                // primary.as_str().to_string() // can pass pairs converted directly to string, as this subset of syntax is compatible with Rust's
             },
             Rule::xo_literal => {
                 let literal_kind = primary.into_inner().next().unwrap();
@@ -246,8 +235,8 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 let mut tuple = primary.into_inner();
                 let exp0 = tuple.next().unwrap();
                 let exp1 = tuple.next().unwrap();
-                // let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), ctx);
-                // let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), ctx);
+                let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
+                let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
                 format!("({},{})", exp0, exp1)
             },
             Rule::expression_body => {
@@ -265,11 +254,22 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
         //     _ => unreachable!(),
         // })
         .map_infix(|lhs, op, rhs| match op.as_rule() {
-            // Rule::add => format!("({}+{})", lhs, rhs),
-            // Rule::sub => format!("({}-{})", lhs, rhs),
-            // Rule::mul => format!("({}*{})", lhs, rhs),
-            // Rule::div => format!("({}/{})", lhs, rhs),
-            // Rule::pow => format!("({}^{})", lhs, rhs),
+            Rule::xo_add => {format!("({}+{})", lhs, rhs)},
+            Rule::xo_bool_and => {format!("({}&&{})", lhs, rhs)},
+            Rule::xo_bool_or => {format!("({}||{})", lhs, rhs)},
+            Rule::xo_div => {format!("({}/{})", lhs, rhs)},
+            Rule::xo_exp => {format!("(({}).pow({}))", lhs, rhs)},
+            Rule::xo_mod => {format!("({}%{})", lhs, rhs)},
+            Rule::xo_mul => {format!("({}*{})", lhs, rhs)},
+            Rule::xo_rel_eq => {format!("({}=={})", lhs, rhs)},
+            Rule::xo_rel_gt => {format!("({}>{})", lhs, rhs)},
+            Rule::xo_rel_gte => {format!("({}>={})", lhs, rhs)},
+            Rule::xo_rel_lt => {format!("({}<{})", lhs, rhs)},
+            Rule::xo_rel_lte => {format!("({}<={})", lhs, rhs)},
+            Rule::xo_rel_neq => {format!("({}!={})", lhs, rhs)},
+            Rule::xo_sub => {format!("({}-{})", lhs, rhs)},
+            Rule::xo_tern_then => {format!("if {} {{ {} }}", lhs, rhs)},
+            Rule::xo_tern_else => {format!("{} else {{ {} }}", lhs, rhs)},
             _ => unreachable!(),
         })
         .parse(expression)

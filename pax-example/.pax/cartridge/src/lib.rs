@@ -13,27 +13,27 @@ use piet_common::RenderContext;
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
 
-use pax_example::pax_reexports::std::string::String;
-
-use pax_example::pax_reexports::usize;
+use pax_example::pax_reexports::pax_std::types::StackerDirection;
 
 use pax_example::pax_reexports::pax_std::types::Stroke;
 
-use pax_example::pax_reexports::i64;
-
-use pax_example::pax_reexports::pax_std::types::Font;
-
-use pax_example::pax_reexports::std::vec::Vec;
-
-use pax_example::pax_reexports::pax::api::Size;
+use pax_example::pax_reexports::pax_std::types::StackerCell;
 
 use pax_example::pax_reexports::pax_std::types::Color;
 
-use pax_example::pax_reexports::pax_std::types::StackerCell;
-
 use pax_example::pax_reexports::f64;
 
-use pax_example::pax_reexports::pax_std::types::StackerDirection;
+use pax_example::pax_reexports::std::string::String;
+
+use pax_example::pax_reexports::pax_std::types::Font;
+
+use pax_example::pax_reexports::i64;
+
+use pax_example::pax_reexports::pax::api::Size;
+
+use pax_example::pax_reexports::usize;
+
+use pax_example::pax_reexports::std::vec::Vec;
 
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
@@ -77,15 +77,6 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
         )
     */
     
-    //rgb(100 %, 100 %, 0) 
-    vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            rgb((Size::Percent(100)),(Size::Percent(100)),(0),)
-        )
-    }));
-    
     //rotate(self.current_rotation) 
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
@@ -103,6 +94,15 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
 
         TypesCoproduct::Transform2D(
             rotate((current_rotation),)
+        )
+    }));
+    
+    //rgb(100 %, 100 %, 0) 
+    vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            rgb((Size::Percent(100)),(Size::Percent(100)),(0),)
         )
     }));
     

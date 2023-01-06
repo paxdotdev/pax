@@ -66,16 +66,6 @@ Refer to the [guide for getting started](https://docs.pax-lang.org/start-creatin
 
 Pax is in **alpha-preview** and is not yet viable for building apps — read [the latest status](https://docs.pax-lang.org/status-sept-2022.html).
 
-#### End-to-end:
- - Syntax design  ✅
- - Parser  ✅
- - Compiler front-end ❌ WIP
- - Compiler back-end ✅
- - Rendering engine  ✅
- - Cross-platform chassis  ✅
- - Browser runtime  ✅
- - macOS runtime  ✅
-
 
 #### Support matrix:
 
