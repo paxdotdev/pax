@@ -619,7 +619,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] would make build process less brittle
     [ ] roughly: `dyn RenderNode` -> `Box<Any>`, downcast blocks instead of `match ... unreachable!()` blocks
         [ ] ensure compatibility with `Rc`!  Circa Q4'21, Any could not be downcast to Rc (e.g. `RenderNodePtr`)
-        [ ] de-globalize InstantiationArgs, e.g. `slot_index` and `data_list`
+        [ ] de-globalize InstantiationArgs, e.g. `slot_index` and `source_expression`
         [ ] remove PropertiesCoproduct entirely (and probably repeat the process for TypesCoproduct)
         [ ] possibly remove two-stage compiler process
         [ ] sanity check that we can downcast from a given `Any` both to: 1. `dyn RenderNode` (to call methods), and 2. `WhateverProperties` (to access properties)
@@ -1647,13 +1647,13 @@ So:
 
 ### on properties for core primitives
 
-e.g. `data_list` for `Repeat` and `index` (and maybe someday: `selector`) for `Slot`
+e.g. `source_expression` for `Repeat` and `index` (and maybe someday: `selector`) for `Slot`
 
-Currently these are being shimmed into the top-level `InstantiationArgs`, e.g. `data_list`.
+Currently these are being shimmed into the top-level `InstantiationArgs`, e.g. `source_expression`.
 This works but is a bit inelegant.  Options:
 
 - introduce a sub-struct, essentially just a cleanliness 'module' for InstantiationArgs.
-  add the relevant built-in-specific data there, like `slot_index` and `repeat_data_list`.
+  add the relevant built-in-specific data there, like `slot_index` and `repeat_source_expression`.
 - generate the built-in `{}Properties` structs inside pax-cartridge,
   where they can be imported to PropertiesCoproduct (see RectangleProperties)
 
@@ -1918,10 +1918,10 @@ SO: when declaring a component instance, say `Root` or `Stacker` —
 
 ### On return type for `@for (elem i) in self.computed_layout_spec`
 
-The expression generated for this @for statement -- i.e. the expression bound to the `data_list`
+The expression generated for this @for statement -- i.e. the expression bound to the `source_expression`
 property of the `Repeat` instance -- needs to return a `Vec` of _something_.
 
-The `data_list` property for Repeat is of type `pub data_list: Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>`
+The `source_expression` property for Repeat is of type `pub source_expression: Box<dyn Property<Vec<Rc<PropertiesCoproduct>>>>`
 
 So that _something_ should probably be a `Vec<Rc<PropertiesCoproduct>>`.  This means the expression needs to
 remap from `computed_layout_spec` — i.e. whatever is the type of each element of that array — into a PropertiesCoproduct.
@@ -2145,7 +2145,7 @@ need to hoist their children as a sequence of adoptees, in lieu of themselves as
 Stacker should have 11 adoptees in this case
 
 Possibly a wrinkle: the computation of `Repeat`'s children
-(via `data_list`) might come later in the lifecycle than assignment
+(via `source_expression`) might come later in the lifecycle than assignment
 of adoptees. (Update: this was indeed a wrinkle, fixed by adding a manual computation
 of adoptees' properties when they are `should_flatten` (namely for `if`, `for`))
 

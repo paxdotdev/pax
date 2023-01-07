@@ -549,14 +549,14 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                                 original_type: "<TODO>".to_string(),
                                 fully_qualified_constituent_types: vec![],
                                 property_type_info: Default::default(),
-                                datum_cast_type: None
+                                iterable_type: None
                             },
                             PropertyDefinition {
                                 name: "<TODO>".to_string(),
                                 original_type: "<TODO>".to_string(),
                                 fully_qualified_constituent_types: vec![],
                                 property_type_info: Default::default(),
-                                datum_cast_type: None
+                                iterable_type: None
                             },
                         ]),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),

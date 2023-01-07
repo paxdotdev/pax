@@ -13,17 +13,13 @@ use serde_derive::{Serialize, Deserialize};
 use serde_json;
 use tera::Template;
 
-//definition container for an entire Pax cartridge
+/// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
 pub struct PaxManifest {
     pub components: HashMap<String, ComponentDefinition>,
     pub root_component_id: String,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
     pub template_node_definitions: HashMap<String, TemplateNodeDefinition>
-}
-
-impl PaxManifest {
-
 }
 
 #[derive(Serialize, Deserialize, Clone)]
@@ -57,15 +53,17 @@ pub struct  ExpressionSpecInvocation {
 
     /// Statically known stack offset for traversing Repeat-based scopes at runtime
     pub stack_offset: usize,
+
     /// Type of the containing Properties struct, for unwrapping from PropertiesCoproduct.  For example, `Foo` for `PropertiesCoproduct::Foo` or `RepeatItem` for PropertiesCoproduct::RepeatItem
     pub properties_type: String,
 
     /// For invocations that reference repeat elements, this is the enum identifier within
     /// the TypesCoproduct that represents the appropriate `datum_cast` type
-    pub pascalized_datum_cast_type: Option<String>,
+    pub pascalized_iterable_type: Option<String>,
 
     /// Flag describing whether this invocation should be bound to the `elem` in `(elem, i)`
     pub is_repeat_elem: bool,
+
     /// Flag describing whether this invocation should be bound to the `i` in `(elem, i)`
     pub is_repeat_index: bool,
 }
@@ -104,8 +102,8 @@ pub struct PropertyDefinition {
     pub fully_qualified_constituent_types: Vec<String>,
     /// Store of fully qualified types that may be needed for expression vtable generation
     pub property_type_info: PropertyType,
-
-    pub datum_cast_type: Option<PropertyType>,
+    /// If present, the type `T` in a `Property<Vec<T>>` — i.e. that which can be traversed with `for`
+    pub iterable_type: Option<PropertyType>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -120,9 +118,9 @@ pub struct PropertyType {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum AttributeValueDefinition {
     LiteralValue(String),
-    //(Expression contents, vtable id binding)
+    /// (Expression contents, vtable id binding)
     Expression(String, Option<usize>),
-    //(Expression contents, vtable id binding)
+    /// (Expression contents, vtable id binding)
     Identifier(String, Option<usize>),
     EventBindingTarget(String),
 }
@@ -153,28 +151,6 @@ pub struct RepeatSourceDefinition {
     pub symbolic_binding: Option<String>,
     pub elem_type: PropertyDefinition,
 }
-
-// Instead of mapping out Repeat Source ontology, we can
-// resolve any Source as an expression
-//
-// #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-// pub struct RepeatSourceRangeDefinition {
-//     start: RepeatSourceRangeBoundary,
-//     end: RepeatSourceRangeBoundary,
-//     operator: RepeatSourceRangeOperator,
-// }
-//
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// pub enum RepeatSourceRangeBoundary {
-//     SymbolicIdentifier(String),
-//     IntegerLiteral(usize),
-// }
-//
-// #[derive(Serialize, Deserialize, Debug, Clone)]
-// pub enum RepeatSourceRangeOperator {
-//     Inclusive,
-//     Exclusive,
-// }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SettingsSelectorBlockDefinition {

@@ -1,7 +1,9 @@
+use std::borrow::Borrow;
 use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDeclaration, AttributeValueDefinition, PropertyDefinition};
 use std::collections::HashMap;
 use std::ops::{Range, RangeFrom};
 use futures::StreamExt;
+use crate::manifest::PropertyType;
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
@@ -19,20 +21,23 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
         if let Some(ref mut template) = new_component_def.template {
             template.iter_mut().for_each(|node_def| {
                 let mut new_node_def = node_def.clone();
-                let mut ctx = TemplateTraversalContext {
+                let mut ctx = ExpressionCompilationContext {
                     active_node_def: new_node_def,
                     scope_stack: vec![component_def.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
                     uid_gen: 0..,
                     all_components: manifest.components.clone(),
                     expression_specs: &mut new_expression_specs,
                     component_def: &read_only_component_def,
-                    template_node_definitions: manifest.template_node_definitions.clone(),
+                    new_template_node_definitions: manifest.template_node_definitions.clone(),
                 };
 
                 ctx = recurse_template_and_compile_expressions(ctx);
 
                 std::mem::swap(node_def, &mut ctx.active_node_def);
-                std::mem::swap(&mut manifest.template_node_definitions, &mut ctx.template_node_definitions);
+
+
+                manifest.template_node_definitions.extend(ctx.new_template_node_definitions);
+
             });
         }
 
@@ -45,7 +50,7 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
     println!("{}", serde_json::to_string_pretty(&manifest).unwrap());
 }
 
-fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContext<'a>) -> TemplateTraversalContext<'a> {
+fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) -> ExpressionCompilationContext<'a> {
     let mut incremented = false;
 
     //FUTURE: join settings blocks here, merge with inline_attributes
@@ -54,7 +59,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
 
 
     if let Some(ref mut inline_attributes) = cloned_inline_attributes {
-        //Handle non-control-flow declarations
+        //Handle standard key/value declarations (non-control-flow)
         inline_attributes.iter_mut().for_each(|attr| {
             match &mut attr.1 {
                 AttributeValueDefinition::LiteralValue(_) => {
@@ -131,37 +136,63 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
             }
         });
     } else if let Some(ref mut cfa) = cloned_control_flow_attributes {
-        //Handle control flow declarations
+        //Handle attributes for control flow
 
+        // Definitions are stored modally as `Option<T>`s in ControlFlowAttributeValueDefinition,
+        // so: iff `repeat_source_definition` is present, then we can assume this is a Repeat element
         if let Some(range) = &cfa.repeat_source_definition.range_expression {
-            //e.g. `for i in 0..10` or `for j in self.some_id..25`
+            // Examples:
+            // for (elem, i) in self.elements
+            //  - must be a symbolic identifier, such as `elements` or `self.elements`
+            // for i in 0..max_elems
+            //  - may use an integer literal or symbolic identifier in either position
+            //  - may use an exclusive (..) or inclusive (...) range operator
 
-            todo!("Register `range` as an expression with return type Range<usize> — allow expression compiler to handle everything else")
-            //
-            // let id = ctx.uid_gen.next().unwrap();
-            //
-            // // Examples:
-            // // for (elem, i) in self.elements
-            // //  - must be a symbolic identifier, such as `elements` or `self.elements`
-            // // for i in 0..max_elems
-            // //  - may use an integer literal or symbolic identifier in either position
-            // //  - may use an exclusive (..) or inclusive (...) range operator
-            // //  -
-            //
-            // match cfa.repeat_predicate_declaration.unwrap() {
-            //     ControlFlowRepeatPredicateDeclaration::ElemId(elem_id) => {
-            //         ctx.scope_stack.push(HashMap::from((
-            //             (elem_id.clone(), PropertyDefinition {
-            //                 name: elem_id.clone(),
-            //                 fully_qualified_type: cfa
-            //             })
-            //         )));
-            //     },
-            //     ControlFlowRepeatPredicateDeclaration::ElemIdIndexId(elem_id, index_id) => {
-            //
-            //     },
-            // }
-            //
+            let id = ctx.uid_gen.next().unwrap();
+
+            // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
+            // referred to with the symbol `elem` in PAXEL
+            match cfa.repeat_predicate_declaration.as_ref().unwrap() {
+                ControlFlowRepeatPredicateDeclaration::ElemId(elem_id) => {
+                    let mut property_definition = ctx.component_def.property_definitions.iter().find(|pd|{pd.name.eq(elem_id)}).expect(&format!("Property not found with name {}", &elem_id)).clone();
+                    let fqt = property_definition.property_type_info.fully_qualified_type.clone();
+                    property_definition.property_type_info = property_definition.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
+
+                    ctx.scope_stack.push(HashMap::from([
+                        //`elem` property (by specified name)
+                        (elem_id.clone(),
+                        property_definition)
+                    ]));
+                },
+                ControlFlowRepeatPredicateDeclaration::ElemIdIndexId(elem_id, index_id) => {
+                    let mut elem_property_definition = ctx.component_def.property_definitions.iter().find(|pd|{pd.name == *elem_id}).expect(&format!("Property not found with name {}", &elem_id)).clone();
+                    elem_property_definition.property_type_info = elem_property_definition.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &elem_property_definition.property_type_info.fully_qualified_type));
+
+                    ctx.scope_stack.push(HashMap::from([
+                        //`elem` property (by specified name)
+                        (elem_id.clone(),
+                         elem_property_definition),
+                        //`i` property (by specified name)
+                        (index_id.clone(),
+                            PropertyDefinition {
+                                name: index_id.clone(),
+                                original_type: "usize".to_string(),
+                                fully_qualified_constituent_types: vec![],
+                                property_type_info: PropertyType {
+                                    fully_qualified_type: "usize".to_string(),
+                                    pascalized_fully_qualified_type: "usize".to_string()
+                                },
+                                iterable_type: None
+                            }
+                         )
+                    ]));
+                },
+            };
+
+            //handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
+
+            //create a PropertyExpression
+
             // ctx.expression_specs.insert(id, ExpressionSpec {
             //     id,
             //     pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
@@ -175,6 +206,8 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
             //     output_statement: "".to_string(),
             //     input_statement: expression.clone(),
             // });
+
+            todo!("Register `range` as an expression with return type Range<usize> — allow expression compiler to handle everything else")
         } else if let Some(symbol) = &cfa.repeat_source_definition.symbolic_binding {
             //for example the `self.entries` in `for n in self.entries`
 
@@ -188,11 +221,11 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
     std::mem::swap(&mut cloned_inline_attributes, &mut ctx.active_node_def.inline_attributes);
 
     for id in ctx.active_node_def.children_ids.clone().iter() {
-        let mut active_node_def = ctx.template_node_definitions.remove(id).unwrap();
+        let mut active_node_def = ctx.new_template_node_definitions.remove(id).unwrap();
         ctx.active_node_def = active_node_def;
 
         ctx = recurse_template_and_compile_expressions(ctx);
-        ctx.template_node_definitions.insert(id.to_string(), ctx.active_node_def.clone());
+        ctx.new_template_node_definitions.insert(id.to_string(), ctx.active_node_def.clone());
     };
 
     if incremented {
@@ -201,9 +234,8 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: TemplateTraversalContex
     ctx
 }
 
-
 /// From a symbol like `num_clicks` or `self.num_clicks`, populate an ExpressionSpecInvocation
-fn resolve_symbol_as_invocation(sym: &str, ctx: &TemplateTraversalContext) -> ExpressionSpecInvocation {
+fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -> ExpressionSpecInvocation {
 
     let identifier =  if sym.starts_with("self.") {
         sym.replacen("self.", "", 1)
@@ -216,7 +248,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &TemplateTraversalContext) -> Ex
     let prop_def = ctx.component_def.property_definitions.iter().find(|ppd|{ppd.name == identifier}).expect(&format!("Symbol not found: {}", &identifier));
     let properties_type = prop_def.property_type_info.fully_qualified_type.clone();
 
-    let pascalized_datum_cast_type = if let Some(x) = &prop_def.datum_cast_type {
+    let pascalized_iterable_type = if let Some(x) = &prop_def.iterable_type {
         Some(x.pascalized_fully_qualified_type.clone())
     } else {
         None
@@ -242,17 +274,14 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &TemplateTraversalContext) -> Ex
         escaped_identifier,
         stack_offset,
         properties_type,
-        pascalized_datum_cast_type,
+        pascalized_iterable_type,
         is_repeat_elem: false,
         is_repeat_index: false
     }
 }
 
-
-
-
 /// Returns (RIL string, list of invocation specs for any symbols used)
-fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &TemplateTraversalContext<'a>) -> (String, Vec<ExpressionSpecInvocation>) {
+fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &ExpressionCompilationContext<'a>) -> (String, Vec<ExpressionSpecInvocation>) {
 
     //1. run Pratt parser; generate output RIL and collected symbolic_ids
     let (output_string, symbolic_ids) = crate::parsing::run_pratt_parser(paxel);
@@ -267,12 +296,31 @@ fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &TemplateTraversalContext<'a>) -> 
 
 }
 
-pub struct TemplateTraversalContext<'a> {
-    pub active_node_def: TemplateNodeDefinition,
+pub struct ExpressionCompilationContext<'a> {
+
+    /// Current component definition, i.e. the `Component` that houses
+    /// any compiled expressions and related property definitions
     pub component_def: &'a ComponentDefinition,
+
+    /// Static stack of addressable properties, by string
+    /// Enables resolution of scope-nested symbolic identifiers, including shadowing
     pub scope_stack: Vec<HashMap<String, PropertyDefinition>>,
-    pub all_components: HashMap<String, ComponentDefinition>,
+
+    /// Generator used to create monotonically increasing, compilation-unique integer IDs
+    /// Used at least for expression vtable id generation
     pub uid_gen: RangeFrom<usize>,
+
+    /// Mutable reference to a traversal-global map of ExpressionSpecs,
+    /// to be appended to as expressions are compiled during traversal
     pub expression_specs: &'a mut HashMap<usize, ExpressionSpec>,
-    pub template_node_definitions: HashMap<String, TemplateNodeDefinition>,
+
+    /// The current template node whose expressions are being compiled.  For example `<SomeNode some_property={/* some expression */} />`
+    pub active_node_def: TemplateNodeDefinition,
+
+    /// Structure to store newly added TemplateNodeDefintions during traversal
+    pub new_template_node_definitions: HashMap<String, TemplateNodeDefinition>,
+
+    /// All components, by ID
+    pub all_components: HashMap<String, ComponentDefinition>,
+
 }

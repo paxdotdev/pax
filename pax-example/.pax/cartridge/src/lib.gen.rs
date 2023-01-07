@@ -66,7 +66,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
     let mut vtable: HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     //Note: this is probably the source of most (all?) of instance churn
-    //this expression handles re-packing `data_list` for
+    //this expression handles re-packing `source_expression` for
     //`@for (elem, i) in computed_layout_spec {`
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
 
@@ -247,7 +247,7 @@ pub fn instantiate_component_stacker<R: 'static + RenderContext>(instance_regist
                                 component_template: None,
                                 scroller_args: None,
                                 slot_index: Some(Box::new(PropertyExpression::new(4))),
-                                repeat_data_list: None,
+                                repeat_source_expression: None,
                                 conditional_boolean_expression: None,
                                 compute_properties_fn: None
                             }),
@@ -255,13 +255,13 @@ pub fn instantiate_component_stacker<R: 'static + RenderContext>(instance_regist
                         component_template: None,
                         scroller_args: None,
                         slot_index: None,
-                        repeat_data_list: None,
+                        repeat_source_expression: None,
                         conditional_boolean_expression: None,
                         compute_properties_fn: None
                     }),
                 ]))),
                 slot_index: None,
-                repeat_data_list: Some(Box::new(PropertyExpression::new(0))),
+                repeat_source_expression: Some(Box::new(PropertyExpression::new(0))),
                 conditional_boolean_expression: None,
                 compute_properties_fn: None,
                 scroller_args: None
@@ -407,7 +407,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                             component_template: None,
                                                             scroller_args: None,
                                                             slot_index: None,
-                                                            repeat_data_list: None,
+                                                            repeat_source_expression: None,
                                                             conditional_boolean_expression: None,
                                                             compute_properties_fn: None
                                                         }),
@@ -427,7 +427,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                             component_template: None,
                                                             scroller_args: None,
                                                             slot_index: None,
-                                                            repeat_data_list: None,
+                                                            repeat_source_expression: None,
                                                             conditional_boolean_expression: None,
                                                             compute_properties_fn: None
                                                         }),
@@ -435,7 +435,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                     component_template: None,
                                                     scroller_args: None,
                                                     slot_index: None,
-                                                    repeat_data_list: None,
+                                                    repeat_source_expression: None,
                                                     conditional_boolean_expression: None,
                                                     compute_properties_fn: None
                                                 })
@@ -443,7 +443,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                             component_template: None,
                                             scroller_args: None,
                                             slot_index: None,
-                                            repeat_data_list: Some(Box::new(PropertyLiteral::new((0..8).into_iter().map(|i|{
+                                            repeat_source_expression: Some(Box::new(PropertyLiteral::new((0..8).into_iter().map(|i|{
                                                 Rc::new(PropertiesCoproduct::isize(i))
                                             }).collect()))),
                                             conditional_boolean_expression: None,
@@ -454,7 +454,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                     component_template: None,
                                     scroller_args: None,
                                     slot_index: None,
-                                    repeat_data_list: None,
+                                    repeat_source_expression: None,
                                     conditional_boolean_expression: None,
                                     compute_properties_fn: None,
                                 }
@@ -491,7 +491,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                 component_template: None,
                                                 scroller_args: None,
                                                 slot_index: None,
-                                                repeat_data_list: None,
+                                                repeat_source_expression: None,
                                                 conditional_boolean_expression: None,
                                                 compute_properties_fn: None
                                             }),
@@ -511,7 +511,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                 component_template: None,
                                                 scroller_args: None,
                                                 slot_index: None,
-                                                repeat_data_list: None,
+                                                repeat_source_expression: None,
                                                 conditional_boolean_expression: None,
                                                 compute_properties_fn: None
                                             }),
@@ -519,7 +519,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         component_template: None,
                                         scroller_args: None,
                                         slot_index: None,
-                                        repeat_data_list: None,
+                                        repeat_source_expression: None,
                                         conditional_boolean_expression: None,
                                         compute_properties_fn: None
                                     })
@@ -527,7 +527,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                 component_template: None,
                                 scroller_args: None,
                                 slot_index: None,
-                                repeat_data_list: Some(Box::new(PropertyLiteral::new((0..8).into_iter().map(|i|{
+                                repeat_source_expression: Some(Box::new(PropertyLiteral::new((0..8).into_iter().map(|i|{
                                     Rc::new(PropertiesCoproduct::isize(i))
                                 }).collect()))),
                                 conditional_boolean_expression: None,
@@ -569,7 +569,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         component_template: None,
                                         scroller_args: None,
                                         slot_index: None,
-                                        repeat_data_list: None,
+                                        repeat_source_expression: None,
                                         conditional_boolean_expression: None,
                                         compute_properties_fn: None
                                     }),
@@ -589,7 +589,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                         component_template: None,
                                         scroller_args: None,
                                         slot_index: None,
-                                        repeat_data_list: None,
+                                        repeat_source_expression: None,
                                         conditional_boolean_expression: None,
                                         compute_properties_fn: None
                                     }),
@@ -597,7 +597,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                 component_template: None,
                                 scroller_args: None,
                                 slot_index: None,
-                                repeat_data_list: None,
+                                repeat_source_expression: None,
                                 conditional_boolean_expression: None,
                                 compute_properties_fn: None,
                             }),
@@ -605,7 +605,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                         component_template: None,
                         scroller_args: None,
                         slot_index: None,
-                        repeat_data_list: None,
+                        repeat_source_expression: None,
                         conditional_boolean_expression: None,
                         compute_properties_fn: None,
                     }
@@ -613,7 +613,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
             ]))),
             scroller_args: None,
             slot_index: None,
-            repeat_data_list: None,
+            repeat_source_expression: None,
             conditional_boolean_expression: None,
             compute_properties_fn: Some(Box::new(|properties, rtc|{
                 let properties = &mut *properties.as_ref().borrow_mut();

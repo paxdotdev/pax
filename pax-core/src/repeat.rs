@@ -10,15 +10,15 @@ use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 /// A special "control-flow" primitive associated with the `for` statement.
-/// Repeat allows for nodes to be rendered dynamically per data specified in `data_list`.
-/// That is: for a `data_list` of length `n`, `Repeat` will render its
+/// Repeat allows for nodes to be rendered dynamically per data specified in `source_expression`.
+/// That is: for a `source_expression` of length `n`, `Repeat` will render its
 /// template `n` times, each with an embedded component context (`RepeatItem`)
-/// with an index `i` and a pointer to that relevant datum `data_list[i]`
+/// with an index `i` and a pointer to that relevant datum `source_expression[i]`
 pub struct RepeatInstance<R: 'static + RenderContext> {
     pub instance_id: u64,
     pub repeated_template: RenderNodePtrList<R>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub data_list: Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>,
+    pub source_expression: Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>,
     pub virtual_children: RenderNodePtrList<R>,
 
 }
@@ -41,7 +41,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 Some(children) => children
             },
             transform: args.transform,
-            data_list: args.repeat_data_list.unwrap(),
+            source_expression: args.repeat_source_expression.unwrap(),
             virtual_children: Rc::new(RefCell::new(vec![])),
 
         }));
@@ -54,9 +54,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
         let mut is_dirty : bool;
 
-        if let Some(data_list) = rtc.compute_vtable_value(self.data_list._get_vtable_id()) {
-            let old_value = self.data_list.get().clone();
-            let new_value = if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(v) = data_list { v } else { unreachable!() };
+        if let Some(source_expression) = rtc.compute_vtable_value(self.source_expression._get_vtable_id()) {
+            let old_value = self.source_expression.get().clone();
+            let new_value = if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(v) = source_expression { v } else { unreachable!() };
 
             //if the vec lengths differ, we know there are changes.  If the lengths are the same, then we check each element pairwise for ptr equality.
             is_dirty =
@@ -72,12 +72,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
             //NOTE: this hacked dirty-check shouldn't be necessary once we have more robust dependency-DAG dirty-checking for expressions
             if is_dirty {
-                self.data_list.set(new_value);
+                self.source_expression.set(new_value);
             }
         } else {
             //NOTE: probably need better dirty-checking for PropertyLiteral; might be able to
             //      patch into dirty-watching system
-            is_dirty = self.data_list.get().len() != (*self.virtual_children).borrow().len();
+            is_dirty = self.source_expression.get().len() != (*self.virtual_children).borrow().len();
         }
 
         if is_dirty {
@@ -100,10 +100,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
 
             //reset children:
-            //wrap data_list into `RepeatItems`, which attach
+            //wrap source_expression into `RepeatItems`, which attach
             //the necessary data as stack frame context
             self.virtual_children = Rc::new(RefCell::new(
-                self.data_list.get().iter().enumerate().map(|(i, datum)| {
+                self.source_expression.get().iter().enumerate().map(|(i, datum)| {
                     let instance_id = instance_registry.mint_id();
 
                     let render_node : RenderNodePtr<R> = Rc::new(RefCell::new(
