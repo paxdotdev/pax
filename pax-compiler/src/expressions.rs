@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDeclaration, AttributeValueDefinition, PropertyDefinition};
+use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, AttributeValueDefinition, PropertyDefinition};
 use std::collections::HashMap;
 use std::ops::{Range, RangeFrom};
 use futures::StreamExt;
@@ -57,7 +57,6 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
     let mut cloned_inline_attributes = ctx.active_node_def.inline_attributes.clone();
     let mut cloned_control_flow_attributes = ctx.active_node_def.control_flow_attributes.clone();
 
-
     if let Some(ref mut inline_attributes) = cloned_inline_attributes {
         //Handle standard key/value declarations (non-control-flow)
         inline_attributes.iter_mut().for_each(|attr| {
@@ -105,6 +104,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
                     std::mem::swap(&mut manifest_id.take(), &mut Some(manifest_id_insert));
 
                     let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
+
                     let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
 
                     let pascalized_return_type = if attr.0 == "transform" {
@@ -117,10 +117,9 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
                         (active_node_component.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
                         }).expect(
-                            &format!("Property `{}` not found on component `{}`", &attr.0, &ctx.component_def.pascal_identifier)
+                        &format!("Property `{}` not found on component `{}`", &attr.0, &ctx.component_def.pascal_identifier)
                         ).property_type_info.pascalized_fully_qualified_type).clone()
                     };
-
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
                         pascalized_return_type,
@@ -140,7 +139,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
 
         // Definitions are stored modally as `Option<T>`s in ControlFlowAttributeValueDefinition,
         // so: iff `repeat_source_definition` is present, then we can assume this is a Repeat element
-        if let Some(range) = &cfa.repeat_source_definition.range_expression {
+        if let Some(repeat_source_definition) = &cfa.repeat_source_definition {
             // Examples:
             // for (elem, i) in self.elements
             //  - must be a symbolic identifier, such as `elements` or `self.elements`
@@ -152,8 +151,8 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL
-            match cfa.repeat_predicate_declaration.as_ref().unwrap() {
-                ControlFlowRepeatPredicateDeclaration::ElemId(elem_id) => {
+            match cfa.repeat_predicate_definition.as_ref().unwrap() {
+                ControlFlowRepeatPredicateDefinition::ElemId(elem_id) => {
                     let mut property_definition = ctx.component_def.property_definitions.iter().find(|pd|{pd.name.eq(elem_id)}).expect(&format!("Property not found with name {}", &elem_id)).clone();
                     let fqt = property_definition.property_type_info.fully_qualified_type.clone();
                     property_definition.property_type_info = property_definition.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
@@ -164,7 +163,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
                         property_definition)
                     ]));
                 },
-                ControlFlowRepeatPredicateDeclaration::ElemIdIndexId(elem_id, index_id) => {
+                ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
                     let mut elem_property_definition = ctx.component_def.property_definitions.iter().find(|pd|{pd.name == *elem_id}).expect(&format!("Property not found with name {}", &elem_id)).clone();
                     elem_property_definition.property_type_info = elem_property_definition.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &elem_property_definition.property_type_info.fully_qualified_type));
 
@@ -174,16 +173,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
                          elem_property_definition),
                         //`i` property (by specified name)
                         (index_id.clone(),
-                            PropertyDefinition {
-                                name: index_id.clone(),
-                                original_type: "usize".to_string(),
-                                fully_qualified_constituent_types: vec![],
-                                property_type_info: PropertyType {
-                                    fully_qualified_type: "usize".to_string(),
-                                    pascalized_fully_qualified_type: "usize".to_string()
-                                },
-                                iterable_type: None
-                            }
+                            PropertyDefinition::primitive("usize", index_id)
                          )
                     ]));
                 },
@@ -191,30 +181,54 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
 
             //handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
 
-            //create a PropertyExpression
+            let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
 
-            // ctx.expression_specs.insert(id, ExpressionSpec {
-            //     id,
-            //     pascalized_return_type: (&ctx.component_def.property_definitions.iter().find(|property_def| {
-            //         property_def.name == ""
-            //     }).unwrap().pascalized_fully_qualified_type).clone(),
-            //     invocations: vec![
-            //         todo!("add unique identifiers found during PAXEL parsing; include stack offset")
-            //         //note that each identifier may have a different stack offset value, meaning that ids must be resolved statically
-            //         //(requires looking up identifiers per "compiletime stack frame," e.g. components/control flow, plus error handling if symbols aren't found.)
-            //     ],
-            //     output_statement: "".to_string(),
-            //     input_statement: expression.clone(),
-            // });
+            let (paxel, return_type) = if let Some(range_expression) = &repeat_source_definition.range_expression {
+                (range_expression.to_string(), PropertyType::primitive("usize"))
+            } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
+                let mut property_definition = ctx.component_def.get_property_definition_by_name(symbolic_binding);
+                let fqt = property_definition.property_type_info.fully_qualified_type.clone();
+                let property_type = property_definition.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
 
-            todo!("Register `range` as an expression with return type Range<usize> — allow expression compiler to handle everything else")
-        } else if let Some(symbol) = &cfa.repeat_source_definition.symbolic_binding {
-            //for example the `self.entries` in `for n in self.entries`
+                (symbolic_binding.to_string(), property_type)
+            } else {unreachable!()};
 
-            //Do we resolve `symbol` as an expression with known return type -- or
-            // can we just pass in the inner type T for Property<Vec<T>>, so that the symbolic identifier
-            // can be resolved directly within the expression, using `T` for `datum_cast`
-            todo!("resolve `symbol` as an expression, with return type ");
+            //Though we are compiling this as an arbitrary expression, we must already have validated
+            //that we are only binding to a simple symbolic id, like `self.foo`.  This is because we
+            //are inferring the return type of this expression based on the declared-and-known
+            //type of property `self.foo`
+            let (output_statement, invocations) = compile_paxel_to_ril(&paxel, &ctx);
+
+            // The return type for a repeat source expression will either be:
+            //   1. usize, for tuples (including tuples with direct symbolic references as either operand, like `self.x..10`)
+            //   2. T for a direct symbolic reference to `self.x` for x : Property<Vec<T>>
+            // Presumably, we could also support arbitrary expressions as a #3, but
+            // we need some way to infer the return type, statically.  This may mean requiring
+            // an explicit type declaration by the end-user, or perhaps we can hack something
+            // with further compiletime "reflection" magic
+
+            ctx.expression_specs.insert(ctx.uid_gen.next().unwrap(), ExpressionSpec {
+                id,
+                pascalized_return_type: return_type.pascalized_fully_qualified_type,
+                invocations,
+                output_statement,
+                input_statement: paxel,
+            });
+
+            //recurse through descendents to continue compiling expressions
+
+        } else if let Some(condition_expression_paxel) = &cfa.condition_expression_paxel {
+            //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
+            let (output_statement, invocations) = compile_paxel_to_ril(&condition_expression_paxel, &ctx);
+            let id = ctx.uid_gen.next().unwrap();
+
+            ctx.expression_specs.insert(ctx.uid_gen.next().unwrap(), ExpressionSpec {
+                id,
+                pascalized_return_type: "bool".to_string(),
+                invocations,
+                output_statement,
+                input_statement: condition_expression_paxel.clone(),
+            });
         }
     }
 
@@ -234,6 +248,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
     ctx
 }
 
+
 /// From a symbol like `num_clicks` or `self.num_clicks`, populate an ExpressionSpecInvocation
 fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -> ExpressionSpecInvocation {
 
@@ -245,7 +260,8 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         sym.to_string()
     };
 
-    let prop_def = ctx.component_def.property_definitions.iter().find(|ppd|{ppd.name == identifier}).expect(&format!("Symbol not found: {}", &identifier));
+    let prop_def = ctx.component_def.get_property_definition_by_name(&identifier);
+
     let properties_type = prop_def.property_type_info.fully_qualified_type.clone();
 
     let pascalized_iterable_type = if let Some(x) = &prop_def.iterable_type {
@@ -284,7 +300,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &ExpressionCompilationContext<'a>) -> (String, Vec<ExpressionSpecInvocation>) {
 
     //1. run Pratt parser; generate output RIL and collected symbolic_ids
-    let (output_string, symbolic_ids) = crate::parsing::run_pratt_parser(paxel);
+    let (output_string,  symbolic_ids) = crate::parsing::run_pratt_parser(paxel, ctx);
 
     //2. for each symbolic id discovered during parsing, resolve that id through scope_stack and populate an ExpressionSpecInvocation
     let invocations = symbolic_ids.iter().map(|sym| {

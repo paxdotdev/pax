@@ -80,6 +80,13 @@ pub struct ComponentDefinition {
     pub property_definitions: Vec<PropertyDefinition>,
 }
 
+impl ComponentDefinition {
+    pub fn get_property_definition_by_name(&self, name: &str) -> PropertyDefinition {
+        self.property_definitions.iter().find(|pd| { pd.name.eq(name) }).expect(&format!("Property not found with name {}", &name)).clone()
+    }
+}
+
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 //Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 pub struct TemplateNodeDefinition {
@@ -87,7 +94,6 @@ pub struct TemplateNodeDefinition {
     pub component_id: String,
     pub control_flow_attributes: Option<ControlFlowAttributeValueDefinition>,
     pub inline_attributes: Option<Vec<(String, AttributeValueDefinition)>>,
-    pub addressable_properties: Option<Vec<PropertyDefinition>>,
     pub children_ids: Vec<String>,
     pub pascal_identifier: String,
 }
@@ -106,6 +112,21 @@ pub struct PropertyDefinition {
     pub iterable_type: Option<PropertyType>,
 }
 
+impl PropertyDefinition {
+    pub fn primitive(type_name: &str, symbol_name: &str) -> Self {
+        PropertyDefinition {
+            name: symbol_name.to_string(),
+            original_type: type_name.to_string(),
+            fully_qualified_constituent_types: vec![],
+            property_type_info: PropertyType {
+                fully_qualified_type: type_name.to_string(),
+                pascalized_fully_qualified_type: type_name.to_string()
+            },
+            iterable_type: None
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PropertyType {
     /// Same type as `PropertyDefinition#original_type`, but dynamically normalized to be fully qualified, suitable for reexporting.  For example, the original_type `Vec<SomeStruct>` would be fully qualified as `std::vec::Vec<some_crate::SomeStruct>`
@@ -113,6 +134,15 @@ pub struct PropertyType {
 
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
     pub pascalized_fully_qualified_type: String,
+}
+
+impl PropertyType {
+    pub fn primitive(name: &str) -> Self {
+        PropertyType {
+            pascalized_fully_qualified_type: name.to_string(),
+            fully_qualified_type: name.to_string(),
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -126,32 +156,25 @@ pub enum AttributeValueDefinition {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ControlFlowRepeatPredicateDeclaration {
+pub enum ControlFlowRepeatPredicateDefinition {
     ElemId(String),
     ElemIdIndexId(String, String),
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum ControlFlowRepeatPredicateSource {
-    Identifier(String),
-    IdentifierTuple(String, String),
-}
-
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowAttributeValueDefinition {
-    pub condition_expression: Option<String>,
-    pub slot_index: Option<String>,
-    pub repeat_predicate_declaration: Option<ControlFlowRepeatPredicateDeclaration>,
-    pub repeat_source_definition: RepeatSourceDefinition,
+    pub condition_expression_paxel: Option<String>,
+    pub slot_index_expression_paxel: Option<String>,
+    pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
+    pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct RepeatSourceDefinition {
+pub struct ControlFlowRepeatSourceDefinition {
     pub range_expression: Option<String>,
     pub symbolic_binding: Option<String>,
     pub elem_type: PropertyDefinition,
 }
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SettingsSelectorBlockDefinition {
     pub selector: String,

@@ -2,7 +2,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::{HashSet, HashMap};
 
-use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowAttributeValueDefinition, ControlFlowRepeatPredicateDeclaration, AttributeValueDefinition, Number, SettingsLiteralValue, SettingsSelectorBlockDefinition, SettingsLiteralBlockDefinition, SettingsValueDefinition};
+use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowAttributeValueDefinition, ControlFlowRepeatPredicateDefinition, AttributeValueDefinition, Number, SettingsLiteralValue, SettingsSelectorBlockDefinition, SettingsLiteralBlockDefinition, SettingsValueDefinition, ControlFlowRepeatSourceDefinition};
 
 use uuid::Uuid;
 
@@ -14,6 +14,7 @@ use pest::iterators::{Pair, Pairs};
 use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
 };
+use crate::expressions::ExpressionCompilationContext;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -38,7 +39,7 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
 
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
-pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
+pub fn run_pratt_parser(input_paxel: &str, ctx: &ExpressionCompilationContext) -> (String, Vec<String>) {
 
     // Operator precedence is declared via the ordering here:
     let pratt = PrattParser::new()
@@ -63,7 +64,7 @@ pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
     let pairs = PaxParser::parse(Rule::expression_body, input_paxel).expect(&format!("unsuccessful pratt parse {}", &input_paxel));
 
     let mut symbolic_ids = Rc::new(RefCell::new(vec![]));
-    let output = recurse_pratt_parse_to_string(pairs, &pratt, Rc::clone(&symbolic_ids));
+    let output = recurse_pratt_parse_to_string(pairs, &pratt, Rc::clone(&symbolic_ids), ctx);
     (output, symbolic_ids.take())
 }
 
@@ -98,14 +99,14 @@ fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
 }
 
 /// Workhorse method for compiling Expressions into Rust Intermediate Language (RIL, a string of Rust)
-fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &PrattParser<Rule>, symbolic_ids: Rc<RefCell<Vec<String>>>) -> String {
+fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &PrattParser<Rule>, symbolic_ids: Rc<RefCell<Vec<String>>>, ctx: &ExpressionCompilationContext) -> String {
     pratt_parser
         .map_primary(move |primary| match primary.as_rule() {
             /* expression_grouped | xo_function_call | xo_range     */
             Rule::expression_grouped => {
                 /* expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? } */
                 let mut inner = primary.into_inner();
-                let exp_bod = recurse_pratt_parse_to_string(inner.next().unwrap().into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
+                let exp_bod = recurse_pratt_parse_to_string(inner.next().unwrap().into_inner(), pratt_parser, Rc::clone(&symbolic_ids), ctx);
                 if let Some(literal_number_unit) = inner.next() {
                     let unit = literal_number_unit.as_str();
 
@@ -142,7 +143,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
 
                 output = output + "(";
                 while let Some(next_pair) = expression_body_pairs.next() {
-                    output = output + "(" + &recurse_pratt_parse_to_string(next_pair.into_inner(), pratt_parser, Rc::clone(&symbolic_ids)) + "),"
+                    output = output + "(" + &recurse_pratt_parse_to_string(next_pair.into_inner(), pratt_parser, Rc::clone(&symbolic_ids), ctx) + "),"
                 }
                 output = output + ")";
 
@@ -199,12 +200,12 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
 
                 //for parsing xo_object_settings_key_value_pair
                 //iterate over key-value pairs; recurse into expressions
-                fn handle_xoskvp<'a>(xoskvp: Pair<Rule>, pratt_parser: &PrattParser<Rule>, symbolic_ids: Rc<RefCell<Vec<String>>>) -> String {
+                fn handle_xoskvp<'a>(xoskvp: Pair<Rule>, pratt_parser: &PrattParser<Rule>, symbolic_ids: Rc<RefCell<Vec<String>>>, ctx: &ExpressionCompilationContext) -> String {
                     let mut inner_kvp = xoskvp.into_inner();
                     let settings_key = inner_kvp.next().unwrap().as_str().to_string();
                     let expression_body = inner_kvp.next().unwrap().into_inner();
 
-                    let ril = recurse_pratt_parse_to_string(expression_body, pratt_parser, Rc::clone(&symbolic_ids) );
+                    let ril = recurse_pratt_parse_to_string(expression_body, pratt_parser, Rc::clone(&symbolic_ids), ctx );
                     format!("{}: {},\n",settings_key, ril)
                 }
 
@@ -214,14 +215,14 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 } else {
                     //no explicit type declaration, like `{...}`
                     // -- this token is the first k/v pair of object declaration; handle as such
-                    let ril = handle_xoskvp(maybe_identifier, pratt_parser.clone(), Rc::clone(&symbolic_ids));
+                    let ril = handle_xoskvp(maybe_identifier, pratt_parser.clone(), Rc::clone(&symbolic_ids), ctx);
                     output += &ril;
                 }
 
                 let mut remaining_kvps = inner.into_iter();
 
                 while let Some(xoskkvp) = remaining_kvps.next() {
-                    let ril =  handle_xoskvp(xoskkvp, pratt_parser.clone(), Rc::clone(&symbolic_ids));
+                    let ril =  handle_xoskvp(xoskkvp, pratt_parser.clone(), Rc::clone(&symbolic_ids), ctx);
                     output += &ril;
                 }
 
@@ -235,12 +236,12 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 let mut tuple = primary.into_inner();
                 let exp0 = tuple.next().unwrap();
                 let exp1 = tuple.next().unwrap();
-                let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
-                let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
+                let exp0 = recurse_pratt_parse_to_string( exp0.into_inner(), pratt_parser, Rc::clone(&symbolic_ids), ctx);
+                let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), pratt_parser, Rc::clone(&symbolic_ids), ctx);
                 format!("({},{})", exp0, exp1)
             },
             Rule::expression_body => {
-                recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser.clone(), Rc::clone(&symbolic_ids))
+                recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser.clone(), Rc::clone(&symbolic_ids), ctx)
             },
             _ => unreachable!(),
         })
@@ -428,7 +429,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
             parents_children_id_list.push(new_id.clone());
             ctx.children_id_tracking_stack.push(parents_children_id_list);
 
-            //push the frame for this node's children
+            //push the empty frame for this node's children
             ctx.children_id_tracking_stack.push(vec![]);
 
             //recurse into inner_nodes
@@ -450,7 +451,6 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
-                addressable_properties: None,
                 pascal_identifier: pascal_identifier.to_string(),
             };
             ctx.template_node_definitions.push( template_node.clone());
@@ -477,109 +477,133 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 children_ids: vec![],
-                addressable_properties: None,
                 pascal_identifier: pascal_identifier.to_string(),
             };
             ctx.template_node_definitions.push( template_node.clone());
         },
         Rule::statement_control_flow => {
+            /* statement_control_flow = {(statement_if | statement_for | statement_slot)} */
 
-            let matched_tag = any_tag_pair.into_inner().next().unwrap();
+            // let statement_control_flow = any_tag_pair.into_inner().next().unwrap();
+
             let new_id = create_uuid();
 
-            //add self to parent's children_id_list
-            let mut parents_children_id_list = ctx.children_id_tracking_stack.pop().unwrap();
-            parents_children_id_list.push(new_id.clone());
-            ctx.children_id_tracking_stack.push(parents_children_id_list);
-
-            //push the frame for this node's children
+            //push the empty frame for this node's children
             ctx.children_id_tracking_stack.push(vec![]);
 
-            let template_node = match matched_tag.as_rule() {
+            let any_tag_pair = any_tag_pair.into_inner().next().unwrap();
+            let template_node = match any_tag_pair.as_rule() {
                 Rule::statement_if => {
+
+                    let mut statement_if = any_tag_pair.into_inner();
+                    let expression_body = statement_if.next().unwrap().as_str().to_string();
+                    let prospective_inner_nodes = statement_if.next();
+
+                    if let Some(inner_nodes) = prospective_inner_nodes {
+                        inner_nodes.into_inner()
+                            .for_each(|sub_tag_pair|{
+                                recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                            })
+                    }
+
+                    //`if` TemplateNodeDefinition
                     TemplateNodeDefinition {
-                        id: new_id,
-                        control_flow_attributes: Some(todo!()),
+                        id: new_id.clone(),
+                        control_flow_attributes: Some(ControlFlowAttributeValueDefinition {
+                            condition_expression_paxel: Some(expression_body),
+                            slot_index_expression_paxel: None,
+                            repeat_predicate_definition: None,
+                            repeat_source_definition: None
+                        }),
                         component_id: COMPONENT_ID_IF.to_string(),
                         inline_attributes: None,
-                        addressable_properties: None,
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
                     }
                 },
                 Rule::statement_for => {
-
-                    // e.g. `i` | `(elem, i`)
-                    // statement_for_predicate_declaration = {
-                    //     identifier |
-                    //     ("(" ~ identifier ~ ","~ identifier ~")")
-                    // }
-                    //
-                    // e.g. `0..10` | `self.some_iterable`
-                    // statement_for_source = { xo_range | xo_symbol }
-                    //
-                    // The latter, `source`, can simply be parsed as an expression, even if it's static like `0..5`.
-                    // Thus, we load it wholesale into a String for subsequent handling by compiler as an Expression
-
                     let mut cfavd = ControlFlowAttributeValueDefinition::default();
-                    let mut for_statement = matched_tag.clone().into_inner();
+                    let mut for_statement = any_tag_pair.clone().into_inner();
                     let mut predicate_declaration = for_statement.next().unwrap().into_inner();
                     let mut source = for_statement.next().unwrap();
 
+                    let prospective_inner_nodes = for_statement.next();
+
+
+
+
+
                     if predicate_declaration.clone().count() > 1 {
                         //tuple, like the `elem, i` in `for (elem, i) in self.some_list`
-                        cfavd.repeat_predicate_declaration = Some(ControlFlowRepeatPredicateDeclaration::ElemIdIndexId(
+                        cfavd.repeat_predicate_definition = Some(ControlFlowRepeatPredicateDefinition::ElemIdIndexId(
                             (&predicate_declaration.next().unwrap().as_str()).to_string(),
                             (&predicate_declaration.next().unwrap().as_str()).to_string()
                         ));
 
                     } else {
                         //single identifier, like the `elem` in `for elem in self.some_list`
-                        cfavd.repeat_predicate_declaration = Some(ControlFlowRepeatPredicateDeclaration::ElemId(predicate_declaration.as_str().to_string()));
+                        cfavd.repeat_predicate_definition = Some(ControlFlowRepeatPredicateDefinition::ElemId(predicate_declaration.as_str().to_string()));
                     }
 
+                    let mut repeat_source_definition = ControlFlowRepeatSourceDefinition {
+                        range_expression: None,
+                        symbolic_binding: None,
+                        elem_type: Default::default()
+                    };
+                    //^ TODO!
+
+                    // cfavd.repeat_source_definition = /*Some(source.as_str().to_string());*/
+
+
+
+                    if let Some(inner_nodes) = prospective_inner_nodes {
+                        inner_nodes.into_inner()
+                            .for_each(|sub_tag_pair|{
+                                recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                            })
+                    }
+
+                    //`children` TemplateNodeDefinition
                     TemplateNodeDefinition {
-                        id: new_id,
+                        id: new_id.clone(),
                         component_id: COMPONENT_ID_REPEAT.to_string(),
                         control_flow_attributes: Some(cfavd),
                         inline_attributes: None,
-                        addressable_properties: Some(vec![
-                            PropertyDefinition {
-                                name: "<TODO>".to_string(),
-                                original_type: "<TODO>".to_string(),
-                                fully_qualified_constituent_types: vec![],
-                                property_type_info: Default::default(),
-                                iterable_type: None
-                            },
-                            PropertyDefinition {
-                                name: "<TODO>".to_string(),
-                                original_type: "<TODO>".to_string(),
-                                fully_qualified_constituent_types: vec![],
-                                property_type_info: Default::default(),
-                                iterable_type: None
-                            },
-                        ]),
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Repeat".to_string(),
                     }
                 },
                 Rule::statement_slot => {
+                    let mut statement_slot = any_tag_pair.into_inner();
+                    let expression_body = statement_slot.next().unwrap().as_str().to_string();
+                    let prospective_inner_nodes = statement_slot.next();
+
+                    if let Some(inner_nodes) = prospective_inner_nodes {
+                        inner_nodes.into_inner()
+                            .for_each(|sub_tag_pair|{
+                                recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                            })
+                    }
+
                     TemplateNodeDefinition {
-                        id: new_id,
-                        control_flow_attributes: Some(todo!()),
+                        id: new_id.clone(),
+                        control_flow_attributes: Some(ControlFlowAttributeValueDefinition {
+                            condition_expression_paxel: None,
+                            slot_index_expression_paxel: Some(expression_body),
+                            repeat_predicate_definition: None,
+                            repeat_source_definition: None
+                        }),
                         component_id: COMPONENT_ID_SLOT.to_string(),
                         inline_attributes: None,
-                        addressable_properties: None,
                         children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
                     }
                 },
                 _ => {
-                    unreachable!("Parsing error 883427242: {:?}", matched_tag.as_rule());;
+                    unreachable!("Parsing error 883427242: {:?}", any_tag_pair.as_rule());;
                 }
             };
 
-            ctx.template_node_definitions.push( template_node.clone());
 
         },
         Rule::node_inner_content => {

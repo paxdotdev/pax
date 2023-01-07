@@ -1,3 +1,5 @@
+extern crate core;
+
 pub mod manifest;
 pub mod reflection;
 pub mod templating;
