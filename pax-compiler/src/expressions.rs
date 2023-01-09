@@ -7,6 +7,8 @@ use crate::manifest::PropertyType;
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
+    //From a fully populated manifest, build
+
     let mut new_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
     let mut stack_offset = 0;
     let mut uid_gen = 0..;
@@ -19,26 +21,41 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
         let read_only_component_def = component_def.clone();
 
         if let Some(ref mut template) = new_component_def.template {
-            template.iter_mut().for_each(|node_def| {
-                let mut new_node_def = node_def.clone();
-                let mut ctx = ExpressionCompilationContext {
-                    active_node_def: new_node_def,
-                    scope_stack: vec![component_def.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
-                    uid_gen: 0..,
-                    all_components: manifest.components.clone(),
-                    expression_specs: &mut new_expression_specs,
-                    component_def: &read_only_component_def,
-                    new_template_node_definitions: manifest.template_node_definitions.clone(),
-                };
 
-                ctx = recurse_template_and_compile_expressions(ctx);
-
-                std::mem::swap(node_def, &mut ctx.active_node_def);
+            // todo!"must walk template following uuid linked list -- NOT iter_mut";
 
 
-                manifest.template_node_definitions.extend(ctx.new_template_node_definitions);
+            let root_template_node_id = new_component_def.root_template_node_id.as_ref().expect("cannot compile template without root node");
 
-            });
+            let mut new_template_node_definitions = manifest.template_node_definitions.clone();
+
+            let mut active_node_def = new_template_node_definitions.remove(root_template_node_id).unwrap();
+
+            let mut ctx = ExpressionCompilationContext {
+                active_node_def,
+                scope_stack: vec![component_def.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
+                uid_gen: 0..,
+                all_components: manifest.components.clone(),
+                expression_specs: &mut new_expression_specs,
+                component_def: &read_only_component_def,
+                new_template_node_definitions,
+            };
+
+            ctx = recurse_compile_expressions(ctx);
+
+            manifest.template_node_definitions.extend(ctx.new_template_node_definitions);
+
+            // template.iter_mut().for_each(|node_def| {
+            //     let mut new_node_def = node_def.clone();
+            //
+            //
+            //     ctx = recurse_compile_expressions(ctx);
+            //
+            //     std::mem::swap(node_def, &mut ctx.active_node_def);
+            //
+            //     manifest.template_node_definitions.extend(ctx.new_template_node_definitions);
+            //
+            // });
         }
 
         std::mem::swap(component_def, &mut new_component_def);
@@ -50,7 +67,7 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
     println!("{}", serde_json::to_string_pretty(&manifest).unwrap());
 }
 
-fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) -> ExpressionCompilationContext<'a> {
+fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) -> ExpressionCompilationContext<'a> {
     let mut incremented = false;
 
     //FUTURE: join settings blocks here, merge with inline_attributes
@@ -103,6 +120,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
                     let mut manifest_id_insert: usize = id;
                     std::mem::swap(&mut manifest_id.take(), &mut Some(manifest_id_insert));
 
+                    //TODO! We don't have the appropriate runtime stack at this point
                     let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
 
                     let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
@@ -173,7 +191,7 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
                          elem_property_definition),
                         //`i` property (by specified name)
                         (index_id.clone(),
-                            PropertyDefinition::primitive("usize", index_id)
+                            PropertyDefinition::primitive_with_name("usize", index_id)
                          )
                     ]));
                 },
@@ -234,11 +252,12 @@ fn recurse_template_and_compile_expressions<'a>(mut ctx: ExpressionCompilationCo
 
     std::mem::swap(&mut cloned_inline_attributes, &mut ctx.active_node_def.inline_attributes);
 
+    // Traverse descendent nodes and continue compiling expressions recursively
     for id in ctx.active_node_def.children_ids.clone().iter() {
         let mut active_node_def = ctx.new_template_node_definitions.remove(id).unwrap();
         ctx.active_node_def = active_node_def;
 
-        ctx = recurse_template_and_compile_expressions(ctx);
+        ctx = recurse_compile_expressions(ctx);
         ctx.new_template_node_definitions.insert(id.to_string(), ctx.active_node_def.clone());
     };
 
@@ -260,7 +279,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         sym.to_string()
     };
 
-    let prop_def = ctx.component_def.get_property_definition_by_name(&identifier);
+    let prop_def = ctx.resolve_symbol_through_stack(&identifier).expect(&format!("Symbol not found: {}", &identifier));
 
     let properties_type = prop_def.property_type_info.fully_qualified_type.clone();
 
@@ -300,7 +319,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &ExpressionCompilationContext<'a>) -> (String, Vec<ExpressionSpecInvocation>) {
 
     //1. run Pratt parser; generate output RIL and collected symbolic_ids
-    let (output_string,  symbolic_ids) = crate::parsing::run_pratt_parser(paxel, ctx);
+    let (output_string,  symbolic_ids) = crate::parsing::run_pratt_parser(paxel);
 
     //2. for each symbolic id discovered during parsing, resolve that id through scope_stack and populate an ExpressionSpecInvocation
     let invocations = symbolic_ids.iter().map(|sym| {
@@ -339,4 +358,31 @@ pub struct ExpressionCompilationContext<'a> {
     /// All components, by ID
     pub all_components: HashMap<String, ComponentDefinition>,
 
+}
+
+impl<'a> ExpressionCompilationContext<'a> {
+
+    /// for an input symbol like `i` or `num_clicks` (already pruned of `self.` or `this.`)
+    /// traverse the self-attached `scope_stack`
+    /// and return a copy of the related `PropertyDefinition`, if found
+    pub fn resolve_symbol_through_stack(&self, symbol: &str) -> Option<PropertyDefinition> {
+
+        let mut found=false;
+        let mut exhausted =false;
+        let mut iter = self.scope_stack.iter();
+        let mut current_frame = iter.next();
+        let mut ret : Option<PropertyDefinition> = None;
+        while !found && !exhausted {
+            if let Some(frame) = current_frame {
+                if let Some(pv) = frame.get(symbol) {
+                    ret = Some(pv.clone());
+                    found = true;
+                }
+                current_frame = iter.next();
+            } else {
+                exhausted = true;
+            }
+        }
+        ret
+    }
 }

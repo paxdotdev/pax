@@ -17,11 +17,11 @@ use pax_std::components::{Stacker};
         </Stacker>
 
         //Middle eight columns
-        for i in 0..8 {
+        for j in 0..8 {
             <Group>
-                <Text id=index_text>{i}</Text>
+                <Text id=index_text>{j}</Text>
                 <Rectangle fill={
-                    rgb(100%, (100 - (i * 12.5))%,(i * 12.5)%)
+                    rgb(100%, (100 - (j * 12.5))%,(j * 12.5)%)
                 }/>
             </Group>
         }

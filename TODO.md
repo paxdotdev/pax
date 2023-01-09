@@ -3292,3 +3292,16 @@ pulled from `pax-std/.../rectangle.rs` during a cleanup pass
 // }
 //
 ```
+
+
+
+### Lab journal, Jan 8 2023
+
+Problem: `root_template_node_id` is None for stacker, encountered 
+in the context of compiling expressions
+
+Separately, for future consideration, is it possible / desirable to merge the expression compilation logic
+into the _same traversal_ as the original parse?  That is: populate
+expression_specs inside the parser binary, and pass those serialized
+expression_specs over the wire (instead of compiling them as a separate
+step after loading a Manifest)

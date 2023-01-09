@@ -22,6 +22,9 @@ pub struct PaxManifest {
     pub template_node_definitions: HashMap<String, TemplateNodeDefinition>
 }
 
+
+
+
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ExpressionSpec {
     /// Unique id for vtable entry — used for binding a node definition property to vtable
@@ -84,6 +87,7 @@ impl ComponentDefinition {
     pub fn get_property_definition_by_name(&self, name: &str) -> PropertyDefinition {
         self.property_definitions.iter().find(|pd| { pd.name.eq(name) }).expect(&format!("Property not found with name {}", &name)).clone()
     }
+
 }
 
 
@@ -113,7 +117,7 @@ pub struct PropertyDefinition {
 }
 
 impl PropertyDefinition {
-    pub fn primitive(type_name: &str, symbol_name: &str) -> Self {
+    pub fn primitive_with_name(type_name: &str, symbol_name: &str) -> Self {
         PropertyDefinition {
             name: symbol_name.to_string(),
             original_type: type_name.to_string(),
@@ -173,7 +177,6 @@ pub struct ControlFlowAttributeValueDefinition {
 pub struct ControlFlowRepeatSourceDefinition {
     pub range_expression: Option<String>,
     pub symbolic_binding: Option<String>,
-    pub elem_type: PropertyDefinition,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SettingsSelectorBlockDefinition {
