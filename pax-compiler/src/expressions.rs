@@ -3,6 +3,7 @@ use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, Expre
 use std::collections::HashMap;
 use std::ops::{IndexMut, Range, RangeFrom};
 use futures::StreamExt;
+use lazy_static::lazy_static;
 use crate::manifest::PropertyType;
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
@@ -63,29 +64,34 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 AttributeValueDefinition::Identifier(identifier, manifest_id) => {
                     // e.g. the self.active_color in `bg_color=self.active_color`
 
-                    let id = ctx.uid_gen.next().unwrap();
+                    if attr.0 == "id" {
+                        //No-op -- special-case `id=some_identifier` — we DON'T want to compile an expression {some_identifier},
+                        //so we skip the case where `id` is the key
+                    } else {
+                        let id = ctx.uid_gen.next().unwrap();
 
-                    //Write this id back to the manifest, for downstream use by RIL component tree generator
-                    let mut manifest_id_insert: usize = id;
-                    std::mem::swap(&mut manifest_id.take().unwrap(), &mut manifest_id_insert);
+                        //Write this id back to the manifest, for downstream use by RIL component tree generator
+                        let mut manifest_id_insert: Option<usize> = Some(id);
+                        std::mem::swap(manifest_id, &mut manifest_id_insert);
 
-                    //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
-                    //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
-                    let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
+                        //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
+                        //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
+                        let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
 
-                    let pascalized_return_type = (&ctx.component_def.property_definitions.iter().find(
-                        |property_def| {
-                            property_def.name == attr.0
-                        }
-                    ).unwrap().property_type_info.pascalized_fully_qualified_type).clone();
+                        let pascalized_return_type = (&ctx.component_def.property_definitions.iter().find(
+                            |property_def| {
+                                property_def.name == attr.0
+                            }
+                        ).unwrap().property_type_info.pascalized_fully_qualified_type).clone();
 
-                    ctx.expression_specs.insert(id, ExpressionSpec {
-                        id,
-                        pascalized_return_type,
-                        invocations,
-                        output_statement: output_statement,
-                        input_statement: identifier.clone(),
-                    });
+                        ctx.expression_specs.insert(id, ExpressionSpec {
+                            id,
+                            pascalized_return_type,
+                            invocations,
+                            output_statement: output_statement,
+                            input_statement: identifier.clone(),
+                        });
+                    }
                 }
                 AttributeValueDefinition::Expression(input, manifest_id) => {
                     // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
@@ -95,7 +101,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     let mut manifest_id_insert: usize = id;
                     std::mem::swap(&mut manifest_id.take(), &mut Some(manifest_id_insert));
 
-                    //TODO! We don't have the appropriate runtime stack at this point
                     let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
 
                     let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
@@ -246,7 +251,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
         //Swap the first blank for the node with specified id
         std::mem::swap(&mut active_node_def, ctx.template.get_mut(*id).unwrap());
 
-        //Swap the second for the current ctx.active_node_def value, so we can pass it back
+        //Swap the second blank for the current ctx.active_node_def value, so we can pass it back
         //to caller when done
         std::mem::swap(&mut old_active_node_def, &mut ctx.active_node_def);
 
@@ -272,47 +277,59 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 /// From a symbol like `num_clicks` or `self.num_clicks`, populate an ExpressionSpecInvocation
 fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -> ExpressionSpecInvocation {
 
-    let identifier =  if sym.starts_with("self.") {
-        sym.replacen("self.", "", 1)
-    } else if sym.starts_with("this.") {
-        sym.replacen("this.", "", 1)
-    } else {
-        sym.to_string()
-    };
-
-    let prop_def = ctx.resolve_symbol_through_stack(&identifier).expect(&format!("Symbol not found: {}", &identifier));
-
-    let properties_type = prop_def.property_type_info.fully_qualified_type.clone();
-
-    let pascalized_iterable_type = if let Some(x) = &prop_def.iterable_type {
-        Some(x.pascalized_fully_qualified_type.clone())
-    } else {
-        None
-    };
-
-    let mut found_depth : Option<usize> = None;
-    let mut current_depth = 0;
-    while let None = found_depth {
-        let map = ctx.scope_stack.get((ctx.scope_stack.len() - 1) - current_depth).expect(&format!("Symbol not found: {}", &identifier));
-        if let Some(val) = map.get(&identifier) {
-            found_depth = Some(current_depth);
-        } else {
-            current_depth += 1;
+    if BUILTIN_MAP.contains_key(sym) {
+        ExpressionSpecInvocation {
+            identifier: "<<TODO>>".to_string(),
+            escaped_identifier: "<<TODO>>".to_string(),
+            stack_offset: 0,
+            properties_type: "".to_string(),
+            pascalized_iterable_type: None,
+            is_repeat_elem: false,
+            is_repeat_index: false
         }
-    }
+    } else {
+        let identifier = if sym.starts_with("self.") {
+            sym.replacen("self.", "", 1)
+        } else if sym.starts_with("this.") {
+            sym.replacen("this.", "", 1)
+        } else {
+            sym.to_string()
+        };
 
-    let stack_offset = found_depth.unwrap();
+        let prop_def = ctx.resolve_symbol(&identifier).expect(&format!("Symbol not found: {}", &identifier));
 
-    let escaped_identifier = crate::reflection::escape_identifier(identifier.clone());
+        let properties_type = prop_def.property_type_info.fully_qualified_type.clone();
 
-    ExpressionSpecInvocation {
-        identifier,
-        escaped_identifier,
-        stack_offset,
-        properties_type,
-        pascalized_iterable_type,
-        is_repeat_elem: false,
-        is_repeat_index: false
+        let pascalized_iterable_type = if let Some(x) = &prop_def.iterable_type {
+            Some(x.pascalized_fully_qualified_type.clone())
+        } else {
+            None
+        };
+
+        let mut found_depth: Option<usize> = None;
+        let mut current_depth = 0;
+        while let None = found_depth {
+            let map = ctx.scope_stack.get((ctx.scope_stack.len() - 1) - current_depth).expect(&format!("Symbol not found: {}", &identifier));
+            if let Some(val) = map.get(&identifier) {
+                found_depth = Some(current_depth);
+            } else {
+                current_depth += 1;
+            }
+        }
+
+        let stack_offset = found_depth.unwrap();
+
+        let escaped_identifier = crate::reflection::escape_identifier(identifier.clone());
+
+        ExpressionSpecInvocation {
+            identifier,
+            escaped_identifier,
+            stack_offset,
+            properties_type,
+            pascalized_iterable_type,
+            is_repeat_elem: false,
+            is_repeat_index: false
+        }
     }
 }
 
@@ -324,7 +341,7 @@ fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &ExpressionCompilationContext<'a>)
 
     //2. for each symbolic id discovered during parsing, resolve that id through scope_stack and populate an ExpressionSpecInvocation
     let invocations = symbolic_ids.iter().map(|sym| {
-        resolve_symbol_as_invocation(&sym, ctx)
+        resolve_symbol_as_invocation(&sym.trim(), ctx)
     }).collect();
 
     //3. return tuple of (RIL string,ExpressionSpecInvocations)
@@ -361,29 +378,48 @@ pub struct ExpressionCompilationContext<'a> {
 
 }
 
+
+lazy_static! {
+    static ref BUILTIN_MAP : HashMap<&'static str, ()> = HashMap::from([
+        //TODO! hook into real runtime logic here instead of PropertyDefinition::default.
+        //      this probably requires referring to event handlers instead of directly to PropertyDefinition via HashMap<String, PropertyDefinition>
+        ("$container",())
+    ]);
+}
+
+
 impl<'a> ExpressionCompilationContext<'a> {
+
+
 
     /// for an input symbol like `i` or `num_clicks` (already pruned of `self.` or `this.`)
     /// traverse the self-attached `scope_stack`
     /// and return a copy of the related `PropertyDefinition`, if found
-    pub fn resolve_symbol_through_stack(&self, symbol: &str) -> Option<PropertyDefinition> {
+    pub fn resolve_symbol(&self, symbol: &str) -> Option<PropertyDefinition> {
+        //1. resolve through builtin map
 
-        let mut found=false;
-        let mut exhausted =false;
-        let mut iter = self.scope_stack.iter();
-        let mut current_frame = iter.next();
-        let mut ret : Option<PropertyDefinition> = None;
-        while !found && !exhausted {
-            if let Some(frame) = current_frame {
-                if let Some(pv) = frame.get(symbol) {
-                    ret = Some(pv.clone());
-                    found = true;
+        if BUILTIN_MAP.contains_key(symbol) {
+            None
+        } else {
+
+            //2. resolve through stack
+            let mut found = false;
+            let mut exhausted = false;
+            let mut iter = self.scope_stack.iter();
+            let mut current_frame = iter.next();
+            let mut ret: Option<PropertyDefinition> = None;
+            while !found && !exhausted {
+                if let Some(frame) = current_frame {
+                    if let Some(pv) = frame.get(symbol) {
+                        ret = Some(pv.clone());
+                        found = true;
+                    }
+                    current_frame = iter.next();
+                } else {
+                    exhausted = true;
                 }
-                current_frame = iter.next();
-            } else {
-                exhausted = true;
             }
+            ret
         }
-        ret
     }
 }

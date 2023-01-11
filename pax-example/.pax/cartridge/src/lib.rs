@@ -13,27 +13,27 @@ use piet_common::RenderContext;
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
 
-use pax_example::pax_reexports::usize;
-
-use pax_example::pax_reexports::pax_std::types::Font;
+use pax_example::pax_reexports::pax::api::Size;
 
 use pax_example::pax_reexports::std::string::String;
 
-use pax_example::pax_reexports::i64;
+use pax_example::pax_reexports::std::vec::Vec;
+
+use pax_example::pax_reexports::pax_std::types::Font;
+
+use pax_example::pax_reexports::usize;
 
 use pax_example::pax_reexports::pax_std::types::StackerCell;
 
-use pax_example::pax_reexports::pax_std::types::StackerDirection;
-
-use pax_example::pax_reexports::pax::api::Size;
-
-use pax_example::pax_reexports::pax_std::types::Stroke;
-
-use pax_example::pax_reexports::std::vec::Vec;
+use pax_example::pax_reexports::f64;
 
 use pax_example::pax_reexports::pax_std::types::Color;
 
-use pax_example::pax_reexports::f64;
+use pax_example::pax_reexports::pax_std::types::StackerDirection;
+
+use pax_example::pax_reexports::i64;
+
+use pax_example::pax_reexports::pax_std::types::Stroke;
 
 
 //dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
@@ -77,17 +77,48 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
         )
     */
     
+    //rgb(100 %, (100 - (j * 12.5)) %, (j * 12.5) %) 
+    vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let j = {
+                let properties = (*ec.stack_frame).borrow().nth_descendant(0);
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::usize(p) = properties {
+                    *p.j.get()
+                } else {
+                    unreachable!(5)
+                }
+            };
+        
+            let j = {
+                let properties = (*ec.stack_frame).borrow().nth_descendant(0);
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::usize(p) = properties {
+                    *p.j.get()
+                } else {
+                    unreachable!(5)
+                }
+            };
+        
+
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            rgb((Size::Percent(100)),(Size::Percent((100-(j *12.5)))),(Size::Percent((j *12.5))),)
+        )
+    }));
+    
     //rotate(self.current_rotation) 
-    vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(6, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let current_rotation = {
-                let properties = (*ec.stack_frame).borrow().nth_descendant(0);
+                let properties = (*ec.stack_frame).borrow().nth_descendant(2);
                 let properties = &*(*properties).borrow();
 
                 if let PropertiesCoproduct::pax_example::pax_reexports::f64(p) = properties {
                     *p.current_rotation.get()
                 } else {
-                    unreachable!(0)
+                    unreachable!(6)
                 }
             };
         
@@ -98,11 +129,82 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
     }));
     
     //rgb(100 %, 100 %, 0) 
-    vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
             rgb((Size::Percent(100)),(Size::Percent(100)),(0),)
+        )
+    }));
+    
+    //0 .. 5
+
+    vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::usize(
+            0 
+        )
+    }));
+    
+    //rgb((i * 20) %, 0, 100 %) 
+    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let i = {
+                let properties = (*ec.stack_frame).borrow().nth_descendant(0);
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::usize(p) = properties {
+                    *p.i.get()
+                } else {
+                    unreachable!(2)
+                }
+            };
+        
+
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            rgb((Size::Percent((i *20))),(0),(Size::Percent(100)),)
+        )
+    }));
+    
+    //0 .. 8
+
+    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::usize(
+            0 
+        )
+    }));
+    
+    //(get_frame_size(i, $container)) 
+    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let i = {
+                let properties = (*ec.stack_frame).borrow().nth_descendant(0);
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::usize(p) = properties {
+                    *p.i.get()
+                } else {
+                    unreachable!(3)
+                }
+            };
+        
+            let <<TODO>> = {
+                let properties = (*ec.stack_frame).borrow().nth_descendant(0);
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::(p) = properties {
+                    *p.<<TODO>>.get()
+                } else {
+                    unreachable!(3)
+                }
+            };
+        
+
+        TypesCoproduct::Size2D(
+            get_frame_size((i),($container),)
         )
     }));
     

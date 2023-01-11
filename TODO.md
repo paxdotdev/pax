@@ -396,21 +396,22 @@ _RIL means Rust Intermediate Language, which is the
                     [-] Support referring to `T` for any Property<T> (already parsed + resolvable)
                     [-] Import Transform2d::*, Color::*, and a few others via prelude
                         -- Note that each prelude import prohibits any other top-level symbols with colliding names; increases DX snafu likelihood via compiler errors
-            [ ] expression string => RIL generation
+            [x] expression string => RIL generation
                 [x] Pratt parser "hello world"
-                [ ] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
-                [ ] grouping of units, e.g. `(5 + 10)%` 
-                [ ] boolean ops: `==`, `&&`, and `||`
-                [ ] parenthetical grouping  `(.*)`
-                [ ] Literals for strings, bools, ints, floats
-                [ ] Nested object references + injected context
-                    [ ] invocations for deriving values from scope
-                    [ ] type-matching
-                    [ ] Numeric type management, type inference / casting
+                [x] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
+                [x] grouping of units, e.g. `(5 + 10)%` 
+                [x] boolean ops: `==`, `&&`, and `||`
+                [x] parenthetical grouping  `(.*)`
+                [x] Literals for strings, bools, ints, floats
+                [x] Nested object references + injected context
+                    [x] invocations for deriving values from scope
+                    [x] type-matching
+                    [x] Numeric type management, type inference / casting
             [ ] Dependency tracking & dirty-watching
                 [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender` (early, hacky Stacker use-case)
+                [ ] support built-ins (like $container, $input, etc.)
                 [ ] support "helpers", composable functions, which also serve the need of temporaries/`let`s
-                [ ] address use-case of `Property<Vec<T>>`, inserting/changing an element without setting the whole
+                [-] address use-case of `Property<Vec<T>>`, inserting/changing an element without setting the whole
                     entity.  Might want to offer a `get_mut` API (keep an eye on async / ownership concerns)
                     -- In fact, probably address this on the heels of a Property -> channel refactor, as the implications for this
                     intersection are significant  
@@ -418,15 +419,15 @@ _RIL means Rust Intermediate Language, which is the
     [x] generate / patch chassis cargo.toml
     [ ] hook up `pax_on` and basic lifecycle events
         [ ] consider design for async while doing this
-    [ ] control flow
+    [x] control flow
         [x] for
             [x] parse declaration `i`, `(i)`, `(i, elem)`
             [x] handle range literals 0..10 
             [x] shuttle data into RepeatInstance via Manifest
-        [ ] if
-            [ ] parse condition, handle as expression
-        [ ] slot
-            [ ] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
+        [x] if
+            [x] parse condition, handle as expression
+        [x] slot
+            [x] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
 [x] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
 [ ] e2e `pax run`
 [ ] e2e `pax build` for distributable binaries
