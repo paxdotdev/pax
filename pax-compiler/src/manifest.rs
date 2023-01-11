@@ -19,11 +19,7 @@ pub struct PaxManifest {
     pub components: HashMap<String, ComponentDefinition>,
     pub root_component_id: String,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
-    pub template_node_definitions: HashMap<String, TemplateNodeDefinition>
 }
-
-
-
 
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ExpressionSpec {
@@ -77,7 +73,6 @@ pub struct ComponentDefinition {
     pub source_id: String,
     pub pascal_identifier: String,
     pub module_path: String,
-    pub root_template_node_id: Option<String>,
     pub template: Option<Vec<TemplateNodeDefinition>>,
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
     pub property_definitions: Vec<PropertyDefinition>,
@@ -91,14 +86,20 @@ impl ComponentDefinition {
 }
 
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 //Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 pub struct TemplateNodeDefinition {
-    pub id: String,
+    /// Component-unique int ID.  Conventionally, id 0 will be the root node for a component's template
+    pub id: usize,
+    /// Vec of int IDs representing the child TemplateNodeDefinitions of this TemplateNodeDefinition
+    pub child_ids: Vec<usize>,
+    /// Reference to the unique string ID for a component, e.g. `primitive::Frame` or `component::Stacker`
     pub component_id: String,
+    /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
     pub control_flow_attributes: Option<ControlFlowAttributeValueDefinition>,
+    /// IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)
     pub inline_attributes: Option<Vec<(String, AttributeValueDefinition)>>,
-    pub children_ids: Vec<String>,
+    /// e.g. the `SomeName` in `<SomeName some_key="some_value" />`
     pub pascal_identifier: String,
 }
 
@@ -117,6 +118,7 @@ pub struct PropertyDefinition {
 }
 
 impl PropertyDefinition {
+    /// Shorthand factory / constructor
     pub fn primitive_with_name(type_name: &str, symbol_name: &str) -> Self {
         PropertyDefinition {
             name: symbol_name.to_string(),
@@ -149,8 +151,10 @@ impl PropertyType {
     }
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub enum AttributeValueDefinition {
+    #[default]
+    Undefined, //Used for `Default`
     LiteralValue(String),
     /// (Expression contents, vtable id binding)
     Expression(String, Option<usize>),

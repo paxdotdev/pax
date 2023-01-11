@@ -1,18 +1,13 @@
 use std::borrow::Borrow;
 use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, AttributeValueDefinition, PropertyDefinition};
 use std::collections::HashMap;
-use std::ops::{Range, RangeFrom};
+use std::ops::{IndexMut, Range, RangeFrom};
 use futures::StreamExt;
 use crate::manifest::PropertyType;
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
-    //From a fully populated manifest, build
-
     let mut new_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
-    let mut stack_offset = 0;
-    let mut uid_gen = 0..;
-
 
     let mut new_components = manifest.components.clone();
     new_components.values_mut().for_each(|component_def : &mut ComponentDefinition|{
@@ -22,44 +17,24 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
         if let Some(ref mut template) = new_component_def.template {
 
-            // todo!"must walk template following uuid linked list -- NOT iter_mut";
-
-
-            let root_template_node_id = new_component_def.root_template_node_id.as_ref().expect("cannot compile template without root node");
-
-            let mut new_template_node_definitions = manifest.template_node_definitions.clone();
-
-            let mut active_node_def = new_template_node_definitions.remove(root_template_node_id).unwrap();
+            let mut active_node_def = TemplateNodeDefinition::default();
+            std::mem::swap(&mut active_node_def, template.index_mut(0));
 
             let mut ctx = ExpressionCompilationContext {
+                template,
                 active_node_def,
                 scope_stack: vec![component_def.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
                 uid_gen: 0..,
                 all_components: manifest.components.clone(),
                 expression_specs: &mut new_expression_specs,
                 component_def: &read_only_component_def,
-                new_template_node_definitions,
             };
 
             ctx = recurse_compile_expressions(ctx);
-
-            manifest.template_node_definitions.extend(ctx.new_template_node_definitions);
-
-            // template.iter_mut().for_each(|node_def| {
-            //     let mut new_node_def = node_def.clone();
-            //
-            //
-            //     ctx = recurse_compile_expressions(ctx);
-            //
-            //     std::mem::swap(node_def, &mut ctx.active_node_def);
-            //
-            //     manifest.template_node_definitions.extend(ctx.new_template_node_definitions);
-            //
-            // });
+            std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
         }
 
         std::mem::swap(component_def, &mut new_component_def);
-
     });
     manifest.components = new_components;
     manifest.expression_specs = Some(new_expression_specs);
@@ -149,7 +124,8 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     //Write this id back to the manifest, for downstream use by RIL component tree generator
                     let mut manifest_id_insert = Some(id);
                     std::mem::swap(manifest_id, &mut manifest_id_insert);
-                }
+                },
+                _ => {unreachable!()},
             }
         });
     } else if let Some(ref mut cfa) = cloned_control_flow_attributes {
@@ -167,13 +143,34 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
             let id = ctx.uid_gen.next().unwrap();
 
+            // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
+            let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
+            let (paxel, return_type) = if let Some(range_expression) = &repeat_source_definition.range_expression {
+                (range_expression.to_string(), PropertyType::primitive("usize"))
+            } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
+                let mut property_definition = ctx.component_def.get_property_definition_by_name(symbolic_binding);
+                let fqt = property_definition.property_type_info.fully_qualified_type.clone();
+                let property_type = property_definition.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
+
+                (symbolic_binding.to_string(), property_type)
+            } else {unreachable!()};
+
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL
             match cfa.repeat_predicate_definition.as_ref().unwrap() {
                 ControlFlowRepeatPredicateDefinition::ElemId(elem_id) => {
-                    let mut property_definition = ctx.component_def.property_definitions.iter().find(|pd|{pd.name.eq(elem_id)}).expect(&format!("Property not found with name {}", &elem_id)).clone();
-                    let fqt = property_definition.property_type_info.fully_qualified_type.clone();
-                    property_definition.property_type_info = property_definition.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
+                    //for i in 0..5
+                    // i describes the element (not the index!), which in this case is a `usize`
+                    // property definition: called `i`
+                    // property_type:usize (the iterable_type)
+
+                    let mut property_definition = PropertyDefinition {
+                        name: format!("{}", elem_id),
+                        original_type: return_type.fully_qualified_type.to_string(),
+                        fully_qualified_constituent_types: vec![],
+                        property_type_info: return_type.clone(),
+                        iterable_type: None
+                    };
 
                     ctx.scope_stack.push(HashMap::from([
                         //`elem` property (by specified name)
@@ -182,8 +179,13 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     ]));
                 },
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
-                    let mut elem_property_definition = ctx.component_def.property_definitions.iter().find(|pd|{pd.name == *elem_id}).expect(&format!("Property not found with name {}", &elem_id)).clone();
-                    elem_property_definition.property_type_info = elem_property_definition.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &elem_property_definition.property_type_info.fully_qualified_type));
+                    let mut elem_property_definition = PropertyDefinition {
+                        name: format!("{}", elem_id),
+                        original_type: return_type.fully_qualified_type.to_string(),
+                        fully_qualified_constituent_types: vec![],
+                        property_type_info: return_type.clone(),
+                        iterable_type: None
+                    };
 
                     ctx.scope_stack.push(HashMap::from([
                         //`elem` property (by specified name)
@@ -196,20 +198,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     ]));
                 },
             };
-
-            //handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
-
-            let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
-
-            let (paxel, return_type) = if let Some(range_expression) = &repeat_source_definition.range_expression {
-                (range_expression.to_string(), PropertyType::primitive("usize"))
-            } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
-                let mut property_definition = ctx.component_def.get_property_definition_by_name(symbolic_binding);
-                let fqt = property_definition.property_type_info.fully_qualified_type.clone();
-                let property_type = property_definition.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
-
-                (symbolic_binding.to_string(), property_type)
-            } else {unreachable!()};
 
             //Though we are compiling this as an arbitrary expression, we must already have validated
             //that we are only binding to a simple symbolic id, like `self.foo`.  This is because we
@@ -224,7 +212,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             // we need some way to infer the return type, statically.  This may mean requiring
             // an explicit type declaration by the end-user, or perhaps we can hack something
             // with further compiletime "reflection" magic
-
             ctx.expression_specs.insert(ctx.uid_gen.next().unwrap(), ExpressionSpec {
                 id,
                 pascalized_return_type: return_type.pascalized_fully_qualified_type,
@@ -232,8 +219,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 output_statement,
                 input_statement: paxel,
             });
-
-            //recurse through descendents to continue compiling expressions
 
         } else if let Some(condition_expression_paxel) = &cfa.condition_expression_paxel {
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
@@ -253,12 +238,29 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
     std::mem::swap(&mut cloned_inline_attributes, &mut ctx.active_node_def.inline_attributes);
 
     // Traverse descendent nodes and continue compiling expressions recursively
-    for id in ctx.active_node_def.children_ids.clone().iter() {
-        let mut active_node_def = ctx.new_template_node_definitions.remove(id).unwrap();
+    for id in ctx.active_node_def.child_ids.clone().iter() {
+        //Create two blanks
+        let mut active_node_def = TemplateNodeDefinition::default();
+        let mut old_active_node_def = TemplateNodeDefinition::default();
+
+        //Swap the first blank for the node with specified id
+        std::mem::swap(&mut active_node_def, ctx.template.get_mut(*id).unwrap());
+
+        //Swap the second for the current ctx.active_node_def value, so we can pass it back
+        //to caller when done
+        std::mem::swap(&mut old_active_node_def, &mut ctx.active_node_def);
+
+        //Arm ctx with the newly retrieved, mutable active_node_def
         ctx.active_node_def = active_node_def;
 
+        //Recurse
         ctx = recurse_compile_expressions(ctx);
-        ctx.new_template_node_definitions.insert(id.to_string(), ctx.active_node_def.clone());
+
+        //Pull the (presumably mutated) active_node_def back out of ctx and attach it back into `template`
+        std::mem::swap(&mut ctx.active_node_def, ctx.template.get_mut(*id).unwrap());
+
+        //Put old active_node_def back in place so we can return it to caller
+        std::mem::swap(&mut old_active_node_def, &mut ctx.active_node_def);
     };
 
     if incremented {
@@ -266,7 +268,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
     }
     ctx
 }
-
 
 /// From a symbol like `num_clicks` or `self.num_clicks`, populate an ExpressionSpecInvocation
 fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -> ExpressionSpecInvocation {
@@ -337,6 +338,9 @@ pub struct ExpressionCompilationContext<'a> {
     /// any compiled expressions and related property definitions
     pub component_def: &'a ComponentDefinition,
 
+    /// Container for mutable list of TemplateNodeDefinitions,
+    pub template: &'a mut Vec<TemplateNodeDefinition>,
+
     /// Static stack of addressable properties, by string
     /// Enables resolution of scope-nested symbolic identifiers, including shadowing
     pub scope_stack: Vec<HashMap<String, PropertyDefinition>>,
@@ -351,9 +355,6 @@ pub struct ExpressionCompilationContext<'a> {
 
     /// The current template node whose expressions are being compiled.  For example `<SomeNode some_property={/* some expression */} />`
     pub active_node_def: TemplateNodeDefinition,
-
-    /// Structure to store newly added TemplateNodeDefintions during traversal
-    pub new_template_node_definitions: HashMap<String, TemplateNodeDefinition>,
 
     /// All components, by ID
     pub all_components: HashMap<String, ComponentDefinition>,

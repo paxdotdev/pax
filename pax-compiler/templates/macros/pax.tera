@@ -19,7 +19,6 @@ pub fn main() {
         components: ctx.component_definitions,
         root_component_id: ctx.root_component_id,
         expression_specs: None,
-        template_node_definitions: ctx.template_node_definitions,
     };
 
     //Send data back to parent process by printing to stdout

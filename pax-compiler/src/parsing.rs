@@ -1,7 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::{HashSet, HashMap};
-use std::ops::Range;
+use std::ops::{Range, RangeFrom};
 
 use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowAttributeValueDefinition, ControlFlowRepeatPredicateDefinition, AttributeValueDefinition, Number, SettingsLiteralValue, SettingsSelectorBlockDefinition, SettingsLiteralBlockDefinition, SettingsValueDefinition, ControlFlowRepeatSourceDefinition, PropertyType};
 
@@ -32,7 +32,6 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
         pascal_identifier: pascal_identifier.to_string(),
         template: None,
         settings: None,
-        root_template_node_id: None,
         module_path: modified_module_path,
         property_definitions: property_definitions.to_vec(),
     }
@@ -383,7 +382,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
     pax_component_definition.into_inner().for_each(|pair|{
         match pair.as_rule() {
             Rule::root_tag_pair => {
-                ctx.children_id_tracking_stack.push(vec![]);
+                ctx.child_id_tracking_stack.push(vec![]);
                 recurse_visit_tag_pairs_for_template(
                     ctx,
                     pair.into_inner().next().unwrap(),
@@ -399,12 +398,12 @@ struct TemplateNodeParseContext {
     pub template_node_definitions: Vec<TemplateNodeDefinition>,
     pub is_root: bool,
     pub pascal_identifier_to_component_id_map: HashMap<String, String>,
-    pub root_template_node_id: Option<String>,
     //each frame of the outer vec represents a list of
     //children for a given node;
     //a new frame is added when descending the tree
     //but not when iterating over siblings
-    pub children_id_tracking_stack: Vec<Vec<String>>,
+    pub child_id_tracking_stack: Vec<Vec<usize>>,
+    pub uid_gen: RangeFrom<usize>,
 }
 
 static COMPONENT_ID_IF : &str = "IF";
@@ -412,6 +411,15 @@ static COMPONENT_ID_REPEAT : &str = "REPEAT";
 static COMPONENT_ID_SLOT : &str = "SLOT";
 
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_tag_pair: Pair<Rule>)  {
+    let new_id = ctx.uid_gen.next().unwrap();
+    //insert blank placeholder
+    ctx.template_node_definitions.insert(new_id, TemplateNodeDefinition::default());
+
+    //add self to parent's children_id_list
+    let mut parents_children_id_list = ctx.child_id_tracking_stack.pop().unwrap();
+    parents_children_id_list.push(new_id.clone());
+    ctx.child_id_tracking_stack.push(parents_children_id_list);
+
     match any_tag_pair.as_rule() {
         Rule::matched_tag => {
             //matched_tag => open_tag > pascal_identifier
@@ -419,19 +427,8 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
             let mut open_tag = matched_tag.clone().into_inner().next().unwrap().into_inner();
             let pascal_identifier = open_tag.next().unwrap().as_str();
 
-            let new_id = create_uuid();
-            if ctx.is_root {
-                ctx.root_template_node_id = Some(new_id.clone());
-            }
-            ctx.is_root = false;
-
-            //add self to parent's children_id_list
-            let mut parents_children_id_list = ctx.children_id_tracking_stack.pop().unwrap();
-            parents_children_id_list.push(new_id.clone());
-            ctx.children_id_tracking_stack.push(parents_children_id_list);
-
             //push the empty frame for this node's children
-            ctx.children_id_tracking_stack.push(vec![]);
+            ctx.child_id_tracking_stack.push(vec![]);
 
             //recurse into inner_nodes
             let prospective_inner_nodes = matched_tag.into_inner().nth(1).unwrap();
@@ -446,57 +443,39 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 _ => {panic!("wrong prospective inner nodes (or nth)")}
             }
 
-            let template_node = TemplateNodeDefinition {
+            let mut template_node = TemplateNodeDefinition {
                 id: new_id,
                 control_flow_attributes: None,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
-                children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
             };
-            ctx.template_node_definitions.push( template_node.clone());
-
+            std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node);
         },
         Rule::self_closing_tag => {
             let mut tag_pairs = any_tag_pair.into_inner();
             let pascal_identifier = tag_pairs.next().unwrap().as_str();
-            let new_id = create_uuid();
-            if ctx.is_root {
-                ctx.root_template_node_id = Some(new_id.clone());
-            }
-            ctx.is_root = false;
 
-            //add self to parent's children_id_list
-            let mut parents_children_id_list = ctx.children_id_tracking_stack.pop().unwrap();
-            parents_children_id_list.push(new_id.clone());
-            ctx.children_id_tracking_stack.push(parents_children_id_list);
 
-            let template_node = TemplateNodeDefinition {
+            let mut template_node = TemplateNodeDefinition {
                 id: new_id,
                 control_flow_attributes: None,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
-                children_ids: vec![],
+                child_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
             };
-            ctx.template_node_definitions.push( template_node.clone());
+            std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node);
         },
         Rule::statement_control_flow => {
             /* statement_control_flow = {(statement_if | statement_for | statement_slot)} */
 
-            // let statement_control_flow = any_tag_pair.into_inner().next().unwrap();
-
-            let new_id = create_uuid();
-
-            //add self to parent's children_id_list
-            let mut parents_children_id_list = ctx.children_id_tracking_stack.pop().unwrap();
-            parents_children_id_list.push(new_id.clone());
-            ctx.children_id_tracking_stack.push(parents_children_id_list);
             //push the empty frame for this node's children
-            ctx.children_id_tracking_stack.push(vec![]);
+            ctx.child_id_tracking_stack.push(vec![]);
 
             let any_tag_pair = any_tag_pair.into_inner().next().unwrap();
-            let template_node = match any_tag_pair.as_rule() {
+            let mut template_node_definition = match any_tag_pair.as_rule() {
                 Rule::statement_if => {
 
                     let mut statement_if = any_tag_pair.into_inner();
@@ -521,7 +500,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         }),
                         component_id: COMPONENT_ID_IF.to_string(),
                         inline_attributes: None,
-                        children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                        child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
                     }
                 },
@@ -578,7 +557,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         component_id: COMPONENT_ID_REPEAT.to_string(),
                         control_flow_attributes: Some(cfavd),
                         inline_attributes: None,
-                        children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                        child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Repeat".to_string(),
                     }
                 },
@@ -604,7 +583,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         }),
                         component_id: COMPONENT_ID_SLOT.to_string(),
                         inline_attributes: None,
-                        children_ids: ctx.children_id_tracking_stack.pop().unwrap(),
+                        child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
                     }
                 },
@@ -613,10 +592,10 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 }
             };
 
-
+            std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node_definition);
         },
         Rule::node_inner_content => {
-
+            // unimplemented!();
         },
         _ => {unreachable!("Parsing error 2232444421: {:?}", any_tag_pair.as_rule());}
     }
@@ -785,7 +764,7 @@ pub struct ParsingContext {
     //(SourceID, associated Strings)
     pub all_property_definitions: HashMap<String, Vec<PropertyDefinition>>,
 
-    pub template_node_definitions: HashMap<String, TemplateNodeDefinition>,
+    pub template_node_definitions: Vec<TemplateNodeDefinition>,
 }
 
 impl Default for ParsingContext {
@@ -796,7 +775,7 @@ impl Default for ParsingContext {
             component_definitions: HashMap::new(),
             template_map: HashMap::new(),
             all_property_definitions: HashMap::new(),
-            template_node_definitions: HashMap::new(),
+            template_node_definitions: vec![],
         }
     }
 }
@@ -814,13 +793,13 @@ pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str
     let mut tpc = TemplateNodeParseContext {
         pascal_identifier_to_component_id_map: template_map,
         template_node_definitions: vec![],
-        root_template_node_id: None,
         is_root,
         //each frame of the outer vec represents a list of
         //children for a given node; child order matters because of z-index defaults;
         //a new frame is added when descending the tree
         //but not when iterating over siblings
-        children_id_tracking_stack: vec![],
+        child_id_tracking_stack: vec![],
+        uid_gen: 0..,
     };
 
     parse_template_from_component_definition_string(&mut tpc, pax);
@@ -833,8 +812,8 @@ pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str
 
     let property_definitions = ctx.all_property_definitions.get(source_id).unwrap().clone();
 
-    //populate template_node_definitions map, needed for traversing node tree at codegen-time
-    ctx.template_node_definitions = tpc.template_node_definitions.iter().map(|tnd|{(tnd.id.clone(),tnd.clone())}).collect();
+    //populate template_node_definitions vec, needed for traversing node tree at codegen-time
+    ctx.template_node_definitions = tpc.template_node_definitions.clone();
 
     let mut new_def = ComponentDefinition {
         source_id: source_id.into(),
@@ -842,7 +821,6 @@ pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str
         template: Some(tpc.template_node_definitions),
         settings: parse_settings_from_component_definition_string(pax),
         module_path: modified_module_path,
-        root_template_node_id: tpc.root_template_node_id,
         property_definitions,
     };
 
