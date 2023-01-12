@@ -71,7 +71,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
                 if let PropertiesCoproduct::{{ invocation.properties_type }}(p) = properties {
                     *p.{{invocation.identifier}}.get()
                 } else {
-                    unreachable!({{ expression_spec.id }})
+                    unreachable!("{{ expression_spec.id }}")
                 }
             };
         {% endfor %}

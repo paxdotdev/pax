@@ -279,8 +279,8 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
     if BUILTIN_MAP.contains_key(sym) {
         ExpressionSpecInvocation {
-            identifier: "<<TODO>>".to_string(),
-            escaped_identifier: "<<TODO>>".to_string(),
+            identifier: "TODO".to_string(),
+            escaped_identifier: "TODO".to_string(),
             stack_offset: 0,
             properties_type: "".to_string(),
             pascalized_iterable_type: None,

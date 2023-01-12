@@ -29,7 +29,11 @@ pub fn main() {
 //For root only, and only when we're NOT parsing, include reexports
 //Parsing is excluded because the `pub mod pax_reexports` snippet can only be generated
 //after parsing.
+
 {{reexports_snippet}}
+{% else %}
+//WARNING: No pax_reexports were introduced by macro because no PAX_DIR env
+//was specified for compiled project.
 {% endif %}
 
 {{original_tokens}}

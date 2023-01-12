@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::rc::Rc;
 use piet::RenderContext;
 
-use crate::{PaxEngine, RenderTreeContext};
+use crate::{PaxEngine, RenderNodePtr, RenderTreeContext};
 use crate::runtime::StackFrame;
 
 
@@ -97,4 +97,6 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
 pub struct ExpressionContext<'a, R: 'static + RenderContext> {
     pub engine: &'a PaxEngine<R>,
     pub stack_frame: Rc<RefCell<StackFrame<R>>>,
+    //TODO: is the following the right approach to enabling evaluation of built-ins?
+    pub render_node: RenderNodePtr<R>,
 }

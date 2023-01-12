@@ -387,7 +387,7 @@ static CHASSIS_WEB_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-w
 /// and the encapsulated dev harness is the actual dev executable
 fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBuf, target_str: &str) -> std::io::Result<()> {
 
-    fs::remove_dir_all(&relative_chassis_specific_target_dir);
+    // fs::remove_dir_all(&relative_chassis_specific_target_dir);
     fs::create_dir_all(&relative_chassis_specific_target_dir);
 
     //Note: zb spent too long tangling with this -- seems like fs::remove* and fs::create* work
@@ -415,7 +415,7 @@ static CARTRIDGE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge")
 /// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
 /// and the encapsulated dev harness is the actual dev executable
 fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
-    fs::remove_dir_all(&relative_cartridge_target_dir);
+    // fs::remove_dir_all(&relative_cartridge_target_dir);
     fs::create_dir_all(&relative_cartridge_target_dir);
 
     let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
@@ -431,7 +431,7 @@ static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-
 /// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
 /// and the encapsulated dev harness is the actual dev executable
 fn clone_properties_coproduct_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
-    fs::remove_dir_all(&relative_cartridge_target_dir);
+    // fs::remove_dir_all(&relative_cartridge_target_dir);
     fs::create_dir_all(&relative_cartridge_target_dir);
 
     let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
@@ -528,6 +528,8 @@ pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
     generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
+    build_chassis_with_cartridge(&pax_dir);
+
     //8a::run: Run dev harness, with freshly built chassis plugged in
     //8b::compile: Build production harness, with freshly built chassis plugged in
 
@@ -536,6 +538,23 @@ pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
     Ok(())
 }
 
+
+fn build_chassis_with_cartridge(pax_dir: &PathBuf) {
+    todo!();
+
+
+
+    //string together a shell call like the following:
+    // let cargo_run_parser_process = Command::new("cargo")
+    //     .current_dir(&ctx.path)
+    //     .arg("run")
+    //     .arg("--features")
+    //     .arg("parser")
+    //     .stdout(std::process::Stdio::piped())
+    //     .stderr(std::process::Stdio::piped())
+    //     .spawn()
+    //     .expect("failed to execute parser binary");
+}
 
 
 pub struct RunContext {

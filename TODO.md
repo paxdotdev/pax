@@ -396,7 +396,7 @@ _RIL means Rust Intermediate Language, which is the
                     [-] Support referring to `T` for any Property<T> (already parsed + resolvable)
                     [-] Import Transform2d::*, Color::*, and a few others via prelude
                         -- Note that each prelude import prohibits any other top-level symbols with colliding names; increases DX snafu likelihood via compiler errors
-            [x] expression string => RIL generation
+            [ ] expression string => RIL generation
                 [x] Pratt parser "hello world"
                 [x] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
                 [x] grouping of units, e.g. `(5 + 10)%` 
@@ -407,6 +407,16 @@ _RIL means Rust Intermediate Language, which is the
                     [x] invocations for deriving values from scope
                     [x] type-matching
                     [x] Numeric type management, type inference / casting
+                [ ] QA
+                    [ ] fix: order / index of `vtable.insert` statements
+                        -- ordering is jumbled
+                        -- `3` is passed twice
+                    [ ] fix: import prelude types like Color::* so that `rgb()` and friends just work
+                    [ ] fix: duplicate invocation of `j` in `rgb(100 %, (100 - (j * 12.5)) %, (j * 12.5) %) `
+                    [ ] clean: remove "offset example" comment
+                    [ ] fix: tuples return usize(0) instead of Range()...
+                    [ ] fix: <<TODO>> for invocation of built-ins (either build built-in or refactor...)
+                    [ ] fix: need to fully qualify assc. fn. (helpers), e.g. a helper is currently called as `get_frame_size(` instead of `pax_reexports::...::get_frame_size()` 
             [ ] Dependency tracking & dirty-watching
                 [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender` (early, hacky Stacker use-case)
                 [ ] support built-ins (like $container, $input, etc.)

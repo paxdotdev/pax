@@ -13,25 +13,25 @@ use piet_common::RenderContext;
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
 
-use pax_example::pax_reexports::pax::api::Size;
+use pax_example::pax_reexports::pax_std::types::StackerCell;
 
 use pax_example::pax_reexports::std::string::String;
 
-use pax_example::pax_reexports::std::vec::Vec;
-
-use pax_example::pax_reexports::pax_std::types::Font;
-
 use pax_example::pax_reexports::usize;
 
-use pax_example::pax_reexports::pax_std::types::StackerCell;
-
 use pax_example::pax_reexports::f64;
+
+use pax_example::pax_reexports::pax::api::Size;
 
 use pax_example::pax_reexports::pax_std::types::Color;
 
 use pax_example::pax_reexports::pax_std::types::StackerDirection;
 
+use pax_example::pax_reexports::std::vec::Vec;
+
 use pax_example::pax_reexports::i64;
+
+use pax_example::pax_reexports::pax_std::types::Font;
 
 use pax_example::pax_reexports::pax_std::types::Stroke;
 
@@ -87,7 +87,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
                 if let PropertiesCoproduct::usize(p) = properties {
                     *p.j.get()
                 } else {
-                    unreachable!(5)
+                    unreachable!("5")
                 }
             };
         
@@ -98,13 +98,13 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
                 if let PropertiesCoproduct::usize(p) = properties {
                     *p.j.get()
                 } else {
-                    unreachable!(5)
+                    unreachable!("5")
                 }
             };
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            rgb((Size::Percent(100)),(Size::Percent((100-(j *12.5)))),(Size::Percent((j *12.5))),)
+            Color::rgb((Size::Percent(100)),(Size::Percent((100-(j *12.5)))),(Size::Percent((j *12.5))),)
         )
     }));
     
@@ -118,52 +118,13 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
                 if let PropertiesCoproduct::pax_example::pax_reexports::f64(p) = properties {
                     *p.current_rotation.get()
                 } else {
-                    unreachable!(6)
+                    unreachable!("6")
                 }
             };
         
 
         TypesCoproduct::Transform2D(
-            rotate((current_rotation),)
-        )
-    }));
-    
-    //rgb(100 %, 100 %, 0) 
-    vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            rgb((Size::Percent(100)),(Size::Percent(100)),(0),)
-        )
-    }));
-    
-    //0 .. 5
-
-    vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        TypesCoproduct::usize(
-            0 
-        )
-    }));
-    
-    //rgb((i * 20) %, 0, 100 %) 
-    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-            let i = {
-                let properties = (*ec.stack_frame).borrow().nth_descendant(0);
-                let properties = &*(*properties).borrow();
-
-                if let PropertiesCoproduct::usize(p) = properties {
-                    *p.i.get()
-                } else {
-                    unreachable!(2)
-                }
-            };
-        
-
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            rgb((Size::Percent((i *20))),(0),(Size::Percent(100)),)
+            Transform2D::rotate((current_rotation),)
         )
     }));
     
@@ -177,6 +138,55 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
         )
     }));
     
+    //rgb(100 %, 100 %, 0) 
+    vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::rgb((Size::Percent(100)),(Size::Percent(100)),(0),)
+        )
+    }));
+    
+    //0 .. self.cells
+    vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::usize(
+            0 
+        )
+    }));
+    
+    //self :: get_frame_transform(i, $container) 
+    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let i = {
+                let properties = (*ec.stack_frame).borrow().nth_descendant(0);
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::usize(p) = properties {
+                    *p.i.get()
+                } else {
+                    unreachable!("2")
+                }
+            };
+        
+            let TODO = {
+                let properties = (*ec.stack_frame).borrow().nth_descendant(0);
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::(p) = properties {
+                    *p.TODO.get()
+                } else {
+                    unreachable!("2")
+                }
+            };
+        
+
+        TypesCoproduct::Transform2D(
+            self::get_frame_transform((i),(container),)
+        )
+    }));
+    
     //(get_frame_size(i, $container)) 
     vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
@@ -187,24 +197,24 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
                 if let PropertiesCoproduct::usize(p) = properties {
                     *p.i.get()
                 } else {
-                    unreachable!(3)
+                    unreachable!("3")
                 }
             };
         
-            let <<TODO>> = {
+            let TODO = {
                 let properties = (*ec.stack_frame).borrow().nth_descendant(0);
                 let properties = &*(*properties).borrow();
 
                 if let PropertiesCoproduct::(p) = properties {
-                    *p.<<TODO>>.get()
+                    *p.TODO.get()
                 } else {
-                    unreachable!(3)
+                    unreachable!("3")
                 }
             };
         
 
         TypesCoproduct::Size2D(
-            get_frame_size((i),($container),)
+            get_frame_size((i),(container),)
         )
     }));
     
