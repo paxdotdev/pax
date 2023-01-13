@@ -481,6 +481,12 @@ fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
+pub fn perform_clean(path: &str) -> Result<(), ()> {
+    let pax_dir = get_or_create_pax_directory(path);
+    fs::remove_dir_all(pax_dir);
+    Ok(())
+}
+
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {

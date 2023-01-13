@@ -44,6 +44,7 @@ fn main() -> Result<(), ()> {
         )
         .subcommand(
             App::new("clean")
+                .arg( ARG_PATH.clone() )
                 .about("Cleans the temporary files associated with the Pax project in the current working directory — notably, the temporary files generated into the .pax directory")
         )
         .get_matches();
@@ -69,8 +70,10 @@ fn main() -> Result<(), ()> {
                 path,
             }, false)
         },
-        ("clean", _) => {
-            unimplemented!()
+        ("clean", Some(args)) => {
+            let path = args.value_of("path").unwrap().to_string(); //default value "."
+
+            pax_compiler::perform_clean(&path)
         },
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }
