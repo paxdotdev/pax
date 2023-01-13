@@ -91,7 +91,7 @@ Pax is in **alpha-preview** and is not yet viable for building apps — read [th
 
 ## License
 
-© 2022 The Pax Foundation [contact@pax-lang.org].
+© 2023 Zachary Brown  [contact@pax-lang.org].
 
 This project is licensed under either of:
 - [MIT license](LICENSE-MIT)
