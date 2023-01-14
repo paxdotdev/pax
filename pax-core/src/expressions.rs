@@ -98,5 +98,5 @@ pub struct ExpressionContext<'a, R: 'static + RenderContext> {
     pub engine: &'a PaxEngine<R>,
     pub stack_frame: Rc<RefCell<StackFrame<R>>>,
     //TODO: is the following the right approach to enabling evaluation of built-ins?
-    pub render_node: RenderNodePtr<R>,
+    // pub render_node: RenderNodePtr<R>,
 }

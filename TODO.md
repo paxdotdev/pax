@@ -3316,3 +3316,29 @@ into the _same traversal_ as the original parse?  That is: populate
 expression_specs inside the parser binary, and pass those serialized
 expression_specs over the wire (instead of compiling them as a separate
 step after loading a Manifest)
+
+
+### Jan 13 2023
+
+```
+error[E0277]: the trait bound `R: piet::render_context::RenderContext` is not satisfied
+  --> /Users/zack/code/pax/pax-example/.pax/cartridge/src/lib.rs:29:94
+   |
+29 | pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
+   |                                                                                              ^^^^^^^^^^^^^^^^^^^^ the trait `piet::render_context::RenderContext` is not implemented for `R`
+   |
+note: required by a bound in `ExpressionContext`
+  --> /Users/zack/.cargo/registry/src/github.com-1ecc6299db9ec823/pax-core-0.0.1/src/expressions.rs:97:47
+   |
+97 | pub struct ExpressionContext<'a, R: 'static + RenderContext> {
+   |                                               ^^^^^^^^^^^^^ required by this bound in `ExpressionContext`
+help: consider further restricting this bound
+   |
+29 | pub fn instantiate_expression_table<R: 'static + RenderContext + piet::render_context::RenderContext>() -> HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
+   |                                                                +++++++++++++++++++++++++++++++++++++
+```
+Problem: `pax#0.0.1` uses Piet 0.5.0, whereas `pax#master` uses Piet 0.6.0.  This results in the error above.
+
+Options: 
+ - For "dev mode," special-case introduce relative paths, so that `pax-example/.pax/` generated code refers to local fs, which would resolve to piet#0.6.0
+ - Publish a 0.0.2 for each package, which will include updated deps to 0.6.0

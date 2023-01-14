@@ -1107,6 +1107,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "pax-std"
+version = "0.0.1"
+dependencies = [
+ "kurbo 0.8.3",
+ "lazy_static",
+ "pax-compiler",
+ "pax-lang",
+ "pax-message",
+ "piet",
+ "serde_json",
+]
+
+[[package]]
 name = "percent-encoding"
 version = "2.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

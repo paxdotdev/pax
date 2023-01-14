@@ -170,20 +170,20 @@ impl<R: 'static + RenderContext> StackFrame<R> {
 
     // Traverses stack recursively `n` times to retrieve descendant;
     // useful for runtime lookups for identifiers
-    pub fn nth_descendant(&self, n: isize) -> Rc<RefCell<StackFrame<R>>> {
+    pub fn nth_descendant(&self, n: isize) -> Option<Rc<RefCell<StackFrame<R>>>> {
         if n == 0 {
-            //0th descendant is self
-            Rc::clone(self)
+            //0th descendant is self; handle by caller since caller owns the Rc containing `self`
+            None
         } else {
             self.nth_descendant_recursive(n, 0)
         }
     }
 
-    fn nth_descendant_recursive(&self, n: isize, depth: isize) -> Rc<RefCell<StackFrame<R>>> {
+    fn nth_descendant_recursive(&self, n: isize, depth: isize) -> Option<Rc<RefCell<StackFrame<R>>>> {
         let new_depth = depth + 1;
         let parent = self.parent.as_ref().unwrap();
         if new_depth == n {
-            return Rc::clone(parent);
+            return Some(Rc::clone(parent));
         }
         parent.deref().borrow().nth_descendant_recursive(n, new_depth)
     }
