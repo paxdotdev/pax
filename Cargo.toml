@@ -13,15 +13,18 @@ members = [
     "pax-cli",
     "pax-std",
     "pax-cartridge",
-
+    # Note: if we want to add `pax-example` to the workspace, we'll need to
+    # pursue a work-around like: https://github.com/rust-lang/cargo/issues/5418#issuecomment-384926507
+    # Specifically: patch the generated Cargo.toml for `.pax/chassis/**/Cargo.toml` to include
+    # the empty workspace def
 ]
 
 exclude = [
     "pax-example",
+    "pax-example/.pax/chassis/MacOS",
+    "pax-example/.pax/chassis/Web",
     "pax-chassis-macos/pax-dev-harness-macos",
-
 ]
-
 
 [profile.release]
 lto = true

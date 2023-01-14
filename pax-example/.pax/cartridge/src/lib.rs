@@ -59,12 +59,12 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
         )
     */
     
-    //Transform2D :: translate(200px, 250px) * Transform2D :: rotate(3.25)
-    vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    //Transform2D :: translate(100px, 100px) * Transform2D :: rotate(2.25)
+    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::Transform2D(
-            (Transform2D::translate((Size::Pixel(200)),(Size::Pixel(250)),)*Transform2D::rotate((3.25),))
+            (Transform2D::translate((Size::Pixel(100)),(Size::Pixel(100)),)*Transform2D::rotate((2.25),))
         )
     }));
     
@@ -74,15 +74,6 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
             Color::rgb((Size::Percent(100)),(0),(0),)
-        )
-    }));
-    
-    //Color :: rgb(0, 100 %, 0) 
-    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((0),(Size::Percent(100)),(0),)
         )
     }));
     
@@ -104,12 +95,21 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
         )
     }));
     
-    //Transform2D :: translate(100px, 100px) * Transform2D :: rotate(2.25)
-    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    //Color :: rgb(0, 100 %, 0) 
+    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::rgb((0),(Size::Percent(100)),(0),)
+        )
+    }));
+    
+    //Transform2D :: translate(200px, 250px) * Transform2D :: rotate(3.25)
+    vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::Transform2D(
-            (Transform2D::translate((Size::Pixel(100)),(Size::Pixel(100)),)*Transform2D::rotate((2.25),))
+            (Transform2D::translate((Size::Pixel(200)),(Size::Pixel(250)),)*Transform2D::rotate((3.25),))
         )
     }));
     

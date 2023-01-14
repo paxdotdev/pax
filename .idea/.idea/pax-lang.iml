@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<module type="CPP_MODULE" version="4">
+  <component name="NewModuleRootManager">
+    <content url="file://$MODULE_DIR$">
+      <sourceFolder url="file://$MODULE_DIR$/pax-chassis-web/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-compiler/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-dev-server/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-macro-expression/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-core/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/carbon/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples/basic/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-properties-coproduct/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-example/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-macro-coordination/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-macro/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-message/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-example/.pax-manual/patches/pax-expression-table/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-example/.pax-manual/patches/pax-properties-coproduct/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-std/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-example/.pax-manual/patches/pax-cartridge-runtime/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-runtime-api/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-std/pax-std-primitives/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-chassis-macos/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-cartridge/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-lang/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-cartridge-runtime/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-cli/src" isTestSource="false" />
+      <excludeFolder url="file://$MODULE_DIR$/target" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-example/target" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-example/.pax-manual/patches/pax-properties-coproduct/target" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-example/.pax-manual/patches/pax-expression-table/target" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-std/pax-std-primitives/target" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-example/.pax-manual/patches/pax-cartridge-runtime/target" />
+    </content>
+    <orderEntry type="inheritedJdk" />
+    <orderEntry type="sourceFolder" forTests="false" />
+  </component>
+</module>

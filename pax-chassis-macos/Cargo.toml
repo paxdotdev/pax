@@ -8,6 +8,7 @@ homepage = "https://www.pax-lang.org/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Platform-specific chassis allowing Pax cartridges to be executed as native macOS apps"
 
+
 [build]
 lto = true
 incremental = false
