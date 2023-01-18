@@ -25,7 +25,7 @@ pub struct TransitionQueueEntry<T> {
 /// a dynamic runtime Expression, or a Timeline-bound value
 pub trait PropertyInstance<T: Default + Clone> {
     fn get(&self) -> &T;
-    fn _get_vtable_id(&self) -> Option<u64>;
+    fn _get_vtable_id(&self) -> Option<usize>;
 
     fn set(&mut self, value: T);
 
@@ -377,7 +377,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         &self.value
     }
 
-    fn _get_vtable_id(&self) -> Option<u64> {
+    fn _get_vtable_id(&self) -> Option<usize> {
         None
     }
 

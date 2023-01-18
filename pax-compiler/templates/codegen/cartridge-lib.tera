@@ -28,8 +28,8 @@ use {{ import }};
     {{ const }}
 {% endfor %}
 
-pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
-    let mut vtable: HashMap<u32, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
+pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
+    let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     /* Repeat example:
         // {Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)}
@@ -89,3 +89,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
 {% for factory_literal in component_factories_literal %}
    {{ factory_literal }}
 {% endfor %}
+
+pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
+    unimplemented!()
+}

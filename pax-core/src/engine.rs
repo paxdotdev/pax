@@ -28,7 +28,7 @@ pub enum EventMessage {
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
     pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
-    pub expression_table: HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct> >,
+    pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct> >,
     pub root_component: Rc<RefCell<ComponentInstance<R>>>,
     pub runtime: Rc<RefCell<Runtime<R>>>,
     viewport_size: (f64, f64),
@@ -36,7 +36,7 @@ pub struct PaxEngine<R: 'static + RenderContext> {
 
 
 pub struct ExpressionVTable<R: 'static + RenderContext> {
-    inner_map: HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
+    inner_map: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
     dependency_graph: HashMap<u64, Vec<u64>>,
 }
 
@@ -135,7 +135,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     }
 
     //both Expressions and Timelines store their evaluators in the same vtable
-    pub fn compute_vtable_value(&self, vtable_id: Option<u64>) -> Option<TypesCoproduct> {
+    pub fn compute_vtable_value(&self, vtable_id: Option<usize>) -> Option<TypesCoproduct> {
 
         if let Some(id) = vtable_id {
             if let Some(evaluator) = self.engine.expression_table.get(&id) {
@@ -247,7 +247,7 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
 impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn new(
         root_component_instance: Rc<RefCell<ComponentInstance<R>>>,
-        expression_table: HashMap<u64, Box<dyn Fn(ExpressionContext<R>)->TypesCoproduct>>,
+        expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>)->TypesCoproduct>>,
         logger: pax_runtime_api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
         instance_registry: Rc<RefCell<InstanceRegistry<R>>>,

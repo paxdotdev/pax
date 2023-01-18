@@ -8,6 +8,7 @@ homepage = "https://www.pax-lang.org/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Platform-specific chassis allowing Pax cartridges to be executed as native macOS apps"
 
+
 [build]
 lto = true
 incremental = false
@@ -19,10 +20,10 @@ crate-type = ["cdylib"]
 [dependencies]
 piet = "0.6.0"
 piet-coregraphics = "0.6.0"
-pax-core = { version="0.0.1" }
+pax-core = { path = "../../../../pax-core", version="0.0.1" }
 pax-cartridge = { version="0.0.1"}
-pax-message = { version="0.0.1"}
-pax-runtime-api = { version="0.0.1"}
+pax-message = {path = "../../../../pax-message", version="0.0.1"}
+pax-runtime-api = {path = "../../../../pax-runtime-api", version="0.0.1"}
 pax-properties-coproduct = { version="0.0.1"}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"

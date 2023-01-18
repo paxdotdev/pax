@@ -26,8 +26,8 @@ use pax_example::pax_reexports::pax_std::types::Stroke;
 //pull entire const token stream in here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
 
 
-pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
-    let mut vtable: HashMap<u32, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
+pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
+    let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     /* Repeat example:
         // {Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)}
@@ -59,57 +59,57 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
         )
     */
     
-    //Transform2D :: translate(100px, 100px) * Transform2D :: rotate(2.25)
-    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        TypesCoproduct::Transform2D(
-            (Transform2D::translate((Size::Pixel(100)),(Size::Pixel(100)),)*Transform2D::rotate((2.25),))
-        )
-    }));
-    
-    //Color :: rgb(100 %, 0, 0) 
-    vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((Size::Percent(100)),(0),(0),)
-        )
-    }));
-    
     //Transform2D :: translate(0, 0) * Transform2D :: rotate(1.25)
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::Transform2D(
-            (Transform2D::translate((0),(0),)*Transform2D::rotate((1.25),))
+            (Transform2D::translate((0.into()),(0.into()),)*Transform2D::rotate((1.25.into()),))
         )
     }));
     
-    //Color :: rgb(0, 0, 100 %) 
+    //Color :: rgb(1, 0, 0) 
+    vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::rgb((1.into()),(0.into()),(0.into()),)
+        )
+    }));
+    
+    //Color :: rgb(0, 0, 1) 
     vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((0),(0),(Size::Percent(100)),)
+            Color::rgb((0.into()),(0.into()),(1.into()),)
         )
     }));
     
-    //Color :: rgb(0, 100 %, 0) 
-    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((0),(Size::Percent(100)),(0),)
-        )
-    }));
-    
-    //Transform2D :: translate(200px, 250px) * Transform2D :: rotate(3.25)
+    //Transform2D :: translate(200, 250) * Transform2D :: rotate(3.25)
     vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::Transform2D(
-            (Transform2D::translate((Size::Pixel(200)),(Size::Pixel(250)),)*Transform2D::rotate((3.25),))
+            (Transform2D::translate((200.into()),(250.into()),)*Transform2D::rotate((3.25.into()),))
+        )
+    }));
+    
+    //Transform2D :: translate(100, 100) * Transform2D :: rotate(2.25)
+    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::Transform2D(
+            (Transform2D::translate((100.into()),(100.into()),)*Transform2D::rotate((2.25.into()),))
+        )
+    }));
+    
+    //Color :: rgb(0, 1, 0) 
+    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::rgb((0.into()),(1.into()),(0.into()),)
         )
     }));
     
@@ -119,3 +119,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
 
 //Begin component factory literals
 
+
+pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
+    unimplemented!()
+}

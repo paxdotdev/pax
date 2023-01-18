@@ -103,6 +103,7 @@ pub struct FontPatch {
 pub enum ColorVariantMessage {
     Hlca([f64; 4]),
     Rgba([f64; 4]),
+    Rgb([f64; 3]),
 }
 
 impl Default for ColorVariantMessage {

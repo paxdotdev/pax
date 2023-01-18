@@ -17,14 +17,14 @@ use pax_runtime_api::{EasingCurve, PropertyInstance, PropertyLiteral, Transition
 // via calls to `read()`
 pub struct PropertyExpression<T: Default>
 {
-    pub id: u64,
+    pub id: usize,
     pub cached_value: T,
     pub transition_manager: TransitionManager<T>,
 }
 
 
 impl<T: Default> PropertyExpression<T> {
-    pub fn new(id: u64) -> Self {
+    pub fn new(id: usize) -> Self {
         Self {
             id,
             cached_value: Default::default(),
@@ -46,7 +46,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
     //     self.is_fresh = false;
     // }
     
-    fn _get_vtable_id(&self) -> Option<u64> {
+    fn _get_vtable_id(&self) -> Option<usize> {
         Some(self.id)
     }
 

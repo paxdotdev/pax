@@ -3342,3 +3342,30 @@ Problem: `pax#0.0.1` uses Piet 0.5.0, whereas `pax#master` uses Piet 0.6.0.  Thi
 Options: 
  - For "dev mode," special-case introduce relative paths, so that `pax-example/.pax/` generated code refers to local fs, which would resolve to piet#0.6.0
  - Publish a 0.0.2 for each package, which will include updated deps to 0.6.0
+
+cont. Jan 17:
+
+ - special-case relative paths for patched entities (cartridge, coproduct) — they should _still_ be stripped of relative paths even when `is_lib_dev_mode`
+ - figure out hierarchy / path-flatness of Chassis; requires an extra `../`
+
+### Jan 18 2023
+
+Problem:
+```
+Execution failed (exit code 101).
+/Users/zack/.cargo/bin/cargo metadata --verbose --format-version 1 --all-features --filter-platform aarch64-apple-darwin
+stdout :     Updating crates.io index
+error: package collision in the lockfile: packages pax-properties-coproduct v0.0.1 (/Users/zack/code/pax/pax-example/.pax/properties-coproduct) and pax-properties-coproduct v0.0.1 (/Users/zack/code/pax/pax-properties-coproduct) are different, but only one can be written to lockfile unambiguously
+```
+
+When building `pax-example/.pax/chassis/MacOS`, we get a collision of `pax-properties-coproduct`.  Why?
+
+1. we're patching pax-properties-coproduct 0.0.1 to refer to our relative, codegenned properties-coproduct at `.pax/properties-coproduct`.
+2. Meanwhile, `pax-core` refers to a relative path for `pax-properties-coproduct`, `@/pax/pax-properties-coproduct`.  It appears that `patch` doesn't
+   work alongside a relative path.  This can be validated by removing `path = ../pax-properties-coproduct` from pax/pax-core/Cargo.toml —however, then we can't build the core library by itself!
+
+Possible options:
+    Copy `pax-core` into the `.pax` codegen folder (along with everything else, probably!)
+    Deal with a library that doesn't build standalone (blech)
+    Point to `.pax/properties-coproduct` even for core lib deps!  e.g. pax-core::Cargo.toml can refer to path
+    Revisit lib_dev_mode: punt for later, just rely on crates.io for pax-example/.pax projects

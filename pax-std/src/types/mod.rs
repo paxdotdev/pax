@@ -104,6 +104,9 @@ impl Into<ColorVariantMessage> for &Color {
             },
             ColorVariant::Rgba(channels) => {
                 ColorVariantMessage::Rgba(channels)
+            },
+            ColorVariant::Rgb(channels) => {
+                ColorVariantMessage::Rgb(channels)
             }
         }
     }
@@ -118,6 +121,11 @@ impl PartialEq<ColorVariantMessage> for Color {
             },
             ColorVariant::Rgba(channels_self) => {
                 if matches!(other, ColorVariantMessage::Rgba(channels_other) if channels_other.eq(&channels_self)) {
+                    return true;
+                }
+            },
+            ColorVariant::Rgb(channels_self) => {
+                if matches!(other, ColorVariantMessage::Rgb(channels_other) if channels_other.eq(&channels_self)) {
                     return true;
                 }
             }
@@ -140,6 +148,9 @@ impl Color {
     pub fn rgba(r:f64, g:f64, b:f64, a:f64) -> Self {
         Self {color_variant: ColorVariant::Rgba([r,g,b,a])}
     }
+    pub fn rgb(r:f64, g:f64, b:f64) -> Self {
+        Self {color_variant: ColorVariant::Rgb([r,g,b])}
+    }
     pub fn to_piet_color(&self) -> piet::Color {
         match self.color_variant {
             ColorVariant::Hlca(slice) => {
@@ -147,6 +158,9 @@ impl Color {
             },
             ColorVariant::Rgba(slice) => {
                 piet::Color::rgba(slice[0], slice[1], slice[2], slice[3])
+            },
+            ColorVariant::Rgb(slice) => {
+                piet::Color::rgb(slice[0], slice[1], slice[2])
             }
         }
     }
@@ -157,6 +171,7 @@ impl Color {
 pub enum ColorVariant {
     Hlca([f64; 4]),
     Rgba([f64; 4]),
+    Rgb([f64; 3]),
 }
 
 pub use pax::api::Size;

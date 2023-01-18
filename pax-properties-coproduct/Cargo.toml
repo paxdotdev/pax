@@ -14,4 +14,8 @@ description = "Static container for program-variable data structures and polymor
 
 [dependencies]
 
-pax-runtime-api = {version="0.0.1", path="../pax-runtime-api"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.0.1"}
+
+#
+#[patch.crates-io]
+#pax-runtime-api= {path = "../pax-runtime-api"}

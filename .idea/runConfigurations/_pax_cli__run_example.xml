@@ -1,7 +1,7 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="`pax-cli` run example" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
     <option name="command" value="run -- run --path=../pax-example/ --target=macos" />
-    <option name="workingDirectory" value="file://$PROJECT_DIR$" />
+    <option name="workingDirectory" value="file://$PROJECT_DIR$/pax-cli" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
     <option name="allFeatures" value="false" />

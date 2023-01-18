@@ -111,9 +111,9 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                     let unit = literal_number_unit.as_str();
 
                     if unit == "px" {
-                        format!("Size::Pixel({})", exp_bod)
+                        format!("Size::Pixels({}.into())", exp_bod)
                     } else if unit == "%" {
-                        format!("Size::Percent({})", exp_bod)
+                        format!("Size::Percent({}.into())", exp_bod)
                     } else {
                         unreachable!()
                     }
@@ -178,16 +178,16 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                         let unit = inner.next().unwrap().as_str();
 
                         if unit == "px" {
-                            format!("Size::Pixel({})", value)
+                            format!("Size::Pixels({}.into())", value)
                         } else if unit == "%" {
-                            format!("Size::Percent({})", value)
+                            format!("Size::Percent({}.into())", value)
                         } else {
                             unreachable!()
                         }
                     },
                     _ => {
                         /* {literal_enum_value | literal_number |  string | literal_tuple } */
-                        literal_kind.as_str().to_string()
+                        literal_kind.as_str().to_string() + ".into()"
                     }
                 }
             },
@@ -618,7 +618,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                 let key = kv.next().unwrap().as_str().to_string();
                 let mut raw_value = kv.next().unwrap().into_inner().next().unwrap();
                 let value = match raw_value.as_rule() {
-                    Rule::literal_value => {AttributeValueDefinition::LiteralValue(raw_value.as_str().to_string())},
+                    Rule::literal_value => {AttributeValueDefinition::LiteralValue(raw_value.as_str().to_string() + ".into()")},
                     Rule::expression_body => {AttributeValueDefinition::Expression(raw_value.as_str().to_string(), None)},
                     Rule::identifier => {AttributeValueDefinition::Identifier(raw_value.as_str().to_string(), None)},
                     _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}

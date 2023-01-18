@@ -187,7 +187,8 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
 
-    clean_dependencies_table_of_relative_paths(target_cargo_toml_contents["dependencies"].as_table_mut().unwrap());
+
+    clean_dependencies_table_of_relative_paths("pax-properties-coproduct", target_cargo_toml_contents["dependencies"].as_table_mut().unwrap(), host_crate_info);
 
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
@@ -257,7 +258,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
 
-    clean_dependencies_table_of_relative_paths(target_cargo_toml_contents["dependencies"].as_table_mut().unwrap());
+    clean_dependencies_table_of_relative_paths("pax-cartridge", target_cargo_toml_contents["dependencies"].as_table_mut().unwrap(), host_crate_info);
 
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
@@ -334,21 +335,50 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
 }
 
-fn clean_dependencies_table_of_relative_paths(dependencies: &mut toml_edit::Table) {
+fn clean_dependencies_table_of_relative_paths(crate_name: &str, dependencies: &mut toml_edit::Table, host_crate_info: &HostCrateInfo) {
     dependencies.iter_mut().for_each(|dep| {
+
+        let dep_name = dep.0.to_string();
+        let is_cloned_dep = dep_name.contains("pax-properties-coproduct") || dep_name.contains("pax-cartridge");
+
         match dep.1.get_mut("path") {
             Some(existing_path) => {
-                std::mem::swap(
-                    existing_path,
-                    &mut Item::None,
-                );
+                if  !existing_path.is_none() && !is_cloned_dep && host_crate_info.is_lib_dev_mode {
+                    //in "dev mode," instead of removing relative paths, we want to prepend them with an extra `../'
+                    //This allows us to compile `pax-example` against the latest local Pax lib code,
+                    //instead of relying on crates.io
+
+                    //Two twists:
+                    // 1. because of the extra nesting of Chassis dirs, they require yet an extra prepended "../"
+                    //    (this could be made more elegant by flattening `chassis/MacOS` into `chassis-macos`, etc.
+                    // 2. because we are copying `pax-properties-coproduct` and `pax-cartridge` from source (rather than referring to the crates at the root of `pax/*`)
+                    //    we DO want to remove relative paths for these dependencies
+
+                    let existing_str = existing_path.as_str().unwrap();
+                    let mut new_str = "\"../../".to_string() + existing_str + "\"";
+
+                    if crate_name == "pax-chassis" {
+                        //add yet another `../`
+                        new_str = new_str.replacen("../", "../../", 1);
+                    }
+
+                    std::mem::swap(
+                        existing_path,
+                        &mut Item::from_str(&new_str).unwrap()
+                    );
+                } else {
+                    std::mem::swap(
+                        existing_path,
+                        &mut Item::None,
+                    );
+                }
             },
             _ => {}
         }
     });
 }
 
-fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: &str, manifest: &PaxManifest) {
+fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
     //1. clone (git or raw fs) pax-chassis-whatever into .pax/chassis/
     let chassis_dir = pax_dir.join("chassis");
     std::fs::create_dir_all(&chassis_dir).expect("Failed to create chassis directory.  Check filesystem permissions?");
@@ -363,7 +393,7 @@ fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: 
     let mut existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap()).unwrap();
 
     //remove all relative `path` entries from dependencies, so that we may patch.
-    clean_dependencies_table_of_relative_paths(existing_cargo_toml["dependencies"].as_table_mut().unwrap());
+    clean_dependencies_table_of_relative_paths("pax-chassis", existing_cargo_toml["dependencies"].as_table_mut().unwrap(), host_crate_info);
 
     //add `patch`
     let mut patch_table = toml_edit::table();
@@ -461,6 +491,9 @@ struct HostCrateInfo {
     identifier: String,
     /// for example: `some_crate::pax_reexports`,
     import_prefix: String,
+    /// describes whether we're developing inside pax/pax-example, which is
+    /// used at least to special-case relative paths for compiled projects
+    is_lib_dev_mode: bool,
 }
 
 fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
@@ -472,10 +505,13 @@ fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
 
     let import_prefix = format!("{}::pax_reexports::", &identifier);
 
+    let is_lib_dev_mode = cargo_toml_path.to_str().unwrap().ends_with("pax-example/Cargo.toml");
+
     HostCrateInfo {
         name,
         identifier,
         import_prefix,
+        is_lib_dev_mode,
     }
 }
 
@@ -531,7 +567,7 @@ pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_properties_coproduct(&pax_dir, &build_id, &manifest, &host_crate_info);
     generate_cartridge_definition(&pax_dir, &build_id, &manifest, &host_crate_info);
-    generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest);
+    generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest, &host_crate_info);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     build_chassis_with_cartridge(&pax_dir);
