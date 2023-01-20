@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 use std::{fs, env};
+use std::cmp::Ordering;
 use std::ops::RangeFrom;
 use std::path::{Components, Path, PathBuf};
 use std::rc::Rc;
@@ -12,6 +13,7 @@ use pest::Parser;
 use serde_derive::{Serialize, Deserialize};
 use serde_json;
 use tera::Template;
+use wasm_bindgen::UnwrapThrowExt;
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
@@ -19,6 +21,27 @@ pub struct PaxManifest {
     pub components: HashMap<String, ComponentDefinition>,
     pub root_component_id: String,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
+}
+
+
+impl Eq for ExpressionSpec {}
+
+impl PartialEq<Self> for ExpressionSpec {
+    fn eq(&self, other: &Self) -> bool {
+        self.id == other.id
+    }
+}
+
+impl PartialOrd<Self> for ExpressionSpec {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        self.id.partial_cmp(&other.id)
+    }
+}
+
+impl Ord for ExpressionSpec {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.id.partial_cmp(&other.id).unwrap()
+    }
 }
 
 #[derive(Serialize, Deserialize, Clone)]

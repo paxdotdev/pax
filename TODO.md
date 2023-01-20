@@ -3369,3 +3369,8 @@ Possible options:
     Deal with a library that doesn't build standalone (blech)
     Point to `.pax/properties-coproduct` even for core lib deps!  e.g. pax-core::Cargo.toml can refer to path
     Revisit lib_dev_mode: punt for later, just rely on crates.io for pax-example/.pax projects
+
+Conclusion, as of 1/18:
+    Point to the generated `.pax` cartridge & PropCop as the relative dirs 
+    Also pass `PAX_DIR` env into any core-lib cargo process
+    (e.g. this entails configuring IDE, and has implications about ever removing `pax-example/.pax` from version control 

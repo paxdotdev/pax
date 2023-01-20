@@ -22,8 +22,7 @@ use {{ import }};
     use {{ primitive }};
 {% endfor %}
 
-
-//pull entire const token stream in here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
+//pull in entire const token stream here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
 {% for const in consts %}
     {{ const }}
 {% endfor %}

@@ -20,6 +20,7 @@ cbor = ["serde"]
 pax-message = {version = "0.0.1", path="../pax-message"}
 pest = "2.4.1"
 pest_derive = "2.4.1"
+itertools = "0.10.5"
 include_dir = {version = "0.7.2", features = ["glob"]}
 serde_derive = "1"
 toml_edit = "0.14.4"

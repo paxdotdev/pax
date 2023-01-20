@@ -22,8 +22,7 @@ use pax_example::pax_reexports::pax_std::types::Stroke;
 //e.g.: `use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};`
 
 
-
-//pull entire const token stream in here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
+//pull in entire const token stream here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
 
 
 pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
@@ -59,6 +58,15 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     */
     
+    //Color :: rgb(1, 0, 0) 
+    vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::rgb((1.into()),(0.into()),(0.into()),)
+        )
+    }));
+    
     //Transform2D :: translate(0, 0) * Transform2D :: rotate(1.25)
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
@@ -68,12 +76,21 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color :: rgb(1, 0, 0) 
-    vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    //Color :: rgb(0, 1, 0) 
+    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((1.into()),(0.into()),(0.into()),)
+            Color::rgb((0.into()),(1.into()),(0.into()),)
+        )
+    }));
+    
+    //Transform2D :: translate(100, 100) * Transform2D :: rotate(2.25)
+    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::Transform2D(
+            (Transform2D::translate((100.into()),(100.into()),)*Transform2D::rotate((2.25.into()),))
         )
     }));
     
@@ -92,24 +109,6 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
         TypesCoproduct::Transform2D(
             (Transform2D::translate((200.into()),(250.into()),)*Transform2D::rotate((3.25.into()),))
-        )
-    }));
-    
-    //Transform2D :: translate(100, 100) * Transform2D :: rotate(2.25)
-    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        TypesCoproduct::Transform2D(
-            (Transform2D::translate((100.into()),(100.into()),)*Transform2D::rotate((2.25.into()),))
-        )
-    }));
-    
-    //Color :: rgb(0, 1, 0) 
-    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((0.into()),(1.into()),(0.into()),)
         )
     }));
     

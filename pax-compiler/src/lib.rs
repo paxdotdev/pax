@@ -11,6 +11,7 @@ use manifest::PaxManifest;
 use std::fs;
 use std::str::FromStr;
 use std::collections::HashSet;
+use itertools::Itertools;
 
 use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Document, Item, value};
@@ -279,7 +280,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
         }).flatten().collect::<Vec<String>>()
     }).flatten().collect::<Vec<String>>();
     let unique_imports: HashSet<String> = imports.drain(..).collect();
-    imports.extend(unique_imports.into_iter());
+    imports.extend(unique_imports.into_iter().sorted());
 
     let primitive_imports = vec![];//TODO!
 
@@ -317,7 +318,9 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //     JavaScript uses:
     // Uncaught ReferenceError: not_defined is not defined
 
-    let expression_specs = manifest.expression_specs.as_ref().unwrap().values().map(|es: &ExpressionSpec|{es.clone()}).collect();
+    let mut expression_specs : Vec<ExpressionSpec> = manifest.expression_specs.as_ref().unwrap().values().map(|es: &ExpressionSpec|{es.clone()}).collect();
+    expression_specs = expression_specs.iter().sorted().cloned().collect();
+    // expression_specs = expression_specs.iter().sort_by(|(a,b)|{
 
     let component_factories_literal = vec![];//TODO!
 
