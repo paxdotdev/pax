@@ -30,35 +30,6 @@ use {{ import }};
 pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
-    /* Repeat example:
-        // {Color::rgba(100%, (100 - (i * 12.5))%, (i * 12.5)%, 100%)}
-        vtable.insert(9, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        let (datum, i) = if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
-        (Rc::clone(datum), *i)
-        } else { unreachable!(9) };
-
-        return TypesCoproduct::Color(
-        Color::rgba(1.0, 1.0 - (i as f64 * 0.125), i as f64 * 0.125, 1.0)
-        );
-        })); */
-
-    /* Offset example:
-        const STACK_FRAME_OFFSET : isize = 2;
-        let SCOPED_STACK_FRAME = (*ec.stack_frame).borrow().nth_descendant(STACK_FRAME_OFFSET); //just gen `ec.stack_frame` if offset == 0
-
-        let properties = SCOPED_STACK_FRAME.deref().borrow().get_properties();
-        let properties = &*(*properties).borrow();
-
-        let current_rotation = if let PropertiesCoproduct::HelloWorld(p) = properties {
-        *p.current_rotation.get() as f64
-        } else { unreachable!(5) };
-
-        TypesCoproduct::Transform2D(
-        Transform2D::anchor(Size::Percent(50.0), Size::Percent(50.0))
-        * Transform2D::align(Size::Percent(50.0), Size::Percent(50.0))
-        * Transform2D::rotate(current_rotation)
-        )
-    */
     {% for expression_spec in expression_specs %}
     //{{ expression_spec.input_statement}}
     vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {

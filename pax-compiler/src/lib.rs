@@ -8,15 +8,17 @@ pub mod expressions;
 
 use manifest::PaxManifest;
 
-use std::fs;
+use std::{fs, thread};
 use std::str::FromStr;
 use std::collections::HashSet;
 use itertools::Itertools;
+use std::os::unix::fs::PermissionsExt;
 
 use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Document, Item, value};
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use std::time::Duration;
 use crate::manifest::{ComponentDefinition, ExpressionSpec};
 
 //relative to pax_dir
@@ -322,7 +324,11 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     expression_specs = expression_specs.iter().sorted().cloned().collect();
     // expression_specs = expression_specs.iter().sort_by(|(a,b)|{
 
-    let component_factories_literal = vec![];//TODO!
+
+    // manifest.components.values().iter().map(|cd|{
+    //    cd
+    // });
+    let component_factories_literal =  vec![];//TODO!
 
     //press template into String
     let generated_lib_rs = templating::press_template_codegen_cartridge_lib(templating::TemplateArgsCodegenCartridgeLib {
@@ -435,12 +441,18 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
             //HACK: patch the relative directory for the cdylib, because in a rust monorepo the `target` dir
             //      is at the monorepo root, while in this isolated project it will be in `pax-chassis-macos`.
             let pbx_path = &chassis_specific_dir.join("pax-dev-harness-macos").join("pax-dev-harness-macos.xcodeproj").join("project.pbxproj");
-            fs::write(pbx_path, fs::read_to_string(pbx_path).unwrap().replace("../../target", "../target"))
+            fs::write(pbx_path, fs::read_to_string(pbx_path).unwrap().replace("../../target", "../target"));
+
+            //write +x permission to copied run-debuggable-mac-app
+            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o555))
         }
         RunTarget::Web => {
             CHASSIS_WEB_DIR.extract(&chassis_specific_dir)
         }
     }
+
+
+
 }
 
 static CARTRIDGE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge");
@@ -477,7 +489,7 @@ fn clone_properties_coproduct_to_dot_pax(relative_cartridge_target_dir: &PathBuf
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let mut working_path = std::path::Path::new(working_dir).join(".pax");
     std::fs::create_dir_all( &working_path);
-    working_path
+    fs::canonicalize(working_path).unwrap()
 }
 const TMP_DIRECTORY_NAME: &str = "tmp";
 fn get_or_create_pax_tmp_directory(working_dir: &str) -> PathBuf {
@@ -528,6 +540,7 @@ pub fn perform_clean(path: &str) -> Result<(), ()> {
 
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
+/// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
 
     println!("Performing run");
@@ -573,34 +586,82 @@ pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
     generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest, &host_crate_info);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
-    build_chassis_with_cartridge(&pax_dir);
+    build_chassis_with_cartridge(&pax_dir, &ctx.target);
 
-    //8a::run: Run dev harness, with freshly built chassis plugged in
-    //8b::compile: Build production harness, with freshly built chassis plugged in
-
-    //see pax-compiler-sequence-diagram.png
+    if should_also_run {
+        //8a::run: compile and run dev harness, with freshly built chassis plugged in
+        run_harness_with_chassis(&pax_dir, &ctx.target, &Harness::Development);
+    } else {
+        //8b::compile: compile and write executable binary / package to disk at specified or implicit path
+        unimplemented!()
+    }
 
     Ok(())
 }
 
-
-fn build_chassis_with_cartridge(pax_dir: &PathBuf) {
-    todo!();
-
-
-
-    //string together a shell call like the following:
-    // let cargo_run_parser_process = Command::new("cargo")
-    //     .current_dir(&ctx.path)
-    //     .arg("run")
-    //     .arg("--features")
-    //     .arg("parser")
-    //     .stdout(std::process::Stdio::piped())
-    //     .stderr(std::process::Stdio::piped())
-    //     .spawn()
-    //     .expect("failed to execute parser binary");
+#[derive(Debug)]
+pub enum Harness {
+    Development,
 }
 
+fn run_harness_with_chassis(pax_dir: &PathBuf, target: &RunTarget, harness: &Harness) {
+
+    println!("Running {:?} harness linked with previously compiled chassis", harness);
+
+    let target_str : &str = target.into();
+    let target_str_lower: &str = &target_str.to_lowercase();
+
+    let harness_path = pax_dir
+        .join("chassis")
+        .join({let s : &str = target.into(); s})
+        .join({
+            match harness {
+                Harness::Development => {
+                    format!("pax-dev-harness-{}", target_str_lower)
+                }
+            }
+        });
+
+    let script = match harness {
+        Harness::Development => {
+            "./run-debuggable-mac-app.sh"
+        }
+    };
+
+    Command::new(script)
+        .current_dir(&harness_path)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .output()
+        .expect("failed to run harness");
+
+}
+
+fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) {
+
+    println!("Building chassis with generated cartridge");
+    let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
+    let chassis_path = pax_dir.join("chassis").join({let s: & str = target.into(); s});
+    //string together a shell call like the following:
+    let cargo_run_chassis_build = Command::new("cargo")
+        .current_dir(&chassis_path)
+        .arg("build")
+        .env("PAX_DIR", pax_dir)
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .expect("failed to build chassis");
+
+    let output = cargo_run_chassis_build
+        .wait_with_output().unwrap();
+
+    let out = String::from_utf8(output.stdout).unwrap();
+    let _err = String::from_utf8(output.stderr).unwrap();
+
+    //FUTURE: handle compilation errors here
+    assert_eq!(output.status.code().unwrap(), 0);
+
+}
 
 pub struct RunContext {
     pub target: RunTarget,

@@ -106,6 +106,10 @@ impl ComponentDefinition {
         self.property_definitions.iter().find(|pd| { pd.name.eq(name) }).expect(&format!("Property not found with name {}", &name)).clone()
     }
 
+    pub fn generate_factory_literal(&self) -> String {
+        todo!()
+    }
+
 }
 
 
