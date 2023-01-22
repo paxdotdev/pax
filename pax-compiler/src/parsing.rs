@@ -28,6 +28,7 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
         module_path.to_string()
     };
     ComponentDefinition {
+        is_root: false,
         source_id: source_id.to_string(),
         pascal_identifier: pascal_identifier.to_string(),
         template: None,
@@ -816,6 +817,7 @@ pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str
     ctx.template_node_definitions = tpc.template_node_definitions.clone();
 
     let mut new_def = ComponentDefinition {
+        is_root,
         source_id: source_id.into(),
         pascal_identifier: pascal_identifier.to_string(),
         template: Some(tpc.template_node_definitions),

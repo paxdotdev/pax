@@ -94,6 +94,7 @@ pub struct  ExpressionSpecInvocation {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ComponentDefinition {
     pub source_id: String,
+    pub is_root: bool,
     pub pascal_identifier: String,
     pub module_path: String,
     pub template: Option<Vec<TemplateNodeDefinition>>,
@@ -107,6 +108,8 @@ impl ComponentDefinition {
     }
 
     pub fn generate_factory_literal(&self) -> String {
+
+
         todo!()
     }
 
