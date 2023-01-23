@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 use crate::manifest::{ComponentDefinition, ExpressionSpec};
+use crate::templating::{press_template_macro_codegen_cartridge_component_factory, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodesLiteral};
 
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
@@ -322,13 +323,10 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
     let mut expression_specs : Vec<ExpressionSpec> = manifest.expression_specs.as_ref().unwrap().values().map(|es: &ExpressionSpec|{es.clone()}).collect();
     expression_specs = expression_specs.iter().sorted().cloned().collect();
-    // expression_specs = expression_specs.iter().sort_by(|(a,b)|{
 
-
-    // manifest.components.values().iter().map(|cd|{
-    //    cd
-    // });
-    let component_factories_literal =  vec![];//TODO!
+    let component_factories_literal =  manifest.components.values().into_iter().map(|cd|{
+        generate_cartridge_component_factory_literal(cd)
+    }).collect();
 
     //press template into String
     let generated_lib_rs = templating::press_template_codegen_cartridge_lib(templating::TemplateArgsCodegenCartridgeLib {
@@ -341,6 +339,27 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
     //write String to file
     fs::write(target_dir.join("src/lib.rs"), generated_lib_rs);
+
+}
+
+
+fn generate_cartridge_render_nodes_literal(cd: &ComponentDefinition) -> String {
+    let args = TemplateArgsCodegenCartridgeRenderNodesLiteral {};
+    "<<TODO!>>".into()
+}
+
+fn generate_cartridge_component_factory_literal(cd: &ComponentDefinition) -> String {
+
+    let args = TemplateArgsCodegenCartridgeComponentFactory {
+        is_root: cd.is_root,
+        snake_case_component_id: "<<TODO!>>".to_string(),
+        component_properties_struct: "<<TODO!>>".to_string(),
+        properties: cd.property_definitions.clone(),
+        render_nodes_literal: generate_cartridge_render_nodes_literal(cd),
+        properties_coproduct_variant: "".to_string()
+    };
+
+    press_template_macro_codegen_cartridge_component_factory(args)
 
 }
 

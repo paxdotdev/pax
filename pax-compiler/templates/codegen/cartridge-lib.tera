@@ -59,7 +59,3 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 {% for factory_literal in component_factories_literal %}
    {{ factory_literal }}
 {% endfor %}
-
-pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
-    unimplemented!()
-}
