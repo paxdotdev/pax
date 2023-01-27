@@ -3375,5 +3375,3 @@ Conclusion, as of 1/18:
     Also pass `PAX_DIR` env into any core-lib cargo process
     (e.g. this entails configuring IDE, and has implications about ever removing `pax-example/.pax` from version control
 
-
-## Jan 23 23

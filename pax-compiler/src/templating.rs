@@ -84,7 +84,7 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
 }
 
 #[derive(Serialize)]
-pub struct TemplateArgsCodegenCartridgeRenderNodesLiteral {
+pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
 
 }
 
@@ -105,6 +105,13 @@ pub fn press_template_macro_pax_type(args: TemplateArgsMacroPaxType ) -> String 
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
+
+static TEMPLATE_PAX : &str = include_str!("../templates/macros/pax.tera");
+pub fn press_template_macro_pax(args: TemplateArgsMacroPax) -> String {
+    let template = TEMPLATE_DIR.get_file("macros/pax.tera").unwrap().contents_utf8().unwrap();
+    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
+}
+
 static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB : &str = include_str!("../templates/codegen/properties-coproduct-lib.tera");
 pub fn press_template_codegen_properties_coproduct_lib(args: TemplateArgsCodegenPropertiesCoproductLib ) -> String {
     let template = TEMPLATE_DIR.get_file("codegen/properties-coproduct-lib.tera").unwrap().contents_utf8().unwrap();
@@ -117,14 +124,17 @@ pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLi
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
-static TEMPLATE_PAX : &str = include_str!("../templates/macros/pax.tera");
-pub fn press_template_macro_pax(args: TemplateArgsMacroPax) -> String {
-    let template = TEMPLATE_DIR.get_file("macros/pax.tera").unwrap().contents_utf8().unwrap();
-    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
-}
-
 static TEMPLATE_CODEGEN_CARTRIDGE_COMPONENT_FACTORY : &str = include_str!("../templates/codegen/cartridge-component-factory.tera");
-pub fn press_template_macro_codegen_cartridge_component_factory(args: TemplateArgsCodegenCartridgeComponentFactory) -> String {
+pub fn press_template_codegen_cartridge_component_factory(args: TemplateArgsCodegenCartridgeComponentFactory) -> String {
     let template = TEMPLATE_DIR.get_file("codegen/cartridge-component-factory.tera").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
+
+static TEMPLATE_CODEGEN_CARTRIDGE_RENDER_NODE_LITERAL : &str = include_str!("../templates/codegen/cartridge-render-node-literal.tera");
+pub fn press_template_codegen_cartridge_render_node_literal(args: TemplateArgsCodegenCartridgeRenderNodeLiteral) -> String {
+    let template = TEMPLATE_DIR.get_file("codegen/cartridge-render-node-literal.tera").unwrap().contents_utf8().unwrap();
+    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
+}
+
+
+

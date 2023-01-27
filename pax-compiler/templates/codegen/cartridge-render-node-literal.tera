@@ -1,0 +1,42 @@
+Rc::new(RefCell::new(
+    {% if is_component %}
+    instantiate_component{{ snake_case_name }}(
+    {% else %}
+    {{ primitive_symbol_qualified }}::instantiate(
+    {% endif %}
+    InstantiationArgs {
+        properties: PropertiesCoproduct::{{ properties_type }}( {{qualified_properties_type}} {
+            {% for property in properties %}
+                {{ property.name }}: Box::new( {{ property.init_value }} )
+            {% endfor %}
+        },
+        handler_registry: None,
+        instance_registry: Rc::clone(&instance_registry),
+        transform: Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::rotate(0.0)))),
+        size: Some([Box::new(PropertyLiteral::new(Size::Percent(100.0))), Box::new(PropertyLiteral::new(Size::Percent(100.0)))]),
+        children: Some(Rc::new(RefCell::new(vec![
+            {% for child_literal in children_literal %}
+                {{ child_literal }},
+            {% endfor %}
+        ]))),
+        component_template: None, //TODO! verify
+        scroller_args: None, //TODO! handle
+        slot_index: None, //TODO! handle
+        repeat_source_expression: None, //TODO! handle
+        conditional_boolean_expression: None, //TODO! handle
+        compute_properties_fn: None
+    %}
+    )
+))
+
+
+/*
+RectangleInstance::instantiate(InstantiationArgs{
+properties: PropertiesCoproduct::Rectangle(Rectangle {
+stroke: pax_example::pax_reexports::pax_std::types::Stroke{
+color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
+width: Box::new(PropertyLiteral::new(SizePixels(0.0))),
+},
+fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 1.0, 0.0, 1.0)))
+}),
+*/

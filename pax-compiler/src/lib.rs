@@ -20,7 +20,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
 use crate::manifest::{ComponentDefinition, ExpressionSpec};
-use crate::templating::{press_template_macro_codegen_cartridge_component_factory, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodesLiteral};
+use crate::templating::{press_template_codegen_cartridge_component_factory, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
@@ -356,8 +356,12 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
 
 fn generate_cartridge_render_nodes_literal(cd: &ComponentDefinition) -> String {
-    let args = TemplateArgsCodegenCartridgeRenderNodesLiteral {};
-    "Rc::new(RefCell::new(vec![]))".into()
+    let args = TemplateArgsCodegenCartridgeRenderNodeLiteral {};
+
+    //TODO:  visit TemplateNodeDefinitions recursively, accumulating a string literal
+    //       along the way
+
+    press_template_codegen_cartridge_render_node_literal(args)
 }
 
 fn generate_cartridge_component_factory_literal(cd: &ComponentDefinition) -> String {
@@ -371,7 +375,7 @@ fn generate_cartridge_component_factory_literal(cd: &ComponentDefinition) -> Str
         properties_coproduct_variant: cd.pascal_identifier.to_string()
     };
 
-    press_template_macro_codegen_cartridge_component_factory(args)
+    press_template_codegen_cartridge_component_factory(args)
 
 }
 
