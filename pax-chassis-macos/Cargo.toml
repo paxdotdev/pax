@@ -2,9 +2,9 @@
 name = "pax-chassis-macos"
 edition = "2021"
 version = "0.0.1"
-authors = ["Zack Brown <zack@pax-lang.org>"]
+authors = ["Zack Brown <zack@pax.rs>"]
 license = "MIT OR Apache-2.0"
-homepage = "https://www.pax-lang.org/"
+homepage = "https://www.pax.rs/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Platform-specific chassis allowing Pax cartridges to be executed as native macOS apps"
 

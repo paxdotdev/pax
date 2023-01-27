@@ -1,10 +1,10 @@
 [package]
 name = "pax-std-primitives"
 version = "0.0.1"
-authors = ["Zack Brown <zack@pax-lang.org>"]
+authors = ["Zack Brown <zack@pax.rs>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-homepage = "https://www.pax-lang.org/"
+homepage = "https://www.pax.rs/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Primitives crate for Pax's standard library"
 

@@ -29,7 +29,7 @@ fn main() -> Result<(), ()> {
         .about("Pax CLI including compiler and dev tooling")
         .version("0.0.1")
         .setting(AppSettings::SubcommandRequiredElseHelp)
-        .author("Zack Brown <zack@pax-lang.org>")
+        .author("Zack Brown <zack@pax.rs>")
         .subcommand(
             App::new("run")
                 .about("Run the Pax project from the current working directory in a demo harness")

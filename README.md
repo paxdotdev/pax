@@ -4,12 +4,12 @@ Pax is a user interface language and rendering engine.  Use Pax to build GUIs an
 
 Pax compiles through Rust into native Mac apps (LLVM) or Web apps (WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
 
-As of September 2022, Pax is being developed in the open, [in alpha preview](https://docs.pax-lang.org/status-sept-2022.html).
+As of September 2022, Pax is being developed in the open, [in alpha preview](https://docs.pax.rs/status-sept-2022.html).
 
 
 ## Example
 
-Writing Pax is intended to feel familiar, and the language borrows many ideas from [prior art](https://docs.pax-lang.org/intro-goals-prior-art.html).
+Writing Pax is intended to feel familiar, and the language borrows many ideas from [prior art](https://docs.pax.rs/intro-goals-prior-art.html).
 
 Following is a simple Pax component called `IncrementMe`:
 
@@ -43,7 +43,7 @@ impl IncrementMe {
 ```
 Any Pax component like the example above may be included inside other Pax components, or may be mounted as the root of a stand-alone app.
 
-See a more thorough and [a running example](https://docs.pax-lang.org/intro-example.html).
+See a more thorough and [a running example](https://docs.pax.rs/intro-example.html).
 
 ## Features
 
@@ -55,16 +55,16 @@ See a more thorough and [a running example](https://docs.pax-lang.org/intro-exam
  - **Multi-platform** — currently supports building Web apps or native macOS apps
 
 ## Docs
-Read more in [The Pax Docs](https://docs.pax-lang.org/)
+Read more in [The Pax Docs](https://docs.pax.rs/)
 
 
 ## Getting Started
 
-Refer to the [guide for getting started](https://docs.pax-lang.org/start-creating-a-project.html) in the Pax docs.
+Refer to the [guide for getting started](https://docs.pax.rs/start-creating-a-project.html) in the Pax docs.
 
 ## Current status & support
 
-Pax is in **alpha-preview** and is not yet viable for building apps — read [the latest status](https://docs.pax-lang.org/status-sept-2022.html).
+Pax is in **alpha-preview** and is not yet viable for building apps — read [the latest status](https://docs.pax.rs/status-sept-2022.html).
 
 
 #### Support matrix:
@@ -91,7 +91,7 @@ Pax is in **alpha-preview** and is not yet viable for building apps — read [th
 
 ## License
 
-© 2023 Zachary Brown  [contact@pax-lang.org].
+© 2023 Zachary Brown  [contact@pax.rs].
 
 This project is licensed under either of:
 - [MIT license](LICENSE-MIT)
@@ -132,7 +132,7 @@ Use `rustc` 1.65.0 via `rustup`
 
 ### Running Development Environment
 
-First, refer to [the latest project status](https://docs.pax-lang.org/status-sept-2022.html)
+First, refer to [the latest project status](https://docs.pax.rs/status-sept-2022.html)
 
 The current leading edge of development is in the compiler —
 ```
