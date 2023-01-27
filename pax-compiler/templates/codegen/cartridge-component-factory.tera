@@ -1,14 +1,7 @@
 {% if is_root %}
 pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
-{% else %}
-pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
-{% endif %}
     ComponentInstance::instantiate( InstantiationArgs{
-        properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{ component_properties_struct }} {
-            {% for prop in properties %}
-                {{ prop.name }}: Default::default(), //TODO! codegen specified init values
-            {% endfor %}
-        ),
+        properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{ component_properties_struct }}::default() ),
         handler_registry: None, //TODO: codegen!
         instance_registry: Rc::clone(&instance_registry),
         transform: Transform2D::default_wrapped(),
@@ -25,12 +18,37 @@ pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(ins
 
             {% for prop in properties %}
             if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.name}}._get_transition_manager()) {
-                properties.{{ prop.name }}.set(new_value);
+            properties.{{ prop.name }}.set(new_value);
             } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.name }}._get_vtable_id()) {
-                let new_value = if let TypesCoproduct::{{ prop.property_type_info.pascalized_fully_qualified_type }}(v) = new_value { v } else { unreachable!() };
-                properties.{{ prop.name }}.set(new_value);
+            let new_value = if let TypesCoproduct::{{ prop.property_type_info.pascalized_fully_qualified_type }}(v) = new_value { v } else { unreachable!() };
+            properties.{{ prop.name }}.set(new_value);
             }
             {% endfor %}
         })),
     })
 }
+
+{% else %}
+pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
+    args.component_template = Some({{render_nodes_literal}}),
+
+    args.handler_registry = None; //TODO! codegen
+
+    args.compute_properties_fn = Some(Box::new(|properties, rtc|{
+        let properties = &mut *properties.as_ref().borrow_mut();
+        let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+
+        {% for prop in properties %}
+            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.name}}._get_transition_manager()) {
+            properties.{{ prop.name }}.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.name }}._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::{{ prop.property_type_info.pascalized_fully_qualified_type }}(v) = new_value { v } else { unreachable!() };
+            properties.{{ prop.name }}.set(new_value);
+            }
+        {% endfor %}
+    }));
+
+    ComponentInstance::instantiate(args)
+}
+{% endif %}
+

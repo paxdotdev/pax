@@ -95,6 +95,7 @@ pub struct  ExpressionSpecInvocation {
 pub struct ComponentDefinition {
     pub source_id: String,
     pub is_root: bool,
+    pub is_primitive: bool,
     pub pascal_identifier: String,
     pub module_path: String,
     pub template: Option<Vec<TemplateNodeDefinition>>,
@@ -106,9 +107,6 @@ impl ComponentDefinition {
     pub fn get_property_definition_by_name(&self, name: &str) -> PropertyDefinition {
         self.property_definitions.iter().find(|pd| { pd.name.eq(name) }).expect(&format!("Property not found with name {}", &name)).clone()
     }
-
-
-
 }
 
 

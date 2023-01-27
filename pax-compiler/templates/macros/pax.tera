@@ -36,6 +36,7 @@ pub fn main() {
 //was specified for compiled project.
 {% endif %}
 
+#[derive(Default)]
 {{original_tokens}}
 
 #[cfg(feature = "parser")]

@@ -88,14 +88,6 @@ pub struct TemplateArgsCodegenCartridgeRenderNodesLiteral {
 
 }
 
-
-
-
-
-
-
-
-
 //The following `include_str!()` calls allow `rustc` to "dirty-watch" these template files.
 //Otherwise, after changing one of those files, the author would also need to change
 //something in _this file_ for `rustc` to detect the changes and recompile the included
@@ -130,7 +122,6 @@ pub fn press_template_macro_pax(args: TemplateArgsMacroPax) -> String {
     let template = TEMPLATE_DIR.get_file("macros/pax.tera").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
-
 
 static TEMPLATE_CODEGEN_CARTRIDGE_COMPONENT_FACTORY : &str = include_str!("../templates/codegen/cartridge-component-factory.tera");
 pub fn press_template_macro_codegen_cartridge_component_factory(args: TemplateArgsCodegenCartridgeComponentFactory) -> String {

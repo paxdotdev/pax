@@ -273,6 +273,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
 
+
     //Gather all fully_qualified_constituent_types from manifest; prepend with re-export prefix; make unique
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
     let mut imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
@@ -284,6 +285,17 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     }).flatten().collect::<Vec<String>>();
     let unique_imports: HashSet<String> = imports.drain(..).collect();
     imports.extend(unique_imports.into_iter().sorted());
+
+    //Also add component property structs to the imports list, with same reexports prefix
+    let properties_structs_imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
+        let module_path = if comp_def.module_path == "crate" {
+            "".to_string()
+        } else {
+            comp_def.module_path.replace("crate::", "") + "::"
+        };
+        format!("{}{}{}", &IMPORT_PREFIX, &module_path, comp_def.pascal_identifier)
+    }).collect::<Vec<String>>();
+    imports.extend(properties_structs_imports.into_iter().sorted());
 
     let primitive_imports = vec![];//TODO!
 
@@ -324,7 +336,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let mut expression_specs : Vec<ExpressionSpec> = manifest.expression_specs.as_ref().unwrap().values().map(|es: &ExpressionSpec|{es.clone()}).collect();
     expression_specs = expression_specs.iter().sorted().cloned().collect();
 
-    let component_factories_literal =  manifest.components.values().into_iter().map(|cd|{
+    let component_factories_literal =  manifest.components.values().into_iter().filter(|cd|{!cd.is_primitive}).map(|cd|{
         generate_cartridge_component_factory_literal(cd)
     }).collect();
 
@@ -345,18 +357,18 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
 fn generate_cartridge_render_nodes_literal(cd: &ComponentDefinition) -> String {
     let args = TemplateArgsCodegenCartridgeRenderNodesLiteral {};
-    "<<TODO!>>".into()
+    "Rc::new(RefCell::new(vec![]))".into()
 }
 
 fn generate_cartridge_component_factory_literal(cd: &ComponentDefinition) -> String {
 
     let args = TemplateArgsCodegenCartridgeComponentFactory {
         is_root: cd.is_root,
-        snake_case_component_id: "<<TODO!>>".to_string(),
-        component_properties_struct: "<<TODO!>>".to_string(),
+        snake_case_component_id: cd.source_id.replace("::", "_"),
+        component_properties_struct: cd.pascal_identifier.to_string(),
         properties: cd.property_definitions.clone(),
         render_nodes_literal: generate_cartridge_render_nodes_literal(cd),
-        properties_coproduct_variant: "".to_string()
+        properties_coproduct_variant: cd.pascal_identifier.to_string()
     };
 
     press_template_macro_codegen_cartridge_component_factory(args)
