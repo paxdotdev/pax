@@ -104,6 +104,12 @@ pub struct ComponentDefinition {
 }
 
 impl ComponentDefinition {
+    pub fn get_snake_case_id(&self) -> String {
+        self.source_id.replace("::", "_")
+    }
+}
+
+impl ComponentDefinition {
     pub fn get_property_definition_by_name(&self, name: &str) -> PropertyDefinition {
         self.property_definitions.iter().find(|pd| { pd.name.eq(name) }).expect(&format!("Property not found with name {}", &name)).clone()
     }

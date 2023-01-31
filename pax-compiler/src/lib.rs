@@ -16,11 +16,11 @@ use std::os::unix::fs::PermissionsExt;
 
 use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Document, Item, value};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
-use crate::manifest::{ComponentDefinition, ExpressionSpec};
-use crate::templating::{press_template_codegen_cartridge_component_factory, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
+use crate::manifest::{ComponentDefinition, ExpressionSpec, TemplateNodeDefinition};
+use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
@@ -356,7 +356,37 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
 
 fn generate_cartridge_render_nodes_literal(cd: &ComponentDefinition) -> String {
-    let args = TemplateArgsCodegenCartridgeRenderNodeLiteral {};
+
+    let nodes =cd.template.as_ref().expect("tried to generate render nodes literal for component, but template was undefined");
+    let root_node = nodes[0].clone();
+
+    let children_literal : Vec<String> = root_node.child_ids.iter().map(|child_id|{
+        let active_tnd = &cd.template.as_ref().unwrap()[*child_id];
+        recurse_generate_render_nodes_literal(active_tnd, cd)
+    }).collect();
+
+    children_literal.join(",")
+}
+
+fn recurse_generate_render_nodes_literal(tnd: &TemplateNodeDefinition, cd: &ComponentDefinition) -> String {
+    //first recurse, populating children_literal : Vec<String>
+    let children_literal : Vec<String> = tnd.child_ids.iter().map(|child_id|{
+        let active_tnd = &cd.template.as_ref().unwrap()[*child_id];
+        recurse_generate_render_nodes_literal(active_tnd, cd)
+    }).collect();
+
+    //then, on the post-order traversal, press template string and return
+    let args = TemplateArgsCodegenCartridgeRenderNodeLiteral {
+        is_component: false, //TODO!
+        snake_case_component_id: cd.get_snake_case_id(),
+        primitive_symbol_qualified: None, //TODO!
+        properties_coproduct_variant: cd.pascal_identifier.to_string(),
+        component_properties_struct: cd.pascal_identifier.to_string(),
+        properties: vec![
+            //TODO!
+        ],
+        children_literal,
+    };
 
     //TODO:  visit TemplateNodeDefinitions recursively, accumulating a string literal
     //       along the way
@@ -368,7 +398,7 @@ fn generate_cartridge_component_factory_literal(cd: &ComponentDefinition) -> Str
 
     let args = TemplateArgsCodegenCartridgeComponentFactory {
         is_root: cd.is_root,
-        snake_case_component_id: cd.source_id.replace("::", "_"),
+        snake_case_component_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
         properties: cd.property_definitions.clone(),
         render_nodes_literal: generate_cartridge_render_nodes_literal(cd),

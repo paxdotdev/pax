@@ -7,7 +7,7 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
         transform: Transform2D::default_wrapped(),
         size: None,
         children: None,
-        component_template: Some({{render_nodes_literal}}),
+        component_template: Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}]))),
         scroller_args: None,
         slot_index: None,
         repeat_source_expression: None,

@@ -85,7 +85,13 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
 
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
-
+    pub is_component: bool,
+    pub snake_case_component_id: String,
+    pub primitive_symbol_qualified: Option<String>,
+    pub properties_coproduct_variant: String,
+    pub component_properties_struct: String,
+    pub properties: Vec<(String, String)>,
+    pub children_literal: Vec<String>,
 }
 
 //The following `include_str!()` calls allow `rustc` to "dirty-watch" these template files.

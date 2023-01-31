@@ -1,15 +1,15 @@
 Rc::new(RefCell::new(
     {% if is_component %}
-    instantiate_component{{ snake_case_name }}(
+    instantiate_component{{ snake_case_component_id }}(
     {% else %}
     {{ primitive_symbol_qualified }}::instantiate(
     {% endif %}
     InstantiationArgs {
-        properties: PropertiesCoproduct::{{ properties_type }}( {{qualified_properties_type}} {
+        properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{component_properties_struct}} {
             {% for property in properties %}
-                {{ property.name }}: Box::new( {{ property.init_value }} )
+                {{ property.0 }}: Box::new( {{ property.1 }} )
             {% endfor %}
-        },
+        }),
         handler_registry: None,
         instance_registry: Rc::clone(&instance_registry),
         transform: Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::rotate(0.0)))),
@@ -25,7 +25,6 @@ Rc::new(RefCell::new(
         repeat_source_expression: None, //TODO! handle
         conditional_boolean_expression: None, //TODO! handle
         compute_properties_fn: None
-    %}
     )
 ))
 
