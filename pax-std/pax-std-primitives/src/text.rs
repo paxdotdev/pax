@@ -32,8 +32,18 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         self.instance_id
     }
 
+
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        let properties = if let PropertiesCoproduct::Text(p) = args.properties { p } else {unreachable!("Wrong properties type")};
+
+        #[cfg(feature="Text")]
+        let properties = if let PropertiesCoproduct::Text(p) = args.properties { p } else { unreachable!("Wrong properties type") };
+        #[cfg(not(feature="Text"))]
+        let properties = Text {
+            content: Default::default(),
+            font: Default::default(),
+            fill: Default::default(),
+        };
+
 
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
@@ -41,7 +51,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             instance_id,
             transform: args.transform,
             properties: Rc::new(RefCell::new(properties)),
-            size: Rc::new(RefCell::new(args.size.expect("Text requires a size"))),
+            size: args.size.expect("Text requires a size"),
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
 
@@ -49,6 +59,11 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
+        // }
+        // #[cfg(not(feature="Text"))]
+        // {
+        //      Rc::new(RefCell::new(TextInstance::default()))
+        // }
     }
     
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
@@ -59,26 +74,25 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
-
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         if let Some(content) = rtc.compute_vtable_value(properties.content._get_vtable_id()) {
             let new_value = if let TypesCoproduct::String(v) = content { v } else { unreachable!() };
             properties.content.set(new_value);
         }
 
-        if let Some(size) = rtc.compute_vtable_value(properties.font.size._get_vtable_id()) {
+        if let Some(size) = rtc.compute_vtable_value(properties.font.get().size._get_vtable_id()) {
             let new_value = if let TypesCoproduct::SizePixels(v) = size { v } else { unreachable!() };
-            properties.font.size.set(new_value);
+            properties.font.get_mut().size.set(new_value);
         }
 
-        if let Some(family) = rtc.compute_vtable_value(properties.font.family._get_vtable_id()) {
+        if let Some(family) = rtc.compute_vtable_value(properties.font.get().family._get_vtable_id()) {
             let new_value = if let TypesCoproduct::String(v) = family { v } else { unreachable!() };
-            properties.font.family.set(new_value);
+            properties.font.get_mut().family.set(new_value);
         }
 
-        if let Some(variant) = rtc.compute_vtable_value(properties.font.variant._get_vtable_id()) {
+        if let Some(variant) = rtc.compute_vtable_value(properties.font.get().variant._get_vtable_id()) {
             let new_value = if let TypesCoproduct::String(v) = variant { v } else { unreachable!() };
-            properties.font.variant.set(new_value);
+            properties.font.get_mut().variant.set(new_value);
         }
 
         let mut size = &mut *self.size.as_ref().borrow_mut();
@@ -132,7 +146,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
-        let val = properties.font.size.get();
+        let val = properties.font.get().size.get();
         let is_new_value = match &last_patch.font.size {
             Some(cached_value) => {
                 !val.eq(cached_value)
@@ -147,7 +161,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
-        let val = properties.font.family.get();
+        let val = properties.font.get().family.get();
         let is_new_value = match &last_patch.font.family {
             Some(cached_value) => {
                 !val.eq(cached_value)
@@ -162,7 +176,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
-        let val = properties.font.variant.get();
+        let val = properties.font.get().variant.get();
         let is_new_value = match &last_patch.font.variant {
             Some(cached_value) => {
                 !val.eq(cached_value)

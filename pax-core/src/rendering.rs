@@ -29,7 +29,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub size: Option<[Box<dyn PropertyInstance<Size2D>>;2]>,
+    pub size: Option<Size2D>,
     pub children: Option<RenderNodePtrList<R>>,
     pub component_template: Option<RenderNodePtrList<R>>,
 

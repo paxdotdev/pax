@@ -17,7 +17,11 @@ pub enum PropertiesCoproduct {
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
     
+    Size(pax_runtime_api::Size),
+    
     Size2D(pax_runtime_api::Size2D),
+    
+    SizePixels(pax_runtime_api::SizePixels),
     
     String(String),
     

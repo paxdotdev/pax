@@ -4,7 +4,7 @@ version = "0.0.1"
 authors = ["Zack Brown <zack@pax.rs>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-homepage = "https://www.pax.rs/"
+homepage = "https://pax.rs/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Static program definition container for Pax programs, intended to be patched during compilation"
 
@@ -15,5 +15,8 @@ piet-common = "0.6.0"
 pax-core = {path = "../../../pax-core", version = "0.0.1"}
 pax-runtime-api = {path = "../../../pax-runtime-api", version = "0.0.1"}
 pax-properties-coproduct = { version="0.0.1"}
+
+
+pax-std-primitives = {path = "../../../pax-std/pax-std-primitives", version = "0.0.1"}
 pax-example = { path="../.." }
 

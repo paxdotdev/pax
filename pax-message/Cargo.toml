@@ -4,7 +4,7 @@ version = "0.0.1"
 edition = "2021"
 authors = ["Zack Brown <zack@pax.rs>"]
 license = "MIT OR Apache-2.0"
-homepage = "https://www.pax.rs/"
+homepage = "https://pax.rs/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Shared message structs used by Pax runtimes"
 

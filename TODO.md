@@ -3375,3 +3375,42 @@ Conclusion, as of 1/18:
     Also pass `PAX_DIR` env into any core-lib cargo process
     (e.g. this entails configuring IDE, and has implications about ever removing `pax-example/.pax` from version control
 
+
+
+### Lab journal, Feb 2 2023
+
+Broke through with codegen to compiling into runtime lib —
+specifically, pax-std-primitives is surfacing a couple of unfinished 
+details around PropertiesCoproduct definition.
+
+If a program uses a Pax-exporting crate like `pax-std`,
+BUT that program does not use all of the members exported from
+that crate (like `Text`, say) does not generate an entry
+into the generated PropertiesCoproduct and/or TypesCoproduct
+
+Thus, calls into that data structure that are made where 
+they aren't valid.  
+
+Options:
+ a.) Require a round-up reexport at root of crate (similar to macros)
+   - this allows the compiler to build an entry for each component type
+     in a crate, without requiring each type to be used
+   - this might look like:
+```
+#[pax_crate([
+    frame::Frame,
+    group::Group,
+    rectangle::Rectangle,
+    text::Text,
+    scroller::Scroller, 
+])]
+```
+
+ b.) Expose a cargo feature for each primitive in `pax-std-primitives`; 
+     based on which primitives are used, encode those features into the generated cargo.toml for `pax-cartridge` (which is consuming `pax-std-primitives`)
+     gate any `TypesCoproduct` or `PropertiesCoproduct` logic in `pax-std-primitives` with a feature-check for that primitive
+     ^
+     | This is probably the best way forward 
+ 
+Final note: (b) has been penciled in as viable with `Text`; more work
+remains to finish-line the feature-gating labor / wiring

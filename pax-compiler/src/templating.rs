@@ -16,6 +16,8 @@ pub struct TemplateArgsMacroPaxPrimitive {
     pub original_tokens: String,
     /// Used to codegen get_property_manifest calls, which allows parser to "reflect"
     pub compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
+    /// For example: "pax_std_primitives::RectangleInstance" for Rectangle (pax_std::primitives::Rectangle)
+    pub primitive_instance_import_path: String,
 }
 
 #[derive(Serialize)]
@@ -60,9 +62,6 @@ pub struct TemplateArgsCodegenCartridgeLib {
     /// List of fully qualified import strings, e.g. pax_example::pax_reexports::...
     pub imports: Vec<String>,
 
-    /// List of fully qualified primitive Instance imports, as annotated by `pax_primitive` macro
-    pub primitive_imports: Vec<String>,
-
     /// List of `const `declarations: full token streams ready to re-write
     pub consts: Vec<String>,
 
@@ -85,9 +84,10 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
 
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
-    pub is_component: bool,
+    pub is_primitive: bool,
     pub snake_case_component_id: String,
-    pub primitive_symbol_qualified: Option<String>,
+    pub pascal_identifier_qualified: Option<String>,
+    pub primitive_instance_import_path: Option<String>,
     pub properties_coproduct_variant: String,
     pub component_properties_struct: String,
     pub properties: Vec<(String, String)>,

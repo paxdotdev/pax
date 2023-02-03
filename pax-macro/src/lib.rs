@@ -22,10 +22,19 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
 
     let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
 
+    // for a macro invocation like the following:
+    // #[pax_primitive("./pax-std-primitives",  "pax_std_primitives::GroupInstance")]
+    //                                           ^
+    //                                           |
+    // the second argument, above, is our `primitive_instance_import_path`.
+    // Note that these tokens are already parsed by rustc, thus the symbols come with spaces injected in between tokens
+    let primitive_instance_import_path= args.to_string().split(",").last().unwrap().to_string().replace(" ", "");
+
     let output = pax_compiler::templating::press_template_macro_pax_primitive(TemplateArgsMacroPaxPrimitive{
         pascal_identifier,
         original_tokens,
         compile_time_property_definitions,
+        primitive_instance_import_path,
     });
 
     TokenStream::from_str(&output).unwrap().into()

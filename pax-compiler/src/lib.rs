@@ -238,6 +238,8 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
         ("Vec_Rc_PropertiesCoproduct___", "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>"),
         ("Transform2D", "pax_runtime_api::Transform2D"),
         ("Size2D", "pax_runtime_api::Size2D"),
+        ("Size", "pax_runtime_api::Size"),
+        ("SizePixels", "pax_runtime_api::SizePixels"),
     ];
 
     BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
@@ -273,7 +275,6 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
 
-
     //Gather all fully_qualified_constituent_types from manifest; prepend with re-export prefix; make unique
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
     let mut imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
@@ -296,8 +297,6 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
         format!("{}{}{}", &IMPORT_PREFIX, &module_path, comp_def.pascal_identifier)
     }).collect::<Vec<String>>();
     imports.extend(properties_structs_imports.into_iter().sorted());
-
-    let primitive_imports = vec![];//TODO!
 
     let consts = vec![];//TODO!
 
@@ -337,13 +336,12 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     expression_specs = expression_specs.iter().sorted().cloned().collect();
 
     let component_factories_literal =  manifest.components.values().into_iter().filter(|cd|{!cd.is_primitive}).map(|cd|{
-        generate_cartridge_component_factory_literal(cd)
+        generate_cartridge_component_factory_literal(manifest, cd, &IMPORT_PREFIX)
     }).collect();
 
     //press template into String
     let generated_lib_rs = templating::press_template_codegen_cartridge_lib(templating::TemplateArgsCodegenCartridgeLib {
         imports,
-        primitive_imports,
         consts,
         expression_specs,
         component_factories_literal,
@@ -355,33 +353,39 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
 }
 
 
-fn generate_cartridge_render_nodes_literal(cd: &ComponentDefinition) -> String {
+fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) -> String {
 
-    let nodes =cd.template.as_ref().expect("tried to generate render nodes literal for component, but template was undefined");
+    let nodes = rngc.active_component_definition.template.as_ref().expect("tried to generate render nodes literal for component, but template was undefined");
     let root_node = nodes[0].clone();
 
     let children_literal : Vec<String> = root_node.child_ids.iter().map(|child_id|{
-        let active_tnd = &cd.template.as_ref().unwrap()[*child_id];
-        recurse_generate_render_nodes_literal(active_tnd, cd)
+        let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
+        recurse_generate_render_nodes_literal(rngc, active_tnd)
     }).collect();
 
     children_literal.join(",")
 }
 
-fn recurse_generate_render_nodes_literal(tnd: &TemplateNodeDefinition, cd: &ComponentDefinition) -> String {
+fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tnd: &TemplateNodeDefinition) -> String {
     //first recurse, populating children_literal : Vec<String>
     let children_literal : Vec<String> = tnd.child_ids.iter().map(|child_id|{
-        let active_tnd = &cd.template.as_ref().unwrap()[*child_id];
-        recurse_generate_render_nodes_literal(active_tnd, cd)
+        let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
+        recurse_generate_render_nodes_literal(rngc, active_tnd)
     }).collect();
+
+    let component_for_current_node = rngc.components.get(&tnd.component_id).unwrap();
 
     //then, on the post-order traversal, press template string and return
     let args = TemplateArgsCodegenCartridgeRenderNodeLiteral {
-        is_component: false, //TODO!
-        snake_case_component_id: cd.get_snake_case_id(),
-        primitive_symbol_qualified: None, //TODO!
-        properties_coproduct_variant: cd.pascal_identifier.to_string(),
-        component_properties_struct: cd.pascal_identifier.to_string(),
+        is_primitive: component_for_current_node.is_primitive,
+        snake_case_component_id: rngc.active_component_definition.get_snake_case_id(),
+        //TND -> component_id; look up id in component dictionary;
+        //We don't want the full/normal import prefix here —
+        //
+        primitive_instance_import_path: component_for_current_node.primitive_instance_import_path.clone(),
+        pascal_identifier_qualified: Some(format!("{}{}::{}", rngc.import_prefix, component_for_current_node.module_path, component_for_current_node.pascal_identifier)),
+        properties_coproduct_variant: component_for_current_node.pascal_identifier.to_string(),
+        component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
         properties: vec![
             //TODO!
         ],
@@ -394,14 +398,27 @@ fn recurse_generate_render_nodes_literal(tnd: &TemplateNodeDefinition, cd: &Comp
     press_template_codegen_cartridge_render_node_literal(args)
 }
 
-fn generate_cartridge_component_factory_literal(cd: &ComponentDefinition) -> String {
+struct RenderNodesGenerationContext<'a> {
+    components: &'a std::collections::HashMap<String, ComponentDefinition>,
+    import_prefix: &'a str,
+    active_component_definition: &'a ComponentDefinition,
+}
+
+
+fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition, import_prefix: &str) -> String {
+
+    let rngc = RenderNodesGenerationContext {
+        components: &manifest.components,
+        active_component_definition: cd,
+        import_prefix,
+    };
 
     let args = TemplateArgsCodegenCartridgeComponentFactory {
         is_root: cd.is_root,
         snake_case_component_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
         properties: cd.property_definitions.clone(),
-        render_nodes_literal: generate_cartridge_render_nodes_literal(cd),
+        render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc),
         properties_coproduct_variant: cd.pascal_identifier.to_string()
     };
 
@@ -418,7 +435,7 @@ fn clean_dependencies_table_of_relative_paths(crate_name: &str, dependencies: &m
         match dep.1.get_mut("path") {
             Some(existing_path) => {
                 if  !existing_path.is_none() && !is_cloned_dep && host_crate_info.is_lib_dev_mode {
-                    //in "dev mode," instead of removing relative paths, we want to prepend them with an extra `../'
+                    //in "library dev mode," instead of removing relative paths, we want to prepend them with an extra `../'
                     //This allows us to compile `pax-example` against the latest local Pax lib code,
                     //instead of relying on crates.io
 

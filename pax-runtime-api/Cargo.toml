@@ -4,14 +4,14 @@ version = "0.0.1"
 authors = ["Zack Brown <zack@pax.rs>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-homepage = "https://www.pax.rs/"
+homepage = "https://pax.rs/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "API exposed by the Pax runtime, for runtime manipulation of Pax programs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-kurbo = "0.8.3"
+kurbo = "0.9.0"
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 pax-macro = {version="0.0.1", path = "../pax-macro"}

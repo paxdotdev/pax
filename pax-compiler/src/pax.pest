@@ -2,9 +2,8 @@
 WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
 COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
 
-//////  //////  //////
+
 /// BEGIN TEMPLATE
-//////
 
 //A template is expressed as an XML-like document with support for
 //property binding, control-flow (if, for) and {}-wrapped embedded expressions
@@ -66,9 +65,8 @@ identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
 //for namespaced access of symbolic ids, like `Orientation::Vertical`
 pascal_identifier = @{ ASCII_ALPHA_UPPER ~ (ASCII_ALPHANUMERIC | "_")*}
 
-//////  //////  //////
+
 /// BEGIN SETTINGS
-//////
 
 settings_block_declaration = {"@" ~ "settings" ~ "{" ~ selector_block* ~ "}"}
 selector_block = {selector ~ literal_object}
@@ -98,9 +96,8 @@ literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
 literal_enum_value = {pascal_identifier ~ ("::" ~ pascal_identifier)* ~ ("("~literal_enum_args_list~")")?}
 literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 
-//////  //////  //////
+
 /// BEGIN EXPRESSIONS (PAXEL)
-//////
 
 // Expression body may be a binary operation like `x + 5` or `num_clicks % 2 == 0`
 // or a literal returned value like `Color { ... }` or `5`
@@ -198,9 +195,8 @@ xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
 xo_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
 xo_function_args_list = {(expression_body ~ ("," ~ expression_body)*)?}
 
-//////  //////  //////
+
 /// BEGIN CONTROL FLOW
-//////
 
 //Control flow statements are NOT embeddable all places that expressions are.  That is, control-flow statements
 //can only sit alongside elements in a template and cannot be bound to properties.  As a result,

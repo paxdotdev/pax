@@ -705,15 +705,6 @@ dependencies = [
 
 [[package]]
 name = "kurbo"
-version = "0.8.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7a53776d271cfb873b17c618af0298445c88afc52837f3e948fa3fafd131f449"
-dependencies = [
- "arrayvec",
-]
-
-[[package]]
-name = "kurbo"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e119590a03caff1f7a582e8ee8c2164ddcc975791701188132fd1d1b518d3871"
@@ -878,6 +869,7 @@ dependencies = [
  "pax-core",
  "pax-properties-coproduct",
  "pax-runtime-api",
+ "pax-std-primitives",
  "piet-common",
 ]
 
@@ -954,7 +946,7 @@ dependencies = [
 name = "pax-core"
 version = "0.0.1"
 dependencies = [
- "kurbo 0.9.0",
+ "kurbo",
  "lazy_static",
  "pax-message",
  "pax-properties-coproduct",
@@ -1013,7 +1005,7 @@ dependencies = [
 name = "pax-runtime-api"
 version = "0.0.1"
 dependencies = [
- "kurbo 0.8.3",
+ "kurbo",
  "lazy_static",
  "mut_static",
  "pax-compiler",
@@ -1025,13 +1017,27 @@ dependencies = [
 name = "pax-std"
 version = "0.0.1"
 dependencies = [
- "kurbo 0.8.3",
+ "kurbo",
  "lazy_static",
  "pax-compiler",
  "pax-lang",
  "pax-message",
  "piet",
  "serde_json",
+]
+
+[[package]]
+name = "pax-std-primitives"
+version = "0.0.1"
+dependencies = [
+ "kurbo",
+ "pax-core",
+ "pax-lang",
+ "pax-message",
+ "pax-runtime-api",
+ "pax-std",
+ "piet",
+ "piet-common",
 ]
 
 [[package]]
@@ -1129,7 +1135,7 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ddd2a0027c9ea84b51f42ea3148864e6fc58970ad927e78390d5f9cf7cfa2c78"
 dependencies = [
- "kurbo 0.9.0",
+ "kurbo",
  "unic-bidi",
 ]
 

@@ -8,7 +8,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::{RenderNode, TabCache, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
-use pax_properties_coproduct::TypesCoproduct;
+use pax_core::pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, PropertyLiteral, Size2D};
 use pax_message::{AnyCreatePatch, FramePatch};
 
@@ -42,7 +42,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
             Self {
                 instance_id,
                 children: args.children.expect("Frame expects primitive_children, even if empty Vec"),
-                size: Rc::new(RefCell::new(args.size.expect("Frame requires size"))),
+                size: args.size.unwrap(),
                 transform: args.transform,
                 last_patches: HashMap::new(),
 

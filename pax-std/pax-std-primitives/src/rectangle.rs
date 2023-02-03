@@ -41,7 +41,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
             instance_id,
             transform: args.transform,
             properties: Rc::new(RefCell::new(properties)),
-            size: Rc::new(RefCell::new(args.size.expect("Rectangle requires a size"))),
+            size: args.size.expect("Rectangle requires a size"),
             handler_registry: args.handler_registry,
 
         }));
@@ -63,18 +63,18 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
-        if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.width._get_vtable_id()) {
+        if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.get().width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width { v } else { unreachable!() };
-            properties.stroke.width.set(new_value);
+            properties.stroke.get_mut().width.set(new_value);
         }
 
-        if let Some(stroke_color) = rtc.compute_vtable_value(properties.stroke.color._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Color(v) = stroke_color { v } else { unreachable!() };
-            properties.stroke.color.set(new_value);
+        if let Some(stroke_color) = rtc.compute_vtable_value(properties.stroke.get().color._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = stroke_color { v } else { unreachable!() };
+            properties.stroke.get_mut().color.set(new_value);
         }
 
         if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Color(v) = fill { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = fill { v } else { unreachable!() };
             properties.fill.set(new_value);
         }
 
@@ -109,12 +109,14 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
         let color = match properties_color.color_variant {
             ColorVariant::Hlca(slice) => {
                 Color::hlca(slice[0], slice[1], slice[2], slice[3])
-            }
+            },
             ColorVariant::Rgba(slice) => {
                 Color::rgba(slice[0], slice[1], slice[2], slice[3])
+            },
+            ColorVariant::Rgb(slice) => {
+                Color::rgb(slice[0], slice[1], slice[2])
             }
         };
-
 
         let mut bez_path = BezPath::new();
         bez_path.move_to((0.0, 0.0));
@@ -129,8 +131,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 
         let color = properties.fill.get().to_piet_color();
         rc.fill(transformed_bez_path, &color);
-        rc.stroke(duplicate_transformed_bez_path, &properties.stroke.color.get().to_piet_color(), *&properties.stroke.width.get().into());
-
+        rc.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), *&properties.stroke.get().width.get().into());
 
     }
 }

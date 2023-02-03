@@ -3,12 +3,13 @@ use core::option::Option::Some;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::collections::HashMap;
+use std::borrow::Borrow;
 
 use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::{RenderNode, TabCache, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
-use pax_properties_coproduct::TypesCoproduct;
+use pax_core::pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Transform2D, Size, PropertyInstance, PropertyLiteral, Size2D};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 
@@ -57,7 +58,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
                 instance_id,
                 children: args.children.expect("Scroller expects primitive_children, even if empty Vec"),
                 size_inner_pane: Rc::new(RefCell::new(size_inner_pane)),
-                size_frame: Rc::new(RefCell::new(args.size.expect("Scroller requires size_frame"))),
+                size_frame: args.size.expect("Scroller requires size_frame"),
                 transform: args.transform,
                 scroll_enabled_x,
                 scroll_enabled_y,
@@ -146,9 +147,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             has_any_updates = true;
         }
 
-
         let val = *(*self.scroll_enabled_x).borrow().get();
-        let is_new_value = match &last_patch.scroll_enabled_x {
+        let is_new_value = match &last_patch.scroll_x {
             Some(cached_value) => {
                 !val.eq(cached_value)
             },
@@ -157,13 +157,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             },
         };
         if is_new_value {
-            new_message.scroll_enabled_x = Some(val.clone());
-            last_patch.scroll_enabled_x = Some(val.clone());
+            new_message.scroll_x = Some(val.clone());
+            last_patch.scroll_x = Some(val.clone());
             has_any_updates = true;
         }
 
         let val = *(*self.scroll_enabled_y).borrow().get();
-        let is_new_value = match &last_patch.scroll_enabled_y {
+        let is_new_value = match &last_patch.scroll_y {
             Some(cached_value) => {
                 !val.eq(cached_value)
             },
@@ -172,8 +172,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             },
         };
         if is_new_value {
-            new_message.scroll_enabled_y = Some(val.clone());
-            last_patch.scroll_enabled_y = Some(val.clone());
+            new_message.scroll_y = Some(val.clone());
+            last_patch.scroll_y = Some(val.clone());
             has_any_updates = true;
         }
         
@@ -227,22 +227,20 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         let mut size = &mut *self.size_inner_pane.as_ref().borrow_mut();
 
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::f64(v) = new_size { v } else { unreachable!() };
             size[0].set(new_value);
         }
 
         if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::f64(v) = new_size { v } else { unreachable!() };
             size[1].set(new_value);
         }
-        
 
         let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
         }
-
 
         let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
@@ -284,7 +282,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         let id_chain = rtc.get_id_chain(self.instance_id);
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
-        let clipping_ids = rtc.runtime.borrow().get_current_clipping_ids();
+        let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
 
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
             pax_message::NativeMessage::ScrollerCreate(AnyCreatePatch {

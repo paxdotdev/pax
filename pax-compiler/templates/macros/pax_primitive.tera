@@ -51,7 +51,7 @@ impl {{pascal_identifier}} {
                 {% endfor %}
                 ctx.all_property_definitions.insert(source_id.to_string(), property_definitions.clone());
 
-                let comp_def = pax_compiler::parsing::assemble_primitive_definition(PASCAL_IDENTIFIER, module_path!(), &source_id, &property_definitions);
+                let comp_def = pax_compiler::parsing::assemble_primitive_definition(PASCAL_IDENTIFIER, module_path!(), &source_id, &property_definitions, "{{ primitive_instance_import_path }}".to_string());
                 ctx.component_definitions
                     .insert(comp_def.source_id.clone(), comp_def);
                 (ctx, source_id.to_string())

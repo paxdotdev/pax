@@ -21,7 +21,7 @@ use crate::expressions::ExpressionCompilationContext;
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
-pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>) -> ComponentDefinition {
+pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String) -> ComponentDefinition {
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
     } else {
@@ -29,6 +29,7 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
     };
     ComponentDefinition {
         is_primitive: true,
+        primitive_instance_import_path: Some(primitive_instance_import_path),
         is_root: false,
         source_id: source_id.to_string(),
         pascal_identifier: pascal_identifier.to_string(),
@@ -820,6 +821,7 @@ pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str
     let mut new_def = ComponentDefinition {
         is_primitive: false,
         is_root,
+        primitive_instance_import_path: None,
         source_id: source_id.into(),
         pascal_identifier: pascal_identifier.to_string(),
         template: Some(tpc.template_node_definitions),

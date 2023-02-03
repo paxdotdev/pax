@@ -1,10 +1,9 @@
 Rc::new(RefCell::new(
-    {% if is_component %}
-    instantiate_component{{ snake_case_component_id }}(
+    {% if is_primitive %}
+    {{ primitive_instance_import_path }}::instantiate(
     {% else %}
-    {{ primitive_symbol_qualified }}::instantiate(
-    {% endif %}
-    InstantiationArgs {
+    instantiate_{{ snake_case_component_id }}(
+    {% endif %} InstantiationArgs {
         properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{component_properties_struct}} {
             {% for property in properties %}
                 {{ property.0 }}: Box::new( {{ property.1 }} )
@@ -24,18 +23,6 @@ Rc::new(RefCell::new(
         slot_index: None, //TODO! handle
         repeat_source_expression: None, //TODO! handle
         conditional_boolean_expression: None, //TODO! handle
-        compute_properties_fn: None
-    )
+        compute_properties_fn: None,
+    })
 ))
-
-
-/*
-RectangleInstance::instantiate(InstantiationArgs{
-properties: PropertiesCoproduct::Rectangle(Rectangle {
-stroke: pax_example::pax_reexports::pax_std::types::Stroke{
-color: Box::new(PropertyLiteral::new(Color::rgba(0.0,0.0,0.0,0.0))),
-width: Box::new(PropertyLiteral::new(SizePixels(0.0))),
-},
-fill: Box::new(PropertyLiteral::new(Color::rgba(1.0, 1.0, 0.0, 1.0)))
-}),
-*/

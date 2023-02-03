@@ -98,6 +98,12 @@ pub struct ComponentDefinition {
     pub is_primitive: bool,
     pub pascal_identifier: String,
     pub module_path: String,
+
+    /// For primitives like Rectangle or Group, a separate import
+    /// path is required for the Instance (render context) struct
+    /// and the Definition struct.  For primitives, then, we need
+    /// to store an additional import path to use when instantiating.
+    pub primitive_instance_import_path: Option<String>,
     pub template: Option<Vec<TemplateNodeDefinition>>,
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
     pub property_definitions: Vec<PropertyDefinition>,

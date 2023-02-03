@@ -16,12 +16,6 @@ use piet_common::RenderContext;
 use {{ import }};
 {% endfor %}
 
-//dependency paths below come from pax_primitive macro, where these crate+module paths are passed as parameters:
-//e.g.: `use pax_std_primitives::{RectangleInstance, GroupInstance, ScrollerInstance, FrameInstance, TextInstance};`
-{% for primitive in primitive_imports %}
-    use {{ primitive }};
-{% endfor %}
-
 //pull in entire const token stream here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
 {% for const in consts %}
     {{ const }}
@@ -57,5 +51,5 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
 //Begin component factory literals
 {% for factory_literal in component_factories_literal %}
-   {{ factory_literal }}
+    {{ factory_literal }}
 {% endfor %}
