@@ -1,28 +1,30 @@
-Rc::new(RefCell::new(
-    {% if is_primitive %}
-    {{ primitive_instance_import_path }}::instantiate(
-    {% else %}
-    instantiate_{{ snake_case_component_id }}(
-    {% endif %} InstantiationArgs {
-        properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{component_properties_struct}} {
-            {% for property in properties %}
-                {{ property.0 }}: Box::new( {{ property.1 }} )
-            {% endfor %}
-        }),
-        handler_registry: None,
-        instance_registry: Rc::clone(&instance_registry),
-        transform: Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::rotate(0.0)))),
-        size: Some([Box::new(PropertyLiteral::new(Size::Percent(100.0))), Box::new(PropertyLiteral::new(Size::Percent(100.0)))]),
-        children: Some(Rc::new(RefCell::new(vec![
-            {% for child_literal in children_literal %}
-                {{ child_literal }},
-            {% endfor %}
-        ]))),
-        component_template: None, //TODO! verify
-        scroller_args: None, //TODO! handle
-        slot_index: None, //TODO! handle
-        repeat_source_expression: None, //TODO! handle
-        conditional_boolean_expression: None, //TODO! handle
-        compute_properties_fn: None,
-    })
-))
+
+{% if is_primitive %}
+{{ primitive_instance_import_path }}::instantiate(
+{% else %}
+instantiate_{{ snake_case_component_id }}(
+{% endif %} InstantiationArgs {
+    properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{component_properties_struct}} {
+        {% for property in properties %}
+            {{ property.0 }}: Box::new( {{ property.1 }} ),
+        {% endfor %}
+    }),
+    handler_registry: None,
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new({{ transform_ril }})),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new({{size_ril[0]}}),Box::new({{size_ril[1]}})]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        {% for child_literal in children_literal %}
+            {{ child_literal }},
+        {% endfor %}
+    ]))),
+    component_template: None,
+    scroller_args: None, //TODO! handle
+    slot_index: None, //TODO! handle
+    repeat_source_expression: None, //TODO! handle
+    conditional_boolean_expression: None, //TODO! handle
+    compute_properties_fn: None,
+})
+

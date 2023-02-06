@@ -21,21 +21,21 @@ pub mod primitives {
     #[cfg(feature = "parser")]
     use pax_compiler::reflection::PathQualifiable;
 
-    #[pax_primitive("./pax-std-primitives",  pax_std_primitives::FrameInstance)]
+    #[pax_primitive("./pax-std-primitives",  pax_std_primitives::frame::FrameInstance)]
     pub struct Frame {}
 
-    #[pax_primitive("./pax-std-primitives",  pax_std_primitives::GroupInstance)]
+    #[pax_primitive("./pax-std-primitives",  pax_std_primitives::group::GroupInstance)]
     pub struct Group {}
 
-    #[pax_primitive("./pax-std-primitives",  pax_std_primitives::RectangleInstance)]
+    #[pax_primitive("./pax-std-primitives",  pax_std_primitives::rectangle::RectangleInstance)]
     pub struct Rectangle {
         pub stroke: pax::Property<crate::types::Stroke>,
         pub fill: pax::Property<crate::types::Color>,
     }
 
-    #[pax_primitive("./pax-std-primitives",  crate::TextInstance)]
+    #[pax_primitive("./pax-std-primitives",  pax_std_primitives::text::TextInstance)]
     pub struct Text {
-        pub content: pax::Property<String>,
+        pub text: pax::Property<String>,
         pub font: pax::Property<crate::types::Font>,
         pub fill: pax::Property<crate::types::Color>,
     }

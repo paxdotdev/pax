@@ -621,7 +621,11 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                 let key = kv.next().unwrap().as_str().to_string();
                 let mut raw_value = kv.next().unwrap().into_inner().next().unwrap();
                 let value = match raw_value.as_rule() {
-                    Rule::literal_value => {AttributeValueDefinition::LiteralValue(raw_value.as_str().to_string() + ".into()")},
+                    Rule::literal_value => {
+                        //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
+                        let (output_string,  _) = crate::parsing::run_pratt_parser(raw_value.as_str());
+                        AttributeValueDefinition::LiteralValue(output_string)
+                    },
                     Rule::expression_body => {AttributeValueDefinition::Expression(raw_value.as_str().to_string(), None)},
                     Rule::identifier => {AttributeValueDefinition::Identifier(raw_value.as_str().to_string(), None)},
                     _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}

@@ -5,12 +5,14 @@ use pax_std::components::{Stacker};
 
 #[pax_app(
     <Group>
-        <Rectangle fill={Color::rgb(1, 0, 0)} size=(50px, 50px)
-            transform={Transform2D::translate(0,0) * Transform2D::rotate(1.25)} />
-        <Rectangle fill={Color::rgb(0, 1, 0)} size=(150px, 150px)
-            transform={Transform2D::translate(100, 100) * Transform2D::rotate(2.25)} />
-        <Rectangle fill={Color::rgb(0, 0, 1)} size=(300px, 75px)
-            transform={Transform2D::translate(200, 250) * Transform2D::rotate(3.25)} />
+        <Text text="Hello" />
+        <Rectangle fill={Color::rgb(1, 0, 0)} width=50px height=50px
+            transform={Transform2D::rotate(1.25) * Transform2D::translate(50,50)} />
+        <Rectangle fill={Color::rgb(0, 1, 0)} width=150px height=150px
+            transform={ Transform2D::rotate(2.25) * Transform2D::translate(300, 100)} />
+        <Rectangle fill={Color::rgb(0, 0, 1)} width=300px height=75px
+            transform={Transform2D::rotate(3.25) * Transform2D::translate(500, 550)} />
+        <Rectangle fill={Color::rgb(0, 0, 0)} width=100% height=100% />
     </Group>
 )]
 pub struct HelloRGB {}

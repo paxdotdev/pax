@@ -19,7 +19,7 @@ use toml_edit::{Document, Item, value};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use std::time::Duration;
-use crate::manifest::{ComponentDefinition, ExpressionSpec, TemplateNodeDefinition};
+use crate::manifest::{AttributeValueDefinition, ComponentDefinition, ExpressionSpec, TemplateNodeDefinition};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
 //relative to pax_dir
@@ -375,20 +375,86 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
     let component_for_current_node = rngc.components.get(&tnd.component_id).unwrap();
 
+
+    //Properties:
+    //  - for each property on cfcn, there will either be:
+    //     - an explicit, provided value, or
+    //     - an implicit, default value
+    //  - an explicit value is present IFF an AttributeValueDefinition
+    //    for that property is present on the TemplateNodeDefinition.
+    //    That AttributeValueDefinition may be an Expression or Literal (we can throw at this
+    //    stage for any `Properties` that are bound to something other than an expression / literal
+
+    const default_property_literal : &str = "PropertyLiteral::new(Default::default())";
+
+    // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
+    let property_ril_tuples : Vec<(String, String)> = component_for_current_node.property_definitions.iter().map(|pd| {
+        let ril_literal_string = {
+            if let Some(val) = &tnd.inline_attributes {
+                if let Some(matched_attribute) = val.iter().find(|avd| { avd.0 == pd.name }) {
+                    match &matched_attribute.1 {
+                        AttributeValueDefinition::LiteralValue(lv) => {
+                            format!("PropertyLiteral::new({})", lv)
+                        },
+                        AttributeValueDefinition::Expression(_, id) |
+                        AttributeValueDefinition::Identifier(_, id) => {
+                            format!("PropertyExpression::new({})", id.expect("Tried to use expression but it wasn't compiled"))
+                        },
+                        _ => {
+                            panic!("Incorrect value bound to attribute")
+                        }
+                    }
+                } else {
+                    default_property_literal.to_string()
+                }
+            } else {
+                //no inline attributes at all; everything will be default
+                default_property_literal.to_string()
+            }
+        };
+
+        (pd.name.clone(), ril_literal_string)
+    }).collect();
+
+
+    //handle size: "width" and "height"
+    let keys = ["width", "height", "transform"];
+    let builtins_ril : Vec<String> = keys.iter().map(|builtin_key| {
+        if let Some(val) = &tnd.inline_attributes {
+            if let Some(matched_attribute) = val.iter().find(|avd| { avd.0 == *builtin_key }) {
+                match &matched_attribute.1 {
+                    AttributeValueDefinition::LiteralValue(lv) => {
+                        format!("PropertyLiteral::new({})", lv)
+                    },
+                    AttributeValueDefinition::Expression(_, id) |
+                    AttributeValueDefinition::Identifier(_, id) => {
+                        format!("PropertyExpression::new({})", id.expect("Tried to use expression but it wasn't compiled"))
+                    },
+                    _ => {
+                        panic!("Incorrect value bound to attribute")
+                    }
+                }
+            } else {
+                default_property_literal.to_string()
+            }
+        } else {
+            default_property_literal.to_string()
+        }
+    }).collect();
+
+
+
     //then, on the post-order traversal, press template string and return
     let args = TemplateArgsCodegenCartridgeRenderNodeLiteral {
         is_primitive: component_for_current_node.is_primitive,
         snake_case_component_id: rngc.active_component_definition.get_snake_case_id(),
-        //TND -> component_id; look up id in component dictionary;
-        //We don't want the full/normal import prefix here —
-        //
         primitive_instance_import_path: component_for_current_node.primitive_instance_import_path.clone(),
         pascal_identifier_qualified: Some(format!("{}{}::{}", rngc.import_prefix, component_for_current_node.module_path, component_for_current_node.pascal_identifier)),
         properties_coproduct_variant: component_for_current_node.pascal_identifier.to_string(),
         component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
-        properties: vec![
-            //TODO!
-        ],
+        properties: property_ril_tuples,
+        transform_ril: builtins_ril[2].clone(),
+        size_ril: [builtins_ril[0].clone(), builtins_ril[1].clone()],
         children_literal,
     };
 

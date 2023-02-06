@@ -12,6 +12,8 @@ pub enum PropertiesCoproduct {
     
     Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
+    Text(pax_example::pax_reexports::pax_std::primitives::Text),
+    
 }
 
 //used namely for return types of expressions — may have other purposes
@@ -31,7 +33,11 @@ pub enum TypesCoproduct {
     
     __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
+    __pax_stdCOCOtypesCOCOFont(pax_example::pax_reexports::pax_std::types::Font),
+    
     __pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
+    
+    __stdCOCOstringCOCOString(pax_example::pax_reexports::std::string::String),
     
     bool(bool),
     

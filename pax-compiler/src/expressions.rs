@@ -115,7 +115,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         (active_node_component.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
                         }).expect(
-                        &format!("Property `{}` not found on component `{}`", &attr.0, &ctx.component_def.pascal_identifier)
+                            &format!("Property `{}` not found on component `{}`", &attr.0, &ctx.component_def.pascal_identifier)
                         ).property_type_info.pascalized_fully_qualified_type).clone()
                     };
                     ctx.expression_specs.insert(id, ExpressionSpec {

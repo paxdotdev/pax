@@ -3392,9 +3392,9 @@ Thus, calls into that data structure that are made where
 they aren't valid.  
 
 Options:
- a.) Require a round-up reexport at root of crate (similar to macros)
-   - this allows the compiler to build an entry for each component type
-     in a crate, without requiring each type to be used
+ a.) Require a round-up reexport at root of crate (similar to existing `pax_*` macros)
+   - this allows the compiler to build a PropertiesCoproduct entry for each component type
+     in a crate, without requiring each type to be used in the actual compiled project
    - this might look like:
 ```
 #[pax_crate([
@@ -3406,6 +3406,8 @@ Options:
 ])]
 ```
 
+
+
  b.) Expose a cargo feature for each primitive in `pax-std-primitives`; 
      based on which primitives are used, encode those features into the generated cargo.toml for `pax-cartridge` (which is consuming `pax-std-primitives`)
      gate any `TypesCoproduct` or `PropertiesCoproduct` logic in `pax-std-primitives` with a feature-check for that primitive
@@ -3414,3 +3416,25 @@ Options:
  
 Final note: (b) has been penciled in as viable with `Text`; more work
 remains to finish-line the feature-gating labor / wiring
+
+
+ c.) unsafe cast?  perhaps we can unsafe-cast the PropertiesCoproduct 
+     into the internal data structure, without using `match` and an explicit PropertiesCoproduct::type
+     Though this introduces unsafety, it is presumably as bulletproof as the compiler logic that assembles it
+     (i.e. ensuring that a PropertiesCoproduct::Text is associated with a node IFF it is a Text node)
+     thus this unsafety could be mitigated with e.g. unit tests of the compiler.
+     
+     This approach might require using `#[repr(C)]` on the PropertiesCoproduct
+     and then manually reaching into memory to pluck out the datum from the disc. union
+
+ 
+
+### Mon Feb 6 2023
+
+Little details needing polish:
+ [ ] Support for None-sizing at the level where we assemble the RIL string for size.  Currently, the empty case is 0 pixels, whereas the empty case should be `None` (and thus fill screen)
+ [ ] Patch in RIL generation for control flow — `Stacker` should work flawlessly, incl. `Slot` and `Repeat`
+ [ ] Figure out how to fork process properly without requiring debug mode 
+ [ ] Any easy wins for compile times?
+ [ ] Refactor Color to accept percentage channel values; refactor Translate/etc. to support
+ [ ] Consider introducing x= and y= values, separately from `Transform` (probably a last-applied Translate, in practice)
