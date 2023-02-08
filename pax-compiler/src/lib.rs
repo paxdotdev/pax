@@ -12,7 +12,8 @@ use std::{fs, thread};
 use std::str::FromStr;
 use std::collections::HashSet;
 use itertools::Itertools;
-use std::os::unix::fs::PermissionsExt;
+
+// use std::os::unix::fs::PermissionsExt;
 
 use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Document, Item, value};
@@ -592,12 +593,18 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
             fs::write(pbx_path, fs::read_to_string(pbx_path).unwrap().replace("../../target", "../target"));
 
             //write +x permission to copied run-debuggable-mac-app
-            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o555))
+            // HACK: removed necessary call to enable wasm build
+            // fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o555))
         }
         RunTarget::Web => {
-            CHASSIS_WEB_DIR.extract(&chassis_specific_dir)
+            CHASSIS_WEB_DIR.extract(&chassis_specific_dir);
+
+            //write +x permission to copied run-debuggable-mac-app
+            // HACK: removed necessary call to enable wasm build
+            // fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-web").join("run-web.sh"), fs::Permissions::from_mode(0o555))
         }
     }
+    Ok(())
 
 
 
@@ -772,7 +779,10 @@ fn run_harness_with_chassis(pax_dir: &PathBuf, target: &RunTarget, harness: &Har
 
     let script = match harness {
         Harness::Development => {
-            "./run-debuggable-mac-app.sh"
+            match target {
+                RunTarget::Web => "./run-web.sh",
+                RunTarget::MacOS => "./run-debuggable-mac-app.sh",
+            }
         }
     };
 
@@ -791,14 +801,37 @@ fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) {
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
     let chassis_path = pax_dir.join("chassis").join({let s: & str = target.into(); s});
     //string together a shell call like the following:
-    let cargo_run_chassis_build = Command::new("cargo")
-        .current_dir(&chassis_path)
-        .arg("build")
-        .env("PAX_DIR", pax_dir)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("failed to build chassis");
+    let cargo_run_chassis_build = match target {
+        RunTarget::MacOS => {
+            Command::new("cargo")
+            .current_dir(&chassis_path)
+            .arg("build")
+            .env("PAX_DIR", pax_dir)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("failed to build chassis")
+        },
+        RunTarget::Web => {
+            Command::new("wasm-pack")
+            .current_dir(&chassis_path)
+                .arg("build")
+                .arg("--release")
+                .arg("-d")
+                .arg(pax_dir.join("chassis").join("Web").join("pax-dev-harness-web").join("dist").to_str().unwrap()) //--release -d pax-dev-harness-web/dist
+                .env("PAX_DIR", pax_dir)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .expect("failed to build chassis")
+        }
+    };
+
+
+
+
+
+
 
     let output = cargo_run_chassis_build
         .wait_with_output().unwrap();

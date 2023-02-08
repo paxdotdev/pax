@@ -438,6 +438,7 @@ _RIL means Rust Intermediate Language, which is the
 ## Milestone: Alpha Launch
 
 ```
+[ ] allow config of apple id / signing cert
 [ ] windows & linux dev envs
     [ ] web target only
     [ ] ensure e2e support & ergonomics
@@ -445,9 +446,13 @@ _RIL means Rust Intermediate Language, which is the
     [ ] consider design for async while doing this
     [ ] also requires hooking up `handler_registry` generation in cartridge
 [ ] support `pax build` for distributable binaries (alternative to `pax run`)
+[ ] round out functionality
+    [ ] Text APIs
+    [ ] Path primitive
+    [ ] Ellipse primitive
 [ ] usability
     [ ] solve pax-std feature-flagging / "roundup export" / raw coproduct memory access problem
-    [ ] Support for None-sizing at the level where we assemble the RIL string for size.  Currently, the empty case is 0 pixels, whereas the empty case should be `None` (and thus fill screen)
+    [ ] Support for None-sizing at the level where we assemble the RIL string for size.  Currently, the empty case is 0 pixels, whereas the empty case should be `None` (and thus fill container)
     [ ] Patch in RIL generation for control flow — `Stacker` should work flawlessly, incl. `Slot` and `Repeat`
     [ ] Figure out how to fork process properly without requiring debug mode 
     [ ] Any easy wins for compile times?
