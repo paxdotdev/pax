@@ -189,8 +189,7 @@ _RIL means Rust Intermediate Language, which is the
 ```
 
 
-
-## Milestone: Alpha
+## Milestone: Eureka
 
 ```
 [x] resolve the `Any` question
@@ -249,7 +248,7 @@ _RIL means Rust Intermediate Language, which is the
         [x] Debugging via LLDB
             [x] support debugging as necessary with macos dev-harness
             [x] IDE configs for each of: userland cartridge; core; std
-[ ] compiler + codegen
+[x] compiler + codegen
     [-] codegen Cargo.toml + solution for patching
     Note: decided to require manual Cargo setup for launch (solved by `generate` use-case)
         [x] manual
@@ -373,30 +372,27 @@ _RIL means Rust Intermediate Language, which is the
             -- coproduct of all types from PropertyDefinitions 
             [x] if necessary, supporting type parsing & inference work for TypesCoproduct
             [x] run through Tera template
-    [ ] generate cartridge definition
+    [x] generate cartridge definition
         [x] prelude / hard-coded template
         [x] imports via `pax_example::pax_reexports::*`
             -- or, fully resolve every import when using
-        [ ] consts
-            -- perhaps decorate with `#[pax_const]`; copy tokens? or refer to orig?  consider component/namespace reqs
-        [ ] component factories
-            [ ] `compute_properties_fn` generation
-            [ ] `handler_registry` generation
-            [ ] `instantiate_root_component` generation, based on `pax_root` declaration
-            [ ] `properties: PropertiesCoproduct::Stacker(Stacker {...})` generation
-            [ ] PropertiesLiteral inline embedding vs. PropertiesExpression vtable id embedding
+        [x] component factories
+            [x] `compute_properties_fn` generation
+            [x] `instantiate_root_component` generation, based on `pax_root` declaration
+            [x] `properties: PropertiesCoproduct::Stacker(Stacker {...})` generation
+            [x] PropertiesLiteral inline embedding vs. PropertiesExpression vtable id embedding
         [x] fully qualified resolution of expression symbols, e.g. `Transform2d`
             [-] Alternatively: don't support arbitrary imports yet:
                 [-] Support referring to `T` for any Property<T> (already parsed + resolvable)
                 [-] Import Transform2d::*, Color::*, and a few others via prelude
                     -- Note that each prelude import prohibits any other top-level symbols with colliding names; increases DX snafu likelihood via compiler errors
-        [ ] expression compilation
+        [x] expression compilation
             [x] fully qualified resolution of expression symbols, e.g. `Transform2d`
                 [-] Alternatively: don't support arbitrary imports yet:
                     [-] Support referring to `T` for any Property<T> (already parsed + resolvable)
                     [-] Import Transform2d::*, Color::*, and a few others via prelude
                         -- Note that each prelude import prohibits any other top-level symbols with colliding names; increases DX snafu likelihood via compiler errors
-            [ ] expression string => RIL generation
+            [x] expression string => RIL generation
                 [x] Pratt parser "hello world"
                 [x] operator definitions to combine `px`, `%`, and numerics with operators `+*/-%`
                 [x] grouping of units, e.g. `(5 + 10)%` 
@@ -407,28 +403,19 @@ _RIL means Rust Intermediate Language, which is the
                     [x] invocations for deriving values from scope
                     [x] type-matching
                     [x] Numeric type management, type inference / casting
-                [ ] QA
-                    [ ] fix: order / index of `vtable.insert` statements
+                [x] QA
+                    [x] fix: order / index of `vtable.insert` statements
                         -- ordering is jumbled
                         -- `3` is passed twice
-                    [ ] fix: import prelude types like Color::* so that `rgb()` and friends just work
-                    [ ] fix: duplicate invocation of `j` in `rgb(100 %, (100 - (j * 12.5)) %, (j * 12.5) %) `
-                    [ ] clean: remove "offset example" comment
-                    [ ] fix: tuples return usize(0) instead of Range()...
-                    [ ] fix: <<TODO>> for invocation of built-ins (either build built-in or refactor...)
-                    [ ] fix: need to fully qualify assc. fn. (helpers), e.g. a helper is currently called as `get_frame_size(` instead of `pax_reexports::...::get_frame_size()` 
-            [ ] Dependency tracking & dirty-watching
-                [ ] support imperative dirty-checking API too, e.g. for caching values during `prerender` (early, hacky Stacker use-case)
-                [ ] support built-ins (like $container, $input, etc.)
-                [ ] support "helpers", composable functions, which also serve the need of temporaries/`let`s
-                [-] address use-case of `Property<Vec<T>>`, inserting/changing an element without setting the whole
-                    entity.  Might want to offer a `get_mut` API (keep an eye on async / ownership concerns)
-                    -- In fact, probably address this on the heels of a Property -> channel refactor, as the implications for this
-                    intersection are significant  
-                    -- Solution for now: 1. store Vec<T> inside Property<Vec<T>> — .get_mut() the Vec, mutate, then set() the updated value -- treat the entire property as dirty when this `set` occurs
+                    [x] fix: import prelude types like Color::* so that `rgb()` and friends just work
+                    [x] fix: duplicate invocation of `j` in `rgb(100 %, (100 - (j * 12.5)) %, (j * 12.5) %) `
+                    [x] clean: remove "offset example" comment
+                    [x] fix: tuples return usize(0) instead of Range()...
+                    [x] fix: <<TODO>> for invocation of built-ins (either build built-in or refactor...)
+                    [x] fix: need to fully qualify assc. fn. (helpers), e.g. a helper is currently called as `get_frame_size(` instead of `pax_reexports::...::get_frame_size()` 
+            
     [x] generate / patch chassis cargo.toml
-    [ ] hook up `pax_on` and basic lifecycle events
-        [ ] consider design for async while doing this
+    
     [x] control flow
         [x] for
             [x] parse declaration `i`, `(i)`, `(i, elem)`
@@ -439,30 +426,58 @@ _RIL means Rust Intermediate Language, which is the
         [x] slot
             [x] parse contents as expression/literal, e.g. `slot(i)` or `slot(0)`
 [x] support inline (in-file) component def. (as alternative to `#[pax_file]` file path)
-[ ] e2e `pax run`
-[ ] e2e `pax build` for distributable binaries
-[ ] documentation pass
+[x] e2e `pax run`
+[x] publication to crates.io
+    [x] reserve pax-lang crate on crates.io
+    [x] update relative paths in all cargo.tomls, point to hard-coded published versions
+        - can include both a relative path & version number, a feature of Cargo for this exact use-case
+    [x] publish all crates
+```
+
+
+## Milestone: Alpha Launch
+
+```
+[ ] windows & linux dev envs
+    [ ] web target only
+    [ ] ensure e2e support & ergonomics
+[ ] hook up `pax_on` and basic lifecycle events
+    [ ] consider design for async while doing this
+    [ ] also requires hooking up `handler_registry` generation in cartridge
+[ ] support `pax build` for distributable binaries (alternative to `pax run`)
+[ ] usability
+    [ ] solve pax-std feature-flagging / "roundup export" / raw coproduct memory access problem
+    [ ] Support for None-sizing at the level where we assemble the RIL string for size.  Currently, the empty case is 0 pixels, whereas the empty case should be `None` (and thus fill screen)
+    [ ] Patch in RIL generation for control flow — `Stacker` should work flawlessly, incl. `Slot` and `Repeat`
+    [ ] Figure out how to fork process properly without requiring debug mode 
+    [ ] Any easy wins for compile times?
+        [ ] See if we can decouple pax-macro from pax-compiler — currently userland projects that rely on pax-macro thus rely on pax-compiler, which in turn has many dependencies and takes a long time to compile.
+    [ ] Refactor Color to accept percentage channel values; refactor Translate/etc. to support
+    [ ] Consider introducing x= and y= values, separately from `Transform` (probably a last-applied Translate, in practice)
+        [ ] consider revisiting transform API — keep current functionality, but also add translate=, rotate=, scale=
+            -- this gracefully handles the use-case where complex or nested transforms are required (just use `rotate=120` instead of `transform={Transform2D::rotate(120)}`)
+[ ] site
+    [ ] branding
+    [ ] content
+    [ ] demos
+[ ] docs pass
     [ ] clean up codebase; reduce warnings
     [ ] README pass & updates
+    [ ] update concepts, appendix articles
     [ ] Consider writing guides:
         [ ] Walk through building one or more examples (e.g. show reusable components, expressions, loops, lifecycle event handlers)
         [ ] Pipeline of compiling a project
         [ ] Writing a primitive
-[ ] publication to crates.io
-    [x] reserve pax-lang crate on crates.io
-    [x] update relative paths in all cargo.tomls, point to hard-coded published versions
-        - can include both a relative path & version number, a feature of Cargo for this exact use-case
-    [ ] publish all crates
-    [ ] e2e manual testing, fresh machines
-        [ ] macOS: macOS & Web
-        [ ] Windows: Web
-        [ ] Linux: Web
 ```
-
 
 ## Milestone: usability & functionality++
 
 ```
+[ ] New units: `rad` and `deg` for rotation
+[ ] @settings blocks
+[ ] consts
+    -- decorate with `#[pax_const]`; copy tokens? or refer to orig?  consider component/namespace reqs
+    -- consider also how to "coordinate between macros" 
 [ ] Support async
     [ ] `Property` => channels 'smart object'; disposable `mut self` => lifecycle methods (support async lifecycle event handlers)
     [ ] Pencil out error handling (userland)
@@ -3428,13 +3443,3 @@ remains to finish-line the feature-gating labor / wiring
      and then manually reaching into memory to pluck out the datum from the disc. union
 
  
-
-### Mon Feb 6 2023
-
-Little details needing polish:
- [ ] Support for None-sizing at the level where we assemble the RIL string for size.  Currently, the empty case is 0 pixels, whereas the empty case should be `None` (and thus fill screen)
- [ ] Patch in RIL generation for control flow — `Stacker` should work flawlessly, incl. `Slot` and `Repeat`
- [ ] Figure out how to fork process properly without requiring debug mode 
- [ ] Any easy wins for compile times?
- [ ] Refactor Color to accept percentage channel values; refactor Translate/etc. to support
- [ ] Consider introducing x= and y= values, separately from `Transform` (probably a last-applied Translate, in practice)
