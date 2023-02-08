@@ -1,6 +1,8 @@
 extern crate proc_macro;
 extern crate proc_macro2;
 
+mod templating;
+
 use std::fs;
 use std::str::FromStr;
 use std::collections::HashSet;
@@ -9,7 +11,10 @@ use std::env::current_dir;
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
 use quote::{quote, ToTokens};
-use pax_compiler::templating::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, TemplateArgsMacroPaxType, CompileTimePropertyDefinition};
+
+use templating::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, TemplateArgsMacroPaxType, CompileTimePropertyDefinition};
+
+use sailfish::TemplateOnce;
 
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument};
 
@@ -30,12 +35,12 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
     // Note that these tokens are already parsed by rustc, thus the symbols come with spaces injected in between tokens
     let primitive_instance_import_path= args.to_string().split(",").last().unwrap().to_string().replace(" ", "");
 
-    let output = pax_compiler::templating::press_template_macro_pax_primitive(TemplateArgsMacroPaxPrimitive{
+    let output = TemplateArgsMacroPaxPrimitive{
         pascal_identifier,
         original_tokens,
         compile_time_property_definitions,
         primitive_instance_import_path,
-    });
+    }.render_once().unwrap();
 
     TokenStream::from_str(&output).unwrap().into()
 }
@@ -49,10 +54,10 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
     let pascal_identifier = input.ident.to_string();
 
-    let output = pax_compiler::templating::press_template_macro_pax_type(TemplateArgsMacroPaxType{
+    let output = templating::TemplateArgsMacroPaxType{
         pascal_identifier,
         original_tokens,
-    });
+    }.render_once().unwrap();
 
     TokenStream::from_str(&output).unwrap().into()
 }
@@ -221,7 +226,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
 
     let raw_pax = args.to_string();
-    let template_dependencies = pax_compiler::parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+    let template_dependencies = hack_parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
     // std::time::SystemTime::now().elapsed().unwrap().subsec_nanos()
 
@@ -234,7 +239,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         "".to_string()
     };
 
-    let output = pax_compiler::templating::press_template_macro_pax(TemplateArgsMacroPax {
+    let output = TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
         original_tokens,
@@ -242,9 +247,40 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         template_dependencies,
         compile_time_property_definitions,
         reexports_snippet
-    });
+    }.render_once().unwrap();
 
     TokenStream::from_str(&output).unwrap().into()
+}
+
+
+/// Instead of depending on the entire compiler, here's a light-weight, hacky,
+/// and likely fragile implementation of "parse_pascal_identifiers"
+fn hack_parse_pascal_identifiers_from_component_definition_string(input: &str) -> Vec<String> {
+    //looking for "<" ~ ASCII_UPPER
+    //want to exclude expression contents —
+    // can traverse string linearly, looking for `< ~ PascalIdentifier`,
+    // ignoring anything between ={...}
+    let mut i = 0;
+    let chars = input.chars();
+    let len = input.len();
+    while i < len {
+
+        let c = chars.nth(i).unwrap();
+
+        if c == '<' {
+            let mut cc = 0;
+            loop {
+
+            }
+        }
+
+        i = i + 1;
+    }
+
+
+    vec![]
+
+
 }
 
 
