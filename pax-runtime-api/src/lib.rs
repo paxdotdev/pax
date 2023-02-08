@@ -144,8 +144,7 @@ pub enum Size {
     Percent(f64),
 }
 
-#[cfg(feature = "parser")]
-impl pax_compiler::reflection::PathQualifiable for Size {
+impl pax_message::reflection::PathQualifiable for Size {
     fn get_fully_qualified_path(atomic_self_type: &str) -> String {
         "pax::api::Size".to_string()
     }

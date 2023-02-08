@@ -1041,6 +1041,7 @@ dependencies = [
  "lazy_static",
  "mut_static",
  "pax-macro",
+ "pax-message",
  "uuid",
 ]
 

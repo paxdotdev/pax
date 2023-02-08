@@ -8,15 +8,14 @@ homepage = "https://pax.rs/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Example and development app for the Pax monorepo and compiler"
 
-
 [dependencies]
-pax = {package="pax-lang", path = "../pax-lang", features=["parser"], version="0.0.1"}
-pax-std = {path = "../pax-std", features=["parser"], version="0.0.1"}
-pax-compiler = {path = "../pax-compiler", optional = true, version="0.0.1"}
+pax = {package="pax-lang", path = "../pax-lang", version="0.0.1"}
+pax-std = {path = "../pax-std", version="0.0.1"}
 serde_json = {version = "1", optional = true}
+pax-compiler = {version = "0.0.1", path="../pax-compiler", optional=true}
 
 [features]
-parser = ["pax-std/parser", "dep:pax-compiler", "dep:serde_json"]
+parser = ["pax-std/parser", "pax/parser", "dep:serde_json", "dep:pax-compiler"]
 
 [[bin]]
 name = "parser"

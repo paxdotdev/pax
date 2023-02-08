@@ -16,11 +16,11 @@ primitives_crate = "./pax-std-primitives"
 [dependencies]
 piet = "0.6.0"
 kurbo = "0.9.0"
-pax = {package="pax-lang", path = "../pax-lang", features = ["parser"], version="0.0.1"}
+pax = {package="pax-lang", path = "../pax-lang", version="0.0.1"}
 pax-message = {path = "../pax-message", version="0.0.1"}
 lazy_static = "1.4.0"
 pax-compiler = {path="../pax-compiler", optional = true, version="0.0.1"}
 serde_json = {version="1", optional = true}
 
 [features]
-parser = ["dep:pax-compiler", "dep:serde_json"]
+parser = ["pax/parser", "dep:pax-compiler", "dep:serde_json"]

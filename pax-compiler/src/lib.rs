@@ -544,6 +544,9 @@ fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: 
     let target_str : &str = target.into();
     let relative_chassis_specific_target_dir = chassis_dir.join(target_str);
 
+    // clear any existing contents
+    fs::remove_dir_all(&relative_chassis_specific_target_dir);
+
     clone_target_chassis_to_dot_pax(&relative_chassis_specific_target_dir, target_str);
 
     //2. patch Cargo.toml

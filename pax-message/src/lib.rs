@@ -1,6 +1,7 @@
 #[macro_use]
 extern crate serde;
 
+pub mod reflection;
 
 use std::ffi::CString;
 use std::os::raw::c_char;
