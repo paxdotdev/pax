@@ -16,7 +16,4 @@ lazy_static = "1.4.0"
 mut_static = "5.0.0"
 pax-macro = {version="0.0.1", path = "../pax-macro"}
 uuid = {version = "0.8", features = ["v4", "wasm-bindgen"]}
-pax-compiler = {version="0.0.1", path="../pax-compiler", optional = true}
 
-[features]
-parser = ["dep:pax-compiler"]

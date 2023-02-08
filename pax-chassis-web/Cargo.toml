@@ -20,7 +20,7 @@ piet-web = "0.6.0"
 pax-core = { path = "../pax-core", version="0.0.1" }
 pax-properties-coproduct = {path = "../pax-example/.pax/properties-coproduct", version="0.0.1"}
 pax-cartridge = {path = "../pax-cartridge", version="0.0.1"}
-pax-runtime-api = {path = "../pax-runtime-api", version="0.0.1"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.0.1", features=[]}
 pax-message = {path = "../pax-message", version="0.0.1"}
 
 wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}

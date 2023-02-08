@@ -3,7 +3,7 @@ use pax::internal::{PropertyManifestable};
 #[cfg(feature = "parser")]
 use serde_json;
 
-{% if is_root %}
+<% if is_root { %>
 // For the root component only, a `main` is generated for the `parser` bin target.
 // This method bootstraps the parsing process, parsing not only the root component
 // but every component/primitive found in its extended render tree. This main method
@@ -13,7 +13,7 @@ pub fn main() {
 
     let mut ctx = pax_compiler::parsing::ParsingContext::default();
 
-    let (mut ctx, _) = {{pascal_identifier}}::parse_to_manifest(ctx);
+    let (mut ctx, _) = <%= pascal_identifier %>::parse_to_manifest(ctx);
 
     let manifest = pax_compiler::manifest::PaxManifest {
         components: ctx.component_definitions,
@@ -30,28 +30,28 @@ pub fn main() {
 //Parsing is excluded because the `pub mod pax_reexports` snippet can only be generated
 //after parsing.
 
-{{reexports_snippet}}
-{% else %}
+<%= reexports_snippet %>
+<% } else { %>
 //WARNING: No pax_reexports were introduced by macro because no PAX_DIR env
 //was specified for compiled project.
-{% endif %}
+<% } %>
 
 #[derive(Default)]
-{{original_tokens}}
+<%= original_tokens %>
 
 #[cfg(feature = "parser")]
-impl {{pascal_identifier}} {
+impl <%= pascal_identifier %> {
     // For all components, a parse_to_manifest is generated under the `parser` feature
     // so that the parser binary may traverse all dependencies.
     // This method is the recursive workhorse of parsing logic.
     // One way to look at this, in conjunction with the `parser` bin target: a solution to "coordinating between macros"
     pub fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, String) {
 
-        let source_id = "component::{{pascal_identifier}}";
+        let source_id = "component::<%= pascal_identifier %>";
         let mut property_definitions = vec![];
 
         // Populate `PropertyDefinition`s
-        {% for ctpd in compile_time_property_definitions %}
+        <% for ctpd in compile_time_property_definitions { %>
             //Here we bridge from pure static analysis into some dynamic analysis via `parser`, in order
             //to fully qualify module paths for scoped atomic types.
 
@@ -63,30 +63,30 @@ impl {{pascal_identifier}} {
 
             let mut fully_qualified_constituent_types = vec![];
             let mut dep_to_fqd_map = std::collections::HashMap::new();
-            {% for scoped_resolvable_type in ctpd.scoped_resolvable_types %}
-                let fqd = {{scoped_resolvable_type}}::get_fully_qualified_path("{{scoped_resolvable_type}}");
-                dep_to_fqd_map.insert("{{scoped_resolvable_type}}",fqd.clone());
+            <% for scoped_resolvable_type in ctpd.scoped_resolvable_types { %>
+                let fqd = <%= scoped_resolvable_type %>::get_fully_qualified_path("<%= scoped_resolvable_type %>");
+                dep_to_fqd_map.insert("<%= scoped_resolvable_type %>",fqd.clone());
 
                 fully_qualified_constituent_types.push(
                     fqd
                 );
-            {% endfor %}
+            <% } %>
 
-            let property_type_info =  pax_compiler::reflection::expand_fully_qualified_type_and_pascalize("{{ctpd.original_type}}", &dep_to_fqd_map);
+            let property_type_info =  pax_compiler::reflection::expand_fully_qualified_type_and_pascalize("<%= ctpd.original_type %>", &dep_to_fqd_map);
 
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
-                name: "{{ctpd.field_name}}".to_string(),
-                original_type: "{{ctpd.original_type}}".to_string(),
+                name: "<%= ctpd.field_name %>".to_string(),
+                original_type: "<%= ctpd.original_type %>".to_string(),
                 fully_qualified_constituent_types,
                 property_type_info,
                 iterable_type: None,
             });
-        {% endfor %}
+        <% } %>
         ctx.all_property_definitions.insert(source_id.to_string(), property_definitions);
 
         //FUTURE: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate/parse `raw_pax` before templating.
 
-        const raw_pax: &str = r#####"{{raw_pax}}
+        const raw_pax: &str = r#####"<%= raw_pax %>
 "#####;
         match ctx.visited_source_ids.get(&source_id as &str) {
 
@@ -96,12 +96,12 @@ impl {{pascal_identifier}} {
                 //parsed from the template
                 ctx.visited_source_ids.insert(source_id.clone().into());
 
-                {% for dep in template_dependencies %}
-                let (mut ctx, component_id) = {{dep}}::parse_to_manifest(ctx);
-                ctx.template_map.insert("{{dep}}".into(), component_id);
-                {% endfor %}
+                <% for dep in template_dependencies { %>
+                let (mut ctx, component_id) = <%= dep %>::parse_to_manifest(ctx);
+                ctx.template_map.insert("<%= dep %>".into(), component_id);
+                <% } %>
 
-                let PASCAL_IDENTIFIER = "{{pascal_identifier}}";
+                let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";
 
                 let template_map= ctx.template_map.clone();
 
@@ -110,7 +110,7 @@ impl {{pascal_identifier}} {
                         ctx,
                         &raw_pax,
                         PASCAL_IDENTIFIER,
-                        {{is_root}},
+                        <%= is_root %>,
                         template_map,
                         &source_id,
                         module_path!(),

@@ -1005,6 +1005,8 @@ dependencies = [
 name = "pax-macro"
 version = "0.0.1"
 dependencies = [
+ "pest",
+ "pest_derive",
  "proc-macro2",
  "quote",
  "sailfish",
@@ -1038,7 +1040,6 @@ dependencies = [
  "kurbo",
  "lazy_static",
  "mut_static",
- "pax-compiler",
  "pax-macro",
  "uuid",
 ]

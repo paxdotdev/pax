@@ -13,7 +13,7 @@ description = "Root import entry-point for using Pax in a Rust program"
 [dependencies]
 pax-macro = {path="../pax-macro", version="0.0.1"}
 pax-message = {path="../pax-message", version="0.0.1"}
-pax-runtime-api = {path="../pax-runtime-api", features=["parser"], version="0.0.1"}
+pax-runtime-api = {path="../pax-runtime-api", version="0.0.1"}
 pax-compiler = {path="../pax-compiler", optional=true, version="0.0.1"}
 
 [features]

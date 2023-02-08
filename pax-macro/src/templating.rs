@@ -12,9 +12,8 @@ pub struct CompileTimePropertyDefinition {
     pub original_type: String,
 }
 
-
 #[derive(TemplateOnce)]
-#[template(path = "../templates/pax_primitive.stpl")]
+#[template(path = "../templates/pax_primitive.stpl", escape=false)]
 pub struct TemplateArgsMacroPaxPrimitive {
     pub pascal_identifier: String,
     pub original_tokens: String,
@@ -25,14 +24,14 @@ pub struct TemplateArgsMacroPaxPrimitive {
 }
 
 #[derive(TemplateOnce)]
-#[template(path = "../templates/pax_type.stpl")]
+#[template(path = "../templates/pax_type.stpl", escape=false)]
 pub struct TemplateArgsMacroPaxType {
     pub pascal_identifier: String,
     pub original_tokens: String,
 }
 
 #[derive(TemplateOnce)]
-#[template(path = "../templates/pax.stpl")]
+#[template(path = "../templates/pax.stpl", escape=false)]
 pub struct TemplateArgsMacroPax {
     pub raw_pax: String,
     pub pascal_identifier: String,

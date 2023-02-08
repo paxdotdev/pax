@@ -15,8 +15,6 @@ messagepack = ["serde"]
 cbor = ["serde"]
 
 [lib]
-name = "macro-parser"
-
 
 [dependencies]
 pax-message = {version = "0.0.1", path="../pax-message"}

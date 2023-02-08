@@ -1,7 +1,11 @@
 extern crate proc_macro;
 extern crate proc_macro2;
 
+
+
+
 mod templating;
+mod parsing;
 
 use std::fs;
 use std::str::FromStr;
@@ -40,7 +44,7 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
         original_tokens,
         compile_time_property_definitions,
         primitive_instance_import_path,
-    }.render_once().unwrap();
+    }.render_once().unwrap().to_string();
 
     TokenStream::from_str(&output).unwrap().into()
 }
@@ -55,9 +59,11 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
     let pascal_identifier = input.ident.to_string();
 
     let output = templating::TemplateArgsMacroPaxType{
-        pascal_identifier,
+        pascal_identifier: pascal_identifier.clone(),
         original_tokens,
-    }.render_once().unwrap();
+    }.render_once().unwrap().to_string();
+    
+    fs::write(format!("/Users/zack/debug/out-{}.txt", &pascal_identifier), &output);
 
     TokenStream::from_str(&output).unwrap().into()
 }
@@ -226,7 +232,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
 
     let raw_pax = args.to_string();
-    let template_dependencies = hack_parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+    let template_dependencies = parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
     // std::time::SystemTime::now().elapsed().unwrap().subsec_nanos()
 
@@ -247,42 +253,10 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         template_dependencies,
         compile_time_property_definitions,
         reexports_snippet
-    }.render_once().unwrap();
+    }.render_once().unwrap().to_string();
 
     TokenStream::from_str(&output).unwrap().into()
 }
-
-
-/// Instead of depending on the entire compiler, here's a light-weight, hacky,
-/// and likely fragile implementation of "parse_pascal_identifiers"
-fn hack_parse_pascal_identifiers_from_component_definition_string(input: &str) -> Vec<String> {
-    //looking for "<" ~ ASCII_UPPER
-    //want to exclude expression contents —
-    // can traverse string linearly, looking for `< ~ PascalIdentifier`,
-    // ignoring anything between ={...}
-    let mut i = 0;
-    let chars = input.chars();
-    let len = input.len();
-    while i < len {
-
-        let c = chars.nth(i).unwrap();
-
-        if c == '<' {
-            let mut cc = 0;
-            loop {
-
-            }
-        }
-
-        i = i + 1;
-    }
-
-
-    vec![]
-
-
-}
-
 
 #[proc_macro_attribute]
 pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {

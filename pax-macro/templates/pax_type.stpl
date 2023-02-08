@@ -1,8 +1,8 @@
 
-{{original_tokens}}
+<%= original_tokens %>
 
 #[cfg(feature = "parser")]
-impl pax_compiler::reflection::PathQualifiable for {{pascal_identifier}} {
+impl pax_compiler::reflection::PathQualifiable for <%= pascal_identifier %> {
     fn get_fully_qualified_path(atomic_self_type: &str) -> String {
         //this type may come in qualified, e.g. with `crate::some::mod::some::Type`
         //in this case, we want only `Type`.  This is a crude heuristic and may need to be revisited.

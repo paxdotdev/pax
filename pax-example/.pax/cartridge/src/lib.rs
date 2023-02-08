@@ -55,8 +55,26 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color :: rgb(0, 1, 0) 
+    //Color :: rgb(1, 0, 0) 
     vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::rgb((1.into()),(0.into()),(0.into()),)
+        )
+    }));
+    
+    //Transform2D :: rotate(1.75) * Transform2D :: translate(150, 150)
+    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::Transform2D(
+            (Transform2D::rotate((1.75.into()),)*Transform2D::translate((150.into()),(150.into()),))
+        )
+    }));
+    
+    //Color :: rgb(0, 1, 0) 
+    vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
@@ -65,7 +83,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Transform2D :: rotate(2.25) * Transform2D :: translate(300, 100)
-    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::Transform2D(
@@ -74,7 +92,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Color :: rgb(0, 0, 1) 
-    vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(6, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
@@ -83,7 +101,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Transform2D :: rotate(3.25) * Transform2D :: translate(500, 550)
-    vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::Transform2D(
@@ -92,7 +110,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Color :: rgb(0, 0, 0) 
-    vtable.insert(6, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(8, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
@@ -216,7 +234,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyExpression::new(5))),
     size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(75.into())))]
+        [Box::new(PropertyLiteral::new(Size::Pixels(150.into()))),Box::new(PropertyLiteral::new(Size::Pixels(150.into())))]
     ))),
     children: Some(Rc::new(RefCell::new(vec![
         
@@ -238,6 +256,34 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
             stroke: Box::new( PropertyLiteral::new(Default::default()) ),
         
             fill: Box::new( PropertyExpression::new(6) ),
+        
+    }),
+    handler_registry: None,
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(7))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(75.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None, //TODO! handle
+    slot_index: None, //TODO! handle
+    repeat_source_expression: None, //TODO! handle
+    conditional_boolean_expression: None, //TODO! handle
+    compute_properties_fn: None,
+})
+
+,
+
+pax_std_primitives::rectangle::RectangleInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::Rectangle( Rectangle {
+        
+            stroke: Box::new( PropertyLiteral::new(Default::default()) ),
+        
+            fill: Box::new( PropertyExpression::new(8) ),
         
     }),
     handler_registry: None,

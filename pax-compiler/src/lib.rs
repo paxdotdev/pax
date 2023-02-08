@@ -13,7 +13,7 @@ use std::str::FromStr;
 use std::collections::HashSet;
 use itertools::Itertools;
 
-// use std::os::unix::fs::PermissionsExt;
+use std::os::unix::fs::PermissionsExt;
 
 use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Document, Item, value};
@@ -593,15 +593,13 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
             fs::write(pbx_path, fs::read_to_string(pbx_path).unwrap().replace("../../target", "../target"));
 
             //write +x permission to copied run-debuggable-mac-app
-            // HACK: removed necessary call to enable wasm build
-            // fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o555))
+            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o555));
         }
         RunTarget::Web => {
             CHASSIS_WEB_DIR.extract(&chassis_specific_dir);
 
             //write +x permission to copied run-debuggable-mac-app
-            // HACK: removed necessary call to enable wasm build
-            // fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-web").join("run-web.sh"), fs::Permissions::from_mode(0o555))
+            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-web").join("run-web.sh"), fs::Permissions::from_mode(0o555));
         }
     }
     Ok(())
