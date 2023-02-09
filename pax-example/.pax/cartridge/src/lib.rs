@@ -73,12 +73,12 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color :: rgb(0, 1, 0) 
+    //Color :: rgb(1, 1, 0) 
     vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((0.into()),(1.into()),(0.into()),)
+            Color::rgb((1.into()),(1.into()),(0.into()),)
         )
     }));
     
@@ -91,12 +91,12 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color :: rgb(0, 0, 1) 
+    //Color :: rgb(0, 1, 1) 
     vtable.insert(6, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((0.into()),(0.into()),(1.into()),)
+            Color::rgb((0.into()),(1.into()),(1.into()),)
         )
     }));
     

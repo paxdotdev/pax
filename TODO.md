@@ -454,9 +454,12 @@ _RIL means Rust Intermediate Language, which is the
     [ ] solve pax-std feature-flagging / "roundup export" / raw coproduct memory access problem
     [ ] Support for None-sizing at the level where we assemble the RIL string for size.  Currently, the empty case is 0 pixels, whereas the empty case should be `None` (and thus fill container)
     [ ] Patch in RIL generation for control flow — `Stacker` should work flawlessly, incl. `Slot` and `Repeat`
-    [ ] Figure out how to fork process properly without requiring debug mode 
+    [ ] Figure out how to fork process properly in macOS without requiring debug mode
+    [x] Fix native bindings / wasm compile issue (extricate pax-compiler) 
     [ ] Any easy wins for compile times?
-        [ ] See if we can decouple pax-macro from pax-compiler — currently userland projects that rely on pax-macro thus rely on pax-compiler, which in turn has many dependencies and takes a long time to compile.
+        [x] See if we can decouple pax-macro from pax-compiler — currently userland projects that rely on pax-macro thus rely on pax-compiler, which in turn has many dependencies and takes a long time to compile.
+        [ ] pre-npm-install for web builds?
+        [ ] package.json and Cargo.toml dependency cleaning; austerity measures 
     [ ] Refactor Color to accept percentage channel values; refactor Translate/etc. to support
     [ ] Consider introducing x= and y= values, separately from `Transform` (probably a last-applied Translate, in practice)
         [ ] consider revisiting transform API — keep current functionality, but also add translate=, rotate=, scale=
