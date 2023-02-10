@@ -4,8 +4,8 @@ use pax_std::primitives::{Text, Rectangle, Group};
 use pax_std::components::{Stacker};
 
 #[pax_app(
-    <Group>
-        <Text text="Hello" />
+    <Group transform={Transform2D::scale(0.5, 0.5) * Transform2D::rotate(1.0)}>
+        <Text text="Hello" fill={Color::rgb(1,1,1)} />
         <Rectangle fill={Color::rgb(1, 0, 0)} width=50px height=50px
             transform={Transform2D::rotate(1.25) * Transform2D::translate(50,50)} />
         <Rectangle fill={Color::rgb(1, 0, 0)} width=150px height=150px
@@ -18,4 +18,6 @@ use pax_std::components::{Stacker};
     </Group>
 )]
 pub struct HelloRGB {}
+
+impl HelloRGB {}
 

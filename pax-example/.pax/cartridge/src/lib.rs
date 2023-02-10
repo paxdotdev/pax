@@ -37,21 +37,21 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     
-    //Color :: rgb(1, 0, 0) 
+    //Transform2D :: scale(0.5, 0.5) * Transform2D :: rotate(1.0)
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((1.into()),(0.into()),(0.into()),)
+        TypesCoproduct::Transform2D(
+            (Transform2D::scale((0.5.into()),(0.5.into()),)*Transform2D::rotate((1.0.into()),))
         )
     }));
     
-    //Transform2D :: rotate(1.25) * Transform2D :: translate(50, 50)
+    //Color :: rgb(1, 1, 1) 
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
-        TypesCoproduct::Transform2D(
-            (Transform2D::rotate((1.25.into()),)*Transform2D::translate((50.into()),(50.into()),))
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::rgb((1.into()),(1.into()),(1.into()),)
         )
     }));
     
@@ -64,8 +64,26 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D :: rotate(1.75) * Transform2D :: translate(150, 150)
+    //Transform2D :: rotate(1.25) * Transform2D :: translate(50, 50)
     vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::Transform2D(
+            (Transform2D::rotate((1.25.into()),)*Transform2D::translate((50.into()),(50.into()),))
+        )
+    }));
+    
+    //Color :: rgb(1, 0, 0) 
+    vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::rgb((1.into()),(0.into()),(0.into()),)
+        )
+    }));
+    
+    //Transform2D :: rotate(1.75) * Transform2D :: translate(150, 150)
+    vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::Transform2D(
@@ -74,7 +92,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Color :: rgb(1, 1, 0) 
-    vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(6, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
@@ -83,7 +101,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Transform2D :: rotate(2.25) * Transform2D :: translate(300, 100)
-    vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::Transform2D(
@@ -92,7 +110,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Color :: rgb(0, 1, 1) 
-    vtable.insert(6, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(8, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
@@ -101,7 +119,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Transform2D :: rotate(3.25) * Transform2D :: translate(500, 550)
-    vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(9, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::Transform2D(
@@ -110,7 +128,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Color :: rgb(0, 0, 0) 
-    vtable.insert(8, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(10, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
@@ -143,7 +161,7 @@ pax_std_primitives::text::TextInstance::instantiate(
         
             font: Box::new( PropertyLiteral::new(Default::default()) ),
         
-            fill: Box::new( PropertyLiteral::new(Default::default()) ),
+            fill: Box::new( PropertyExpression::new(1) ),
         
     }),
     handler_registry: None,
@@ -171,34 +189,6 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
         
             stroke: Box::new( PropertyLiteral::new(Default::default()) ),
         
-            fill: Box::new( PropertyExpression::new(0) ),
-        
-    }),
-    handler_registry: None,
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(1))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(50.into()))),Box::new(PropertyLiteral::new(Size::Pixels(50.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None, //TODO! handle
-    slot_index: None, //TODO! handle
-    repeat_source_expression: None, //TODO! handle
-    conditional_boolean_expression: None, //TODO! handle
-    compute_properties_fn: None,
-})
-
-,
-
-pax_std_primitives::rectangle::RectangleInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::Rectangle( Rectangle {
-        
-            stroke: Box::new( PropertyLiteral::new(Default::default()) ),
-        
             fill: Box::new( PropertyExpression::new(2) ),
         
     }),
@@ -206,7 +196,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyExpression::new(3))),
     size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(150.into()))),Box::new(PropertyLiteral::new(Size::Pixels(150.into())))]
+        [Box::new(PropertyLiteral::new(Size::Pixels(50.into()))),Box::new(PropertyLiteral::new(Size::Pixels(50.into())))]
     ))),
     children: Some(Rc::new(RefCell::new(vec![
         
@@ -262,7 +252,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyExpression::new(7))),
     size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(75.into())))]
+        [Box::new(PropertyLiteral::new(Size::Pixels(150.into()))),Box::new(PropertyLiteral::new(Size::Pixels(150.into())))]
     ))),
     children: Some(Rc::new(RefCell::new(vec![
         
@@ -284,6 +274,34 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
             stroke: Box::new( PropertyLiteral::new(Default::default()) ),
         
             fill: Box::new( PropertyExpression::new(8) ),
+        
+    }),
+    handler_registry: None,
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(9))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(75.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None, //TODO! handle
+    slot_index: None, //TODO! handle
+    repeat_source_expression: None, //TODO! handle
+    conditional_boolean_expression: None, //TODO! handle
+    compute_properties_fn: None,
+})
+
+,
+
+pax_std_primitives::rectangle::RectangleInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::Rectangle( Rectangle {
+        
+            stroke: Box::new( PropertyLiteral::new(Default::default()) ),
+        
+            fill: Box::new( PropertyExpression::new(10) ),
         
     }),
     handler_registry: None,

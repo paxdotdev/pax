@@ -37,14 +37,14 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
         // #[cfg(feature="Text")]
         let properties = if let PropertiesCoproduct::Text(p) = args.properties { p } else { unreachable!("Wrong properties type") };
-        // #[cfg(not(feature="Text"))]
-        // let properties = Text {
-        //     content: Default::default(),
-        //     font: Default::default(),
-        //     fill: Default::default(),
-        // };
-        //
-        //
+         // #[cfg(not(feature="Text"))]
+         // let properties = Text {
+         //     text: Default::default(),
+         //     font: Default::default(),
+         //     fill: Default::default(),
+         // };
+
+
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(TextInstance {

@@ -359,6 +359,8 @@ fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) 
     let nodes = rngc.active_component_definition.template.as_ref().expect("tried to generate render nodes literal for component, but template was undefined");
     let root_node = nodes[0].clone();
 
+
+    // todo!("must include root_node in generated output");
     let children_literal : Vec<String> = root_node.child_ids.iter().map(|child_id|{
         let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
         recurse_generate_render_nodes_literal(rngc, active_tnd)

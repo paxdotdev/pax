@@ -439,6 +439,7 @@ _RIL means Rust Intermediate Language, which is the
 
 ```
 [ ] allow config of apple id / signing cert
+    [ ] also: turn off codesigning for dev harness
 [ ] windows & linux dev envs
     [ ] web target only
     [ ] ensure e2e support & ergonomics
@@ -447,14 +448,16 @@ _RIL means Rust Intermediate Language, which is the
     [ ] also requires hooking up `handler_registry` generation in cartridge
 [ ] support `pax build` for distributable binaries (alternative to `pax run`)
 [ ] round out functionality
-    [ ] Text APIs
+    [ ] Text APIs (and fix macOS regression)
     [ ] Path primitive
     [ ] Ellipse primitive
 [ ] usability
+    [ ] figure out spurious stroke / outlining on macOS (clear Piet context?)
     [ ] solve pax-std feature-flagging / "roundup export" / raw coproduct memory access problem
+        [ ] either `pax_primitive_exports` at crate root for external crates — or raw memory access into coproduct
     [ ] Support for None-sizing at the level where we assemble the RIL string for size.  Currently, the empty case is 0 pixels, whereas the empty case should be `None` (and thus fill container)
     [ ] Patch in RIL generation for control flow — `Stacker` should work flawlessly, incl. `Slot` and `Repeat`
-    [ ] Figure out how to fork process properly in macOS without requiring debug mode
+    [x] Figure out how to fork process properly in macOS without requiring debug mode
     [x] Fix native bindings / wasm compile issue (extricate pax-compiler) 
     [ ] Any easy wins for compile times?
         [x] See if we can decouple pax-macro from pax-compiler — currently userland projects that rely on pax-macro thus rely on pax-compiler, which in turn has many dependencies and takes a long time to compile.
