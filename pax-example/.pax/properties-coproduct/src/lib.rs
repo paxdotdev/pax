@@ -6,7 +6,7 @@ pub enum PropertiesCoproduct {
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     
-    Group(pax_example::pax_reexports::pax_std::primitives::Group),
+    Frame(pax_example::pax_reexports::pax_std::primitives::Frame),
     
     HelloRGB(pax_example::pax_reexports::HelloRGB),
     

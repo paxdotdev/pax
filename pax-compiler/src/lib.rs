@@ -9,6 +9,7 @@ pub mod expressions;
 use manifest::PaxManifest;
 
 use std::{fs, thread};
+use std::borrow::Borrow;
 use std::str::FromStr;
 use std::collections::HashSet;
 use itertools::Itertools;
@@ -355,18 +356,10 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
 
 fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) -> String {
-
     let nodes = rngc.active_component_definition.template.as_ref().expect("tried to generate render nodes literal for component, but template was undefined");
-    let root_node = nodes[0].clone();
+    let root_node = nodes[0].borrow();
 
-
-    // todo!("must include root_node in generated output");
-    let children_literal : Vec<String> = root_node.child_ids.iter().map(|child_id|{
-        let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
-        recurse_generate_render_nodes_literal(rngc, active_tnd)
-    }).collect();
-
-    children_literal.join(",")
+    recurse_generate_render_nodes_literal(rngc, root_node)
 }
 
 fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tnd: &TemplateNodeDefinition) -> String {

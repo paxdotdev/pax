@@ -118,12 +118,16 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             &format!("Property `{}` not found on component `{}`", &attr.0, &ctx.component_def.pascal_identifier)
                         ).property_type_info.pascalized_fully_qualified_type).clone()
                     };
+
+                    let mut whitespace_removed_input = input.clone();
+                    whitespace_removed_input.retain(|c| !c.is_whitespace());
+
                     ctx.expression_specs.insert(id, ExpressionSpec {
                         id,
                         pascalized_return_type,
                         invocations,
                         output_statement,
-                        input_statement: input.clone(),
+                        input_statement: whitespace_removed_input,
                     });
 
                     //Write this id back to the manifest, for downstream use by RIL component tree generator

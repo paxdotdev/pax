@@ -438,8 +438,12 @@ _RIL means Rust Intermediate Language, which is the
 ## Milestone: Alpha Launch
 
 ```
-[ ] allow config of apple id / signing cert
-    [ ] also: turn off codesigning for dev harness
+[ ] Production harness
+    [ ] macos
+        [ ] allow config of apple id / signing cert
+    [ ] web
+        [ ] decide if necessary; maybe same as dev harness for now
+[x] turn off codesigning for dev harness
 [ ] windows & linux dev envs
     [ ] web target only
     [ ] ensure e2e support & ergonomics

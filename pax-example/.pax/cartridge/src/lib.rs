@@ -23,7 +23,7 @@ use pax_example::pax_reexports::std::string::String;
 
 use pax_example::pax_reexports::HelloRGB;
 
-use pax_example::pax_reexports::pax_std::primitives::Group;
+use pax_example::pax_reexports::pax_std::primitives::Frame;
 
 use pax_example::pax_reexports::pax_std::primitives::Rectangle;
 
@@ -37,16 +37,16 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     
-    //Transform2D :: scale(0.5, 0.5) * Transform2D :: rotate(1.0)
+    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(0.08)
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         TypesCoproduct::Transform2D(
-            (Transform2D::scale((0.5.into()),(0.5.into()),)*Transform2D::rotate((1.0.into()),))
+            ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),))*Transform2D::rotate((0.08.into()),))
         )
     }));
     
-    //Color :: rgb(1, 1, 1) 
+    //Color::rgb(1,1,1)
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
@@ -55,7 +55,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color :: rgb(1, 0, 0) 
+    //Color::rgb(1,0,0)
     vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
@@ -64,7 +64,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D :: rotate(1.25) * Transform2D :: translate(50, 50)
+    //Transform2D::rotate(1.25)*Transform2D::translate(50,50)
     vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
@@ -73,7 +73,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color :: rgb(1, 0, 0) 
+    //Color::rgb(1,0,0)
     vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
@@ -82,7 +82,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D :: rotate(1.75) * Transform2D :: translate(150, 150)
+    //Transform2D::rotate(1.75)*Transform2D::translate(150,150)
     vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
@@ -91,7 +91,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color :: rgb(1, 1, 0) 
+    //Color::rgb(1,1,0)
     vtable.insert(6, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
@@ -100,7 +100,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D :: rotate(2.25) * Transform2D :: translate(300, 100)
+    //Transform2D::rotate(2.25)*Transform2D::translate(300,100)
     vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
@@ -109,7 +109,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color :: rgb(0, 1, 1) 
+    //Color::rgb(0,1,1)
     vtable.insert(8, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
@@ -118,7 +118,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D :: rotate(3.25) * Transform2D :: translate(500, 550)
+    //Transform2D::rotate(3.25)*Transform2D::translate(500,550)
     vtable.insert(9, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
@@ -127,7 +127,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color :: rgb(0, 0, 0) 
+    //Color::rgb(0,0,0)
     vtable.insert(10, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
@@ -152,6 +152,21 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
         size: None,
         children: None,
         component_template: Some(Rc::new(RefCell::new(vec![
+
+pax_std_primitives::frame::FrameInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::Frame( Frame {
+        
+    }),
+    handler_registry: None,
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(0))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+            
 
 pax_std_primitives::text::TextInstance::instantiate(
  InstantiationArgs {
@@ -182,6 +197,8 @@ pax_std_primitives::text::TextInstance::instantiate(
 })
 
 ,
+        
+            
 
 pax_std_primitives::rectangle::RectangleInstance::instantiate(
  InstantiationArgs {
@@ -210,6 +227,8 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
 })
 
 ,
+        
+            
 
 pax_std_primitives::rectangle::RectangleInstance::instantiate(
  InstantiationArgs {
@@ -238,6 +257,8 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
 })
 
 ,
+        
+            
 
 pax_std_primitives::rectangle::RectangleInstance::instantiate(
  InstantiationArgs {
@@ -266,6 +287,8 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
 })
 
 ,
+        
+            
 
 pax_std_primitives::rectangle::RectangleInstance::instantiate(
  InstantiationArgs {
@@ -294,6 +317,8 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
 })
 
 ,
+        
+            
 
 pax_std_primitives::rectangle::RectangleInstance::instantiate(
  InstantiationArgs {
@@ -311,6 +336,17 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
         [Box::new(PropertyLiteral::new(Size::Percent(100.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
     ))),
     children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None, //TODO! handle
+    slot_index: None, //TODO! handle
+    repeat_source_expression: None, //TODO! handle
+    conditional_boolean_expression: None, //TODO! handle
+    compute_properties_fn: None,
+})
+
+,
         
     ]))),
     component_template: None,
