@@ -4,11 +4,11 @@
 {% else %}
 instantiate_{{ snake_case_component_id }}(
 {% endif %} InstantiationArgs {
-    properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{component_properties_struct}} {
+    properties: PropertiesCoproduct::{{ properties_coproduct_variant }}{% if properties_coproduct_variant != "None" %}( {{component_properties_struct}} {
         {% for property in properties %}
             {{ property.0 }}: Box::new( {{ property.1 }} ),
         {% endfor %}
-    }),
+    }){% endif %},
     handler_registry: None,
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new({{ transform_ril }})),
@@ -21,10 +21,10 @@ instantiate_{{ snake_case_component_id }}(
         {% endfor %}
     ]))),
     component_template: None,
-    scroller_args: None, //TODO! handle
-    slot_index: None, //TODO! handle
-    repeat_source_expression: None, //TODO! handle
-    conditional_boolean_expression: None, //TODO! handle
+    scroller_args: None,
+    slot_index: {{slot_index_literal}},
+    repeat_source_expression: {{repeat_source_expression_literal}},
+    conditional_boolean_expression: {{conditional_boolean_expression_literal}},
     compute_properties_fn: None,
 })
 

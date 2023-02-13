@@ -96,6 +96,8 @@ literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
 literal_enum_value = {pascal_identifier ~ ("::" ~ pascal_identifier)* ~ ("("~literal_enum_args_list~")")?}
 literal_enum_args_list = {literal_value ~ ("," ~ literal_value)*}
 
+literal_tuple_access = {identifier ~ "." ~ literal_number_integer}
+
 
 /// BEGIN EXPRESSIONS (PAXEL)
 
@@ -182,7 +184,7 @@ xo_range = { (xo_literal | xo_symbol) ~ (xo_range_inclusive | xo_range_exclusive
     xo_range_exclusive = @{".."}
     xo_range_inclusive = @{"..."}
 
-xo_literal = {literal_enum_value  | literal_number_with_unit | literal_number  | string | literal_tuple }
+xo_literal = {literal_enum_value | literal_tuple_access | literal_number_with_unit | literal_number  | string | literal_tuple }
 
 //objects may recurse into arbitrary expressions for any value -- consider the `key_2` in:
 // `some_prop={ TypedReturn {key_0: 0, key_1: "one", key_2: 1.0 + 1.0} }`

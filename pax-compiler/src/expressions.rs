@@ -142,7 +142,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
         // Definitions are stored modally as `Option<T>`s in ControlFlowAttributeValueDefinition,
         // so: iff `repeat_source_definition` is present, then we can assume this is a Repeat element
-        if let Some(repeat_source_definition) = &cfa.repeat_source_definition {
+        if let Some(ref mut repeat_source_definition) = &mut cfa.repeat_source_definition {
             // Examples:
             // for (elem, i) in self.elements
             //  - must be a symbolic identifier, such as `elements` or `self.elements`
@@ -151,6 +151,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             //  - may use an exclusive (..) or inclusive (...) range operator
 
             let id = ctx.uid_gen.next().unwrap();
+            repeat_source_definition.range_expression_vtable_id = Some(id);
 
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
@@ -184,7 +185,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     ctx.scope_stack.push(HashMap::from([
                         //`elem` property (by specified name)
                         (elem_id.clone(),
-                        property_definition)
+                        property_definition.clone())
                     ]));
                 },
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
@@ -221,7 +222,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             // we need some way to infer the return type, statically.  This may mean requiring
             // an explicit type declaration by the end-user, or perhaps we can hack something
             // with further compiletime "reflection" magic
-            ctx.expression_specs.insert(ctx.uid_gen.next().unwrap(), ExpressionSpec {
+            ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
                 pascalized_return_type: return_type.pascalized_fully_qualified_type,
                 invocations,
@@ -234,14 +235,36 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let (output_statement, invocations) = compile_paxel_to_ril(&condition_expression_paxel, &ctx);
             let id = ctx.uid_gen.next().unwrap();
 
-            ctx.expression_specs.insert(ctx.uid_gen.next().unwrap(), ExpressionSpec {
+            cfa.condition_expression_vtable_id = Some(id);
+
+            ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
                 pascalized_return_type: "bool".to_string(),
                 invocations,
                 output_statement,
                 input_statement: condition_expression_paxel.clone(),
             });
+        } else if let Some(slot_index_expression_paxel) = &cfa.slot_index_expression_paxel {
+            //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
+            let (output_statement, invocations) = compile_paxel_to_ril(&slot_index_expression_paxel, &ctx);
+            let id = ctx.uid_gen.next().unwrap();
+
+            cfa.slot_index_expression_vtable_id = Some(id);
+
+            ctx.expression_specs.insert(id, ExpressionSpec {
+                id,
+                pascalized_return_type: "usize".to_string(),
+                invocations,
+                output_statement,
+                input_statement: slot_index_expression_paxel.clone(),
+            });
+        } else {
+            unreachable!("encountered invalid control flow definition")
         }
+
+        // Write back our modified control_flow_attributes, which now contain vtable lookup ids
+        std::mem::swap(&mut cloned_control_flow_attributes, &mut ctx.active_node_def.control_flow_attributes);
+
     }
 
     std::mem::swap(&mut cloned_inline_attributes, &mut ctx.active_node_def.inline_attributes);

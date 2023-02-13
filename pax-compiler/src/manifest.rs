@@ -208,7 +208,9 @@ pub enum ControlFlowRepeatPredicateDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowAttributeValueDefinition {
     pub condition_expression_paxel: Option<String>,
+    pub condition_expression_vtable_id: Option<usize>,
     pub slot_index_expression_paxel: Option<String>,
+    pub slot_index_expression_vtable_id: Option<usize>,
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
     pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>
 }
@@ -216,6 +218,7 @@ pub struct ControlFlowAttributeValueDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowRepeatSourceDefinition {
     pub range_expression: Option<String>,
+    pub range_expression_vtable_id: Option<usize>,
     pub symbolic_binding: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]

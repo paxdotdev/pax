@@ -26,11 +26,11 @@ pub struct Stacker {
 
 impl Stacker {
 
-    pub fn get_frame_transform(&self, index: usize, container: (Size2D, Size2D)) -> Transform2D {
+    pub fn get_frame_transform(&self, index: usize, container: Size2D) -> Transform2D {
         todo!()
     }
 
-    pub fn get_frame_size(&self, index: usize, container: (Size2D, Size2D), direction: StackerDirection) -> Size2D {
+    pub fn get_frame_size(&self, index: usize, container: Size2D, direction: StackerDirection) -> Size2D {
         todo!()
     }
 

@@ -369,25 +369,113 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         recurse_generate_render_nodes_literal(rngc, active_tnd)
     }).collect();
 
-    let component_for_current_node = rngc.components.get(&tnd.component_id).unwrap();
+    const default_property_literal: &str = "PropertyLiteral::new(Default::default())";
+
+    let args = if tnd.component_id == parsing::COMPONENT_ID_REPEAT {
+        // Repeat
+        let id = tnd.control_flow_attributes.as_ref().unwrap().repeat_source_definition.as_ref().unwrap().range_expression_vtable_id.unwrap();
+
+        TemplateArgsCodegenCartridgeRenderNodeLiteral {
+            is_primitive: true,
+            snake_case_component_id: "".into(),
+            primitive_instance_import_path: Some("RepeatInstance".into()),
+            properties_coproduct_variant: "None".to_string(),
+            component_properties_struct: "None".to_string(),
+            properties: vec![],
+            transform_ril: default_property_literal.to_string(),
+            size_ril: [default_property_literal.to_string(), default_property_literal.to_string()],
+            children_literal,
+            slot_index_literal: "None".to_string(),
+            repeat_source_expression_literal:  format!("Some(Box::new(PropertyExpression::new({})))", id),
+            conditional_boolean_expression_literal: "None".to_string()
+        }
+    } else if tnd.component_id == parsing::COMPONENT_ID_IF {
+        // If
+        let id = tnd.control_flow_attributes.as_ref().unwrap().condition_expression_vtable_id.unwrap();
+
+        TemplateArgsCodegenCartridgeRenderNodeLiteral {
+            is_primitive: true,
+            snake_case_component_id: "".into(),
+            primitive_instance_import_path: Some("ConditionalInstance".into()),
+            properties_coproduct_variant: "None".to_string(),
+            component_properties_struct: "None".to_string(),
+            properties: vec![],
+            transform_ril: default_property_literal.to_string(),
+            size_ril: [default_property_literal.to_string(), default_property_literal.to_string()],
+            children_literal,
+            slot_index_literal: "None".to_string(),
+            repeat_source_expression_literal:  "None".to_string(),
+            conditional_boolean_expression_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
+        }
+    } else if tnd.component_id == parsing::COMPONENT_ID_SLOT {
+        // Slot
+        let id = tnd.control_flow_attributes.as_ref().unwrap().slot_index_expression_vtable_id.unwrap();
+
+        TemplateArgsCodegenCartridgeRenderNodeLiteral {
+            is_primitive: true,
+            snake_case_component_id: "".into(),
+            primitive_instance_import_path: Some("ConditionalInstance".into()),
+            properties_coproduct_variant: "None".to_string(),
+            component_properties_struct: "None".to_string(),
+            properties: vec![],
+            transform_ril: default_property_literal.to_string(),
+            size_ril: [default_property_literal.to_string(), default_property_literal.to_string()],
+            children_literal,
+            slot_index_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
+            repeat_source_expression_literal:  "None".to_string(),
+            conditional_boolean_expression_literal: "None".to_string(),
+        }
+    } else {
+        //Handle anything that's not a built-in
+
+        let component_for_current_node = rngc.components.get(&tnd.component_id).unwrap();
+
+        //Properties:
+        //  - for each property on cfcn, there will either be:
+        //     - an explicit, provided value, or
+        //     - an implicit, default value
+        //  - an explicit value is present IFF an AttributeValueDefinition
+        //    for that property is present on the TemplateNodeDefinition.
+        //    That AttributeValueDefinition may be an Expression or Literal (we can throw at this
+        //    stage for any `Properties` that are bound to something other than an expression / literal
 
 
-    //Properties:
-    //  - for each property on cfcn, there will either be:
-    //     - an explicit, provided value, or
-    //     - an implicit, default value
-    //  - an explicit value is present IFF an AttributeValueDefinition
-    //    for that property is present on the TemplateNodeDefinition.
-    //    That AttributeValueDefinition may be an Expression or Literal (we can throw at this
-    //    stage for any `Properties` that are bound to something other than an expression / literal
 
-    const default_property_literal : &str = "PropertyLiteral::new(Default::default())";
+        // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
+        let property_ril_tuples: Vec<(String, String)> = component_for_current_node.property_definitions.iter().map(|pd| {
+            let ril_literal_string = {
+                if let Some(val) = &tnd.inline_attributes {
+                    if let Some(matched_attribute) = val.iter().find(|avd| { avd.0 == pd.name }) {
+                        match &matched_attribute.1 {
+                            AttributeValueDefinition::LiteralValue(lv) => {
+                                format!("PropertyLiteral::new({})", lv)
+                            },
+                            AttributeValueDefinition::Expression(_, id) |
+                            AttributeValueDefinition::Identifier(_, id) => {
+                                format!("PropertyExpression::new({})", id.expect("Tried to use expression but it wasn't compiled"))
+                            },
+                            _ => {
+                                panic!("Incorrect value bound to attribute")
+                            }
+                        }
+                    } else {
+                        default_property_literal.to_string()
+                    }
+                } else {
+                    //no inline attributes at all; everything will be default
+                    default_property_literal.to_string()
+                }
+            };
 
-    // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
-    let property_ril_tuples : Vec<(String, String)> = component_for_current_node.property_definitions.iter().map(|pd| {
-        let ril_literal_string = {
+            (pd.name.clone(), ril_literal_string)
+        }).collect();
+
+
+        //handle size: "width" and "height"
+        let keys = ["width", "height", "transform"];
+        let builtins_ril: Vec<String> = keys.iter().map(|builtin_key| {
             if let Some(val) = &tnd.inline_attributes {
-                if let Some(matched_attribute) = val.iter().find(|avd| { avd.0 == pd.name }) {
+                if let Some(matched_attribute) = val.iter().find(|avd| { avd.0 == *builtin_key }) {
                     match &matched_attribute.1 {
                         AttributeValueDefinition::LiteralValue(lv) => {
                             format!("PropertyLiteral::new({})", lv)
@@ -404,58 +492,27 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
                     default_property_literal.to_string()
                 }
             } else {
-                //no inline attributes at all; everything will be default
                 default_property_literal.to_string()
             }
-        };
-
-        (pd.name.clone(), ril_literal_string)
-    }).collect();
+        }).collect();
 
 
-    //handle size: "width" and "height"
-    let keys = ["width", "height", "transform"];
-    let builtins_ril : Vec<String> = keys.iter().map(|builtin_key| {
-        if let Some(val) = &tnd.inline_attributes {
-            if let Some(matched_attribute) = val.iter().find(|avd| { avd.0 == *builtin_key }) {
-                match &matched_attribute.1 {
-                    AttributeValueDefinition::LiteralValue(lv) => {
-                        format!("PropertyLiteral::new({})", lv)
-                    },
-                    AttributeValueDefinition::Expression(_, id) |
-                    AttributeValueDefinition::Identifier(_, id) => {
-                        format!("PropertyExpression::new({})", id.expect("Tried to use expression but it wasn't compiled"))
-                    },
-                    _ => {
-                        panic!("Incorrect value bound to attribute")
-                    }
-                }
-            } else {
-                default_property_literal.to_string()
-            }
-        } else {
-            default_property_literal.to_string()
+        //then, on the post-order traversal, press template string and return
+        TemplateArgsCodegenCartridgeRenderNodeLiteral {
+            is_primitive: component_for_current_node.is_primitive,
+            snake_case_component_id: rngc.active_component_definition.get_snake_case_id(),
+            primitive_instance_import_path: component_for_current_node.primitive_instance_import_path.clone(),
+            properties_coproduct_variant: component_for_current_node.pascal_identifier.to_string(),
+            component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
+            properties: property_ril_tuples,
+            transform_ril: builtins_ril[2].clone(),
+            size_ril: [builtins_ril[0].clone(), builtins_ril[1].clone()],
+            children_literal,
+            slot_index_literal: "None".to_string(),
+            repeat_source_expression_literal: "None".to_string(),
+            conditional_boolean_expression_literal: "None".to_string()
         }
-    }).collect();
-
-
-
-    //then, on the post-order traversal, press template string and return
-    let args = TemplateArgsCodegenCartridgeRenderNodeLiteral {
-        is_primitive: component_for_current_node.is_primitive,
-        snake_case_component_id: rngc.active_component_definition.get_snake_case_id(),
-        primitive_instance_import_path: component_for_current_node.primitive_instance_import_path.clone(),
-        pascal_identifier_qualified: Some(format!("{}{}::{}", rngc.import_prefix, component_for_current_node.module_path, component_for_current_node.pascal_identifier)),
-        properties_coproduct_variant: component_for_current_node.pascal_identifier.to_string(),
-        component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
-        properties: property_ril_tuples,
-        transform_ril: builtins_ril[2].clone(),
-        size_ril: [builtins_ril[0].clone(), builtins_ril[1].clone()],
-        children_literal,
     };
-
-    //TODO:  visit TemplateNodeDefinitions recursively, accumulating a string literal
-    //       along the way
 
     press_template_codegen_cartridge_render_node_literal(args)
 }

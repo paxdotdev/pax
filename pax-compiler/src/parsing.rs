@@ -189,7 +189,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                         }
                     },
                     _ => {
-                        /* {literal_enum_value | literal_number |  string | literal_tuple } */
+                        /* {literal_enum_value | literal_tuple_access | literal_number |  string | literal_tuple } */
                         literal_kind.as_str().to_string() + ".into()"
                     }
                 }
@@ -314,9 +314,9 @@ struct TemplateNodeParseContext {
     pub uid_gen: RangeFrom<usize>,
 }
 
-static COMPONENT_ID_IF : &str = "IF";
-static COMPONENT_ID_REPEAT : &str = "REPEAT";
-static COMPONENT_ID_SLOT : &str = "SLOT";
+pub static COMPONENT_ID_IF : &str = "IF";
+pub static COMPONENT_ID_REPEAT : &str = "REPEAT";
+pub static COMPONENT_ID_SLOT : &str = "SLOT";
 
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_tag_pair: Pair<Rule>)  {
     let new_id = ctx.uid_gen.next().unwrap();
@@ -402,7 +402,9 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         id: new_id.clone(),
                         control_flow_attributes: Some(ControlFlowAttributeValueDefinition {
                             condition_expression_paxel: Some(expression_body),
+                            condition_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
                             slot_index_expression_paxel: None,
+                            slot_index_expression_vtable_id: None,
                             repeat_predicate_definition: None,
                             repeat_source_definition: None
                         }),
@@ -438,13 +440,15 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         Rule::xo_range => {
                             ControlFlowRepeatSourceDefinition {
                                 range_expression: Some(inner_source.as_str().to_string()),
+                                range_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
                                 symbolic_binding: None,
                             }
                         },
                         Rule::xo_symbol => {
                             ControlFlowRepeatSourceDefinition {
                                 range_expression: None,
-                                symbolic_binding: Some(inner_source.as_str().to_string()),
+                                range_expression_vtable_id: None,
+                                symbolic_binding: Some(trim_self_or_this_from_symbolic_binding(inner_source)),
                             }
                         },
                         _ => {unreachable!()}
@@ -485,7 +489,9 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         id: new_id.clone(),
                         control_flow_attributes: Some(ControlFlowAttributeValueDefinition {
                             condition_expression_paxel: None,
+                            condition_expression_vtable_id: None,
                             slot_index_expression_paxel: Some(expression_body),
+                            slot_index_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
                             repeat_predicate_definition: None,
                             repeat_source_definition: None
                         }),

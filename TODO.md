@@ -444,6 +444,7 @@ _RIL means Rust Intermediate Language, which is the
     [ ] web
         [ ] decide if necessary; maybe same as dev harness for now
 [x] turn off codesigning for dev harness
+[ ] profiling, CPU optimization (likely: impl. dep graph / dirty-tracking / caching for expressions)
 [ ] windows & linux dev envs
     [ ] web target only
     [ ] ensure e2e support & ergonomics
@@ -454,6 +455,7 @@ _RIL means Rust Intermediate Language, which is the
 [ ] round out functionality
     [ ] Text APIs (and fix macOS regression)
     [ ] Path primitive
+        [ ] API design
     [ ] Ellipse primitive
 [ ] usability
     [ ] figure out spurious stroke / outlining on macOS (clear Piet context?)
@@ -468,6 +470,9 @@ _RIL means Rust Intermediate Language, which is the
         [ ] pre-npm-install for web builds?
         [ ] package.json and Cargo.toml dependency cleaning; austerity measures 
     [ ] Refactor Color to accept percentage channel values; refactor Translate/etc. to support
+        [ ] Also design ideal re: constant access -- maybe
+            Color::Rgb(r,g,b) should be a literal enum after all? (instead of fn call)
+            This enables Color::Red() & other "constants" to live under the same symbol, `Color`
     [ ] Consider introducing x= and y= values, separately from `Transform` (probably a last-applied Translate, in practice)
         [ ] consider revisiting transform API — keep current functionality, but also add translate=, rotate=, scale=
             -- this gracefully handles the use-case where complex or nested transforms are required (just use `rotate=120` instead of `transform={Transform2D::rotate(120)}`)
@@ -488,7 +493,7 @@ _RIL means Rust Intermediate Language, which is the
 ## Milestone: usability & functionality++
 
 ```
-[ ] New units: `rad` and `deg` for rotation
+[ ] New units: `rad` and/or `deg` for rotation
 [ ] @settings blocks
 [ ] consts
     -- decorate with `#[pax_const]`; copy tokens? or refer to orig?  consider component/namespace reqs

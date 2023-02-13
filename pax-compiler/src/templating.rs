@@ -53,7 +53,6 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
 pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub is_primitive: bool,
     pub snake_case_component_id: String,
-    pub pascal_identifier_qualified: Option<String>,
     pub primitive_instance_import_path: Option<String>,
     pub properties_coproduct_variant: String,
     pub component_properties_struct: String,
@@ -61,6 +60,9 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub size_ril: [String; 2],
     pub transform_ril: String,
     pub children_literal: Vec<String>,
+    pub slot_index_literal: String,
+    pub repeat_source_expression_literal: String,
+    pub conditional_boolean_expression_literal: String,
 }
 
 static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB : &str = include_str!("../templates/properties-coproduct-lib.tera");
