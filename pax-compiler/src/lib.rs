@@ -377,7 +377,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
-            snake_case_component_id: "".into(),
+            snake_case_component_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("RepeatInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
@@ -395,7 +395,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
-            snake_case_component_id: "".into(),
+            snake_case_component_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("ConditionalInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
@@ -413,7 +413,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
-            snake_case_component_id: "".into(),
+            snake_case_component_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("ConditionalInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
@@ -469,7 +469,6 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
             (pd.name.clone(), ril_literal_string)
         }).collect();
-
 
         //handle size: "width" and "height"
         let keys = ["width", "height", "transform"];

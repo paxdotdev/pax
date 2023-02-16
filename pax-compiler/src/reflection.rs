@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use futures::stream::iter;
 use crate::manifest::PropertyType;
 
 
@@ -50,9 +51,23 @@ pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_f
 
     let pascalized_fully_qualified_type = escape_identifier(fully_qualified_type.clone());
 
+    let iterable_type = if fully_qualified_type.starts_with("Vec<") {
+        //Statically retrieve to `Vec<T>`'s `T` through hacky-af string edits
+        //This will be a problem down the line any time a Vec is qualified in place e.g. as `std::collections:Vec<T>` instead of `Vec<T>` — or if Vec is aliased at import-time.
+        let mut iterable_type_id = fully_qualified_type.clone().replacen("Vec<", "", 1);
+        //remove final angle bracket
+        iterable_type_id.remove(iterable_type_id.len() - 1);
+
+        //Note: recursive
+        Some(Box::new(expand_fully_qualified_type_and_pascalize(&iterable_type_id, dep_to_fqd_map) ))
+    } else {
+        None
+    };
+
     PropertyType {
         pascalized_fully_qualified_type,
         fully_qualified_type,
+        iterable_type
     }
 }
 

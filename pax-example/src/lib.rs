@@ -4,9 +4,11 @@ use pax_std::primitives::{Text, Rectangle, Frame};
 use pax_std::components::{Stacker};
 
 #[pax_app(
-    for rect in self.rects {
-        <Rectangle width={rect.width} height={rect.height} transform={Transform2D::translate(rect.x, rect.y)} />
-    }
+    // for rect in self.rects {
+    //    <Rectangle width={rect.width} height={rect.height} transform={Transform2D::translate(rect.x, rect.y)} />
+    // }
+    <Text text="Hello World" />
+    <Rectangle fill={Color::rgb(1,0,1)} />
 
     /*<Stacker cells=2>
         <Rectangle fill={Color::rgb(1,1,1)} />
@@ -26,10 +28,6 @@ use pax_std::components::{Stacker};
 )]
 pub struct HelloRGB {
     rects: Property<Vec<usize>>
-}
-
-impl HelloRGB {
-
 }
 
 

@@ -160,9 +160,9 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                 let mut property_definition = ctx.component_def.get_property_definition_by_name(symbolic_binding);
                 let fqt = property_definition.property_type_info.fully_qualified_type.clone();
-                let property_type = property_definition.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
+                let property_type = property_definition.property_type_info.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
 
-                (symbolic_binding.to_string(), property_type)
+                (symbolic_binding.to_string(), *property_type)
             } else {unreachable!()};
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
@@ -179,7 +179,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         original_type: return_type.fully_qualified_type.to_string(),
                         fully_qualified_constituent_types: vec![],
                         property_type_info: return_type.clone(),
-                        iterable_type: None
                     };
 
                     ctx.scope_stack.push(HashMap::from([
@@ -194,7 +193,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         original_type: return_type.fully_qualified_type.to_string(),
                         fully_qualified_constituent_types: vec![],
                         property_type_info: return_type.clone(),
-                        iterable_type: None
                     };
 
                     ctx.scope_stack.push(HashMap::from([
@@ -304,6 +302,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 /// From a symbol like `num_clicks` or `self.num_clicks`, populate an ExpressionSpecInvocation
 fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -> ExpressionSpecInvocation {
 
+    //Handle built-ins, like $container
     if BUILTIN_MAP.contains_key(sym) {
         ExpressionSpecInvocation {
             identifier: "TODO".to_string(),
@@ -327,7 +326,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let properties_type = prop_def.property_type_info.fully_qualified_type.clone();
 
-        let pascalized_iterable_type = if let Some(x) = &prop_def.iterable_type {
+        let pascalized_iterable_type = if let Some(x) = &prop_def.property_type_info.iterable_type {
             Some(x.pascalized_fully_qualified_type.clone())
         } else {
             None
@@ -405,7 +404,6 @@ pub struct ExpressionCompilationContext<'a> {
 
 }
 
-
 lazy_static! {
     static ref BUILTIN_MAP : HashMap<&'static str, ()> = HashMap::from([
         //TODO! hook into real runtime logic here instead of PropertyDefinition::default.
@@ -414,17 +412,29 @@ lazy_static! {
     ]);
 }
 
-
 impl<'a> ExpressionCompilationContext<'a> {
-
-
 
     /// for an input symbol like `i` or `num_clicks` (already pruned of `self.` or `this.`)
     /// traverse the self-attached `scope_stack`
     /// and return a copy of the related `PropertyDefinition`, if found
     pub fn resolve_symbol(&self, symbol: &str) -> Option<PropertyDefinition> {
-        //1. resolve through builtin map
 
+        //TODO: how to handle nested symbol invocations, like `rect.width`?
+        //      rect is an instance of a custom struct; width is property of that struct
+        //      1. does width need to be a Property<T>?
+        //         If not, we might be able to codegen trailing nested symbols
+        //         directly into Rust — e.g. an Option<String> for a "nested_symbol_tail"
+        //         which gets appended literally to the end of the invocation.
+        //         This would be fairly hacky and would almost certainly
+        //         _not_ allow Property<T> inside nested custom structs
+        //         (which has implications for Expressions inside custom structs)
+        //      2. to enable nested Property<T> access, we could create a special case of
+        //         invocation, where each of `x.y.z` is resolved independently, sequentlly,
+        //         by building off of the previous.  Since each of the types for `x` and `y`
+        //         are expected to be on the PropertiesCoproduct, this should be pretty
+        //         straight-forward.
+
+        //1. resolve through builtin map
         if BUILTIN_MAP.contains_key(symbol) {
             None
         } else {

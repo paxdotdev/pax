@@ -149,8 +149,6 @@ pub struct PropertyDefinition {
     pub fully_qualified_constituent_types: Vec<String>,
     /// Store of fully qualified types that may be needed for expression vtable generation
     pub property_type_info: PropertyType,
-    /// If present, the type `T` in a `Property<Vec<T>>` — i.e. that which can be traversed with `for`
-    pub iterable_type: Option<PropertyType>,
 }
 
 impl PropertyDefinition {
@@ -162,9 +160,9 @@ impl PropertyDefinition {
             fully_qualified_constituent_types: vec![],
             property_type_info: PropertyType {
                 fully_qualified_type: type_name.to_string(),
-                pascalized_fully_qualified_type: type_name.to_string()
+                pascalized_fully_qualified_type: type_name.to_string(),
+                iterable_type: None,
             },
-            iterable_type: None
         }
     }
 }
@@ -176,6 +174,9 @@ pub struct PropertyType {
 
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
     pub pascalized_fully_qualified_type: String,
+
+    /// If present, the type `T` in a `Property<Vec<T>>` — i.e. that which can be traversed with `for`
+    pub iterable_type: Option<Box<PropertyType>>
 }
 
 impl PropertyType {
@@ -183,6 +184,7 @@ impl PropertyType {
         PropertyType {
             pascalized_fully_qualified_type: name.to_string(),
             fully_qualified_type: name.to_string(),
+            iterable_type: None,
         }
     }
 }
