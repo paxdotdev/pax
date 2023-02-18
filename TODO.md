@@ -446,9 +446,10 @@ _RIL means Rust Intermediate Language, which is the
         this is because the file copying logic for `include_dir` aborts when files already exist
         a solution: manually walk `include_dir` fs and write each file, instead of 
         using their provided one-shot method
+    [ ] Warning cleanup pass
 [ ] (Crude) error reporting through CLI
-    [ ] Parser errors (row, column and spatially local text)
-        - Stretch: explore a quick error message PoC with "cascading errors in PEG" approach
+    [x] Parser errors (row, column and spatially local text)
+        [ ] Stretch: explore a quick, friendlier error message PoC with "cascading errors in PEG" approach
     [ ] Chassis compilation error
         - MVP: pipe / output stderr correctly?
         - Note: this only occurs during lib dev or when encountering a compiler bug in the wild

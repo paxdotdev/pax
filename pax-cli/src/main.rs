@@ -1,4 +1,6 @@
-
+use std::fs;
+use std::io::Write;
+use std::path::Path;
 use clap::{App, AppSettings, Arg, Error};
 use pax_compiler::{RunTarget, RunContext};
 
@@ -52,6 +54,16 @@ fn main() -> Result<(), ()> {
                 .arg( ARG_PATH.clone() )
                 .about("Parses the Pax program at the specified path and prints the manifest object, serialized to string. Also prints error messages if parsing fails.")
         )
+        .subcommand(
+            App::new("libdev")
+                .subcommand(
+                    App::new("build-chassis")
+                        .arg( ARG_PATH.clone() )
+                        .arg( ARG_TARGET.clone() )
+                        .about("Runs cargo build on the codegenned chassis, within the .pax folder contained within the specified `path`.  Useful for core development, e.g. building compiler features or compiler debugging.  Expected to fail if the whole compiler has not run at least once.")
+                )
+                .about("Collection of tools for internal library development")
+        )
         .get_matches();
 
     match matches.subcommand() {
@@ -60,7 +72,7 @@ fn main() -> Result<(), ()> {
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
 
-            pax_compiler::perform_build(RunContext{
+            pax_compiler::perform_build(&RunContext{
                 target: RunTarget::from(target.as_str()),
                 path,
             }, true)
@@ -70,7 +82,7 @@ fn main() -> Result<(), ()> {
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
 
-            pax_compiler::perform_build(RunContext{
+            pax_compiler::perform_build(&RunContext{
                 target: RunTarget::from(target.as_str()),
                 path,
             }, false)
@@ -82,8 +94,33 @@ fn main() -> Result<(), ()> {
         },
         ("parse", Some(args)) => {
             let path = args.value_of("path").unwrap().to_string(); //default value "."
-            println!("{}", &pax_compiler::run_parser_binary(&path));
+            let output = &pax_compiler::run_parser_binary(&path);
+
+            // Forward both stdout and stderr
+            std::io::stderr().write_all(output.stderr.as_slice());
+            std::io::stdout().write_all(output.stdout.as_slice());
+
             Ok(())
+        },
+        ("libdev", Some(args)) => {
+            match args.subcommand() {
+                ("build-chassis", Some(args)) => {
+                    let target = args.value_of("target").unwrap().to_lowercase();
+                    let path = args.value_of("path").unwrap().to_string(); //default value "."
+
+                    let mut working_path = Path::new(&path).join(".pax");
+                    let pax_dir = fs::canonicalize(working_path).unwrap();
+
+                    let output = pax_compiler::build_chassis_with_cartridge(&pax_dir, &RunTarget::from(target.as_str()));
+
+                    // Forward both stdout and stderr
+                    std::io::stderr().write_all(output.stderr.as_slice());
+                    std::io::stdout().write_all(output.stdout.as_slice());
+
+                    Ok(())
+                },
+                _ => {unreachable!()}
+            }
         },
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }

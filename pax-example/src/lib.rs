@@ -1,6 +1,6 @@
 use pax::*;
 use pax::api::{EasingCurve, ArgsRender, ArgsClick};
-use pax_std::primitives::{Text, Rectangle, Frame};
+use pax_std::primitives::{Text, Rectangle, Frame, Group};
 use pax_std::components::{Stacker};
 
 #[pax_app(
@@ -8,8 +8,10 @@ use pax_std::components::{Stacker};
     //    <Rectangle width={rect.width} height={rect.height} transform={Transform2D::translate(rect.x, rect.y)} />
     // }
 
-    <Text text="Hello World" />
-    <Rectangle fill={Color::rgb(1,0,1)} />
+    <Group>
+        <Text text="Hello World" />
+        <Rectangle fill={Color::rgb(1,0,1)} width=50% height=100% />
+    </Group>
 
     /*<Stacker cells=2>
         <Rectangle fill={Color::rgb(1,1,1)} />
@@ -28,7 +30,7 @@ use pax_std::components::{Stacker};
     </Stacker>*/
 )]
 pub struct HelloRGB {
-    rects: Property<Vec<usize>>
+    pub rects: Property<Vec<usize>>
 }
 
 

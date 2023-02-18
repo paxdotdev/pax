@@ -514,6 +514,17 @@ where Self : Sized + Clone //Clone used for default implementation of `interpola
     }
 }
 
+impl<I: Interpolatable> Interpolatable for Vec<I> {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        //FUTURE: could revisit the following assertion/constraint, perhaps with a "don't-care" approach to disjoint vec elements
+        assert_eq!(self.len(), other.len(), "cannot interpolate between vecs of different lengths");
+
+        self.iter().enumerate().map(|(i, elem)| {
+            elem.interpolate(other.get(i).unwrap(), t)
+        }).collect()
+    }
+}
+
 impl Interpolatable for f64 {
     fn interpolate(&self, other: &f64, t: f64) -> f64 {
         self + (*other - self) * t

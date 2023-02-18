@@ -20,7 +20,7 @@ use std::os::unix::fs::PermissionsExt;
 use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Document, Item, value};
 use std::path::{Component, Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Output};
 use std::time::Duration;
 use crate::manifest::{AttributeValueDefinition, ComponentDefinition, ExpressionSpec, TemplateNodeDefinition};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
@@ -741,58 +741,65 @@ pub fn perform_clean(path: &str) -> Result<(), ()> {
     Ok(())
 }
 
-pub fn run_parser_binary(path: &str) -> String {
+/// Executes a shell command to run the feature-flagged parser at the specified path
+/// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
+pub fn run_parser_binary(path: &str) -> Output {
     let cargo_run_parser_process = Command::new("cargo")
         .current_dir(path)
         .arg("run")
         .arg("--features")
         .arg("parser")
+        .arg("--color")
+        .arg("always")
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped())
         .spawn()
         .expect("failed to execute parser binary");
 
-    let output = cargo_run_parser_process
-        .wait_with_output().unwrap();
-
-    std::io::stdout().write_all(output.stdout.as_slice());
-    std::io::stderr().write_all(output.stderr.as_slice());
-
-    //FUTURE: handle parsing errors here
-    assert_eq!(output.status.code().unwrap(), 0);
-
-    String::from_utf8(output.stdout).unwrap()
+    cargo_run_parser_process.wait_with_output().unwrap()
 }
+
+
 
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
-pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
+pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> {
 
-    println!("Performing run");
+    println!("Performing build");
 
     let pax_dir = get_or_create_pax_directory(&ctx.path);
 
     // Run parser bin from host project with `--features parser`
-    let out = run_parser_binary(&ctx.path);
+    let output = run_parser_binary(&ctx.path);
 
+    // Forward stderr only
+    std::io::stderr().write_all(output.stderr.as_slice());
+    assert_eq!(output.status.code().unwrap(), 0, "Parsing failed — there is likely a syntax error in the provided pax");
+
+    let out = String::from_utf8(output.stdout).unwrap();
     let mut manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
 
     let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_property_prefixes_in_place(&mut manifest, &host_crate_info);
 
+    println!("Compiling expressions");
     expressions::compile_all_expressions(&mut manifest);
 
     let build_id = uuid::Uuid::new_v4().to_string();
 
+    println!("Generating code");
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_properties_coproduct(&pax_dir, &build_id, &manifest, &host_crate_info);
     generate_cartridge_definition(&pax_dir, &build_id, &manifest, &host_crate_info);
     generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest, &host_crate_info);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
-    build_chassis_with_cartridge(&pax_dir, &ctx.target);
+    let output = build_chassis_with_cartridge(&pax_dir, &ctx.target);
+    //forward stderr only
+    std::io::stderr().write_all(output.stderr.as_slice());
+    assert_eq!(output.status.code().unwrap(), 0);
 
     if should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
@@ -846,7 +853,10 @@ fn run_harness_with_chassis(pax_dir: &PathBuf, target: &RunTarget, harness: &Har
 
 }
 
-fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) {
+/// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
+/// of the generated chassis project inside the specified .pax dir
+/// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
+pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Output {
 
     println!("Building chassis with generated cartridge");
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
@@ -857,6 +867,8 @@ fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) {
             Command::new("cargo")
             .current_dir(&chassis_path)
             .arg("build")
+            .arg("--color")
+            .arg("always")
             .env("PAX_DIR", pax_dir)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
@@ -866,11 +878,11 @@ fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) {
         RunTarget::Web => {
             Command::new("wasm-pack")
             .current_dir(&chassis_path)
-                .arg("build")
-                .arg("--release")
-                .arg("-d")
-                .arg(pax_dir.join("chassis").join("Web").join("pax-dev-harness-web").join("dist").to_str().unwrap()) //--release -d pax-dev-harness-web/dist
-                .env("PAX_DIR", pax_dir)
+            .arg("build")
+            .arg("--release")
+            .arg("-d")
+            .arg(pax_dir.join("chassis").join("Web").join("pax-dev-harness-web").join("dist").to_str().unwrap()) //--release -d pax-dev-harness-web/dist
+            .env("PAX_DIR", pax_dir)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
             .spawn()
@@ -878,21 +890,7 @@ fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) {
         }
     };
 
-
-
-
-
-
-
-    let output = cargo_run_chassis_build
-        .wait_with_output().unwrap();
-
-    let out = String::from_utf8(output.stdout).unwrap();
-    let _err = String::from_utf8(output.stderr).unwrap();
-
-    //FUTURE: handle compilation errors here
-    assert_eq!(output.status.code().unwrap(), 0);
-
+    cargo_run_chassis_build.wait_with_output().unwrap()
 }
 
 pub struct RunContext {
