@@ -639,7 +639,7 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
     //      and failed silently/partially in all explored configurations until this one
     let chassis_specific_dir = fs::canonicalize(&relative_chassis_specific_target_dir).expect("Invalid path");
 
-    println!("Cloning {} chassis to {:?}", target_str, chassis_specific_dir);
+    // println!("Cloning {} chassis to {:?}", target_str, chassis_specific_dir);
     match RunTarget::from(target_str) {
         RunTarget::MacOS => {
             CHASSIS_MACOS_DIR.extract(&chassis_specific_dir);
@@ -674,7 +674,7 @@ fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::i
 
     let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
 
-    println!("Cloning cartridge to {:?}", target_dir);
+    // println!("Cloning cartridge to {:?}", target_dir);
 
     CARTRIDGE_DIR.extract(&target_dir)
 }
@@ -690,7 +690,7 @@ fn clone_properties_coproduct_to_dot_pax(relative_cartridge_target_dir: &PathBuf
 
     let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
 
-    println!("Cloning properties coproduct to {:?}", target_dir);
+    // println!("Cloning properties coproduct to {:?}", target_dir);
 
     PROPERTIES_COPRODUCT_DIR.extract(&target_dir)
 }
@@ -768,12 +768,13 @@ use colored::Colorize;
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> {
 
-    let PAX_BADGE = " [pax]".bold();
+    let PAX_BADGE = "[Pax]".bold().on_black().white();
 
-    println!("🛠 {} Performing build", &PAX_BADGE);
+    println!("{} 🛠 Starting to build your app...", &PAX_BADGE);
     let pax_dir = get_or_create_pax_directory(&ctx.path);
 
     // Run parser bin from host project with `--features parser`
+    println!("{} 📖 Parsing", &PAX_BADGE);
     let output = run_parser_binary(&ctx.path);
 
     // Forward stderr only
@@ -787,20 +788,20 @@ pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> 
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_property_prefixes_in_place(&mut manifest, &host_crate_info);
 
-    println!("🧮 {} Compiling expressions", &PAX_BADGE);
+    println!("{} 🧮 Compiling expressions", &PAX_BADGE);
     expressions::compile_all_expressions(&mut manifest);
 
     let build_id = uuid::Uuid::new_v4().to_string();
 
     //oxidation!
-    println!("💨 {} Generating Rust", &PAX_BADGE);
+    println!("{} 💨 Generating Rust", &PAX_BADGE);
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_properties_coproduct(&pax_dir, &build_id, &manifest, &host_crate_info);
     generate_cartridge_definition(&pax_dir, &build_id, &manifest, &host_crate_info);
     generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest, &host_crate_info);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
-    println!("🧱 {} Building your cartridge", &PAX_BADGE);
+    println!("{} 🧱 Building your cartridge", &PAX_BADGE);
     let output = build_chassis_with_cartridge(&pax_dir, &ctx.target);
     //forward stderr only
     std::io::stderr().write_all(output.stderr.as_slice());
@@ -808,7 +809,7 @@ pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> 
 
     if should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
-        println!("🏃‍ {} Running your app...", &PAX_BADGE); //oxidation!
+        println!("{} 🏃‍ Running your app...", &PAX_BADGE); //oxidation!
         run_harness_with_chassis(&pax_dir, &ctx.target, &Harness::Development);
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
