@@ -39,8 +39,6 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
     });
     manifest.components = new_components;
     manifest.expression_specs = Some(new_expression_specs);
-
-    println!("{}", serde_json::to_string_pretty(&manifest).unwrap());
 }
 
 fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) -> ExpressionCompilationContext<'a> {

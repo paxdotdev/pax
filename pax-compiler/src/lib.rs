@@ -760,14 +760,17 @@ pub fn run_parser_binary(path: &str) -> Output {
 }
 
 
+use colored::Colorize;
+
 
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> {
 
-    println!("Performing build");
+    let PAX_BADGE = " [pax]".bold();
 
+    println!("🛠 {} Performing build", &PAX_BADGE);
     let pax_dir = get_or_create_pax_directory(&ctx.path);
 
     // Run parser bin from host project with `--features parser`
@@ -784,18 +787,20 @@ pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> 
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_property_prefixes_in_place(&mut manifest, &host_crate_info);
 
-    println!("Compiling expressions");
+    println!("🧮 {} Compiling expressions", &PAX_BADGE);
     expressions::compile_all_expressions(&mut manifest);
 
     let build_id = uuid::Uuid::new_v4().to_string();
 
-    println!("Generating code");
+    //oxidation!
+    println!("💨 {} Generating Rust", &PAX_BADGE);
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_properties_coproduct(&pax_dir, &build_id, &manifest, &host_crate_info);
     generate_cartridge_definition(&pax_dir, &build_id, &manifest, &host_crate_info);
     generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest, &host_crate_info);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
+    println!("🧱 {} Building your cartridge", &PAX_BADGE);
     let output = build_chassis_with_cartridge(&pax_dir, &ctx.target);
     //forward stderr only
     std::io::stderr().write_all(output.stderr.as_slice());
@@ -803,6 +808,7 @@ pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> 
 
     if should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
+        println!("🏃‍ {} Running your app...", &PAX_BADGE); //oxidation!
         run_harness_with_chassis(&pax_dir, &ctx.target, &Harness::Development);
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
@@ -818,8 +824,6 @@ pub enum Harness {
 }
 
 fn run_harness_with_chassis(pax_dir: &PathBuf, target: &RunTarget, harness: &Harness) {
-
-    println!("Running {:?} harness linked with previously compiled chassis", harness);
 
     let target_str : &str = target.into();
     let target_str_lower: &str = &target_str.to_lowercase();
@@ -858,7 +862,6 @@ fn run_harness_with_chassis(pax_dir: &PathBuf, target: &RunTarget, harness: &Har
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
 pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Output {
 
-    println!("Building chassis with generated cartridge");
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
     let chassis_path = pax_dir.join("chassis").join({let s: & str = target.into(); s});
     //string together a shell call like the following:

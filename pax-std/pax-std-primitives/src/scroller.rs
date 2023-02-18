@@ -293,7 +293,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
     }
 
-    fn handle_will_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
         unimplemented!("Scroller unmount not yet handled")
     }
 

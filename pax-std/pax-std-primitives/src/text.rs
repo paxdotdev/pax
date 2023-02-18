@@ -186,7 +186,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
-
         let val = properties.fill.get();
         let is_new_value = match &last_patch.fill {
             Some(cached_value) => {
@@ -273,7 +272,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         );
     }
 
-    fn handle_will_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
 
         // unplugged in desperation, search codebase for "unplugged in desperation"
 

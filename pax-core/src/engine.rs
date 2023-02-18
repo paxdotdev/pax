@@ -375,8 +375,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let children = node.borrow_mut().get_rendering_children();
 
-
-
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
         let hydrated_node = Rc::new(HydratedNode {
             stack_frame: rtc.runtime.borrow_mut().peek_stack_frame().unwrap(),
@@ -388,7 +386,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             instance_node: Rc::clone(&node),
             parent_hydrated_node: rtc.parent_hydrated_node.clone(),
         });
-
 
         //keep recursing through children
         children.borrow_mut().iter().rev().for_each(|child| {
@@ -403,7 +400,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //so the order in which `add_to_hydrated_node_cache` is invoked vs. descendants is important
         (*rtc.engine.instance_registry).borrow_mut().add_to_hydrated_node_cache(Rc::clone(&hydrated_node));
 
-
         //lifecycle: render
         //this is this node's time to do its own rendering, aside
         //from the rendering of its children. Its children have already been rendered.
@@ -414,7 +410,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
-    /// ray running orthogonally to the view plane, interesecting at
+    /// ray running orthogonally to the view plane, intersecting at
     /// the specified point `ray`.  Areas outside of clipping bounds will
     /// not register a `hit`, nor will elements that suppress input events.
     pub fn get_topmost_hydrated_element_beneath_ray(&self, ray: (f64, f64)) -> Option<Rc<HydratedNode<R>>> {
