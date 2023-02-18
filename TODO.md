@@ -438,6 +438,22 @@ _RIL means Rust Intermediate Language, which is the
 ## Milestone: Alpha Launch
 
 ```
+[ ] Bugs & usability
+    [ ] Cargo cache bug (when changing the contents of @pax/pax-cartridge (template),
+        `cargo clean` is sometimes needed to update the `include_dir` cache.)
+        Is there a better solution than requiring `cargo clean` on lib-dev machines?
+    [ ] pax-compiler "cache" — sometimes changes aren't propagated to `.pax/chassis/MacOS` —
+        this is because the file copying logic for `include_dir` aborts when files already exist
+        a solution: manually walk `include_dir` fs and write each file, instead of 
+        using their provided one-shot method
+[ ] (Crude) error reporting through CLI
+    [ ] Parser errors (row, column and spatially local text)
+        - Stretch: explore a quick error message PoC with "cascading errors in PEG" approach
+    [ ] Chassis compilation error
+        - MVP: pipe / output stderr correctly?
+        - Note: this only occurs during lib dev or when encountering a compiler bug in the wild
+                Due to the above, this may not be a blocker on alpha launch
+[ ] "code-behind file" as alternative to in-Rust macro
 [ ] Production harness
     [ ] macos
         [ ] allow config of apple id / signing cert
@@ -452,13 +468,14 @@ _RIL means Rust Intermediate Language, which is the
     [ ] consider design for async while doing this
     [ ] also requires hooking up `handler_registry` generation in cartridge
 [ ] support `pax build` for distributable binaries (alternative to `pax run`)
+[ ] demo video ++
 [ ] round out functionality
     [ ] Text APIs (and fix macOS regression)
     [ ] Path primitive
         [ ] API design
     [ ] Ellipse primitive
 [ ] usability
-    [ ] figure out spurious stroke / outlining on macOS (clear Piet context?)
+    [x] figure out spurious stroke / outlining on macOS (clear Piet context?)
     [ ] solve pax-std feature-flagging / "roundup export" / raw coproduct memory access problem
         [ ] either `pax_primitive_exports` at crate root for external crates — or raw memory access into coproduct
     [ ] Support for None-sizing at the level where we assemble the RIL string for size.  Currently, the empty case is 0 pixels, whereas the empty case should be `None` (and thus fill container)

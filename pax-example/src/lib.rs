@@ -7,6 +7,7 @@ use pax_std::components::{Stacker};
     // for rect in self.rects {
     //    <Rectangle width={rect.width} height={rect.height} transform={Transform2D::translate(rect.x, rect.y)} />
     // }
+
     <Text text="Hello World" />
     <Rectangle fill={Color::rgb(1,0,1)} />
 

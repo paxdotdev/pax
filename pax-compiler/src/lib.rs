@@ -12,6 +12,7 @@ use std::{fs, thread};
 use std::borrow::Borrow;
 use std::str::FromStr;
 use std::collections::HashSet;
+use std::io::Write;
 use itertools::Itertools;
 
 use std::os::unix::fs::PermissionsExt;
@@ -362,6 +363,7 @@ fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) 
     recurse_generate_render_nodes_literal(rngc, root_node)
 }
 
+
 fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tnd: &TemplateNodeDefinition) -> String {
     //first recurse, populating children_literal : Vec<String>
     let children_literal : Vec<String> = tnd.child_ids.iter().map(|child_id|{
@@ -698,12 +700,6 @@ fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     std::fs::create_dir_all( &working_path);
     fs::canonicalize(working_path).unwrap()
 }
-const TMP_DIRECTORY_NAME: &str = "tmp";
-fn get_or_create_pax_tmp_directory(working_dir: &str) -> PathBuf {
-    let tmp = Path::new(&get_or_create_pax_directory(working_dir)).join(TMP_DIRECTORY_NAME);
-    std::fs::create_dir_all( &tmp);
-    tmp
-}
 
 /// Pulled from host Cargo.toml
 struct HostCrateInfo {
@@ -745,21 +741,9 @@ pub fn perform_clean(path: &str) -> Result<(), ()> {
     Ok(())
 }
 
-/// For the specified file path or current working directory, first compile Pax project,
-/// then run it with a patched build of the `chassis` appropriate for the specified platform
-/// See: pax-compiler-sequence-diagram.png
-pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
-
-    println!("Performing run");
-
-    let pax_dir = get_or_create_pax_directory(&ctx.path);
-    let tmp_dir =  get_or_create_pax_tmp_directory(&ctx.path);
-
-    //FUTURE: handle stand-alone .pax files
-
-    // Run parser bin from host project with `--features parser`
+pub fn run_parser_binary(path: &str) -> String {
     let cargo_run_parser_process = Command::new("cargo")
-        .current_dir(&ctx.path)
+        .current_dir(path)
         .arg("run")
         .arg("--features")
         .arg("parser")
@@ -771,11 +755,26 @@ pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
     let output = cargo_run_parser_process
         .wait_with_output().unwrap();
 
-    let out = String::from_utf8(output.stdout).unwrap();
-    let _err = String::from_utf8(output.stderr).unwrap();
+    std::io::stdout().write_all(output.stdout.as_slice());
+    std::io::stderr().write_all(output.stderr.as_slice());
 
     //FUTURE: handle parsing errors here
     assert_eq!(output.status.code().unwrap(), 0);
+
+    String::from_utf8(output.stdout).unwrap()
+}
+
+/// For the specified file path or current working directory, first compile Pax project,
+/// then run it with a patched build of the `chassis` appropriate for the specified platform
+/// See: pax-compiler-sequence-diagram.png
+pub fn perform_build(ctx: RunContext, should_also_run: bool) -> Result<(), ()> {
+
+    println!("Performing run");
+
+    let pax_dir = get_or_create_pax_directory(&ctx.path);
+
+    // Run parser bin from host project with `--features parser`
+    let out = run_parser_binary(&ctx.path);
 
     let mut manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
 

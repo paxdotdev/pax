@@ -47,6 +47,11 @@ fn main() -> Result<(), ()> {
                 .arg( ARG_PATH.clone() )
                 .about("Cleans the temporary files associated with the Pax project in the current working directory — notably, the temporary files generated into the .pax directory")
         )
+        .subcommand(
+            App::new("parse")
+                .arg( ARG_PATH.clone() )
+                .about("Parses the Pax program at the specified path and prints the manifest object, serialized to string. Also prints error messages if parsing fails.")
+        )
         .get_matches();
 
     match matches.subcommand() {
@@ -74,6 +79,11 @@ fn main() -> Result<(), ()> {
             let path = args.value_of("path").unwrap().to_string(); //default value "."
 
             pax_compiler::perform_clean(&path)
+        },
+        ("parse", Some(args)) => {
+            let path = args.value_of("path").unwrap().to_string(); //default value "."
+            println!("{}", &pax_compiler::run_parser_binary(&path));
+            Ok(())
         },
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }
