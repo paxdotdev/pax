@@ -774,7 +774,7 @@ pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> 
     let pax_dir = get_or_create_pax_directory(&ctx.path);
 
     // Run parser bin from host project with `--features parser`
-    println!("{} 📖 Parsing", &PAX_BADGE);
+    println!("{} 📖 Parsing Pax", &PAX_BADGE);
     let output = run_parser_binary(&ctx.path);
 
     // Forward stderr only

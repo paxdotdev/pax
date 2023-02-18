@@ -290,7 +290,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
                 clipping_ids,
             })
         );
-
     }
 
     fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {

@@ -50,17 +50,17 @@ fn main() -> Result<(), ()> {
                 .about("Cleans the temporary files associated with the Pax project in the current working directory — notably, the temporary files generated into the .pax directory")
         )
         .subcommand(
-            App::new("parse")
-                .arg( ARG_PATH.clone() )
-                .about("Parses the Pax program at the specified path and prints the manifest object, serialized to string. Also prints error messages if parsing fails.")
-        )
-        .subcommand(
             App::new("libdev")
                 .subcommand(
                     App::new("build-chassis")
                         .arg( ARG_PATH.clone() )
                         .arg( ARG_TARGET.clone() )
                         .about("Runs cargo build on the codegenned chassis, within the .pax folder contained within the specified `path`.  Useful for core development, e.g. building compiler features or compiler debugging.  Expected to fail if the whole compiler has not run at least once.")
+                )
+                .subcommand(
+                    App::new("parse")
+                        .arg( ARG_PATH.clone() )
+                        .about("Parses the Pax program at the specified path and prints the manifest object, serialized to string. Also prints error messages if parsing fails.")
                 )
                 .about("Collection of tools for internal library development")
         )
@@ -92,18 +92,18 @@ fn main() -> Result<(), ()> {
 
             pax_compiler::perform_clean(&path)
         },
-        ("parse", Some(args)) => {
-            let path = args.value_of("path").unwrap().to_string(); //default value "."
-            let output = &pax_compiler::run_parser_binary(&path);
-
-            // Forward both stdout and stderr
-            std::io::stderr().write_all(output.stderr.as_slice());
-            std::io::stdout().write_all(output.stdout.as_slice());
-
-            Ok(())
-        },
         ("libdev", Some(args)) => {
             match args.subcommand() {
+                ("parse", Some(args)) => {
+                    let path = args.value_of("path").unwrap().to_string(); //default value "."
+                    let output = &pax_compiler::run_parser_binary(&path);
+
+                    // Forward both stdout and stderr
+                    std::io::stderr().write_all(output.stderr.as_slice());
+                    std::io::stdout().write_all(output.stdout.as_slice());
+
+                    Ok(())
+                },
                 ("build-chassis", Some(args)) => {
                     let target = args.value_of("target").unwrap().to_lowercase();
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
