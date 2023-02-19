@@ -32,6 +32,12 @@ pub mod primitives {
         pub fill: pax::Property<crate::types::Color>,
     }
 
+    #[pax_primitive("./pax-std-primitives",  pax_std_primitives::ellipse::EllipseInstance)]
+    pub struct Ellipse {
+        pub stroke: pax::Property<crate::types::Stroke>,
+        pub fill: pax::Property<crate::types::Color>,
+    }
+
     #[pax_primitive("./pax-std-primitives",  pax_std_primitives::text::TextInstance)]
     pub struct Text {
         pub text: pax::Property<String>,
