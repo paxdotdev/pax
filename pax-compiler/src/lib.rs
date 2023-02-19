@@ -358,9 +358,14 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
 fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) -> String {
     let nodes = rngc.active_component_definition.template.as_ref().expect("tried to generate render nodes literal for component, but template was undefined");
-    let root_node = nodes[0].borrow();
 
-    recurse_generate_render_nodes_literal(rngc, root_node)
+    let implicit_root = nodes[0].borrow();
+    let children_literal : Vec<String> = implicit_root.child_ids.iter().map(|child_id|{
+    let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
+        recurse_generate_render_nodes_literal(rngc, active_tnd)
+    }).collect();
+
+    children_literal.join(",")
 }
 
 
