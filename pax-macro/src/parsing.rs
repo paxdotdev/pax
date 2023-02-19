@@ -3,7 +3,7 @@
 extern crate pest;
 use pest_derive::Parser;
 use pest::Parser;
-use pest::iterators::{Pair, Pairs};
+use pest::iterators::{Pair};
 
 
 use std::rc::Rc;
@@ -74,7 +74,7 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
         Rule::statement_control_flow => {
             let matched_tag = any_tag_pair.into_inner().next().unwrap();
 
-            let mut n = 1;
+            let mut n : usize;
             match matched_tag.as_rule() {
                 Rule::statement_if => {
                     n = 2;
