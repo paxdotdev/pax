@@ -109,7 +109,7 @@ at your option.
 Use `rustc` 1.65.0 via `rustup`
 
 
-### Optional environment setup, web chassis
+### Environment setup, building for Web
 
 - Install `wasm-opt` via `binaryen`:
    ```shell
@@ -129,7 +129,7 @@ Use `rustc` 1.65.0 via `rustup`
   npm i --global yarn
    ```
 
-### Optional environment setup, macOS chassis
+### Environment setup, building for macOS
 
 - Install xcode, command line utils
 

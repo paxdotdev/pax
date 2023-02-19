@@ -3,10 +3,8 @@ extern crate serde;
 
 pub mod reflection;
 
-use std::ffi::CString;
-use std::os::raw::c_char;
-
 //FUTURE: feature-flag, only for Web builds
+#[allow(unused_imports)]
 use wasm_bindgen::prelude::*;
 
 use serde::{Serialize};
