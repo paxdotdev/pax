@@ -17,6 +17,12 @@ fn main() -> Result<(), ()> {
         .default_value(".");
 
     #[allow(non_snake_case)]
+        let ARG_VERBOSE = Arg::with_name("verbose")
+        .short("v")
+        .long("verbose")
+        .takes_value(false);
+
+    #[allow(non_snake_case)]
     let ARG_TARGET = Arg::with_name("target")
         .short("t")
         .long("target")
@@ -38,13 +44,15 @@ fn main() -> Result<(), ()> {
             App::new("run")
                 .about("Run the Pax project from the current working directory in a demo harness")
                 .arg( ARG_PATH.clone() )
-                .arg( ARG_TARGET.clone() ),
+                .arg( ARG_TARGET.clone() )
+                .arg( ARG_VERBOSE.clone() )
         )
         .subcommand(
             App::new("build")
                 .about("Builds the Pax project from the current working directory into a platform-specific executable, for the specific `target` platform.")
                 .arg( ARG_PATH.clone() )
-                .arg( ARG_TARGET.clone() ),
+                .arg( ARG_TARGET.clone() )
+                .arg( ARG_VERBOSE.clone() )
         )
         .subcommand(
             App::new("clean")
@@ -73,21 +81,27 @@ fn main() -> Result<(), ()> {
 
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
+            let verbose = args.is_present("verbose");
 
             pax_compiler::perform_build(&RunContext{
                 target: RunTarget::from(target.as_str()),
                 path,
-            }, true)
+                verbose,
+                should_also_run: true
+            })
 
         },
         ("build", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
+            let verbose = args.is_present("verbose");
 
             pax_compiler::perform_build(&RunContext{
                 target: RunTarget::from(target.as_str()),
                 path,
-            }, false)
+                should_also_run: false,
+                verbose,
+            })
         },
         ("clean", Some(args)) => {
             let path = args.value_of("path").unwrap().to_string(); //default value "."

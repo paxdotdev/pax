@@ -684,7 +684,7 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
             fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o555)).unwrap();
         }
         RunTarget::Web => {
-            CHASSIS_WEB_DIR.extract(&chassis_specific_dir).unwrap();
+            persistent_extract(&CHASSIS_WEB_DIR, &chassis_specific_dir).unwrap();
 
             //write +x permission to copied run-debuggable-mac-app
             fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-web").join("run-web.sh"), fs::Permissions::from_mode(0o555)).unwrap();
@@ -798,7 +798,7 @@ use colored::Colorize;
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
-pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> {
+pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
 
     #[allow(non_snake_case)]
     let PAX_BADGE = "[Pax]".bold().on_black().white();
@@ -840,10 +840,10 @@ pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> 
     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
     assert_eq!(output.status.code().unwrap(), 0);
 
-    if should_also_run {
+    if ctx.should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
         println!("{} 🏃‍ Running your app...", &PAX_BADGE); //oxidation!
-        run_harness_with_chassis(&pax_dir, &ctx.target, &Harness::Development);
+        run_harness_with_chassis(&pax_dir, &ctx, &Harness::Development);
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
         unimplemented!()
@@ -857,14 +857,14 @@ pub enum Harness {
     Development,
 }
 
-fn run_harness_with_chassis(pax_dir: &PathBuf, target: &RunTarget, harness: &Harness) {
+fn run_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harness) {
 
-    let target_str : &str = target.into();
+    let target_str : &str = ctx.target.borrow().into();
     let target_str_lower: &str = &target_str.to_lowercase();
 
     let harness_path = pax_dir
         .join("chassis")
-        .join({let s : &str = target.into(); s})
+        .join({let s : &str = ctx.target.borrow().into(); s})
         .join({
             match harness {
                 Harness::Development => {
@@ -875,17 +875,19 @@ fn run_harness_with_chassis(pax_dir: &PathBuf, target: &RunTarget, harness: &Har
 
     let script = match harness {
         Harness::Development => {
-            match target {
+            match ctx.target {
                 RunTarget::Web => "./run-web.sh",
                 RunTarget::MacOS => "./run-debuggable-mac-app.sh",
             }
         }
     };
 
+    let is_web = if let RunTarget::Web = ctx.target { true } else { false };
+
     Command::new(script)
         .current_dir(&harness_path)
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
+        .stdout(if ctx.verbose || is_web { std::process::Stdio::inherit() } else {std::process::Stdio::piped()})
+        .stderr(if ctx.verbose || is_web { std::process::Stdio::inherit() } else {std::process::Stdio::piped()})
         .output()
         .expect("failed to run harness");
 
@@ -933,6 +935,8 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
 pub struct RunContext {
     pub target: RunTarget,
     pub path: String,
+    pub verbose: bool,
+    pub should_also_run: bool,
 }
 
 pub enum RunTarget {
