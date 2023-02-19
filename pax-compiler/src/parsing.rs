@@ -72,16 +72,6 @@ pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
     (output, symbolic_ids.take())
 }
 
-fn compile_xo_symbol(xo_symbol: Pair<Rule>) -> String {
-    //future:  this will likely get hairy for complex expressions inside square brackets -- e.g.
-    //         `self.active_things[i + self.get_some_pure_value(j + i)]`
-    //         Likely the ideal solution is to _refer to another vtable entry_ for the inner expression,
-    //         then encode that id as part of the escaped identifier, e.g. `selfPERIactive_things[VTABLE]
-    //return the "encoded" / "escaped" entire symbol / identifier in RIL, which should assuredly refer
-    //to the same `invocation` that is created earlier in each vtable entry
-    crate::reflection::escape_identifier(xo_symbol.as_str().replace(" ", "").to_string())
-}
-
 fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
     let mut pairs = xo_symbol.clone().into_inner();
     let maybe_this_or_self = pairs.next().unwrap().as_str();
@@ -323,7 +313,6 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
 
 struct TemplateNodeParseContext {
     pub template_node_definitions: Vec<TemplateNodeDefinition>,
-    pub is_root: bool,
     pub pascal_identifier_to_component_id_map: HashMap<String, String>,
     //each frame of the outer vec represents a list of
     //children for a given node;
@@ -729,7 +718,6 @@ pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str
     let mut tpc = TemplateNodeParseContext {
         pascal_identifier_to_component_id_map: template_map,
         template_node_definitions: vec![],
-        is_root,
         //each frame of the outer vec represents a list of
         //children for a given node; child order matters because of z-index defaults;
         //a new frame is added when descending the tree

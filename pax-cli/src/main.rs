@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use clap::{App, AppSettings, Arg, Error};
+use clap::{App, AppSettings, Arg};
 use pax_compiler::{RunTarget, RunContext};
 
 
@@ -9,12 +9,14 @@ use pax_compiler::{RunTarget, RunContext};
 
 fn main() -> Result<(), ()> {
 
+    #[allow(non_snake_case)]
     let ARG_PATH = Arg::with_name("path")
         .short("p")
         .long("path")
         .takes_value(true)
         .default_value(".");
 
+    #[allow(non_snake_case)]
     let ARG_TARGET = Arg::with_name("target")
         .short("t")
         .long("target")
@@ -99,8 +101,8 @@ fn main() -> Result<(), ()> {
                     let output = &pax_compiler::run_parser_binary(&path);
 
                     // Forward both stdout and stderr
-                    std::io::stderr().write_all(output.stderr.as_slice());
-                    std::io::stdout().write_all(output.stdout.as_slice());
+                    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
+                    std::io::stdout().write_all(output.stdout.as_slice()).unwrap();
 
                     Ok(())
                 },
@@ -108,14 +110,14 @@ fn main() -> Result<(), ()> {
                     let target = args.value_of("target").unwrap().to_lowercase();
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
 
-                    let mut working_path = Path::new(&path).join(".pax");
+                    let working_path = Path::new(&path).join(".pax");
                     let pax_dir = fs::canonicalize(working_path).unwrap();
 
                     let output = pax_compiler::build_chassis_with_cartridge(&pax_dir, &RunTarget::from(target.as_str()));
 
                     // Forward both stdout and stderr
-                    std::io::stderr().write_all(output.stderr.as_slice());
-                    std::io::stdout().write_all(output.stdout.as_slice());
+                    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
+                    std::io::stdout().write_all(output.stdout.as_slice()).unwrap();
 
                     Ok(())
                 },

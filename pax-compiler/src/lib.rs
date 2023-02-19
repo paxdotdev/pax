@@ -61,7 +61,7 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     file_contents += "}";
 
     let path = pax_dir.join(Path::new(REEXPORTS_PARTIAL_RS_PATH));
-    fs::write(path, file_contents);
+    fs::write(path, file_contents).unwrap();
 }
 
 fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
@@ -204,7 +204,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     );
 
     //write patched Cargo.toml
-    fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
+    fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
 
 
     //build tuples for PropertiesCoproduct
@@ -232,6 +232,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
     let mut set: HashSet<_> = types_coproduct_tuples.drain(..).collect();
 
+    #[allow(non_snake_case)]
     let BUILT_INS = vec![
         ("f64", "f64"),
         ("bool", "bool"),
@@ -256,13 +257,13 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     });
 
     //write String to file
-    fs::write(target_dir.join("src/lib.rs"), generated_lib_rs);
+    fs::write(target_dir.join("src/lib.rs"), generated_lib_rs).unwrap();
 
 }
 
 fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
     let target_dir = pax_dir.join("cartridge");
-    clone_cartridge_to_dot_pax(&target_dir);
+    clone_cartridge_to_dot_pax(&target_dir).unwrap();
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
@@ -276,9 +277,10 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     );
 
     //write patched Cargo.toml
-    fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string());
+    fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
 
     //Gather all fully_qualified_constituent_types from manifest; prepend with re-export prefix; make unique
+    #[allow(non_snake_case)]
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
     let mut imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
         comp_def.property_definitions.iter().map(|prop_def|{
@@ -351,7 +353,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     });
 
     //write String to file
-    fs::write(target_dir.join("src/lib.rs"), generated_lib_rs);
+    fs::write(target_dir.join("src/lib.rs"), generated_lib_rs).unwrap();
 
 }
 
@@ -376,7 +378,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         recurse_generate_render_nodes_literal(rngc, active_tnd)
     }).collect();
 
-    const default_property_literal: &str = "PropertyLiteral::new(Default::default())";
+    const DEFAULT_PROPERTY_LITERAL: &str = "PropertyLiteral::new(Default::default())";
 
     let args = if tnd.component_id == parsing::COMPONENT_ID_REPEAT {
         // Repeat
@@ -389,8 +391,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
             properties: vec![],
-            transform_ril: default_property_literal.to_string(),
-            size_ril: [default_property_literal.to_string(), default_property_literal.to_string()],
+            transform_ril: DEFAULT_PROPERTY_LITERAL.to_string(),
+            size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
             children_literal,
             slot_index_literal: "None".to_string(),
             repeat_source_expression_literal:  format!("Some(Box::new(PropertyExpression::new({})))", id),
@@ -407,8 +409,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
             properties: vec![],
-            transform_ril: default_property_literal.to_string(),
-            size_ril: [default_property_literal.to_string(), default_property_literal.to_string()],
+            transform_ril: DEFAULT_PROPERTY_LITERAL.to_string(),
+            size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
             children_literal,
             slot_index_literal: "None".to_string(),
             repeat_source_expression_literal:  "None".to_string(),
@@ -425,8 +427,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
             properties: vec![],
-            transform_ril: default_property_literal.to_string(),
-            size_ril: [default_property_literal.to_string(), default_property_literal.to_string()],
+            transform_ril: DEFAULT_PROPERTY_LITERAL.to_string(),
+            size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
             children_literal,
             slot_index_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
             repeat_source_expression_literal:  "None".to_string(),
@@ -466,11 +468,11 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
                             }
                         }
                     } else {
-                        default_property_literal.to_string()
+                        DEFAULT_PROPERTY_LITERAL.to_string()
                     }
                 } else {
                     //no inline attributes at all; everything will be default
-                    default_property_literal.to_string()
+                    DEFAULT_PROPERTY_LITERAL.to_string()
                 }
             };
 
@@ -495,10 +497,10 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
                         }
                     }
                 } else {
-                    default_property_literal.to_string()
+                    DEFAULT_PROPERTY_LITERAL.to_string()
                 }
             } else {
-                default_property_literal.to_string()
+                DEFAULT_PROPERTY_LITERAL.to_string()
             }
         }).collect();
 
@@ -605,7 +607,7 @@ fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: 
     // clear any existing contents
     // fs::remove_dir_all(&relative_chassis_specific_target_dir);
 
-    clone_target_chassis_to_dot_pax(&relative_chassis_specific_target_dir, target_str);
+    clone_target_chassis_to_dot_pax(&relative_chassis_specific_target_dir, target_str).unwrap();
 
     //2. patch Cargo.toml
     let existing_cargo_toml_path = fs::canonicalize(relative_chassis_specific_target_dir.join("Cargo.toml")).unwrap();
@@ -622,7 +624,29 @@ fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: 
 
     //3. write Cargo.toml back to disk & done
     //   hack out the double-quotes inserted by toml_edit along the way
-    fs::write(existing_cargo_toml_path, existing_cargo_toml.to_string().replace("\"patch.crates-io\"", "patch.crates-io") );
+    fs::write(existing_cargo_toml_path, existing_cargo_toml.to_string().replace("\"patch.crates-io\"", "patch.crates-io") ).unwrap();
+}
+
+/// Instead of the built-in Dir#extract method, which aborts when a file exists,
+/// this implementation will continue extracting, as well as overwrite existing files
+fn persistent_extract<S: AsRef<Path>>(dir: &Dir, base_path: S) -> std::io::Result<()> {
+    let base_path = base_path.as_ref();
+
+    for entry in dir.entries() {
+        let path = base_path.join(entry.path());
+
+        match entry {
+            DirEntry::Dir(d) => {
+                fs::create_dir_all(&path).ok();
+                persistent_extract(d, base_path).ok();
+            }
+            DirEntry::File(f) => {
+                fs::write(path, f.contents()).ok();
+            }
+        }
+    }
+
+    Ok(())
 }
 
 static CHASSIS_MACOS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos");
@@ -637,7 +661,7 @@ static CHASSIS_WEB_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-w
 fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBuf, target_str: &str) -> std::io::Result<()> {
 
     // fs::remove_dir_all(&relative_chassis_specific_target_dir);
-    fs::create_dir_all(&relative_chassis_specific_target_dir);
+    fs::create_dir_all(&relative_chassis_specific_target_dir).unwrap();
 
     //Note: zb spent too long tangling with this -- seems like fs::remove* and fs::create* work
     //      only with the relative path, while Dir::extract requires a canonicalized path.  At least: this works on macOS,
@@ -647,20 +671,23 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
     // println!("Cloning {} chassis to {:?}", target_str, chassis_specific_dir);
     match RunTarget::from(target_str) {
         RunTarget::MacOS => {
-            CHASSIS_MACOS_DIR.extract(&chassis_specific_dir);
+
+            persistent_extract(&CHASSIS_MACOS_DIR, &chassis_specific_dir).unwrap();
+
+            // CHASSIS_MACOS_DIR.extract(&chassis_specific_dir).unwrap();
             //HACK: patch the relative directory for the cdylib, because in a rust monorepo the `target` dir
             //      is at the monorepo root, while in this isolated project it will be in `pax-chassis-macos`.
             let pbx_path = &chassis_specific_dir.join("pax-dev-harness-macos").join("pax-dev-harness-macos.xcodeproj").join("project.pbxproj");
-            fs::write(pbx_path, fs::read_to_string(pbx_path).unwrap().replace("../../target", "../target"));
+            fs::write(pbx_path, fs::read_to_string(pbx_path).unwrap().replace("../../target", "../target")).unwrap();
 
             //write +x permission to copied run-debuggable-mac-app
-            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o555));
+            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o555)).unwrap();
         }
         RunTarget::Web => {
-            CHASSIS_WEB_DIR.extract(&chassis_specific_dir);
+            CHASSIS_WEB_DIR.extract(&chassis_specific_dir).unwrap();
 
             //write +x permission to copied run-debuggable-mac-app
-            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-web").join("run-web.sh"), fs::Permissions::from_mode(0o555));
+            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-web").join("run-web.sh"), fs::Permissions::from_mode(0o555)).unwrap();
         }
     }
     Ok(())
@@ -675,7 +702,7 @@ static CARTRIDGE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge")
 /// and the encapsulated dev harness is the actual dev executable
 fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
     // fs::remove_dir_all(&relative_cartridge_target_dir);
-    fs::create_dir_all(&relative_cartridge_target_dir);
+    fs::create_dir_all(&relative_cartridge_target_dir).unwrap();
 
     let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
 
@@ -691,7 +718,7 @@ static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-
 /// and the encapsulated dev harness is the actual dev executable
 fn clone_properties_coproduct_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
     // fs::remove_dir_all(&relative_cartridge_target_dir);
-    fs::create_dir_all(&relative_cartridge_target_dir);
+    fs::create_dir_all(&relative_cartridge_target_dir).unwrap();
 
     let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
 
@@ -702,7 +729,7 @@ fn clone_properties_coproduct_to_dot_pax(relative_cartridge_target_dir: &PathBuf
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let mut working_path = std::path::Path::new(working_dir).join(".pax");
-    std::fs::create_dir_all( &working_path);
+    std::fs::create_dir_all( &working_path).unwrap();
     fs::canonicalize(working_path).unwrap()
 }
 
@@ -742,7 +769,7 @@ static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
 pub fn perform_clean(path: &str) -> Result<(), ()> {
     let pax_dir = get_or_create_pax_directory(path);
-    fs::remove_dir_all(pax_dir);
+    fs::remove_dir_all(pax_dir).unwrap();
     Ok(())
 }
 
@@ -773,6 +800,7 @@ use colored::Colorize;
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> {
 
+    #[allow(non_snake_case)]
     let PAX_BADGE = "[Pax]".bold().on_black().white();
 
     println!("{} 🛠 Starting to build your app...", &PAX_BADGE);
@@ -783,7 +811,7 @@ pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> 
     let output = run_parser_binary(&ctx.path);
 
     // Forward stderr only
-    std::io::stderr().write_all(output.stderr.as_slice());
+    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
     assert_eq!(output.status.code().unwrap(), 0, "Parsing failed — there is likely a syntax error in the provided pax");
 
     let out = String::from_utf8(output.stdout).unwrap();
@@ -809,7 +837,7 @@ pub fn perform_build(ctx: &RunContext, should_also_run: bool) -> Result<(), ()> 
     println!("{} 🧱 Building your cartridge", &PAX_BADGE);
     let output = build_chassis_with_cartridge(&pax_dir, &ctx.target);
     //forward stderr only
-    std::io::stderr().write_all(output.stderr.as_slice());
+    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
     assert_eq!(output.status.code().unwrap(), 0);
 
     if should_also_run {

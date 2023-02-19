@@ -39,21 +39,23 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     
-    //Color::rgb(1,0,1)
+    //Color::rgb(1,0.5,0)
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
+        #[allow(unused_parens)]
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((1.into()),(0.into()),(1.into()),)
+            Color::rgb((1.into()),(0.5.into()),(0.into()),)
         )
     }));
     
-    //Color::rgb(1,1,0)
+    //Color::rgb(0,1,0.5)
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
+        #[allow(unused_parens)]
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((1.into()),(1.into()),(0.into()),)
+            Color::rgb((0.into()),(1.into()),(0.5.into()),)
         )
     }));
     
@@ -61,6 +63,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
+        #[allow(unused_parens)]
         TypesCoproduct::Transform2D(
             (Transform2D::align((Size::Percent(100.into())),(Size::Percent(0 .into())),)*Transform2D::anchor((Size::Percent(100.into())),(Size::Percent(0 .into())),))
         )
