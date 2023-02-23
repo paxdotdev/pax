@@ -1,3 +1,4 @@
+use kurbo::{Point, segments};
 use pax::*;
 use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 
@@ -177,3 +178,58 @@ pub enum ColorVariant {
 pub use pax::api::Size;
 
 use pax_message::{ColorVariantMessage, FontPatch};
+use crate::primitives::Path;
+
+
+#[derive(Clone)]
+#[pax_type]
+pub enum PathSegment {
+    LineSegment(LineSegmentData),
+    CurveSegment(CurveSegmentData),
+}
+
+impl Interpolatable for PathSegment {}
+
+#[derive(Clone)]
+#[pax_type]
+pub struct LineSegmentData {
+    pub start : Point,
+    pub end : Point,
+}
+
+
+#[derive(Clone)]
+#[pax_type]
+pub struct CurveSegmentData {
+    pub start : Point,
+    pub handle : Point,
+    pub end : Point,
+}
+
+
+impl Path {
+    pub fn start() -> Vec<PathSegment> {
+        let start : Vec<PathSegment> = Vec::new();
+        start
+    }
+    pub fn line_to(mut path: Vec<PathSegment>, start: (f64, f64), end: (f64, f64)) -> Vec<PathSegment> {
+        let lineSegData : LineSegmentData = LineSegmentData {
+            start: Point::from(start),
+            end: Point::from(end),
+        };
+
+        path.push(PathSegment::LineSegment(lineSegData));
+        path
+    }
+
+    pub fn curve_to(mut path: Vec<PathSegment>, start: (f64, f64), handle: (f64, f64), end: (f64, f64)) -> Vec<PathSegment> {
+        let curveSegData : CurveSegmentData = CurveSegmentData {
+            start:  Point::from(start),
+            handle:  Point::from(handle),
+            end:  Point::from(end),
+        };
+
+        path.push(PathSegment::CurveSegment(curveSegData));
+        path
+    }
+}
