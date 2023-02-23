@@ -13,8 +13,7 @@ use std::rc::Rc;
 use pax_std::types::PathSegment::LineSegment;
 
 
-/// A basic 2D vector ellipse, drawn to fill the bounds specified
-/// by `size`, transformed by `transform`
+/// A basic 2D vector path for arbitrary Bézier / line-segment chains
 pub struct PathInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u64,
