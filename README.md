@@ -4,8 +4,10 @@ Pax is a user interface language and rendering engine.  Use Pax to build GUIs an
 
 Pax compiles through Rust into native Mac apps (LLVM) or Web apps (WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
 
-As of September 2022, Pax is being developed in the open, [in alpha preview](https://docs.pax.rs/status-sept-2022.html).
+## Getting Started
+**Pax is being developed in the open in an unstable _alpha preview._** You cannot yet, without pain, create an app.  If you want to collaborate on library development at this stage, [reach out on Discord](https://discord.gg/P6vTntC6fr).
 
+Once Pax reaches `Alpha` — soon — this section will be updated to include simple instructions for getting started.
 
 ## Example
 
