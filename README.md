@@ -4,11 +4,6 @@ Pax is a user interface language and rendering engine.  Use Pax to build GUIs an
 
 Pax compiles through Rust into native Mac apps (LLVM) or Web apps (WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
 
-## Getting Started
-**Pax is being developed in the open in an unstable _alpha preview._** You cannot yet, without pain, create an app.  If you want to collaborate on library development at this stage, [reach out on Discord](https://discord.gg/P6vTntC6fr).
-
-Once Pax reaches `Alpha` — soon — this section will be updated to include simple instructions for getting started.
-
 ## Example
 
 Writing Pax is intended to feel familiar, and the language borrows many ideas from [prior art](https://docs.pax.rs/intro-goals-prior-art.html).
@@ -60,9 +55,13 @@ See a more thorough and [a running example](https://docs.pax.rs/intro-example.ht
 Read more in [The Pax Docs](https://docs.pax.rs/)
 
 
-## Getting Started
 
-Refer to the [guide for getting started](https://docs.pax.rs/start-creating-a-project.html) in the Pax docs.
+## Getting Started
+**Pax is being developed in the open in an unstable _alpha preview._** You cannot yet, without pain, create an app.  If you want to collaborate on library development at this stage, [reach out on Discord](https://discord.gg/P6vTntC6fr).
+
+Once Pax reaches `Alpha` — soon — this section will be updated to include simple instructions for getting started.
+
+
 
 ## Current status & support
 
@@ -101,7 +100,7 @@ This project is licensed under either of:
 
 at your option.
 
-## Development
+## Library Development
 
 ### Environment setup
 
