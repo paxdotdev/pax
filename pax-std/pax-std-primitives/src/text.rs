@@ -10,6 +10,7 @@ use pax_core::{ComputableTransform, TabCache, HandlerRegistry, InstantiationArgs
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
+use pax::api::numeric::Numeric;
 
 pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
@@ -144,7 +145,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         let val = properties.font.get().size.get();
         let is_new_value = match &last_patch.font.size {
             Some(cached_value) => {
-                !val.eq(cached_value)
+                !val.eq( &Numeric::Float(*cached_value))
             },
             None => {
                 true
