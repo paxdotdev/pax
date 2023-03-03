@@ -150,8 +150,8 @@ impl Color {
     pub fn rgba(r:f64, g:f64, b:f64, a:f64) -> Self {
         Self {color_variant: ColorVariant::Rgba([r,g,b,a])}
     }
-    pub fn rgb(r:f64, g:f64, b:f64) -> Self {
-        Self {color_variant: ColorVariant::Rgb([r,g,b])}
+    pub fn rgb(r:Numeric, g:Numeric, b:Numeric) -> Self {
+        Self {color_variant: ColorVariant::Rgb([r.get_as_float(),g.get_as_float(),b.get_as_float()])}
     }
     pub fn to_piet_color(&self) -> piet::Color {
         match self.color_variant {
