@@ -1,32 +1,25 @@
 # Pax  
 
-Pax is a user interface language and rendering engine.  Use Pax to build GUIs and interactive 2D graphics with Rust.
-
-Pax compiles through Rust into native Mac apps (LLVM) or Web apps (WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
+Pax is a user interface language and 2D layout engine.  Use Pax to develop cross-platform apps with Rust.
 
 ## Example
 
-Writing Pax is intended to feel familiar, and the language borrows many ideas from [prior art](https://docs.pax.rs/intro-goals-prior-art.html).
+Writing Pax is intended to feel familiar and the language borrows many ideas from [prior art](https://docs.pax.rs/intro-goals-prior-art.htmll#prior-art--inspiration).
 
 Following is a simple Pax component called `IncrementMe`:
 
 ```rust
-//increment-me.rs
+//File: increment-me.rs
 
 use pax::*;
 use pax_std::{Text};
 use pax_std::forms::{Button, ArgsButtonSubmit};
 use pax_std::layout::{Stacker};
 
-/// Following is the description of a simple form GUI, encapsulated 
-/// into a reusable component called `IncrementMe`.
-
-#[pax(
-  <Stacker cells=2>
-    <Text>{"I have been clicked " + self.num_clicks + " times."}</Text>
-    <Button @submit=self.increment>"Increment me!"</Button>
-  </Stacker>
-)] 
+/// The `pax_component` macro loads the file `increment-me.pax` as a template declaration 
+/// and defines a reusable component called `IncrementMe`.  You could also declare
+/// the Pax definition inline with `#[pax_component_inline(<Stacker>/*...*/</Stacker>)] 
+#[pax_component("increment-me.pax")] 
 pub struct IncrementMe {
   pub num_clicks: Property<i64>
 }
@@ -36,31 +29,40 @@ impl IncrementMe {
     self.num_clicks.set(old_num_clicks + 1);
   }
 }
-
 ```
+```rust
+//File: increment-me.pax
+
+<Stacker cells=2>
+  <Text>{"I have been clicked " + self.num_clicks + " times."}</Text>
+  <Button @submit=self.increment>"Increment me!"</Button>
+</Stacker>
+```
+
+
 Any Pax component like the example above may be included inside other Pax components, or may be mounted as the root of a stand-alone app.
 
-See a more thorough and [a running example](https://docs.pax.rs/intro-example.html).
+See a more thorough, [running example](https://docs.pax.rs/intro-example.html).
 
 ## Features
 
- - **Fast** — native rendering targeting 120FPS animations
- - **Accessible** — supports native screen readers for text & GUI elements
- - **Lightweight** — targeting <100kB baseline for WebAssembly binary 
+ - **Fast** — low-level native rendering targeting 120FPS animations
+ - **Accessible** — supports native screen readers for text & GUI elements, as well as SEO on the Web
+ - **Lightweight** — under 100kB baseline for WebAssembly binary 
  - **Declarative** UI language makes it easy to reason about complex scenes and GUIs
+ - **Expressive** — includes free-form drawing and animation toolkit alongside GUI form elements and layouts
  - **Reusable component system** includes an optional standard library of GUI components
- - **Multi-platform** — currently supports building Web apps or native macOS apps
+ - **Cross-platform** — a single Pax definition compiles through Rust into 1. a completely native Mac app (via LLVM, zero Web tech) and 2. a Web app (via WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
+
 
 ## Docs
 Read more in [The Pax Docs](https://docs.pax.rs/)
-
 
 
 ## Getting Started
 **Pax is being developed in the open in an unstable _alpha preview._** You cannot yet, without pain, create an app.  If you want to collaborate on library development at this stage, [reach out on Discord](https://discord.gg/P6vTntC6fr).
 
 Once Pax reaches `Alpha` — soon — this section will be updated to include simple instructions for getting started.
-
 
 
 ## Current status & support
@@ -92,7 +94,7 @@ Pax is in **alpha-preview** and is not yet viable for building apps — read [th
 
 ## License
 
-© 2023 Zachary Brown  [contact@pax.rs].
+© 2023 PaxCorp Inc.  [contact@pax.rs].
 
 This project is licensed under either of:
 - [MIT license](LICENSE-MIT)
