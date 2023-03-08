@@ -1,9 +1,11 @@
+pub mod numeric;
+
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::ops::{Index, Mul};
 use std::rc::Rc;
 use std::ffi::CString;
+use std::ops::Mul;
 
 pub extern crate pax_macro;
 pub use pax_macro::*;
@@ -13,6 +15,7 @@ extern crate lazy_static;
 extern crate mut_static;
 
 use mut_static::MutStatic;
+use crate::numeric::Numeric;
 
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
@@ -140,8 +143,8 @@ pub struct ArgsJab {
 
 #[derive(Copy, Clone)]
 pub enum Size {
-    Pixels(f64),
-    Percent(f64),
+    Pixels(Numeric),
+    Percent(Numeric),
 }
 
 impl pax_message::reflection::PathQualifiable for Size {
@@ -151,23 +154,25 @@ impl pax_message::reflection::PathQualifiable for Size {
 }
 
 #[derive(Copy, Clone)]
-pub struct SizePixels(pub f64);
+pub struct SizePixels(pub Numeric);
 impl Default for SizePixels {
     fn default() -> Self {
-        Self(150.0)
+        Self(Numeric::Float(150.0))
     }
 }
-impl Into<f64> for &SizePixels {
-    fn into(self) -> f64 {
-        self.0
+
+impl From<&SizePixels > for f64{
+    fn from(value: &SizePixels) -> Self {
+        value.0.get_as_float()
     }
 }
-impl PartialEq<f64> for SizePixels {
-    fn eq(&self, other: &f64) -> bool {
+
+impl PartialEq<Numeric> for SizePixels {
+    fn eq(&self, other: &Numeric) -> bool {
         self.0 == *other
     }
 }
-impl PartialEq<SizePixels> for f64 {
+impl PartialEq<SizePixels> for Numeric {
     fn eq(&self, other: &SizePixels) -> bool {
         other.0 == *self
     }
@@ -241,7 +246,7 @@ impl Mul for Size {
 // NOTE: may be worth revisiting if 100% is the most ergonomic default size (remember Dreamweaver)
 impl Default for Size {
     fn default() -> Self {
-        Self::Percent(100.0)
+        Self::Percent(Numeric::from(100.0))
     }
 }
 
@@ -302,9 +307,9 @@ impl Transform2D {
         ret
     }
     ///Rotation over z axis
-    pub fn rotate(z: f64) -> Self {
+    pub fn rotate(z: Numeric) -> Self {
         let mut ret  = Transform2D::default();
-        ret.rotate = Some(z);
+        ret.rotate = Some(z.get_as_float());
         ret
     }
     ///Translation across x-y plane, pixels

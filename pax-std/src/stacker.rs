@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use pax::*;
 use pax::api::{Size2D, Size, ArgsRender, Property, Transform2D};
+use pax::api::numeric::Numeric;
 use crate::primitives::{Frame, Group};
 use crate::types::{StackerDirection, StackerCell};
 
@@ -47,12 +48,12 @@ impl Stacker {
 
         let gutter_calc = match *self.gutter_width.get() {
             Size::Pixels(px) => px,
-            Size::Percent(pct) => active_bound * (pct / 100.0),
+            Size::Percent(pct) => Numeric::from(active_bound)* (pct / Numeric::from(100.0)),
         };
 
         let cells = self.cells.get().len() as f64;
 
-        let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc;
+        let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc.get_as_float();
         let per_cell_space = usable_interior_space / cells;
 
         //TODO: account for overrides

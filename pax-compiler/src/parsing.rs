@@ -179,8 +179,13 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                             unreachable!()
                         }
                     },
+                    Rule::literal_number => {
+                        let mut inner = literal_kind.into_inner();
+                        let value = inner.next().unwrap().as_str();
+                        format!("Numeric::from({})", value)
+                    }
                     _ => {
-                        /* {literal_enum_value | literal_tuple_access | literal_number |  string | literal_tuple } */
+                        /* {literal_enum_value | literal_tuple_access |  string | literal_tuple } */
                         literal_kind.as_str().to_string() + ".into()"
                     }
                 }

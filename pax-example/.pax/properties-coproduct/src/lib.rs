@@ -6,9 +6,13 @@ pub enum PropertiesCoproduct {
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     
+    Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
+    
     Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
     HelloRGB(pax_example::pax_reexports::HelloRGB),
+    
+    Path(pax_example::pax_reexports::pax_std::primitives::Path),
     
     Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
@@ -28,6 +32,8 @@ pub enum TypesCoproduct {
     String(String),
     
     Transform2D(pax_runtime_api::Transform2D),
+    
+    VecLABR__pax_stdCOCOtypesCOCOPathSegmentRABR(Vec<pax_example::pax_reexports::pax_std::types::PathSegment>),
     
     VecLABR__usizeRABR(Vec<pax_example::pax_reexports::usize>),
     

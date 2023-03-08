@@ -204,7 +204,7 @@ pub trait RenderNode<R: 'static + RenderContext>
                 (
                     match size_raw.borrow()[0].get() {
                         Size::Pixels(width) => {
-                            *width
+                            width.get_as_float()
                         },
                         Size::Percent(width) => {
                             bounds.0 * (*width / 100.0)
@@ -212,7 +212,7 @@ pub trait RenderNode<R: 'static + RenderContext>
                     },
                     match size_raw.borrow()[1].get() {
                         Size::Pixels(height) => {
-                            *height
+                            height.get_as_float()
                         },
                         Size::Percent(height) => {
                             bounds.1 * (*height / 100.0)
@@ -309,7 +309,7 @@ impl ComputableTransform for Transform2D {
                     (
                         match anchor[0] {
                             Size::Pixels(x) => {
-                                -x
+                                -x.get_as_float()
                             },
                             Size::Percent(x) => {
                                 -node_size.0 * (x / 100.0)
@@ -317,7 +317,7 @@ impl ComputableTransform for Transform2D {
                         },
                         match anchor[1] {
                             Size::Pixels(y) => {
-                                -y
+                                -y.get_as_float()
                             },
                             Size::Percent(y) => {
                                 -node_size.1 * (y / 100.0)
