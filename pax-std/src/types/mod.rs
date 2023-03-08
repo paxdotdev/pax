@@ -1,6 +1,7 @@
 use kurbo::{Point, segments};
 use pax::*;
 use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
+use pax::api::numeric::Numeric;
 
 #[cfg(feature = "parser")]
 use pax_message::reflection::PathQualifiable;
@@ -15,7 +16,7 @@ impl Default for Stroke {
     fn default() -> Self {
         Self {
             color: Box::new(PropertyLiteral::new(Default::default())),
-            width: Box::new(PropertyLiteral::new(SizePixels(0.0))),
+            width: Box::new(PropertyLiteral::new(SizePixels(Numeric::from(0.0)))),
         }
     }
 }
@@ -62,7 +63,7 @@ impl Into<FontPatch> for &Font {
         FontPatch {
              family: Some(self.family.get().clone()),
              variant: Some(self.variant.get().clone()),
-             size: Some(self.size.get().0),
+             size: Some(self.size.get().0.get_as_float()),
         }
     }
 }
@@ -71,7 +72,7 @@ impl PartialEq<FontPatch> for Font {
     fn eq(&self, other: &FontPatch) -> bool {
         matches!(&other.family, Some(family) if family.eq(self.family.get()))
             && matches!(&other.variant, Some(variant) if variant.eq(self.variant.get()))
-            && matches!(&other.size, Some(size) if size.eq(self.size.get()))
+            && matches!(&other.size, Some(size) if size.eq(&self.size.get().0.get_as_float()))
     }
 }
 impl Default for Font {
@@ -79,7 +80,7 @@ impl Default for Font {
         Self {
             family: Box::new(PropertyLiteral::new("Courier New".to_string())),
             variant: Box::new(PropertyLiteral::new("Regular".to_string())),
-            size: Box::new(PropertyLiteral::new(SizePixels(14.0))),
+            size: Box::new(PropertyLiteral::new(SizePixels(Numeric::from(14.0)))),
         }
     }
 }
@@ -149,8 +150,8 @@ impl Color {
     pub fn rgba(r:f64, g:f64, b:f64, a:f64) -> Self {
         Self {color_variant: ColorVariant::Rgba([r,g,b,a])}
     }
-    pub fn rgb(r:f64, g:f64, b:f64) -> Self {
-        Self {color_variant: ColorVariant::Rgb([r,g,b])}
+    pub fn rgb(r:Numeric, g:Numeric, b:Numeric) -> Self {
+        Self {color_variant: ColorVariant::Rgb([r.get_as_float(),g.get_as_float(),b.get_as_float()])}
     }
     pub fn to_piet_color(&self) -> piet::Color {
         match self.color_variant {

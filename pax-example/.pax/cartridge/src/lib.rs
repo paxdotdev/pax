@@ -5,6 +5,7 @@ use std::collections::{HashMap, VecDeque};
 use std::ops::Deref;
 use std::rc::Rc;
 //Prelude: Pax
+use pax_runtime_api::numeric::Numeric;
 use pax_runtime_api::{ArgsCoproduct, Size, SizePixels, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_core::{ComponentInstance, RenderNodePtr, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceRegistry, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
@@ -17,6 +18,8 @@ use pax_example::pax_reexports::pax_std::types::Color;
 
 use pax_example::pax_reexports::pax_std::types::Font;
 
+use pax_example::pax_reexports::pax_std::types::PathSegment;
+
 use pax_example::pax_reexports::pax_std::types::Stroke;
 
 use pax_example::pax_reexports::std::string::String;
@@ -27,7 +30,11 @@ use pax_example::pax_reexports::usize;
 
 use pax_example::pax_reexports::HelloRGB;
 
+use pax_example::pax_reexports::pax_std::primitives::Ellipse;
+
 use pax_example::pax_reexports::pax_std::primitives::Group;
+
+use pax_example::pax_reexports::pax_std::primitives::Path;
 
 use pax_example::pax_reexports::pax_std::primitives::Rectangle;
 
@@ -47,57 +54,37 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
         #[allow(unused_parens)]
         TypesCoproduct::Transform2D(
-            ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),))*Transform2D::rotate((0.07.into()),))
+            ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),))*Transform2D::rotate((Numeric::from(0.07)),))
         )
     }));
     
-    //Color::rgb(1,0.5,0)
+    //Path::curve_to(Path::line_to(Path::start(),(0.0,0.0),(500.0,500.0)),(800.0,500.0),(0.0,0.0),(700.0,300.0))
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((1.into()),(0.5.into()),(0.into()),)
+        TypesCoproduct::VecLABR__pax_stdCOCOtypesCOCOPathSegmentRABR(
+            Path::curve_to((Path::line_to((Path::start()),((0.0, 0.0).into()),((500.0, 500.0).into()),)),((800.0, 500.0).into()),((0.0, 0.0).into()),((700.0, 300.0).into()),)
         )
     }));
     
-    //Color::rgb(0.5,0,1)
+    //Color::rgb(0,0.5,0)
     vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((0.5.into()),(0.into()),(1.into()),)
+            Color::rgb((Numeric::from(0)),(Numeric::from(0.5)),(Numeric::from(0)),)
         )
     }));
     
-    //Transform2D::align(50%,0%)*Transform2D::anchor(50%,0%)
+    //Color::rgb(1,0.5,0)
     vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
-        TypesCoproduct::Transform2D(
-            (Transform2D::align((Size::Percent(50.into())),(Size::Percent(0 .into())),)*Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(0 .into())),))
-        )
-    }));
-    
-    //Color::rgb(0,1,0.5)
-    vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        #[allow(unused_parens)]
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((0.into()),(1.into()),(0.5.into()),)
-        )
-    }));
-    
-    //Transform2D::align(100%,0%)*Transform2D::anchor(100%,0%)
-    vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::Transform2D(
-            (Transform2D::align((Size::Percent(100.into())),(Size::Percent(0 .into())),)*Transform2D::anchor((Size::Percent(100.into())),(Size::Percent(0 .into())),))
+            Color::rgb((Numeric::from(1)),(Numeric::from(0.5)),(Numeric::from(0)),)
         )
     }));
     
@@ -165,13 +152,45 @@ pax_std_primitives::text::TextInstance::instantiate(
         
             
 
-pax_std_primitives::rectangle::RectangleInstance::instantiate(
+pax_std_primitives::path::PathInstance::instantiate(
  InstantiationArgs {
-    properties: PropertiesCoproduct::Rectangle( Rectangle {
+    properties: PropertiesCoproduct::Path( Path {
+        
+            segments: Box::new( PropertyExpression::new(1) ),
         
             stroke: Box::new( PropertyLiteral::new(Default::default()) ),
         
-            fill: Box::new( PropertyExpression::new(1) ),
+            fill: Box::new( PropertyLiteral::new(Default::default()) ),
+        
+    }),
+    handler_registry: None,
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+
+,
+        
+            
+
+pax_std_primitives::ellipse::EllipseInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::Ellipse( Ellipse {
+        
+            stroke: Box::new( PropertyLiteral::new(Default::default()) ),
+        
+            fill: Box::new( PropertyExpression::new(2) ),
         
     }),
     handler_registry: None,
@@ -201,42 +220,12 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
         
             stroke: Box::new( PropertyLiteral::new(Default::default()) ),
         
-            fill: Box::new( PropertyExpression::new(2) ),
+            fill: Box::new( PropertyExpression::new(3) ),
         
     }),
     handler_registry: None,
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(3))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Percent(33.33.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-
-,
-        
-            
-
-pax_std_primitives::rectangle::RectangleInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::Rectangle( Rectangle {
-        
-            stroke: Box::new( PropertyLiteral::new(Default::default()) ),
-        
-            fill: Box::new( PropertyExpression::new(4) ),
-        
-    }),
-    handler_registry: None,
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(5))),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
     size: Some(Rc::new(RefCell::new(
         [Box::new(PropertyLiteral::new(Size::Percent(33.33.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
     ))),
