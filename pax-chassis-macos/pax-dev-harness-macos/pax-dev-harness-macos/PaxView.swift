@@ -63,8 +63,8 @@ struct PaxView: View {
                 }
             })
         })
+        
     }
-}
 
 
 class PaxEngineContainer {
@@ -95,7 +95,21 @@ struct NativeRenderingLayer: View {
                     d: CGFloat(frameElement.transform[3]),
                     tx: CGFloat(frameElement.transform[4]),
                     ty: CGFloat(frameElement.transform[5]))
-                )
+                ).gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onChanged { dragGesture in
+                    let data = try? JSONSerialization.data(withJSONObject: frameElement.id_chain, options: []);
+                    let id_string = String(data: data.unsafelyUnwrapped, encoding: String.Encoding.utf8);
+                    let json = String(format: "{\"Scroll\": {\"id_chain\": %s, \"delta_x\": %f, \"delta_y\": %f} }", id_string.unsafelyUnwrapped, dragGesture.translation.width, dragGesture.translation.height);
+                    let buffer = try! FlexBufferBuilder.fromJSON(json)
+                    
+                    //Send `Click` interrupt
+                    buffer.data.withUnsafeBytes({ptr in
+                        var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
+                        
+                        withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
+                            pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+                        }
+                    })
+                })
         } }
     }
     
