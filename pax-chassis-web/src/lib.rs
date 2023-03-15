@@ -12,7 +12,7 @@ use pax_core::{InstanceRegistry, PaxEngine};
 
 use serde_json;
 use pax_message::NativeInterrupt;
-use pax_runtime_api::ArgsClick;
+use pax_runtime_api::{ArgsClick, ArgsScroll};
 
 // Console.log support, piped from `pax::log`
 #[wasm_bindgen]
@@ -134,8 +134,15 @@ impl PaxChassisWeb {
                     _ => {},
                 };
             },
-            NativeInterrupt::Scroll(_) => {
-                unimplemented!()
+            NativeInterrupt::Scroll(args) => {
+                let prospective_hit = (*self.engine).borrow().get_topmost_hydrated_element_beneath_ray((args.x, args.y));
+                match prospective_hit {
+                    Some(topmost_node) => {
+                        let args_scroll = ArgsScroll {delta_x: args.delta_x, delta_y: args.delta_y};
+                        topmost_node.dispatch_scroll(args_scroll);
+                    },
+                    _ => {},
+                };
             }
         }
     }

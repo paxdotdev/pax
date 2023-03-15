@@ -13,11 +13,11 @@ use pax_message::NativeMessage;
 
 use piet_common::RenderContext;
 
-use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode, TabCache, TransformAndBounds, StackFrame};
+use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode, TabCache, TransformAndBounds, StackFrame, ScrollerArgs};
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, Interpolatable, TransitionManager};
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, ArgsScroll, Interpolatable, TransitionManager};
 
 pub enum EventMessage {
     Tick(ArgsRender),
@@ -155,6 +155,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsClick)>,
     pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
+    pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsScroll)>,
 }
 
 pub struct HydratedNode<R: 'static + RenderContext> {
@@ -174,6 +175,16 @@ impl<R: 'static + RenderContext> HydratedNode<R> {
         }
         if let Some(parent) = &self.parent_hydrated_node {
             parent.dispatch_click(args_click);
+        }
+    }
+    pub fn dispatch_scroll(&self, args_scroll: ArgsScroll) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            (*registry).borrow().scroll_handlers.iter().for_each(|handler|{
+                handler(Rc::clone(&self.stack_frame), args_scroll.clone());
+            })
+        }
+        if let Some(parent) = &self.parent_hydrated_node {
+            parent.dispatch_scroll(args_scroll);
         }
     }
 }

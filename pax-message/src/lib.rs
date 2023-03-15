@@ -64,7 +64,8 @@ pub struct ClickInterruptArgs {
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct ScrollInterruptArgs {
-    pub id_chain: Vec<u64>,
+    pub x: f64,
+    pub y: f64,
     pub delta_x: f64,
     pub delta_y: f64,
 }
