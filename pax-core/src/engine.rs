@@ -483,21 +483,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         ret
     }
 
-    pub fn get_hydrated_node_by_id_chain(&self, id_chain: Vec<u64>) -> Option<Rc<HydratedNode<R>>> {
-        let registry = (*self.instance_registry).borrow();
-         let node = registry.hydrated_node_cache.iter()
-             .find(|rc|{
-                 (*rc).id_chain == id_chain
-            });
-
-        match node {
-            Some(rc) => {
-                Some(Rc::clone(rc))
-            },
-            None => None
-        }
-    }
-
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
         self.viewport_size = new_viewport_size;
