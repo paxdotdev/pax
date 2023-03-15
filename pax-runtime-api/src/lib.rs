@@ -138,6 +138,15 @@ pub struct ArgsJab {
     pub y: f64,
 }
 
+/// Scroll occurs when a frame is translated vertically or horizontally
+/// The contained `delta_x` and `delta_y` describe the horizontal and vertical translation of
+/// the frame
+#[derive(Clone)]
+pub struct ArgsScroll {
+    pub delta_x: f64,
+    pub delta_y: f64,
+}
+
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
 

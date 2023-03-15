@@ -51,6 +51,19 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
         chassis.interrupt(JSON.stringify(event));
     }, true);
 
+    //Handle scroll events on native layer
+    nativeLayer.addEventListener('wheel', (evt) => {
+        let event = {
+            "Scroll": {
+                "x": evt.x,
+                "y": evt.y,
+                "delta_x": evt.deltaX,
+                "delta_y": evt.deltaY,
+            }
+        }
+        chassis.interrupt(JSON.stringify(event));
+    }, true);
+
     //Kick off render loop
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
