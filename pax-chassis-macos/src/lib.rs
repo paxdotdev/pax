@@ -1,9 +1,7 @@
 #![allow(non_snake_case)] //Non-snake-case is used here to help denote foreign structs, e.g. from Swift via C
 
 extern crate core;
-extern crate core;
 
-use core::panicking::panic;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::ffi::c_void;
@@ -103,18 +101,16 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
                 Some(topmost_node) => {
                     let args_click = ArgsClick {x: args.x , y: args.y};
                     topmost_node.dispatch_click(args_click);
-                    panic!("hello");
                 },
                 _ => {},
             };
-        }
+        },
         NativeInterrupt::Scroll(args) => {
-            let scrolled_frame = engine.get_hydrated_node_by_id_chain(args.id_chain);
-            match scrolled_frame {
-                Some(matched_node) => {
+            let prospective_hit = engine.get_topmost_hydrated_element_beneath_ray((args.x, args.y));
+            match prospective_hit {
+                Some(topmost_node) => {
                     let args_scroll = ArgsScroll {delta_x: args.delta_x , delta_y: args.delta_y};
-                    matched_node.dispatch_scroll(args_scroll);
-
+                    topmost_node.dispatch_scroll(args_scroll);
                 },
                 _ => {},
             };
