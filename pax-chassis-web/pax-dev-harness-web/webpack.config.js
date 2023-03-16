@@ -12,7 +12,7 @@ module.exports = {
         },
         {
           test: /\.wasm$/,
-          type: "webassembly/experimental"
+          type: "webassembly/async"
         }
       ]
     },
@@ -35,5 +35,8 @@ module.exports = {
                               TextEncoder: ['text-encoding', 'TextEncoder']
     })
   ],
+  experiments: {
+    asyncWebAssembly: true,
+  },
   mode: 'development'
 };
