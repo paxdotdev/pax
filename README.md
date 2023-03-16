@@ -16,9 +16,7 @@ use pax_std::{Text};
 use pax_std::forms::{Button, ArgsButtonSubmit};
 use pax_std::layout::{Stacker};
 
-/// The `pax_component` macro loads the file `increment-me.pax` as a template declaration 
-/// and defines a reusable component called `IncrementMe`.  You could also declare
-/// the Pax definition inline with `#[pax_component_inline(<Stacker>/*...*/</Stacker>)] 
+/// Defines the Pax component `IncrementMe`, with template & settings specified in `increment-me.pax`.
 #[pax_component("increment-me.pax")] 
 pub struct IncrementMe {
   pub num_clicks: Property<i64>
@@ -49,10 +47,10 @@ See a more thorough, [running example](https://docs.pax.rs/intro-example.html).
  - **Fast** — low-level native rendering targeting 120FPS animations
  - **Accessible** — supports native screen readers for text & GUI elements, as well as SEO on the Web
  - **Lightweight** — under 100kB baseline for WebAssembly binary 
- - **Declarative** UI language makes it easy to reason about complex scenes and GUIs
+ - **Declarative** UI language makes it easy to reason about complex scenes and GUIs, as well as build tooling that reads & writes Pax
  - **Expressive** — includes free-form drawing and animation toolkit alongside GUI form elements and layouts
- - **Reusable component system** includes an optional standard library of GUI components
- - **Cross-platform** — a single Pax definition compiles through Rust into 1. a completely native Mac app (via LLVM, zero Web tech) and 2. a Web app (via WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
+ - **Extensible** — UI component system built around Rust structs enables modular application building and publication of reusable components through cargo and crates.io.  Pax's standard library (`pax-std`) is a canonical example, including modular primitives like `<Group />`, drawing elements like `<Rectangle />`, form elements like `<Text />`, and layout elements like `<Stacker />`.
+ - **Cross-platform** — a Pax project compiles through Rust into 1. a completely native Mac app (via LLVM, CoreGraphics, and SwiftUI — without any Web tech) and 2. a Web app (via WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
 
 
 ## Docs
