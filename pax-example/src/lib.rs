@@ -3,48 +3,54 @@ use pax::*;
 use pax_std::components::Stacker;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
-
 #[pax_app(
-    // for i in 0..5 {
-    //    <Group transform={Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(i * 0.07)} >
-            <Ellipse @scroll=self.handle_scroll @click=self.handle_click fill={Color::rgb(0.5,0,1)} width=33.33% height=100% transform={
-                Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(rotation)
+    <Group @scroll=self.handle_scroll >
+        for i in 0..25 {
+            <Rectangle fill={Color::hlc(ticks + i * 360.0 / 12.5, 75.0, 150.0)} width=300px height=300px transform={
+                Transform2D::anchor(50%, 50%)
+                * Transform2D::align(50%, 50%)
+                * Transform2D::rotate((i + 2) * rotation)
+                * Transform2D::scale(1.0 + (i * rotation / 2.0), 1.0 + (i * rotation / 2.0))
+                // * Transform2D::scale(1.0 + heartbeat + (i * rotation / 2.0), 1.0 + heartbeat + (i * rotation / 2.0))
             } />
-            <Rectangle  fill={Color::rgb(1,0.8,0.1)} width=33.33% height=100% transform={
-                Transform2D::align(100%, 0%) * Transform2D::anchor(100%, 0%)
-            } />
-            <Text text="Hello world" />
-            <Path />
-            <Rectangle fill={Color::rgb(0.25,0.5,0.5)} width=100% height=100% />
+        }
+    </Group>
 
+    // Hide hack
+    <Group transform={Transform2D::translate(5000.0,5000.0)} >
+        <Ellipse />
+        <Text />
+        <Path />
+        <Rectangle />
+    </Group>
 
     @events {
-            Click: [self.handle_global_click],
-            Scroll: self.handle_global_scroll,
-            }
-
-    //    </Group>
-    // }
+        will_render: [self.handle_will_render]
+    }
 )]
 pub struct HelloRGB {
     pub rotation: Property<f64>,
+    pub ticks: Property<usize>,
+    pub heartbeat: Property<f64>,
+    
 }
 
+const ROTATION_COEFFICIENT: f64 = 0.00010;
+const HEARTBEAT_AMPLITUDE: f64 = 1.15;
+
 impl HelloRGB {
-    pub fn handle_click(&mut self, args: ArgsClick) {
-        log("click-ellipse");
+    pub fn handle_will_render(&mut self, args: ArgsRender) {
+        self.ticks.set(args.frames_elapsed);
+        if args.frames_elapsed % 400 == 0 {
+            self.heartbeat.ease_to(HEARTBEAT_AMPLITUDE, 100, EasingCurve::OutBack);
+            self.heartbeat.ease_to_later(-HEARTBEAT_AMPLITUDE / 2.0, 50, EasingCurve::OutBack);
+            self.heartbeat.ease_to_later(0.0, 50, EasingCurve::OutBack);
+        }
     }
     pub fn handle_scroll(&mut self, args: ArgsScroll) {
-        const ROTATION_COEFFICIENT: f64 = 0.005;
         let old_t = self.rotation.get();
-        let new_t = old_t + args.delta_y * ROTATION_COEFFICIENT;
+        let new_t = old_t - args.delta_y * ROTATION_COEFFICIENT;
         self.rotation.set(new_t);
-    }
-    pub fn handle_global_click(&mut self, args: ArgsClick) {
-        log("click-anywhere");
-    }
-    pub fn handle_global_scroll(&mut self, args: ArgsScroll) {
-        log("scroll-anywhere");
     }
 }
 

@@ -7,7 +7,7 @@
 
 import SwiftUI
 
-let FPS = 85.0                   //Hz, ceiling
+let FPS = 120.0                   //Hz, ceiling
 let REFRESH_PERIOD = 1.0 / FPS   //seconds between frames (e.g. 16.667 for 60Hz)
 //FUTURE: refactor to use a dynamic wait between frames, to accommodate variable render compute time.  Essentially, write "requestAnimationFrame" logic.
 
@@ -249,6 +249,11 @@ struct PaxView: View {
                     let outputString = String(cString: msg!)
                     print(outputString)
                 }
+
+                //For manual debugger attachment:
+                //do {
+                //    sleep(10)
+                //}
                 
                 PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
             } else {

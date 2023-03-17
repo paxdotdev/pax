@@ -234,7 +234,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let mut set: HashSet<_> = types_coproduct_tuples.drain(..).collect();
 
     #[allow(non_snake_case)]
-    let BUILT_INS = vec![
+    let TYPES_COPRODUCT_BUILT_INS = vec![
         ("f64", "f64"),
         ("bool", "bool"),
         ("isize", "isize"),
@@ -242,12 +242,13 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
         ("String", "String"),
         ("Vec_Rc_PropertiesCoproduct___", "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>"),
         ("Transform2D", "pax_runtime_api::Transform2D"),
+        ("Range_isize_", "std::ops::Range<isize>"),
         ("Size2D", "pax_runtime_api::Size2D"),
         ("Size", "pax_runtime_api::Size"),
         ("SizePixels", "pax_runtime_api::SizePixels"),
     ];
 
-    BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
+    TYPES_COPRODUCT_BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
     types_coproduct_tuples.extend(set.into_iter());
     types_coproduct_tuples.sort();
 
@@ -364,7 +365,9 @@ fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) 
 
     let implicit_root = nodes[0].borrow();
     let children_literal : Vec<String> = implicit_root.child_ids.iter().map(|child_id|{
-    let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
+    let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
+    // println!("{:?}", tnd_map);
+    let active_tnd = &tnd_map[*child_id];
         recurse_generate_render_nodes_literal(rngc, active_tnd)
     }).collect();
 
@@ -396,7 +399,17 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
     let events = generate_binded_events(tnd.inline_attributes.clone());
     let args = if tnd.component_id == parsing::COMPONENT_ID_REPEAT {
         // Repeat
-        let id = tnd.control_flow_attributes.as_ref().unwrap().repeat_source_definition.as_ref().unwrap().range_expression_vtable_id.unwrap();
+        let rsd = tnd.control_flow_attributes.as_ref().unwrap().repeat_source_definition.as_ref().unwrap();
+        let id = rsd.vtable_id.unwrap();
+
+        let rse_vec = if let Some(x) = &rsd.symbolic_binding {
+            format!("Some(Box::new(PropertyExpression::new({})))", id)
+        } else {"None".into()};
+
+        let rse_range = if let Some(x) = &rsd.range_expression_paxel {
+            format!("Some(Box::new(PropertyExpression::new({})))", id)
+        } else {"None".into()};
+
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
             snake_case_component_id: "UNREACHABLE".into(),
@@ -408,10 +421,11 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
             children_literal,
             slot_index_literal: "None".to_string(),
-            repeat_source_expression_literal:  format!("Some(Box::new(PropertyExpression::new({})))", id),
             conditional_boolean_expression_literal: "None".to_string(),
             active_root: rngc.active_component_definition.pascal_identifier.to_string(),
-            events
+            events,
+            repeat_source_expression_literal_vec: rse_vec,
+            repeat_source_expression_literal_range: rse_range,
         }
     } else if tnd.component_id == parsing::COMPONENT_ID_IF {
         // If
@@ -428,10 +442,11 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
             children_literal,
             slot_index_literal: "None".to_string(),
-            repeat_source_expression_literal:  "None".to_string(),
+            repeat_source_expression_literal_vec:  "None".to_string(),
+            repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
             active_root: rngc.active_component_definition.pascal_identifier.to_string(),
-            events
+            events,
         }
     } else if tnd.component_id == parsing::COMPONENT_ID_SLOT {
         // Slot
@@ -448,10 +463,11 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
             children_literal,
             slot_index_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
-            repeat_source_expression_literal:  "None".to_string(),
+            repeat_source_expression_literal_vec:  "None".to_string(),
+            repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
             active_root: rngc.active_component_definition.pascal_identifier.to_string(),
-            events
+            events,
         }
     } else {
         //Handle anything that's not a built-in
@@ -534,10 +550,11 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             size_ril: [builtins_ril[0].clone(), builtins_ril[1].clone()],
             children_literal,
             slot_index_literal: "None".to_string(),
-            repeat_source_expression_literal: "None".to_string(),
+            repeat_source_expression_literal_vec: "None".to_string(),
+            repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
             active_root: rngc.active_component_definition.pascal_identifier.to_string(),
-            events
+            events,
         }
     };
 
@@ -906,7 +923,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
 
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
-        println!("{} 🏃‍ Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target)); //oxidation!
+        println!("{} 🛠 Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target)); //oxidation!
     }
     build_harness_with_chassis(&pax_dir, &ctx, &Harness::Development);
 
@@ -962,7 +979,7 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
             .arg(should_also_run)
             .arg(output_path_val)
             .stdout(std::process::Stdio::inherit())
-            .stderr(if ctx.verbose { std::process::Stdio::inherit() } else { std::process::Stdio::piped() })
+            .stderr(std::process::Stdio::inherit())
             .spawn()
             .expect("failed to run harness")
             .wait()

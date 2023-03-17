@@ -110,6 +110,9 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
             ColorVariant::Hlca(slice) => {
                 Color::hlca(slice[0], slice[1], slice[2], slice[3])
             },
+            ColorVariant::Hlc(slice) => {
+                Color::hlc(slice[0], slice[1], slice[2])
+            },
             ColorVariant::Rgba(slice) => {
                 Color::rgba(slice[0], slice[1], slice[2], slice[3])
             },

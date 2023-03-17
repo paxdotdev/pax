@@ -274,9 +274,9 @@ impl Mul for Transform2D {
 
 impl Transform2D {
     ///Scale coefficients (1.0 == 100%) over x-y plane
-    pub fn scale(x: f64, y: f64) -> Self {
+    pub fn scale(x: Numeric, y: Numeric) -> Self {
         let mut ret  = Transform2D::default();
-        ret.scale = Some([x, y]);
+        ret.scale = Some([x.get_as_float(), y.get_as_float()]);
         ret
     }
     ///Rotation over z axis
@@ -286,9 +286,9 @@ impl Transform2D {
         ret
     }
     ///Translation across x-y plane, pixels
-    pub fn translate(x: f64, y: f64) -> Self {
+    pub fn translate(x: Numeric, y: Numeric) -> Self {
         let mut ret  = Transform2D::default();
-        ret.translate = Some([x, y]);
+        ret.translate = Some([x.get_as_float(), y.get_as_float()]);
         ret
     }
     ///Describe alignment within parent bounding box, as a starting point before
@@ -386,7 +386,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
             //handle case where transition queue is empty -- a None value gets skipped, so populate it with Some
             self.transition_manager.value = Some(self.get().clone());
         }
-        &self.transition_manager.queue.push_back(TransitionQueueEntry {
+        self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
             duration_frames,
             curve,
@@ -395,6 +395,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         });
     }
 
+    #[allow(duplicate)]
     fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
         if let None = self.transition_manager.value {
             None
@@ -506,6 +507,12 @@ impl<I: Interpolatable> Interpolatable for Vec<I> {
 impl Interpolatable for f64 {
     fn interpolate(&self, other: &f64, t: f64) -> f64 {
         self + (*other - self) * t
+    }
+}
+
+impl Interpolatable for bool {
+    fn interpolate(&self, other: &bool, t: f64) -> bool {
+        *self
     }
 }
 
