@@ -5,8 +5,8 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 
 #[pax_app(
-    // for i in 0..5 {
-       <Group transform={Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(0.27)} >
+    for i in 0..5 {
+       <Group transform={Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(i * 0.27)} >
             <Text text="Hello world" />
             <Path />
             <Ellipse fill={Color::rgb(0.5,0,1)} width=33.33% height=100% transform={
@@ -17,7 +17,7 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
             } />
             <Rectangle fill={Color::rgb(0.25,0.5,0.5)} width=100% height=100% />
        </Group>
-    // }
+    }
 )]
 pub struct HelloRGB {
     pub rects: Property<Vec<usize>>,

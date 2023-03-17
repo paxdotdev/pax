@@ -364,7 +364,9 @@ fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) 
 
     let implicit_root = nodes[0].borrow();
     let children_literal : Vec<String> = implicit_root.child_ids.iter().map(|child_id|{
-    let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
+    let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
+    // println!("{:?}", tnd_map);
+    let active_tnd = &tnd_map[*child_id];
         recurse_generate_render_nodes_literal(rngc, active_tnd)
     }).collect();
 

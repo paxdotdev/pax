@@ -285,6 +285,9 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
 
     let mut roots_ids = vec![];
 
+    //insert placeholder for IMPLICIT_ROOT.  We will fill this back in on the post-order.
+    ctx.template_node_definitions.insert(0, TemplateNodeDefinition::default());
+
     pax_component_definition.into_inner().for_each(|pair|{
         match pair.as_rule() {
             Rule::root_tag_pair => {
@@ -303,6 +306,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
     /// This IMPLICIT_ROOT placeholder node, at index 0 of the TND vec,
     /// is a container for the child_ids that act as "multi-roots," which enables
     /// templates to be authored without requiring a single top-level container
+    ctx.template_node_definitions.remove(0);
     ctx.template_node_definitions.insert(0,
         TemplateNodeDefinition {
             id: 0,
@@ -335,7 +339,7 @@ pub static COMPONENT_ID_SLOT : &str = "SLOT";
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_tag_pair: Pair<Rule>)  {
     let new_id = ctx.uid_gen.next().unwrap();
     //insert blank placeholder
-    ctx.template_node_definitions.insert(new_id - 1, TemplateNodeDefinition::default());
+    ctx.template_node_definitions.insert(new_id, TemplateNodeDefinition::default());
 
     //add self to parent's children_id_list
     let mut parents_children_id_list = ctx.child_id_tracking_stack.pop().unwrap();
@@ -373,7 +377,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
             };
-            std::mem::swap(ctx.template_node_definitions.get_mut(new_id - 1).unwrap(),  &mut template_node);
+            std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node);
         },
         Rule::self_closing_tag => {
             let mut tag_pairs = any_tag_pair.into_inner();
@@ -387,7 +391,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 child_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
             };
-            std::mem::swap(ctx.template_node_definitions.get_mut(new_id - 1).unwrap(),  &mut template_node);
+            std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node);
         },
         Rule::statement_control_flow => {
             /* statement_control_flow = {(statement_if | statement_for | statement_slot)} */
