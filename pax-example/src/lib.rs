@@ -6,7 +6,7 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 #[pax_app(
     for i in 0..5 {
-       <Group transform={Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(i * 0.27)} >
+       <Group transform={Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(0.27 * i)} >
             <Text text="Hello world" />
             <Path />
             <Ellipse fill={Color::rgb(0.5,0,1)} width=33.33% height=100% transform={

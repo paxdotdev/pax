@@ -54,7 +54,6 @@ pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
         .op(Op::infix(Rule::xo_mod, Assoc::Left))
         .op(Op::infix(Rule::xo_exp, Assoc::Right))
         .op(Op::prefix(Rule::xo_neg))
-        .op(Op::infix(Rule::xo_range, Assoc::Left))
         .op(
             Op::infix(Rule::xo_rel_eq, Assoc::Left) |
             Op::infix(Rule::xo_rel_neq, Assoc::Left) |
@@ -88,7 +87,7 @@ fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
         output.replacen(".", "", 1)
     } else {
         //remove original binding; no self or this
-        xo_symbol.as_str().to_string()
+        xo_symbol.as_str().to_string() + ".into()"
     }
 }
 
@@ -144,12 +143,12 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 output
             },
             Rule::xo_range => {
-                /* { (xo_literal | xo_symbol) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | xo_symbol)} */
-                //need to handle `self` and `this` elision
+                /* { op0: (xo_literal | xo_symbol) ~ op1: (xo_range_inclusive | xo_range_exclusive) ~ op2: (xo_literal | xo_symbol)} */
                 let mut pairs = primary.into_inner();
 
                 let mut op0 = pairs.next().unwrap();
-                match op0.as_rule() {
+                #[allow(duplicated_code_fragment)]
+                let op0_out = match op0.as_rule() {
                     Rule::xo_literal => {
                         //return the literal exactly as it is
                         op0.as_str().to_string()
@@ -159,7 +158,25 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                         trim_self_or_this_from_symbolic_binding(op0)
                     },
                     _ => unimplemented!("")
-                }
+                };
+
+                let mut op1 = pairs.next().unwrap();
+                let op1_out = op1.as_str().to_string();
+
+                let mut op2 = pairs.next().unwrap();
+                let op2_out = match op2.as_rule() {
+                    Rule::xo_literal => {
+                        //return the literal exactly as it is
+                        op2.as_str().to_string()
+                    },
+                    Rule::xo_symbol => {
+                        //for symbolic identifiers, remove any "this" or "self", then return string
+                        trim_self_or_this_from_symbolic_binding(op2)
+                    },
+                    _ => unimplemented!("")
+                };
+
+                format!("{}", op0_out + &op1_out + &op2_out)
             },
             Rule::xo_literal => {
                 let literal_kind = primary.into_inner().next().unwrap();

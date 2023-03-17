@@ -161,7 +161,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
             let (paxel, return_type) = if let Some(range_expression) = &repeat_source_definition.range_expression {
-                (range_expression.to_string(), PropertyType::primitive("usize"))
+                (range_expression.to_string(), PropertyType::builtin_range_usize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                 let mut property_definition = ctx.component_def.get_property_definition_by_name(symbolic_binding);
                 let fqt = property_definition.property_type_info.fully_qualified_type.clone();

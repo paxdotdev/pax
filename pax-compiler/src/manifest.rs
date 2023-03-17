@@ -14,6 +14,7 @@ use serde_derive::{Serialize, Deserialize};
 use serde_json;
 use tera::Template;
 use wasm_bindgen::UnwrapThrowExt;
+use crate::reflection::expand_fully_qualified_type_and_pascalize;
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
@@ -185,6 +186,14 @@ impl PropertyType {
             pascalized_fully_qualified_type: name.to_string(),
             fully_qualified_type: name.to_string(),
             iterable_type: None,
+        }
+    }
+
+    pub fn builtin_range_usize() -> Self {
+        PropertyType {
+            fully_qualified_type: "Vec_Rc_PropertiesCoproduct___".to_string(),
+            pascalized_fully_qualified_type: "Vec_Rc_PropertiesCoproduct___".to_string(),
+            iterable_type: Some(Box::new(Self::primitive("usize"))),
         }
     }
 }

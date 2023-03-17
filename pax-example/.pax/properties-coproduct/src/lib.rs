@@ -2,10 +2,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub enum PropertiesCoproduct {
+    /* entries generated via properties-coproduct-lib.tera */
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
-    usize(usize), //used by Repeat with numeric ranges, like `for i in 0..5`
+    Range_usize(usize), //used by Repeat with numeric ranges, like `for i in 0..5`
+
     
     Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
     
@@ -23,6 +25,8 @@ pub enum PropertiesCoproduct {
 
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
+    
+    Range_usize(std::ops::Range<usize>),
     
     Size(pax_runtime_api::Size),
     

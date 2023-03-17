@@ -1,8 +1,8 @@
 #!/bin/bash
 
 # Expects args:
-# 1: VERBOSE ∈ {"true" | "false"}
-# 2: EXCLUDE_ARCHS ∈ {"arm64" | "x86_64"}
+# 1: VERBOSE ∈ {"true", "false"}
+# 2: EXCLUDE_ARCHS ∈ {"arm64", "x86_64"}
 VERBOSE=$1
 EXCLUDE_ARCHS=$2
 

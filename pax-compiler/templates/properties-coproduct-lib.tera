@@ -2,10 +2,12 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 pub enum PropertiesCoproduct {
+    /* entries generated via properties-coproduct-lib.tera */
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
-    usize(usize), //used by Repeat with numeric ranges, like `for i in 0..5`
+    Range_usize(usize), //used by Repeat with numeric ranges, like `for i in 0..5`
+
     {% for properties_coproduct_tuple in properties_coproduct_tuples %}
     {{properties_coproduct_tuple.0}}({{properties_coproduct_tuple.1}}),
     {% endfor %}

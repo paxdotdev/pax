@@ -37,8 +37,13 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                     .get_properties();
                 let properties = &*(*properties).borrow();
 
+                //when dealing with a range here,
+                //iterate over the range and return a vec of PropertiesCoproduct::{iterable_type}, where iterable_type ∈ {usize, some type that should already be registered on PropertiesCoproduct, e.g. via `pax_type`.}
+                //(yes this is somewhat expensive, but will be mitigated by dirty-watching)
+                {# Roughly:  `.iter().map(|e|{{PropertiesCoproduct::{}(e)}}).collect()` #}
+
                 if let PropertiesCoproduct::{{ invocation.properties_type }}(p) = properties {
-                    {% if invocation.properties_type == "usize" %}
+                    {% if invocation.properties_type == "Range_usize" %}
                     *p
                     {% else %}
                     *p.{{invocation.identifier}}.get()

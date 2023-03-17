@@ -54,12 +54,13 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         
 
         #[allow(unused_parens)]
-        TypesCoproduct::usize(
-            Numeric::from(0 )
+        TypesCoproduct::Vec_Rc_PropertiesCoproduct___(
+            0 ..5
+
         )
     }));
     
-    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(i*0.27)
+    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(0.27*i)
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let i = {
@@ -70,9 +71,14 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                     .get_properties();
                 let properties = &*(*properties).borrow();
 
-                if let PropertiesCoproduct::usize(p) = properties {
+                //when dealing with a range here,
+                //iterate over the range and return a vec of PropertiesCoproduct::{iterable_type}, where iterable_type ∈ {usize, some type that should already be registered on PropertiesCoproduct, e.g. via `pax_type`.}
+                //(yes this is somewhat expensive, but will be mitigated by dirty-watching)
+                
+
+                if let PropertiesCoproduct::Vec_Rc_PropertiesCoproduct___(p) = properties {
                     
-                    *p
+                    *p.i.get()
                     
                 } else {
                     unreachable!("1")
@@ -82,7 +88,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
         #[allow(unused_parens)]
         TypesCoproduct::Transform2D(
-            ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),))*Transform2D::rotate(((i *Numeric::from(0.27))),))
+            ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),))*Transform2D::rotate(((Numeric::from(0.27)*i.into())),))
         )
     }));
     

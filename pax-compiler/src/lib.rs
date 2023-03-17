@@ -245,6 +245,8 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
         ("Size2D", "pax_runtime_api::Size2D"),
         ("Size", "pax_runtime_api::Size"),
         ("SizePixels", "pax_runtime_api::SizePixels"),
+        ("Range_usize", "std::ops::Range<usize>"),
+
     ];
 
     BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
