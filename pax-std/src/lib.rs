@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate lazy_static;
 
-use pax::*;
-
 pub mod types;
 pub mod stacker;
 
@@ -11,7 +9,7 @@ pub mod components {
 }
 
 pub mod primitives {
-    use pax::{pax_primitive, Property};
+    use pax::{pax_primitive};
 
     #[cfg(feature = "parser")]
     use pax_compiler;

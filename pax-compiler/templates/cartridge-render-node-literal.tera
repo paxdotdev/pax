@@ -21,7 +21,15 @@ instantiate_{{ snake_case_component_id }}(
                                                                 },
                                                          {%- endif -%}
                                                      ],
-                                                     will_render_handlers: vec![],
+                                                     will_render_handlers: vec![
+                                                        {%- if events['will_render'] -%}
+                                                                |properties,args|{
+                                                                    let properties = &mut *properties.as_ref().borrow_mut();
+                                                                    let properties = if let PropertiesCoproduct::{{ active_root }}(p) = properties {p} else {unreachable!()};
+                                                                    {{ active_root }}::{{events['will_render']}}(properties, args);
+                                                                }
+                                                         {%- endif -%}
+                                                     ],
                                                      scroll_handlers: vec![
                                                      {%- if events['scroll'] -%}
                                                                  |stack_frame, args|{
@@ -47,8 +55,8 @@ instantiate_{{ snake_case_component_id }}(
     component_template: None,
     scroller_args: None,
     slot_index: {{slot_index_literal}},
-    repeat_source_expression: {{repeat_source_expression_literal}},
+    repeat_source_expression_vec: {{repeat_source_expression_literal_vec}},
+    repeat_source_expression_range: {{repeat_source_expression_literal_range}},
     conditional_boolean_expression: {{conditional_boolean_expression_literal}},
     compute_properties_fn: None,
 })
-
