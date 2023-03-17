@@ -7,5 +7,5 @@
 ### `cd pax-example && ./pax libdev build-chassis`
 
 pushd ../pax-cli
-cargo run -- "$@" --path="../pax-example"
+cargo run -- "$@" --path="../pax-example" --libdev
 popd

@@ -4,9 +4,6 @@ use std::path::Path;
 use clap::{App, AppSettings, Arg};
 use pax_compiler::{RunTarget, RunContext};
 
-
-
-
 fn main() -> Result<(), ()> {
 
     #[allow(non_snake_case)]
@@ -33,6 +30,13 @@ fn main() -> Result<(), ()> {
         .help("Specify the target platform on which to run.  Will run in platform-specific demo harness.")
         .takes_value(true);
 
+    #[allow(non_snake_case)]
+    let ARG_LIBDEV = Arg::with_name("libdev")
+        .long("libdev")
+        .takes_value(false)
+        .help("Signal to the compiler to run certain operations in libdev mode, offering certain ergonomic affordances for Pax library developers.")
+        .hidden(true); //hidden because this is of negative value to end-users; things are expected to break when invoked outside of the pax monorepo
+
     let matches = App::new("pax")
         .name("pax")
         .bin_name("pax")
@@ -46,6 +50,7 @@ fn main() -> Result<(), ()> {
                 .arg( ARG_PATH.clone() )
                 .arg( ARG_TARGET.clone() )
                 .arg( ARG_VERBOSE.clone() )
+                .arg( ARG_LIBDEV.clone() )
         )
         .subcommand(
             App::new("build")
@@ -53,6 +58,7 @@ fn main() -> Result<(), ()> {
                 .arg( ARG_PATH.clone() )
                 .arg( ARG_TARGET.clone() )
                 .arg( ARG_VERBOSE.clone() )
+                .arg( ARG_LIBDEV.clone() )
         )
         .subcommand(
             App::new("clean")
@@ -82,12 +88,14 @@ fn main() -> Result<(), ()> {
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
+            let libdevmode = args.is_present("libdev");
 
             pax_compiler::perform_build(&RunContext{
                 target: RunTarget::from(target.as_str()),
                 path,
                 verbose,
-                should_also_run: true
+                should_also_run: true,
+                libdevmode,
             })
 
         },
@@ -95,12 +103,14 @@ fn main() -> Result<(), ()> {
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
+            let libdevmode = args.is_present("libdev");
 
             pax_compiler::perform_build(&RunContext{
                 target: RunTarget::from(target.as_str()),
                 path,
                 should_also_run: false,
                 verbose,
+                libdevmode,
             })
         },
         ("clean", Some(args)) => {
