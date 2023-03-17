@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Expects args:
-# 1: VERBOSE ∈ {"true" | "false"}
-# 2: EXCLUDE_ARCHS ∈ {"arm64" | "x86_64"}
-# 3: SHOULD_ALSO_RUN ∈ {"true" | "false"}
+# 1: VERBOSE ∈ {"true" , "false"}
+# 2: EXCLUDE_ARCHS ∈ {"arm64" , "x86_64"}
+# 3: SHOULD_ALSO_RUN ∈ {"true" , "false"}
 # 4: OUTPUT_PATH : output directory for build
 VERBOSE=$1
 EXCLUDE_ARCHS=$2

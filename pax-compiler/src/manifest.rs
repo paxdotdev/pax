@@ -14,6 +14,7 @@ use serde_derive::{Serialize, Deserialize};
 use serde_json;
 use tera::Template;
 use wasm_bindgen::UnwrapThrowExt;
+use crate::reflection::expand_fully_qualified_type_and_pascalize;
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
@@ -87,7 +88,7 @@ pub struct  ExpressionSpecInvocation {
     pub is_repeat_elem: bool,
 
     /// Flag describing whether this invocation should be bound to the `i` in `(elem, i)`
-    pub is_repeat_index: bool,
+    pub is_repeat_i: bool,
 }
 
 
@@ -150,6 +151,12 @@ pub struct PropertyDefinition {
     pub fully_qualified_constituent_types: Vec<String>,
     /// Store of fully qualified types that may be needed for expression vtable generation
     pub property_type_info: PropertyType,
+
+    ///Flags, used ultimately by ExpressionSpecInvocations, to denote
+    ///whether a property is the `i` or `elem` of a `Repeat`, which allows
+    ///for special-handling the codegen that accesses these values in expressions
+    pub is_repeat_i: bool,
+    pub is_repeat_elem: bool,
 }
 
 impl PropertyDefinition {
@@ -164,6 +171,8 @@ impl PropertyDefinition {
                 pascalized_fully_qualified_type: type_name.to_string(),
                 iterable_type: None,
             },
+            is_repeat_i: false,
+            is_repeat_elem: false,
         }
     }
 }
@@ -182,12 +191,37 @@ pub struct PropertyType {
 
 impl PropertyType {
     pub fn primitive(name: &str) -> Self {
-        PropertyType {
+        Self {
             pascalized_fully_qualified_type: name.to_string(),
             fully_qualified_type: name.to_string(),
             iterable_type: None,
         }
     }
+
+    pub fn builtin_vec_rc_properties_coproduct() -> Self {
+        Self {
+            fully_qualified_type: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
+            pascalized_fully_qualified_type: "Vec_Rc_PropertiesCoproduct___".to_string(),
+            iterable_type: Some(Box::new(Self::builtin_rc_properties_coproduct())),
+        }
+    }
+
+    pub fn builtin_range_isize() -> Self {
+        Self {
+            fully_qualified_type: "std::ops::Range<isize>".to_string(),
+            pascalized_fully_qualified_type: "Range_isize_".to_string(),
+            iterable_type: Some(Box::new(Self::primitive("isize"))),
+        }
+    }
+
+    pub fn builtin_rc_properties_coproduct() -> Self {
+        Self {
+            fully_qualified_type: "std::rc::Rc<PropertiesCoproduct>".to_string(),
+            pascalized_fully_qualified_type: "Rc_PropertiesCoproduct__".to_string(),
+            iterable_type: None
+        }
+    }
+
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -220,8 +254,8 @@ pub struct ControlFlowAttributeValueDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowRepeatSourceDefinition {
-    pub range_expression: Option<String>,
-    pub range_expression_vtable_id: Option<usize>,
+    pub range_expression_paxel: Option<String>,
+    pub vtable_id: Option<usize>,
     pub symbolic_binding: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]

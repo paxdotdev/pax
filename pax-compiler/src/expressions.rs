@@ -153,21 +153,18 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             //  - must be a symbolic identifier, such as `elements` or `self.elements`
             // for i in 0..max_elems
             //  - may use an integer literal or symbolic identifier in either position
-            //  - may use an exclusive (..) or inclusive (...) range operator
+            //  - must use an exclusive (..) range operator
 
             let id = ctx.uid_gen.next().unwrap();
-            repeat_source_definition.range_expression_vtable_id = Some(id);
+            repeat_source_definition.vtable_id = Some(id);
 
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
-            let (paxel, return_type) = if let Some(range_expression) = &repeat_source_definition.range_expression {
-                (range_expression.to_string(), PropertyType::primitive("usize"))
-            } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
-                let mut property_definition = ctx.component_def.get_property_definition_by_name(symbolic_binding);
-                let fqt = property_definition.property_type_info.fully_qualified_type.clone();
-                let property_type = property_definition.property_type_info.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
 
-                (symbolic_binding.to_string(), *property_type)
+            let (mut paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
+                (range_expression_paxel.to_string(), PropertyType::builtin_range_isize())
+            } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
+                (symbolic_binding.to_string(), PropertyType::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
@@ -184,12 +181,14 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         original_type: return_type.fully_qualified_type.to_string(),
                         fully_qualified_constituent_types: vec![],
                         property_type_info: return_type.clone(),
+                        is_repeat_i: false,
+                        is_repeat_elem: true,
                     };
 
                     ctx.scope_stack.push(HashMap::from([
                         //`elem` property (by specified name)
                         (elem_id.clone(),
-                        property_definition.clone())
+                        property_definition)
                     ]));
                 },
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
@@ -198,7 +197,12 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         original_type: return_type.fully_qualified_type.to_string(),
                         fully_qualified_constituent_types: vec![],
                         property_type_info: return_type.clone(),
+                        is_repeat_elem: true,
+                        is_repeat_i: false,
                     };
+
+                    let mut i_property_definition = PropertyDefinition::primitive_with_name("usize", index_id);
+                    i_property_definition.is_repeat_i = true;
 
                     ctx.scope_stack.push(HashMap::from([
                         //`elem` property (by specified name)
@@ -206,7 +210,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                          elem_property_definition),
                         //`i` property (by specified name)
                         (index_id.clone(),
-                            PropertyDefinition::primitive_with_name("usize", index_id)
+                            i_property_definition
                          )
                     ]));
                 },
@@ -219,7 +223,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let (output_statement, invocations) = compile_paxel_to_ril(&paxel, &ctx);
 
             // The return type for a repeat source expression will either be:
-            //   1. usize, for tuples (including tuples with direct symbolic references as either operand, like `self.x..10`)
+            //   1. isize, for ranges (including ranges with direct symbolic references as either operand, like `self.x..10`)
             //   2. T for a direct symbolic reference to `self.x` for x : Property<Vec<T>>
             // Presumably, we could also support arbitrary expressions as a #3, but
             // we need some way to infer the return type, statically.  This may mean requiring
@@ -316,7 +320,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             properties_type: "".to_string(),
             pascalized_iterable_type: None,
             is_repeat_elem: false,
-            is_repeat_index: false
+            is_repeat_i: false
         }
     } else {
         let identifier = if sym.starts_with("self.") {
@@ -339,10 +343,12 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let mut found_depth: Option<usize> = None;
         let mut current_depth = 0;
+        let mut found_val : Option<PropertyDefinition> = None;
         while let None = found_depth {
             let map = ctx.scope_stack.get((ctx.scope_stack.len() - 1) - current_depth).expect(&format!("Symbol not found: {}", &identifier));
             if let Some(val) = map.get(&identifier) {
                 found_depth = Some(current_depth);
+                found_val = Some(val.clone());
             } else {
                 current_depth += 1;
             }
@@ -351,6 +357,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         let stack_offset = found_depth.unwrap();
 
         let escaped_identifier = crate::reflection::escape_identifier(identifier.clone());
+        let (is_repeat_elem, is_repeat_i) = (found_val.as_ref().unwrap().is_repeat_elem,found_val.as_ref().unwrap().is_repeat_i);
 
         ExpressionSpecInvocation {
             identifier,
@@ -358,8 +365,8 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             stack_offset,
             properties_type,
             pascalized_iterable_type,
-            is_repeat_elem: false,
-            is_repeat_index: false
+            is_repeat_elem,
+            is_repeat_i,
         }
     }
 }

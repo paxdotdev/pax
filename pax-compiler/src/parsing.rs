@@ -55,7 +55,6 @@ pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
         .op(Op::infix(Rule::xo_mod, Assoc::Left))
         .op(Op::infix(Rule::xo_exp, Assoc::Right))
         .op(Op::prefix(Rule::xo_neg))
-        .op(Op::infix(Rule::xo_range, Assoc::Left))
         .op(
             Op::infix(Rule::xo_rel_eq, Assoc::Left) |
             Op::infix(Rule::xo_rel_neq, Assoc::Left) |
@@ -89,7 +88,7 @@ fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
         output.replacen(".", "", 1)
     } else {
         //remove original binding; no self or this
-        xo_symbol.as_str().to_string()
+        xo_symbol.as_str().to_string() + ".into()"
     }
 }
 
@@ -145,12 +144,12 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 output
             },
             Rule::xo_range => {
-                /* { (xo_literal | xo_symbol) ~ (xo_range_inclusive | xo_range_exclusive) ~ (xo_literal | xo_symbol)} */
-                //need to handle `self` and `this` elision
+                /* { op0: (xo_literal | xo_symbol) ~ op1: (xo_range_inclusive | xo_range_exclusive) ~ op2: (xo_literal | xo_symbol)} */
                 let mut pairs = primary.into_inner();
 
                 let mut op0 = pairs.next().unwrap();
-                match op0.as_rule() {
+                #[allow(duplicated_code_fragment)]
+                let op0_out = match op0.as_rule() {
                     Rule::xo_literal => {
                         //return the literal exactly as it is
                         op0.as_str().to_string()
@@ -160,7 +159,25 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                         trim_self_or_this_from_symbolic_binding(op0)
                     },
                     _ => unimplemented!("")
-                }
+                };
+
+                let mut op1 = pairs.next().unwrap();
+                let op1_out = op1.as_str().to_string();
+
+                let mut op2 = pairs.next().unwrap();
+                let op2_out = match op2.as_rule() {
+                    Rule::xo_literal => {
+                        //return the literal exactly as it is
+                        op2.as_str().to_string()
+                    },
+                    Rule::xo_symbol => {
+                        //for symbolic identifiers, remove any "this" or "self", then return string
+                        trim_self_or_this_from_symbolic_binding(op2)
+                    },
+                    _ => unimplemented!("")
+                };
+
+                format!("{}", op0_out + &op1_out + &op2_out)
             },
             Rule::xo_literal => {
                 let literal_kind = primary.into_inner().next().unwrap();
@@ -286,6 +303,9 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
 
     let mut roots_ids = vec![];
 
+    //insert placeholder for IMPLICIT_ROOT.  We will fill this back in on the post-order.
+    ctx.template_node_definitions.insert(0, TemplateNodeDefinition::default());
+
     pax_component_definition.into_inner().for_each(|pair|{
         match pair.as_rule() {
             Rule::root_tag_pair => {
@@ -304,6 +324,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
     /// This IMPLICIT_ROOT placeholder node, at index 0 of the TND vec,
     /// is a container for the child_ids that act as "multi-roots," which enables
     /// templates to be authored without requiring a single top-level container
+    ctx.template_node_definitions.remove(0);
     ctx.template_node_definitions.insert(0,
         TemplateNodeDefinition {
             id: 0,
@@ -336,7 +357,7 @@ pub static COMPONENT_ID_SLOT : &str = "SLOT";
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_tag_pair: Pair<Rule>)  {
     let new_id = ctx.uid_gen.next().unwrap();
     //insert blank placeholder
-    ctx.template_node_definitions.insert(new_id - 1, TemplateNodeDefinition::default());
+    ctx.template_node_definitions.insert(new_id, TemplateNodeDefinition::default());
 
     //add self to parent's children_id_list
     let mut parents_children_id_list = ctx.child_id_tracking_stack.pop().unwrap();
@@ -374,7 +395,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
             };
-            std::mem::swap(ctx.template_node_definitions.get_mut(new_id - 1).unwrap(),  &mut template_node);
+            std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node);
         },
         Rule::self_closing_tag => {
             let mut tag_pairs = any_tag_pair.into_inner();
@@ -388,7 +409,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                 child_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
             };
-            std::mem::swap(ctx.template_node_definitions.get_mut(new_id - 1).unwrap(),  &mut template_node);
+            std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node);
         },
         Rule::statement_control_flow => {
             /* statement_control_flow = {(statement_if | statement_for | statement_slot)} */
@@ -453,15 +474,15 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     let repeat_source_definition = match inner_source.as_rule() {
                         Rule::xo_range => {
                             ControlFlowRepeatSourceDefinition {
-                                range_expression: Some(inner_source.as_str().to_string()),
-                                range_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
+                                range_expression_paxel: Some(inner_source.as_str().to_string()),
+                                vtable_id: None, //This will be written back to this data structure later, during expression compilation
                                 symbolic_binding: None,
                             }
                         },
                         Rule::xo_symbol => {
                             ControlFlowRepeatSourceDefinition {
-                                range_expression: None,
-                                range_expression_vtable_id: None,
+                                range_expression_paxel: None,
+                                vtable_id: None,
                                 symbolic_binding: Some(trim_self_or_this_from_symbolic_binding(inner_source)),
                             }
                         },

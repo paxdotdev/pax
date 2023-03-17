@@ -48,7 +48,8 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
         component_template: Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}]))),
         scroller_args: None,
         slot_index: None,
-        repeat_source_expression: None,
+        repeat_source_expression_vec: None,
+        repeat_source_expression_range: None,
         conditional_boolean_expression: None,
         compute_properties_fn: Some(Box::new(|properties, rtc|{
             let properties = &mut *properties.as_ref().borrow_mut();
