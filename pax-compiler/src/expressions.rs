@@ -86,7 +86,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             id,
                             pascalized_return_type,
                             invocations,
-                            output_statement: output_statement,
+                            output_statement,
                             input_statement: identifier.clone(),
                         });
                     }
@@ -103,17 +103,24 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
                     let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
 
-                    let pascalized_return_type = if attr.0 == "transform" {
-                        //FUTURE: DRY & robustify
-                        "Transform2D".to_string()
-                    } else if attr.0 == "size" {
-                        //FUTURE: DRY & robustify
-                        "Size2D".to_string()
+
+                    let builtin_types = HashMap::from([
+                        ("transform","Transform2D".to_string()),
+                        ("size","Size2D".to_string()),
+                        ("width","Size".to_string()),
+                        ("height","Size".to_string()),
+                        // ("x","Size".to_string()),
+                        // ("y","Size".to_string()),
+
+                    ]);
+
+                    let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*attr.0) {
+                        type_string.to_string()
                     } else {
                         (active_node_component.property_definitions.iter().find(|property_def| {
                             property_def.name == attr.0
                         }).expect(
-                            &format!("Property `{}` not found on component `{}`", &attr.0, &ctx.component_def.pascal_identifier)
+                            &format!("Property `{}` not found on component `{}`", &attr.0, &active_node_component.pascal_identifier)
                         ).property_type_info.pascalized_fully_qualified_type).clone()
                     };
 
