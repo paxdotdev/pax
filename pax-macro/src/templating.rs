@@ -1,6 +1,7 @@
 use sailfish::TemplateOnce;
 
-use serde_derive::{Serialize, Deserialize};
+use serde_derive::{Serialize};
+#[allow(unused)]
 use serde_json;
 
 use std::collections::HashSet;

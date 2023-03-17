@@ -37,8 +37,6 @@ pub trait PropertyInstance<T: Default + Clone> {
     /// Used by engine to gain access to this property's transition queue
     fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>>;
 
-    // fn get_eased_value(&self) -> Option<T>
-
     /// Immediately start transitioning from current value to the provided `new_value`,
     /// clearing the transition queue before doing so
     fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve);
@@ -48,17 +46,11 @@ pub trait PropertyInstance<T: Default + Clone> {
     /// transition will be the final value upon completion of the current transition queue.
     fn ease_to_later(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve);
 
-
-    //to_default: set back to default value
-    //ease_to_default: set back to default value via interpolation
+    //Wishlist:
+    // to_default: set back to default value
+    // ease_to_default: set back to default value via interpolation
 }
 
-
-// impl<T: Debug + Default + Clone + 'static> Debug for Box<dyn PropertyInstance<T>> {
-//     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-//         self.get().fmt(f)
-//     }
-// }
 
 impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
     fn default() -> Box<dyn PropertyInstance<T>> {
@@ -78,34 +70,6 @@ pub enum ArgsCoproduct {
 }
 
 pub type Property<T: Interpolatable> = Box<dyn PropertyInstance<T>>;
-//
-// pub struct VecProperty<T: Interpolatable> {
-//     internal_properties: Vec<Property<T>>,
-//     //expose Vec api
-//     //handle internal propertyinstances
-// }
-//
-
-// impl<T: Interpolatable, I: Sized> Index<I> for VecProperty<T> {
-//     type Output = Property<T>;
-//
-//     fn index(&self, index: I) -> &Self::Output {
-//         self.internal_properties.get(index)
-//     }
-// }
-//
-// impl<T: Interpolatable, I: Sized> std::ops::IndexMut<I> for VecProperty<T> {
-//     fn index_mut(&mut self, index: I) -> &mut Property<T> {
-//         &mut self.internal_properties.get_mut(index)
-//     }
-// }
-//
-// impl<T: Interpolatable> VecProperty<T> {
-//     fn push(&mut self, elem: T) {
-//         self.internal_properties.push(Box::new(PropertyLiteral::new(elem)));
-//     }
-// }
-
 
 #[derive(Clone)]
 pub struct ArgsRender {

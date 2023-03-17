@@ -6,6 +6,8 @@ pub enum PropertiesCoproduct {
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
+    usize(usize),//used by Repeat + numeric ranges, e.g. `for i in 0..5`
+
     //generated
 }
 

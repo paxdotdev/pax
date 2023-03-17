@@ -13,6 +13,7 @@ use std::borrow::Borrow;
 use std::str::FromStr;
 use std::collections::HashSet;
 use std::io::Write;
+use std::ops::Deref;
 use itertools::Itertools;
 
 use std::os::unix::fs::PermissionsExt;
@@ -446,9 +447,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //  - an explicit value is present IFF an AttributeValueDefinition
         //    for that property is present on the TemplateNodeDefinition.
         //    That AttributeValueDefinition may be an Expression or Literal (we can throw at this
-        //    stage for any `Properties` that are bound to something other than an expression / literal
-
-
+        //    stage for any `Properties` that are bound to something other than an expression / literal)
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
         let property_ril_tuples: Vec<(String, String)> = component_for_current_node.property_definitions.iter().map(|pd| {
@@ -708,9 +707,9 @@ fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::i
 
     // println!("Cloning cartridge to {:?}", target_dir);
 
-    CARTRIDGE_DIR.extract(&target_dir)
+    persistent_extract(&CARTRIDGE_DIR, &target_dir).unwrap();
+    Ok(())
 }
-
 
 static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct");
 /// Clone a copy of the relevant chassis (and dev harness) to the local .pax directory
@@ -722,9 +721,9 @@ fn clone_properties_coproduct_to_dot_pax(relative_cartridge_target_dir: &PathBuf
 
     let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
 
-    // println!("Cloning properties coproduct to {:?}", target_dir);
+    persistent_extract(&PROPERTIES_COPRODUCT_DIR, &target_dir).unwrap();
 
-    PROPERTIES_COPRODUCT_DIR.extract(&target_dir)
+    Ok(())
 }
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
@@ -803,12 +802,12 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     #[allow(non_snake_case)]
     let PAX_BADGE = "[Pax]".bold().on_black().white();
 
-    println!("{} 🛠 Starting to build your app...", &PAX_BADGE);
+    println!("{} 🛠 Building your Rust project with cargo...", &PAX_BADGE);
     let pax_dir = get_or_create_pax_directory(&ctx.path);
 
     // Run parser bin from host project with `--features parser`
-    println!("{} 📖 Parsing Pax", &PAX_BADGE);
     let output = run_parser_binary(&ctx.path);
+
 
     // Forward stderr only
     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
@@ -834,7 +833,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest, &host_crate_info);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
-    println!("{} 🧱 Building your cartridge", &PAX_BADGE);
+    println!("{} 🧱 Building cartridge with cargo", &PAX_BADGE);
     let output = build_chassis_with_cartridge(&pax_dir, &ctx.target);
     //forward stderr only
     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
@@ -901,31 +900,31 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
     let chassis_path = pax_dir.join("chassis").join({let s: & str = target.into(); s});
     //string together a shell call like the following:
-    let cargo_run_chassis_build = match target {
+    let mut cargo_run_chassis_build = match target {
         RunTarget::MacOS => {
             Command::new("cargo")
-            .current_dir(&chassis_path)
-            .arg("build")
-            .arg("--color")
-            .arg("always")
-            .env("PAX_DIR", pax_dir)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .expect("failed to build chassis")
+                .current_dir(&chassis_path)
+                .arg("build")
+                .arg("--color")
+                .arg("always")
+                .env("PAX_DIR", &pax_dir)
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .expect("failed to build chassis")
         },
         RunTarget::Web => {
             Command::new("wasm-pack")
-            .current_dir(&chassis_path)
-            .arg("build")
-            .arg("--release")
-            .arg("-d")
-            .arg(pax_dir.join("chassis").join("Web").join("pax-dev-harness-web").join("dist").to_str().unwrap()) //--release -d pax-dev-harness-web/dist
-            .env("PAX_DIR", pax_dir)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::piped())
-            .spawn()
-            .expect("failed to build chassis")
+                .current_dir(&chassis_path)
+                .arg("build")
+                .arg("--release")
+                .arg("-d")
+                .arg(pax_dir.join("chassis").join("Web").join("pax-dev-harness-web").join("dist").to_str().unwrap()) //--release -d pax-dev-harness-web/dist
+                .env("PAX_DIR", &pax_dir)
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit())
+                .spawn()
+                .expect("failed to build chassis")
         }
     };
 

@@ -185,8 +185,8 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                         format!("Numeric::from({})", value)
                     }
                     _ => {
-                        /* {literal_enum_value | literal_tuple_access |  string | literal_tuple } */
-                        literal_kind.as_str().to_string() + ".into()"
+                        /* {literal_enum_value | literal_tuple_access | string | literal_tuple } */
+                        literal_kind.as_str().to_string() + ".try_into().unwrap()"
                     }
                 }
             },
@@ -313,6 +313,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
             pascal_identifier: "<UNREACHABLE>".to_string()
         }
     );
+
 
 }
 

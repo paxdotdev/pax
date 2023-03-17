@@ -5,10 +5,9 @@ pub enum PropertiesCoproduct {
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
+    usize(usize), //used by Repeat with numeric ranges, like `for i in 0..5`
     
     Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
-    
-    Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
     HelloRGB(pax_example::pax_reexports::HelloRGB),
     
