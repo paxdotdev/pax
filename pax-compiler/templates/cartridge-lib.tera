@@ -42,15 +42,16 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 //(yes this is somewhat expensive, but will be mitigated by dirty-watching)
                 {# Roughly:  `.iter().map(|e|{{PropertiesCoproduct::{}(e)}}).collect()` #}
 
+                {% if is_range %}
+                ... what if we just handle this in the pratt parser, after all?  maybe we don't support ranges anywhere but `for` for now?
+
+                {% else %}
                 if let PropertiesCoproduct::{{ invocation.properties_type }}(p) = properties {
-                    {% if invocation.properties_type == "Range_usize" %}
-                    *p
-                    {% else %}
                     *p.{{invocation.identifier}}.get()
-                    {% endif %}
                 } else {
                     unreachable!("{{ expression_spec.id }}")
                 }
+                {% endif %}
             };
         {% endfor %}
 

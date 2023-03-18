@@ -134,7 +134,6 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
         indices
     }
 
-    //both Expressions and Timelines store their evaluators in the same vtable
     pub fn compute_vtable_value(&self, vtable_id: Option<usize>) -> Option<TypesCoproduct> {
 
         if let Some(id) = vtable_id {
@@ -158,6 +157,9 @@ pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsScroll)>,
 }
 
+/// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
+/// a `for j in 0..4` would have 12 hydrated nodes representing the 12 virtual Rectangles in the
+/// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
 pub struct HydratedNode<R: 'static + RenderContext> {
     id_chain: Vec<u64>,
     parent_hydrated_node: Option<Rc<HydratedNode<R>>>,
@@ -324,7 +326,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             }
         }
 
-        //the "current component" will actually push its stack frame.)
         //peek at the current stack frame and set a scoped playhead position as needed
         match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {

@@ -160,15 +160,26 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
-            let (paxel, return_type) = if let Some(range_expression) = &repeat_source_definition.range_expression {
-                (range_expression.to_string(), PropertyType::builtin_range_usize())
+            
+            
+            let (mut paxel, return_type, iterable_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
+                let mut property_type = PropertyType::builtin_vec_rc_properties_coproduct();
+                let iterable_type = property_type.iterable_type.clone().unwrap();
+
+                (range_expression_paxel.to_string(), property_definition, iterable_type)
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                 let mut property_definition = ctx.component_def.get_property_definition_by_name(symbolic_binding);
                 let fqt = property_definition.property_type_info.fully_qualified_type.clone();
-                let property_type = property_definition.property_type_info.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
+                let iterable_type = property_definition.property_type_info.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
 
-                (symbolic_binding.to_string(), *property_type)
+                (symbolic_binding.to_string(), PropertyType::builtin_vec_rc_properties_coproduct(), iterable_type)
             } else {unreachable!()};
+            
+            // Something of a hack for Repeat; maps whatever is actually iterated over (e.g. a numeric range `0..4`, or a Vec<T> like `self.some_vec`)
+            // into a PropertiesCoproduct::that_thing, so that downstream-of-repeat expressions can refer to the element via a PropertiesCoproduct / stack frame
+            paxel = format!("{}.iter().map(|e|{{PropertiesCoproduct::{}(e)}}).collect()", paxel, iterable_type.pascalized_fully_qualified_type);
+            todo!("of course, the above does not work because we're combining PAXEL and Rust.  Reassess approach.");
+
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL

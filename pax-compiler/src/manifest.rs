@@ -182,20 +182,29 @@ pub struct PropertyType {
 
 impl PropertyType {
     pub fn primitive(name: &str) -> Self {
-        PropertyType {
+        Self {
             pascalized_fully_qualified_type: name.to_string(),
             fully_qualified_type: name.to_string(),
             iterable_type: None,
         }
     }
 
-    pub fn builtin_range_usize() -> Self {
-        PropertyType {
-            fully_qualified_type: "Vec_Rc_PropertiesCoproduct___".to_string(),
+    pub fn builtin_vec_rc_properties_coproduct() -> Self {
+        Self {
+            fully_qualified_type: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
             pascalized_fully_qualified_type: "Vec_Rc_PropertiesCoproduct___".to_string(),
-            iterable_type: Some(Box::new(Self::primitive("usize"))),
+            iterable_type: Some(Box::new(Self::builtin_rc_properties_coproduct())),
         }
     }
+
+    pub fn builtin_rc_properties_coproduct() -> Self {
+        Self {
+            fully_qualified_type: "std::rc::Rc<PropertiesCoproduct>".to_string(),
+            pascalized_fully_qualified_type: "Rc_PropertiesCoproduct__".to_string(),
+            iterable_type: None
+        }
+    }
+
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -228,7 +237,7 @@ pub struct ControlFlowAttributeValueDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowRepeatSourceDefinition {
-    pub range_expression: Option<String>,
+    pub range_expression_paxel: Option<String>,
     pub range_expression_vtable_id: Option<usize>,
     pub symbolic_binding: Option<String>,
 }
