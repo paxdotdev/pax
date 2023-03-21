@@ -37,21 +37,11 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                     .get_properties();
                 let properties = &*(*properties).borrow();
 
-                //when dealing with a range here,
-                //iterate over the range and return a vec of PropertiesCoproduct::{iterable_type}, where iterable_type ∈ {usize, some type that should already be registered on PropertiesCoproduct, e.g. via `pax_type`.}
-                //(yes this is somewhat expensive, but will be mitigated by dirty-watching)
-                {# Roughly:  `.iter().map(|e|{{PropertiesCoproduct::{}(e)}}).collect()` #}
-
-                {% if is_range %}
-                ... what if we just handle this in the pratt parser, after all?  maybe we don't support ranges anywhere but `for` for now?
-
-                {% else %}
                 if let PropertiesCoproduct::{{ invocation.properties_type }}(p) = properties {
                     *p.{{invocation.identifier}}.get()
                 } else {
                     unreachable!("{{ expression_spec.id }}")
                 }
-                {% endif %}
             };
         {% endfor %}
 
