@@ -39,7 +39,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub slot_index: Option<Box<dyn PropertyInstance<usize>>>,
 
     ///used by Repeat
-    pub repeat_source_expression: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
+    pub repeat_source_expression: Option<Box<dyn PropertyInstance<Box<dyn Iterator<Item = Rc<PropertiesCoproduct>>>>>>,
 
     ///used by Conditional
     pub conditional_boolean_expression: Option<Box<dyn PropertyInstance<bool>>>,

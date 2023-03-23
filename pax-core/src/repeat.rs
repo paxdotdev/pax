@@ -18,9 +18,15 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub instance_id: u64,
     pub repeated_template: RenderNodePtrList<R>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub source_expression: Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>,
+    pub source_expression: Box<dyn PropertyInstance<Box<dyn Iterator<Item = Rc<PropertiesCoproduct>>>>>,
     pub virtual_children: RenderNodePtrList<R>,
 
+}
+
+impl Default for Box<(dyn Iterator<Item = Rc<PropertiesCoproduct>> + 'static)> {
+    fn default() -> Self {
+
+    }
 }
 
 
