@@ -106,6 +106,7 @@ pub struct ComponentDefinition {
     pub primitive_instance_import_path: Option<String>,
     pub template: Option<Vec<TemplateNodeDefinition>>,
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
+    pub events: Option<Vec<EventDefinition>>,
     pub property_definitions: Vec<PropertyDefinition>,
 }
 
@@ -261,4 +262,10 @@ pub enum Number {
 pub enum Unit {
     Pixels,
     Percent
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct EventDefinition {
+    pub key: String,
+    pub value: Vec<String>,
 }

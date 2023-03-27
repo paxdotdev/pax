@@ -11,7 +11,7 @@ COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 //A template has exactly one root tag
 //A component definition requires at least one element in its template; a `@settings` block may also be included, and any future relevant blocks like `@defaults`
 //The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
-pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration)+ ~ EOI }
+pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration | events_block_declaration)+ ~ EOI }
 root_tag_pair = { any_tag_pair }
 
 //On the other hand, the inner_nodes (children of another tag)
@@ -82,6 +82,17 @@ selector = {("." | "#") ~ identifier}
 settings_key_value_pair = { settings_key ~ settings_value ~ ","? }
 settings_key = { identifier ~ ":" }
 settings_value = { literal_value | literal_object | expression_wrapped }
+
+/// BEGIN EVENTS
+
+events_block_declaration = {"@" ~ "events" ~ "{" ~ events_key_value_pair* ~ "}"}
+//Describes a key-value pair in a events block
+// keys are event names and values are functions to call
+events_key_value_pair = { events_key ~ events_value ~ ","? }
+events_key = { identifier ~ ":" }
+events_value = { literal_function | function_list }
+literal_function = { "self."? ~ identifier ~ ","? }
+function_list = {"[" ~ literal_function* ~ "]"}
 
 literal_value = { literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | string }
 literal_number_with_unit = { literal_number ~ literal_number_unit }

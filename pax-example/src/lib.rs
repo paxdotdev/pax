@@ -16,11 +16,25 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
                 Transform2D::align(100%, 0%) * Transform2D::anchor(100%, 0%)
             } />
             <Rectangle fill={Color::rgb(0.25,0.5,0.5)} width=100% height=100% />
+
+
+    @events {
+            click: self.handle_click,
+            prerender: [],
+            postrender: [handle_click, handle_click],
+            }
+
     //    </Group>
     // }
 )]
 pub struct HelloRGB {
     pub rects: Property<Vec<usize>>,
+}
+
+impl HelloRGB {
+    pub fn handle_click(&mut self, args: ArgsClick) {
+        log("sup");
+    }
 }
 
 #[pax_type]
