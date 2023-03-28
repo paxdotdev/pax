@@ -23,13 +23,6 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
 
 }
 
-impl Default for Box<(dyn Iterator<Item = Rc<PropertiesCoproduct>> + 'static)> {
-    fn default() -> Self {
-
-    }
-}
-
-
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
     fn get_instance_id(&self) -> u64 {
@@ -47,7 +40,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 Some(children) => children
             },
             transform: args.transform,
-            source_expression: args.repeat_source_expression.unwrap(),
+            source_expression: args.repeat_source_expression_vec.unwrap(),
             virtual_children: Rc::new(RefCell::new(vec![])),
 
         }));
