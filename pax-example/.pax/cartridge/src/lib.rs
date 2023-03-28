@@ -106,7 +106,40 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     ComponentInstance::instantiate( InstantiationArgs{
         properties: PropertiesCoproduct::HelloRGB( HelloRGB::default() ),
-        handler_registry: None, //TODO: codegen!
+        handler_registry:  Some(Rc::new(RefCell::new(
+                                                     HandlerRegistry {
+                                                         click_handlers: vec![
+                                                                    |stack_frame, args|{
+                                                                        let properties = ((*stack_frame).borrow().get_properties());
+                                                                        let properties = &mut *properties.as_ref().borrow_mut();
+                                                                        let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
+                                                                        HelloRGB::handle_click(properties,args);
+                                                                    },
+                                                                
+                                                                    |stack_frame, args|{
+                                                                        let properties = ((*stack_frame).borrow().get_properties());
+                                                                        let properties = &mut *properties.as_ref().borrow_mut();
+                                                                        let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
+                                                                        HelloRGB::handle_click_2(properties,args);
+                                                                    },
+                                                                ],
+                                                         will_render_handlers: vec![
+                                                                     |properties, args|{
+                                                                         let properties = &mut *properties.as_ref().borrow_mut();
+                                                                         let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
+                                                                         HelloRGB::handle_tick(properties,args);
+                                                                     },
+                                                                 ],
+                                                         scroll_handlers: vec![
+                                                                     |stack_frame, args|{
+                                                                         let properties = ((*stack_frame).borrow().get_properties());
+                                                                         let properties = &mut *properties.as_ref().borrow_mut();
+                                                                         let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
+                                                                         HelloRGB::handle_scroll(properties,args);
+                                                                     },
+                                                                 ],
+                                                     }
+                                                 ))),
         instance_registry: Rc::clone(&instance_registry),
         transform: Transform2D::default_wrapped(),
         size: None,
@@ -124,21 +157,7 @@ pax_std_primitives::text::TextInstance::instantiate(
             fill: Box::new( PropertyLiteral::new(Default::default()) ),
         
     }),
-    handler_registry: Some(Rc::new(RefCell::new(
-                               HandlerRegistry {
-                                   click_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("click: x:{}, y:{}",args.x, args.y).as_str());
-                                       }
-                                   ],
-                                   will_render_handlers: vec![],
-                                   scroll_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("scroll: delta_x:{}, delta_y:{}", args.delta_x, args.delta_y).as_str());
-                                       }
-                                   ],
-                               }
-                           ))),
+    handler_registry: None,
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
     size: Some(Rc::new(RefCell::new(
@@ -168,21 +187,7 @@ pax_std_primitives::path::PathInstance::instantiate(
             fill: Box::new( PropertyLiteral::new(Default::default()) ),
         
     }),
-    handler_registry: Some(Rc::new(RefCell::new(
-                               HandlerRegistry {
-                                   click_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("click: x:{}, y:{}",args.x, args.y).as_str());
-                                       }
-                                   ],
-                                   will_render_handlers: vec![],
-                                   scroll_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("scroll: delta_x:{}, delta_y:{}", args.delta_x, args.delta_y).as_str());
-                                       }
-                                   ],
-                               }
-                           ))),
+    handler_registry: None,
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
     size: Some(Rc::new(RefCell::new(
@@ -210,21 +215,7 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
             fill: Box::new( PropertyExpression::new(0) ),
         
     }),
-    handler_registry: Some(Rc::new(RefCell::new(
-                               HandlerRegistry {
-                                   click_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("click: x:{}, y:{}",args.x, args.y).as_str());
-                                       }
-                                   ],
-                                   will_render_handlers: vec![],
-                                   scroll_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("scroll: delta_x:{}, delta_y:{}", args.delta_x, args.delta_y).as_str());
-                                       }
-                                   ],
-                               }
-                           ))),
+    handler_registry: None,
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyExpression::new(1))),
     size: Some(Rc::new(RefCell::new(
@@ -252,21 +243,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
             fill: Box::new( PropertyExpression::new(2) ),
         
     }),
-    handler_registry: Some(Rc::new(RefCell::new(
-                               HandlerRegistry {
-                                   click_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("click: x:{}, y:{}",args.x, args.y).as_str());
-                                       }
-                                   ],
-                                   will_render_handlers: vec![],
-                                   scroll_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("scroll: delta_x:{}, delta_y:{}", args.delta_x, args.delta_y).as_str());
-                                       }
-                                   ],
-                               }
-                           ))),
+    handler_registry: None,
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyExpression::new(3))),
     size: Some(Rc::new(RefCell::new(
@@ -294,21 +271,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
             fill: Box::new( PropertyExpression::new(4) ),
         
     }),
-    handler_registry: Some(Rc::new(RefCell::new(
-                               HandlerRegistry {
-                                   click_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("click: x:{}, y:{}",args.x, args.y).as_str());
-                                       }
-                                   ],
-                                   will_render_handlers: vec![],
-                                   scroll_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("scroll: delta_x:{}, delta_y:{}", args.delta_x, args.delta_y).as_str());
-                                       }
-                                   ],
-                               }
-                           ))),
+    handler_registry: None,
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
     size: Some(Rc::new(RefCell::new(

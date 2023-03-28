@@ -9,21 +9,7 @@ instantiate_{{ snake_case_component_id }}(
             {{ property.0 }}: Box::new( {{ property.1 }} ),
         {% endfor %}
     }){% endif %},
-    handler_registry: Some(Rc::new(RefCell::new(
-                               HandlerRegistry {
-                                   click_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("click: x:{}, y:{}",args.x, args.y).as_str());
-                                       }
-                                   ],
-                                   will_render_handlers: vec![],
-                                   scroll_handlers: vec![
-                                       |stack_frame, args|{
-                                           pax_runtime_api::log(format!("scroll: delta_x:{}, delta_y:{}", args.delta_x, args.delta_y).as_str());
-                                       }
-                                   ],
-                               }
-                           ))),
+    handler_registry: None,
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new({{ transform_ril }})),
     size: Some(Rc::new(RefCell::new(

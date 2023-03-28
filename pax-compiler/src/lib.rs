@@ -11,7 +11,7 @@ use manifest::PaxManifest;
 use std::{fs, thread};
 use std::borrow::Borrow;
 use std::str::FromStr;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use std::ops::Deref;
 use itertools::Itertools;
@@ -23,7 +23,7 @@ use toml_edit::{Document, Item, value};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::Duration;
-use crate::manifest::{AttributeValueDefinition, ComponentDefinition, ExpressionSpec, TemplateNodeDefinition};
+use crate::manifest::{AttributeValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
 //relative to pax_dir
@@ -530,6 +530,19 @@ struct RenderNodesGenerationContext<'a> {
     active_component_definition: &'a ComponentDefinition,
 }
 
+fn generate_events_map(events: Option<Vec<EventDefinition>>) -> HashMap<String, Vec<String>> {
+    let mut ret = HashMap::new();
+    let _ = match events {
+        Some(event_list) => {
+            for e in event_list.iter(){
+                ret.insert(e.key.clone(), e.value.clone());
+            }
+        },
+        _ => {},
+    };
+    ret
+}
+
 
 fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition, import_prefix: &str) -> String {
 
@@ -544,6 +557,7 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
         snake_case_component_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
         properties: cd.property_definitions.clone(),
+        events: generate_events_map(cd.events.clone()),
         render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc),
         properties_coproduct_variant: cd.pascal_identifier.to_string()
     };

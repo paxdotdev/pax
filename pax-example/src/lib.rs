@@ -1,4 +1,4 @@
-use pax::api::{ArgsClick, ArgsRender, EasingCurve};
+use pax::api::{ArgsClick, ArgsRender, ArgsScroll, EasingCurve};
 use pax::*;
 use pax_std::components::Stacker;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
@@ -19,9 +19,9 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 
     @events {
-            click: self.handle_click,
-            prerender: [],
-            postrender: [handle_click, handle_click],
+            Click: [self.handle_click, handle_click_2],
+            WillRender: handle_tick,
+            Scroll: self.handle_scroll,
             }
 
     //    </Group>
@@ -33,7 +33,16 @@ pub struct HelloRGB {
 
 impl HelloRGB {
     pub fn handle_click(&mut self, args: ArgsClick) {
-        log("sup");
+        log("click1");
+    }
+    pub fn handle_click_2(&mut self, args: ArgsClick) {
+        log("click2");
+    }
+    pub fn handle_tick(&mut self, args: ArgsRender) {
+        log("tick");
+    }
+    pub fn handle_scroll(&mut self, args: ArgsScroll) {
+        log("scroll");
     }
 }
 
