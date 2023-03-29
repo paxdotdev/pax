@@ -474,14 +474,14 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         Rule::xo_range => {
                             ControlFlowRepeatSourceDefinition {
                                 range_expression_paxel: Some(inner_source.as_str().to_string()),
-                                range_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
+                                vtable_id: None, //This will be written back to this data structure later, during expression compilation
                                 symbolic_binding: None,
                             }
                         },
                         Rule::xo_symbol => {
                             ControlFlowRepeatSourceDefinition {
                                 range_expression_paxel: None,
-                                range_expression_vtable_id: None,
+                                vtable_id: None,
                                 symbolic_binding: Some(trim_self_or_this_from_symbolic_binding(inner_source)),
                             }
                         },

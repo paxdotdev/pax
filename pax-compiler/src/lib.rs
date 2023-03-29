@@ -234,7 +234,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
     let mut set: HashSet<_> = types_coproduct_tuples.drain(..).collect();
 
     #[allow(non_snake_case)]
-    let BUILT_INS = vec![
+    let TYPES_COPRODUCT_BUILT_INS = vec![
         ("f64", "f64"),
         ("bool", "bool"),
         ("isize", "isize"),
@@ -242,13 +242,13 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
         ("String", "String"),
         ("Vec_Rc_PropertiesCoproduct___", "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>"),
         ("Transform2D", "pax_runtime_api::Transform2D"),
+        ("Range_isize_", "std::ops::Range<isize>"),
         ("Size2D", "pax_runtime_api::Size2D"),
         ("Size", "pax_runtime_api::Size"),
         ("SizePixels", "pax_runtime_api::SizePixels"),
-
     ];
 
-    BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
+    TYPES_COPRODUCT_BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
     types_coproduct_tuples.extend(set.into_iter());
     types_coproduct_tuples.sort();
 
@@ -386,7 +386,16 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
     let args = if tnd.component_id == parsing::COMPONENT_ID_REPEAT {
         // Repeat
-        let id = tnd.control_flow_attributes.as_ref().unwrap().repeat_source_definition.as_ref().unwrap().range_expression_vtable_id.unwrap();
+        let rsd = tnd.control_flow_attributes.as_ref().unwrap().repeat_source_definition.as_ref().unwrap();
+        let id = rsd.vtable_id.unwrap();
+
+        let rse_vec = if let Some(x) = &rsd.symbolic_binding {
+            format!("Some(Box::new(PropertyExpression::new({})))", id)
+        } else {"None".into()};
+
+        let rse_range = if let Some(x) = &rsd.range_expression_paxel {
+            format!("Some(Box::new(PropertyExpression::new({})))", id)
+        } else {"None".into()};
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -399,7 +408,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
             children_literal,
             slot_index_literal: "None".to_string(),
-            repeat_source_expression_literal:  format!("Some(Box::new(PropertyExpression::new({})))", id),
+            repeat_source_expression_literal_vec: rse_vec,
+            repeat_source_expression_literal_range: rse_range,
             conditional_boolean_expression_literal: "None".to_string()
         }
     } else if tnd.component_id == parsing::COMPONENT_ID_IF {
@@ -417,7 +427,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
             children_literal,
             slot_index_literal: "None".to_string(),
-            repeat_source_expression_literal:  "None".to_string(),
+            repeat_source_expression_literal_vec:  "None".to_string(),
+            repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
         }
     } else if tnd.component_id == parsing::COMPONENT_ID_SLOT {
@@ -435,7 +446,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
             children_literal,
             slot_index_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
-            repeat_source_expression_literal:  "None".to_string(),
+            repeat_source_expression_literal_vec:  "None".to_string(),
+            repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
         }
     } else {
@@ -519,7 +531,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             size_ril: [builtins_ril[0].clone(), builtins_ril[1].clone()],
             children_literal,
             slot_index_literal: "None".to_string(),
-            repeat_source_expression_literal: "None".to_string(),
+            repeat_source_expression_literal_vec: "None".to_string(),
+            repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string()
         }
     };

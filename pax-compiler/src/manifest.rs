@@ -197,6 +197,14 @@ impl PropertyType {
         }
     }
 
+    pub fn builtin_range_isize() -> Self {
+        Self {
+            fully_qualified_type: "std::ops::Range<isize>".to_string(),
+            pascalized_fully_qualified_type: "Range_isize_".to_string(),
+            iterable_type: Some(Box::new(Self::primitive("isize"))),
+        }
+    }
+
     pub fn builtin_rc_properties_coproduct() -> Self {
         Self {
             fully_qualified_type: "std::rc::Rc<PropertiesCoproduct>".to_string(),
@@ -238,7 +246,7 @@ pub struct ControlFlowAttributeValueDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowRepeatSourceDefinition {
     pub range_expression_paxel: Option<String>,
-    pub range_expression_vtable_id: Option<usize>,
+    pub vtable_id: Option<usize>,
     pub symbolic_binding: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]

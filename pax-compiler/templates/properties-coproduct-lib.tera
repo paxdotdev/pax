@@ -6,6 +6,8 @@ pub enum PropertiesCoproduct {
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
+    isize(isize),
+    Range_isize_(std::ops::Range<isize>),
 
     {% for properties_coproduct_tuple in properties_coproduct_tuples %}
     {{properties_coproduct_tuple.0}}({{properties_coproduct_tuple.1}}),

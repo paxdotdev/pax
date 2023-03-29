@@ -37,8 +37,8 @@ instantiate_{{ snake_case_component_id }}(
     component_template: None,
     scroller_args: None,
     slot_index: {{slot_index_literal}},
-    repeat_source_expression: {{repeat_source_expression_literal}},
+    repeat_source_expression_vec: {{repeat_source_expression_literal_vec}},
+    repeat_source_expression_range: {{repeat_source_expression_literal_range}},
     conditional_boolean_expression: {{conditional_boolean_expression_literal}},
     compute_properties_fn: None,
 })
-

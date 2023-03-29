@@ -30,15 +30,20 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         {% for invocation in expression_spec.invocations %}
             let {{ invocation.escaped_identifier }} = {
-                let properties = (*ec.stack_frame).borrow().nth_descendant({{ invocation.stack_offset }})
-                    .unwrap()
-                    .borrow()
-                    .deref()
-                    .get_properties();
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_descendant({{ invocation.stack_offset }}) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
 
                 if let PropertiesCoproduct::{{ invocation.properties_type }}(p) = properties {
-                    *p.{{invocation.identifier}}.get()
+                    {% if invocation.properties_type == "isize" %}
+                        // special hack for built-in range logic, see cartridge-lib.tera
+                        Numeric::from(*p)
+                    {% else %}
+                        p.{{invocation.identifier}}.get()
+                    {% endif %}
                 } else {
                     unreachable!("{{ expression_spec.id }}")
                 }

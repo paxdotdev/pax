@@ -6,7 +6,8 @@ pub enum PropertiesCoproduct {
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
-    Range_usize(usize), //used by Repeat with numeric ranges, like `for i in 0..5`
+    isize(isize),
+    Range_isize_(std::ops::Range<isize>),
 
     
     Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
@@ -26,7 +27,7 @@ pub enum PropertiesCoproduct {
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {
     
-    Range_usize(std::ops::Range<usize>),
+    Range_isize_(std::ops::Range<isize>),
     
     Size(pax_runtime_api::Size),
     

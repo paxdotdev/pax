@@ -41,7 +41,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     ///used by Repeat — the _vec and _range variants are modal, describing whether the source
     ///is encoded as a Vec<T> or as a Range<...>
     pub repeat_source_expression_vec: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
-    pub repeat_source_expression_range: Option<Box<dyn PropertyInstance<std::ops::Range<usize>>>>,
+    pub repeat_source_expression_range: Option<Box<dyn PropertyInstance<std::ops::Range<isize>>>>,
 
     ///used by Conditional
     pub conditional_boolean_expression: Option<Box<dyn PropertyInstance<bool>>>,

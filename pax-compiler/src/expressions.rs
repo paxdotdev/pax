@@ -153,33 +153,24 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             //  - must be a symbolic identifier, such as `elements` or `self.elements`
             // for i in 0..max_elems
             //  - may use an integer literal or symbolic identifier in either position
-            //  - may use an exclusive (..) or inclusive (...) range operator
+            //  - must use an exclusive (..) range operator
 
             let id = ctx.uid_gen.next().unwrap();
-            repeat_source_definition.range_expression_vtable_id = Some(id);
+            repeat_source_definition.vtable_id = Some(id);
 
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
-            
-            
-            let (mut paxel, return_type, iterable_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
-                let mut property_type = PropertyType::builtin_vec_rc_properties_coproduct();
-                let iterable_type = property_type.iterable_type.clone().unwrap();
 
-                (range_expression_paxel.to_string(), property_definition, iterable_type)
+            let (mut paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
+                (range_expression_paxel.to_string(), PropertyType::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
-                let mut property_definition = ctx.component_def.get_property_definition_by_name(symbolic_binding);
-                let fqt = property_definition.property_type_info.fully_qualified_type.clone();
-                let iterable_type = property_definition.property_type_info.iterable_type.clone().expect(&format!("Cannot use type Property<{}> with `for` -- can only use `for` with a `Property<Vec<T>>`", &fqt));
-
-                (symbolic_binding.to_string(), PropertyType::builtin_vec_rc_properties_coproduct(), iterable_type)
+                (symbolic_binding.to_string(), PropertyType::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
-            
-            // Something of a hack for Repeat; maps whatever is actually iterated over (e.g. a numeric range `0..4`, or a Vec<T> like `self.some_vec`)
-            // into a PropertiesCoproduct::that_thing, so that downstream-of-repeat expressions can refer to the element via a PropertiesCoproduct / stack frame
-            paxel = format!("{}.iter().map(|e|{{PropertiesCoproduct::{}(e)}}).collect()", paxel, iterable_type.pascalized_fully_qualified_type);
-            todo!("of course, the above does not work because we're combining PAXEL and Rust.  Reassess approach.");
 
+            // // Something of a hack for Repeat; maps whatever is actually iterated over (e.g. a numeric range `0..4`, or a Vec<T> like `self.some_vec`)
+            // // into a PropertiesCoproduct::that_thing, so that downstream-of-repeat expressions can refer to the element via a PropertiesCoproduct / stack frame
+            // paxel = format!("{}.iter().map(|e|{{PropertiesCoproduct::{}(e)}}).collect()", paxel, iterable_type.pascalized_fully_qualified_type);
+            // todo!("of course, the above does not work because we're combining PAXEL and Rust.  Reassess approach.");
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL
@@ -194,7 +185,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         name: format!("{}", elem_id),
                         original_type: return_type.fully_qualified_type.to_string(),
                         fully_qualified_constituent_types: vec![],
-                        property_type_info: return_type.clone(),
+                        property_type_info: *return_type.iterable_type.unwrap().clone(),
                     };
 
                     ctx.scope_stack.push(HashMap::from([
@@ -208,7 +199,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         name: format!("{}", elem_id),
                         original_type: return_type.fully_qualified_type.to_string(),
                         fully_qualified_constituent_types: vec![],
-                        property_type_info: return_type.clone(),
+                        property_type_info: *return_type.iterable_type.unwrap().clone(),
                     };
 
                     ctx.scope_stack.push(HashMap::from([
@@ -230,7 +221,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let (output_statement, invocations) = compile_paxel_to_ril(&paxel, &ctx);
 
             // The return type for a repeat source expression will either be:
-            //   1. usize, for tuples (including tuples with direct symbolic references as either operand, like `self.x..10`)
+            //   1. isize, for ranges (including ranges with direct symbolic references as either operand, like `self.x..10`)
             //   2. T for a direct symbolic reference to `self.x` for x : Property<Vec<T>>
             // Presumably, we could also support arbitrary expressions as a #3, but
             // we need some way to infer the return type, statically.  This may mean requiring
@@ -340,7 +331,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let prop_def = ctx.resolve_symbol(&identifier).expect(&format!("Symbol not found: {}", &identifier));
 
-        let properties_type = prop_def.property_type_info.fully_qualified_type.clone();
+        let properties_type = prop_def.property_type_info.pascalized_fully_qualified_type.clone();
 
         let pascalized_iterable_type = if let Some(x) = &prop_def.property_type_info.iterable_type {
             Some(x.pascalized_fully_qualified_type.clone())

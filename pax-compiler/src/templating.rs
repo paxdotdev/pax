@@ -61,7 +61,8 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub transform_ril: String,
     pub children_literal: Vec<String>,
     pub slot_index_literal: String,
-    pub repeat_source_expression_literal: String,
+    pub repeat_source_expression_literal_vec: String,
+    pub repeat_source_expression_literal_range: String,
     pub conditional_boolean_expression_literal: String,
 }
 

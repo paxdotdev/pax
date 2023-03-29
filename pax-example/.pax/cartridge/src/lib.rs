@@ -54,7 +54,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         
 
         #[allow(unused_parens)]
-        TypesCoproduct::Vec_Rc_PropertiesCoproduct___(
+        TypesCoproduct::Range_isize_(
             0 ..5
 
         )
@@ -64,21 +64,17 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let i = {
-                let properties = (*ec.stack_frame).borrow().nth_descendant(0)
-                    .unwrap()
-                    .borrow()
-                    .deref()
-                    .get_properties();
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_descendant(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
 
-                //when dealing with a range here,
-                //iterate over the range and return a vec of PropertiesCoproduct::{iterable_type}, where iterable_type ∈ {usize, some type that should already be registered on PropertiesCoproduct, e.g. via `pax_type`.}
-                //(yes this is somewhat expensive, but will be mitigated by dirty-watching)
-                
-
-                if let PropertiesCoproduct::Vec_Rc_PropertiesCoproduct___(p) = properties {
+                if let PropertiesCoproduct::isize(p) = properties {
                     
-                    *p.i.get()
+                        // special hack for built-in range logic, see cartridge-lib.tera
+                        Numeric::from(*p)
                     
                 } else {
                     unreachable!("1")
@@ -252,11 +248,11 @@ pax_std_primitives::text::TextInstance::instantiate(
     component_template: None,
     scroller_args: None,
     slot_index: None,
-    repeat_source_expression: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
-
 ,
         
             
@@ -298,11 +294,11 @@ pax_std_primitives::path::PathInstance::instantiate(
     component_template: None,
     scroller_args: None,
     slot_index: None,
-    repeat_source_expression: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
-
 ,
         
             
@@ -342,11 +338,11 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
     component_template: None,
     scroller_args: None,
     slot_index: None,
-    repeat_source_expression: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
-
 ,
         
             
@@ -386,11 +382,11 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     component_template: None,
     scroller_args: None,
     slot_index: None,
-    repeat_source_expression: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
-
 ,
         
             
@@ -430,37 +426,38 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     component_template: None,
     scroller_args: None,
     slot_index: None,
-    repeat_source_expression: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
-
 ,
         
     ]))),
     component_template: None,
     scroller_args: None,
     slot_index: None,
-    repeat_source_expression: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
-
 ,
         
     ]))),
     component_template: None,
     scroller_args: None,
     slot_index: None,
-    repeat_source_expression: Some(Box::new(PropertyExpression::new(0))),
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(0))),
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
-
 ]))),
         scroller_args: None,
         slot_index: None,
-        repeat_source_expression: None,
+        repeat_source_expression_vec: None,
+        repeat_source_expression_range: None,
         conditional_boolean_expression: None,
         compute_properties_fn: Some(Box::new(|properties, rtc|{
             let properties = &mut *properties.as_ref().borrow_mut();
