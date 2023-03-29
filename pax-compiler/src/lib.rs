@@ -264,7 +264,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
 fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
     let target_dir = pax_dir.join("cartridge");
-    clone_cartridge_to_dot_pax(&target_dir).unwrap();
+    clone_cartridge_to_dot_pax(&target_dir, pax_dir).unwrap();
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
@@ -595,7 +595,7 @@ fn clean_dependencies_table_of_relative_paths(crate_name: &str, dependencies: &m
     });
 }
 
-fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
+fn generate_chassis(pax_dir: &PathBuf, target: &RunTarget, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo, libdevmode: bool) {
     //1. clone (git or raw fs) pax-chassis-whatever into .pax/chassis/
     let chassis_dir = pax_dir.join("chassis");
     std::fs::create_dir_all(&chassis_dir).expect("Failed to create chassis directory.  Check filesystem permissions?");
@@ -603,10 +603,7 @@ fn generate_chassis_cargo_toml(pax_dir: &PathBuf, target: &RunTarget, build_id: 
     let target_str : &str = target.into();
     let relative_chassis_specific_target_dir = chassis_dir.join(target_str);
 
-    // clear any existing contents
-    // fs::remove_dir_all(&relative_chassis_specific_target_dir);
-
-    clone_target_chassis_to_dot_pax(&relative_chassis_specific_target_dir, target_str).unwrap();
+    clone_target_chassis_to_dot_pax(&relative_chassis_specific_target_dir, target_str, libdevmode).unwrap();
 
     //2. patch Cargo.toml
     let existing_cargo_toml_path = fs::canonicalize(relative_chassis_specific_target_dir.join("Cargo.toml")).unwrap();
@@ -648,16 +645,35 @@ fn persistent_extract<S: AsRef<Path>>(dir: &Dir, base_path: S) -> std::io::Resul
     Ok(())
 }
 
+
+/// Simple recursive fs copy function, since std::fs::copy doesn't recurse for us
+fn libdev_chassis_copy(src: &PathBuf, dest: &PathBuf) {
+    for entry_wrapped in fs::read_dir(src).unwrap() {
+        let entry = entry_wrapped.unwrap();
+        let file_name = entry.file_name();
+        let src_path= &entry.path();
+        if entry.file_type().unwrap().is_dir() {
+            libdev_chassis_copy(src_path, &dest.join(&file_name));
+        } else {
+            fs::create_dir_all(dest).ok();
+            fs::copy(src_path, dest.join(&file_name)).unwrap();
+        }
+    }
+}
+
+
+static CHASSIS_MACOS_LIBDEV: &str = "../pax-chassis-macos";
 static CHASSIS_MACOS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos");
 //NOTE: including this whole pax-chassis-web directory, plus node_modules, adds >100MB to the size of the
 //      compiler binary; also extends build times for Web and build times for pax-compiler itself.
 //      These are all development dependencies, namely around webpack/typescript -- this could be
 //      improved with a "production build" of `pax-chassis-web` that gets included into the compiler
+static CHASSIS_WEB_LIBDEV: &str = "../pax-chassis-web";
 static CHASSIS_WEB_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web");
-/// Clone a copy of the relevant chassis (and dev harness) to the local .pax directory
+/// Clone the relevant chassis (and dev harness) to the local .pax directory
 /// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
 /// and the encapsulated dev harness is the actual dev executable
-fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBuf, target_str: &str) -> std::io::Result<()> {
+fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBuf, target_str: &str, libdevmode: bool) -> std::io::Result<()> {
 
     // fs::remove_dir_all(&relative_chassis_specific_target_dir);
     fs::create_dir_all(&relative_chassis_specific_target_dir).unwrap();
@@ -671,7 +687,14 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
     match RunTarget::from(target_str) {
         RunTarget::MacOS => {
 
-            persistent_extract(&CHASSIS_MACOS_DIR, &chassis_specific_dir).unwrap();
+            if libdevmode {
+                // We can assume we're in the pax monorepo — thus we can raw-copy ../pax-chassis-* into .pax,
+                // instead of relying on include_dir (which has a very sticky cache and requires constant `cargo clean`ing to clear)
+                // This feature allows us to make edits e.g. to @/pax-chassis-macos and rest assured that they are copied into @/pax-example/.pax/chassis/MacOS with every libdev build
+                libdev_chassis_copy(&fs::canonicalize(CHASSIS_MACOS_LIBDEV).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
+            } else {
+                persistent_extract(&CHASSIS_MACOS_DIR, &chassis_specific_dir).unwrap();
+            }
 
             // CHASSIS_MACOS_DIR.extract(&chassis_specific_dir).unwrap();
             //HACK: patch the relative directory for the cdylib, because in a rust monorepo the `target` dir
@@ -680,26 +703,30 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
             fs::write(pbx_path, fs::read_to_string(pbx_path).unwrap().replace("../../target", "../target")).unwrap();
 
             //write +x permission to copied run-debuggable-mac-app
-            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o555)).unwrap();
+            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o777)).unwrap();
         }
         RunTarget::Web => {
-            persistent_extract(&CHASSIS_WEB_DIR, &chassis_specific_dir).unwrap();
+            if libdevmode {
+                // We can assume we're in the pax monorepo — thus we can raw-copy ../pax-chassis-* into .pax,
+                // instead of relying on include_dir (which has a very sticky cache and requires constant `cargo clean`ing to clear)
+                // This feature allows us to make edits e.g. to @/pax-chassis-web and rest assured that they are copied into @/pax-example/.pax/chassis/Web with every libdev build
+                libdev_chassis_copy(&fs::canonicalize(CHASSIS_WEB_LIBDEV).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
+            } else {
+                persistent_extract(&CHASSIS_WEB_DIR, &chassis_specific_dir).unwrap();
+            }
 
             //write +x permission to copied run-debuggable-mac-app
-            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-web").join("run-web.sh"), fs::Permissions::from_mode(0o555)).unwrap();
+            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-web").join("run-web.sh"), fs::Permissions::from_mode(0o777)).unwrap();
         }
     }
     Ok(())
 
 
-
 }
 
 static CARTRIDGE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge");
-/// Clone a copy of the relevant chassis (and dev harness) to the local .pax directory
-/// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
-/// and the encapsulated dev harness is the actual dev executable
-fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
+/// Clone the template pax-cartridge directory into .pax, for further codegen
+fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf, pax_dir: &PathBuf) -> std::io::Result<()> {
     // fs::remove_dir_all(&relative_cartridge_target_dir);
     fs::create_dir_all(&relative_cartridge_target_dir).unwrap();
 
@@ -708,6 +735,7 @@ fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::i
     // println!("Cloning cartridge to {:?}", target_dir);
 
     persistent_extract(&CARTRIDGE_DIR, &target_dir).unwrap();
+
     Ok(())
 }
 
@@ -802,12 +830,11 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     #[allow(non_snake_case)]
     let PAX_BADGE = "[Pax]".bold().on_black().white();
 
-    println!("{} 🛠 Building your Rust project with cargo...", &PAX_BADGE);
+    println!("{} 🛠 Building Rust project with cargo...", &PAX_BADGE);
     let pax_dir = get_or_create_pax_directory(&ctx.path);
 
     // Run parser bin from host project with `--features parser`
     let output = run_parser_binary(&ctx.path);
-
 
     // Forward stderr only
     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
@@ -830,7 +857,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_properties_coproduct(&pax_dir, &build_id, &manifest, &host_crate_info);
     generate_cartridge_definition(&pax_dir, &build_id, &manifest, &host_crate_info);
-    generate_chassis_cargo_toml(&pax_dir, &ctx.target, &build_id, &manifest, &host_crate_info);
+    generate_chassis(&pax_dir, &ctx.target, &build_id, &manifest, &host_crate_info, ctx.libdevmode);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with cargo", &PAX_BADGE);
@@ -841,7 +868,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
 
     if ctx.should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
-        println!("{} 🏃‍ Running your app...", &PAX_BADGE); //oxidation!
+        println!("{} 🏃‍ Running fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target)); //oxidation!
         run_harness_with_chassis(&pax_dir, &ctx, &Harness::Development);
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
@@ -883,12 +910,23 @@ fn run_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harne
 
     let is_web = if let RunTarget::Web = ctx.target { true } else { false };
 
+    let verbose_val = format!("{}",ctx.verbose);
+    let exclude_arch_val =  if std::env::consts::ARCH == "aarch64" {
+        "x86_64"
+    } else {
+        "arm64"
+    };
     Command::new(script)
         .current_dir(&harness_path)
-        .stdout(if ctx.verbose || is_web { std::process::Stdio::inherit() } else {std::process::Stdio::piped()})
-        .stderr(if ctx.verbose || is_web { std::process::Stdio::inherit() } else {std::process::Stdio::piped()})
-        .output()
-        .expect("failed to run harness");
+        .arg(verbose_val)
+        .arg(exclude_arch_val)
+        .stdout(std::process::Stdio::inherit())
+        .stderr(if ctx.verbose { std::process::Stdio::inherit() } else {std::process::Stdio::piped()})
+        .spawn()
+        .expect("failed to run harness")
+        .wait()
+        .expect("failed to run harness")
+        ;
 
 }
 
@@ -936,6 +974,7 @@ pub struct RunContext {
     pub path: String,
     pub verbose: bool,
     pub should_also_run: bool,
+    pub libdevmode: bool,
 }
 
 pub enum RunTarget {
