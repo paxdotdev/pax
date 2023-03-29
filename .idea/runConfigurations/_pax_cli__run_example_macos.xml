@@ -1,11 +1,11 @@
 <component name="ProjectRunConfigurationManager">
   <configuration default="false" name="`pax-cli` run example macos" type="CargoCommandRunConfiguration" factoryName="Cargo Command">
-    <option name="command" value="run -- run --verbose --path=../pax-example/ --target=macos" />
+    <option name="command" value="run -- run --verbose --libdev --path=../pax-example/ --target=macos" />
     <option name="workingDirectory" value="file://$PROJECT_DIR$/pax-cli" />
-    <option name="emulateTerminal" value="false" />
     <option name="channel" value="DEFAULT" />
     <option name="requiredFeatures" value="true" />
     <option name="allFeatures" value="false" />
+    <option name="emulateTerminal" value="false" />
     <option name="withSudo" value="false" />
     <option name="buildTarget" value="REMOTE" />
     <option name="backtrace" value="SHORT" />
