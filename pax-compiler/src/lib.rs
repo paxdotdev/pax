@@ -869,11 +869,12 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     if ctx.should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
         println!("{} 🏃‍ Running fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target)); //oxidation!
-        run_harness_with_chassis(&pax_dir, &ctx, &Harness::Development);
+
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
-        unimplemented!()
+        println!("{} 🏃‍ Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target)); //oxidation!
     }
+    build_harness_with_chassis(&pax_dir, &ctx, &Harness::Development);
 
     Ok(())
 }
@@ -883,7 +884,7 @@ pub enum Harness {
     Development,
 }
 
-fn run_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harness) {
+fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harness) {
 
     let target_str : &str = ctx.target.borrow().into();
     let target_str_lower: &str = &target_str.to_lowercase();
@@ -909,6 +910,10 @@ fn run_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harne
     };
 
     let is_web = if let RunTarget::Web = ctx.target { true } else { false };
+    let target_folder = if is_web { "Web "} else {"MacOS"};
+    let path = fs::canonicalize(std::path::Path::new(&ctx.path)).unwrap();
+    let output_path = path.join("build").join(target_folder);
+    let output_path_val = output_path.to_str().unwrap();
 
     let verbose_val = format!("{}",ctx.verbose);
     let exclude_arch_val =  if std::env::consts::ARCH == "aarch64" {
@@ -916,18 +921,31 @@ fn run_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harne
     } else {
         "arm64"
     };
+    let should_also_run = &format!("{}",ctx.should_also_run);
+    if is_web {
+        Command::new(script)
+            .current_dir(&harness_path)
+            .arg(should_also_run)
+            .arg(output_path_val)
+            .stdout(std::process::Stdio::inherit())
+            .stderr(if ctx.verbose { std::process::Stdio::inherit() } else { std::process::Stdio::piped() })
+            .spawn()
+            .expect("failed to run harness")
+            .wait()
+            .expect("failed to run harness");
+    }
     Command::new(script)
         .current_dir(&harness_path)
         .arg(verbose_val)
         .arg(exclude_arch_val)
+        .arg(should_also_run)
+        .arg(output_path_val)
         .stdout(std::process::Stdio::inherit())
         .stderr(if ctx.verbose { std::process::Stdio::inherit() } else {std::process::Stdio::piped()})
         .spawn()
         .expect("failed to run harness")
         .wait()
-        .expect("failed to run harness")
-        ;
-
+        .expect("failed to run harness");
 }
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
