@@ -84,15 +84,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             let new_value = if let Some(tc) = rtc.compute_vtable_value(se._get_vtable_id().clone()) {
                 if let TypesCoproduct::Range_isize_(vec) = tc { vec } else { unreachable!() }
             } else {
-                se.get().clone()
+                unreachable!()
+                // se.get().clone()
             };
 
             let is_dirty = !is_initialized || self.cached_old_value_range.as_ref().unwrap() != &new_value;
             self.cached_old_value_range = Some(new_value.clone());
-            let normalized_vec_of_props = new_value.into_iter().map(|e|{Rc::new(PropertiesCoproduct::isize(e))}).collect();
+            let normalized_vec_of_props = new_value.into_iter().enumerate().map(|(i, elem)|{Rc::new(PropertiesCoproduct::RepeatItem(Rc::new(PropertiesCoproduct::isize(elem)), i))}).collect();
             (is_dirty, normalized_vec_of_props)
         } else {unreachable!()};
-
 
         if is_dirty {
 

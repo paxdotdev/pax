@@ -37,16 +37,21 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
 
-                if let PropertiesCoproduct::{{ invocation.properties_type }}(p) = properties {
-                    {% if invocation.properties_type == "isize" %}
-                        // special hack for built-in range logic, see cartridge-lib.tera
-                        Numeric::from(*p)
-                    {% else %}
-                        p.{{invocation.identifier}}.get()
-                    {% endif %}
-                } else {
-                    unreachable!("{{ expression_spec.id }}")
-                }
+                {% if invocation.is_repeat_elem or invocation.is_repeat_index %}
+                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
+                       {% if invocation.is_repeat_elem %}
+                            Rc::clone(elem)
+                       {% else %}
+                            Numeric::from(i)
+                       {% endif %}
+                    } else {unreachable!()}
+                {% else %}
+                    if let PropertiesCoproduct::{{ invocation.properties_type }}(p) = properties {
+                            p.{{invocation.identifier}}.get()
+                    } else {
+                        unreachable!("{{ expression_spec.id }}")
+                    }
+                {% endif %}
             };
         {% endfor %}
 

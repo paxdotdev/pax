@@ -71,14 +71,13 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
 
-                if let PropertiesCoproduct::isize(p) = properties {
-                    
-                        // special hack for built-in range logic, see cartridge-lib.tera
-                        Numeric::from(*p)
-                    
-                } else {
-                    unreachable!("1")
-                }
+                
+                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
+                       
+                            Rc::clone(elem)
+                       
+                    } else {unreachable!()}
+                
             };
         
 

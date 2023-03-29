@@ -249,6 +249,11 @@ struct PaxView: View {
                     let outputString = String(cString: msg!)
                     print(outputString)
                 }
+
+                //For manual debugger attachment:
+                do {
+                    sleep(10)
+                }
                 
                 PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
             } else {

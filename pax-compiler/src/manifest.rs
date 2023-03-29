@@ -88,7 +88,7 @@ pub struct  ExpressionSpecInvocation {
     pub is_repeat_elem: bool,
 
     /// Flag describing whether this invocation should be bound to the `i` in `(elem, i)`
-    pub is_repeat_index: bool,
+    pub is_repeat_i: bool,
 }
 
 
@@ -150,6 +150,12 @@ pub struct PropertyDefinition {
     pub fully_qualified_constituent_types: Vec<String>,
     /// Store of fully qualified types that may be needed for expression vtable generation
     pub property_type_info: PropertyType,
+
+    ///Flags, used ultimately by ExpressionSpecInvocations, to denote
+    ///whether a property is the `i` or `elem` of a `Repeat`, which allows
+    ///for special-handling the codegen that accesses these values in expressions
+    pub is_repeat_i: bool,
+    pub is_repeat_elem: bool,
 }
 
 impl PropertyDefinition {
@@ -164,6 +170,8 @@ impl PropertyDefinition {
                 pascalized_fully_qualified_type: type_name.to_string(),
                 iterable_type: None,
             },
+            is_repeat_i: false,
+            is_repeat_elem: false,
         }
     }
 }
