@@ -26,7 +26,7 @@ closing_tag = {"<" ~ "/" ~ POP ~ ">"}
 //Describes an attribute k/v pair like `id="some_element"`. Supports expressions.
 attribute_key_value_pair = {attribute_event_binding | (identifier ~ "=" ~ any_template_value)}
 attribute_event_id = {"@" ~ identifier}
-attribute_event_binding = {attribute_event_id ~ "=" ~ xo_symbol}
+attribute_event_binding = {attribute_event_id ~ "=" ~ literal_function}
 
 //`...=5.0`, `...={...}`, `id=some_id`
 any_template_value = {literal_value | expression_wrapped | identifier}
