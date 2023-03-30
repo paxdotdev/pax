@@ -64,6 +64,8 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub slot_index_literal: String,
     pub repeat_source_expression_literal: String,
     pub conditional_boolean_expression_literal: String,
+    pub active_root: String,
+    pub events: HashMap<String,String>,
 }
 
 static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB : &str = include_str!("../templates/properties-coproduct-lib.tera");

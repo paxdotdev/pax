@@ -371,6 +371,17 @@ fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) 
     children_literal.join(",")
 }
 
+fn generate_binded_events(inline_attributes : Option<Vec<(String, AttributeValueDefinition)>>) -> HashMap<String, String> {
+    let mut ret: HashMap<String, String> = HashMap::new();
+     if let Some(ref attributes) = inline_attributes {
+        for (key, value) in attributes.iter() {
+            if let AttributeValueDefinition::EventBindingTarget(s) = value {
+                ret.insert(key.clone().to_string(), s.clone().to_string());
+            };
+        };
+    };
+    ret
+}
 
 fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tnd: &TemplateNodeDefinition) -> String {
     //first recurse, populating children_literal : Vec<String>
@@ -381,10 +392,11 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
     const DEFAULT_PROPERTY_LITERAL: &str = "PropertyLiteral::new(Default::default())";
 
+    //pull inline event binding and store into map
+    let events = generate_binded_events(tnd.inline_attributes.clone());
     let args = if tnd.component_id == parsing::COMPONENT_ID_REPEAT {
         // Repeat
         let id = tnd.control_flow_attributes.as_ref().unwrap().repeat_source_definition.as_ref().unwrap().range_expression_vtable_id.unwrap();
-
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
             snake_case_component_id: "UNREACHABLE".into(),
@@ -397,7 +409,9 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             children_literal,
             slot_index_literal: "None".to_string(),
             repeat_source_expression_literal:  format!("Some(Box::new(PropertyExpression::new({})))", id),
-            conditional_boolean_expression_literal: "None".to_string()
+            conditional_boolean_expression_literal: "None".to_string(),
+            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            events
         }
     } else if tnd.component_id == parsing::COMPONENT_ID_IF {
         // If
@@ -416,6 +430,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             slot_index_literal: "None".to_string(),
             repeat_source_expression_literal:  "None".to_string(),
             conditional_boolean_expression_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
+            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            events
         }
     } else if tnd.component_id == parsing::COMPONENT_ID_SLOT {
         // Slot
@@ -434,6 +450,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             slot_index_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
             repeat_source_expression_literal:  "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
+            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            events
         }
     } else {
         //Handle anything that's not a built-in
@@ -517,7 +535,9 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             children_literal,
             slot_index_literal: "None".to_string(),
             repeat_source_expression_literal: "None".to_string(),
-            conditional_boolean_expression_literal: "None".to_string()
+            conditional_boolean_expression_literal: "None".to_string(),
+            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            events
         }
     };
 

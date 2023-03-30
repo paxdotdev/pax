@@ -536,8 +536,8 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                 // attribute_event_binding = {attribute_event_id ~ "=" ~ xo_symbol}
                 let mut kv = attribute_key_value_pair.into_inner();
                 let mut attribute_event_binding = kv.next().unwrap().into_inner();
-                let event_id = attribute_event_binding.next().unwrap().as_str().to_string();
-                let symbolic_binding = attribute_event_binding.next().unwrap().as_str().to_string();
+                let event_id = attribute_event_binding.next().unwrap().into_inner().last().unwrap().as_str().to_string();
+                let symbolic_binding = attribute_event_binding.next().unwrap().into_inner().next().unwrap().as_str().to_string();
                 (event_id, AttributeValueDefinition::EventBindingTarget(symbolic_binding))
             },
             _ => { //Vanilla `key=value` pair

@@ -9,8 +9,6 @@ pub enum PropertiesCoproduct {
     
     Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
     
-    Group(pax_example::pax_reexports::pax_std::primitives::Group),
-    
     HelloRGB(pax_example::pax_reexports::HelloRGB),
     
     Path(pax_example::pax_reexports::pax_std::primitives::Path),
