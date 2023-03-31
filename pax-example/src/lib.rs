@@ -7,10 +7,10 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 #[pax_app(
     // for i in 0..5 {
     //    <Group transform={Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(i * 0.07)} >
-            <Ellipse @click=self.handle_click fill={Color::rgb(0.5,0,1)} width=33.33% height=100% transform={
-                Transform2D::align(50%, 0%) * Transform2D::anchor(50%, 0%)
+            <Ellipse @scroll=self.handle_scroll @click=self.handle_click fill={Color::rgb(0.5,0,1)} width=33.33% height=100% transform={
+                Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(rotation)
             } />
-            <Rectangle @scroll=self.handle_scroll fill={Color::rgb(1,0.8,0.1)} width=33.33% height=100% transform={
+            <Rectangle  fill={Color::rgb(1,0.8,0.1)} width=33.33% height=100% transform={
                 Transform2D::align(100%, 0%) * Transform2D::anchor(100%, 0%)
             } />
             <Text text="Hello world" />
@@ -27,7 +27,7 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
     // }
 )]
 pub struct HelloRGB {
-    pub rects: Property<Vec<usize>>,
+    pub rotation: Property<f64>,
 }
 
 impl HelloRGB {
@@ -35,7 +35,10 @@ impl HelloRGB {
         log("click-ellipse");
     }
     pub fn handle_scroll(&mut self, args: ArgsScroll) {
-        log("scroll-rectangle");
+        const ROTATION_COEFFICIENT: f64 = 0.005;
+        let old_t = self.rotation.get();
+        let new_t = old_t + args.delta_y * ROTATION_COEFFICIENT;
+        self.rotation.set(new_t);
     }
     pub fn handle_global_click(&mut self, args: ArgsClick) {
         log("click-anywhere");

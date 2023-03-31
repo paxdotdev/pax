@@ -14,6 +14,8 @@ use piet_common::RenderContext;
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
 
+use pax_example::pax_reexports::f64;
+
 use pax_example::pax_reexports::pax_std::types::Color;
 
 use pax_example::pax_reexports::pax_std::types::Font;
@@ -25,8 +27,6 @@ use pax_example::pax_reexports::pax_std::types::Stroke;
 use pax_example::pax_reexports::std::string::String;
 
 use pax_example::pax_reexports::std::vec::Vec;
-
-use pax_example::pax_reexports::usize;
 
 use pax_example::pax_reexports::HelloRGB;
 
@@ -56,13 +56,30 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D::align(50%,0%)*Transform2D::anchor(50%,0%)
+    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let rotation = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::HelloRGB(p) = properties {
+                    
+                    *p.rotation.get()
+                    
+                } else {
+                    unreachable!("1")
+                }
+            };
         
 
         #[allow(unused_parens)]
         TypesCoproduct::Transform2D(
-            (Transform2D::align((Size::Percent(50.into())),(Size::Percent(0 .into())),)*Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(0 .into())),))
+            ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),))*Transform2D::rotate(((rotation).into()),))
         )
     }));
     
@@ -151,7 +168,12 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
                                                                     HelloRGB::handle_click(properties,args);
                                                                 },],
                                                      will_render_handlers: vec![],
-                                                     scroll_handlers: vec![],
+                                                     scroll_handlers: vec![|stack_frame, args|{
+                                                                     let properties = (*stack_frame).borrow().get_properties();
+                                                                     let properties = &mut *properties.as_ref().borrow_mut();
+                                                                     let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
+                                                                     HelloRGB::handle_scroll(properties,args);
+                                                                 },],
                                                  }
                                              ))),
     instance_registry: Rc::clone(&instance_registry),
@@ -185,12 +207,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
                                                  HandlerRegistry {
                                                      click_handlers: vec![],
                                                      will_render_handlers: vec![],
-                                                     scroll_handlers: vec![|stack_frame, args|{
-                                                                     let properties = (*stack_frame).borrow().get_properties();
-                                                                     let properties = &mut *properties.as_ref().borrow_mut();
-                                                                     let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
-                                                                     HelloRGB::handle_scroll(properties,args);
-                                                                 },],
+                                                     scroll_handlers: vec![],
                                                  }
                                              ))),
     instance_registry: Rc::clone(&instance_registry),
@@ -325,11 +342,11 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
             let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
 
             
-            if let Some(new_value) = rtc.compute_eased_value(properties.rects._get_transition_manager()) {
-            properties.rects.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.rects._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::VecLABR__usizeRABR(v) = new_value { v } else { unreachable!() };
-            properties.rects.set(new_value);
+            if let Some(new_value) = rtc.compute_eased_value(properties.rotation._get_transition_manager()) {
+            properties.rotation.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.rotation._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::__f64(v) = new_value { v } else { unreachable!() };
+            properties.rotation.set(new_value);
             }
             
         })),
