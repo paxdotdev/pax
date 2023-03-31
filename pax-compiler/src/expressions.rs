@@ -329,7 +329,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let prop_def = ctx.resolve_symbol(&identifier).expect(&format!("Symbol not found: {}", &identifier));
 
-        let properties_type = prop_def.property_type_info.fully_qualified_type.clone();
+        let properties_type = ctx.component_def.pascal_identifier.clone();
 
         let pascalized_iterable_type = if let Some(x) = &prop_def.property_type_info.iterable_type {
             Some(x.pascalized_fully_qualified_type.clone())

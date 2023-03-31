@@ -230,7 +230,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
             },
             Rule::xo_symbol => {
                 symbolic_ids.borrow_mut().push(primary.as_str().to_string());
-                trim_self_or_this_from_symbolic_binding(primary)
+                format!("({}).into()",trim_self_or_this_from_symbolic_binding(primary))
             },
             Rule::xo_tuple => {
                 let mut tuple = primary.into_inner();
