@@ -387,6 +387,23 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let children = node.borrow_mut().get_rendering_children();
 
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
+
+        let width = node_size.0;
+        let height = node_size.1;
+        let mut bez_path = kurbo::BezPath::new();
+        bez_path.move_to((0.0, 0.0));
+        bez_path.line_to((width , 0.0));
+        bez_path.line_to((width , height ));
+        bez_path.line_to((0.0, height));
+        bez_path.line_to((0.0,0.0));
+        bez_path.close_path();
+
+        let transformed_bez_path = new_accumulated_transform * bez_path;
+        let duplicate_transformed_bez_path = transformed_bez_path.clone();
+
+        let color =  piet_common::Color::FUCHSIA;
+        rc.stroke(duplicate_transformed_bez_path, &color, 1.0);
+
         let hydrated_node = Rc::new(HydratedNode {
             stack_frame: rtc.runtime.borrow_mut().peek_stack_frame().unwrap(),
             tab: TransformAndBounds {

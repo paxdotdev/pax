@@ -27,7 +27,7 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
     // }
 )]
 pub struct HelloRGB {
-    pub rotation: Property<f64>,
+    pub rotation: pax::api::Property<f64>,
 }
 
 impl HelloRGB {
