@@ -14,6 +14,7 @@ use std::collections::HashSet;
 #[grammar = "../../pax-compiler/src/pax.pest"]
 pub struct PaxMacroParser;
 
+
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
     let pax_component_definition = PaxMacroParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
@@ -28,7 +29,7 @@ pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> V
                     pair.into_inner().next().unwrap(),
                     Rc::clone(&pascal_identifiers),
                 );
-            }
+            },
             _ => {}
         }
     });

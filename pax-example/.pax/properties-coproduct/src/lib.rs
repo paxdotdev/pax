@@ -9,8 +9,6 @@ pub enum PropertiesCoproduct {
     
     Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
     
-    Group(pax_example::pax_reexports::pax_std::primitives::Group),
-    
     HelloRGB(pax_example::pax_reexports::HelloRGB),
     
     Path(pax_example::pax_reexports::pax_std::primitives::Path),
@@ -36,9 +34,9 @@ pub enum TypesCoproduct {
     
     VecLABR__pax_stdCOCOtypesCOCOPathSegmentRABR(Vec<pax_example::pax_reexports::pax_std::types::PathSegment>),
     
-    VecLABR__usizeRABR(Vec<pax_example::pax_reexports::usize>),
-    
     Vec_Rc_PropertiesCoproduct___(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
+    
+    __f64(pax_example::pax_reexports::f64),
     
     __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
