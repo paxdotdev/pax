@@ -3,9 +3,9 @@ use serde_derive::{Serialize, Deserialize};
 use serde_json;
 use include_dir::{include_dir, Dir};
 use tera::{Context, Tera};
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
-use crate::manifest::{ExpressionSpec, PropertyDefinition};
+use crate::manifest::{ExpressionSpec, PropertyDefinition, EventDefinition};
 
 static ROOT_PATH : &str = "$CARGO_MANIFEST_DIR/templates";
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
@@ -45,6 +45,7 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
     pub snake_case_component_id: String,
     pub component_properties_struct: String,
     pub properties: Vec<PropertyDefinition>,
+    pub events: HashMap<String,Vec<String>>,
     pub render_nodes_literal: String,
     pub properties_coproduct_variant: String,
 }
@@ -63,6 +64,8 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub slot_index_literal: String,
     pub repeat_source_expression_literal: String,
     pub conditional_boolean_expression_literal: String,
+    pub active_root: String,
+    pub events: HashMap<String,String>,
 }
 
 static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB : &str = include_str!("../templates/properties-coproduct-lib.tera");

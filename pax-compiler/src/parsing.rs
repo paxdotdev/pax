@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{Range, RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowAttributeValueDefinition, ControlFlowRepeatPredicateDefinition, AttributeValueDefinition, Number, SettingsLiteralValue, SettingsSelectorBlockDefinition, SettingsLiteralBlockDefinition, SettingsValueDefinition, ControlFlowRepeatSourceDefinition, PropertyType};
+use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowAttributeValueDefinition, ControlFlowRepeatPredicateDefinition, AttributeValueDefinition, Number, SettingsLiteralValue, SettingsSelectorBlockDefinition, SettingsLiteralBlockDefinition, SettingsValueDefinition, ControlFlowRepeatSourceDefinition, PropertyType, EventDefinition};
 
 use uuid::Uuid;
 
@@ -38,6 +38,7 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
         settings: None,
         module_path: modified_module_path,
         property_definitions: property_definitions.to_vec(),
+        events: None,
     }
 }
 
@@ -229,7 +230,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
             },
             Rule::xo_symbol => {
                 symbolic_ids.borrow_mut().push(primary.as_str().to_string());
-                trim_self_or_this_from_symbolic_binding(primary)
+                format!("({}).into()",trim_self_or_this_from_symbolic_binding(primary))
             },
             Rule::xo_tuple => {
                 let mut tuple = primary.into_inner();
@@ -535,8 +536,8 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                 // attribute_event_binding = {attribute_event_id ~ "=" ~ xo_symbol}
                 let mut kv = attribute_key_value_pair.into_inner();
                 let mut attribute_event_binding = kv.next().unwrap().into_inner();
-                let event_id = attribute_event_binding.next().unwrap().as_str().to_string();
-                let symbolic_binding = attribute_event_binding.next().unwrap().as_str().to_string();
+                let event_id = attribute_event_binding.next().unwrap().into_inner().last().unwrap().as_str().to_string();
+                let symbolic_binding = attribute_event_binding.next().unwrap().into_inner().next().unwrap().as_str().to_string();
                 (event_id, AttributeValueDefinition::EventBindingTarget(symbolic_binding))
             },
             _ => { //Vanilla `key=value` pair
@@ -677,6 +678,47 @@ fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<Sett
     Some(ret)
 }
 
+fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<EventDefinition>> {
+
+    let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
+        .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
+        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
+
+    let mut ret : Vec<EventDefinition> = vec![];
+
+    pax_component_definition.into_inner().for_each(|top_level_pair|{
+        match top_level_pair.as_rule() {
+            Rule::events_block_declaration => {
+
+                let mut event_definitions: Vec<EventDefinition> = top_level_pair.into_inner().map(|events_key_value_pair| {
+                    let mut pairs = events_key_value_pair.into_inner();
+                    let key = pairs.next().unwrap().into_inner().next().unwrap().as_str().to_string();
+                    let raw_values = pairs.next().unwrap().into_inner().next().unwrap();
+                    let value = match raw_values.as_rule() {
+                        Rule::literal_function => {
+                            vec![raw_values.into_inner().next().unwrap().as_str().to_string()]
+                        },
+                        Rule::function_list => {
+                            raw_values.into_inner().map(|literal_function|{
+                                literal_function.into_inner().next().unwrap().as_str().to_string()
+                            }).collect()
+                        },
+                        _ => {unreachable!("Parsing error: {:?}", raw_values.as_rule());}
+                    };
+                    EventDefinition {
+                        key,
+                        value,
+                    }
+                }).collect();
+
+                ret.extend(event_definitions);
+            }
+            _ => {}
+        }
+    });
+    Some(ret)
+}
+
 pub fn create_uuid() -> String {
     Uuid::new_v4().to_string()
 }
@@ -753,6 +795,7 @@ pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str
         pascal_identifier: pascal_identifier.to_string(),
         template: Some(tpc.template_node_definitions),
         settings: parse_settings_from_component_definition_string(pax),
+        events: parse_events_from_component_definition_string(pax),
         module_path: modified_module_path,
         property_definitions,
     };

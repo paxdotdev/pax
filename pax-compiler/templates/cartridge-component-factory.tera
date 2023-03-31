@@ -2,7 +2,45 @@
 pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     ComponentInstance::instantiate( InstantiationArgs{
         properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{ component_properties_struct }}::default() ),
-        handler_registry: None, //TODO: codegen!
+        handler_registry:  Some(Rc::new(RefCell::new(
+                                                     HandlerRegistry {
+                                                         click_handlers: vec![
+                                                             {%- if events['Click'] -%}
+                                                                {% for handler in events['Click'] %}
+                                                                    |stack_frame, args|{
+                                                                        let properties = ((*stack_frame).borrow().get_properties());
+                                                                        let properties = &mut *properties.as_ref().borrow_mut();
+                                                                        let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                                                                        {{ component_properties_struct }}::{{handler}}(properties,args);
+                                                                    },
+                                                                {% endfor %}
+                                                             {%- endif -%}
+                                                         ],
+                                                         will_render_handlers: vec![
+                                                            {%- if events['WillRender'] -%}
+                                                                 {% for handler in events['WillRender'] %}
+                                                                     |properties, args|{
+                                                                         let properties = &mut *properties.as_ref().borrow_mut();
+                                                                         let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                                                                         {{ component_properties_struct }}::{{handler}}(properties,args);
+                                                                     },
+                                                                 {% endfor %}
+                                                            {%- endif -%}
+                                                         ],
+                                                         scroll_handlers: vec![
+                                                             {%- if events['Scroll'] -%}
+                                                                 {% for handler in events['Scroll'] %}
+                                                                     |stack_frame, args|{
+                                                                         let properties = ((*stack_frame).borrow().get_properties());
+                                                                         let properties = &mut *properties.as_ref().borrow_mut();
+                                                                         let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                                                                         {{ component_properties_struct }}::{{handler}}(properties,args);
+                                                                     },
+                                                                 {% endfor %}
+                                                             {%- endif -%}
+                                                         ],
+                                                     }
+                                                 ))),
         instance_registry: Rc::clone(&instance_registry),
         transform: Transform2D::default_wrapped(),
         size: None,

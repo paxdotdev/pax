@@ -440,11 +440,15 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //     for finding ancestral clipping containers
         //
 
-        let nodes_ordered : Vec<Rc<HydratedNode<R>>> = (*self.instance_registry).borrow()
-            .hydrated_node_cache.iter()
+        // reverse nodes to get top-most first (rendered in reverse order)
+        let mut nodes_ordered : Vec<Rc<HydratedNode<R>>> = (*self.instance_registry).borrow()
+            .hydrated_node_cache.iter().rev()
             .map(|rc|{
                 Rc::clone(rc)
             }).collect();
+
+        // remove root element that is moved to top during reversal
+        nodes_ordered.remove(0);
 
         // let ray = Point {x: ray.0,y: ray.1};
         let mut ret : Option<Rc<HydratedNode<R>>> = None;
