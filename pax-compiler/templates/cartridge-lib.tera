@@ -42,7 +42,11 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                        {% if invocation.is_repeat_elem %}
                             Rc::clone(elem)
                        {% else %}
+                            {% if inner type is isize %}
+                            
+                            {% else %}
                             Numeric::from(i)
+                            {% endif %}
                        {% endif %}
                     } else {unreachable!()}
                 {% else %}
