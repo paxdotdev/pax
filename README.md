@@ -130,6 +130,8 @@ Use `rustc` 1.65.0 via `rustup`
 ### Environment setup, building for macOS
 
 - Install xcode, command line utils
+- SDK Version `macosx13.3`
+- Current Minimum Deployment `13.0`
 
 ### Running Development Environment
 
