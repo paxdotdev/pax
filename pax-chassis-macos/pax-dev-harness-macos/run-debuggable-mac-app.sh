@@ -16,7 +16,7 @@ runbuild () {
   -configuration Debug \
   -scheme "Pax macOS" \
   -archivePath build/PaxDevHarnessMacos.xcarchive \
-  -sdk macosx13.1 \
+  -sdk macosx13.3 \
   SKIP_INSTALL=NO SUPPORTS_MACCATALYST=YES ONLY_ACTIVE_ARCH=YES EXCLUDED_ARCHS="$EXCLUDE_ARCHS"
 }
 
