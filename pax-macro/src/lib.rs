@@ -3,11 +3,15 @@ extern crate proc_macro2;
 
 mod templating;
 mod parsing;
-
+use std::io::Read;
 use std::fs;
 use std::str::FromStr;
 use std::collections::HashSet;
 use std::env::current_dir;
+use std::fs::File;
+use std::convert::TryFrom;
+use std::path::Path;
+use litrs::StringLit;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
@@ -220,14 +224,13 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
 }
 
 
-fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, is_root: bool) -> proc_macro::TokenStream {
+fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, is_root: bool, include_fix : Option<TokenStream>) -> proc_macro::TokenStream {
     let original_tokens = input.to_string();
 
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
     let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
-
     let raw_pax = args.to_string();
     let template_dependencies = parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
@@ -252,29 +255,52 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         reexports_snippet
     }.render_once().unwrap().to_string();
 
-    TokenStream::from_str(&output).unwrap().into()
+    let ret = TokenStream::from_str(&output).unwrap().into();
+    if !include_fix.is_none(){
+         quote!{
+            #include_fix
+            #ret
+        }
+    }else {
+        ret
+    }.into()
 }
 
 #[proc_macro_attribute]
 pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    pax_internal(args, input, false)
+    pax_internal(args, input, false, None)
 }
 
 #[proc_macro_attribute]
 pub fn pax_app(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    pax_internal(args, input, true)
+    pax_internal(args, input, true, None)
 }
 
 #[proc_macro_attribute]
 pub fn pax_file(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    //NOTE: can use generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
-    //let include = generate_include(...);
+    let path_arg = args.clone().into_iter().collect::<Vec<_>>();
+    if path_arg.len() != 1 {
+        let msg = format!("expected single string, got {}", path_arg.len());
+        return quote! { compile_error!(#msg) }.into();
+    }
+    let path_string = match StringLit::try_from(&path_arg[0]) {
+        // Error if the token is not a string literal
+        Err(e) => return e.to_compile_error(),
+        Ok(lit) => lit,
+    };
+    let filename = path_string.value();
+    let current_dir = std::env::current_dir().expect("Unable to get current directory");
+    let path = current_dir.join(Path::new("src").join(Path::new(filename)));
 
-    //load specified file contents, hack into `args: proc_macro::TokenStream`, and call `pax(args, input)`
-    let _ = args;
-    let _ = input;
+    // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
+    let name = Ident::new("PaxFile", Span::call_site());
+    let include_fix = generate_include(&name,path.clone().to_str().unwrap());
 
-    input
+    let mut file = File::open(path);
+    let mut content = String::new();
+    let _ = file.unwrap().read_to_string(&mut content);
+    let stream: proc_macro::TokenStream = content.parse().unwrap();
+    pax_internal(stream, input, true, Some(include_fix))
 }
 
 #[proc_macro_attribute]
