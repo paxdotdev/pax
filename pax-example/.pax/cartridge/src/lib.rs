@@ -125,23 +125,9 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
         properties: PropertiesCoproduct::HelloRGB( HelloRGB::default() ),
         handler_registry:  Some(Rc::new(RefCell::new(
                                                      HandlerRegistry {
-                                                         click_handlers: vec![
-                                                                    |stack_frame, args|{
-                                                                        let properties = ((*stack_frame).borrow().get_properties());
-                                                                        let properties = &mut *properties.as_ref().borrow_mut();
-                                                                        let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
-                                                                        HelloRGB::handle_global_click(properties,args);
-                                                                    },
-                                                                ],
+                                                         click_handlers: vec![],
                                                          will_render_handlers: vec![],
-                                                         scroll_handlers: vec![
-                                                                     |stack_frame, args|{
-                                                                         let properties = ((*stack_frame).borrow().get_properties());
-                                                                         let properties = &mut *properties.as_ref().borrow_mut();
-                                                                         let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
-                                                                         HelloRGB::handle_global_scroll(properties,args);
-                                                                     },
-                                                                 ],
+                                                         scroll_handlers: vec![],
                                                      }
                                                  ))),
         instance_registry: Rc::clone(&instance_registry),
