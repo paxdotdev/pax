@@ -76,6 +76,72 @@ impl From<f64> for Numeric {
     }
 }
 
+impl From<&u8> for Numeric {
+    fn from(value: &u8) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&u16> for Numeric {
+    fn from(value: &u16) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&u32> for Numeric {
+    fn from(value: &u32) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&u64> for Numeric {
+    fn from(value: &u64) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&u128> for Numeric {
+    fn from(value: &u128) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&usize> for Numeric {
+    fn from(value: &usize) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&i8> for Numeric {
+    fn from(value: &i8) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&i16> for Numeric {
+    fn from(value: &i16) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&i32> for Numeric {
+    fn from(value: &i32) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&i64> for Numeric {
+    fn from(value: &i64) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&i128> for Numeric {
+    fn from(value: &i128) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&isize> for Numeric {
+    fn from(value: &isize) -> Self {
+        Numeric::Integer(*value as isize)
+    }
+}
+impl From<&f64> for Numeric {
+    fn from(value: &f64) -> Self {
+        Numeric::Float(*value as f64)
+    }
+}
+
 impl Numeric {
     fn widen(
         f: fn(f64, f64) -> f64,

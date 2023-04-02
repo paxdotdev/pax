@@ -3,29 +3,24 @@ use pax::*;
 use pax_std::components::Stacker;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
-
 #[pax_app(
-    for i in 0..5 {
-       <Group transform={Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(0.27 * i)} >
-            <Ellipse fill={Color::rgb(0.5,0,1)} width=33.33% height=100% transform={
-                Transform2D::align(50%, 0%) * Transform2D::anchor(50%, 0%) }/>
-            <Rectangle  fill={Color::rgb(1,0.8,0.1)} width=33.33% height=100% transform={
-                Transform2D::align(100%, 0%) * Transform2D::anchor(100%, 0%)
+    <Group @scroll=self.handle_scroll >
+        for i in 0..5 {
+            <Rectangle fill={Color::hlc(1.0, 1.0, 1.0)} width=500px height=500px transform={
+                Transform2D::anchor(50%, 50%)
+                * Transform2D::align(50%, 50%)
+                * Transform2D::rotate(i * rotation)
             } />
-            <Text text="Hello world" />
-            <Path />
-            <Rectangle fill={Color::rgb(0.25,0.5,0.5)} width=100% height=100% />
-       </Group>
-    }
+        }
+    </Group>
 
-
-    @events {
-            Click: [self.handle_global_click],
-            Scroll: self.handle_global_scroll,
-    }
-
-    //    </Group>
-    // }
+    // Hide hack
+    <Group transform={Transform2D::translate(5000.0,5000.0)} >
+        <Ellipse />
+        <Text />
+        <Path />
+        <Rectangle />
+    </Group>
 )]
 pub struct HelloRGB {
     pub rotation: Property<f64>,
@@ -36,7 +31,7 @@ impl HelloRGB {
         log("click-ellipse");
     }
     pub fn handle_scroll(&mut self, args: ArgsScroll) {
-        const ROTATION_COEFFICIENT: f64 = 0.005;
+        const ROTATION_COEFFICIENT: f64 = 0.00005;
         let old_t = self.rotation.get();
         let new_t = old_t + args.delta_y * ROTATION_COEFFICIENT;
         self.rotation.set(new_t);

@@ -88,7 +88,7 @@ fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
         output.replacen(".", "", 1)
     } else {
         //remove original binding; no self or this
-        xo_symbol.as_str().to_string() + ".into()"
+        xo_symbol.as_str().to_string()
     }
 }
 
@@ -278,7 +278,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
             Rule::xo_div => {format!("({}/{})", lhs, rhs)},
             Rule::xo_exp => {format!("(({}).pow({}))", lhs, rhs)},
             Rule::xo_mod => {format!("({}%{})", lhs, rhs)},
-            Rule::xo_mul => {format!("({}*{})", lhs, rhs)},
+            Rule::xo_mul => {format!("({}*({}).into())", lhs, rhs)},
             Rule::xo_rel_eq => {format!("({}=={})", lhs, rhs)},
             Rule::xo_rel_gt => {format!("({}>{})", lhs, rhs)},
             Rule::xo_rel_gte => {format!("({}>={})", lhs, rhs)},

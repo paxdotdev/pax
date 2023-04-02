@@ -25,7 +25,6 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     /// Used for hacked dirty-checking, in the absence of our centralized dirty-checker
     cached_old_value_vec: Option<Vec<Rc<PropertiesCoproduct>>>,
     cached_old_value_range: Option<std::ops::Range<isize>>,
-
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
@@ -83,21 +82,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             // like `for i in 0..5`
             let new_value = if let Some(tc) = rtc.compute_vtable_value(se._get_vtable_id().clone()) {
                 if let TypesCoproduct::Range_isize_(vec) = tc { vec } else { unreachable!() }
-            } else {
-                unreachable!()
-                // se.get().clone()
-            };
+            } else { unreachable!() };
 
             let is_dirty = !is_initialized || self.cached_old_value_range.as_ref().unwrap() != &new_value;
             self.cached_old_value_range = Some(new_value.clone());
-            let normalized_vec_of_props = new_value.into_iter().enumerate().map(|(i, elem)|{Rc::new(PropertiesCoproduct::RepeatItem(Rc::new(PropertiesCoproduct::isize(elem)), i))}).collect();
+            let normalized_vec_of_props = new_value.into_iter().enumerate().map(|(i, elem)|{Rc::new(PropertiesCoproduct::isize(elem))}).collect();
             (is_dirty, normalized_vec_of_props)
         } else {unreachable!()};
 
         if is_dirty {
-
-            // pax_runtime_api::log("CHANGES TO DATA LIST!");
-
             //Any stated children (repeat template members) of Repeat should be forwarded to the `RepeatItem`-wrapped `ComponentInstance`s
             //so that `Slot` works as expected
             let forwarded_children = match (*rtc.runtime).borrow_mut().peek_stack_frame() {

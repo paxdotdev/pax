@@ -286,9 +286,9 @@ impl Transform2D {
         ret
     }
     ///Translation across x-y plane, pixels
-    pub fn translate(x: f64, y: f64) -> Self {
+    pub fn translate(x: Numeric, y: Numeric) -> Self {
         let mut ret  = Transform2D::default();
-        ret.translate = Some([x, y]);
+        ret.translate = Some([x.get_as_float(), y.get_as_float()]);
         ret
     }
     ///Describe alignment within parent bounding box, as a starting point before

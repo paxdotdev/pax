@@ -91,6 +91,38 @@ impl Interpolatable for Font {}
 pub struct Color{
     pub color_variant: ColorVariant,
 }
+impl Color {
+    pub fn hlca(h:Numeric, l:Numeric, c:Numeric, a:Numeric) -> Self {
+        Self {color_variant: ColorVariant::Hlca([h.get_as_float(),l.get_as_float(),c.get_as_float(),a.get_as_float()])}
+    }
+    pub fn hlc(h:Numeric, l:Numeric, c:Numeric) -> Self {
+        Self {color_variant: ColorVariant::Hlc([h.get_as_float(),l.get_as_float(),c.get_as_float()])}
+    }
+    pub fn rgba(r:Numeric, g:Numeric, b:Numeric, a:Numeric) -> Self {
+        Self {color_variant: ColorVariant::Rgba([r.get_as_float(),g.get_as_float(),b.get_as_float(),a.get_as_float()])}
+    }
+    pub fn rgb(r:Numeric, g:Numeric, b:Numeric) -> Self {
+        Self {color_variant: ColorVariant::Rgb([r.get_as_float(),g.get_as_float(),b.get_as_float()])}
+    }
+    pub fn to_piet_color(&self) -> piet::Color {
+        match self.color_variant {
+            ColorVariant::Hlca(slice) => {
+                piet::Color::hlca(slice[0], slice[1], slice[2], slice[3])
+            },
+            ColorVariant::Hlc(slice) => {
+                piet::Color::hlc(slice[0], slice[1], slice[2])
+            },
+            ColorVariant::Rgba(slice) => {
+                piet::Color::rgba(slice[0], slice[1], slice[2], slice[3])
+            },
+            ColorVariant::Rgb(slice) => {
+                piet::Color::rgb(slice[0], slice[1], slice[2])
+            }
+        }
+    }
+}
+
+
 impl Default for Color {
     fn default() -> Self {
         Self {
@@ -109,6 +141,9 @@ impl Into<ColorVariantMessage> for &Color {
             },
             ColorVariant::Rgb(channels) => {
                 ColorVariantMessage::Rgb(channels)
+            },
+            ColorVariant::Hlc(channels) => {
+                ColorVariantMessage::Hlc(channels)
             }
         }
     }
@@ -118,6 +153,11 @@ impl PartialEq<ColorVariantMessage> for Color {
         match self.color_variant {
             ColorVariant::Hlca(channels_self) => {
                 if matches!(other, ColorVariantMessage::Hlca(channels_other) if channels_other.eq(&channels_self)) {
+                    return true;
+                }
+            },
+            ColorVariant::Hlc(channels_self) => {
+                if matches!(other, ColorVariantMessage::Hlc(channels_other) if channels_other.eq(&channels_self)) {
                     return true;
                 }
             },
@@ -143,35 +183,11 @@ impl Interpolatable for Color {
     //      useful to establish a common color space)
 }
 
-impl Color {
-    pub fn hlca(h:f64, l:f64, c:f64, a:f64) -> Self {
-        Self {color_variant: ColorVariant::Hlca([h,l,c,a])}
-    }
-    pub fn rgba(r:f64, g:f64, b:f64, a:f64) -> Self {
-        Self {color_variant: ColorVariant::Rgba([r,g,b,a])}
-    }
-    pub fn rgb(r:Numeric, g:Numeric, b:Numeric) -> Self {
-        Self {color_variant: ColorVariant::Rgb([r.get_as_float(),g.get_as_float(),b.get_as_float()])}
-    }
-    pub fn to_piet_color(&self) -> piet::Color {
-        match self.color_variant {
-            ColorVariant::Hlca(slice) => {
-                piet::Color::hlca(slice[0], slice[1], slice[2], slice[3])
-            },
-            ColorVariant::Rgba(slice) => {
-                piet::Color::rgba(slice[0], slice[1], slice[2], slice[3])
-            },
-            ColorVariant::Rgb(slice) => {
-                piet::Color::rgb(slice[0], slice[1], slice[2])
-            }
-        }
-    }
-}
-
 #[derive(Clone)]
 #[pax_type]
 pub enum ColorVariant {
     Hlca([f64; 4]),
+    Hlc([f64; 3]),
     Rgba([f64; 4]),
     Rgb([f64; 3]),
 }

@@ -251,9 +251,9 @@ struct PaxView: View {
                 }
 
                 //For manual debugger attachment:
-                do {
-                    sleep(10)
-                }
+                //do {
+                //    sleep(10)
+                //}
                 
                 PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
             } else {
