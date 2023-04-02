@@ -30,10 +30,10 @@ else
 fi
 
 # Clear old build and move to output directory
-rm -rf $OUTPUT_PATH
-mkdir -p $OUTPUT_PATH
-cp -r "build/PaxDevHarnessMacos.xcarchive/Products/Applications/Pax macOS.app" $OUTPUT_PATH
-cd $OUTPUT_PATH
+rm -rf "$OUTPUT_PATH"
+mkdir -p "$OUTPUT_PATH"
+cp -r "build/PaxDevHarnessMacos.xcarchive/Products/Applications/Pax macOS.app" "$OUTPUT_PATH"
+cd "$OUTPUT_PATH"
 
 if [ "$SHOULD_ALSO_RUN" == "true" ]; then
   # Run

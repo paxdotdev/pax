@@ -39,15 +39,23 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
                 {% if invocation.is_repeat_elem or invocation.is_repeat_index %}
                     if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                       {% if invocation.is_repeat_elem %}
-                            Rc::clone(elem)
-                       {% else %}
-                            {% if inner type is isize %}
-
+                        {% if invocation.is_repeat_elem %}
+                            {% if invocation.is_iterable_numeric %}
+                                {# For known numeric primitives, we can safely deref-copy and wrap in Numeric #}
+                                let unwrapped = if let PropertiesCoproduct::{{invocation.pascalized_iterable_type}}(i) = **elem {i} else {unreachable!()};
+                                Numeric::from(unwrapped)
+                            {% elif invocation.is_iterable_primitive_nonnumeric %}
+                                {# Currently, only String #}
+                                elem.clone()
                             {% else %}
-                            Numeric::from(i)
+                                {# This should be iterating over a `Rc<PropertiesCoproduct>`, so pass that forward for chained unwrapping #}
+                                Rc::clone(elem)
                             {% endif %}
-                       {% endif %}
+                        {% else %}
+                            {# We're binding to `i`, an index, so wrap it in `Numeric` #}
+                            Numeric::from(*i)
+                        {% endif %}
+
                     } else {unreachable!()}
                 {% else %}
                     if let PropertiesCoproduct::{{ invocation.properties_type }}(p) = properties {

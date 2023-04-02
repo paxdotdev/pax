@@ -1,7 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-#[derive(Clone)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
     None,
@@ -12,6 +11,8 @@ pub enum PropertiesCoproduct {
 
     
     Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
+    
+    Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
     HelloRGB(pax_example::pax_reexports::HelloRGB),
     
@@ -26,20 +27,20 @@ pub enum PropertiesCoproduct {
 //The following two conversions are used by Repeat to use an Rc<PropertiesCoproduct>
 //opaquely in RIL in combination with numerics, using `.into()` on the instance
 //of the Rc<PropertiesCoproduct>
-impl From<std::rc::Rc<PropertiesCoproduct>> for PropertiesCoproduct {
-    fn from(rc: Rc<PropertiesCoproduct>) -> Self {
-        (*rc).clone()
-    }
-}
-impl From<PropertiesCoproduct> for pax_runtime_api::numeric::Numeric {
-    fn from(pc: PropertiesCoproduct) -> Self {
-        if let PropertiesCoproduct::isize(i) = pc {
-            pax_runtime_api::numeric::Numeric::from(i) //special handling of `isize`, for use with Repeat
-        } else {
-            unreachable!()
-        }
-    }
-}
+//impl From<std::rc::Rc<PropertiesCoproduct>> for PropertiesCoproduct {
+//    fn from(rc: Rc<PropertiesCoproduct>) -> Self {
+//        (*rc).clone()
+//    }
+//}
+//impl From<PropertiesCoproduct> for pax_runtime_api::numeric::Numeric {
+//    fn from(pc: PropertiesCoproduct) -> Self {
+//        if let PropertiesCoproduct::isize(i) = pc {
+//            pax_runtime_api::numeric::Numeric::from(i) //special handling of `isize`, for use with Repeat
+//        } else {
+//            unreachable!()
+//        }
+//    }
+//}
 
 //used namely for return types of expressions — may have other purposes
 pub enum TypesCoproduct {

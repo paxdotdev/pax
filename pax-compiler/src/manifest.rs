@@ -65,6 +65,11 @@ pub struct ExpressionSpec {
 
 }
 
+/// The spec of an expression `invocation`, the necessary configuration
+/// for initializing a pointer to (or copy of, in some cases) the data behind a symbol.
+/// For example, if an expression uses `i`, that `i` needs to be "invoked," bound dynamically
+/// to some data on the other side of `i` for the context of a particular expression.  `ExpressionSpecInvocation`
+/// holds the recipe for such an `invocation`, populated as a part of expression compilation.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct  ExpressionSpecInvocation {
     /// Identifier as authored, for example: `self.some_prop`
@@ -89,8 +94,49 @@ pub struct  ExpressionSpecInvocation {
 
     /// Flag describing whether this invocation should be bound to the `i` in `(elem, i)`
     pub is_repeat_i: bool,
+
+    /// Flags used for particular corner cases of `Repeat` codegen
+    pub is_iterable_numeric: bool,
+    pub is_iterable_primitive_nonnumeric: bool,
 }
 
+const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
+    "u8",
+    "u16",
+    "u32",
+    "u64",
+    "u128",
+    "usize",
+    "i8",
+    "i16",
+    "i32",
+    "i64",
+    "i128",
+    "isize",
+    "f64",
+];
+
+const SUPPORTED_NONNUMERIC_PRIMITIVES : [&str; 1] = [
+    "String",
+];
+
+impl ExpressionSpecInvocation {
+    pub fn is_iterable_numeric(pascalized_iterable_type: &Option<String>) -> bool {
+        if let Some(pit) = &pascalized_iterable_type {
+            SUPPORTED_NUMERIC_PRIMITIVES.contains(&&**pit)
+        } else {
+            false
+        }
+    }
+
+    pub fn is_iterable_primitive_nonnumeric(pascalized_iterable_type: &Option<String>) -> bool {
+        if let Some(pit) = &pascalized_iterable_type {
+            SUPPORTED_NONNUMERIC_PRIMITIVES.contains(&&**pit)
+        } else {
+            false
+        }
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ComponentDefinition {
@@ -123,9 +169,11 @@ impl ComponentDefinition {
     }
 }
 
-
+/// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
+/// Each node in a template is represented by exactly one `TemplateNodeDefinition`, and this is a compile-time
+/// concern.  Note the difference between compile-time `definitions` and runtime `instances`.
+/// A compile-time `TemplateNodeDefinition` corresponds to a single runtime `RenderNode` instance.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
-//Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 pub struct TemplateNodeDefinition {
     /// Component-unique int ID.  Conventionally, id 0 will be the root node for a component's template
     pub id: usize,

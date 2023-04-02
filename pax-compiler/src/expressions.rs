@@ -320,7 +320,9 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             properties_type: "".to_string(),
             pascalized_iterable_type: None,
             is_repeat_elem: false,
-            is_repeat_i: false
+            is_repeat_i: false,
+            is_iterable_primitive_nonnumeric: false,
+            is_iterable_numeric: false,
         }
     } else {
         let identifier = if sym.starts_with("self.") {
@@ -364,9 +366,12 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             escaped_identifier,
             stack_offset,
             properties_type,
+            is_iterable_primitive_nonnumeric: ExpressionSpecInvocation::is_iterable_primitive_nonnumeric(&pascalized_iterable_type),
+            is_iterable_numeric: ExpressionSpecInvocation::is_iterable_numeric(&pascalized_iterable_type),
             pascalized_iterable_type,
             is_repeat_elem,
             is_repeat_i,
+
         }
     }
 }

@@ -552,7 +552,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             slot_index_literal: "None".to_string(),
             repeat_source_expression_literal_vec: "None".to_string(),
             repeat_source_expression_literal_range:  "None".to_string(),
-            conditional_boolean_expression_literal: "None".to_string()
+            conditional_boolean_expression_literal: "None".to_string(),
             active_root: rngc.active_component_definition.pascal_identifier.to_string(),
             events,
         }
