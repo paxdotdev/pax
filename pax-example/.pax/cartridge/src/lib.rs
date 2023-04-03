@@ -274,6 +274,13 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                                          HelloRGB::handle_will_render(properties,args);
                                                                      },
                                                                  ],
+                                                         did_mount_handlers: vec![
+                                                                      |properties|{
+                                                                          let properties = &mut *properties.as_ref().borrow_mut();
+                                                                          let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
+                                                                          HelloRGB::handle_did_mount(properties);
+                                                                      },
+                                                                  ],
                                                          scroll_handlers: vec![],
                                                      }
                                                  ))),
@@ -292,6 +299,7 @@ pax_std_primitives::group::GroupInstance::instantiate(
                                                  HandlerRegistry {
                                                      click_handlers: vec![],
                                                      will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
                                                      scroll_handlers: vec![|stack_frame, args|{
                                                                      let properties = (*stack_frame).borrow().get_properties();
                                                                      let properties = &mut *properties.as_ref().borrow_mut();
@@ -316,6 +324,7 @@ RepeatInstance::instantiate(
                                                  HandlerRegistry {
                                                      click_handlers: vec![],
                                                      will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
                                                      scroll_handlers: vec![],
                                                  }
                                              ))),
@@ -341,6 +350,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
                                                  HandlerRegistry {
                                                      click_handlers: vec![],
                                                      will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
                                                      scroll_handlers: vec![],
                                                  }
                                              ))),
@@ -393,6 +403,7 @@ pax_std_primitives::group::GroupInstance::instantiate(
                                                  HandlerRegistry {
                                                      click_handlers: vec![],
                                                      will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
                                                      scroll_handlers: vec![],
                                                  }
                                              ))),
@@ -418,6 +429,7 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
                                                  HandlerRegistry {
                                                      click_handlers: vec![],
                                                      will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
                                                      scroll_handlers: vec![],
                                                  }
                                              ))),
@@ -456,6 +468,7 @@ pax_std_primitives::text::TextInstance::instantiate(
                                                  HandlerRegistry {
                                                      click_handlers: vec![],
                                                      will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
                                                      scroll_handlers: vec![],
                                                  }
                                              ))),
@@ -494,6 +507,7 @@ pax_std_primitives::path::PathInstance::instantiate(
                                                  HandlerRegistry {
                                                      click_handlers: vec![],
                                                      will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
                                                      scroll_handlers: vec![],
                                                  }
                                              ))),
@@ -530,6 +544,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
                                                  HandlerRegistry {
                                                      click_handlers: vec![],
                                                      will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
                                                      scroll_handlers: vec![],
                                                  }
                                              ))),
@@ -590,6 +605,13 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
             } else if let Some(new_value) = rtc.compute_vtable_value(properties.heartbeat._get_vtable_id()) {
             let new_value = if let TypesCoproduct::__f64(v) = new_value { v } else { unreachable!() };
             properties.heartbeat.set(new_value);
+            }
+            
+            if let Some(new_value) = rtc.compute_eased_value(properties.squares._get_transition_manager()) {
+            properties.squares.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.squares._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::VecLABR__f64RABR(v) = new_value { v } else { unreachable!() };
+            properties.squares.set(new_value);
             }
             
         })),
