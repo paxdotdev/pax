@@ -1,8 +1,9 @@
-use kurbo::{Point, segments};
+use kurbo::{Point};
 use pax::*;
 use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 use pax::api::numeric::Numeric;
 
+#[allow(unused_imports)]
 #[cfg(feature = "parser")]
 use pax_message::reflection::PathQualifiable;
 
@@ -230,23 +231,23 @@ impl Path {
         start
     }
     pub fn line_to(mut path: Vec<PathSegment>, start: (f64, f64), end: (f64, f64)) -> Vec<PathSegment> {
-        let lineSegData : LineSegmentData = LineSegmentData {
+        let line_seg_data: LineSegmentData = LineSegmentData {
             start: Point::from(start),
             end: Point::from(end),
         };
 
-        path.push(PathSegment::LineSegment(lineSegData));
+        path.push(PathSegment::LineSegment(line_seg_data));
         path
     }
 
     pub fn curve_to(mut path: Vec<PathSegment>, start: (f64, f64), handle: (f64, f64), end: (f64, f64)) -> Vec<PathSegment> {
-        let curveSegData : CurveSegmentData = CurveSegmentData {
+        let curve_seg_data: CurveSegmentData = CurveSegmentData {
             start:  Point::from(start),
             handle:  Point::from(handle),
             end:  Point::from(end),
         };
 
-        path.push(PathSegment::CurveSegment(curveSegData));
+        path.push(PathSegment::CurveSegment(curve_seg_data));
         path
     }
 }

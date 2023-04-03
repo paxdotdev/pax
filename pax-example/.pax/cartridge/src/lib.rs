@@ -48,17 +48,17 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     
-    //0 .. 25
+    //0 .. 30
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
         TypesCoproduct::Range_isize_(
-            0 ..25
+            0 ..30
         )
     }));
     
-    //Color::hlc(i*360.0/25.0,50.0,180.0)
+    //Color::hlc(i*360.0/15,75.0,150.0)
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let i = {
@@ -86,11 +86,11 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
         #[allow(unused_parens)]
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::hlc((((i *(Numeric::from(360.0 )).into())/Numeric::from(25.0))),(Numeric::from(50.0)),(Numeric::from(180.0)),)
+            Color::hlc((((i *(Numeric::from(360.0 )).into())/Numeric::from(15))),(Numeric::from(75.0)),(Numeric::from(150.0)),)
         )
     }));
     
-    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)*Transform2D::rotate((i+2)*rotation)*Transform2D::scale(0.75+(i*rotation),0.75+(i*rotation))
+    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)*Transform2D::rotate((i+2)*rotation)*Transform2D::scale(0.4+(i*rotation/2),0.4+(i*rotation/2))
     vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let i = {
@@ -213,7 +213,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
         #[allow(unused_parens)]
         TypesCoproduct::Transform2D(
-            (((Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())*(Transform2D::rotate((((i +Numeric::from(2))*(rotation).into())),)).into())*(Transform2D::scale(((Numeric::from(0.75)+(i *(rotation).into()))),((Numeric::from(0.75)+(i *(rotation).into()))),)).into())
+            (((Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())*(Transform2D::rotate((((i +Numeric::from(2))*(rotation).into())),)).into())*(Transform2D::scale(((Numeric::from(0.4 )+((i *(rotation ).into())/Numeric::from(2)))),((Numeric::from(0.4 )+((i *(rotation ).into())/Numeric::from(2)))),)).into())
         )
     }));
     

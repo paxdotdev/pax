@@ -386,7 +386,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
             //handle case where transition queue is empty -- a None value gets skipped, so populate it with Some
             self.transition_manager.value = Some(self.get().clone());
         }
-        &self.transition_manager.queue.push_back(TransitionQueueEntry {
+        self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
             duration_frames,
             curve,
@@ -395,6 +395,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         });
     }
 
+    #[allow(duplicate)]
     fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
         if let None = self.transition_manager.value {
             None

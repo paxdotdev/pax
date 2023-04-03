@@ -202,7 +202,7 @@ pub struct PropertyDefinition {
 
     ///Flags, used ultimately by ExpressionSpecInvocations, to denote
     ///whether a property is the `i` or `elem` of a `Repeat`, which allows
-    ///for special-handling the codegen that accesses these values in expressions
+    ///for special-handling the codegen that invokes these values in expressions
     pub is_repeat_i: bool,
     pub is_repeat_elem: bool,
 }

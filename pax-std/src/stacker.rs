@@ -1,8 +1,7 @@
-use std::rc::Rc;
 use pax::*;
 use pax::api::{Size2D, Size, ArgsRender, Property, Transform2D};
 use pax::api::numeric::Numeric;
-use crate::primitives::{Frame, Group};
+use crate::primitives::{Frame};
 use crate::types::{StackerDirection, StackerCell};
 
 /// Stacker lays out a series of nodes either
@@ -54,7 +53,7 @@ impl Stacker {
         let cells = self.cells.get().len() as f64;
 
         let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc.get_as_float();
-        let per_cell_space = usable_interior_space / cells;
+        // let per_cell_space = usable_interior_space / cells;
 
         //TODO: account for overrides
         //The two data structures act as "sparse maps," where

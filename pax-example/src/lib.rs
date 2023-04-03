@@ -5,12 +5,12 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 #[pax_app(
     <Group @scroll=self.handle_scroll >
-        for i in 0..25 {
-            <Rectangle fill={Color::hlc(i * 360.0 / 25.0, 50.0, 180.0)} width=500px height=500px transform={
+        for i in 0..30 {
+            <Rectangle fill={Color::hlc(i * 360.0 / 15, 75.0, 150.0)} width=500px height=500px transform={
                 Transform2D::anchor(50%, 50%)
                 * Transform2D::align(50%, 50%)
                 * Transform2D::rotate((i + 2) * rotation)
-                * Transform2D::scale(0.75 + (i * rotation), 0.75 + (i * rotation))
+                * Transform2D::scale(0.4 + (i * rotation / 2), 0.4 + (i * rotation / 2))
             } />
         }
     </Group>
