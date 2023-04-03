@@ -95,8 +95,8 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
         }
-
     }
+
     fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounds;
@@ -134,7 +134,12 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 
         let color = properties.fill.get().to_piet_color();
         rc.fill(transformed_bez_path, &color);
-        rc.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), *&properties.stroke.get().width.get().into());
+
+        //hack to address "phantom stroke" bug on Web
+        let width : f64 = *&properties.stroke.get().width.get().into();
+        if width > f64::EPSILON {
+            rc.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), width);
+        }
 
     }
 }

@@ -3,6 +3,7 @@ use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, Expre
 use std::collections::HashMap;
 use std::ops::{IndexMut, Range, RangeFrom};
 use futures::StreamExt;
+use itertools::Itertools;
 use lazy_static::lazy_static;
 use crate::manifest::PropertyType;
 
@@ -388,7 +389,7 @@ fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &ExpressionCompilationContext<'a>)
     //2. for each symbolic id discovered during parsing, resolve that id through scope_stack and populate an ExpressionSpecInvocation
     let invocations = symbolic_ids.iter().map(|sym| {
         resolve_symbol_as_invocation(&sym.trim(), ctx)
-    }).collect();
+    }).unique_by(|esi|{esi.identifier.clone()}).collect();
 
     //3. return tuple of (RIL string,ExpressionSpecInvocations)
     (output_string, invocations)

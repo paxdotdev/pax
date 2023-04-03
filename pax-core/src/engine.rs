@@ -321,7 +321,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let accumulated_bounds = rtc.bounds;
 
 
-        //fire mount event if this is this node's first frame
+        //fire `did_mount` event if this is this node's first frame
+        //Note that this must happen after initial `compute_properties`, which performs the
+        //necessary side-effect of creating the `self` that must be passed to handlers
         {
             let id = (*rtc.node).borrow().get_instance_id();
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
@@ -389,6 +391,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //lifecycle: will_render for primitives
         node.borrow_mut().handle_will_render(rtc, rc);
 
+        //fire `will_render` handlers
         let registry = (*node).borrow().get_handler_registry();
         if let Some(registry) = registry {
             //grab Rc of properties from stack frame; pass to type-specific handler
@@ -406,8 +409,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             }
         }
 
+        //create the `hydrated_node` for the current node
         let children = node.borrow_mut().get_rendering_children();
-
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
         let hydrated_node = Rc::new(HydratedNode {
             stack_frame: rtc.runtime.borrow_mut().peek_stack_frame().unwrap(),

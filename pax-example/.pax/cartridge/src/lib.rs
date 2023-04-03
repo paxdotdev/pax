@@ -50,8 +50,37 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     
-    //0 .. 25
+    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)*Transform2D::scale(-0.1+0.9/(rotation*rotation+0.9),-0.1+0.9/(rotation*rotation+0.9))
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let rotation = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+
+                
+                    if let PropertiesCoproduct::HelloRGB(p) = properties {
+                        
+                            Numeric::from(p.rotation.get())
+                        
+                    } else {
+                        unreachable!("0")
+                    }
+                
+            };
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::Transform2D(
+            ((Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())*(Transform2D::scale((((-Numeric::from(0.1 ))+(Numeric::from(0.9 )/((rotation *(rotation ).into())+Numeric::from(0.9))))),(((-Numeric::from(0.1 ))+(Numeric::from(0.9 )/((rotation *(rotation ).into())+Numeric::from(0.9))))),)).into())
+        )
+    }));
+    
+    //0 .. 25
+    vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
@@ -60,8 +89,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color::hlc(ticks+i*360.0/12.5,75.0,150.0)
-    vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    //Color::hlc(ticks/4.0+i*360.0/18.75,75.0,150.0)
+    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let ticks = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
@@ -77,7 +106,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                             Numeric::from(p.ticks.get())
                         
                     } else {
-                        unreachable!("1")
+                        unreachable!("2")
                     }
                 
             };
@@ -107,12 +136,12 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
         #[allow(unused_parens)]
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::hlc(((ticks +((i *(Numeric::from(360.0 )).into())/Numeric::from(12.5)))),(Numeric::from(75.0)),(Numeric::from(150.0)),)
+            Color::hlc((((ticks /Numeric::from(4.0 ))+((i *(Numeric::from(360.0 )).into())/Numeric::from(18.75)))),(Numeric::from(75.0)),(Numeric::from(150.0)),)
         )
     }));
     
     //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)*Transform2D::rotate((i+2)*rotation)*Transform2D::scale(1.0+(i*rotation/2.0),1.0+(i*rotation/2.0))
-    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let i = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(0) {
@@ -150,89 +179,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                             Numeric::from(p.rotation.get())
                         
                     } else {
-                        unreachable!("2")
-                    }
-                
-            };
-        
-            let i = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }.borrow().deref().get_properties();
-                let properties = &*(*properties).borrow();
-
-                
-                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                        
-                            
-                                
-                                let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {i} else {unreachable!()};
-                                Numeric::from(unwrapped)
-                            
-                        
-
-                    } else {unreachable!()}
-                
-            };
-        
-            let rotation = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }.borrow().deref().get_properties();
-                let properties = &*(*properties).borrow();
-
-                
-                    if let PropertiesCoproduct::HelloRGB(p) = properties {
-                        
-                            Numeric::from(p.rotation.get())
-                        
-                    } else {
-                        unreachable!("2")
-                    }
-                
-            };
-        
-            let i = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }.borrow().deref().get_properties();
-                let properties = &*(*properties).borrow();
-
-                
-                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                        
-                            
-                                
-                                let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {i} else {unreachable!()};
-                                Numeric::from(unwrapped)
-                            
-                        
-
-                    } else {unreachable!()}
-                
-            };
-        
-            let rotation = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }.borrow().deref().get_properties();
-                let properties = &*(*properties).borrow();
-
-                
-                    if let PropertiesCoproduct::HelloRGB(p) = properties {
-                        
-                            Numeric::from(p.rotation.get())
-                        
-                    } else {
-                        unreachable!("2")
+                        unreachable!("3")
                     }
                 
             };
@@ -245,7 +192,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Transform2D::translate(5000.0,5000.0)
-    vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
@@ -309,7 +256,7 @@ pax_std_primitives::group::GroupInstance::instantiate(
                                                  }
                                              ))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(0))),
     size: Some(Rc::new(RefCell::new(
         [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
     ))),
@@ -343,7 +290,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
         
             stroke: Box::new( PropertyLiteral::new(Default::default()) ),
         
-            fill: Box::new( PropertyExpression::new(1) ),
+            fill: Box::new( PropertyExpression::new(2) ),
         
     }),
     handler_registry:  Some(Rc::new(RefCell::new(
@@ -355,7 +302,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
                                                  }
                                              ))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(2))),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(3))),
     size: Some(Rc::new(RefCell::new(
         [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
     ))),
@@ -377,7 +324,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     scroller_args: None,
     slot_index: None,
     repeat_source_expression_vec: None,
-    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(0))),
+    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(1))),
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
@@ -408,7 +355,7 @@ pax_std_primitives::group::GroupInstance::instantiate(
                                                  }
                                              ))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(3))),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(4))),
     size: Some(Rc::new(RefCell::new(
         [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
     ))),

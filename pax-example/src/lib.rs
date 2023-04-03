@@ -4,10 +4,19 @@ use pax_std::components::Stacker;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 #[pax_app(
-    <Group @scroll=self.handle_scroll >
+    @events {
+        did_mount: self.handle_did_mount,
+        will_render: self.handle_will_render,
+    }
+
+    <Group @scroll=self.handle_scroll transform={
+        Transform2D::anchor(50%, 50%)
+        * Transform2D::align(50%, 50%)
+        * Transform2D::scale(-0.1 + 0.9/(rotation * rotation + 0.9),-0.1 + 0.9/(rotation * rotation + 0.9))
+    } >
         for i in 0..25 {
         // for (elem, i) in self.squares {
-            <Rectangle fill={Color::hlc(ticks + i * 360.0 / 12.5, 75.0, 150.0)} width=300px height=300px transform={
+            <Rectangle fill={Color::hlc(ticks / 4.0 + i * 360.0 / 18.75, 75.0, 150.0)} width=300px height=300px transform={
                 Transform2D::anchor(50%, 50%)
                 * Transform2D::align(50%, 50%)
                 * Transform2D::rotate((i + 2) * rotation)
@@ -26,10 +35,6 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
         <Rectangle />
     </Group>
 
-    @events {
-        did_mount: self.handle_did_mount,
-        will_render: self.handle_will_render,
-    }
 )]
 pub struct HelloRGB {
     pub rotation: Property<f64>,
@@ -51,17 +56,17 @@ impl HelloRGB {
 
     pub fn handle_will_render(&mut self, args: ArgsRender) {
         self.ticks.set(args.frames_elapsed);
-        if args.frames_elapsed % 400 == 0 {
+        if args.frames_elapsed % 260 == 0 {
             pax::log("heartbeat");
-            self.heartbeat.ease_to(HEARTBEAT_AMPLITUDE, 100, EasingCurve::OutBack);
+            self.heartbeat.ease_to(HEARTBEAT_AMPLITUDE, 40, EasingCurve::OutBack);
             self.heartbeat.ease_to_later(-HEARTBEAT_AMPLITUDE / 2.0, 50, EasingCurve::OutBack);
-            self.heartbeat.ease_to_later(0.0, 50, EasingCurve::OutBack);
+            self.heartbeat.ease_to_later(0.0, 70, EasingCurve::OutBack);
         }
     }
     pub fn handle_scroll(&mut self, args: ArgsScroll) {
         let old_t = self.rotation.get();
         let new_t = old_t - args.delta_y * ROTATION_COEFFICIENT;
-        self.rotation.set(new_t);
+        self.rotation.set(f64::max(0.0,new_t));
     }
 }
 
