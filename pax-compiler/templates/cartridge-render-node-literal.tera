@@ -30,6 +30,15 @@ instantiate_{{ snake_case_component_id }}(
                                                                 }
                                                          {%- endif -%}
                                                      ],
+                                                     did_mount_handlers: vec![
+                                                         {%- if events['did_mount'] -%}
+                                                                 |properties|{
+                                                                     let properties = &mut *properties.as_ref().borrow_mut();
+                                                                     let properties = if let PropertiesCoproduct::{{ active_root }}(p) = properties {p} else {unreachable!()};
+                                                                     {{ active_root }}::{{events['did_mount']}}(properties);
+                                                                 }
+                                                          {%- endif -%}
+                                                      ],
                                                      scroll_handlers: vec![
                                                      {%- if events['scroll'] -%}
                                                                  |stack_frame, args|{

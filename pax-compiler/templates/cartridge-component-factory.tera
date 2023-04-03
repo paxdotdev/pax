@@ -27,6 +27,17 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                                  {% endfor %}
                                                             {%- endif -%}
                                                          ],
+                                                         did_mount_handlers: vec![
+                                                             {%- if events['did_mount'] -%}
+                                                                  {% for handler in events['did_mount'] %}
+                                                                      |properties|{
+                                                                          let properties = &mut *properties.as_ref().borrow_mut();
+                                                                          let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                                                                          {{ component_properties_struct }}::{{handler}}(properties);
+                                                                      },
+                                                                  {% endfor %}
+                                                             {%- endif -%}
+                                                          ],
                                                          scroll_handlers: vec![
                                                              {%- if events['scroll'] -%}
                                                                  {% for handler in events['scroll'] %}
