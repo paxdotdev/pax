@@ -317,12 +317,13 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             identifier: "TODO".to_string(),
             escaped_identifier: "TODO".to_string(),
             stack_offset: 0,
-            properties_type: "".to_string(),
+            properties_coproduct_type: "".to_string(),
             pascalized_iterable_type: None,
             is_repeat_elem: false,
             is_repeat_i: false,
             is_iterable_primitive_nonnumeric: false,
             is_iterable_numeric: false,
+            is_numeric_property: false,
         }
     } else {
         let identifier = if sym.starts_with("self.") {
@@ -335,7 +336,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let prop_def = ctx.resolve_symbol(&identifier).expect(&format!("Symbol not found: {}", &identifier));
 
-        let properties_type = ctx.component_def.pascal_identifier.clone();
+        let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
 
         let pascalized_iterable_type = if let Some(x) = &prop_def.property_type_info.iterable_type {
             Some(x.pascalized_fully_qualified_type.clone())
@@ -365,9 +366,11 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             identifier,
             escaped_identifier,
             stack_offset,
-            properties_type,
+            is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.property_type_info.fully_qualified_type.split("::").last().unwrap()),
+            properties_coproduct_type,
             is_iterable_primitive_nonnumeric: ExpressionSpecInvocation::is_iterable_primitive_nonnumeric(&pascalized_iterable_type),
             is_iterable_numeric: ExpressionSpecInvocation::is_iterable_numeric(&pascalized_iterable_type),
+
             pascalized_iterable_type,
             is_repeat_elem,
             is_repeat_i,

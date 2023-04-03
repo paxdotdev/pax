@@ -5,8 +5,8 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
         handler_registry:  Some(Rc::new(RefCell::new(
                                                      HandlerRegistry {
                                                          click_handlers: vec![
-                                                             {%- if events['Click'] -%}
-                                                                {% for handler in events['Click'] %}
+                                                             {%- if events['click'] -%}
+                                                                {% for handler in events['click'] %}
                                                                     |stack_frame, args|{
                                                                         let properties = ((*stack_frame).borrow().get_properties());
                                                                         let properties = &mut *properties.as_ref().borrow_mut();
@@ -17,8 +17,8 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                              {%- endif -%}
                                                          ],
                                                          will_render_handlers: vec![
-                                                            {%- if events['WillRender'] -%}
-                                                                 {% for handler in events['WillRender'] %}
+                                                            {%- if events['will_render'] -%}
+                                                                 {% for handler in events['will_render'] %}
                                                                      |properties, args|{
                                                                          let properties = &mut *properties.as_ref().borrow_mut();
                                                                          let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
@@ -28,8 +28,8 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                                                             {%- endif -%}
                                                          ],
                                                          scroll_handlers: vec![
-                                                             {%- if events['Scroll'] -%}
-                                                                 {% for handler in events['Scroll'] %}
+                                                             {%- if events['scroll'] -%}
+                                                                 {% for handler in events['scroll'] %}
                                                                      |stack_frame, args|{
                                                                          let properties = ((*stack_frame).borrow().get_properties());
                                                                          let properties = &mut *properties.as_ref().borrow_mut();

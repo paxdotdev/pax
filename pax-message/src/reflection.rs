@@ -35,6 +35,12 @@ impl PathQualifiable for f64 {
     }
 }
 
+impl PathQualifiable for bool {
+    fn get_fully_qualified_path(_: &str) -> String {
+        "bool".to_string()
+    }
+}
+
 impl PathQualifiable for i64 {
     fn get_fully_qualified_path(_: &str) -> String {
         "i64".to_string()

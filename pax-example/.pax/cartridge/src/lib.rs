@@ -90,7 +90,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)*Transform2D::rotate((i+2)*rotation)*Transform2D::scale(0.4+(i*rotation/2),0.4+(i*rotation/2))
+    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)*Transform2D::rotate((i+2)*rotation)*Transform2D::scale(1.0+(i*rotation/2.0),1.0+(i*rotation/2.0))
     vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let i = {
@@ -125,7 +125,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
                 
                     if let PropertiesCoproduct::HelloRGB(p) = properties {
-                            p.rotation.get().clone()
+                        
+                            Numeric::from(p.rotation.get())
+                        
                     } else {
                         unreachable!("2")
                     }
@@ -164,7 +166,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
                 
                     if let PropertiesCoproduct::HelloRGB(p) = properties {
-                            p.rotation.get().clone()
+                        
+                            Numeric::from(p.rotation.get())
+                        
                     } else {
                         unreachable!("2")
                     }
@@ -203,7 +207,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
                 
                     if let PropertiesCoproduct::HelloRGB(p) = properties {
-                            p.rotation.get().clone()
+                        
+                            Numeric::from(p.rotation.get())
+                        
                     } else {
                         unreachable!("2")
                     }
@@ -213,7 +219,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
         #[allow(unused_parens)]
         TypesCoproduct::Transform2D(
-            (((Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())*(Transform2D::rotate((((i +Numeric::from(2))*(rotation).into())),)).into())*(Transform2D::scale(((Numeric::from(0.4 )+((i *(rotation ).into())/Numeric::from(2)))),((Numeric::from(0.4 )+((i *(rotation ).into())/Numeric::from(2)))),)).into())
+            (((Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())*(Transform2D::rotate((((i +Numeric::from(2))*(rotation).into())),)).into())*(Transform2D::scale(((Numeric::from(1.0 )+((i *(rotation ).into())/Numeric::from(2.0)))),((Numeric::from(1.0 )+((i *(rotation ).into())/Numeric::from(2.0)))),)).into())
         )
     }));
     
@@ -240,7 +246,13 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
         handler_registry:  Some(Rc::new(RefCell::new(
                                                      HandlerRegistry {
                                                          click_handlers: vec![],
-                                                         will_render_handlers: vec![],
+                                                         will_render_handlers: vec![
+                                                                     |properties, args|{
+                                                                         let properties = &mut *properties.as_ref().borrow_mut();
+                                                                         let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
+                                                                         HelloRGB::handle_will_render(properties,args);
+                                                                     },
+                                                                 ],
                                                          scroll_handlers: vec![],
                                                      }
                                                  ))),
@@ -314,7 +326,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyExpression::new(2))),
     size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(500.into()))),Box::new(PropertyLiteral::new(Size::Pixels(500.into())))]
+        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
     ))),
     children: Some(Rc::new(RefCell::new(vec![
         
@@ -543,6 +555,13 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
             } else if let Some(new_value) = rtc.compute_vtable_value(properties.rotation._get_vtable_id()) {
             let new_value = if let TypesCoproduct::__f64(v) = new_value { v } else { unreachable!() };
             properties.rotation.set(new_value);
+            }
+            
+            if let Some(new_value) = rtc.compute_eased_value(properties.heartbeat._get_transition_manager()) {
+            properties.heartbeat.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.heartbeat._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::__f64(v) = new_value { v } else { unreachable!() };
+            properties.heartbeat.set(new_value);
             }
             
         })),

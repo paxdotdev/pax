@@ -510,6 +510,12 @@ impl Interpolatable for f64 {
     }
 }
 
+impl Interpolatable for bool {
+    fn interpolate(&self, other: &bool, t: f64) -> bool {
+        *self
+    }
+}
+
 impl Interpolatable for usize {
     fn interpolate(&self, other: &usize, t: f64) -> usize {
         (*self as f64 + (*other - self) as f64 * t) as usize

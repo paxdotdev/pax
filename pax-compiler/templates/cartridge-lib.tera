@@ -45,7 +45,6 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                                 let unwrapped = if let PropertiesCoproduct::{{invocation.pascalized_iterable_type}}(i) = **elem {i} else {unreachable!()};
                                 Numeric::from(unwrapped)
                             {% elif invocation.is_iterable_primitive_nonnumeric %}
-                                {# Currently, only String #}
                                 elem.clone()
                             {% else %}
                                 {# This should be iterating over a `Rc<PropertiesCoproduct>`, so pass that forward for chained unwrapping #}
@@ -58,8 +57,12 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
                     } else {unreachable!()}
                 {% else %}
-                    if let PropertiesCoproduct::{{ invocation.properties_type }}(p) = properties {
+                    if let PropertiesCoproduct::{{ invocation.properties_coproduct_type }}(p) = properties {
+                        {% if invocation.is_numeric_property %}
+                            Numeric::from(p.{{invocation.identifier}}.get())
+                        {% else %}
                             p.{{invocation.identifier}}.get().clone()
+                        {% endif %}
                     } else {
                         unreachable!("{{ expression_spec.id }}")
                     }

@@ -83,7 +83,7 @@ pub struct  ExpressionSpecInvocation {
     pub stack_offset: usize,
 
     /// Type of the containing Properties struct, for unwrapping from PropertiesCoproduct.  For example, `Foo` for `PropertiesCoproduct::Foo` or `RepeatItem` for PropertiesCoproduct::RepeatItem
-    pub properties_type: String,
+    pub properties_coproduct_type: String,
 
     /// For invocations that reference repeat elements, this is the enum identifier within
     /// the TypesCoproduct that represents the appropriate `datum_cast` type
@@ -96,6 +96,7 @@ pub struct  ExpressionSpecInvocation {
     pub is_repeat_i: bool,
 
     /// Flags used for particular corner cases of `Repeat` codegen
+    pub is_numeric_property: bool,
     pub is_iterable_numeric: bool,
     pub is_iterable_primitive_nonnumeric: bool,
 }
@@ -116,8 +117,9 @@ const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
     "f64",
 ];
 
-const SUPPORTED_NONNUMERIC_PRIMITIVES : [&str; 1] = [
+const SUPPORTED_NONNUMERIC_PRIMITIVES : [&str; 2] = [
     "String",
+    "bool",
 ];
 
 impl ExpressionSpecInvocation {
@@ -135,6 +137,10 @@ impl ExpressionSpecInvocation {
         } else {
             false
         }
+    }
+
+    pub fn is_numeric_property(properties_coproduct_type: &str) -> bool {
+        SUPPORTED_NUMERIC_PRIMITIVES.contains(&properties_coproduct_type)
     }
 }
 
