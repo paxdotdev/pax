@@ -274,9 +274,9 @@ impl Mul for Transform2D {
 
 impl Transform2D {
     ///Scale coefficients (1.0 == 100%) over x-y plane
-    pub fn scale(x: f64, y: f64) -> Self {
+    pub fn scale(x: Numeric, y: Numeric) -> Self {
         let mut ret  = Transform2D::default();
-        ret.scale = Some([x, y]);
+        ret.scale = Some([x.get_as_float(), y.get_as_float()]);
         ret
     }
     ///Rotation over z axis

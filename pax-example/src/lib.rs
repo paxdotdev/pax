@@ -5,11 +5,12 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 #[pax_app(
     <Group @scroll=self.handle_scroll >
-        for i in 0..5 {
-            <Rectangle fill={Color::hlc(1.0, 1.0, 1.0)} width=500px height=500px transform={
+        for i in 0..25 {
+            <Rectangle fill={Color::hlc(i * 360.0 / 25.0, 50.0, 180.0)} width=500px height=500px transform={
                 Transform2D::anchor(50%, 50%)
                 * Transform2D::align(50%, 50%)
-                * Transform2D::rotate(i * rotation)
+                * Transform2D::rotate((i + 2) * rotation)
+                * Transform2D::scale(0.75 + (i * rotation), 0.75 + (i * rotation))
             } />
         }
     </Group>
@@ -31,7 +32,7 @@ impl HelloRGB {
         log("click-ellipse");
     }
     pub fn handle_scroll(&mut self, args: ArgsScroll) {
-        const ROTATION_COEFFICIENT: f64 = 0.00005;
+        const ROTATION_COEFFICIENT: f64 = 0.00010;
         let old_t = self.rotation.get();
         let new_t = old_t + args.delta_y * ROTATION_COEFFICIENT;
         self.rotation.set(new_t);
