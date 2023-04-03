@@ -263,8 +263,8 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
             _ => unreachable!(),
         })
         .map_prefix(|op, rhs| match op.as_rule() {
-            // Rule::xo_neg => format!("(-{})", rhs),
-            // Rule::xo_bool_not => format!("(!{})", rhs),
+            Rule::xo_neg => format!("(-{})", rhs),
+            Rule::xo_bool_not => format!("(!{})", rhs),
             _ => unreachable!(),
         })
         // .map_postfix(|lhs, op| match op.as_rule() {

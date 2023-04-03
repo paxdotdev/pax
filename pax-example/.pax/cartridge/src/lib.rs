@@ -28,6 +28,8 @@ use pax_example::pax_reexports::std::string::String;
 
 use pax_example::pax_reexports::std::vec::Vec;
 
+use pax_example::pax_reexports::usize;
+
 use pax_example::pax_reexports::HelloRGB;
 
 use pax_example::pax_reexports::pax_std::primitives::Ellipse;
@@ -48,18 +50,37 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     
-    //0 .. 30
+    //0 .. 25
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
         TypesCoproduct::Range_isize_(
-            0 ..30
+            0 ..25
         )
     }));
     
-    //Color::hlc(i*360.0/15,75.0,150.0)
+    //Color::hlc(ticks+i*360.0/12.5,75.0,150.0)
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let ticks = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+
+                
+                    if let PropertiesCoproduct::HelloRGB(p) = properties {
+                        
+                            Numeric::from(p.ticks.get())
+                        
+                    } else {
+                        unreachable!("1")
+                    }
+                
+            };
         
             let i = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(0) {
@@ -86,7 +107,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
         #[allow(unused_parens)]
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::hlc((((i *(Numeric::from(360.0 )).into())/Numeric::from(15))),(Numeric::from(75.0)),(Numeric::from(150.0)),)
+            Color::hlc(((ticks +((i *(Numeric::from(360.0 )).into())/Numeric::from(12.5)))),(Numeric::from(75.0)),(Numeric::from(150.0)),)
         )
     }));
     
@@ -555,6 +576,13 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
             } else if let Some(new_value) = rtc.compute_vtable_value(properties.rotation._get_vtable_id()) {
             let new_value = if let TypesCoproduct::__f64(v) = new_value { v } else { unreachable!() };
             properties.rotation.set(new_value);
+            }
+            
+            if let Some(new_value) = rtc.compute_eased_value(properties.ticks._get_transition_manager()) {
+            properties.ticks.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.ticks._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::__usize(v) = new_value { v } else { unreachable!() };
+            properties.ticks.set(new_value);
             }
             
             if let Some(new_value) = rtc.compute_eased_value(properties.heartbeat._get_transition_manager()) {

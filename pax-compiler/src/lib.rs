@@ -979,7 +979,7 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
             .arg(should_also_run)
             .arg(output_path_val)
             .stdout(std::process::Stdio::inherit())
-            .stderr(if ctx.verbose { std::process::Stdio::inherit() } else { std::process::Stdio::piped() })
+            .stderr(std::process::Stdio::inherit())
             .spawn()
             .expect("failed to run harness")
             .wait()

@@ -71,6 +71,8 @@ pub enum TypesCoproduct {
     
     __stdCOCOstringCOCOString(pax_example::pax_reexports::std::string::String),
     
+    __usize(pax_example::pax_reexports::usize),
+    
     bool(bool),
     
     f64(f64),

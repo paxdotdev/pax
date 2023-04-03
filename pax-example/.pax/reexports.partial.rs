@@ -24,4 +24,5 @@ pub mod pax_reexports {
 			pub use std::vec::Vec;
 		}
 	}
+	pub use usize;
 }
