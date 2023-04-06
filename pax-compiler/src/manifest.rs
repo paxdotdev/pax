@@ -241,6 +241,7 @@ impl PropertyType {
         }
     }
 
+    ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
     pub fn builtin_vec_rc_properties_coproduct() -> Self {
         Self {
             fully_qualified_type: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
