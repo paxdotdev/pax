@@ -240,6 +240,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
                 (range_expression_paxel.to_string(), PropertyType::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
+
                 (symbolic_binding.to_string(), PropertyType::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
