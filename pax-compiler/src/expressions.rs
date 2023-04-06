@@ -162,6 +162,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
                 (range_expression_paxel.to_string(), PropertyType::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
+
                 (symbolic_binding.to_string(), PropertyType::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
@@ -229,7 +230,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             // with further compiletime "reflection" magic
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
-                pascalized_return_type: return_type.pascalized_fully_qualified_type,
+                pascalized_return_type: return_type,
                 invocations,
                 output_statement,
                 input_statement: paxel,
