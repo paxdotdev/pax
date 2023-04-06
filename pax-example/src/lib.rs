@@ -14,8 +14,8 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
         * Transform2D::align(50%, 50%)
         * Transform2D::scale(-0.1 + 0.9/(rotation * rotation + 0.9),-0.1 + 0.9/(rotation * rotation + 0.9))
     } >
-        for i in 0..25 {
-        // for (elem, i) in self.squares {
+        // for i in 0..25 {
+        for (elem, i) in self.squares {
             <Rectangle fill={Color::hlc(ticks / 4.0 + i * 360.0 / 18.75, 75.0, 150.0)} width=300px height=300px transform={
                 Transform2D::anchor(50%, 50%)
                 * Transform2D::align(50%, 50%)
