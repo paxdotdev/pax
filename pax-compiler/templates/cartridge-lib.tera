@@ -37,7 +37,12 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
 
-                {% if invocation.is_repeat_elem or invocation.is_repeat_index %}
+                {# if this is a `repeat source expression` and it's a `vec` (rather than range), we want to
+                    re-wrap each repeated element into a PropertiesCoproduct::x, where x is either a primitive
+                    (numeric or nonnumeric), or it's a known PropertiesCoproduct type, either a component
+                    properties struct or an annotated `pax_type` #}
+
+                {% if invocation.is_repeat_elem or invocation.is_repeat_i %}
                     if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
                         {% if invocation.is_repeat_elem %}
                             {% if invocation.is_iterable_numeric %}

@@ -536,16 +536,17 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     }
                 },
                 _ => {
-                    unreachable!("Parsing error 883427242: {:?}", any_tag_pair.as_rule());
+                    unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());
                 }
             };
 
             std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node_definition);
         },
         Rule::node_inner_content => {
-            // unimplemented!();
+            //For example:  `<Text>"I am inner content"</Text>`
+            unimplemented!("Inner content not yet supported");
         },
-        _ => {unreachable!("Parsing error 2232444421: {:?}", any_tag_pair.as_rule());}
+        _ => {unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());}
     }
 }
 
