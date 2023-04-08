@@ -149,7 +149,17 @@ struct PaxView: View {
         
         @ObservedObject var textElements = TextElements.singleton
         @ObservedObject var frameElements = FrameElements.singleton
-        
+
+        init() {
+            let frame = NSRect(x: 0, y: 0, width: 1000, height: 1000)
+            super.init(frame: frame)
+            self.wantsLayer = true;
+            self.layer?.drawsAsynchronously = true;
+        }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+        }
         
         var currentTickWorkItem : DispatchWorkItem? = nil
         

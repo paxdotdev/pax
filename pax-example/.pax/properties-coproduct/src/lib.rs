@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[repr(u32)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
     None,
@@ -43,6 +44,7 @@ pub enum PropertiesCoproduct {
 //}
 
 //used namely for return types of expressions — may have other purposes
+#[repr(u32)]
 pub enum TypesCoproduct {
     
     Range_isize_(std::ops::Range<isize>),
