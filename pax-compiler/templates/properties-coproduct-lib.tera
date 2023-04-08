@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+#[repr(u32)]
 pub enum PropertiesCoproduct {
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
@@ -12,6 +13,7 @@ pub enum PropertiesCoproduct {
 }
 
 //used namely for return types of expressions — may have other purposes
+#[repr(u32)]
 pub enum TypesCoproduct {
     {% for types_coproduct_tuple in types_coproduct_tuples %}
     {{types_coproduct_tuple.0}}({{types_coproduct_tuple.1}}),

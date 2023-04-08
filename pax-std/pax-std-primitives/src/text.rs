@@ -2,11 +2,9 @@ use std::cell::RefCell;
 use std::ffi::CString;
 use std::rc::Rc;
 use std::collections::HashMap;
-
 use piet::{RenderContext};
-
 use pax_std::primitives::{Text};
-use pax_core::{ComputableTransform, TabCache, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use pax_core::{ComputableTransform, TabCache, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
@@ -33,18 +31,9 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         self.instance_id
     }
 
-
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
 
-        // #[cfg(feature="Text")]
-        let properties = if let PropertiesCoproduct::Text(p) = args.properties { p } else { unreachable!("Wrong properties type") };
-         // #[cfg(not(feature="Text"))]
-         // let properties = Text {
-         //     text: Default::default(),
-         //     font: Default::default(),
-         //     fill: Default::default(),
-         // };
-
+        let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Text);
 
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
@@ -61,7 +50,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
-    
+
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
