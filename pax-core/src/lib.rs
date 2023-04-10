@@ -19,6 +19,7 @@ pub mod repeat;
 pub mod slot;
 pub mod runtime;
 pub mod conditional;
+pub mod declarative_macros;
 // pub mod timelines;
 // pub mod designtime;
 
