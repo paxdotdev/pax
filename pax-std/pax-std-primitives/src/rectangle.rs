@@ -3,9 +3,9 @@ use piet::{RenderContext};
 
 use pax_std::primitives::{Rectangle};
 use pax_std::types::ColorVariant;
-use pax_core::{Color, TabCache, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr};
+use pax_core::{Color, TabCache, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, ArgsCoproduct};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, ArgsCoproduct, Property};
 
 use std::str::FromStr;
 use std::cell::RefCell;
@@ -33,8 +33,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
     }
 
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        let properties = if let PropertiesCoproduct::Rectangle(p) = args.properties { p } else {unreachable!("Wrong properties type")};
-
+        let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Rectangle);
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(RectangleInstance {
