@@ -14,8 +14,6 @@ pub mod primitives {
     #[cfg(feature = "parser")]
     use pax_compiler;
     #[cfg(feature = "parser")]
-    use pax_compiler::parsing::ParsingContext;
-    #[cfg(feature = "parser")]
     use pax_message::reflection::PathQualifiable;
     use crate::types::PathSegment;
 

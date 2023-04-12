@@ -8,21 +8,19 @@ pub mod expressions;
 
 use manifest::PaxManifest;
 
-use std::{fs, thread};
+use std::{fs};
 use std::borrow::Borrow;
 use std::str::FromStr;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
-use std::ops::Deref;
 use itertools::Itertools;
 
 use std::os::unix::fs::PermissionsExt;
 
 use include_dir::{Dir, DirEntry, include_dir};
-use toml_edit::{Document, Item, value};
-use std::path::{Component, Path, PathBuf};
+use toml_edit::{Item};
+use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::time::Duration;
 use crate::manifest::{AttributeValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
@@ -35,7 +33,7 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     //  handle `parser` module_path and any sub-paths
     //re-expose module_path::PascalIdentifier underneath `pax_reexports`
     //ensure that this partial.rs file is loaded included under the `pax_app` macro
-    let mut reexport_components: Vec<String> = manifest.components.iter().map(|cd|{
+    let reexport_components: Vec<String> = manifest.components.iter().map(|cd|{
         //e.g.: "some::module::path::SomePascalIdentifier"
         cd.1.module_path.clone() + "::" + &cd.1.pascal_identifier
     }).collect();
@@ -99,18 +97,18 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
 
     fn get_tabs (i: usize) -> String {
         "\t".repeat(i + 1).to_string()
-    };
+    }
 
     fn pop_and_write_brace(namespace_stack: &mut Vec<String>, output_string: &mut String){
         namespace_stack.pop();
         output_string.push_str(&*(get_tabs(namespace_stack.len()) + "}\n"));
-    };
+    }
 
     fn dump_stack(namespace_stack: &mut Vec<String>, output_string: &mut String)  {
         while namespace_stack.len() > 0 {
             pop_and_write_brace(namespace_stack, output_string);
         }
-    };
+    }
 
     sorted_reexports.iter().enumerate().for_each(|(i,pub_use)| {
 
@@ -159,7 +157,7 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
                         });
 
                         if let Some(pops) = how_many_pops {
-                            for i in 0..pops {
+                            for _ in 0..pops {
                                 pop_and_write_brace(&mut namespace_stack, &mut output_string);
                             }
                         }
@@ -187,7 +185,7 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
 }
 
 
-fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
+fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
     let target_dir = pax_dir.join("properties-coproduct");
     clone_properties_coproduct_to_dot_pax(&target_dir).unwrap();
@@ -215,7 +213,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
             format!("{}{}{}{}", &host_crate_info.import_prefix, &comp_def.1.module_path.replace("crate", ""), {if comp_def.1.module_path == "crate" {""} else {"::"}}, &comp_def.1.pascal_identifier)
         )
     }).collect();
-    let mut set: HashSet<(String, String)> = properties_coproduct_tuples.drain(..).collect();
+    let set: HashSet<(String, String)> = properties_coproduct_tuples.drain(..).collect();
     properties_coproduct_tuples.extend(set.into_iter());
     properties_coproduct_tuples.sort();
 
@@ -263,9 +261,9 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, build_id: &str, manifest: &P
 
 }
 
-fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
+fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
     let target_dir = pax_dir.join("cartridge");
-    clone_cartridge_to_dot_pax(&target_dir, pax_dir).unwrap();
+    clone_cartridge_to_dot_pax(&target_dir).unwrap();
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
@@ -343,7 +341,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, build_id: &str, manifest: &P
     expression_specs = expression_specs.iter().sorted().cloned().collect();
 
     let component_factories_literal =  manifest.components.values().into_iter().filter(|cd|{!cd.is_primitive}).map(|cd|{
-        generate_cartridge_component_factory_literal(manifest, cd, &IMPORT_PREFIX)
+        generate_cartridge_component_factory_literal(manifest, cd)
     }).collect();
 
     //press template into String
@@ -402,11 +400,11 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         let rsd = tnd.control_flow_attributes.as_ref().unwrap().repeat_source_definition.as_ref().unwrap();
         let id = rsd.vtable_id.unwrap();
 
-        let rse_vec = if let Some(x) = &rsd.symbolic_binding {
+        let rse_vec = if let Some(_) = &rsd.symbolic_binding {
             format!("Some(Box::new(PropertyExpression::new({})))", id)
         } else {"None".into()};
 
-        let rse_range = if let Some(x) = &rsd.range_expression_paxel {
+        let rse_range = if let Some(_) = &rsd.range_expression_paxel {
             format!("Some(Box::new(PropertyExpression::new({})))", id)
         } else {"None".into()};
 
@@ -563,7 +561,6 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
 struct RenderNodesGenerationContext<'a> {
     components: &'a std::collections::HashMap<String, ComponentDefinition>,
-    import_prefix: &'a str,
     active_component_definition: &'a ComponentDefinition,
 }
 
@@ -581,12 +578,11 @@ fn generate_events_map(events: Option<Vec<EventDefinition>>) -> HashMap<String, 
 }
 
 
-fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition, import_prefix: &str) -> String {
+fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition) -> String {
 
     let rngc = RenderNodesGenerationContext {
         components: &manifest.components,
         active_component_definition: cd,
-        import_prefix,
     };
 
     let args = TemplateArgsCodegenCartridgeComponentFactory {
@@ -646,7 +642,7 @@ fn clean_dependencies_table_of_relative_paths(crate_name: &str, dependencies: &m
     });
 }
 
-fn generate_chassis(pax_dir: &PathBuf, target: &RunTarget, build_id: &str, manifest: &PaxManifest, host_crate_info: &HostCrateInfo, libdevmode: bool) {
+fn generate_chassis(pax_dir: &PathBuf, target: &RunTarget, host_crate_info: &HostCrateInfo, libdevmode: bool) {
     //1. clone (git or raw fs) pax-chassis-whatever into .pax/chassis/
     let chassis_dir = pax_dir.join("chassis");
     std::fs::create_dir_all(&chassis_dir).expect("Failed to create chassis directory.  Check filesystem permissions?");
@@ -777,7 +773,7 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
 
 static CARTRIDGE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge");
 /// Clone the template pax-cartridge directory into .pax, for further codegen
-fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf, pax_dir: &PathBuf) -> std::io::Result<()> {
+fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
     // fs::remove_dir_all(&relative_cartridge_target_dir);
     fs::create_dir_all(&relative_cartridge_target_dir).unwrap();
 
@@ -806,7 +802,7 @@ fn clone_properties_coproduct_to_dot_pax(relative_cartridge_target_dir: &PathBuf
 }
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
-    let mut working_path = std::path::Path::new(working_dir).join(".pax");
+    let working_path = std::path::Path::new(working_dir).join(".pax");
     std::fs::create_dir_all( &working_path).unwrap();
     fs::canonicalize(working_path).unwrap()
 }
@@ -843,6 +839,7 @@ fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
     }
 }
 
+#[allow(unused)]
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
 pub fn perform_clean(path: &str) -> Result<(), ()> {
@@ -901,14 +898,12 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     println!("{} 🧮 Compiling expressions", &PAX_BADGE);
     expressions::compile_all_expressions(&mut manifest);
 
-    let build_id = uuid::Uuid::new_v4().to_string();
-
     //oxidation!
     println!("{} 💨 Generating Rust", &PAX_BADGE);
     generate_reexports_partial_rs(&pax_dir, &manifest);
-    generate_properties_coproduct(&pax_dir, &build_id, &manifest, &host_crate_info);
-    generate_cartridge_definition(&pax_dir, &build_id, &manifest, &host_crate_info);
-    generate_chassis(&pax_dir, &ctx.target, &build_id, &manifest, &host_crate_info, ctx.libdevmode);
+    generate_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
+    generate_cartridge_definition(&pax_dir, &manifest, &host_crate_info);
+    generate_chassis(&pax_dir, &ctx.target, &host_crate_info, ctx.libdevmode);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with cargo", &PAX_BADGE);
@@ -1008,7 +1003,7 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
     let chassis_path = pax_dir.join("chassis").join({let s: & str = target.into(); s});
     //string together a shell call like the following:
-    let mut cargo_run_chassis_build = match target {
+    let cargo_run_chassis_build = match target {
         RunTarget::MacOS => {
             Command::new("cargo")
                 .current_dir(&chassis_path)
@@ -1075,9 +1070,6 @@ impl<'a> Into<&'a str> for &'a RunTarget {
             RunTarget::MacOS => {
                 "MacOS"
             },
-            _ => {
-                unreachable!();
-            }
         }
     }
 }

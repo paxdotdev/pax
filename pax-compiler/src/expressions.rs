@@ -1,8 +1,6 @@
-use std::borrow::Borrow;
 use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, AttributeValueDefinition, PropertyDefinition};
 use std::collections::HashMap;
-use std::ops::{IndexMut, Range, RangeFrom};
-use futures::StreamExt;
+use std::ops::{IndexMut, RangeFrom};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use crate::manifest::PropertyType;
@@ -43,7 +41,7 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 }
 
 fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) -> ExpressionCompilationContext<'a> {
-    let mut incremented = false;
+    let incremented = false;
 
     //FUTURE: join settings blocks here, merge with inline_attributes
     let mut cloned_inline_attributes = ctx.active_node_def.inline_attributes.clone();
@@ -55,11 +53,10 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             match &mut attr.1 {
                 AttributeValueDefinition::LiteralValue(_) => {
                     //no need to compile literal values
-                }
-                AttributeValueDefinition::EventBindingTarget(s) => {
-                    //TODO: bind events here
-                    // e.g. the self.foo in `@click=self.foo`
-                }
+                },
+                AttributeValueDefinition::EventBindingTarget(_) => {
+                    //event bindings are handled on a separate compiler pass; no-op here
+                },
                 AttributeValueDefinition::Identifier(identifier, manifest_id) => {
                     // e.g. the self.active_color in `bg_color=self.active_color`
 
@@ -91,13 +88,13 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             input_statement: identifier.clone(),
                         });
                     }
-                }
+                },
                 AttributeValueDefinition::Expression(input, manifest_id) => {
                     // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
                     let id = ctx.uid_gen.next().unwrap();
 
                     //Write this id back to the manifest, for downstream use by RIL component tree generator
-                    let mut manifest_id_insert: usize = id;
+                    let manifest_id_insert: usize = id;
                     std::mem::swap(&mut manifest_id.take(), &mut Some(manifest_id_insert));
 
                     let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
@@ -162,7 +159,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
 
-            let (mut paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
+            let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
                 (range_expression_paxel.to_string(), PropertyType::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                 (symbolic_binding.to_string(), PropertyType::builtin_vec_rc_properties_coproduct())
@@ -177,7 +174,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     // property definition: called `i`
                     // property_type:usize (the iterable_type)
 
-                    let mut property_definition = PropertyDefinition {
+                    let property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
                         original_type: return_type.fully_qualified_type.to_string(),
                         fully_qualified_constituent_types: vec![],
@@ -193,7 +190,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     ]));
                 },
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
-                    let mut elem_property_definition = PropertyDefinition {
+                    let elem_property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
                         original_type: return_type.fully_qualified_type.to_string(),
                         fully_qualified_constituent_types: vec![],

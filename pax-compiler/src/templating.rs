@@ -1,11 +1,13 @@
 
+#[allow(unused_imports)]
 use serde_derive::{Serialize, Deserialize};
+#[allow(unused_imports)]
 use serde_json;
 use include_dir::{include_dir, Dir};
-use tera::{Context, Tera};
-use std::collections::{HashMap, HashSet};
+use tera::{Tera};
+use std::collections::{HashMap};
 
-use crate::manifest::{ExpressionSpec, PropertyDefinition, EventDefinition};
+use crate::manifest::{ExpressionSpec, PropertyDefinition};
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 

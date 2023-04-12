@@ -2854,4 +2854,6 @@ where
 
 ```
 
-
+Update, Apr 12:  Decided to handle `range` and `vec` `PropertyInstance`s separately.
+See `TemplateArgsCodegenCartridgeRenderNodeLiteral` and its fields
+`repeat_source_expression_literal_vec` and `repeat_source_expression_literal_range`
