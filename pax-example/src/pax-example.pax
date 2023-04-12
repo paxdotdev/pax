@@ -5,7 +5,7 @@
             * Transform2D::align(50%, 50%)
             * Transform2D::rotate((i + 2) * rotation + ticks / 1000.0)
             * Transform2D::scale(0.75 + (i * rotation), 0.75 + (i * rotation))
-            * Transform2D::scale(1 - (rotation / 5), 1 - (rotation / 5))
+            * Transform2D::scale(1 - ((rotation / 5) + i / 1000.0), 1 - ((rotation / 5) + i / 1000.0))
             * Transform2D::scale(1 + heartbeat, 1 + heartbeat)
         } />
     }
