@@ -11,17 +11,11 @@ pub enum PropertiesCoproduct {
     Range_isize_(std::ops::Range<isize>),
 
     
-    Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
-    
     Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
-    HelloRGB(pax_example::pax_reexports::HelloRGB),
-    
-    Path(pax_example::pax_reexports::pax_std::primitives::Path),
+    PaxExample(pax_example::pax_reexports::PaxExample),
     
     Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
-    
-    Text(pax_example::pax_reexports::pax_std::primitives::Text),
     
 }
 
@@ -61,19 +55,13 @@ pub enum TypesCoproduct {
     
     VecLABR__f64RABR(Vec<pax_example::pax_reexports::f64>),
     
-    VecLABR__pax_stdCOCOtypesCOCOPathSegmentRABR(Vec<pax_example::pax_reexports::pax_std::types::PathSegment>),
-    
     Vec_Rc_PropertiesCoproduct___(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
     
     __f64(pax_example::pax_reexports::f64),
     
     __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
-    __pax_stdCOCOtypesCOCOFont(pax_example::pax_reexports::pax_std::types::Font),
-    
     __pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
-    
-    __stdCOCOstringCOCOString(pax_example::pax_reexports::std::string::String),
     
     __usize(pax_example::pax_reexports::usize),
     
