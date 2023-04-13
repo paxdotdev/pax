@@ -1,6 +1,8 @@
 # Pax  
 
-Pax is a user interface language and 2D layout engine.  Use Pax to develop cross-platform apps with Rust.
+Pax is a user interface language and 2D layout engine.
+
+Use Pax to build native apps and WebAssembly-powered Web apps with Rust.
 
 ## Example
 
@@ -17,7 +19,7 @@ use pax_std::forms::{Button, ArgsButtonSubmit};
 use pax_std::layout::{Stacker};
 
 /// Defines the Pax component `IncrementMe`, with template & settings specified in `increment-me.pax`.
-#[pax_component("increment-me.pax")] 
+#[pax_file("increment-me.pax")] 
 pub struct IncrementMe {
   pub num_clicks: Property<i64>
 }
@@ -37,20 +39,20 @@ impl IncrementMe {
 </Stacker>
 ```
 
-
 Any Pax component like the example above may be included inside other Pax components, or may be mounted as the root of a stand-alone app.
 
 See a more thorough, [running example](https://docs.pax.rs/intro-example.html).
 
+
 ## Features
 
- - **Fast** — 120fps animations enabled by native rendering and native runtimes for each supported platform
- - **Accessible** — Support for native screen readers for text & GUI elements, as well as SEO on the Web
- - **Lightweight** — Under 100kB baseline for WebAssembly binary 
+ - **Fast** — 120fps animations, compiles to machine code
+ - **Native** — Platform-native text, UI controls, and drawing APIs
+ - **Accessible** — Supports screen readers for native text & GUI elements, as well as SEO on the Web
+ - **Lightweight** — <100kB footprint baseline for WebAssembly binary. Zero Web tech in desktop & mobile builds. (no WebView, no JavaScript, no WebAssembly, no HTML or DOM: just native code.) 
  - **Declarative** UI language makes it easy to reason about complex scenes and GUIs, as well as build tooling that reads & writes Pax
- - **Expressive** — Free-form drawing and animation toolkit alongside GUI form elements and layouts
- - **Extensible** — UI component system built around Rust structs enables modular application building and publication of reusable components through cargo and crates.io.  Pax's standard library (`pax-std`) is a canonical example, including modular primitives like `<Group />`, drawing elements like `<Rectangle />`, form elements like `<Text />`, and layout elements like `<Stacker />`.
- - **Cross-platform** — Pax projects compiles through Rust into machine code, currently 1. a completely native Mac app (via LLVM, CoreGraphics, and SwiftUI) or 2. a Web app (via WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
+ - **Expressive** — Free-form drawing and animation toolkit, plus GUI form elements and responsive layouts.  Blur the lines between work & play, function & art.
+ - **Extensible** — UI component system built around Rust structs enables modular application building and publication of reusable components through cargo and crates.io.  Pax's standard library (`pax-std`) is a canonical example, publishing modular primitives like `<Group />`, drawing elements like `<Rectangle />`, form elements like `<Text />`, and layout elements like `<Stacker />`.
 
 
 ## Docs

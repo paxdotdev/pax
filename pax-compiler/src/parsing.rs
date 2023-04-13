@@ -536,7 +536,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     }
                 },
                 _ => {
-                    unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());;
+                    unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());
                 }
             };
 
