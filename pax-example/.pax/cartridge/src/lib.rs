@@ -38,13 +38,34 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     
-    //0 .. 60
+    //squares
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let squares = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+
+                
+
+                
+                    if let PropertiesCoproduct::PaxExample(p) = properties {
+                        
+                            p.squares.get().clone()
+                        
+                    } else {
+                        unreachable!("0")
+                    }
+                
+            };
         
 
         #[allow(unused_parens)]
-        TypesCoproduct::Range_isize_(
-            0 ..60
+        TypesCoproduct::Vec_Rc_PropertiesCoproduct___(
+            squares
         )
     }));
     
@@ -58,6 +79,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                     Rc::clone(&ec.stack_frame)
                 }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
+
+                
 
                 
                     if let PropertiesCoproduct::PaxExample(p) = properties {
@@ -79,13 +102,12 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 let properties = &*(*properties).borrow();
 
                 
+
+                
                     if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
                         
                             
-                                
-                                let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {i} else {unreachable!()};
-                                Numeric::from(unwrapped)
-                            
+                            Numeric::from(*i)
                         
 
                     } else {unreachable!()}
@@ -111,13 +133,12 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 let properties = &*(*properties).borrow();
 
                 
+
+                
                     if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
                         
                             
-                                
-                                let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {i} else {unreachable!()};
-                                Numeric::from(unwrapped)
-                            
+                            Numeric::from(*i)
                         
 
                     } else {unreachable!()}
@@ -131,6 +152,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                     Rc::clone(&ec.stack_frame)
                 }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
+
+                
 
                 
                     if let PropertiesCoproduct::PaxExample(p) = properties {
@@ -152,6 +175,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 let properties = &*(*properties).borrow();
 
                 
+
+                
                     if let PropertiesCoproduct::PaxExample(p) = properties {
                         
                             Numeric::from(p.ticks.get())
@@ -169,6 +194,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                     Rc::clone(&ec.stack_frame)
                 }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
+
+                
 
                 
                     if let PropertiesCoproduct::PaxExample(p) = properties {
@@ -310,8 +337,8 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     component_template: None,
     scroller_args: None,
     slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(0))),
+    repeat_source_expression_vec: Some(Box::new(PropertyExpression::new(0))),
+    repeat_source_expression_range: None,
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })

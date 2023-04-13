@@ -230,7 +230,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             // with further compiletime "reflection" magic
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
-                pascalized_return_type: return_type,
+                pascalized_return_type: return_type.pascalized_fully_qualified_type,
                 invocations,
                 output_statement,
                 input_statement: paxel,

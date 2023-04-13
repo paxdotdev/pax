@@ -19,6 +19,20 @@ impl PaxExample {
     pub fn handle_did_mount(&mut self) {
         pax::log("Mounted!");
         self.squares.set(vec![0.5, 1.5, 2.5, 3.5, 4.5]);
+        // self.squares.set(vec![
+        //     RectDef {
+        //         x: 0,
+        //         y: 0,
+        //         width: 100,
+        //         height: 100,
+        //     },
+        //     RectDef {
+        //         x: 300,
+        //         y: 150,
+        //         width: 500,
+        //         height: 250,
+        //     },
+        // ]);
     }
 
     pub fn handle_will_render(&mut self, args: ArgsRender) {
