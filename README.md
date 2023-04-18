@@ -107,19 +107,21 @@ at your option.
 Use `rustc` 1.65.0 via `rustup`
 
 
-### Environment setup, building for Web
-
-- Install `wasm-opt` via `binaryen`:
-   ```shell
-   brew install binaryen
-   ```
+### To build .pax => Web
 
 - Install 'wasm-pack' via:
    ```shell
     curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh 
    ```
 
-- Install `node`: https://nodejs.org/en/download/
+- Install `node` v14 LTS, recommended via [`nvm`](https://github.com/nvm-sh/nvm#installing-and-updating)
+  ```shell
+  # First install nvm
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+  # After restarting terminal:
+  nvm install 14
+  nvm use 14 --default
+  ```
 
 - Install `yarn`:
    ```shell
@@ -127,35 +129,27 @@ Use `rustc` 1.65.0 via `rustup`
   npm i --global yarn
    ```
 
-### Environment setup, building for macOS
+### To build .pax => macOS
 
 - Install xcode `>=14.3` and Xcode command line utils: `xcode-select --install`
 - SDK Version `macosx13.3`, Xcode version `>=14.3`
 - Current Minimum Deployment `13.0`
 
+
 ### Running Development Environment
 
 First, refer to [the latest project status](https://docs.pax.rs/status-sept-2022.html)
 
-The current leading edge of development is in the compiler —
-```
-cd pax-compiler
-./run-example.sh
-```
+Run `pax-example`:
 
-To run `pax-example`'s parser binary and print its output to stdout:
-```
+```shell
+# after cloning pax, from `pax/`
 cd pax-example
-cargo build --bin=parser --features=parser
+# the `./pax` shell script emulates the `pax` CLI for Pax monorepo development
+./pax run --target=macos # or --target=web 
 ```
 
-To run a full, compiled Pax example you must check out an older branch and run the demo there.  
-```
-git checkout jabberwocky-demo
-./run.sh # or ./run-web.sh
-```
-
-To initialize the docs submodule, for super-grep powers:
+To initialize the submodules, for super-grep powers:
 
 ```
 git submodule update --init --recursive
