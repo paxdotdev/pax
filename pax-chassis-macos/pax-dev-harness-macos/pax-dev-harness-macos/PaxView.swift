@@ -223,7 +223,7 @@ struct PaxView: View {
         
         override func scrollWheel(with event: NSEvent){
             let deltaX = event.scrollingDeltaX
-            let deltaY = event.scrollingDeltaY
+            let deltaY = -event.scrollingDeltaY
             let x = event.locationInWindow.x;
             let y = event.locationInWindow.y;
             let json = String(format: "{\"Scroll\": {\"x\": %f, \"y\": %f, \"delta_x\": %f, \"delta_y\": %f} }", x, y, deltaX, deltaY);
