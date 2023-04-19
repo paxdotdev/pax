@@ -1,19 +1,9 @@
-use std::cell::RefCell;
-use std::collections::{HashMap, HashSet};
-use std::{fs, env};
+use std::collections::{HashMap};
 use std::cmp::Ordering;
-use std::ops::RangeFrom;
-use std::path::{Components, Path, PathBuf};
-use std::rc::Rc;
-use pest::iterators::{Pair, Pairs};
-
-use uuid::Uuid;
-use pest::Parser;
 
 use serde_derive::{Serialize, Deserialize};
+#[allow(unused_imports)]
 use serde_json;
-use tera::Template;
-use wasm_bindgen::UnwrapThrowExt;
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
@@ -64,6 +54,11 @@ pub struct ExpressionSpec {
 
 }
 
+/// The spec of an expression `invocation`, the necessary configuration
+/// for initializing a pointer to (or copy of, in some cases) the data behind a symbol.
+/// For example, if an expression uses `i`, that `i` needs to be "invoked," bound dynamically
+/// to some data on the other side of `i` for the context of a particular expression.  `ExpressionSpecInvocation`
+/// holds the recipe for such an `invocation`, populated as a part of expression compilation.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct  ExpressionSpecInvocation {
     /// Identifier as authored, for example: `self.some_prop`
@@ -77,7 +72,7 @@ pub struct  ExpressionSpecInvocation {
     pub stack_offset: usize,
 
     /// Type of the containing Properties struct, for unwrapping from PropertiesCoproduct.  For example, `Foo` for `PropertiesCoproduct::Foo` or `RepeatItem` for PropertiesCoproduct::RepeatItem
-    pub properties_type: String,
+    pub properties_coproduct_type: String,
 
     /// For invocations that reference repeat elements, this is the enum identifier within
     /// the TypesCoproduct that represents the appropriate `datum_cast` type
@@ -87,9 +82,56 @@ pub struct  ExpressionSpecInvocation {
     pub is_repeat_elem: bool,
 
     /// Flag describing whether this invocation should be bound to the `i` in `(elem, i)`
-    pub is_repeat_index: bool,
+    pub is_repeat_i: bool,
+
+    /// Flags used for particular corner cases of `Repeat` codegen
+    pub is_numeric_property: bool,
+    pub is_iterable_numeric: bool,
+    pub is_iterable_primitive_nonnumeric: bool,
 }
 
+const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
+    "u8",
+    "u16",
+    "u32",
+    "u64",
+    "u128",
+    "usize",
+    "i8",
+    "i16",
+    "i32",
+    "i64",
+    "i128",
+    "isize",
+    "f64",
+];
+
+const SUPPORTED_NONNUMERIC_PRIMITIVES : [&str; 2] = [
+    "String",
+    "bool",
+];
+
+impl ExpressionSpecInvocation {
+    pub fn is_iterable_numeric(pascalized_iterable_type: &Option<String>) -> bool {
+        if let Some(pit) = &pascalized_iterable_type {
+            SUPPORTED_NUMERIC_PRIMITIVES.contains(&&**pit)
+        } else {
+            false
+        }
+    }
+
+    pub fn is_iterable_primitive_nonnumeric(pascalized_iterable_type: &Option<String>) -> bool {
+        if let Some(pit) = &pascalized_iterable_type {
+            SUPPORTED_NONNUMERIC_PRIMITIVES.contains(&&**pit)
+        } else {
+            false
+        }
+    }
+
+    pub fn is_numeric_property(properties_coproduct_type: &str) -> bool {
+        SUPPORTED_NUMERIC_PRIMITIVES.contains(&properties_coproduct_type)
+    }
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ComponentDefinition {
@@ -122,9 +164,11 @@ impl ComponentDefinition {
     }
 }
 
-
+/// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
+/// Each node in a template is represented by exactly one `TemplateNodeDefinition`, and this is a compile-time
+/// concern.  Note the difference between compile-time `definitions` and runtime `instances`.
+/// A compile-time `TemplateNodeDefinition` corresponds to a single runtime `RenderNode` instance.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
-//Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 pub struct TemplateNodeDefinition {
     /// Component-unique int ID.  Conventionally, id 0 will be the root node for a component's template
     pub id: usize,
@@ -150,6 +194,12 @@ pub struct PropertyDefinition {
     pub fully_qualified_constituent_types: Vec<String>,
     /// Store of fully qualified types that may be needed for expression vtable generation
     pub property_type_info: PropertyType,
+
+    ///Flags, used ultimately by ExpressionSpecInvocations, to denote
+    ///whether a property is the `i` or `elem` of a `Repeat`, which allows
+    ///for special-handling the codegen that invokes these values in expressions
+    pub is_repeat_i: bool,
+    pub is_repeat_elem: bool,
 }
 
 impl PropertyDefinition {
@@ -164,6 +214,8 @@ impl PropertyDefinition {
                 pascalized_fully_qualified_type: type_name.to_string(),
                 iterable_type: None,
             },
+            is_repeat_i: false,
+            is_repeat_elem: false,
         }
     }
 }
@@ -182,12 +234,37 @@ pub struct PropertyType {
 
 impl PropertyType {
     pub fn primitive(name: &str) -> Self {
-        PropertyType {
+        Self {
             pascalized_fully_qualified_type: name.to_string(),
             fully_qualified_type: name.to_string(),
             iterable_type: None,
         }
     }
+
+    pub fn builtin_vec_rc_properties_coproduct() -> Self {
+        Self {
+            fully_qualified_type: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
+            pascalized_fully_qualified_type: "Vec_Rc_PropertiesCoproduct___".to_string(),
+            iterable_type: Some(Box::new(Self::builtin_rc_properties_coproduct())),
+        }
+    }
+
+    pub fn builtin_range_isize() -> Self {
+        Self {
+            fully_qualified_type: "std::ops::Range<isize>".to_string(),
+            pascalized_fully_qualified_type: "Range_isize_".to_string(),
+            iterable_type: Some(Box::new(Self::primitive("isize"))),
+        }
+    }
+
+    pub fn builtin_rc_properties_coproduct() -> Self {
+        Self {
+            fully_qualified_type: "std::rc::Rc<PropertiesCoproduct>".to_string(),
+            pascalized_fully_qualified_type: "Rc_PropertiesCoproduct__".to_string(),
+            iterable_type: None
+        }
+    }
+
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
@@ -220,8 +297,8 @@ pub struct ControlFlowAttributeValueDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowRepeatSourceDefinition {
-    pub range_expression: Option<String>,
-    pub range_expression_vtable_id: Option<usize>,
+    pub range_expression_paxel: Option<String>,
+    pub vtable_id: Option<usize>,
     pub symbolic_binding: Option<String>,
 }
 #[derive(Serialize, Deserialize, Debug, Clone)]

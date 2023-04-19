@@ -3,10 +3,13 @@ use std::rc::Rc;
 
 #[repr(u32)]
 pub enum PropertiesCoproduct {
+    /* entries generated via properties-coproduct-lib.tera */
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
-    usize(usize), //used by Repeat with numeric ranges, like `for i in 0..5`
+    isize(isize),
+    Range_isize_(std::ops::Range<isize>),
+
     {% for properties_coproduct_tuple in properties_coproduct_tuples %}
     {{properties_coproduct_tuple.0}}({{properties_coproduct_tuple.1}}),
     {% endfor %}

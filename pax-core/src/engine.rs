@@ -134,7 +134,6 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
         indices
     }
 
-    //both Expressions and Timelines store their evaluators in the same vtable
     pub fn compute_vtable_value(&self, vtable_id: Option<usize>) -> Option<TypesCoproduct> {
 
         if let Some(id) = vtable_id {
@@ -155,9 +154,13 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsClick)>,
     pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
+    pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>)>,
     pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsScroll)>,
 }
 
+/// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
+/// a `for j in 0..4` would have 12 hydrated nodes representing the 12 virtual Rectangles in the
+/// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
 pub struct HydratedNode<R: 'static + RenderContext> {
     id_chain: Vec<u64>,
     parent_hydrated_node: Option<Rc<HydratedNode<R>>>,
@@ -311,7 +314,16 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //populate a pointer to this (current) `RenderNode` onto `rtc`
         rtc.node = Rc::clone(&node);
 
-        //fire mount event if this is this node's first frame
+
+        //lifecycle: compute_properties happens before rendering
+        node.borrow_mut().compute_properties(rtc);
+        let accumulated_transform = rtc.transform;
+        let accumulated_bounds = rtc.bounds;
+
+
+        //fire `did_mount` event if this is this node's first frame
+        //Note that this must happen after initial `compute_properties`, which performs the
+        //necessary side-effect of creating the `self` that must be passed to handlers
         {
             let id = (*rtc.node).borrow().get_instance_id();
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
@@ -319,12 +331,30 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
             let repeat_indices = (*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack();
             if !instance_registry.is_mounted(id, repeat_indices.clone()) {
+                //Fire primitive-level did_mount lifecycle method
                 node.borrow_mut().handle_did_mount(rtc);
+
+                //Fire registered did_mount events
+                let registry = (*node).borrow().get_handler_registry();
+                if let Some(registry) = registry {
+                    //grab Rc of properties from stack frame; pass to type-specific handler
+                    //on instance in order to dispatch cartridge method
+                    match rtc.runtime.borrow_mut().peek_stack_frame() {
+                        Some(stack_frame) => {
+                            for handler in (*registry).borrow().did_mount_handlers.iter() {
+                                // let args = ArgsRender { bounds: rtc.bounds.clone(), frames_elapsed: rtc.engine.frames_elapsed };
+                                handler(stack_frame.borrow_mut().get_properties());
+                            }
+                        },
+                        None => {
+
+                        },
+                    }
+                }
                 instance_registry.mark_mounted(id, repeat_indices.clone());
             }
         }
 
-        //the "current component" will actually push its stack frame.)
         //peek at the current stack frame and set a scoped playhead position as needed
         match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
@@ -332,11 +362,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             },
             None => ()
         }
-
-        //lifecycle: compute_properties happens before rendering
-        node.borrow_mut().compute_properties(rtc);
-        let accumulated_transform = rtc.transform;
-        let accumulated_bounds = rtc.bounds;
 
         //get the size of this node (calc'd or otherwise) and use
         //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
@@ -366,7 +391,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //lifecycle: will_render for primitives
         node.borrow_mut().handle_will_render(rtc, rc);
 
-        //Fire userland `pax_on(PreRender)` handlers
+        //fire `will_render` handlers
         let registry = (*node).borrow().get_handler_registry();
         if let Some(registry) = registry {
             //grab Rc of properties from stack frame; pass to type-specific handler
@@ -384,8 +409,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             }
         }
 
+        //create the `hydrated_node` for the current node
         let children = node.borrow_mut().get_rendering_children();
-
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
         let hydrated_node = Rc::new(HydratedNode {
             stack_frame: rtc.runtime.borrow_mut().peek_stack_frame().unwrap(),
