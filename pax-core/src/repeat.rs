@@ -2,6 +2,7 @@ use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::collections::HashMap;
+use std::ops::Deref;
 
 
 use piet_common::RenderContext;
@@ -18,11 +19,13 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub instance_id: u64,
     pub repeated_template: RenderNodePtrList<R>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub source_expression: Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>,
+    pub source_expression_vec: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
+    pub source_expression_range: Option<Box<dyn PropertyInstance<std::ops::Range<isize>>>>,
     pub virtual_children: RenderNodePtrList<R>,
-
+    /// Used for hacked dirty-checking, in the absence of our centralized dirty-checker
+    cached_old_value_vec: Option<Vec<Rc<PropertiesCoproduct>>>,
+    cached_old_value_range: Option<std::ops::Range<isize>>,
 }
-
 
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
@@ -41,9 +44,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 Some(children) => children
             },
             transform: args.transform,
-            source_expression: args.repeat_source_expression.unwrap(),
+            source_expression_vec: args.repeat_source_expression_vec,
+            source_expression_range: args.repeat_source_expression_range,
             virtual_children: Rc::new(RefCell::new(vec![])),
-
+            cached_old_value_vec: None,
+            cached_old_value_range: None,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -52,38 +57,40 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
-        let mut is_dirty : bool;
+        let is_initialized =
+            (if let Some(_) = self.cached_old_value_vec {true} else {false})
+            || (if let Some(_) = self.cached_old_value_range {true} else {false});
 
-        if let Some(source_expression) = rtc.compute_vtable_value(self.source_expression._get_vtable_id()) {
-            let old_value = self.source_expression.get().clone();
-            let new_value = if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(v) = source_expression { v } else { unreachable!() };
+        let (is_dirty, normalized_vec_of_props) = if let Some(se) = &self.source_expression_vec {
+            //Handle case where the source expression is a Vec<Property<T>>,
+            // like `for elem in self.data_list`
+            let new_value = if let Some(tc) = rtc.compute_vtable_value(se._get_vtable_id().clone()) {
+                if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(vec) = tc { vec } else { unreachable!() }
+            } else {
+                se.get().clone()
+            };
 
-            //if the vec lengths differ, we know there are changes.  If the lengths are the same, then we check each element pairwise for ptr equality.
-            is_dirty =
-                old_value.len() != new_value.len() ||
-                {
-                    let mut all_equal = true;
-                    old_value.iter().enumerate().for_each(|(i, ov)| {
-                        all_equal = all_equal && Rc::ptr_eq(ov, &new_value[i]);
-                    });
-                    !all_equal
-                };
+            //Vec: piecewise eq check, assume (or enforce) Vec<T: Eq>
+            let is_dirty = !is_initialized || new_value.len() != self.cached_old_value_vec.as_ref().unwrap().len() || //short-circuit len check
+                new_value.iter().enumerate().any(|(i,e)|{
+                    !Rc::ptr_eq(e, self.cached_old_value_vec.as_ref().unwrap().get(i).unwrap())
+                });
+            self.cached_old_value_vec = Some(new_value.clone());
+            (is_dirty, new_value)
+        } else if let Some(se) = &self.source_expression_range {
+            //Handle case where the source expression is a Range,
+            // like `for i in 0..5`
+            let new_value = if let Some(tc) = rtc.compute_vtable_value(se._get_vtable_id().clone()) {
+                if let TypesCoproduct::Range_isize_(vec) = tc { vec } else { unreachable!() }
+            } else { unreachable!() };
 
-
-            //NOTE: this hacked dirty-check shouldn't be necessary once we have more robust dependency-DAG dirty-checking for expressions
-            if is_dirty {
-                self.source_expression.set(new_value);
-            }
-        } else {
-            //NOTE: probably need better dirty-checking for PropertyLiteral; might be able to
-            //      patch into dirty-watching system
-            is_dirty = self.source_expression.get().len() != (*self.virtual_children).borrow().len();
-        }
+            let is_dirty = !is_initialized || self.cached_old_value_range.as_ref().unwrap() != &new_value;
+            self.cached_old_value_range = Some(new_value.clone());
+            let normalized_vec_of_props = new_value.into_iter().enumerate().map(|(i, elem)|{Rc::new(PropertiesCoproduct::isize(elem))}).collect();
+            (is_dirty, normalized_vec_of_props)
+        } else {unreachable!()};
 
         if is_dirty {
-
-            // pax_runtime_api::log("CHANGES TO DATA LIST!");
-
             //Any stated children (repeat template members) of Repeat should be forwarded to the `RepeatItem`-wrapped `ComponentInstance`s
             //so that `Slot` works as expected
             let forwarded_children = match (*rtc.runtime).borrow_mut().peek_stack_frame() {
@@ -103,7 +110,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             //wrap source_expression into `RepeatItems`, which attach
             //the necessary data as stack frame context
             self.virtual_children = Rc::new(RefCell::new(
-                self.source_expression.get().iter().enumerate().map(|(i, datum)| {
+                normalized_vec_of_props.iter().enumerate().map(|(i, datum)| {
                     let instance_id = instance_registry.mint_id();
 
                     let render_node : RenderNodePtr<R> = Rc::new(RefCell::new(

@@ -2821,3 +2821,39 @@ ended up pulling back and dropping this lab journal entry instead.)
 - run `rustup target add x86_64-apple-darwin`
 - install cargo-lipo with `cargo install cargo-lipo` (needed for cross-architecture builds, `x86_64` and `aarch64`)
 ```
+
+
+## Lab journal, Mar 21 2023
+
+On Range, Repeat, and Vec
+
+Repeat Data Source is handled as an expression, e.g. `self.some_vec` or a range `0..5`/`0..self.max`
+
+That expression currently returns a `Vec<PropertiesCoproduct>`, which is used by `Repeat` to iterate and attach (a copy of) that
+PropertiesCoproduct to each stack frame, binding `elem` and `i` for use in expressions within the scope of that Repeat (child / desc. elements)
+
+1. _Probably_, inside Repeat, we should deal with an `dyn Iterator` instead o `Vec`.  This will allow us to return a bare range from range expressions, instead of hacking + repackaging into a Vec
+
+Problem:  
+In practice, this looks like:
+```
+pub source_expression: Box<dyn PropertyInstance<Box<dyn Iterator<Item = Rc<PropertiesCoproduct>>>>>,
+```
+
+Because it's a `PropertyInstance<T>`, `T` must implement `Default`.  
+
+
+Ex. of accepting
+```
+fn find_min<'a, I>(vals: I) -> Option<&'a u32>
+where
+    I: IntoIterator<Item = &'a u32>,
+{
+    vals.into_iter().min()
+}
+
+```
+
+Update, Apr 12:  Decided to handle `range` and `vec` `PropertyInstance`s separately.
+See `TemplateArgsCodegenCartridgeRenderNodeLiteral` and its fields
+`repeat_source_expression_literal_vec` and `repeat_source_expression_literal_range`

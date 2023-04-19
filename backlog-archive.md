@@ -760,6 +760,5 @@ graphical user interfaces
 ```
 
 
-
-<img src="pax-compiler/pax-compiler-sequence-diagram.png" />
-<img src="pax-dependency-graph.png" />
+<img src="compiler-sequence.png" />
+<img src="runtime-arch.png" />

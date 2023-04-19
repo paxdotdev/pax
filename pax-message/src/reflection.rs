@@ -24,37 +24,43 @@ pub trait PathQualifiable {
 // }
 
 impl PathQualifiable for usize {
-    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
+    fn get_fully_qualified_path(_: &str) -> String {
         "usize".to_string()
     }
 }
 
 impl PathQualifiable for f64 {
-    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
+    fn get_fully_qualified_path(_: &str) -> String {
         "f64".to_string()
     }
 }
 
+impl PathQualifiable for bool {
+    fn get_fully_qualified_path(_: &str) -> String {
+        "bool".to_string()
+    }
+}
+
 impl PathQualifiable for i64 {
-    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
+    fn get_fully_qualified_path(_: &str) -> String {
         "i64".to_string()
     }
 }
 
 impl PathQualifiable for std::string::String {
-    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
+    fn get_fully_qualified_path(_: &str) -> String {
         "std::string::String".to_string()
     }
 }
 
 impl<T> PathQualifiable for std::rc::Rc<T> {
-    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
+    fn get_fully_qualified_path(_: &str) -> String {
         "std::rc::Rc".to_string()
     }
 }
 
 impl<T> PathQualifiable for std::vec::Vec<T> {
-    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
+    fn get_fully_qualified_path(_: &str) -> String {
         "std::vec::Vec".to_string()
     }
 }

@@ -1,9 +1,9 @@
 #!/bin/bash
 
 # Expects args:
-# 1: VERBOSE ∈ {"true" | "false"}
-# 2: EXCLUDE_ARCHS ∈ {"arm64" | "x86_64"}
-# 3: SHOULD_ALSO_RUN ∈ {"true" | "false"}
+# 1: VERBOSE ∈ {"true" , "false"}
+# 2: EXCLUDE_ARCHS ∈ {"arm64" , "x86_64"}
+# 3: SHOULD_ALSO_RUN ∈ {"true" , "false"}
 # 4: OUTPUT_PATH : output directory for build
 VERBOSE=$1
 EXCLUDE_ARCHS=$2
@@ -30,10 +30,10 @@ else
 fi
 
 # Clear old build and move to output directory
-rm -rf $OUTPUT_PATH
-mkdir -p $OUTPUT_PATH
-cp -r "build/PaxDevHarnessMacos.xcarchive/Products/Applications/Pax macOS.app" $OUTPUT_PATH
-cd $OUTPUT_PATH
+rm -rf "$OUTPUT_PATH"
+mkdir -p "$OUTPUT_PATH"
+cp -r "build/PaxDevHarnessMacos.xcarchive/Products/Applications/Pax macOS.app" "$OUTPUT_PATH"
+cd "$OUTPUT_PATH"
 
 if [ "$SHOULD_ALSO_RUN" == "true" ]; then
   # Run

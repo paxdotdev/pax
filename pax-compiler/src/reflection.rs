@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use futures::stream::iter;
 use crate::manifest::PropertyType;
 
 
@@ -41,7 +40,6 @@ pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_f
         fully_qualified_type.clone().match_indices(key).for_each(|i|{
             if i.0 < 2 || {let maybe_coco : String = fully_qualified_type.chars().skip((i.0 as i64) as usize - 2).take(2).collect(); maybe_coco != "::" } {
                 let new_value = "{PREFIX}".to_string() + &dep_to_fqd_map.get(key).unwrap();
-                let length_difference: i64 = new_value.len() as i64 - key.len() as i64;
                 let starting_index : i64 = i.0 as i64;
                 let end_index_exclusive = starting_index + key.len() as i64;
                 fully_qualified_type.replace_range(starting_index as usize..end_index_exclusive as usize, &new_value);

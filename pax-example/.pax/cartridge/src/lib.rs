@@ -20,9 +20,15 @@ use pax_example::pax_reexports::pax_std::types::Color;
 
 use pax_example::pax_reexports::pax_std::types::Stroke;
 
-use pax_example::pax_reexports::HelloRGB;
+use pax_example::pax_reexports::std::vec::Vec;
 
-use pax_example::pax_reexports::pax_std::primitives::Ellipse;
+use pax_example::pax_reexports::usize;
+
+use pax_example::pax_reexports::PaxExample;
+
+use pax_example::pax_reexports::pax_std::primitives::Group;
+
+use pax_example::pax_reexports::pax_std::primitives::Rectangle;
 
 
 //pull in entire const token stream here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
@@ -32,20 +38,39 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     
-    //Color::rgb(0.5,0,1)
+    //0 .. 60
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((Numeric::from(0.5)),(Numeric::from(0)),(Numeric::from(1)),)
+        TypesCoproduct::Range_isize_(
+            0 ..60
         )
     }));
     
-    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
+    //Color::hlc(ticks+i*360.0/30.0,75.0,150.0)
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
-            let rotation = {
+            let ticks = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+
+                
+                    if let PropertiesCoproduct::PaxExample(p) = properties {
+                        
+                            Numeric::from(p.ticks.get())
+                        
+                    } else {
+                        unreachable!("1")
+                    }
+                
+            };
+        
+            let i = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(0) {
                     Rc::clone(&sf)
                 } else {
@@ -53,19 +78,113 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
 
-                if let PropertiesCoproduct::HelloRGB(p) = properties {
-                    
-                    *p.rotation.get()
-                    
+                
+                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
+                        
+                            
+                                
+                                let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {i} else {unreachable!()};
+                                Numeric::from(unwrapped)
+                            
+                        
+
+                    } else {unreachable!()}
+                
+            };
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::hlc(((ticks +((i *(Numeric::from(360.0 )).into())/Numeric::from(30.0)))),(Numeric::from(75.0)),(Numeric::from(150.0)),)
+        )
+    }));
+    
+    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)*Transform2D::rotate((i+2)*rotation+ticks/1000.0)*Transform2D::scale(0.75+(i*rotation),0.75+(i*rotation))*Transform2D::scale(1-((rotation/5)+i/1000.0),1-((rotation/5)+i/1000.0))*Transform2D::scale(1+heartbeat,1+heartbeat)
+    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let i = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(0) {
+                    Rc::clone(&sf)
                 } else {
-                    unreachable!("1")
-                }
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+
+                
+                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
+                        
+                            
+                                
+                                let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {i} else {unreachable!()};
+                                Numeric::from(unwrapped)
+                            
+                        
+
+                    } else {unreachable!()}
+                
+            };
+        
+            let rotation = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+
+                
+                    if let PropertiesCoproduct::PaxExample(p) = properties {
+                        
+                            Numeric::from(p.rotation.get())
+                        
+                    } else {
+                        unreachable!("2")
+                    }
+                
+            };
+        
+            let ticks = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+
+                
+                    if let PropertiesCoproduct::PaxExample(p) = properties {
+                        
+                            Numeric::from(p.ticks.get())
+                        
+                    } else {
+                        unreachable!("2")
+                    }
+                
+            };
+        
+            let heartbeat = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+
+                
+                    if let PropertiesCoproduct::PaxExample(p) = properties {
+                        
+                            Numeric::from(p.heartbeat.get())
+                        
+                    } else {
+                        unreachable!("2")
+                    }
+                
             };
         
 
         #[allow(unused_parens)]
         TypesCoproduct::Transform2D(
-            ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),))*Transform2D::rotate(((rotation).into()),))
+            (((((Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())*(Transform2D::rotate(((((i +Numeric::from(2))*(rotation ).into())+(ticks /Numeric::from(1000.0)))),)).into())*(Transform2D::scale(((Numeric::from(0.75)+(i *(rotation).into()))),((Numeric::from(0.75)+(i *(rotation).into()))),)).into())*(Transform2D::scale(((Numeric::from(1 )-((rotation /Numeric::from(5))+(i /Numeric::from(1000.0))))),((Numeric::from(1 )-((rotation /Numeric::from(5))+(i /Numeric::from(1000.0))))),)).into())*(Transform2D::scale(((Numeric::from(1 )+heartbeat)),((Numeric::from(1 )+heartbeat)),)).into())
         )
     }));
     
@@ -78,11 +197,24 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     
 pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     ComponentInstance::instantiate( InstantiationArgs{
-        properties: PropertiesCoproduct::HelloRGB( HelloRGB::default() ),
+        properties: PropertiesCoproduct::PaxExample( PaxExample::default() ),
         handler_registry:  Some(Rc::new(RefCell::new(
                                                      HandlerRegistry {
                                                          click_handlers: vec![],
-                                                         will_render_handlers: vec![],
+                                                         will_render_handlers: vec![
+                                                                     |properties, args|{
+                                                                         let properties = &mut *properties.as_ref().borrow_mut();
+                                                                         let properties = if let PropertiesCoproduct::PaxExample(p) = properties {p} else {unreachable!()};
+                                                                         PaxExample::handle_will_render(properties,args);
+                                                                     },
+                                                                 ],
+                                                         did_mount_handlers: vec![
+                                                                      |properties|{
+                                                                          let properties = &mut *properties.as_ref().borrow_mut();
+                                                                          let properties = if let PropertiesCoproduct::PaxExample(p) = properties {p} else {unreachable!()};
+                                                                          PaxExample::handle_did_mount(properties);
+                                                                      },
+                                                                  ],
                                                          scroll_handlers: vec![],
                                                      }
                                                  ))),
@@ -92,36 +224,74 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
         children: None,
         component_template: Some(Rc::new(RefCell::new(vec![
 
-pax_std_primitives::ellipse::EllipseInstance::instantiate(
+pax_std_primitives::group::GroupInstance::instantiate(
  InstantiationArgs {
-    properties: PropertiesCoproduct::Ellipse( Ellipse {
-        
-            stroke: Box::new( PropertyLiteral::new(Default::default()) ),
-        
-            fill: Box::new( PropertyExpression::new(0) ),
+    properties: PropertiesCoproduct::Group( Group {
         
     }),
     handler_registry:  Some(Rc::new(RefCell::new(
                                                  HandlerRegistry {
-                                                     click_handlers: vec![|stack_frame, args|{
-                                                                    let properties = (*stack_frame).borrow().get_properties();
-                                                                    let properties = &mut *properties.as_ref().borrow_mut();
-                                                                    let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
-                                                                    HelloRGB::handle_click(properties,args);
-                                                                },],
+                                                     click_handlers: vec![],
                                                      will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
                                                      scroll_handlers: vec![|stack_frame, args|{
                                                                      let properties = (*stack_frame).borrow().get_properties();
                                                                      let properties = &mut *properties.as_ref().borrow_mut();
-                                                                     let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
-                                                                     HelloRGB::handle_scroll(properties,args);
+                                                                     let properties = if let PropertiesCoproduct::PaxExample(p) = properties {p} else {unreachable!()};
+                                                                     PaxExample::handle_scroll(properties,args);
                                                                  },],
                                                  }
                                              ))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(1))),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
     size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Percent(33.33.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
+        [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+            
+
+RepeatInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::None,
+    handler_registry:  Some(Rc::new(RefCell::new(
+                                                 HandlerRegistry {
+                                                     click_handlers: vec![],
+                                                     will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
+                                                     scroll_handlers: vec![],
+                                                 }
+                                             ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+            
+
+pax_std_primitives::rectangle::RectangleInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::Rectangle( Rectangle {
+        
+            stroke: Box::new( PropertyLiteral::new(Default::default()) ),
+        
+            fill: Box::new( PropertyExpression::new(1) ),
+        
+    }),
+    handler_registry:  Some(Rc::new(RefCell::new(
+                                                 HandlerRegistry {
+                                                     click_handlers: vec![],
+                                                     will_render_handlers: vec![],
+                                                     did_mount_handlers: vec![],
+                                                     scroll_handlers: vec![],
+                                                 }
+                                             ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(2))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
     ))),
     children: Some(Rc::new(RefCell::new(vec![
         
@@ -129,19 +299,42 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
     component_template: None,
     scroller_args: None,
     slot_index: None,
-    repeat_source_expression: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
-
+,
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(0))),
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
 ]))),
         scroller_args: None,
         slot_index: None,
-        repeat_source_expression: None,
+        repeat_source_expression_vec: None,
+        repeat_source_expression_range: None,
         conditional_boolean_expression: None,
         compute_properties_fn: Some(Box::new(|properties, rtc|{
             let properties = &mut *properties.as_ref().borrow_mut();
-            let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
+            let properties = if let PropertiesCoproduct::PaxExample(p) = properties {p} else {unreachable!()};
 
             
             if let Some(new_value) = rtc.compute_eased_value(properties.rotation._get_transition_manager()) {
@@ -149,6 +342,27 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
             } else if let Some(new_value) = rtc.compute_vtable_value(properties.rotation._get_vtable_id()) {
             let new_value = if let TypesCoproduct::__f64(v) = new_value { v } else { unreachable!() };
             properties.rotation.set(new_value);
+            }
+            
+            if let Some(new_value) = rtc.compute_eased_value(properties.ticks._get_transition_manager()) {
+            properties.ticks.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.ticks._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::__usize(v) = new_value { v } else { unreachable!() };
+            properties.ticks.set(new_value);
+            }
+            
+            if let Some(new_value) = rtc.compute_eased_value(properties.heartbeat._get_transition_manager()) {
+            properties.heartbeat.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.heartbeat._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::__f64(v) = new_value { v } else { unreachable!() };
+            properties.heartbeat.set(new_value);
+            }
+            
+            if let Some(new_value) = rtc.compute_eased_value(properties.squares._get_transition_manager()) {
+            properties.squares.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.squares._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::VecLABR__f64RABR(v) = new_value { v } else { unreachable!() };
+            properties.squares.set(new_value);
             }
             
         })),

@@ -3,36 +3,38 @@ use pax::*;
 use pax_std::components::Stacker;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
-
-#[pax_app(
-    <Ellipse @scroll=self.handle_scroll @click=self.handle_click fill={Color::rgb(0.5,0,1)} width=33.33% height=100% transform={
-        Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(rotation)
-    } />
-
-    @events {
-            Click: [self.handle_global_click],
-            Scroll: self.handle_global_scroll,
-    }
-)]
-pub struct HelloRGB {
+#[pax_file("pax-example.pax")]
+pub struct PaxExample {
     pub rotation: Property<f64>,
+    pub ticks: Property<usize>,
+    pub heartbeat: Property<f64>,
+    pub squares: Property<Vec<f64>>,
 }
 
-impl HelloRGB {
-    pub fn handle_click(&mut self, args: ArgsClick) {
-        log("click-ellipse");
+const ROTATION_COEFFICIENT: f64 = 0.00010;
+const HEARTBEAT_AMPLITUDE: f64 = 1.15;
+
+impl PaxExample {
+
+    pub fn handle_did_mount(&mut self) {
+        pax::log("Mounted!");
+        self.squares.set(vec![0.5, 1.5, 2.5, 3.5, 4.5]);
     }
+
+    pub fn handle_will_render(&mut self, args: ArgsRender) {
+        self.ticks.set(args.frames_elapsed);
+        if args.frames_elapsed % 260 == 0 {
+            pax::log("heartbeat");
+            // self.heartbeat.ease_to(HEARTBEAT_AMPLITUDE, 40, EasingCurve::OutBack);
+            // self.heartbeat.ease_to_later(-HEARTBEAT_AMPLITUDE / 2.0, 50, EasingCurve::OutBack);
+            // self.heartbeat.ease_to_later(0.0, 70, EasingCurve::OutBack);
+        }
+    }
+
     pub fn handle_scroll(&mut self, args: ArgsScroll) {
-        const ROTATION_COEFFICIENT: f64 = 0.005;
         let old_t = self.rotation.get();
-        let new_t = old_t + args.delta_y * ROTATION_COEFFICIENT;
-        self.rotation.set(new_t);
-    }
-    pub fn handle_global_click(&mut self, args: ArgsClick) {
-        log("click-anywhere");
-    }
-    pub fn handle_global_scroll(&mut self, args: ArgsScroll) {
-        log("scroll-anywhere");
+        let new_t = old_t - args.delta_y * ROTATION_COEFFICIENT;
+        self.rotation.set(f64::max(0.0,new_t));
     }
 }
 
