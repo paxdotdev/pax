@@ -19,11 +19,11 @@ use itertools::Itertools;
 use std::os::unix::fs::PermissionsExt;
 
 use include_dir::{Dir, DirEntry, include_dir};
-use toml_edit::{Document, Item, value};
+use toml_edit::{Document, Item, value, Value};
 use std::path::{Component, Path, PathBuf};
 use std::process::{Command, Output};
 use std::time::Duration;
-use crate::manifest::{AttributeValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition};
+use crate::manifest::{LiteralBlockDefinition, ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition, SettingsSelectorBlockDefinition};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
 //relative to pax_dir
@@ -371,17 +371,91 @@ fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) 
     children_literal.join(",")
 }
 
-fn generate_binded_events(inline_attributes : Option<Vec<(String, AttributeValueDefinition)>>) -> HashMap<String, String> {
+fn generate_binded_events(inline_attributes : Option<Vec<(String, ValueDefinition)>>) -> HashMap<String, String> {
     let mut ret: HashMap<String, String> = HashMap::new();
      if let Some(ref attributes) = inline_attributes {
         for (key, value) in attributes.iter() {
-            if let AttributeValueDefinition::EventBindingTarget(s) = value {
+            if let ValueDefinition::EventBindingTarget(s) = value {
                 ret.insert(key.clone().to_string(), s.clone().to_string());
             };
         };
     };
     ret
 }
+
+fn pull_matched_identifiers_from_inline(inline_attributes: &Option<Vec<(String, ValueDefinition)>>, s: String) -> Vec<String>{
+    let mut ret = Vec::new();
+    if let Some(val) = inline_attributes {
+        for (_,matched) in val.iter().filter(|avd| avd.0 == s.as_str()){
+            match matched {
+                ValueDefinition::Identifier(s, _) => {
+                    ret.push(s.clone())
+                }
+                _ => {}
+            };
+        }
+        }
+    ret
+}
+
+fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefinition>>, selector: String) -> Option<Vec<(String, ValueDefinition)>> { ;
+    if let Some(val) = settings {
+        let merged_settings : Vec<(String, ValueDefinition)> = val.iter().filter(|block| { block.selector == selector })
+            .map(|block| { block.value_block.settings_key_value_pairs.clone()}).flatten().clone().collect();
+        if merged_settings.len() > 0 {Some(merged_settings)} else {None}
+    } else {
+        None
+    }
+}
+
+
+
+fn merge_inline_with_settings(inline_attributes: &Option<Vec<(String, ValueDefinition)>>, settings: &Option<Vec<SettingsSelectorBlockDefinition>>) -> Vec<(String, ValueDefinition)> {
+
+    // collect id settings
+    let ids = pull_matched_identifiers_from_inline(&inline_attributes, "id".to_string());
+
+    let mut id_settings = Vec::new();
+    if ids.len() == 1{
+        if let Some(settings) = pull_settings_with_selector(&settings, format!("#{}", ids[0])) {
+            id_settings.extend(settings.clone());
+        }
+    } else if ids.len() > 1 {
+        panic!("Specified more than one id inline!");
+    }
+
+    // collect all class settings
+    let classes = pull_matched_identifiers_from_inline(&inline_attributes, "class".to_string());
+
+    let mut class_settings = Vec::new();
+    for class in classes {
+        if let Some(settings )= pull_settings_with_selector(&settings, format!(".{}", class)){
+            class_settings.extend(settings.clone());
+        }
+    }
+
+
+    let mut map = HashMap::new();
+
+    // Iterate in reverse order of priority (class, then id, then inline)
+    for (key, value) in class_settings.into_iter() {
+        map.insert(key, value);
+    }
+
+    for (key, value) in id_settings.into_iter() {
+        map.insert(key,value);
+    }
+
+    if let Some(inline) = inline_attributes.clone()  {
+        for (key, value) in inline.into_iter() {
+            map.insert(key,value);
+        }
+    }
+
+    // Convert the merged HashMap back to a Vec of tuples
+    map.into_iter().collect()
+}
+
 
 fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tnd: &TemplateNodeDefinition) -> String {
     //first recurse, populating children_literal : Vec<String>
@@ -457,6 +531,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //Handle anything that's not a built-in
 
         let component_for_current_node = rngc.components.get(&tnd.component_id).unwrap();
+        let merged = merge_inline_with_settings(&tnd.inline_attributes, &rngc.active_component_definition.settings);
 
         //Properties:
         //  - for each property on cfcn, there will either be:
@@ -470,14 +545,14 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
         let property_ril_tuples: Vec<(String, String)> = component_for_current_node.property_definitions.iter().map(|pd| {
             let ril_literal_string = {
-                if let Some(val) = &tnd.inline_attributes {
-                    if let Some(matched_attribute) = val.iter().find(|avd| { avd.0 == pd.name }) {
+                if merged.len() > 0 {
+                    if let Some(matched_attribute) = merged.iter().find(|avd| { avd.0 == pd.name }) {
                         match &matched_attribute.1 {
-                            AttributeValueDefinition::LiteralValue(lv) => {
+                            ValueDefinition::LiteralValue(lv) => {
                                 format!("PropertyLiteral::new({})", lv)
                             },
-                            AttributeValueDefinition::Expression(_, id) |
-                            AttributeValueDefinition::Identifier(_, id) => {
+                            ValueDefinition::Expression(_, id) |
+                            ValueDefinition::Identifier(_, id) => {
                                 format!("PropertyExpression::new({})", id.expect("Tried to use expression but it wasn't compiled"))
                             },
                             _ => {
@@ -499,14 +574,14 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //handle size: "width" and "height"
         let keys = ["width", "height", "transform"];
         let builtins_ril: Vec<String> = keys.iter().map(|builtin_key| {
-            if let Some(val) = &tnd.inline_attributes {
-                if let Some(matched_attribute) = val.iter().find(|avd| { avd.0 == *builtin_key }) {
+            if merged.len() > 0 {
+                if let Some(matched_attribute) = merged.iter().find(|avd| { avd.0 == *builtin_key }) {
                     match &matched_attribute.1 {
-                        AttributeValueDefinition::LiteralValue(lv) => {
+                        ValueDefinition::LiteralValue(lv) => {
                             format!("PropertyLiteral::new({})", lv)
                         },
-                        AttributeValueDefinition::Expression(_, id) |
-                        AttributeValueDefinition::Identifier(_, id) => {
+                        ValueDefinition::Expression(_, id) |
+                        ValueDefinition::Identifier(_, id) => {
                             format!("PropertyExpression::new({})", id.expect("Tried to use expression but it wasn't compiled"))
                         },
                         _ => {
@@ -876,7 +951,6 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
 
     let out = String::from_utf8(output.stdout).unwrap();
     let mut manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
-
     let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_property_prefixes_in_place(&mut manifest, &host_crate_info);

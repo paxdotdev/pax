@@ -135,7 +135,7 @@ pub struct TemplateNodeDefinition {
     /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
     pub control_flow_attributes: Option<ControlFlowAttributeValueDefinition>,
     /// IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)
-    pub inline_attributes: Option<Vec<(String, AttributeValueDefinition)>>,
+    pub inline_attributes: Option<Vec<(String, ValueDefinition)>>,
     /// e.g. the `SomeName` in `<SomeName some_key="some_value" />`
     pub pascal_identifier: String,
 }
@@ -191,10 +191,11 @@ impl PropertyType {
 }
 
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
-pub enum AttributeValueDefinition {
+pub enum ValueDefinition {
     #[default]
     Undefined, //Used for `Default`
     LiteralValue(String),
+    Block(LiteralBlockDefinition),
     /// (Expression contents, vtable id binding)
     Expression(String, Option<usize>),
     /// (Expression contents, vtable id binding)
@@ -227,29 +228,13 @@ pub struct ControlFlowRepeatSourceDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SettingsSelectorBlockDefinition {
     pub selector: String,
-    pub value_block: SettingsLiteralBlockDefinition,
+    pub value_block: LiteralBlockDefinition,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct SettingsLiteralBlockDefinition {
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<String>,
-    pub settings_key_value_pairs: Vec<(String, SettingsValueDefinition)>,
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum SettingsValueDefinition {
-    Literal(SettingsLiteralValue),
-    Expression(String),
-    Enum(String),
-    Block(SettingsLiteralBlockDefinition),
-}
-
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub enum SettingsLiteralValue {
-    LiteralNumberWithUnit(Number, Unit),
-    LiteralNumber(Number),
-    LiteralArray(Vec<SettingsLiteralValue>),
-    String(String),
+    pub settings_key_value_pairs: Vec<(String, ValueDefinition)>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -22,7 +22,7 @@ pest = "2.4.1"
 pest_derive = "2.4.1"
 itertools = "0.10.5"
 include_dir = {version = "0.7.3", features = ["glob"]}
-serde_derive = "1"
+serde_derive = "1.0.159"
 toml_edit = "0.14.4"
 lazy_static = "1.4.0"
 tera = "1"
@@ -30,8 +30,8 @@ colored = "2.0.0"
 walkdir = "2.3.2"
 rand = "0.8.4"
 portpicker = "0.1.1"
-serde = { version = "1", features=["derive"], optional = true }
-serde_json = { version = "1.0", optional = true }
+serde = { version = "1.0.159", features=["derive"], optional = true }
+serde_json = { version = "1.0.95", optional = true }
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 console_error_panic_hook = { version = "0.1.6", optional = true }
 futures = "0.3"
