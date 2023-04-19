@@ -32,13 +32,13 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
     
-    //Color::rgb(0.5,0,1)
+    //Color::rgb(0.1,0.3,0)
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((Numeric::from(0.5)),(Numeric::from(0)),(Numeric::from(1)),)
+            Color::rgb((Numeric::from(0.1)),(Numeric::from(0.3)),(Numeric::from(0)),)
         )
     }));
     
@@ -81,9 +81,23 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
         properties: PropertiesCoproduct::HelloRGB( HelloRGB::default() ),
         handler_registry:  Some(Rc::new(RefCell::new(
                                                      HandlerRegistry {
-                                                         click_handlers: vec![],
+                                                         click_handlers: vec![
+                                                                    |stack_frame, args|{
+                                                                        let properties = ((*stack_frame).borrow().get_properties());
+                                                                        let properties = &mut *properties.as_ref().borrow_mut();
+                                                                        let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
+                                                                        HelloRGB::handle_global_click(properties,args);
+                                                                    },
+                                                                ],
                                                          will_render_handlers: vec![],
-                                                         scroll_handlers: vec![],
+                                                         scroll_handlers: vec![
+                                                                     |stack_frame, args|{
+                                                                         let properties = ((*stack_frame).borrow().get_properties());
+                                                                         let properties = &mut *properties.as_ref().borrow_mut();
+                                                                         let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
+                                                                         HelloRGB::handle_global_scroll(properties,args);
+                                                                     },
+                                                                 ],
                                                      }
                                                  ))),
         instance_registry: Rc::clone(&instance_registry),
@@ -121,7 +135,7 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyExpression::new(1))),
     size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Percent(33.33.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
+        [Box::new(PropertyLiteral::new(Size::Percent(1 .into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
     ))),
     children: Some(Rc::new(RefCell::new(vec![
         

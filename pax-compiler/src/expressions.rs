@@ -1,5 +1,5 @@
 use std::borrow::Borrow;
-use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, AttributeValueDefinition, PropertyDefinition};
+use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, PropertyDefinition};
 use std::collections::HashMap;
 use std::ops::{IndexMut, Range, RangeFrom};
 use futures::StreamExt;
@@ -52,17 +52,17 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
         //Handle standard key/value declarations (non-control-flow)
         inline_attributes.iter_mut().for_each(|attr| {
             match &mut attr.1 {
-                AttributeValueDefinition::LiteralValue(_) => {
+                ValueDefinition::LiteralValue(_) => {
                     //no need to compile literal values
                 }
-                AttributeValueDefinition::EventBindingTarget(s) => {
+                ValueDefinition::EventBindingTarget(s) => {
                     //TODO: bind events here
                     // e.g. the self.foo in `@click=self.foo`
                 }
-                AttributeValueDefinition::Identifier(identifier, manifest_id) => {
+                ValueDefinition::Identifier(identifier, manifest_id) => {
                     // e.g. the self.active_color in `bg_color=self.active_color`
 
-                    if attr.0 == "id" {
+                    if attr.0 == "id" || attr.0 == "class" {
                         //No-op -- special-case `id=some_identifier` — we DON'T want to compile an expression {some_identifier},
                         //so we skip the case where `id` is the key
                     } else {
@@ -91,7 +91,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         });
                     }
                 }
-                AttributeValueDefinition::Expression(input, manifest_id) => {
+                ValueDefinition::Expression(input, manifest_id) => {
                     // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
                     let id = ctx.uid_gen.next().unwrap();
 

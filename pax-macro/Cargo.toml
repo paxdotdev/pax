@@ -20,7 +20,7 @@ quote = "1.0"
 pest = "2.4.1"
 pest_derive = "2.4.1"
 sailfish = "0.6.0"
-serde = { version = "1", features=["derive"] }
-serde_json = { version = "1" }
-serde_derive = "1"
+serde = { version = "1.0.159", features=["derive"] }
+serde_json = { version = "1.0.95" }
+serde_derive = "1.0.159"
 litrs = "0.4.0"
