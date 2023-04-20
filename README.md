@@ -44,13 +44,13 @@ See a more thorough, [running example](https://docs.pax.rs/intro-example.html).
 
 ## Features
 
- - **Fast** — low-level native rendering targeting 120FPS animations
- - **Accessible** — supports native screen readers for text & GUI elements, as well as SEO on the Web
- - **Lightweight** — under 100kB baseline for WebAssembly binary 
+ - **Fast** — 120fps animations enabled by native rendering and native runtimes for each supported platform
+ - **Accessible** — Support for native screen readers for text & GUI elements, as well as SEO on the Web
+ - **Lightweight** — Under 100kB baseline for WebAssembly binary 
  - **Declarative** UI language makes it easy to reason about complex scenes and GUIs, as well as build tooling that reads & writes Pax
- - **Expressive** — includes free-form drawing and animation toolkit alongside GUI form elements and layouts
+ - **Expressive** — Free-form drawing and animation toolkit alongside GUI form elements and layouts
  - **Extensible** — UI component system built around Rust structs enables modular application building and publication of reusable components through cargo and crates.io.  Pax's standard library (`pax-std`) is a canonical example, including modular primitives like `<Group />`, drawing elements like `<Rectangle />`, form elements like `<Text />`, and layout elements like `<Stacker />`.
- - **Cross-platform** — a Pax project compiles through Rust into 1. a completely native Mac app (via LLVM, CoreGraphics, and SwiftUI — without any Web tech) and 2. a Web app (via WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
+ - **Cross-platform** — Pax projects compiles through Rust into machine code, currently 1. a completely native Mac app (via LLVM, CoreGraphics, and SwiftUI) or 2. a Web app (via WebAssembly). Support for more platforms is planned, at least: Linux, Windows, iOS, and Android.
 
 
 ## Docs
@@ -131,8 +131,10 @@ Use `rustc` 1.65.0 via `rustup`
 
 ### To build .pax => macOS
 
-- Install xcode, command line utils
-- macOS SDK Version `macosx13.3`, Xcode version `>=14.3`
+- Install xcode `>=14.3` and Xcode command line utils: `xcode-select --install`
+- SDK Version `macosx13.3`, Xcode version `>=14.3`
+- Current Minimum Deployment `13.0`
+
 
 ### Running Development Environment
 

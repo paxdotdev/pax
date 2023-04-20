@@ -3,20 +3,27 @@ use std::rc::Rc;
 
 #[repr(u32)]
 pub enum PropertiesCoproduct {
+    /* entries generated via properties-coproduct-lib.tera */
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
-    usize(usize), //used by Repeat with numeric ranges, like `for i in 0..5`
+    isize(isize),
+    Range_isize_(std::ops::Range<isize>),
+
     
-    Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
+    Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
-    HelloRGB(pax_example::pax_reexports::HelloRGB),
+    PaxExample(pax_example::pax_reexports::PaxExample),
+    
+    Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
 }
 
 //used namely for return types of expressions — may have other purposes
 #[repr(u32)]
 pub enum TypesCoproduct {
+    
+    Range_isize_(std::ops::Range<isize>),
     
     Size(pax_runtime_api::Size),
     
@@ -28,6 +35,8 @@ pub enum TypesCoproduct {
     
     Transform2D(pax_runtime_api::Transform2D),
     
+    VecLABR__f64RABR(Vec<pax_example::pax_reexports::f64>),
+    
     Vec_Rc_PropertiesCoproduct___(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
     
     __f64(pax_example::pax_reexports::f64),
@@ -35,6 +44,8 @@ pub enum TypesCoproduct {
     __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
     __pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
+    
+    __usize(pax_example::pax_reexports::usize),
     
     bool(bool),
     

@@ -79,6 +79,8 @@ impl <%= pascal_identifier %> {
                 original_type: "<%= ctpd.original_type %>".to_string(),
                 fully_qualified_constituent_types,
                 property_type_info,
+                is_repeat_elem: false,
+                is_repeat_i: false,
             });
         <% } %>
         ctx.all_property_definitions.insert(source_id.to_string(), property_definitions);
