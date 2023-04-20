@@ -30,7 +30,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         {% for invocation in expression_spec.invocations %}
             let {{ invocation.escaped_identifier }} = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor({{ invocation.stack_offset }}) {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth({{ invocation.stack_offset }}) {
                     Rc::clone(&sf)
                 } else {
                     Rc::clone(&ec.stack_frame)

@@ -1,4 +1,4 @@
-use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, AttributeValueDefinition, PropertyDefinition};
+use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, PropertyDefinition, SettingsSelectorBlockDefinition};
 use std::collections::HashMap;
 use std::ops::{IndexMut, RangeFrom};
 use itertools::Itertools;
@@ -7,13 +7,18 @@ use crate::manifest::PropertyType;
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
-    let mut new_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
+    let mut swap_expression_specs: HashMap<usize, ExpressionSpec> = HashMap::new();
+    let mut all_expression_specs : HashMap<usize, ExpressionSpec> = HashMap::new();
 
     let mut new_components = manifest.components.clone();
+    let mut uid_track  = 0;
+
+
     new_components.values_mut().for_each(|component_def : &mut ComponentDefinition|{
 
         let mut new_component_def = component_def.clone();
         let read_only_component_def = component_def.clone();
+
 
         if let Some(ref mut template) = new_component_def.template {
 
@@ -24,44 +29,121 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
                 template,
                 active_node_def,
                 scope_stack: vec![component_def.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
-                uid_gen: 0..,
+                uid_gen: uid_track..,
                 all_components: manifest.components.clone(),
-                expression_specs: &mut new_expression_specs,
+                expression_specs: &mut swap_expression_specs,
                 component_def: &read_only_component_def,
             };
 
             ctx = recurse_compile_expressions(ctx);
+            uid_track = ctx.uid_gen.next().unwrap();
+            all_expression_specs.extend(ctx.expression_specs.to_owned());
             std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
         }
 
         std::mem::swap(component_def, &mut new_component_def);
     });
     manifest.components = new_components;
-    manifest.expression_specs = Some(new_expression_specs);
+    manifest.expression_specs = Some(swap_expression_specs);
+}
+
+
+fn pull_matched_identifiers_from_inline(inline_settings: &Option<Vec<(String, ValueDefinition)>>, s: String) -> Vec<String>{
+    let mut ret = Vec::new();
+    if let Some(val) = inline_settings {
+        for (_,matched) in val.iter().filter(|avd| avd.0 == s.as_str()){
+            match matched {
+                ValueDefinition::Identifier(s, _) => {
+                    ret.push(s.clone())
+                }
+                _ => {}
+            };
+        }
+    }
+    ret
+}
+
+fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefinition>>, selector: String) -> Option<Vec<(String, ValueDefinition)>> { ;
+    if let Some(val) = settings {
+        let merged_settings : Vec<(String, ValueDefinition)> = val.iter().filter(|block| { block.selector == selector })
+            .map(|block| { block.value_block.settings_key_value_pairs.clone()}).flatten().clone().collect();
+        if merged_settings.len() > 0 {Some(merged_settings)} else {None}
+    } else {
+        None
+    }
+}
+
+
+
+fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(String, ValueDefinition)>>, settings_block: &Option<Vec<SettingsSelectorBlockDefinition>>) -> Option<Vec<(String, ValueDefinition)>> {
+
+    // collect id settings
+    let ids = pull_matched_identifiers_from_inline(&inline_settings, "id".to_string());
+
+    let mut id_settings = Vec::new();
+    if ids.len() == 1{
+        if let Some(settings) = pull_settings_with_selector(&settings_block, format!("#{}", ids[0])) {
+            id_settings.extend(settings.clone());
+        }
+    } else if ids.len() > 1 {
+        panic!("Specified more than one id inline!");
+    }
+
+    // collect all class settings
+    let classes = pull_matched_identifiers_from_inline(&inline_settings, "class".to_string());
+
+    let mut class_settings = Vec::new();
+    for class in classes {
+        if let Some(settings )= pull_settings_with_selector(&settings_block, format!(".{}", class)){
+            class_settings.extend(settings.clone());
+        }
+    }
+
+
+    let mut map = HashMap::new();
+
+    // Iterate in reverse order of priority (class, then id, then inline)
+    for (key, value) in class_settings.into_iter() {
+        map.insert(key, value);
+    }
+
+    for (key, value) in id_settings.into_iter() {
+        map.insert(key,value);
+    }
+
+    if let Some(inline) = inline_settings.clone()  {
+        for (key, value) in inline.into_iter() {
+            map.insert(key,value);
+        }
+    }
+
+    let merged : Vec<(String, ValueDefinition)> = map.into_iter().collect();
+    if merged.len() > 0 {Some(merged)} else{None}
 }
 
 fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) -> ExpressionCompilationContext<'a> {
     let incremented = false;
 
-    //FUTURE: join settings blocks here, merge with inline_attributes
-    let mut cloned_inline_attributes = ctx.active_node_def.inline_attributes.clone();
-    let mut cloned_control_flow_attributes = ctx.active_node_def.control_flow_attributes.clone();
+    let mut cloned_settings_block = ctx.component_def.settings.clone();
+    let mut cloned_inline_settings = ctx.active_node_def.settings.clone();
+    let mut merged_settings = merge_inline_settings_with_settings_block(&cloned_inline_settings, &cloned_settings_block);
+    let mut cloned_control_flow_settings = ctx.active_node_def.control_flow_settings.clone();
 
-    if let Some(ref mut inline_attributes) = cloned_inline_attributes {
+    if let Some(ref mut inline_settings) = merged_settings {
         //Handle standard key/value declarations (non-control-flow)
-        inline_attributes.iter_mut().for_each(|attr| {
-            match &mut attr.1 {
-                AttributeValueDefinition::LiteralValue(_) => {
+        inline_settings.iter_mut().for_each(|inline| {
+            match &mut inline.1 {
+                ValueDefinition::LiteralValue(_) => {
                     //no need to compile literal values
-                },
-                AttributeValueDefinition::EventBindingTarget(_) => {
+                }
+                ValueDefinition::EventBindingTarget(s) => {
                     //event bindings are handled on a separate compiler pass; no-op here
-                },
-                AttributeValueDefinition::Identifier(identifier, manifest_id) => {
+                }
+                ValueDefinition::Identifier(identifier, manifest_id) => {
                     // e.g. the self.active_color in `bg_color=self.active_color`
 
-                    if attr.0 == "id" {
-                        //No-op -- special-case `id=some_identifier` — we DON'T want to compile an expression {some_identifier},
+                    if inline.0 == "id" || inline.0 == "class" {
+                        //No-op -- special-case `id=some_identifier` and `class=some_identifier` — we DON'T want to compile an expression {some_identifier},
                         //so we skip the case where `id` is the key
                     } else {
                         let id = ctx.uid_gen.next().unwrap();
@@ -76,7 +158,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
                         let pascalized_return_type = (&ctx.component_def.property_definitions.iter().find(
                             |property_def| {
-                                property_def.name == attr.0
+                                property_def.name == inline.0
                             }
                         ).unwrap().property_type_info.pascalized_fully_qualified_type).clone();
 
@@ -88,19 +170,14 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             input_statement: identifier.clone(),
                         });
                     }
-                },
-                AttributeValueDefinition::Expression(input, manifest_id) => {
+                }
+                ValueDefinition::Expression(input, manifest_id) => {
                     // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
                     let id = ctx.uid_gen.next().unwrap();
-
-                    //Write this id back to the manifest, for downstream use by RIL component tree generator
-                    let manifest_id_insert: usize = id;
-                    std::mem::swap(&mut manifest_id.take(), &mut Some(manifest_id_insert));
 
                     let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
 
                     let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
-
 
                     let builtin_types = HashMap::from([
                         ("transform","Transform2D".to_string()),
@@ -112,13 +189,13 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
                     ]);
 
-                    let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*attr.0) {
+                    let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*inline.0) {
                         type_string.to_string()
                     } else {
                         (active_node_component.property_definitions.iter().find(|property_def| {
-                            property_def.name == attr.0
+                            property_def.name == inline.0
                         }).expect(
-                            &format!("Property `{}` not found on component `{}`", &attr.0, &active_node_component.pascal_identifier)
+                            &format!("Property `{}` not found on component `{}`", &inline.0, &active_node_component.pascal_identifier)
                         ).property_type_info.pascalized_fully_qualified_type).clone()
                     };
 
@@ -140,7 +217,8 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 _ => {unreachable!()},
             }
         });
-    } else if let Some(ref mut cfa) = cloned_control_flow_attributes {
+    }
+    else if let Some(ref mut cfa) = cloned_control_flow_settings {
         //Handle attributes for control flow
 
         // Definitions are stored modally as `Option<T>`s in ControlFlowAttributeValueDefinition,
@@ -267,12 +345,12 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             unreachable!("encountered invalid control flow definition")
         }
 
-        // Write back our modified control_flow_attributes, which now contain vtable lookup ids
-        std::mem::swap(&mut cloned_control_flow_attributes, &mut ctx.active_node_def.control_flow_attributes);
+        // Write back our modified control_flow_settings, which now contain vtable lookup ids
+        std::mem::swap(&mut cloned_control_flow_settings, &mut ctx.active_node_def.control_flow_settings);
 
     }
 
-    std::mem::swap(&mut cloned_inline_attributes, &mut ctx.active_node_def.inline_attributes);
+    std::mem::swap(&mut merged_settings, &mut ctx.active_node_def.settings);
 
     // Traverse descendent nodes and continue compiling expressions recursively
     for id in ctx.active_node_def.child_ids.clone().iter() {

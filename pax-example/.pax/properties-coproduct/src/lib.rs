@@ -11,9 +11,15 @@ pub enum PropertiesCoproduct {
     Range_isize_(std::ops::Range<isize>),
 
     
+    Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
+    
+    Example(pax_example::pax_reexports::Example),
+    
+    Fireworks(pax_example::pax_reexports::fireworks::Fireworks),
+    
     Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
-    PaxExample(pax_example::pax_reexports::PaxExample),
+    HelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
     
     Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
