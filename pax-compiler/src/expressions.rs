@@ -1,4 +1,4 @@
-use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, PropertyDefinition};
+use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, PropertyDefinition, SettingsSelectorBlockDefinition};
 use std::collections::HashMap;
 use std::ops::{IndexMut, RangeFrom};
 use itertools::Itertools;
@@ -40,14 +40,90 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
     manifest.expression_specs = Some(new_expression_specs);
 }
 
+
+fn pull_matched_identifiers_from_inline(inline_attributes: &Option<Vec<(String, ValueDefinition)>>, s: String) -> Vec<String>{
+    let mut ret = Vec::new();
+    if let Some(val) = inline_attributes {
+        for (_,matched) in val.iter().filter(|avd| avd.0 == s.as_str()){
+            match matched {
+                ValueDefinition::Identifier(s, _) => {
+                    ret.push(s.clone())
+                }
+                _ => {}
+            };
+        }
+    }
+    ret
+}
+
+fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefinition>>, selector: String) -> Option<Vec<(String, ValueDefinition)>> { ;
+    if let Some(val) = settings {
+        let merged_settings : Vec<(String, ValueDefinition)> = val.iter().filter(|block| { block.selector == selector })
+            .map(|block| { block.value_block.settings_key_value_pairs.clone()}).flatten().clone().collect();
+        if merged_settings.len() > 0 {Some(merged_settings)} else {None}
+    } else {
+        None
+    }
+}
+
+
+
+fn merge_inline_with_settings(inline_attributes: &Option<Vec<(String, ValueDefinition)>>, settings: &Option<Vec<SettingsSelectorBlockDefinition>>) -> Option<Vec<(String, ValueDefinition)>> {
+
+    // collect id settings
+    let ids = pull_matched_identifiers_from_inline(&inline_attributes, "id".to_string());
+
+    let mut id_settings = Vec::new();
+    if ids.len() == 1{
+        if let Some(settings) = pull_settings_with_selector(&settings, format!("#{}", ids[0])) {
+            id_settings.extend(settings.clone());
+        }
+    } else if ids.len() > 1 {
+        panic!("Specified more than one id inline!");
+    }
+
+    // collect all class settings
+    let classes = pull_matched_identifiers_from_inline(&inline_attributes, "class".to_string());
+
+    let mut class_settings = Vec::new();
+    for class in classes {
+        if let Some(settings )= pull_settings_with_selector(&settings, format!(".{}", class)){
+            class_settings.extend(settings.clone());
+        }
+    }
+
+
+    let mut map = HashMap::new();
+
+    // Iterate in reverse order of priority (class, then id, then inline)
+    for (key, value) in class_settings.into_iter() {
+        map.insert(key, value);
+    }
+
+    for (key, value) in id_settings.into_iter() {
+        map.insert(key,value);
+    }
+
+    if let Some(inline) = inline_attributes.clone()  {
+        for (key, value) in inline.into_iter() {
+            map.insert(key,value);
+        }
+    }
+
+    let merged : Vec<(String, ValueDefinition)> = map.into_iter().collect();
+    if merged.len() > 0 {Some(merged)} else{None}
+}
+
 fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) -> ExpressionCompilationContext<'a> {
     let incremented = false;
 
     //FUTURE: join settings blocks here, merge with inline_attributes
+    let mut cloned_settings_block = ctx.component_def.settings.clone();
     let mut cloned_inline_attributes = ctx.active_node_def.inline_attributes.clone();
+    let mut merged_attributes = merge_inline_with_settings(&cloned_inline_attributes, &cloned_settings_block);
     let mut cloned_control_flow_attributes = ctx.active_node_def.control_flow_attributes.clone();
 
-    if let Some(ref mut inline_attributes) = cloned_inline_attributes {
+    if let Some(ref mut inline_attributes) = merged_attributes {
         //Handle standard key/value declarations (non-control-flow)
         inline_attributes.iter_mut().for_each(|attr| {
             match &mut attr.1 {
@@ -140,7 +216,8 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 _ => {unreachable!()},
             }
         });
-    } else if let Some(ref mut cfa) = cloned_control_flow_attributes {
+    }
+    else if let Some(ref mut cfa) = cloned_control_flow_attributes {
         //Handle attributes for control flow
 
         // Definitions are stored modally as `Option<T>`s in ControlFlowAttributeValueDefinition,
@@ -272,7 +349,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
     }
 
-    std::mem::swap(&mut cloned_inline_attributes, &mut ctx.active_node_def.inline_attributes);
+    std::mem::swap(&mut merged_attributes, &mut ctx.active_node_def.inline_attributes);
 
     // Traverse descendent nodes and continue compiling expressions recursively
     for id in ctx.active_node_def.child_ids.clone().iter() {
