@@ -102,6 +102,7 @@ pub struct FontPatch {
 #[repr(C)]
 pub enum ColorVariantMessage {
     Hlca([f64; 4]),
+    Hlc([f64; 3]),
     Rgba([f64; 4]),
     Rgb([f64; 3]),
 }
