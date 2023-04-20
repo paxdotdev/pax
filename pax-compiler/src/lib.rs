@@ -383,80 +383,6 @@ fn generate_binded_events(inline_attributes : Option<Vec<(String, ValueDefinitio
     ret
 }
 
-fn pull_matched_identifiers_from_inline(inline_attributes: &Option<Vec<(String, ValueDefinition)>>, s: String) -> Vec<String>{
-    let mut ret = Vec::new();
-    if let Some(val) = inline_attributes {
-        for (_,matched) in val.iter().filter(|avd| avd.0 == s.as_str()){
-            match matched {
-                ValueDefinition::Identifier(s, _) => {
-                    ret.push(s.clone())
-                }
-                _ => {}
-            };
-        }
-        }
-    ret
-}
-
-fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefinition>>, selector: String) -> Option<Vec<(String, ValueDefinition)>> { ;
-    if let Some(val) = settings {
-        let merged_settings : Vec<(String, ValueDefinition)> = val.iter().filter(|block| { block.selector == selector })
-            .map(|block| { block.value_block.settings_key_value_pairs.clone()}).flatten().clone().collect();
-        if merged_settings.len() > 0 {Some(merged_settings)} else {None}
-    } else {
-        None
-    }
-}
-
-
-
-fn merge_inline_with_settings(inline_attributes: &Option<Vec<(String, ValueDefinition)>>, settings: &Option<Vec<SettingsSelectorBlockDefinition>>) -> Vec<(String, ValueDefinition)> {
-
-    // collect id settings
-    let ids = pull_matched_identifiers_from_inline(&inline_attributes, "id".to_string());
-
-    let mut id_settings = Vec::new();
-    if ids.len() == 1{
-        if let Some(settings) = pull_settings_with_selector(&settings, format!("#{}", ids[0])) {
-            id_settings.extend(settings.clone());
-        }
-    } else if ids.len() > 1 {
-        panic!("Specified more than one id inline!");
-    }
-
-    // collect all class settings
-    let classes = pull_matched_identifiers_from_inline(&inline_attributes, "class".to_string());
-
-    let mut class_settings = Vec::new();
-    for class in classes {
-        if let Some(settings )= pull_settings_with_selector(&settings, format!(".{}", class)){
-            class_settings.extend(settings.clone());
-        }
-    }
-
-
-    let mut map = HashMap::new();
-
-    // Iterate in reverse order of priority (class, then id, then inline)
-    for (key, value) in class_settings.into_iter() {
-        map.insert(key, value);
-    }
-
-    for (key, value) in id_settings.into_iter() {
-        map.insert(key,value);
-    }
-
-    if let Some(inline) = inline_attributes.clone()  {
-        for (key, value) in inline.into_iter() {
-            map.insert(key,value);
-        }
-    }
-
-    // Convert the merged HashMap back to a Vec of tuples
-    map.into_iter().collect()
-}
-
-
 fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tnd: &TemplateNodeDefinition) -> String {
     //first recurse, populating children_literal : Vec<String>
     let children_literal : Vec<String> = tnd.child_ids.iter().map(|child_id|{
@@ -544,7 +470,6 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //Handle anything that's not a built-in
 
         let component_for_current_node = rngc.components.get(&tnd.component_id).unwrap();
-        let merged = merge_inline_with_settings(&tnd.inline_attributes, &rngc.active_component_definition.settings);
 
         //Properties:
         //  - for each property on cfcn, there will either be:
@@ -558,8 +483,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
         let property_ril_tuples: Vec<(String, String)> = component_for_current_node.property_definitions.iter().map(|pd| {
             let ril_literal_string = {
-                if merged.len() > 0 {
-                    if let Some(matched_attribute) = merged.iter().find(|avd| { avd.0 == pd.name }) {
+                if let Some(inline_attributes) = &tnd.inline_attributes {
+                    if let Some(matched_attribute) = inline_attributes.iter().find(|avd| { avd.0 == pd.name }) {
                         match &matched_attribute.1 {
                             ValueDefinition::LiteralValue(lv) => {
                                 format!("PropertyLiteral::new({})", lv)
@@ -587,8 +512,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //handle size: "width" and "height"
         let keys = ["width", "height", "transform"];
         let builtins_ril: Vec<String> = keys.iter().map(|builtin_key| {
-            if merged.len() > 0 {
-                if let Some(matched_attribute) = merged.iter().find(|avd| { avd.0 == *builtin_key }) {
+            if let Some(inline_attributes) = &tnd.inline_attributes {
+                if let Some(matched_attribute) = inline_attributes.iter().find(|avd| { avd.0 == *builtin_key }) {
                     match &matched_attribute.1 {
                         ValueDefinition::LiteralValue(lv) => {
                             format!("PropertyLiteral::new({})", lv)

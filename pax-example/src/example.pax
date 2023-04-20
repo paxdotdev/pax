@@ -1,5 +1,4 @@
-<Ellipse @scroll=self.handle_scroll @click=self.handle_click class=test id=id_test height=100% class=car fill={Color::rgb(0.1,0.3,0)}
- transform= {Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(rotation)}/>
+<Ellipse @scroll=self.handle_scroll @click=self.handle_click id=id_test class=class_a class=class_b />
 
 @events {
         Click: [self.handle_global_click],
@@ -8,16 +7,13 @@
 
 @settings {
     #id_test {
-        height: 10%,
+        height: 50%,
+         width: 50%,
     }
-    .test Test{
-        width: 10%,
-        height: 20%,
+    .class_a {
+        fill: {Color::rgb(0.4,0.5,0)},
     }
-    .test {
-        width: 80%
-    }
-    .car {
-        width: 1%
+    .class_b {
+        transform: {Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(rotation)},
     }
 }
