@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowAttributeValueDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, Number, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, PropertyType, EventDefinition};
+use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, Number, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, PropertyType, EventDefinition};
 
 use uuid::Uuid;
 
@@ -329,8 +329,8 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
             id: 0,
             child_ids: roots_ids,
             component_id: "IMPLICIT_ROOT".to_string(),
-            control_flow_attributes: None,
-            inline_attributes: None,
+            control_flow_settings: None,
+            settings: None,
             pascal_identifier: "<UNREACHABLE>".to_string()
         }
     );
@@ -388,9 +388,9 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
             let mut template_node = TemplateNodeDefinition {
                 id: new_id,
-                control_flow_attributes: None,
+                control_flow_settings: None,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
-                inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
+                settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
             };
@@ -402,9 +402,9 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
             let mut template_node = TemplateNodeDefinition {
                 id: new_id,
-                control_flow_attributes: None,
+                control_flow_settings: None,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
-                inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
+                settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 child_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
             };
@@ -434,7 +434,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     //`if` TemplateNodeDefinition
                     TemplateNodeDefinition {
                         id: new_id.clone(),
-                        control_flow_attributes: Some(ControlFlowAttributeValueDefinition {
+                        control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: Some(expression_body),
                             condition_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
                             slot_index_expression_paxel: None,
@@ -443,13 +443,13 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             repeat_source_definition: None
                         }),
                         component_id: COMPONENT_ID_IF.to_string(),
-                        inline_attributes: None,
+                        settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
                     }
                 },
                 Rule::statement_for => {
-                    let mut cfavd = ControlFlowAttributeValueDefinition::default();
+                    let mut cfavd = ControlFlowSettingsDefinition::default();
                     let mut for_statement = any_tag_pair.clone().into_inner();
                     let mut predicate_declaration = for_statement.next().unwrap().into_inner();
                     let source = for_statement.next().unwrap();
@@ -501,8 +501,8 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     TemplateNodeDefinition {
                         id: new_id.clone(),
                         component_id: COMPONENT_ID_REPEAT.to_string(),
-                        control_flow_attributes: Some(cfavd),
-                        inline_attributes: None,
+                        control_flow_settings: Some(cfavd),
+                        settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Repeat".to_string(),
                     }
@@ -521,7 +521,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
                     TemplateNodeDefinition {
                         id: new_id.clone(),
-                        control_flow_attributes: Some(ControlFlowAttributeValueDefinition {
+                        control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: None,
                             condition_expression_vtable_id: None,
                             slot_index_expression_paxel: Some(expression_body),
@@ -530,7 +530,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             repeat_source_definition: None
                         }),
                         component_id: COMPONENT_ID_SLOT.to_string(),
-                        inline_attributes: None,
+                        settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
                     }
@@ -560,7 +560,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                 let symbolic_binding = attribute_event_binding.next().unwrap().into_inner().next().unwrap().as_str().to_string();
                 (event_id, ValueDefinition::EventBindingTarget(symbolic_binding))
             },
-            _ => { //Vanilla `key=value` pair
+            _ => { //Vanilla `key=value` setting pair
 
                 let mut kv = attribute_key_value_pair.into_inner();
                 let key = kv.next().unwrap().as_str().to_string();

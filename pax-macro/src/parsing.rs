@@ -75,16 +75,15 @@ fn recurse_visit_tag_pairs_for_pascal_identifiers(any_tag_pair: Pair<Rule>, pasc
         Rule::statement_control_flow => {
             let matched_tag = any_tag_pair.into_inner().next().unwrap();
 
-            let mut n : usize;
-            match matched_tag.as_rule() {
+            let n = match matched_tag.as_rule() {
                 Rule::statement_if => {
-                    n = 2;
+                    1
                 },
                 Rule::statement_for => {
-                    n = 2;
+                    2
                 },
                 Rule::statement_slot => {
-                    n = 0;
+                    0
                 },
                 _ => {
                     unreachable!("Parsing error 944491032: {:?}", matched_tag.as_rule());

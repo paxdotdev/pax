@@ -170,22 +170,22 @@ impl<R: 'static + RenderContext> StackFrame<R> {
 
     // Traverses stack recursively `n` times to retrieve ancestor;
     // useful for runtime lookups for identifiers
-    pub fn nth_ancestor(&self, n: isize) -> Option<Rc<RefCell<StackFrame<R>>>> {
+    pub fn peek_nth(&self, n: isize) -> Option<Rc<RefCell<StackFrame<R>>>> {
         if n == 0 {
             //0th ancestor is self; handle by caller since caller owns the Rc containing `self`
             None
         } else {
-            self.nth_ancestor_recursive(n, 0)
+            self.recurse_peek_nth(n, 0)
         }
     }
 
-    fn nth_ancestor_recursive(&self, n: isize, depth: isize) -> Option<Rc<RefCell<StackFrame<R>>>> {
+    fn recurse_peek_nth(&self, n: isize, depth: isize) -> Option<Rc<RefCell<StackFrame<R>>>> {
         let new_depth = depth + 1;
         let parent = self.parent.as_ref().unwrap();
         if new_depth == n {
             return Some(Rc::clone(parent));
         }
-        parent.deref().borrow().nth_ancestor_recursive(n, new_depth)
+        parent.deref().borrow().recurse_peek_nth(n, new_depth)
     }
 
     pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {

@@ -13,7 +13,15 @@ pub enum PropertiesCoproduct {
     
     Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
     
-    HelloRGB(pax_example::pax_reexports::HelloRGB),
+    Example(pax_example::pax_reexports::Example),
+    
+    Fireworks(pax_example::pax_reexports::fireworks::Fireworks),
+    
+    Group(pax_example::pax_reexports::pax_std::primitives::Group),
+    
+    HelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
+    
+    Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
 }
 
@@ -33,6 +41,8 @@ pub enum TypesCoproduct {
     
     Transform2D(pax_runtime_api::Transform2D),
     
+    VecLABR__f64RABR(Vec<pax_example::pax_reexports::f64>),
+    
     Vec_Rc_PropertiesCoproduct___(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
     
     __f64(pax_example::pax_reexports::f64),
@@ -40,6 +50,8 @@ pub enum TypesCoproduct {
     __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
     __pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
+    
+    __usize(pax_example::pax_reexports::usize),
     
     bool(bool),
     

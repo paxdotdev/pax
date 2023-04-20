@@ -1,38 +1,36 @@
-use pax::api::{ArgsClick, ArgsRender, ArgsScroll, EasingCurve};
+
+pub mod hello_rgb;
+pub mod fireworks;
+
 use pax::*;
-use pax_std::components::Stacker;
-use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
+use pax::api::{ArgsClick, Property};
+use pax_std::primitives::{Group};
+
+use crate::hello_rgb::HelloRGB;
+use crate::fireworks::Fireworks;
 
 
-#[pax_file("example.pax")]
-pub struct HelloRGB {
-    pub rotation: Property<f64>,
+
+#[pax_app(
+    <Group @click=modulate >
+        if current_route == 0 {
+            <Fireworks />
+        }
+        if current_route == 1 {
+            <HelloRGB />
+        }
+    </Group>
+)]
+pub struct Example {
+    pub current_route: Property<usize>,
 }
 
-impl HelloRGB {
-    pub fn handle_click(&mut self, args: ArgsClick) {
-        log("click-ellipse");
-    }
-    pub fn handle_scroll(&mut self, args: ArgsScroll) {
-        const ROTATION_COEFFICIENT: f64 = 0.005;
-        let old_t = self.rotation.get();
-        let new_t = old_t + args.delta_y * ROTATION_COEFFICIENT;
-        self.rotation.set(new_t);
-    }
-    pub fn handle_global_click(&mut self, args: ArgsClick) {
-        log("click-anywhere");
-    }
-    pub fn handle_global_scroll(&mut self, args: ArgsScroll) {
-        log("scroll-anywhere");
+
+impl Example {
+    pub fn modulate(&mut self, args: ArgsClick) {
+        const ROUTE_COUNT : usize = 2;
+
+        let old_route = self.current_route.get();
+        self.current_route.set((old_route + 1) % ROUTE_COUNT);
     }
 }
-
-#[pax_type]
-#[derive(Default)]
-pub struct RectDef {
-    x: usize,
-    y: usize,
-    width: usize,
-    height: usize,
-}
-
