@@ -42,7 +42,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let squares = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(1) {
                     Rc::clone(&sf)
                 } else {
                     Rc::clone(&ec.stack_frame)
@@ -73,7 +73,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let ticks = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(1) {
                     Rc::clone(&sf)
                 } else {
                     Rc::clone(&ec.stack_frame)
@@ -94,7 +94,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
             };
         
             let i = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(0) {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
                     Rc::clone(&sf)
                 } else {
                     Rc::clone(&ec.stack_frame)
@@ -125,7 +125,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let i = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(0) {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
                     Rc::clone(&sf)
                 } else {
                     Rc::clone(&ec.stack_frame)
@@ -146,7 +146,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
             };
         
             let rotation = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(1) {
                     Rc::clone(&sf)
                 } else {
                     Rc::clone(&ec.stack_frame)
@@ -167,7 +167,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
             };
         
             let ticks = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(1) {
                     Rc::clone(&sf)
                 } else {
                     Rc::clone(&ec.stack_frame)
@@ -188,7 +188,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
             };
         
             let heartbeat = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().nth_ancestor(1) {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(1) {
                     Rc::clone(&sf)
                 } else {
                     Rc::clone(&ec.stack_frame)
