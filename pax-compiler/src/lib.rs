@@ -68,7 +68,7 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
     //0. sort (expected to be passed sorted)
     //1. keep transient stack of nested namespaces.  For each export string (like pax::api::Size)
     //   - Split by "::"
-    //   - if no `::`, or `crate::`, export at root of `pax_reexports`, i.e. empty stack
+    //   - if no `::`, or `crate::SingleDepth`, export at root of `pax_reexports`, i.e. empty stack
     //   - if `::`,
     //      - push onto stack the first n-1 identifiers as namespace
     //        - when pushing onto stack, write a `pub mod _identifier_ {`
@@ -88,9 +88,11 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
         symbols.len() == 0
     }
 
-    //identify `crate::*` reexports, e.g. `crate::HelloWorld`.  Note that the naive
-    //implementation here will not support namespaces, thus requiring globally unique
-    //symbol names for symbols exported from Pax project.
+    //identify `crate::RootLevel` reexports, e.g. `crate::Foo` but not `crate::bar::Bar`
+    fn is_reexport_crate_root(symbols: &Vec<String>) -> bool {
+        symbols[0].eq("crate") && symbols.len() == 2
+    }
+
     fn is_reexport_crate_prefixed(symbols: &Vec<String>) -> bool {
         symbols[0].eq("crate")
     }
@@ -114,14 +116,16 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
 
         let symbols: Vec<String> = pub_use.split("::").map(|s|{s.to_string()}).collect();
 
-        if is_reexport_namespaceless(&symbols) || is_reexport_crate_prefixed(&symbols) {
+        if is_reexport_namespaceless(&symbols) || is_reexport_crate_root(&symbols) {
             //we can assume we're already at the root of the stack, thanks to the look-ahead stack-popping logic.
             assert!(namespace_stack.len() == 0);
             output_string += &*(get_tabs(namespace_stack.len()) + "pub use " + pub_use + ";\n");
         } else {
             //push necessary symbols to stack
             let starting_index = namespace_stack.len();
-            for k in 0..((symbols.len() - 1) - namespace_stack.len()) {
+            let skip = if symbols[0] == "crate" {1} else {0};
+
+            for k in skip..((symbols.len() - 1) - namespace_stack.len()) {
                 //k represents the offset `k` from `starting_index`, where `k + starting_index`
                 //should be retrieved from `symbols` and pushed to `namespace_stack`
                 let namespace_symbol = symbols.get(k + starting_index).unwrap().clone();
@@ -157,7 +161,7 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
                         });
 
                         if let Some(pops) = how_many_pops {
-                            for _ in 0..pops {
+                            for _ in skip..pops {
                                 pop_and_write_brace(&mut namespace_stack, &mut output_string);
                             }
                         }
@@ -208,9 +212,10 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
 
     //build tuples for PropertiesCoproduct
     let mut properties_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|comp_def| {
+        let mod_path = if &comp_def.1.module_path == "crate" {"".to_string()} else { comp_def.1.module_path.replace("crate::", "") + "::"};
         (
             comp_def.1.pascal_identifier.clone(),
-            format!("{}{}{}{}", &host_crate_info.import_prefix, &comp_def.1.module_path.replace("crate", ""), {if comp_def.1.module_path == "crate" {""} else {"::"}}, &comp_def.1.pascal_identifier)
+            format!("{}{}{}", &host_crate_info.import_prefix, &mod_path, &comp_def.1.pascal_identifier)
         )
     }).collect();
     let set: HashSet<(String, String)> = properties_coproduct_tuples.drain(..).collect();
@@ -371,10 +376,10 @@ fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) 
     children_literal.join(",")
 }
 
-fn generate_binded_events(inline_attributes : Option<Vec<(String, ValueDefinition)>>) -> HashMap<String, String> {
+fn generate_bound_events(inline_settings: Option<Vec<(String, ValueDefinition)>>) -> HashMap<String, String> {
     let mut ret: HashMap<String, String> = HashMap::new();
-     if let Some(ref attributes) = inline_attributes {
-        for (key, value) in attributes.iter() {
+     if let Some(ref inline) = inline_settings {
+        for (key, value) in inline.iter() {
             if let ValueDefinition::EventBindingTarget(s) = value {
                 ret.insert(key.clone().to_string(), s.clone().to_string());
             };
@@ -393,10 +398,10 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
     const DEFAULT_PROPERTY_LITERAL: &str = "PropertyLiteral::new(Default::default())";
 
     //pull inline event binding and store into map
-    let events = generate_binded_events(tnd.inline_attributes.clone());
+    let events = generate_bound_events(tnd.settings.clone());
     let args = if tnd.component_id == parsing::COMPONENT_ID_REPEAT {
         // Repeat
-        let rsd = tnd.control_flow_attributes.as_ref().unwrap().repeat_source_definition.as_ref().unwrap();
+        let rsd = tnd.control_flow_settings.as_ref().unwrap().repeat_source_definition.as_ref().unwrap();
         let id = rsd.vtable_id.unwrap();
 
         let rse_vec = if let Some(_) = &rsd.symbolic_binding {
@@ -426,7 +431,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         }
     } else if tnd.component_id == parsing::COMPONENT_ID_IF {
         // If
-        let id = tnd.control_flow_attributes.as_ref().unwrap().condition_expression_vtable_id.unwrap();
+        let id = tnd.control_flow_settings.as_ref().unwrap().condition_expression_vtable_id.unwrap();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -447,7 +452,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         }
     } else if tnd.component_id == parsing::COMPONENT_ID_SLOT {
         // Slot
-        let id = tnd.control_flow_attributes.as_ref().unwrap().slot_index_expression_vtable_id.unwrap();
+        let id = tnd.control_flow_settings.as_ref().unwrap().slot_index_expression_vtable_id.unwrap();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -483,9 +488,9 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
         let property_ril_tuples: Vec<(String, String)> = component_for_current_node.property_definitions.iter().map(|pd| {
             let ril_literal_string = {
-                if let Some(inline_attributes) = &tnd.inline_attributes {
-                    if let Some(matched_attribute) = inline_attributes.iter().find(|avd| { avd.0 == pd.name }) {
-                        match &matched_attribute.1 {
+                if let Some(inline_settings) = &tnd.settings {
+                    if let Some(matched_setting) = inline_settings.iter().find(|avd| { avd.0 == pd.name }) {
+                        match &matched_setting.1 {
                             ValueDefinition::LiteralValue(lv) => {
                                 format!("PropertyLiteral::new({})", lv)
                             },
@@ -494,7 +499,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
                                 format!("PropertyExpression::new({})", id.expect("Tried to use expression but it wasn't compiled"))
                             },
                             _ => {
-                                panic!("Incorrect value bound to attribute")
+                                panic!("Incorrect value bound to inline setting")
                             }
                         }
                     } else {
@@ -512,9 +517,9 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //handle size: "width" and "height"
         let keys = ["width", "height", "transform"];
         let builtins_ril: Vec<String> = keys.iter().map(|builtin_key| {
-            if let Some(inline_attributes) = &tnd.inline_attributes {
-                if let Some(matched_attribute) = inline_attributes.iter().find(|avd| { avd.0 == *builtin_key }) {
-                    match &matched_attribute.1 {
+            if let Some(inline_settings) = &tnd.settings {
+                if let Some(matched_setting) = inline_settings.iter().find(|vd| { vd.0 == *builtin_key }) {
+                    match &matched_setting.1 {
                         ValueDefinition::LiteralValue(lv) => {
                             format!("PropertyLiteral::new({})", lv)
                         },
@@ -538,7 +543,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //then, on the post-order traversal, press template string and return
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: component_for_current_node.is_primitive,
-            snake_case_component_id: rngc.active_component_definition.get_snake_case_id(),
+            snake_case_component_id: component_for_current_node.get_snake_case_id(),
             primitive_instance_import_path: component_for_current_node.primitive_instance_import_path.clone(),
             properties_coproduct_variant: component_for_current_node.pascal_identifier.to_string(),
             component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
@@ -896,8 +901,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     println!("{} 🧮 Compiling expressions", &PAX_BADGE);
     expressions::compile_all_expressions(&mut manifest);
 
-    //oxidation!
-    println!("{} 💨 Generating Rust", &PAX_BADGE);
+    println!("{} 🦀 Generating Rust", &PAX_BADGE);
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
     generate_cartridge_definition(&pax_dir, &manifest, &host_crate_info);
@@ -912,11 +916,11 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
 
     if ctx.should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
-        println!("{} 🏃‍ Running fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target)); //oxidation!
+        println!("{} 🏃‍ Running fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target));
 
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
-        println!("{} 🛠 Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target)); //oxidation!
+        println!("{} 🛠 Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target));
     }
     build_harness_with_chassis(&pax_dir, &ctx, &Harness::Development);
 

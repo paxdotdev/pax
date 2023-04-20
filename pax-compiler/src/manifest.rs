@@ -177,9 +177,9 @@ pub struct TemplateNodeDefinition {
     /// Reference to the unique string ID for a component, e.g. `primitive::Frame` or `component::Stacker`
     pub component_id: String,
     /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
-    pub control_flow_attributes: Option<ControlFlowAttributeValueDefinition>,
+    pub control_flow_settings: Option<ControlFlowSettingsDefinition>,
     /// IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)
-    pub inline_attributes: Option<Vec<(String, ValueDefinition)>>,
+    pub settings: Option<Vec<(String, ValueDefinition)>>,
     /// e.g. the `SomeName` in `<SomeName some_key="some_value" />`
     pub pascal_identifier: String,
 }
@@ -287,7 +287,7 @@ pub enum ControlFlowRepeatPredicateDefinition {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct ControlFlowAttributeValueDefinition {
+pub struct ControlFlowSettingsDefinition {
     pub condition_expression_paxel: Option<String>,
     pub condition_expression_vtable_id: Option<usize>,
     pub slot_index_expression_paxel: Option<String>,
