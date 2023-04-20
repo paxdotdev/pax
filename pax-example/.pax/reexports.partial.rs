@@ -1,8 +1,15 @@
 pub mod pax_reexports { 
-	pub use crate::PaxExample;
+	pub use crate::Example;
+	pub mod fireworks {
+		pub use crate::fireworks::Fireworks;
+	}
+	pub mod hello_rgb {
+		pub use crate::hello_rgb::HelloRGB;
+	}
 	pub use f64;
 	pub mod pax_std {
 		pub mod primitives {
+			pub use pax_std::primitives::Ellipse;
 			pub use pax_std::primitives::Group;
 			pub use pax_std::primitives::Rectangle;
 		}

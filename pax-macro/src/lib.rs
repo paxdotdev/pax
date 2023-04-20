@@ -300,7 +300,7 @@ pub fn pax_file(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
     let mut content = String::new();
     let _ = file.unwrap().read_to_string(&mut content);
     let stream: proc_macro::TokenStream = content.parse().unwrap();
-    pax_internal(stream, input, true, Some(include_fix))
+    pax_internal(stream, input, false, Some(include_fix))
 }
 
 #[proc_macro_attribute]

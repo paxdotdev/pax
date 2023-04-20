@@ -1,0 +1,19 @@
+<Ellipse @scroll=self.handle_scroll @click=self.handle_click id=id_test class=class_a class=class_b />
+
+@events {
+        Click: [self.handle_global_click],
+        Scroll: self.handle_global_scroll,
+}
+
+@settings {
+    #id_test {
+        height: 50%,
+         width: 50%,
+    }
+    .class_a {
+        fill: {Color::rgb(0.4,0.5,0)},
+    }
+    .class_b {
+        transform: {Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%) * Transform2D::rotate(rotation)},
+    }
+}

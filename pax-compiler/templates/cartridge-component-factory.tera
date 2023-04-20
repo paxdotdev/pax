@@ -3,55 +3,55 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
     ComponentInstance::instantiate( InstantiationArgs{
         properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{ component_properties_struct }}::default() ),
         handler_registry:  Some(Rc::new(RefCell::new(
-                                                     HandlerRegistry {
-                                                         click_handlers: vec![
-                                                             {%- if events['click'] -%}
-                                                                {% for handler in events['click'] %}
-                                                                    |stack_frame, args|{
-                                                                        let properties = ((*stack_frame).borrow().get_properties());
-                                                                        let properties = &mut *properties.as_ref().borrow_mut();
-                                                                        let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                                                        {{ component_properties_struct }}::{{handler}}(properties,args);
-                                                                    },
-                                                                {% endfor %}
-                                                             {%- endif -%}
-                                                         ],
-                                                         will_render_handlers: vec![
-                                                            {%- if events['will_render'] -%}
-                                                                 {% for handler in events['will_render'] %}
-                                                                     |properties, args|{
-                                                                         let properties = &mut *properties.as_ref().borrow_mut();
-                                                                         let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                                                         {{ component_properties_struct }}::{{handler}}(properties,args);
-                                                                     },
-                                                                 {% endfor %}
-                                                            {%- endif -%}
-                                                         ],
-                                                         did_mount_handlers: vec![
-                                                             {%- if events['did_mount'] -%}
-                                                                  {% for handler in events['did_mount'] %}
-                                                                      |properties|{
-                                                                          let properties = &mut *properties.as_ref().borrow_mut();
-                                                                          let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                                                          {{ component_properties_struct }}::{{handler}}(properties);
-                                                                      },
-                                                                  {% endfor %}
-                                                             {%- endif -%}
-                                                          ],
-                                                         scroll_handlers: vec![
-                                                             {%- if events['scroll'] -%}
-                                                                 {% for handler in events['scroll'] %}
-                                                                     |stack_frame, args|{
-                                                                         let properties = ((*stack_frame).borrow().get_properties());
-                                                                         let properties = &mut *properties.as_ref().borrow_mut();
-                                                                         let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                                                         {{ component_properties_struct }}::{{handler}}(properties,args);
-                                                                     },
-                                                                 {% endfor %}
-                                                             {%- endif -%}
-                                                         ],
-                                                     }
-                                                 ))),
+             HandlerRegistry {
+                 click_handlers: vec![
+                     {%- if events['click'] -%}
+                        {% for handler in events['click'] %}
+                            |stack_frame, args|{
+                                let properties = ((*stack_frame).borrow().get_properties());
+                                let properties = &mut *properties.as_ref().borrow_mut();
+                                let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                                {{ component_properties_struct }}::{{handler}}(properties,args);
+                            },
+                        {% endfor %}
+                     {%- endif -%}
+                 ],
+                 will_render_handlers: vec![
+                    {%- if events['will_render'] -%}
+                         {% for handler in events['will_render'] %}
+                             |properties, args|{
+                                 let properties = &mut *properties.as_ref().borrow_mut();
+                                 let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                                 {{ component_properties_struct }}::{{handler}}(properties,args);
+                             },
+                         {% endfor %}
+                    {%- endif -%}
+                 ],
+                 did_mount_handlers: vec![
+                     {%- if events['did_mount'] -%}
+                          {% for handler in events['did_mount'] %}
+                              |properties|{
+                                  let properties = &mut *properties.as_ref().borrow_mut();
+                                  let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                                  {{ component_properties_struct }}::{{handler}}(properties);
+                              },
+                          {% endfor %}
+                     {%- endif -%}
+                  ],
+                 scroll_handlers: vec![
+                     {%- if events['scroll'] -%}
+                         {% for handler in events['scroll'] %}
+                             |stack_frame, args|{
+                                 let properties = ((*stack_frame).borrow().get_properties());
+                                 let properties = &mut *properties.as_ref().borrow_mut();
+                                 let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                                 {{ component_properties_struct }}::{{handler}}(properties,args);
+                             },
+                         {% endfor %}
+                     {%- endif -%}
+                 ],
+             }
+         ))),
         instance_registry: Rc::clone(&instance_registry),
         transform: Transform2D::default_wrapped(),
         size: None,
@@ -80,9 +80,56 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
 
 {% else %}
 pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
-    args.component_template = Some({{render_nodes_literal}}),
+    args.component_template = Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}])));
 
-    args.handler_registry = None; //TODO! codegen
+    args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
+        click_handlers: vec![
+         {%- if events['click'] -%}
+            {% for handler in events['click'] %}
+                |stack_frame, args|{
+                    let properties = ((*stack_frame).borrow().get_properties());
+                    let properties = &mut *properties.as_ref().borrow_mut();
+                    let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                    {{ component_properties_struct }}::{{handler}}(properties,args);
+                },
+            {% endfor %}
+         {%- endif -%}
+        ],
+        will_render_handlers: vec![
+        {%- if events['will_render'] -%}
+             {% for handler in events['will_render'] %}
+                 |properties, args|{
+                     let properties = &mut *properties.as_ref().borrow_mut();
+                     let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                     {{ component_properties_struct }}::{{handler}}(properties,args);
+                 },
+             {% endfor %}
+        {%- endif -%}
+        ],
+        did_mount_handlers: vec![
+         {%- if events['did_mount'] -%}
+              {% for handler in events['did_mount'] %}
+                  |properties|{
+                      let properties = &mut *properties.as_ref().borrow_mut();
+                      let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                      {{ component_properties_struct }}::{{handler}}(properties);
+                  },
+              {% endfor %}
+         {%- endif -%}
+        ],
+        scroll_handlers: vec![
+         {%- if events['scroll'] -%}
+             {% for handler in events['scroll'] %}
+                 |stack_frame, args|{
+                     let properties = ((*stack_frame).borrow().get_properties());
+                     let properties = &mut *properties.as_ref().borrow_mut();
+                     let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
+                     {{ component_properties_struct }}::{{handler}}(properties,args);
+                 },
+             {% endfor %}
+         {%- endif -%}
+        ],
+    })));
 
     args.compute_properties_fn = Some(Box::new(|properties, rtc|{
         let properties = &mut *properties.as_ref().borrow_mut();

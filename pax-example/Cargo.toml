@@ -11,8 +11,8 @@ description = "Example and development app for the Pax monorepo and compiler"
 [dependencies]
 pax = {package="pax-lang", path = "../pax-lang", version="0.0.1"}
 pax-std = {path = "../pax-std", version="0.0.1"}
-serde_json = {version = "1", optional = true}
-pax-compiler = {path="../pax-compiler", version = "0.0.1", optional=true}
+serde_json = {version = "1.0.95", optional = true}
+pax-compiler = {path="../pax-compiler", optional=true}
 pax-message = {path = "../pax-message", version="0.0.1"}
 
 [features]

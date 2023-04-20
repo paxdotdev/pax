@@ -155,6 +155,14 @@ pub trait RenderNode<R: 'static + RenderContext>
     ///to a HydratedNode
     fn ray_cast_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
 
+        //short-circuit fail for Group and other size-None elements.
+        //This doesn't preclude event handlers on Groups and size-None elements --
+        //it just requires the event to "bubble".  otherwise, `Component A > Component B` will
+        //never allow events to be bound to `B` — they will be vacuously intercepted by `A`
+        if let None = self.get_size() {
+            return false
+        }
+
         let inverted_transform = tab.transform.inverse();
         let transformed_ray = inverted_transform * Point {x:ray.0,y:ray.1};
 

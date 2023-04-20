@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowAttributeValueDefinition, ControlFlowRepeatPredicateDefinition, AttributeValueDefinition, Number, SettingsLiteralValue, SettingsSelectorBlockDefinition, SettingsLiteralBlockDefinition, SettingsValueDefinition, ControlFlowRepeatSourceDefinition, EventDefinition};
+use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, Number, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, PropertyType, EventDefinition};
 
 use uuid::Uuid;
 
@@ -329,8 +329,8 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
             id: 0,
             child_ids: roots_ids,
             component_id: "IMPLICIT_ROOT".to_string(),
-            control_flow_attributes: None,
-            inline_attributes: None,
+            control_flow_settings: None,
+            settings: None,
             pascal_identifier: "<UNREACHABLE>".to_string()
         }
     );
@@ -388,9 +388,9 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
             let mut template_node = TemplateNodeDefinition {
                 id: new_id,
-                control_flow_attributes: None,
+                control_flow_settings: None,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
-                inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
+                settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
             };
@@ -402,9 +402,9 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
             let mut template_node = TemplateNodeDefinition {
                 id: new_id,
-                control_flow_attributes: None,
+                control_flow_settings: None,
                 component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
-                inline_attributes: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
+                settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 child_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
             };
@@ -434,7 +434,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     //`if` TemplateNodeDefinition
                     TemplateNodeDefinition {
                         id: new_id.clone(),
-                        control_flow_attributes: Some(ControlFlowAttributeValueDefinition {
+                        control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: Some(expression_body),
                             condition_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
                             slot_index_expression_paxel: None,
@@ -443,13 +443,13 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             repeat_source_definition: None
                         }),
                         component_id: COMPONENT_ID_IF.to_string(),
-                        inline_attributes: None,
+                        settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
                     }
                 },
                 Rule::statement_for => {
-                    let mut cfavd = ControlFlowAttributeValueDefinition::default();
+                    let mut cfavd = ControlFlowSettingsDefinition::default();
                     let mut for_statement = any_tag_pair.clone().into_inner();
                     let mut predicate_declaration = for_statement.next().unwrap().into_inner();
                     let source = for_statement.next().unwrap();
@@ -501,8 +501,8 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     TemplateNodeDefinition {
                         id: new_id.clone(),
                         component_id: COMPONENT_ID_REPEAT.to_string(),
-                        control_flow_attributes: Some(cfavd),
-                        inline_attributes: None,
+                        control_flow_settings: Some(cfavd),
+                        settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Repeat".to_string(),
                     }
@@ -521,7 +521,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
                     TemplateNodeDefinition {
                         id: new_id.clone(),
-                        control_flow_attributes: Some(ControlFlowAttributeValueDefinition {
+                        control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: None,
                             condition_expression_vtable_id: None,
                             slot_index_expression_paxel: Some(expression_body),
@@ -530,7 +530,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             repeat_source_definition: None
                         }),
                         component_id: COMPONENT_ID_SLOT.to_string(),
-                        inline_attributes: None,
+                        settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
                     }
@@ -549,8 +549,8 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
     }
 }
 
-fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Rule>) -> Option<Vec<(String, AttributeValueDefinition)>> {
-    let vec : Vec<(String, AttributeValueDefinition)> = final_pairs_of_tag.map(|attribute_key_value_pair|{
+fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Rule>) -> Option<Vec<(String, ValueDefinition)>> {
+    let vec : Vec<(String, ValueDefinition)> = final_pairs_of_tag.map(|attribute_key_value_pair|{
         match attribute_key_value_pair.clone().into_inner().next().unwrap().as_rule() {
             Rule::attribute_event_binding => {
                 // attribute_event_binding = {attribute_event_id ~ "=" ~ xo_symbol}
@@ -558,9 +558,9 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                 let mut attribute_event_binding = kv.next().unwrap().into_inner();
                 let event_id = attribute_event_binding.next().unwrap().into_inner().last().unwrap().as_str().to_string();
                 let symbolic_binding = attribute_event_binding.next().unwrap().into_inner().next().unwrap().as_str().to_string();
-                (event_id, AttributeValueDefinition::EventBindingTarget(symbolic_binding))
+                (event_id, ValueDefinition::EventBindingTarget(symbolic_binding))
             },
-            _ => { //Vanilla `key=value` pair
+            _ => { //Vanilla `key=value` setting pair
 
                 let mut kv = attribute_key_value_pair.into_inner();
                 let key = kv.next().unwrap().as_str().to_string();
@@ -569,10 +569,15 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
                     Rule::literal_value => {
                         //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
                         let (output_string,  _) = crate::parsing::run_pratt_parser(raw_value.as_str());
-                        AttributeValueDefinition::LiteralValue(output_string)
+                        ValueDefinition::LiteralValue(output_string)
                     },
-                    Rule::expression_body => {AttributeValueDefinition::Expression(raw_value.as_str().to_string(), None)},
-                    Rule::identifier => {AttributeValueDefinition::Identifier(raw_value.as_str().to_string(), None)},
+                    Rule::literal_object => {
+                        ValueDefinition::Block(
+                            derive_value_definition_from_literal_object_pair(raw_value)
+                        )
+                    },
+                    Rule::expression_body => { ValueDefinition::Expression(raw_value.as_str().to_string(), None)},
+                    Rule::identifier => { ValueDefinition::Identifier(raw_value.as_str().to_string(), None)},
                     _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}
                 };
                 (key, value)
@@ -605,33 +610,7 @@ fn handle_unit_string(unit_string: &str) -> Unit {
     }
 }
 
-fn derive_literal_value_from_pair(literal_value_pair: Pair<Rule>) -> SettingsLiteralValue {
-    //literal_value = { literal_number_with_unit | literal_number | literal_array | string }
-    let inner_literal = literal_value_pair.into_inner().next().unwrap();
-    match inner_literal.as_rule() {
-        Rule::literal_number_with_unit => {
-            let mut tokens = inner_literal.into_inner();
-            let num_str = tokens.next().unwrap().as_str();
-            let unit_str = tokens.next().unwrap().as_str();
-            SettingsLiteralValue::LiteralNumberWithUnit(handle_number_string(num_str), handle_unit_string(unit_str))
-        },
-        Rule::literal_number => {
-            let num_str = inner_literal.as_str();
-            SettingsLiteralValue::LiteralNumber(handle_number_string(num_str))
-        },
-        Rule::literal_tuple => {
-            unimplemented!("literal tuples aren't supported but should be. fix me!")
-            //in particular, need to handle heterogeneous types (i.e. not allow them)
-            //might just be able to rely on rustc to enforce
-        },
-        Rule::string => {
-            SettingsLiteralValue::String(inner_literal.as_str().to_string())
-        },
-        _ => {unimplemented!()}
-    }
-}
-
-fn derive_settings_value_definition_from_literal_object_pair(literal_object: Pair<Rule>) -> SettingsLiteralBlockDefinition {
+fn derive_value_definition_from_literal_object_pair(mut literal_object: Pair<Rule>) -> LiteralBlockDefinition {
     let mut literal_object_pairs = literal_object.into_inner();
 
     let explicit_type_pascal_identifier = match literal_object_pairs.peek().unwrap().as_rule() {
@@ -641,20 +620,24 @@ fn derive_settings_value_definition_from_literal_object_pair(literal_object: Pai
         _ => { None }
     };
 
-    SettingsLiteralBlockDefinition {
+    LiteralBlockDefinition {
         explicit_type_pascal_identifier,
         settings_key_value_pairs: literal_object_pairs.map(|settings_key_value_pair| {
             let mut pairs = settings_key_value_pair.into_inner();
-            let setting_key = pairs.next().unwrap().as_str().to_string();
+            let setting_key = pairs.next().unwrap().into_inner().next().unwrap().as_str().to_string();
             let raw_value = pairs.next().unwrap().into_inner().next().unwrap();
             let setting_value = match raw_value.as_rule() {
-                Rule::literal_value => { SettingsValueDefinition::Literal(derive_literal_value_from_pair(raw_value))},
-                Rule::literal_object => { SettingsValueDefinition::Block(
+                Rule::literal_value => {
+                    //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
+                    let (output_string,  _) = crate::parsing::run_pratt_parser(raw_value.as_str());
+                    ValueDefinition::LiteralValue(output_string)},
+                Rule::literal_object => { ValueDefinition::Block(
                     //Recurse
-                    derive_settings_value_definition_from_literal_object_pair(raw_value)
+                    derive_value_definition_from_literal_object_pair(raw_value)
                 )},
-                // Rule::literal_enum_value => {SettingsValueDefinition::Enum(raw_value.as_str().to_string())},
-                Rule::expression_body => { SettingsValueDefinition::Expression(raw_value.as_str().to_string())},
+                // Rule::literal_enum_value => {ValueDefinition::Enum(raw_value.as_str().to_string())},
+                Rule::expression_body => {
+                    ValueDefinition::Expression(raw_value.as_str().to_string(), None)},
                 _ => {unreachable!("Parsing error 231453468: {:?}", raw_value.as_rule());}
             };
 
@@ -676,18 +659,18 @@ fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<Sett
         match top_level_pair.as_rule() {
             Rule::settings_block_declaration => {
 
-                let selector_block_definitions: Vec<SettingsSelectorBlockDefinition> = top_level_pair.into_inner().map(|selector_block| {
-                    //selector_block => settings_key_value_pair where v is a SettingsValueDefinition
+                let mut selector_block_definitions: Vec<SettingsSelectorBlockDefinition> = top_level_pair.into_inner().map(|selector_block| {
+                    //selector_block => settings_key_value_pair where v is a ValueDefinition
                     let mut selector_block_pairs = selector_block.into_inner();
                     //first pair is the selector itself
-                    let selector = selector_block_pairs.next().unwrap().to_string();
-                    let literal_object = selector_block_pairs.next().unwrap();
+                    let raw_selector = selector_block_pairs.next().unwrap().as_str();
+                    let selector: String = raw_selector.chars().filter(|c| !c.is_whitespace()).collect();
+                    let mut literal_object = selector_block_pairs.next().unwrap();
 
                     SettingsSelectorBlockDefinition {
-                        selector,
-                        value_block: derive_settings_value_definition_from_literal_object_pair(literal_object),
+                        selector: selector.clone(),
+                        value_block: derive_value_definition_from_literal_object_pair(literal_object),
                     }
-
                 }).collect();
 
                 ret.extend(selector_block_definitions);

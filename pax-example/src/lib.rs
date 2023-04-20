@@ -1,49 +1,36 @@
-use pax::api::{ArgsClick, ArgsRender, ArgsScroll, EasingCurve};
+
+pub mod hello_rgb;
+pub mod fireworks;
+
 use pax::*;
-use pax_std::components::Stacker;
-use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
+use pax::api::{ArgsClick, Property};
+use pax_std::primitives::{Group};
 
-#[pax_file("pax-example.pax")]
-pub struct PaxExample {
-    pub rotation: Property<f64>,
-    pub ticks: Property<usize>,
-    pub heartbeat: Property<f64>,
-    pub squares: Property<Vec<f64>>,
-}
+use crate::hello_rgb::HelloRGB;
+use crate::fireworks::Fireworks;
 
-const ROTATION_COEFFICIENT: f64 = 0.00010;
-const HEARTBEAT_AMPLITUDE: f64 = 1.15;
 
-impl PaxExample {
 
-    pub fn handle_did_mount(&mut self) {
-        pax::log("Mounted!");
-        self.squares.set(vec![0.5, 1.5, 2.5, 3.5, 4.5]);
-    }
-
-    pub fn handle_will_render(&mut self, args: ArgsRender) {
-        self.ticks.set(args.frames_elapsed);
-        if args.frames_elapsed % 260 == 0 {
-            pax::log("heartbeat");
-            // self.heartbeat.ease_to(HEARTBEAT_AMPLITUDE, 40, EasingCurve::OutBack);
-            // self.heartbeat.ease_to_later(-HEARTBEAT_AMPLITUDE / 2.0, 50, EasingCurve::OutBack);
-            // self.heartbeat.ease_to_later(0.0, 70, EasingCurve::OutBack);
+#[pax_app(
+    <Group @click=modulate >
+        if current_route == 0 {
+            <Fireworks />
         }
-    }
-
-    pub fn handle_scroll(&mut self, args: ArgsScroll) {
-        let old_t = self.rotation.get();
-        let new_t = old_t - args.delta_y * ROTATION_COEFFICIENT;
-        self.rotation.set(f64::max(0.0,new_t));
-    }
+        if current_route == 1 {
+            <HelloRGB />
+        }
+    </Group>
+)]
+pub struct Example {
+    pub current_route: Property<usize>,
 }
 
-#[pax_type]
-#[derive(Default)]
-pub struct RectDef {
-    x: usize,
-    y: usize,
-    width: usize,
-    height: usize,
-}
 
+impl Example {
+    pub fn modulate(&mut self, args: ArgsClick) {
+        const ROUTE_COUNT : usize = 2;
+
+        let old_route = self.current_route.get();
+        self.current_route.set((old_route + 1) % ROUTE_COUNT);
+    }
+}
