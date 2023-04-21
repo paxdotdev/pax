@@ -3,6 +3,10 @@ pub mod pax_reexports {
 	pub mod fireworks {
 		pub use crate::fireworks::Fireworks;
 	}
+	pub mod grids {
+		pub use crate::grids::Grids;
+		pub use crate::grids::RectDef;
+	}
 	pub mod hello_rgb {
 		pub use crate::hello_rgb::HelloRGB;
 	}

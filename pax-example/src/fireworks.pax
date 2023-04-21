@@ -1,5 +1,5 @@
 <Group @scroll=self.handle_scroll >
-    for (elem, i) in self.squares {
+    for i in 0..60 {
         <Rectangle fill={Color::hlc(ticks + i * 360.0 / 30.0, 75.0, 150.0)} width=300px height=300px transform={
             Transform2D::anchor(50%, 50%)
             * Transform2D::align(50%, 50%)
@@ -13,5 +13,4 @@
 
 @events {
     will_render: self.handle_will_render
-    did_mount: self.handle_did_mount
 }

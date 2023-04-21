@@ -13,6 +13,6 @@ impl pax_message::reflection::PathQualifiable for <%= pascal_identifier %> {
                 atomic_self_type
             }
         };
-        module_path!().to_owned() + "::" + chopped_type
+        module_path!().to_owned().replacen("parser", "crate", 1) + "::" + chopped_type
     }
 }
