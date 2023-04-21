@@ -1067,6 +1067,7 @@ dependencies = [
  "pax-compiler",
  "pax-lang",
  "pax-message",
+ "pax-runtime-api",
  "piet",
  "serde_json",
 ]

@@ -5,14 +5,16 @@ pub mod grids;
 
 use pax::*;
 use pax::api::{ArgsClick, Property};
-use pax_std::primitives::{Group};
+use pax_std::primitives::{Frame};
 
 use crate::grids::Grids;
 use crate::hello_rgb::HelloRGB;
 use crate::fireworks::Fireworks;
 
+
+
 #[pax_app(
-    <Group @click=modulate >
+    <Frame width=100% height=100% @click=modulate >
         if current_route == 0 {
             <Grids />
         }
@@ -22,7 +24,7 @@ use crate::fireworks::Fireworks;
         if current_route == 2 {
             <HelloRGB />
         }
-    </Group>
+    </Frame>
 )]
 pub struct Example {
     pub current_route: Property<usize>,

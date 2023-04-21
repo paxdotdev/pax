@@ -1,0 +1,9 @@
+
+for i in 0..2 {
+    <Rectangle />
+}
+
+
+@events {
+    did_mount: handle_did_mount
+}
