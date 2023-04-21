@@ -17,6 +17,8 @@ pub enum PropertiesCoproduct {
     
     Fireworks(pax_example::pax_reexports::fireworks::Fireworks),
     
+    Grids(pax_example::pax_reexports::grids::Grids),
+    
     Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
     HelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
@@ -41,7 +43,7 @@ pub enum TypesCoproduct {
     
     Transform2D(pax_runtime_api::Transform2D),
     
-    VecLABR__f64RABR(Vec<pax_example::pax_reexports::f64>),
+    VecLABR__crateCOCOgridsCOCORectDefRABR(Vec<pax_example::pax_reexports::crate::grids::RectDef>),
     
     Vec_Rc_PropertiesCoproduct___(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
     

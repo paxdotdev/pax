@@ -63,6 +63,63 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     fs::write(path, file_contents).unwrap();
 }
 
+struct NamespaceTrieNode {
+    pub node_string: Option<String>,
+    pub children: HashMap<String, NamespaceTrieNode>
+}
+
+impl NamespaceTrieNode {
+    pub fn insert(&mut self, namespace_string: &str) {
+        let mut segments = namespace_string.split("::");
+        let mut current_node = self.get_or_create_child(segments.next().unwrap());
+        segments.for_each(|segment| {
+            current_node = current_node.get_or_create_child(segment)
+        });
+    }
+
+    pub fn get_or_create_child(&mut self, segment: &str) -> &NamespaceTrieNode {
+        if let Some(existing) = self.children.get(segment) {
+            existing
+        } else {
+            //insert first, then return borrow
+            self.children.insert(segment.to_string(), NamespaceTrieNode { node_string: Some(segment.to_string()), children: HashMap::new() });
+            self.children.get(segment).unwrap()
+        }
+    }
+}
+
+
+    pub fn serialize_to_reexports(&self) -> String {
+        let mut accum : String = "pub mod pax_reexports {\n".into();
+        self.children.iter().for_each(|sub_trie|{
+            if sub_trie.0 == "crate" {
+                //handle crate sub-trie
+
+            } else {
+
+            }
+        });
+
+        accum += "\n}";
+        accum
+
+    }
+
+    fn recurse_serialize_to_reexports(sub_trie: (&String, &NamespaceTrieNode)) -> String {
+
+    }
+}
+
+fn new_bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
+    //TODO:
+    //Traverse sorted_reexports, split each by `::`, and coalesce into
+    //a namespace trie.  We can then traverse that trie and compile a string
+    //for reexports, with nominal special-handling with the `crate` sub-trie
+
+
+}
+
+
 fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
 
     //0. sort (expected to be passed sorted)
