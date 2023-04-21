@@ -22,11 +22,11 @@ impl Fireworks {
 
     pub fn handle_will_render(&mut self, args: ArgsRender) {
         self.ticks.set(args.frames_elapsed);
-        if args.frames_elapsed % 260 == 0 {
+        if args.frames_elapsed % 360 == 0 {
             pax::log("heartbeat");
-            // self.heartbeat.ease_to(HEARTBEAT_AMPLITUDE, 40, EasingCurve::OutBack);
-            // self.heartbeat.ease_to_later(-HEARTBEAT_AMPLITUDE / 2.0, 50, EasingCurve::OutBack);
-            // self.heartbeat.ease_to_later(0.0, 70, EasingCurve::OutBack);
+            self.heartbeat.ease_to(HEARTBEAT_AMPLITUDE, 120, EasingCurve::OutBack);
+            self.heartbeat.ease_to_later(-HEARTBEAT_AMPLITUDE / 2.0, 120, EasingCurve::OutBack);
+            self.heartbeat.ease_to_later(0.0, 120, EasingCurve::OutBack);
         }
     }
 

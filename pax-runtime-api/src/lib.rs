@@ -386,11 +386,18 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
             //handle case where transition queue is empty -- a None value gets skipped, so populate it with Some
             self.transition_manager.value = Some(self.get().clone());
         }
+
+        let starting_value = if self.transition_manager.queue.len() > 0 {
+            self.transition_manager.queue.get(self.transition_manager.queue.len() - 1).unwrap().ending_value.clone()
+        } else {
+            self.value.clone()
+        };
+
         self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
             duration_frames,
             curve,
-            starting_value: self.value.clone(),
+            starting_value,
             ending_value: new_value
         });
     }
