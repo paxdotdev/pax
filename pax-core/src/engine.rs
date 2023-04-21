@@ -423,6 +423,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             parent_hydrated_node: rtc.parent_hydrated_node.clone(),
         });
 
+        //Note: ray-casting requires that the hydrated_node_cache is sorted by z-index,
+        //so the order in which `add_to_hydrated_node_cache` is invoked vs. descendants is important
+        (*rtc.engine.instance_registry).borrow_mut().add_to_hydrated_node_cache(Rc::clone(&hydrated_node));
+
         //keep recursing through children
         children.borrow_mut().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
@@ -431,10 +435,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             &self.recurse_hydrate_render_tree(&mut new_rtc, rc, Rc::clone(child));
             //FUTURE: for dependency management, return computed values from subtree above
         });
-
-        //Note: ray-casting requires that the hydrated_node_cache is sorted by z-index,
-        //so the order in which `add_to_hydrated_node_cache` is invoked vs. descendants is important
-        (*rtc.engine.instance_registry).borrow_mut().add_to_hydrated_node_cache(Rc::clone(&hydrated_node));
 
         //lifecycle: render
         //this is this node's time to do its own rendering, aside

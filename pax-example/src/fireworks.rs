@@ -10,7 +10,7 @@ pub struct Fireworks {
 }
 
 const ROTATION_COEFFICIENT: f64 = 0.00010;
-const HEARTBEAT_AMPLITUDE: f64 = 1.15;
+const HEARTBEAT_AMPLITUDE: f64 = 1.25;
 
 impl Fireworks {
 
@@ -20,7 +20,7 @@ impl Fireworks {
             pax::log("heartbeat");
             self.heartbeat.ease_to(HEARTBEAT_AMPLITUDE, 120, EasingCurve::OutBack);
             self.heartbeat.ease_to_later(-HEARTBEAT_AMPLITUDE / 2.0, 120, EasingCurve::OutBack);
-            self.heartbeat.ease_to_later(0.0, 120, EasingCurve::OutBack);
+            self.heartbeat.ease_to_later(1.0, 120, EasingCurve::OutBack);
         }
     }
 
