@@ -306,12 +306,16 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             // we need some way to infer the return type, statically.  This may mean requiring
             // an explicit type declaration by the end-user, or perhaps we can hack something
             // with further compiletime "reflection" magic
+
+            let mut whitespace_removed_input = paxel.clone();
+            whitespace_removed_input.retain(|c| !c.is_whitespace());
+
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
                 pascalized_return_type: return_type.pascalized_fully_qualified_type,
                 invocations,
                 output_statement,
-                input_statement: paxel,
+                input_statement: whitespace_removed_input,
             });
 
         } else if let Some(condition_expression_paxel) = &cfa.condition_expression_paxel {
@@ -321,12 +325,15 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
             cfa.condition_expression_vtable_id = Some(id);
 
+            let mut whitespace_removed_input = condition_expression_paxel.clone();
+            whitespace_removed_input.retain(|c| !c.is_whitespace());
+
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
                 pascalized_return_type: "bool".to_string(),
                 invocations,
                 output_statement,
-                input_statement: condition_expression_paxel.clone(),
+                input_statement: whitespace_removed_input,
             });
         } else if let Some(slot_index_expression_paxel) = &cfa.slot_index_expression_paxel {
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
@@ -335,12 +342,15 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
             cfa.slot_index_expression_vtable_id = Some(id);
 
+            let mut whitespace_removed_input = slot_index_expression_paxel.clone();
+            whitespace_removed_input.retain(|c| !c.is_whitespace());
+
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
                 pascalized_return_type: "usize".to_string(),
                 invocations,
                 output_statement,
-                input_statement: slot_index_expression_paxel.clone(),
+                input_statement: whitespace_removed_input,
             });
         } else {
             unreachable!("encountered invalid control flow definition")

@@ -49,7 +49,7 @@ impl Default for StackerDirection {
         StackerDirection::Horizontal
     }
 }
-impl Interpolatable for StackerDirection {}
+
 
 
 #[derive(Clone)]
@@ -85,7 +85,6 @@ impl Default for Font {
         }
     }
 }
-impl Interpolatable for Font {}
 
 #[derive(Clone)]
 #[pax_type]
@@ -177,12 +176,6 @@ impl PartialEq<ColorVariantMessage> for Color {
     }
 }
 
-impl Interpolatable for Color {
-    //FUTURE: Colors can be meaningfully interpolated, thus
-    //      we should include interpolation logic here
-    //      (Note that piet::Color offers a `to_rgba` method, probably
-    //      useful to establish a common color space)
-}
 
 #[derive(Clone)]
 #[pax_type]
@@ -205,8 +198,6 @@ pub enum PathSegment {
     LineSegment(LineSegmentData),
     CurveSegment(CurveSegmentData),
 }
-
-impl Interpolatable for PathSegment {}
 
 #[derive(Clone)]
 #[pax_type]

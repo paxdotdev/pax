@@ -10,6 +10,7 @@ use manifest::PaxManifest;
 
 use std::{fs};
 use std::borrow::Borrow;
+use std::cmp::Ordering;
 use std::str::FromStr;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
@@ -48,16 +49,13 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     combined_reexports.append(&mut reexport_types);
     combined_reexports.sort();
 
-    let mut file_contents = "pub mod pax_reexports { \n".to_string();
 
     //Make combined_reexports unique by pouring into a Set and back
     let set: HashSet<_> = combined_reexports.drain(..).collect();
     combined_reexports.extend(set.into_iter());
     combined_reexports.sort();
 
-    file_contents += &bundle_reexports_into_namespace_string(&combined_reexports);
-
-    file_contents += "}";
+    let file_contents = &bundle_reexports_into_namespace_string(&combined_reexports);
 
     let path = pax_dir.join(Path::new(REEXPORTS_PARTIAL_RS_PATH));
     fs::write(path, file_contents).unwrap();
@@ -65,174 +63,189 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
 
 struct NamespaceTrieNode {
     pub node_string: Option<String>,
-    pub children: HashMap<String, NamespaceTrieNode>
+    pub children: HashMap<String, NamespaceTrieNode>,
+}
+
+impl PartialEq for NamespaceTrieNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.node_string == other.node_string
+    }
+}
+
+impl Eq for NamespaceTrieNode {}
+
+impl PartialOrd for NamespaceTrieNode {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for NamespaceTrieNode {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (&self.node_string, &other.node_string) {
+            (Some(a), Some(b)) => a.cmp(b),
+            (Some(_), None) => Ordering::Greater,
+            (None, Some(_)) => Ordering::Less,
+            (None, None) => Ordering::Equal,
+        }
+    }
 }
 
 impl NamespaceTrieNode {
     pub fn insert(&mut self, namespace_string: &str) {
         let mut segments = namespace_string.split("::");
-        let mut current_node = self.get_or_create_child(segments.next().unwrap());
-        segments.for_each(|segment| {
-            current_node = current_node.get_or_create_child(segment)
-        });
-    }
+        let first_segment = segments.next().unwrap();
 
-    pub fn get_or_create_child(&mut self, segment: &str) -> &NamespaceTrieNode {
-        if let Some(existing) = self.children.get(segment) {
-            existing
-        } else {
-            //insert first, then return borrow
-            self.children.insert(segment.to_string(), NamespaceTrieNode { node_string: Some(segment.to_string()), children: HashMap::new() });
-            self.children.get(segment).unwrap()
+        let mut current_node = self;
+        current_node = current_node.get_or_create_child(first_segment);
+
+        for segment in segments {
+            current_node = current_node.get_or_create_child(segment);
         }
     }
-}
 
+    pub fn get_or_create_child(&mut self, segment: &str) -> &mut NamespaceTrieNode {
+        self.children
+            .entry(segment.to_string())
+            .or_insert_with(|| NamespaceTrieNode {
+                node_string: Some(if let Some(ns) = self.node_string.as_ref() {
+                    ns.to_string() + "::" + segment
+                } else {
+                    segment.to_string()
+                }),
+                children: HashMap::new(),
+            })
+    }
 
     pub fn serialize_to_reexports(&self) -> String {
-        let mut accum : String = "pub mod pax_reexports {\n".into();
-        self.children.iter().for_each(|sub_trie|{
-            if sub_trie.0 == "crate" {
-                //handle crate sub-trie
+        "pub mod pax_reexports {\n".to_string() + &self.recurse_serialize_to_reexports(1) + "\n}"
+    }
 
-            } else {
+    pub fn recurse_serialize_to_reexports(&self, indent: usize) -> String {
 
-            }
+        let indent_str = "    ".repeat(indent);
+
+        let mut accum : String = "".into();
+
+        self.children.iter().sorted().for_each(|child|{
+            if child.1.node_string.as_ref().unwrap() == "crate" {
+                //handle crate subtrie by skipping the crate NamespaceTrieNode, traversing directly into its children
+                child.1.children.iter().sorted().for_each(|child| {
+                    if child.1.children.len() == 0 {
+                        //leaf node:  write `pub use ...` entry
+                        accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
+                    } else {
+                        //non-leaf node:  write `pub mod ...` block
+                        accum += &format!("{}pub mod {} {{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
+                        accum += &child.1.recurse_serialize_to_reexports(indent + 1);
+                        accum += &format!("{}}}\n", indent_str);
+                    }
+                })
+
+            }else {
+                if child.1.children.len() == 0 {
+                    //leaf node:  write `pub use ...` entry
+                    accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
+                } else {
+                    //non-leaf node:  write `pub mod ...` block
+                    accum += &format!("{}pub mod {}{{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
+                    accum += &child.1.recurse_serialize_to_reexports(indent + 1);
+                    accum += &format!("{}}}\n", indent_str);
+                }
+            };
         });
 
-        accum += "\n}";
         accum
 
     }
+}
 
-    fn recurse_serialize_to_reexports(sub_trie: (&String, &NamespaceTrieNode)) -> String {
+#[cfg(test)]
+mod tests {
+    use super::NamespaceTrieNode;
+    use std::collections::HashMap;
 
+    #[test]
+    fn test_serialize_to_reexports() {
+        let input_vec = vec![
+            "crate::Example",
+            "crate::fireworks::Fireworks",
+            "crate::grids::Grids",
+            "crate::grids::RectDef",
+            "crate::hello_rgb::HelloRGB",
+            "f64",
+            "pax_std::primitives::Ellipse",
+            "pax_std::primitives::Group",
+            "pax_std::primitives::Rectangle",
+            "pax_std::types::Color",
+            "pax_std::types::Stroke",
+            "std::vec::Vec",
+            "usize",
+        ];
+
+        let mut root_node = NamespaceTrieNode {
+            node_string: None,
+            children: HashMap::new(),
+        };
+
+        for namespace_string in input_vec {
+            root_node.insert(&namespace_string);
+        }
+
+        let output = root_node.serialize_to_reexports();
+
+        let expected_output = r#"pub mod pax_reexports {
+    pub use crate::Example;
+    pub mod fireworks {
+        pub use crate::fireworks::Fireworks;
+    }
+    pub mod grids {
+        pub use crate::grids::Grids;
+        pub use crate::grids::RectDef;
+    }
+    pub mod hello_rgb {
+        pub use crate::hello_rgb::HelloRGB;
+    }
+    pub use f64;
+    pub mod pax_std{
+        pub mod primitives{
+            pub use pax_std::primitives::Ellipse;
+            pub use pax_std::primitives::Group;
+            pub use pax_std::primitives::Rectangle;
+        }
+        pub mod types{
+            pub use pax_std::types::Color;
+            pub use pax_std::types::Stroke;
+        }
+    }
+    pub mod std{
+        pub mod vec{
+            pub use std::vec::Vec;
+        }
+    }
+    pub use usize;
+
+}"#;
+
+        assert_eq!(output, expected_output);
     }
 }
 
-fn new_bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
-    //TODO:
-    //Traverse sorted_reexports, split each by `::`, and coalesce into
-    //a namespace trie.  We can then traverse that trie and compile a string
-    //for reexports, with nominal special-handling with the `crate` sub-trie
-
-
-}
 
 
 fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
 
-    //0. sort (expected to be passed sorted)
-    //1. keep transient stack of nested namespaces.  For each export string (like pax::api::Size)
-    //   - Split by "::"
-    //   - if no `::`, or `crate::SingleDepth`, export at root of `pax_reexports`, i.e. empty stack
-    //   - if `::`,
-    //      - push onto stack the first n-1 identifiers as namespace
-    //        - when pushing onto stack, write a `pub mod _identifier_ {`
-    //      - when last element is reached, write a `pub use _identifier_;`
-    //      - keep track of previous or next element, pop from stack for each of `n` mismatched prefix tokens
-    //        - when popping from stack, write a `}`
-    //        - empty stack entirely at end of vec
+    let mut root = NamespaceTrieNode {
+        node_string: None,
+        children: Default::default(),
+    };
 
-    //Author's note: if this logic must be refactored significantly, consider building a tree data structure & serializing it, instead
-    //      of doubling down on this sorted/iterator/stack approach.  This ended up fairly arcane and brittle. -zb
-
-    let mut namespace_stack = vec![];
-    let mut output_string = "".to_string();
-
-    //identify namespaceless or prelude-qualified types, e.g. `f64`
-    fn is_reexport_namespaceless(symbols: &Vec<String>) -> bool {
-        symbols.len() == 0
+    for s in sorted_reexports {
+        root.insert(s);
     }
 
-    //identify `crate::RootLevel` reexports, e.g. `crate::Foo` but not `crate::bar::Bar`
-    fn is_reexport_crate_root(symbols: &Vec<String>) -> bool {
-        symbols[0].eq("crate") && symbols.len() == 2
-    }
+    root.serialize_to_reexports()
 
-    fn is_reexport_crate_prefixed(symbols: &Vec<String>) -> bool {
-        symbols[0].eq("crate")
-    }
-
-    fn get_tabs (i: usize) -> String {
-        "\t".repeat(i + 1).to_string()
-    }
-
-    fn pop_and_write_brace(namespace_stack: &mut Vec<String>, output_string: &mut String){
-        namespace_stack.pop();
-        output_string.push_str(&*(get_tabs(namespace_stack.len()) + "}\n"));
-    }
-
-    fn dump_stack(namespace_stack: &mut Vec<String>, output_string: &mut String)  {
-        while namespace_stack.len() > 0 {
-            pop_and_write_brace(namespace_stack, output_string);
-        }
-    }
-
-    sorted_reexports.iter().enumerate().for_each(|(i,pub_use)| {
-
-        let symbols: Vec<String> = pub_use.split("::").map(|s|{s.to_string()}).collect();
-
-        if is_reexport_namespaceless(&symbols) || is_reexport_crate_root(&symbols) {
-            //we can assume we're already at the root of the stack, thanks to the look-ahead stack-popping logic.
-            assert!(namespace_stack.len() == 0);
-            output_string += &*(get_tabs(namespace_stack.len()) + "pub use " + pub_use + ";\n");
-        } else {
-            //push necessary symbols to stack
-            let starting_index = namespace_stack.len();
-            let skip = if symbols[0] == "crate" {1} else {0};
-
-            for k in skip..((symbols.len() - 1) - namespace_stack.len()) {
-                //k represents the offset `k` from `starting_index`, where `k + starting_index`
-                //should be retrieved from `symbols` and pushed to `namespace_stack`
-                let namespace_symbol = symbols.get(k + starting_index).unwrap().clone();
-                output_string += &*(get_tabs(namespace_stack.len()) + "pub mod " + &namespace_symbol + " {\n");
-                namespace_stack.push(namespace_symbol);
-            }
-
-            output_string += &*(get_tabs(namespace_stack.len()) + "pub use " + pub_use + ";\n");
-
-            //look-ahead and pop stack as necessary
-            match sorted_reexports.get(i + 1) {
-                Some(next_reexport) => {
-                    let next_symbols : Vec<String> = next_reexport.split("::").map(|s|{s.to_string()}).collect();
-                    if is_reexport_crate_prefixed(&next_symbols) || is_reexport_namespaceless(&next_symbols) {
-                        dump_stack(&mut namespace_stack, &mut output_string);
-                    } else {
-                        //for the CURRENT first n-1 symbols, check against same position in
-                        //new_symbols.
-                        //for the first mismatched symbol at i, pop k times, where k = (n-1)-i
-
-                        let mut how_many_pops = None;
-                        let n_minus_one = symbols.len() - 1;
-                        symbols.iter().take(symbols.len() - 1).enumerate().for_each(|(i,symbol)|{
-                            if let None = how_many_pops {
-                                if let Some(next_symbol) = next_symbols.get(i) {
-                                    if !next_symbol.eq(symbol) {
-                                        how_many_pops = Some(n_minus_one - i);
-                                    }
-                                } else {
-                                    how_many_pops = Some(n_minus_one - i);
-                                }
-                            }
-                        });
-
-                        if let Some(pops) = how_many_pops {
-                            for _ in skip..pops {
-                                pop_and_write_brace(&mut namespace_stack, &mut output_string);
-                            }
-                        }
-                    }
-                },
-                None => {
-                    //we're at the end of the vec — dump stack and write braces
-                    dump_stack(&mut namespace_stack, &mut output_string);
-                }
-            }
-        }
-    });
-
-    output_string
 }
 
 fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
@@ -287,7 +300,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
         cd.1.property_definitions.iter().map(|pm|{
             (pm.property_type_info.pascalized_fully_qualified_type.clone(),
-             pm.property_type_info.fully_qualified_type.clone())
+             pm.property_type_info.fully_qualified_type.clone().replace("crate::", ""))
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -347,7 +360,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     let mut imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
         comp_def.property_definitions.iter().map(|prop_def|{
             prop_def.fully_qualified_constituent_types.iter().map(|fqct|{
-                IMPORT_PREFIX.clone() + fqct
+                IMPORT_PREFIX.clone() + &fqct.replace("crate::", "")
             }).collect::<Vec<String>>()
         }).flatten().collect::<Vec<String>>()
     }).flatten().collect::<Vec<String>>();
