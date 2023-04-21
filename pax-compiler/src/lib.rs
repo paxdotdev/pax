@@ -7,6 +7,7 @@ pub mod parsing;
 pub mod expressions;
 
 use manifest::PaxManifest;
+use rust_format::Formatter;
 
 use std::{fs};
 use std::borrow::Borrow;
@@ -427,8 +428,11 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
         component_factories_literal,
     });
 
+    //format output
+    let formatted = rust_format::RustFmt::default().format_str(generated_lib_rs).unwrap();
+
     //write String to file
-    fs::write(target_dir.join("src/lib.rs"), generated_lib_rs).unwrap();
+    fs::write(target_dir.join("src/lib.rs"), formatted).unwrap();
 
 }
 
