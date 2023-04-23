@@ -117,8 +117,6 @@ class TextUpdatePatch {
         self.fontBuffer =  fb["font"]!
 
         if fb["fill"] != nil && !fb["fill"]!.isNull {
-            
-            
             if fb["fill"]!["Rgba"] != nil && !fb["fill"]!["Rgba"]!.isNull {
                 let stub = fb["fill"]!["Rgba"]!
                 self.fill = Color(
@@ -173,6 +171,9 @@ class FontSpec {
         if self.variant != "Regular" {
             suffix = " " + self.variant
         }
+        // Reason for differing size between mac and web is two fold
+        // Chrome scales with Device pixel ratio (DPR)
+        // Swift uses points rather than pixels
         return Font.custom(String(self.family + suffix), size: CGFloat(self.size))
     }
 }
