@@ -157,10 +157,12 @@ class NativeElementPool {
     }
 
     textDelete(id_chain: number[]) {
-        
-        let oldNode = this.textNodes.get(id_chain);
+
+        // @ts-ignore
+        let oldNode = this.textNodes[id_chain];
         console.assert(oldNode !== undefined);
-        this.textNodes.delete(id_chain);
+        // @ts-ignore
+        delete this.textNodes[id_chain];
 
         let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
         nativeLayer?.removeChild(oldNode);
@@ -321,7 +323,7 @@ function processMessages(messages: any[]) {
             nativePool.textUpdate(new TextUpdatePatch(msg));
         }else if (unwrapped_msg["TextDelete"]) {
             let msg = unwrapped_msg["TextDelete"];
-            nativePool.frameDelete(msg["id_chain"])
+            nativePool.textDelete(msg)
         } else if(unwrapped_msg["FrameCreate"]) {
             let msg = unwrapped_msg["FrameCreate"]
             nativePool.frameCreate(new AnyCreatePatch(msg));

@@ -80,6 +80,11 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             properties.font.get_mut().variant.set(new_value);
         }
 
+        if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = fill {v} else { unreachable!() };
+            properties.fill.set(new_value);
+        }
+
         let mut size = &mut *self.size.as_ref().borrow_mut();
 
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
@@ -263,12 +268,11 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     }
 
     fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-
         // unplugged in desperation, search codebase for "unplugged in desperation"
-
-        // let id_chain = rtc.get_id_chain(self.instance_id);
-        // (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-        //     pax_message::NativeMessage::TextDelete(id_chain)
-        // );
+        self.last_patches.clear();
+        let id_chain = _rtc.get_id_chain(self.instance_id);
+        (*_rtc.engine.runtime).borrow_mut().enqueue_native_message(
+            pax_message::NativeMessage::TextDelete(id_chain)
+        );
     }
 }

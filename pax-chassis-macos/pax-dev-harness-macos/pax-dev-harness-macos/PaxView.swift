@@ -95,27 +95,29 @@ struct PaxView: View {
             } }
         }
 
+        @ViewBuilder
         func getPositionedTextGroup(textElement: TextElement) -> some View {
-            return Group {
-                Group {
-                    Text(textElement.content)
-                            .foregroundColor(textElement.fill)
-                            .font(textElement.font_spec.cachedFont)
-                            .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
-                            .clipped()
-                            .position(x: CGFloat(textElement.size_x) / 2.0, y: CGFloat(textElement.size_y) / 2.0)
-                            .transformEffect(CGAffineTransform.init(
-                                    a: CGFloat(textElement.transform[0]),
-                                    b: CGFloat(textElement.transform[1]),
-                                    c: CGFloat(textElement.transform[2]),
-                                    d: CGFloat(textElement.transform[3]),
-                                    tx: CGFloat(textElement.transform[4]),
-                                    ty: CGFloat(textElement.transform[5])
-                            ))
-                }
-                        .mask(
-                                getClippingMask(clippingIds: textElement.clipping_ids)
-                        )
+            let textGroup = Group {
+                Text(textElement.content)
+                    .foregroundColor(textElement.fill)
+                    .font(textElement.font_spec.cachedFont)
+                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
+                    .clipped()
+                    .position(x: CGFloat(textElement.size_x) / 2.0, y: CGFloat(textElement.size_y) / 2.0)
+                    .transformEffect(CGAffineTransform.init(
+                            a: CGFloat(textElement.transform[0]),
+                            b: CGFloat(textElement.transform[1]),
+                            c: CGFloat(textElement.transform[2]),
+                            d: CGFloat(textElement.transform[3]),
+                            tx: CGFloat(textElement.transform[4]),
+                            ty: CGFloat(textElement.transform[5])
+                    ))
+            }
+
+            if !textElement.clipping_ids.isEmpty {
+                textGroup.mask(getClippingMask(clippingIds: textElement.clipping_ids))
+            } else {
+                textGroup
             }
         }
 
@@ -190,7 +192,7 @@ struct PaxView: View {
 
                 //For manual debugger attachment:
                 //do {
-                //    sleep(10)
+                  //  sleep(30)
                 //}
 
                 PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)

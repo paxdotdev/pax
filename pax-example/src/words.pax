@@ -1,0 +1,1 @@
+<Text text="hello world" transform={Transform2D::align(50%, 50%)}  fill={Color::rgba(1.0, 0.0, 0.0, 1.0)} />
