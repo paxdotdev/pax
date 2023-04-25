@@ -1,6 +1,6 @@
 
-for i in 0..2 {
-    <Rectangle />
+for (elem, i) in self.rects {
+    <Rectangle width={elem.width} height={elem.height} transform={Transform2D::translate(elem.x, elem.y)} />
 }
 
 

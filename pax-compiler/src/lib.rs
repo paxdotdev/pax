@@ -428,12 +428,20 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
         component_factories_literal,
     });
 
+
     //format output
-    let formatted = rust_format::RustFmt::default().format_str(generated_lib_rs).unwrap();
+    let formatted = {
+        if let Ok(out) = rust_format::RustFmt::default().format_str(generated_lib_rs.clone()) {
+            out
+        } else {
+            //if formatting fails (e.g. parsing error, common expected case) then
+            //fall back to unformattted generated code
+            generated_lib_rs
+        }
+    };
 
     //write String to file
     fs::write(target_dir.join("src/lib.rs"), formatted).unwrap();
-
 }
 
 

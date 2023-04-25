@@ -65,7 +65,7 @@ pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_f
     PropertyType {
         pascalized_fully_qualified_type,
         fully_qualified_type,
-        iterable_type
+        iterable_type,
     }
 }
 
