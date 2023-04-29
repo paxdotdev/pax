@@ -12,6 +12,7 @@ use crate::hello_rgb::HelloRGB;
 use crate::fireworks::Fireworks;
 
 
+const ROUTE_COUNT : usize = 3;
 
 #[pax_app(
     <Frame width=100% height=100% @click=modulate >
@@ -30,11 +31,8 @@ pub struct Example {
     pub current_route: Property<usize>,
 }
 
-
 impl Example {
     pub fn modulate(&mut self, args: ArgsClick) {
-        const ROUTE_COUNT : usize = 3;
-
         let old_route = self.current_route.get();
         self.current_route.set((old_route + 1) % ROUTE_COUNT);
     }

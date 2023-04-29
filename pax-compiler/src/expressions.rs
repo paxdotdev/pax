@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::ops::{IndexMut, RangeFrom};
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use crate::manifest::PropertyType;
+use crate::manifest::PropertyTypeInfo;
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
@@ -63,7 +63,7 @@ fn pull_matched_identifiers_from_inline(inline_settings: &Option<Vec<(String, Va
     ret
 }
 
-fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefinition>>, selector: String) -> Option<Vec<(String, ValueDefinition)>> { ;
+fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefinition>>, selector: String) -> Option<Vec<(String, ValueDefinition)>> {
     if let Some(val) = settings {
         let merged_settings : Vec<(String, ValueDefinition)> = val.iter().filter(|block| { block.selector == selector })
             .map(|block| { block.value_block.settings_key_value_pairs.clone()}).flatten().clone().collect();
@@ -124,8 +124,8 @@ fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(Strin
 fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) -> ExpressionCompilationContext<'a> {
     let incremented = false;
 
-    let mut cloned_settings_block = ctx.component_def.settings.clone();
-    let mut cloned_inline_settings = ctx.active_node_def.settings.clone();
+    let cloned_settings_block = ctx.component_def.settings.clone();
+    let cloned_inline_settings = ctx.active_node_def.settings.clone();
     let mut merged_settings = merge_inline_settings_with_settings_block(&cloned_inline_settings, &cloned_settings_block);
     let mut cloned_control_flow_settings = ctx.active_node_def.control_flow_settings.clone();
 
@@ -136,7 +136,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 ValueDefinition::LiteralValue(_) => {
                     //no need to compile literal values
                 }
-                ValueDefinition::EventBindingTarget(s) => {
+                ValueDefinition::EventBindingTarget(_) => {
                     //event bindings are handled on a separate compiler pass; no-op here
                 }
                 ValueDefinition::Identifier(identifier, manifest_id) => {
@@ -238,10 +238,10 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
 
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
-                (range_expression_paxel.to_string(), PropertyType::builtin_range_isize())
+                (range_expression_paxel.to_string(), PropertyTypeInfo::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
 
-                (symbolic_binding.to_string(), PropertyType::builtin_vec_rc_properties_coproduct())
+                (symbolic_binding.to_string(), PropertyTypeInfo::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be

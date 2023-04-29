@@ -23,7 +23,7 @@ use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Item};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use crate::manifest::{LiteralBlockDefinition, ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition, SettingsSelectorBlockDefinition};
+use crate::manifest::{ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
 //relative to pax_dir

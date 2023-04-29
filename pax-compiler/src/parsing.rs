@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, Number, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, PropertyType, EventDefinition};
+use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition};
 
 use uuid::Uuid;
 
@@ -594,24 +594,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
     }
 }
 
-fn handle_number_string(num_string: &str) -> Number {
-    //for now, maybe naively, treat as float IFF there's a `.` in its string representation
-    if num_string.contains(".") {
-        Number::Float(num_string.parse::<f64>().unwrap())
-    } else {
-        Number::Int(num_string.parse::<isize>().unwrap())
-    }
-}
-
-fn handle_unit_string(unit_string: &str) -> Unit {
-    match unit_string {
-        "px" => Unit::Pixels,
-        "%" => Unit::Percent,
-        _ => {unimplemented!("Only px or % are currently supported as units")}
-    }
-}
-
-fn derive_value_definition_from_literal_object_pair(mut literal_object: Pair<Rule>) -> LiteralBlockDefinition {
+fn derive_value_definition_from_literal_object_pair(literal_object: Pair<Rule>) -> LiteralBlockDefinition {
     let mut literal_object_pairs = literal_object.into_inner();
 
     let explicit_type_pascal_identifier = match literal_object_pairs.peek().unwrap().as_rule() {
@@ -660,13 +643,13 @@ fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<Sett
         match top_level_pair.as_rule() {
             Rule::settings_block_declaration => {
 
-                let mut selector_block_definitions: Vec<SettingsSelectorBlockDefinition> = top_level_pair.into_inner().map(|selector_block| {
+                let selector_block_definitions: Vec<SettingsSelectorBlockDefinition> = top_level_pair.into_inner().map(|selector_block| {
                     //selector_block => settings_key_value_pair where v is a ValueDefinition
                     let mut selector_block_pairs = selector_block.into_inner();
                     //first pair is the selector itself
                     let raw_selector = selector_block_pairs.next().unwrap().as_str();
                     let selector: String = raw_selector.chars().filter(|c| !c.is_whitespace()).collect();
-                    let mut literal_object = selector_block_pairs.next().unwrap();
+                    let literal_object = selector_block_pairs.next().unwrap();
 
                     SettingsSelectorBlockDefinition {
                         selector: selector.clone(),

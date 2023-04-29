@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use crate::manifest::PropertyType;
+use crate::manifest::PropertyTypeInfo;
 
 
 static PRELUDE_TYPES: [&'static str; 5] = [
@@ -30,7 +30,7 @@ pub fn is_prelude_type(identifier: &str) -> bool {
 //Returns a fully expanded path and a pascalized version of that fully expanded path — for example:
 // Vec<Rc<StackerCell>> becomes
 // std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCell>>
-pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_fqd_map: &HashMap<&str, String>) -> PropertyType {
+pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_fqd_map: &HashMap<&str, String>) -> PropertyTypeInfo {
 
     let mut fully_qualified_type = unexpanded_path.to_string();
 
@@ -62,10 +62,13 @@ pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_f
         None
     };
 
-    PropertyType {
+    let known_addressable_properties = todo!();
+
+    PropertyTypeInfo {
         pascalized_fully_qualified_type,
         fully_qualified_type,
         iterable_type,
+        known_addressable_properties,
     }
 }
 

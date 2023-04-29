@@ -193,7 +193,7 @@ pub struct PropertyDefinition {
     /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
     pub fully_qualified_constituent_types: Vec<String>,
     /// Store of fully qualified types that may be needed for expression vtable generation
-    pub property_type_info: PropertyType,
+    pub property_type_info: PropertyTypeInfo,
 
     ///Flags, used ultimately by ExpressionSpecInvocations, to denote
     ///whether a property is the `i` or `elem` of a `Repeat`, which allows
@@ -202,6 +202,9 @@ pub struct PropertyDefinition {
     pub is_repeat_elem: bool,
 }
 
+/// Describes static metadata surrounding a property, for example
+/// the string representation of the property's name and a `PropertyTypeInfo`
+/// entry for the property's statically discovered type
 impl PropertyDefinition {
     /// Shorthand factory / constructor
     pub fn primitive_with_name(type_name: &str, symbol_name: &str) -> Self {
@@ -209,7 +212,7 @@ impl PropertyDefinition {
             name: symbol_name.to_string(),
             original_type: type_name.to_string(),
             fully_qualified_constituent_types: vec![],
-            property_type_info: PropertyType {
+            property_type_info: PropertyTypeInfo {
                 fully_qualified_type: type_name.to_string(),
                 pascalized_fully_qualified_type: type_name.to_string(),
                 iterable_type: None,
@@ -221,8 +224,12 @@ impl PropertyDefinition {
     }
 }
 
+/// Describes static metadata surrounding a property's type, for example
+/// string representations of the type and metadata surrounding iterable
+/// and nestable types (e.g. recursive PropertyTypeInfo for the `T` in `Property<Vec<T>>` or the
+/// nested properties `.foo` or `.bar` of some struct `Baz`, given a `Property<Baz>`)
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct PropertyType {
+pub struct PropertyTypeInfo {
     /// Same type as `PropertyDefinition#original_type`, but dynamically normalized to be fully qualified, suitable for reexporting.  For example, the original_type `Vec<SomeStruct>` would be fully qualified as `std::vec::Vec<some_crate::SomeStruct>`
     pub fully_qualified_type: String,
 
@@ -230,15 +237,15 @@ pub struct PropertyType {
     pub pascalized_fully_qualified_type: String,
 
     /// If present, the type `T` in a `Property<Vec<T>>` — i.e. that which can be traversed with `for`
-    pub iterable_type: Option<Box<PropertyType>>,
+    pub iterable_type: Option<Box<PropertyTypeInfo>>,
 
     /// A vec of (String, PropertyType) tuples, describing known addressable properties
     /// of this PropertyType.  For Example, a struct `Foo {bar: String, baz: SomeOtherStruct}`
     /// would have entries `("bar", PropertyType {...})`, `("baz", PropertyType {...})`
-    pub known_addressable_properties: Vec<(String, PropertyType)>,
+    pub known_addressable_properties: Vec<(String, PropertyTypeInfo)>,
 }
 
-impl PropertyType {
+impl PropertyTypeInfo {
     pub fn primitive(name: &str) -> Self {
         Self {
             pascalized_fully_qualified_type: name.to_string(),
@@ -277,7 +284,8 @@ impl PropertyType {
     }
 
 }
-
+/// Container for settings values, storing all possible
+/// variants, populated at parse-time and used at compile-time
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub enum ValueDefinition {
     #[default]
@@ -291,12 +299,19 @@ pub enum ValueDefinition {
     EventBindingTarget(String),
 }
 
+/// Container for holding parsed data describing a Repeat (`for`)
+/// predicate, for example the `(elem, i)` in `for (elem, i) in foo` or
+/// the `elem` in `for elem in foo`
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ControlFlowRepeatPredicateDefinition {
     ElemId(String),
     ElemIdIndexId(String, String),
 }
 
+
+/// Container for storing parsed control flow information, for
+/// example the string (PAXEL) representations of condition / slot / repeat
+/// expressions and the related vtable ids (for "punching" during expression compilation)
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowSettingsDefinition {
     pub condition_expression_paxel: Option<String>,
@@ -307,18 +322,24 @@ pub struct ControlFlowSettingsDefinition {
     pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>
 }
 
+/// Container describing the possible variants of a Repeat source
+/// — namely a range expression in PAXEL or a symbolic binding
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowRepeatSourceDefinition {
     pub range_expression_paxel: Option<String>,
     pub vtable_id: Option<usize>,
     pub symbolic_binding: Option<String>,
 }
+
+/// Container for parsed Settings blocks (inside `@settings`)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SettingsSelectorBlockDefinition {
     pub selector: String,
     pub value_block: LiteralBlockDefinition,
 }
 
+
+/// Container for a parsed
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<String>,

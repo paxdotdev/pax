@@ -6,11 +6,9 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 pub struct Fireworks {
     pub rotation: Property<f64>,
     pub ticks: Property<usize>,
-    pub heartbeat: Property<f64>,
 }
 
 const ROTATION_COEFFICIENT: f64 = 0.00010;
-const HEARTBEAT_AMPLITUDE: f64 = 1.25;
 
 impl Fireworks {
 
