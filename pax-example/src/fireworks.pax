@@ -12,5 +12,5 @@
 </Group>
 
 @events {
-    will_render: self.handle_will_render
+    will_render: handle_will_render
 }
