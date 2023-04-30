@@ -62,13 +62,12 @@ pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_f
         None
     };
 
-    let known_addressable_properties = todo!();
 
     PropertyTypeInfo {
         pascalized_fully_qualified_type,
         fully_qualified_type,
         iterable_type,
-        known_addressable_properties,
+        known_addressable_properties: None,
     }
 }
 

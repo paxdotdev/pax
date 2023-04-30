@@ -133,6 +133,8 @@ impl ExpressionSpecInvocation {
     }
 }
 
+/// Container for an entire component definition — includes template, settings,
+/// event bindings, property definitions, and compiler + reflection metadata
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ComponentDefinition {
     pub source_id: String,
@@ -216,7 +218,7 @@ impl PropertyDefinition {
                 fully_qualified_type: type_name.to_string(),
                 pascalized_fully_qualified_type: type_name.to_string(),
                 iterable_type: None,
-                known_addressable_properties: vec![],
+                known_addressable_properties: None,
             },
             is_repeat_i: false,
             is_repeat_elem: false,
@@ -242,7 +244,7 @@ pub struct PropertyTypeInfo {
     /// A vec of (String, PropertyType) tuples, describing known addressable properties
     /// of this PropertyType.  For Example, a struct `Foo {bar: String, baz: SomeOtherStruct}`
     /// would have entries `("bar", PropertyType {...})`, `("baz", PropertyType {...})`
-    pub known_addressable_properties: Vec<(String, PropertyTypeInfo)>,
+    pub known_addressable_properties: Option<Vec<(String, PropertyTypeInfo)>>,
 }
 
 impl PropertyTypeInfo {
@@ -251,7 +253,7 @@ impl PropertyTypeInfo {
             pascalized_fully_qualified_type: name.to_string(),
             fully_qualified_type: name.to_string(),
             iterable_type: None,
-            known_addressable_properties: vec![],
+            known_addressable_properties: None,
         }
     }
 
@@ -261,7 +263,7 @@ impl PropertyTypeInfo {
             fully_qualified_type: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
             pascalized_fully_qualified_type: "Vec_Rc_PropertiesCoproduct___".to_string(),
             iterable_type: Some(Box::new(Self::builtin_rc_properties_coproduct())),
-            known_addressable_properties: vec![],
+            known_addressable_properties: None,
         }
     }
 
@@ -270,7 +272,7 @@ impl PropertyTypeInfo {
             fully_qualified_type: "std::ops::Range<isize>".to_string(),
             pascalized_fully_qualified_type: "Range_isize_".to_string(),
             iterable_type: Some(Box::new(Self::primitive("isize"))),
-            known_addressable_properties: vec![],
+            known_addressable_properties: None,
         }
     }
 
@@ -279,7 +281,7 @@ impl PropertyTypeInfo {
             fully_qualified_type: "std::rc::Rc<PropertiesCoproduct>".to_string(),
             pascalized_fully_qualified_type: "Rc_PropertiesCoproduct__".to_string(),
             iterable_type: None,
-            known_addressable_properties: vec![],
+            known_addressable_properties: None,
         }
     }
 

@@ -421,10 +421,6 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             sym.to_string()
         };
 
-        //TODO: support `elem.height`.
-        //  Approach A:  resolve `elem` and `height` separately; chain
-        //               them together during codegen.  Note that `elem` is
-        //               `pax_type`-d, so
         let prop_def = ctx.resolve_symbol(&identifier).expect(&format!("Symbol not found: {}", &identifier));
 
         let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
@@ -530,93 +526,10 @@ impl<'a> ExpressionCompilationContext<'a> {
     /// and return a copy of the related `PropertyDefinition`, if found
     pub fn resolve_symbol(&self, symbol: &str) -> Option<PropertyDefinition> {
 
-        //TODO: how to handle nested symbol invocations, like `rect.width`?
-        //      rect is an instance of a custom struct; width is property of that struct
-        //       - to enable nested Property<T> access, we could create a special case of
-        //         invocation, where each of `x.y.z` is resolved independently, sequentially,
-        //         by building off of the previous.  Since each of the types for `x` and `y`
-        //         are expected to be on the PropertiesCoproduct, this should be pretty
-        //         straight-forward.
-        //       - alternatively:  is there any reason we can't append + chain symbols directly?
-        //         e.g. (some_complicated_invocation).some.simple_chain
-        //         Is there anywhere where this falls apart?  What about `foo.bar.baz` where
-        //         foo is `pax_type`'d custom struct, with property `bar`, also a `pax_type` struct, and
-        //         `baz` a simple property of `bar` (not a `Property<T>`)
-        //         In the `bar` case, we want to "invoke" and unwrap `bar`, just like we did
-        //         `foo`, and in the `baz` case we want to call at least `.get` implicitly
-        //         Can this be formalized?   `foo.`, where foo is not chain-terminal, will always
-        //         be `invoked`, and `.baz`, where `.baz` is chain-terminal, will always
-        //         be `.get`ted (and not type-unwrapped; this is already done for its PropertiesCoproduct container)
-        //       - What about array and tuple access?  E.g. self.some_vec_of_tuples[0].1
-        //          should be able to forward / codegen these literally, e.g. (some ... invocation)[0].1
-        //       - Do we modify `ExpressionSpecInvocation` to be "multi-symbol-aware"?  In particular,
-        //         the rest of the context for the ESI _is_ shared across each of the chained
-        //         symbols, which makes it tempting to shim this in there.  Essentially,
-        //         the symbols can be a Vec<>.  Here's the part that needs to be duplicated/codegenned
-        //
-        /*
-        ```
-        Template:
-        if let PropertiesCoproduct::{{ invocation.properties_coproduct_type }}(p) = properties {
-            {% if invocation.is_numeric_property %}
-                Numeric::from(p.{{invocation.identifier}}.get())
-            {% else %}
-                p.{{invocation.identifier}}.get().clone()
-            {% endif %}
-        } else {
-            unreachable!("{{ expression_spec.id }}")
-        }
-
-
-        //1. handle the (implicit) self case: do nothing
-        //2. handle the first identifier:
-        //    chain onto (nothing) — necessarily unwrap
-
-
-        //We need to know the tuple of (properties_coproduct_type, is_numeric_property, identifier)
-        //for each of the chained identifiers.
-        //How can we resolve the type of `bar` from `foo.bar.baz`?  (this is needed to get the above tuple)
-        //We know the type of `foo` —that's a member of `self`, so we consult the stack + HashMap of string property => PropertyType lookups.
-        //In this case, we need to go a bit further.  We can know easily enough that `bar`
-        //is a member of the struct in question, and we can get the PropertyType for `bar`.
-        //What about `baz`?  `baz` needs to be looked up independently of this HashMap stack
-        // (OR, perhaps we could populate PropertyType with its own "hash map" (or list of tuples)
-        // of String symbol => PropertyType value.
-
-        //implicit self: p
-        // foo:
-        //note that this may overwrite another invocation for `foo` -- hopefully
-        //     that won't be a problem!  but could revisit with some deduping logic
-        //     if needed
-        let foo = (if let PropertiesCoproduct::Foo(p) = properties {
-            p.foo.get().clone()
-        } else {
-            unreachable!("{{ expression_spec.id }}")
-        })
-        let foo_bar = (
-            if let PropertiesCoproduct::Bar(foo.bar) = properties {
-                p.{{invocation.identifier}}.get().clone()
-            } else {
-                unreachable!("{{ expression_spec.id }}")
-            }
-        )
-
-        let foo_bar_baz = (
-
-        )
-
-        bar:
-
-        ```
-        */
-
-
-
         //1. resolve through builtin map
         if BUILTIN_MAP.contains_key(symbol) {
             None
         } else {
-
             //2. resolve through stack
             let mut found = false;
             let mut exhausted = false;
