@@ -2881,8 +2881,9 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
 ```
 [ ] Support chaining in generated RIL, e.g. `foo` and `foo_DOT_bar`:
     [ ] In the Pratt parser, adjust how we encode `foo.bar` (string-sub `foo_DOT_bar`) 
-    [ ] Maybe: sort invocations alphabetically, thus guaranteeing `foo` will already exist for `foo_DOT_bar`
-    [ ] Maybe: a symbol trie, to handle `foo` and `foo_bar`, etc.
+    [ ] Maybe: sort invocations alphabetically, thus guaranteeing `foo` will already exist for `foo_DOT_bar`, 
+        so `foo` can be used inside the invocation RIL for `foo_DOT_bar`
+        [ ] Alternate: a symbol trie, to handle `foo` and `foo_bar`, etc.
 [ ] Add necessary `parse_to_manifest` generation logic to `pax_type`
     [ ] Add property reflection logic in `pax_type` macro 
     [ ] Add hooks into calling types' `parse_to_manifest` logic during parser binary phase, as well as an enum for
