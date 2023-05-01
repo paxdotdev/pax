@@ -18,6 +18,7 @@ pub mod pax_reexports {
 			pub use pax_std::primitives::Text;
 		}
 		pub mod types {
+			pub use pax_std::types::Alignment;
 			pub use pax_std::types::Color;
 			pub use pax_std::types::Font;
 			pub use pax_std::types::Stroke;

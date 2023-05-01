@@ -45,6 +45,8 @@ struct PaxView: View {
         ZStack {
             self.canvasView
             NativeRenderingLayer()
+        }.onAppear {
+            registerFonts()
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
                     //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
                     let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f} }", dragGesture.location.x, dragGesture.location.y);
@@ -58,9 +60,40 @@ struct PaxView: View {
                             pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
                         }
                     })
-                })
+        })
 
     }
+
+    func registerFonts() {
+        guard let resourceURL = Bundle.main.resourceURL else { return }
+        let fontFileExtensions = ["ttf", "otf"]
+
+        do {
+            let resourceFiles = try FileManager.default.contentsOfDirectory(at: resourceURL, includingPropertiesForKeys: nil, options: [])
+
+            for fileURL in resourceFiles {
+                let fileExtension = fileURL.pathExtension.lowercased()
+                if fontFileExtensions.contains(fileExtension) {
+                    let fontName = fileURL.deletingPathExtension().lastPathComponent
+                    if !isFontRegistered(fontName: fontName) {
+                        var errorRef: Unmanaged<CFError>?
+                        if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
+                            print("Error registering font: \(fontName) - \(String(describing: errorRef))")
+                        }
+                    }
+                }
+            }
+        } catch {
+            print("Error reading font files from resources: \(error)")
+        }
+    }
+
+    func isFontRegistered(fontName: String) -> Bool {
+        let fontFamilies = CTFontManagerCopyAvailableFontFamilyNames() as! [String]
+        return fontFamilies.contains(fontName)
+    }
+
+
 
 
     class PaxEngineContainer {
@@ -97,23 +130,26 @@ struct PaxView: View {
 
         @ViewBuilder
         func getPositionedTextGroup(textElement: TextElement) -> some View {
-            let textGroup = Group {
-                Text(textElement.content)
-                    .foregroundColor(textElement.fill)
-                    .font(textElement.font_spec.cachedFont)
-                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
-                    .clipped()
-                    .position(x: CGFloat(textElement.size_x) / 2.0, y: CGFloat(textElement.size_y) / 2.0)
-                    .transformEffect(CGAffineTransform.init(
-                            a: CGFloat(textElement.transform[0]),
-                            b: CGFloat(textElement.transform[1]),
-                            c: CGFloat(textElement.transform[2]),
-                            d: CGFloat(textElement.transform[3]),
-                            tx: CGFloat(textElement.transform[4]),
-                            ty: CGFloat(textElement.transform[5])
-                    ))
-            }
+            let transform = CGAffineTransform.init(
+                a: CGFloat(textElement.transform[0]),
+                b: CGFloat(textElement.transform[1]),
+                c: CGFloat(textElement.transform[2]),
+                d: CGFloat(textElement.transform[3]),
+                tx: CGFloat(textElement.transform[4]),
+                ty: CGFloat(textElement.transform[5])
+            )
 
+            let textGroup = Group {
+                    Text(textElement.content)
+                        .foregroundColor(textElement.fill)
+                        .font(textElement.font_spec.cachedFont)
+                        .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y))
+                        .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+                        .padding(.horizontal, 0)
+                        .multilineTextAlignment(textElement.paragraphAlignment)
+                        .drawingGroup()
+                        .transformEffect(transform)
+            }
             if !textElement.clipping_ids.isEmpty {
                 textGroup.mask(getClippingMask(clippingIds: textElement.clipping_ids))
             } else {

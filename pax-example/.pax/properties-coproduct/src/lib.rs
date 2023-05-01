@@ -51,6 +51,8 @@ pub enum TypesCoproduct {
     
     __f64(pax_example::pax_reexports::f64),
     
+    __pax_stdCOCOtypesCOCOAlignment(pax_example::pax_reexports::pax_std::types::Alignment),
+    
     __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
     __pax_stdCOCOtypesCOCOFont(pax_example::pax_reexports::pax_std::types::Font),
