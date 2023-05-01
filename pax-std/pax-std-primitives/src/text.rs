@@ -7,7 +7,7 @@ use pax_std::primitives::{Text};
 use pax_core::{ComputableTransform, TabCache, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
+use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log};
 use pax::api::numeric::Numeric;
 
 pub struct TextInstance<R: 'static + RenderContext> {
@@ -84,6 +84,17 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = fill {v} else { unreachable!() };
             properties.fill.set(new_value);
         }
+
+        if let Some(paragraph_alignment) = rtc.compute_vtable_value(properties.paragraph_alignment._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOAlignment(v) = paragraph_alignment {v} else { unreachable!() };
+            properties.paragraph_alignment.set(new_value);
+        }
+
+        if let Some(font) = rtc.compute_vtable_value(properties.font._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOFont(v) = font { v } else { unreachable!() };
+            properties.font.set(new_value);
+        }
+
 
         let mut size = &mut *self.size.as_ref().borrow_mut();
 
@@ -193,6 +204,21 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         if is_new_value {
             new_message.fill = Some(val.into());
             last_patch.fill = Some(val.into());
+            has_any_updates = true;
+        }
+
+        let val = properties.paragraph_alignment.get();
+        let is_new_value = match &last_patch.paragraph_alignment {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.paragraph_alignment = Some(val.into());
+            last_patch.paragraph_alignment = Some(val.into());
             has_any_updates = true;
         }
 

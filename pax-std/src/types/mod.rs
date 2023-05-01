@@ -79,13 +79,24 @@ impl PartialEq<FontPatch> for Font {
 impl Default for Font {
     fn default() -> Self {
         Self {
-            family: Box::new(PropertyLiteral::new("Courier New".to_string())),
-            variant: Box::new(PropertyLiteral::new("Regular".to_string())),
-            size: Box::new(PropertyLiteral::new(SizePixels(Numeric::from(14.0)))),
+            family: Box::new(PropertyLiteral::new("Arial".to_string())),
+            variant: Box::new(PropertyLiteral::new("Italic".to_string())),
+            size: Box::new(PropertyLiteral::new(SizePixels(Numeric::from(50.0)))),
         }
     }
 }
+
 impl Interpolatable for Font {}
+
+impl Font {
+    pub fn new(family: String, variant: String, size: Numeric) -> Self {
+        Self {
+            family: Box::new(PropertyLiteral::new(family)),
+            variant: Box::new(PropertyLiteral::new(variant)),
+            size: Box::new(PropertyLiteral::new(SizePixels(size))),
+        }
+    }
+}
 
 #[derive(Clone)]
 #[pax_type]
@@ -193,9 +204,44 @@ pub enum ColorVariant {
     Rgb([f64; 3]),
 }
 
+#[derive(Clone)]
+#[pax_type]
+pub enum Alignment {
+    Center,
+    Left,
+    Right,
+}
+
+impl Default for Alignment {
+    fn default() -> Self {
+        Alignment::Right
+    }
+}
+
+impl Into<AlignmentMessage> for &Alignment {
+    fn into(self) -> AlignmentMessage {
+        match self {
+            Alignment::Center => {AlignmentMessage::Center}
+            Alignment::Left => {AlignmentMessage::Left}
+            Alignment::Right => {AlignmentMessage::Right}
+        }
+    }
+}
+
+impl PartialEq<AlignmentMessage> for Alignment {
+    fn eq(&self, other: &AlignmentMessage) -> bool {
+        match (self, other) {
+            (Alignment::Center, AlignmentMessage::Center) => true,
+            (Alignment::Left, AlignmentMessage::Left) => true,
+            (Alignment::Right, AlignmentMessage::Right) => true,
+            _ => false,
+        }
+    }
+}
+
 pub use pax::api::Size;
 
-use pax_message::{ColorVariantMessage, FontPatch};
+use pax_message::{ColorVariantMessage, FontPatch, AlignmentMessage};
 use crate::primitives::Path;
 
 

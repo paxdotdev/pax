@@ -51,8 +51,9 @@ class TextElement {
     var size_y: Float
     var font_spec: FontSpec
     var fill: Color
+    var paragraphAlignment: TextAlignment
     
-    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: FontSpec, fill: Color) {
+    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: FontSpec, fill: Color, paragraphAlignment: TextAlignment) {
         self.id_chain = id_chain
         self.clipping_ids = clipping_ids
         self.content = content
@@ -61,10 +62,11 @@ class TextElement {
         self.size_y = size_y
         self.font_spec = font
         self.fill = fill
+        self.paragraphAlignment = paragraphAlignment
     }
     
     static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
-        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontSpec(), fill: Color(.black))
+        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontSpec(), fill: Color(.black), paragraphAlignment: .leading)
     }
     
     func applyPatch(patch: TextUpdatePatch) {
@@ -88,10 +90,31 @@ class TextElement {
         if patch.fill != nil {
             self.fill = patch.fill!
         }
+        
+        if patch.paragraphAlignment != nil {
+            self.paragraphAlignment = patch.paragraphAlignment!.toTextAlignment()
+        }
     }
 }
 
+enum Alignment {
+    case center
+    case left
+    case right
+}
 
+extension Alignment {
+    func toTextAlignment() -> TextAlignment {
+        switch self {
+        case .center:
+            return .center
+        case .left:
+            return .leading
+        case .right:
+            return .trailing
+        }
+    }
+}
 
 /// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
 class TextUpdatePatch {
@@ -103,6 +126,8 @@ class TextUpdatePatch {
 
     var fontBuffer: FlxbReference
     var fill: Color?
+    
+    var paragraphAlignment: Alignment?
 
     init(fb: FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
@@ -115,7 +140,7 @@ class TextUpdatePatch {
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
         self.fontBuffer =  fb["font"]!
-
+        
         if fb["fill"] != nil && !fb["fill"]!.isNull {
             if fb["fill"]!["Rgba"] != nil && !fb["fill"]!["Rgba"]!.isNull {
                 let stub = fb["fill"]!["Rgba"]!
@@ -133,6 +158,19 @@ class TextUpdatePatch {
                     brightness: Double(stub[2]!.asFloat!),
                     opacity: Double(stub[3]!.asFloat!)
                 )
+            }
+        }
+        
+        if let alignmentValue = fb["paragraph_alignment"]?.asString {
+            switch alignmentValue {
+            case "Center":
+                self.paragraphAlignment = .center
+            case "Left":
+                self.paragraphAlignment = .left
+            case "Right":
+                self.paragraphAlignment = .right
+            default:
+                self.paragraphAlignment = nil
             }
         }
     }
@@ -160,7 +198,7 @@ class FontSpec {
     }
     
     init() {
-        self.family = "Courier New"
+        self.family = "MondayMiracle"
         self.variant = "Regular"
         self.size = 14.0
         self.cachedFont = self.intoFont()
@@ -171,10 +209,7 @@ class FontSpec {
         if self.variant != "Regular" {
             suffix = " " + self.variant
         }
-        // Reason for differing size between mac and web is two fold
-        // Chrome scales with Device pixel ratio (DPR)
-        // Swift uses points rather than pixels
-        return Font.custom(String(self.family + suffix), size: CGFloat(self.size))
+        return Font.custom(String(self.family + suffix), size: CGFloat(self.size)).width(Font.Width.expanded)
     }
 }
 //
@@ -258,6 +293,4 @@ class FrameUpdatePatch {
         self.size_y = fb["size_y"]?.asFloat
     }
 }
-
-
 
