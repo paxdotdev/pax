@@ -41,8 +41,6 @@ pub enum TypesCoproduct {
     
     Transform2D(pax_runtime_api::Transform2D),
     
-    VecLABR__f64RABR(Vec<pax_example::pax_reexports::f64>),
-    
     Vec_Rc_PropertiesCoproduct___(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
     
     __f64(pax_example::pax_reexports::f64),

@@ -18,10 +18,5 @@ pub mod pax_reexports {
 			pub use pax_std::types::Stroke;
 		}
 	}
-	pub mod std {
-		pub mod vec {
-			pub use std::vec::Vec;
-		}
-	}
 	pub use usize;
 }
