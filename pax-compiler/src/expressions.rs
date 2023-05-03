@@ -475,7 +475,10 @@ fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &ExpressionCompilationContext<'a>)
     //2. for each symbolic id discovered during parsing, resolve that id through scope_stack and populate an ExpressionSpecInvocation
     let invocations = symbolic_ids.iter().map(|sym| {
         resolve_symbol_as_invocation(&sym.trim(), ctx)
-    }).unique_by(|esi|{esi.identifier.clone()}).collect();
+    })
+        .unique_by(|esi|{esi.identifier.clone()})
+        .sorted_by(|esi0, esi1|{esi0.identifier.cmp(&esi1.identifier)})
+        .collect();
 
     //3. return tuple of (RIL string,ExpressionSpecInvocations)
     (output_string, invocations)

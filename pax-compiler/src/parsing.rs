@@ -71,11 +71,14 @@ pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
     (output, symbolic_ids.take())
 }
 
-fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
+
+/// Removes leading `self.` or `this.`
+/// Converts any remaining `.` to `_DOT_`
+fn convert_symbolic_binding_from_paxel_to_ril(xo_symbol: Pair<Rule>) -> String {
     let mut pairs = xo_symbol.clone().into_inner();
     let maybe_this_or_self = pairs.next().unwrap().as_str();
 
-    if maybe_this_or_self == "this" || maybe_this_or_self == "self" {
+    let self_or_this_removed = if maybe_this_or_self == "this" || maybe_this_or_self == "self" {
         let mut output = "".to_string();
 
         //accumulate remaining identifiers, having skipped `this` or `self` with the original `.next()`
@@ -88,7 +91,9 @@ fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
     } else {
         //remove original binding; no self or this
         xo_symbol.as_str().to_string()
-    }
+    };
+
+    self_or_this_removed.replace(".", "_DOT_")
 }
 
 /// Workhorse method for compiling Expressions into Rust Intermediate Language (RIL, a string of Rust)
@@ -155,7 +160,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                     },
                     Rule::xo_symbol => {
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        trim_self_or_this_from_symbolic_binding(op0)
+                        convert_symbolic_binding_from_paxel_to_ril(op0)
                     },
                     _ => unimplemented!("")
                 };
@@ -171,7 +176,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                     },
                     Rule::xo_symbol => {
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        trim_self_or_this_from_symbolic_binding(op2)
+                        convert_symbolic_binding_from_paxel_to_ril(op2)
                     },
                     _ => unimplemented!("")
                 };
@@ -246,7 +251,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
             },
             Rule::xo_symbol => {
                 symbolic_ids.borrow_mut().push(primary.as_str().to_string());
-                format!("{}",trim_self_or_this_from_symbolic_binding(primary))
+                format!("{}",convert_symbolic_binding_from_paxel_to_ril(primary))
             },
             Rule::xo_tuple => {
                 let mut tuple = primary.into_inner();
@@ -482,7 +487,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             ControlFlowRepeatSourceDefinition {
                                 range_expression_paxel: None,
                                 vtable_id: None,
-                                symbolic_binding: Some(trim_self_or_this_from_symbolic_binding(inner_source)),
+                                symbolic_binding: Some(convert_symbolic_binding_from_paxel_to_ril(inner_source)),
                             }
                         },
                         _ => {unreachable!()}
