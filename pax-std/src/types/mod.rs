@@ -10,18 +10,18 @@ use crate::primitives::Path;
 #[cfg(feature = "parser")]
 use pax_message::reflection::PathQualifiable;
 
-#[pax_type]
+#[derive(Pax)]
 pub struct Stroke {
     pub color: Box<dyn PropertyInstance<Color>>,
     pub width: Box<dyn PropertyInstance<SizePixels>>,
 }
 
-#[pax_type]
+#[derive(Pax)]
 pub struct Text {
     pub content: Box<dyn PropertyInstance<String>>,
 }
 
-#[pax_type]
+#[derive(Pax)]
 pub struct StackerCell {
     pub x_px: f64,
     pub y_px: f64,
@@ -29,14 +29,15 @@ pub struct StackerCell {
     pub height_px: f64,
 }
 
-#[pax_type]
+#[derive(Pax)]
 pub enum StackerDirection {
     Vertical,
     #[default]
     Horizontal,
 }
 
-#[pax_type]
+#[derive(Pax)]
+#[custom(Default)]
 pub struct Font {
     pub family: Box<dyn pax::api::PropertyInstance<String>>,
     pub variant: Box<dyn pax::api::PropertyInstance<String>>,
@@ -69,7 +70,8 @@ impl Default for Font {
     }
 }
 
-#[pax_type(Default)]
+#[derive(Pax)]
+#[custom(Default)]
 pub struct Color{
     pub color_variant: ColorVariant,
 }
@@ -158,7 +160,8 @@ impl PartialEq<ColorVariantMessage> for Color {
 }
 
 
-#[pax_type]
+#[derive(Pax)]
+#[custom(Default)]
 pub enum ColorVariant {
     Hlca([f64; 4]),
     Hlc([f64; 3]),
@@ -166,7 +169,13 @@ pub enum ColorVariant {
     Rgb([f64; 3]),
 }
 
-#[pax_type]
+impl Default for ColorVariant {
+    fn default() -> Self {
+        Self::Rgb([0.0, 0.0, 1.0])
+    }
+}
+
+#[derive(Pax)]
 pub enum PathSegment {
     #[default]
     Empty,
@@ -174,13 +183,13 @@ pub enum PathSegment {
     CurveSegment(CurveSegmentData),
 }
 
-#[pax_type]
+#[derive(Pax)]
 pub struct LineSegmentData {
     pub start : Point,
     pub end : Point,
 }
 
-#[pax_type]
+#[derive(Pax)]
 pub struct CurveSegmentData {
     pub start : Point,
     pub handle : Point,

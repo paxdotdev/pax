@@ -2,7 +2,8 @@ use pax::api::{ArgsClick, ArgsRender, ArgsScroll, EasingCurve};
 use pax::*;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
-#[pax_file("fireworks.pax")]
+#[derive(Pax)]
+#[file("fireworks.pax")]
 pub struct Fireworks {
     pub rotation: Property<f64>,
     pub ticks: Property<usize>,

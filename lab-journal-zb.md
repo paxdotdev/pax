@@ -2979,3 +2979,12 @@ let foo_bar_baz = (
 bar:
 
 ```
+
+pub fn custom_derive_clone(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    
+    let mut clone_impl = /* TODO */
+    
+    quote! {clone_impl}
+}
+``````

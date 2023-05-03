@@ -14,7 +14,8 @@ use crate::fireworks::Fireworks;
 
 const ROUTE_COUNT : usize = 3;
 
-#[pax_app(
+#[derive(Pax)]
+#[inlined(
     <Frame width=100% height=100% @click=modulate >
         if current_route == 0 {
             <Grids />

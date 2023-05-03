@@ -29,11 +29,8 @@ pub struct TemplateArgsMacroPaxPrimitive {
 #[template(path = "../templates/pax_type.stpl", escape=false)]
 pub struct TemplateArgsMacroPaxType {
     pub pascal_identifier: String,
-    pub original_tokens: String,
     pub type_dependencies: Vec<String>,
     pub static_property_definitions: Vec<StaticPropertyDefinition>,
-    pub should_derive_default: bool,
-    pub should_derive_clone: bool,
 }
 
 #[derive(TemplateOnce)]

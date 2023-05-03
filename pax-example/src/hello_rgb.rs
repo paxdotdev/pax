@@ -4,7 +4,8 @@ use pax_std::components::Stacker;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 
-#[pax_file("hello_rgb.pax")]
+#[derive(Pax)]
+#[file("hello_rgb.pax")]
 pub struct HelloRGB {
     pub rotation: Property<f64>,
 }
@@ -27,8 +28,7 @@ impl HelloRGB {
     }
 }
 
-#[pax_type]
-#[derive(Default)]
+#[derive(Pax)]
 pub struct RectDef {
     x: usize,
     y: usize,

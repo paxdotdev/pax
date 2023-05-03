@@ -51,62 +51,6 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
 }
 
 // Helper function to extract the values inside the `custom` attribute.
-// fn extract_custom_attr(attr: &Attribute) -> Option<Vec<String>> {
-//     if attr.path.is_ident("custom") {
-//         let meta = attr.parse_meta().ok()?;
-//         let meta_list = match meta {
-//             Meta::List(list) => list,
-//             _ => return None,
-//         };
-//
-//         let attr_values = meta_list
-//             .nested
-//             .into_iter()
-//             .filter_map(|meta| match meta {
-//                 NestedMeta::Meta(Meta::Path(path)) => {
-//                     path.get_ident().map(|ident| ident.to_string())
-//                 }
-//                 _ => None,
-//             })
-//             .collect();
-//
-//         Some(attr_values)
-//     } else {
-//         None
-//     }
-// }
-
-// Helper function to extract the values inside the `custom` attribute.
-// fn extract_custom_attr(attr: &Meta) -> Option<Vec<String>> {
-//     let meta_list = match attr {
-//         Meta::List(list) => list,
-//         _ => return None,
-//     };
-//
-//     let custom_attr = meta_list
-//         .nested
-//         .iter()
-//         .find(|nested_meta| match nested_meta {
-//             NestedMeta::Meta(Meta::NameValue(name_value)) => {
-//                 name_value.path.is_ident("custom")
-//             }
-//             _ => false,
-//         })?;
-//
-//     let custom_values = match custom_attr {
-//         NestedMeta::Meta(Meta::NameValue(name_value)) => match &name_value.lit {
-//             syn::Lit::Str(lit_str) => {
-//                 lit_str.value().split(',').map(|s| s.trim().to_string()).collect()
-//             }
-//             _ => return None,
-//         },
-//         _ => return None,
-//     };
-//
-//     Some(custom_values)
-// }
-
-// Helper function to extract the values inside the `custom` attribute.
 fn extract_custom_attr(attr: &MetaList) -> Option<Vec<String>> {
     let custom_attr = attr
         .nested
@@ -131,45 +75,12 @@ fn extract_custom_attr(attr: &MetaList) -> Option<Vec<String>> {
     Some(custom_values)
 }
 
-
-#[proc_macro_attribute]
-pub fn pax_type(attr: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-
-    let original_tokens = input.to_string();
-
-    // // Parse pax_type attribute TokenStream as a Meta.
-    // let pax_type_attr: Meta = syn::parse(attr).expect("Failed to parse pax_type attribute");
-    //
-    // // Initialize an empty Vec to store custom attribute values.
-    // let mut custom_attrs = Vec::new();
-    //
-    // // Extract the values inside the `custom` attribute if provided.
-    // if let Some(attr_values) = extract_custom_attr(&pax_type_attr) {
-    //     custom_attrs.extend(attr_values);
-    // }
+fn pax_type(input_parsed: DeriveInput) -> proc_macro2::TokenStream {
 
 
-    // Parse pax_type attribute TokenStream as a MetaList.
-    let pax_type_attr: MetaList = syn::parse(attr).expect("Failed to parse pax_type attribute");
+    let pascal_identifier = input_parsed.ident.to_string();
 
-    // Initialize an empty Vec to store custom attribute values.
-    let mut custom_attrs = Vec::new();
-
-    // Extract the values inside the `custom` attribute if provided.
-    if let Some(attr_values) = extract_custom_attr(&pax_type_attr) {
-        custom_attrs.extend(attr_values);
-    }
-
-
-
-
-
-
-    let input = parse_macro_input!(input as DeriveInput);
-
-    let pascal_identifier = input.ident.to_string();
-
-    let static_property_definitions = get_static_property_definitions_from_tokens(input.data);
+    let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
 
     let type_dependencies= static_property_definitions.iter().map(|spd|{
         spd.original_type.clone()
@@ -177,11 +88,8 @@ pub fn pax_type(attr: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
     let output = templating::TemplateArgsMacroPaxType{
         pascal_identifier: pascal_identifier.clone(),
-        original_tokens,
         static_property_definitions,
         type_dependencies,
-        should_derive_default: !custom_attrs.contains(&"Default".to_string()),
-        should_derive_clone: !custom_attrs.contains(&"Clone".to_string()),
     }.render_once().unwrap().to_string();
     
     // fs::write(format!("/Users/zack/debug/out-{}.txt", &pascal_identifier), &output);
@@ -224,7 +132,6 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
     };
     ret
 }
-
 
 /// Break apart a raw Property inner type (`T<K>` for `Property<T<K>>`):
 /// into a list of `rustc` resolvable identifiers, possible namespace-nested,
@@ -366,7 +273,6 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
     }
 }
 
-
 fn pax_internal(raw_pax: String, input_parsed: DeriveInput, is_root: bool, include_fix : Option<TokenStream>) -> proc_macro2::TokenStream {
 
     let pascal_identifier = input_parsed.ident.to_string();
@@ -405,7 +311,7 @@ fn pax_internal(raw_pax: String, input_parsed: DeriveInput, is_root: bool, inclu
     }.into()
 }
 
-#[proc_macro_derive(Pax, attributes(root, file, inline, custom))]
+#[proc_macro_derive(Pax, attributes(root, file, inlined, custom, default))]
 pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
@@ -415,7 +321,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let mut is_root = false;
     let mut file_path: Option<String> = None;
-    let mut inline_contents: Option<String> = None;
+    let mut inlined_contents: Option<String> = None;
     let mut custom_values: Option<Vec<String>> = None;
 
     // Handle `derive macro helper attributes` — https://doc.rust-lang.org/reference/procedural-macros.html#derive-macro-helper-attributes
@@ -431,9 +337,9 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     if let Lit::Str(file_str) = name_value.lit {
                         file_path = Some(file_str.value());
                     }
-                } else if name_value.path.is_ident("inline") {
-                    if let Lit::Str(inline_str) = name_value.lit {
-                        inline_contents = Some(inline_str.value());
+                } else if name_value.path.is_ident("inlined") {
+                    if let Lit::Str(inlined_str) = name_value.lit {
+                        inlined_contents = Some(inlined_str.value());
                     }
                 }
             }
@@ -458,14 +364,14 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }
 
     //Validation
-    if let (Some(_), Some(_)) = (file_path.as_ref(), inline_contents.as_ref()) {
-        return syn::Error::new_spanned(input.ident, "`#[file(...)]` and `#[inline(...)]` attributes cannot be used together")
+    if let (Some(_), Some(_)) = (file_path.as_ref(), inlined_contents.as_ref()) {
+        return syn::Error::new_spanned(input.ident, "`#[file(...)]` and `#[inlined(...)]` attributes cannot be used together")
             .to_compile_error()
             .into();
     }
-    if let (None, None) = (file_path.as_ref(), inline_contents.as_ref()) {
+    if let (None, None) = (file_path.as_ref(), inlined_contents.as_ref()) {
         if is_root {
-            return syn::Error::new_spanned(input.ident, "Root components must specify either a Pax file or inline Pax content, e.g. #[file=\"some-file.pax\"] or #[inline=(<SomePax />)]")
+            return syn::Error::new_spanned(input.ident, "Root components must specify either a Pax file or inlined Pax content, e.g. #[file=\"some-file.pax\"] or #[inlined=(<SomePax />)]")
                 .to_compile_error()
                 .into();
         }
@@ -475,72 +381,88 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut clone_impl = match &input.data {
         Data::Struct(data_struct) => {
             match &data_struct.fields {
-                Fields::Named(fields_named) => {
-                    let field_clones = fields_named.named.iter().map(|f| {
-                        let name = &f.ident;
-                        quote! { #name: self.#name.clone() }
-                    });
-
+                Fields::Named(fields) => {
+                    let field_names = fields.named.iter().map(|f| &f.ident);
                     quote! {
-                        impl #impl_generics Clone for #name #ty_generics #where_clause {
+                        impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
                             fn clone(&self) -> Self {
-                                Self {
-                                    #(#field_clones,)*
+                                #name {
+                                    #( #field_names : ::core::clone::Clone::clone(&self.#field_names), )*
                                 }
                             }
                         }
                     }
                 }
-                Fields::Unnamed(_) | Fields::Unit => {
+                Fields::Unnamed(fields) => {
+                    let indices = (0..fields.unnamed.len()).map(syn::Index::from);
                     quote! {
-                    impl #impl_generics Clone for #name #ty_generics #where_clause {
-                        fn clone(&self) -> Self {
-                            Self::default()
+                        impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
+                            fn clone(&self) -> Self {
+                                #name (
+                                    #( ::core::clone::Clone::clone(&self.#indices), )*
+                                )
+                            }
                         }
                     }
                 }
+                Fields::Unit => {
+                    quote! {
+                        impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
+                            fn clone(&self) -> Self {
+                                #name
+                            }
+                        }
+                    }
                 }
             }
         }
         Data::Enum(data_enum) => {
-            let variant_clones = data_enum.variants.iter().map(|variant| {
-                let variant_ident = &variant.ident;
-                let fields : Vec<TokenStream> = match &variant.fields {
-                    Fields::Named(fields_named) => {
-                        fields_named.named.iter().map(|f| {
-                            let name = &f.ident;
-                            quote! { #name: self.#name.clone() }
-                        }).collect()
+            let variants = data_enum.variants.iter().map(|v| {
+                let variant_ident = &v.ident;
+                match &v.fields {
+                    Fields::Named(fields) => {
+                        let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
+                        quote! {
+                            #name::#variant_ident { #(ref #field_names, )* } => {
+                                #name::#variant_ident {
+                                    #( #field_names : #field_names.clone(), )*
+                                }
+                            }
+                        }
                     }
-                    Fields::Unnamed(fields_unnamed) => {
-                        fields_unnamed.unnamed.iter().enumerate().map(|(i, _)| {
-                            let index = syn::Index::from(i);
-                            quote! { self.#index.clone() }
-                        }).collect()
+                    Fields::Unnamed(fields) => {
+                        let indices: Vec<_> = (0..fields.unnamed.len()).map(|i| {
+                            let name = format!("_{}", i);
+                            Ident::new(&name, proc_macro2::Span::call_site())
+                        }).collect();
+                        quote! {
+                            #name::#variant_ident ( #(ref #indices, )* ) => {
+                                #name::#variant_ident (
+                                    #( #indices.clone(), )*
+                                )
+                            }
+                        }
                     }
                     Fields::Unit => {
-                        return quote! {};
+                        quote! {
+                            #name::#variant_ident => #name::#variant_ident,
+                        }
                     }
-                };
-                quote! {
-                    Self::#variant_ident { #(#fields,)* }
                 }
             });
 
             quote! {
-                impl #impl_generics Clone for #name #ty_generics #where_clause {
+                impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
                     fn clone(&self) -> Self {
                         match self {
-                            #(#name::#variant_clones,)*
+                            #( #variants )*
                         }
                     }
                 }
             }
         }
         Data::Union(_) => {
-            quote! {
-                compile_error!("Pax derive does not support Unions");
-            }
+            panic!("`CustomClone` derive macro does not support unions.");
         }
     };
 
@@ -615,19 +537,20 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
-    let is_pax_type = matches!(file_path, None) && matches!(inline_contents, None);
-    let is_pax_inline = matches!(inline_contents, Some(_));
+    let is_pax_type = matches!(file_path, None) && matches!(inlined_contents, None);
+    let is_pax_inlined = matches!(inlined_contents, Some(_));
+
+    // let debug = quote!{"//is_pax_type: " #is_pax_type "\n"};
 
     let appended_tokens = if is_pax_type {
 
         // pax_type(input.into())
-        proc_macro2::TokenStream::default()
-    } else if is_pax_inline {
+        pax_type(input.clone())
+    } else if is_pax_inlined {
         // pax_inline
-        let contents = if let Some(p) = inline_contents {p} else {unreachable!()};
+        let contents = if let Some(p) = inlined_contents {p} else {unreachable!()};
 
-
-        pax_internal(contents, input.into(), is_root, None)
+        pax_internal(contents, input.clone(), is_root, None)
     } else {
         // pax_file
 
@@ -643,7 +566,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let mut content = String::new();
         let _ = file.unwrap().read_to_string(&mut content);
         let stream: proc_macro::TokenStream = content.parse().unwrap();
-        pax_internal(stream.to_string(), input.into(), is_root, Some(include_fix))
+        pax_internal(stream.to_string(), input.clone(), is_root, Some(include_fix))
 
     };
 
@@ -652,6 +575,8 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         #clone_impl
         #default_impl
     };
+
+    fs::write(format!("/Users/zack/debug/out-{}.txt", &name.to_string()), &output.to_string());
 
     output.into()
 }
