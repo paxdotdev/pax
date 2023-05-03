@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition};
+use crate::manifest::{PropertyDefinition, TypeDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition};
 
 use uuid::Uuid;
 
@@ -724,6 +724,8 @@ pub struct ParsingContext {
 
     pub component_definitions: HashMap<String, ComponentDefinition>,
 
+    pub type_definitions: HashMap<String, TypeDefinition>,
+
     pub template_map: HashMap<String, String>,
 
     //(SourceID, associated Strings)
@@ -738,6 +740,7 @@ impl Default for ParsingContext {
             root_component_id: "".into(),
             visited_source_ids: HashSet::new(),
             component_definitions: HashMap::new(),
+            type_definitions: HashMap::new(),
             template_map: HashMap::new(),
             all_property_definitions: HashMap::new(),
             template_node_definitions: vec![],
@@ -794,3 +797,24 @@ pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str
 
     (ctx, new_def)
 }
+
+pub fn assemble_type_definition(ctx: ParsingContext, pascal_identifier: &str, source_id: &str, module_path: &str) -> (ParsingContext, TypeDefinition) {
+
+    let modified_module_path = if module_path.starts_with("parser") {
+        module_path.replacen("parser", "crate", 1)
+    } else {
+        module_path.to_string()
+    };
+
+    let property_definitions = ctx.all_property_definitions.get(source_id).unwrap().clone();
+
+    let new_def = TypeDefinition {
+        source_id: source_id.into(),
+        pascal_identifier: pascal_identifier.to_string(),
+        module_path: modified_module_path,
+        property_definitions,
+    };
+
+    (ctx, new_def)
+}
+

@@ -133,6 +133,8 @@ impl ExpressionSpecInvocation {
     }
 }
 
+
+
 /// Container for an entire component definition — includes template, settings,
 /// event bindings, property definitions, and compiler + reflection metadata
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -164,6 +166,18 @@ impl ComponentDefinition {
     pub fn get_property_definition_by_name(&self, name: &str) -> PropertyDefinition {
         self.property_definitions.iter().find(|pd| { pd.name.eq(name) }).expect(&format!("Property not found with name {}", &name)).clone()
     }
+}
+
+/// Roughly a subset of a ComponentDefinition —
+/// a type annotated by `pax_type` that may be used as a `T` for `Property<T>`
+/// This container stores the parsed property & type information from a `pax_type`,
+/// which is important at least for referring to nested properties in PAXEL, e.g. the `elem.width` in `for elem in some_vec { <Rectangle width={elem.width } /> }`
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TypeDefinition {
+    pub source_id: String,
+    pub pascal_identifier: String,
+    pub module_path: String,
+    pub property_definitions: Vec<PropertyDefinition>,
 }
 
 /// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template

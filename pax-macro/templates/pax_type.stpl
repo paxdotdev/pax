@@ -1,5 +1,71 @@
-
+#[derive(Default)]
 <%= original_tokens %>
+
+#[cfg(feature = "parser")]
+impl <%= pascal_identifier %> {
+
+    pub fn parse_type_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> pax_compiler::parsing::ParsingContext {
+
+        let source_id = "type::<%= pascal_identifier %>";
+        let mut property_definitions = vec![];
+
+        // Populate `PropertyDefinition`s
+        <% for spd in static_property_definitions { %>
+
+            let mut fully_qualified_constituent_types = vec![];
+            let mut dep_to_fqd_map = std::collections::HashMap::new();
+            <% for scoped_resolvable_type in spd.scoped_resolvable_types { %>
+                let fqd = <%= scoped_resolvable_type %>::get_fully_qualified_path("<%= scoped_resolvable_type %>");
+                dep_to_fqd_map.insert("<%= scoped_resolvable_type %>",fqd.clone());
+
+                fully_qualified_constituent_types.push(
+                    fqd
+                );
+            <% } %>
+
+            let property_type_info =  pax_compiler::reflection::expand_fully_qualified_type_and_pascalize("<%= spd.original_type %>", &dep_to_fqd_map);
+
+            property_definitions.push(pax_compiler::manifest::PropertyDefinition {
+                name: "<%= spd.field_name %>".to_string(),
+                original_type: "<%= spd.original_type %>".to_string(),
+                fully_qualified_constituent_types,
+                property_type_info,
+                is_repeat_elem: false,
+                is_repeat_i: false,
+            });
+        <% } %>
+        ctx.all_property_definitions.insert(source_id.to_string(), property_definitions);
+
+        match ctx.visited_source_ids.get(&source_id as &str) {
+
+            None => {
+                //First time visiting this file/source
+
+                ctx.visited_source_ids.insert(source_id.clone().into());
+
+                <% for original_type in type_dependencies { %>
+                let mut ctx = <%= original_type %>::parse_type_to_manifest(ctx);
+                <% } %>
+
+                let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";
+
+                let (mut ctx, type_def) =
+                    pax_compiler::parsing::assemble_type_definition(
+                        ctx,
+                        PASCAL_IDENTIFIER,
+                        &source_id,
+                        module_path!(),
+                    );
+
+                ctx.type_definitions
+                    .insert(type_def.source_id.clone(), type_def);
+
+                ctx
+            },
+            _ => ctx, //early return; this file has already been parsed
+        }
+    }
+}
 
 #[cfg(feature = "parser")]
 impl pax_message::reflection::PathQualifiable for <%= pascal_identifier %> {

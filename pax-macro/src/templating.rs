@@ -7,10 +7,18 @@ use serde_json;
 use std::collections::HashSet;
 
 #[derive(Serialize)]
-pub struct CompileTimePropertyDefinition {
+pub struct StaticPropertyDefinition {
     pub scoped_resolvable_types: HashSet<String>,
     pub field_name: String,
     pub original_type: String,
+    /// How this property was defined, either via a Struct or an Enum
+    pub property_source: StaticPropertySource,
+}
+
+#[derive(Serialize)]
+pub enum StaticPropertySource {
+    StructField,
+    EnumVariant,
 }
 
 #[derive(TemplateOnce)]
@@ -19,7 +27,7 @@ pub struct TemplateArgsMacroPaxPrimitive {
     pub pascal_identifier: String,
     pub original_tokens: String,
     /// Used to codegen get_property_manifest calls, which allows parser to "reflect"
-    pub compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
+    pub static_property_definitions: Vec<StaticPropertyDefinition>,
     /// For example: "pax_std_primitives::RectangleInstance" for Rectangle (pax_std::primitives::Rectangle)
     pub primitive_instance_import_path: String,
 }
@@ -29,6 +37,8 @@ pub struct TemplateArgsMacroPaxPrimitive {
 pub struct TemplateArgsMacroPaxType {
     pub pascal_identifier: String,
     pub original_tokens: String,
+    pub type_dependencies: Vec<String>,
+    pub static_property_definitions: Vec<StaticPropertyDefinition>,
 }
 
 #[derive(TemplateOnce)]
@@ -39,7 +49,7 @@ pub struct TemplateArgsMacroPax {
     pub original_tokens: String,
     pub is_root: bool,
     pub template_dependencies: Vec<String>,
-    pub compile_time_property_definitions: Vec<CompileTimePropertyDefinition>,
+    pub static_property_definitions: Vec<StaticPropertyDefinition>,
     pub reexports_snippet: String,
 }
 

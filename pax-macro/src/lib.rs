@@ -17,11 +17,12 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
 use quote::{quote, ToTokens};
 
-use templating::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, TemplateArgsMacroPaxType, CompileTimePropertyDefinition};
+use templating::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, TemplateArgsMacroPaxType, StaticPropertyDefinition};
 
 use sailfish::TemplateOnce;
 
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument};
+use crate::templating::StaticPropertySource;
 
 #[proc_macro_attribute]
 pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -30,7 +31,7 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
-    let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
+    let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
 
     // for a macro invocation like the following:
     // #[pax_primitive("./pax-std-primitives",  "pax_std_primitives::GroupInstance")]
@@ -43,7 +44,7 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
     let output = TemplateArgsMacroPaxPrimitive{
         pascal_identifier,
         original_tokens,
-        compile_time_property_definitions,
+        static_property_definitions,
         primitive_instance_import_path,
     }.render_once().unwrap().to_string();
 
@@ -59,12 +60,20 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
 
     let pascal_identifier = input.ident.to_string();
 
+    let static_property_definitions = get_static_property_definitions_from_tokens(input.data);
+
+    let type_dependencies= static_property_definitions.iter().map(|spd|{
+        spd.original_type.clone()
+    }).collect();
+
     let output = templating::TemplateArgsMacroPaxType{
         pascal_identifier: pascal_identifier.clone(),
         original_tokens,
+        static_property_definitions,
+        type_dependencies,
     }.render_once().unwrap().to_string();
     
-    fs::write(format!("/Users/zack/debug/out-{}.txt", &pascal_identifier), &output);
+    // fs::write(format!("/Users/zack/debug/out-{}.txt", &pascal_identifier), &output);
 
     TokenStream::from_str(&output).unwrap().into()
 }
@@ -186,7 +195,7 @@ fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut HashSet<String>) {
     }
 }
 
-fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileTimePropertyDefinition> {
+fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticPropertyDefinition> {
     match data {
         Data::Struct(ref data) => {
             match data.fields {
@@ -202,10 +211,11 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
                                 let scoped_resolvable_types = get_scoped_resolvable_types(&ty);
 
                                 ret.push(
-                                    CompileTimePropertyDefinition {
+                                    StaticPropertyDefinition {
                                         original_type: name,
                                         field_name: quote!(#field_name).to_string(),
                                         scoped_resolvable_types,
+                                        property_source: StaticPropertySource::StructField,
                                     }
                                 )
                             }
@@ -219,6 +229,13 @@ fn get_compile_time_property_definitions_from_tokens(data: Data) -> Vec<CompileT
                 }
             }
         },
+        Data::Enum(ref data) => {
+            data.variants.iter().for_each(|variant| {
+                let variant_name = &variant.ident;
+
+
+            })
+        }
         _ => {unreachable!("Pax may only be attached to `struct`s")}
     }
 }
@@ -230,7 +247,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
-    let compile_time_property_definitions = get_compile_time_property_definitions_from_tokens(input_parsed.data);
+    let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
     let raw_pax = args.to_string();
     let template_dependencies = parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
@@ -251,7 +268,7 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         original_tokens,
         is_root,
         template_dependencies,
-        compile_time_property_definitions,
+        static_property_definitions,
         reexports_snippet
     }.render_once().unwrap().to_string();
 
