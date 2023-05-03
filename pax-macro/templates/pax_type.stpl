@@ -1,4 +1,9 @@
+<% if should_derive_default { %>
 #[derive(Default)]
+<% } %>
+<% if should_derive_clone { %>
+#[derive(Clone)]
+<% } %>
 <%= original_tokens %>
 
 #[cfg(feature = "parser")]

@@ -21,8 +21,7 @@ use templating::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, TemplateAr
 
 use sailfish::TemplateOnce;
 
-use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument};
-use crate::templating::StaticPropertySource;
+use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Attribute, Meta, NestedMeta, parse2, MetaList, Lit};
 
 #[proc_macro_attribute]
 pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -51,10 +50,120 @@ pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStre
     TokenStream::from_str(&output).unwrap().into()
 }
 
+// Helper function to extract the values inside the `custom` attribute.
+// fn extract_custom_attr(attr: &Attribute) -> Option<Vec<String>> {
+//     if attr.path.is_ident("custom") {
+//         let meta = attr.parse_meta().ok()?;
+//         let meta_list = match meta {
+//             Meta::List(list) => list,
+//             _ => return None,
+//         };
+//
+//         let attr_values = meta_list
+//             .nested
+//             .into_iter()
+//             .filter_map(|meta| match meta {
+//                 NestedMeta::Meta(Meta::Path(path)) => {
+//                     path.get_ident().map(|ident| ident.to_string())
+//                 }
+//                 _ => None,
+//             })
+//             .collect();
+//
+//         Some(attr_values)
+//     } else {
+//         None
+//     }
+// }
+
+// Helper function to extract the values inside the `custom` attribute.
+// fn extract_custom_attr(attr: &Meta) -> Option<Vec<String>> {
+//     let meta_list = match attr {
+//         Meta::List(list) => list,
+//         _ => return None,
+//     };
+//
+//     let custom_attr = meta_list
+//         .nested
+//         .iter()
+//         .find(|nested_meta| match nested_meta {
+//             NestedMeta::Meta(Meta::NameValue(name_value)) => {
+//                 name_value.path.is_ident("custom")
+//             }
+//             _ => false,
+//         })?;
+//
+//     let custom_values = match custom_attr {
+//         NestedMeta::Meta(Meta::NameValue(name_value)) => match &name_value.lit {
+//             syn::Lit::Str(lit_str) => {
+//                 lit_str.value().split(',').map(|s| s.trim().to_string()).collect()
+//             }
+//             _ => return None,
+//         },
+//         _ => return None,
+//     };
+//
+//     Some(custom_values)
+// }
+
+// Helper function to extract the values inside the `custom` attribute.
+fn extract_custom_attr(attr: &MetaList) -> Option<Vec<String>> {
+    let custom_attr = attr
+        .nested
+        .iter()
+        .find(|nested_meta| match nested_meta {
+            NestedMeta::Meta(Meta::NameValue(name_value)) => {
+                name_value.path.is_ident("custom")
+            }
+            _ => false,
+        })?;
+
+    let custom_values = match custom_attr {
+        NestedMeta::Meta(Meta::NameValue(name_value)) => match &name_value.lit {
+            syn::Lit::Str(lit_str) => {
+                lit_str.value().split(',').map(|s| s.trim().to_string()).collect()
+            }
+            _ => return None,
+        },
+        _ => return None,
+    };
+
+    Some(custom_values)
+}
+
+
 #[proc_macro_attribute]
-pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+pub fn pax_type(attr: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let original_tokens = input.to_string();
+
+    // // Parse pax_type attribute TokenStream as a Meta.
+    // let pax_type_attr: Meta = syn::parse(attr).expect("Failed to parse pax_type attribute");
+    //
+    // // Initialize an empty Vec to store custom attribute values.
+    // let mut custom_attrs = Vec::new();
+    //
+    // // Extract the values inside the `custom` attribute if provided.
+    // if let Some(attr_values) = extract_custom_attr(&pax_type_attr) {
+    //     custom_attrs.extend(attr_values);
+    // }
+
+
+    // Parse pax_type attribute TokenStream as a MetaList.
+    let pax_type_attr: MetaList = syn::parse(attr).expect("Failed to parse pax_type attribute");
+
+    // Initialize an empty Vec to store custom attribute values.
+    let mut custom_attrs = Vec::new();
+
+    // Extract the values inside the `custom` attribute if provided.
+    if let Some(attr_values) = extract_custom_attr(&pax_type_attr) {
+        custom_attrs.extend(attr_values);
+    }
+
+
+
+
+
 
     let input = parse_macro_input!(input as DeriveInput);
 
@@ -71,6 +180,8 @@ pub fn pax_type(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -
         original_tokens,
         static_property_definitions,
         type_dependencies,
+        should_derive_default: !custom_attrs.contains(&"Default".to_string()),
+        should_derive_clone: !custom_attrs.contains(&"Clone".to_string()),
     }.render_once().unwrap().to_string();
     
     // fs::write(format!("/Users/zack/debug/out-{}.txt", &pascal_identifier), &output);
@@ -215,7 +326,6 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                                         original_type: name,
                                         field_name: quote!(#field_name).to_string(),
                                         scoped_resolvable_types,
-                                        property_source: StaticPropertySource::StructField,
                                     }
                                 )
                             }
@@ -230,11 +340,27 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
             }
         },
         Data::Enum(ref data) => {
+            let mut ret = vec![];
             data.variants.iter().for_each(|variant| {
                 let variant_name = &variant.ident;
 
+                variant.fields.iter().for_each(|f| {
+                    if let Some(ty) = get_property_wrapped_field(f) {
+                        let original_type = quote!(#ty).to_string().replace(" ", "");
+                        let scoped_resolvable_types = get_scoped_resolvable_types(&ty);
+                        ret.push(
+                            StaticPropertyDefinition {
+                                original_type,
+                                field_name: quote!(#variant_name).to_string(),
+                                scoped_resolvable_types,
+                            }
+                        )
+                    }
+                })
 
-            })
+
+            });
+            ret
         }
         _ => {unreachable!("Pax may only be attached to `struct`s")}
     }
@@ -282,6 +408,192 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
         ret
     }.into()
 }
+
+#[proc_macro_derive(Pax, attributes(root, file, inline, custom))]
+pub fn pax_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = parse_macro_input!(item as DeriveInput);
+    let name = &input.ident;
+    let generics = &input.generics;
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let input = parse_macro_input!(item as DeriveInput);
+    let name = &input.ident;
+    let attrs = &input.attrs;
+
+    let mut is_root = false;
+    let mut file_path: Option<String> = None;
+    let mut inline_contents: Option<String> = None;
+    let mut custom_values: Option<Vec<String>> = None;
+
+    // Handle `derive macro helper attributes` — https://doc.rust-lang.org/reference/procedural-macros.html#derive-macro-helper-attributes
+    for attr in attrs {
+        match attr.parse_meta() {
+            Ok(Meta::Path(path)) => {
+                if path.is_ident("root") {
+                    is_root = true;
+                }
+            }
+            Ok(Meta::NameValue(name_value)) => {
+                if name_value.path.is_ident("file") {
+                    if let Lit::Str(file_str) = name_value.lit {
+                        file_path = Some(file_str.value());
+                    }
+                } else if name_value.path.is_ident("inline") {
+                    if let Lit::Str(inline_str) = name_value.lit {
+                        inline_contents = Some(inline_str.value());
+                    }
+                }
+            }
+            Ok(Meta::List(meta_list)) => {
+                if meta_list.path.is_ident("custom") {
+                    let values: Vec<String> = meta_list
+                        .nested
+                        .into_iter()
+                        .filter_map(|nested_meta| {
+                            if let syn::NestedMeta::Meta(Meta::Path(path)) = nested_meta {
+                                path.get_ident().map(|ident| ident.to_string())
+                            } else {
+                                None
+                            }
+                        })
+                        .collect();
+                    custom_values = Some(values);
+                }
+            }
+            _ => {}
+        }
+    }
+
+    //Validation
+    if let (Some(_), Some(_)) = (file_path.as_ref(), inline_contents.as_ref()) {
+        return syn::Error::new_spanned(input.ident, "`#[file(...)]` and `#[inline(...)]` attributes cannot be used together")
+            .to_compile_error()
+            .into();
+    }
+    if let (None, None) = (file_path.as_ref(), inline_contents.as_ref()) {
+        if is_root {
+            return syn::Error::new_spanned(input.ident, "Root components must specify either a Pax file or inline Pax content, e.g. #[file=\"some-file.pax\"] or #[inline=(<SomePax />)]")
+                .to_compile_error()
+                .into();
+        }
+    }
+
+    // Implement Clone
+    let clone_impl = match &input.data {
+        Data::Struct(data_struct) => {
+            match &data_struct.fields {
+                Fields::Named(fields_named) => {
+                    let field_clones = fields_named.named.iter().map(|f| {
+                        let name = &f.ident;
+                        quote! { #name: self.#name.clone() }
+                    });
+
+                    quote! {
+                    impl #impl_generics Clone for #name #ty_generics #where_clause {
+                        fn clone(&self) -> Self {
+                            Self {
+                                #(#field_clones,)*
+                            }
+                        }
+                    }
+                }
+                }
+                Fields::Unnamed(_) | Fields::Unit => {
+                    quote! {
+                    impl #impl_generics Clone for #name #ty_generics #where_clause {
+                        fn clone(&self) -> Self {
+                            Self::default()
+                        }
+                    }
+                }
+                }
+            }
+        }
+        Data::Enum(_) | Data::Union(_) => {
+            quote! {
+                compile_error!("Pax derive can only be used with structs");
+            }
+        }
+    };
+
+    // Implement Default
+    let mut default_impl = match &input.data {
+        Data::Struct(data_struct) => {
+            match &data_struct.fields {
+                Fields::Named(fields_named) => {
+                    let field_defaults = fields_named.named.iter().map(|f| {
+                        let name = &f.ident;
+                        quote! { #name: Default::default() }
+                    });
+
+                    quote! {
+                        impl #impl_generics Default for #name #ty_generics #where_clause {
+                            fn default() -> Self {
+                                Self {
+                                    #(#field_defaults,)*
+                                }
+                            }
+                        }
+                    }
+                }
+                Fields::Unnamed(_) | Fields::Unit => {
+                    quote! {
+                        impl #impl_generics Default for #name #ty_generics #where_clause {
+                            fn default() -> Self {
+                                Self::default()
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Data::Enum(_) | Data::Union(_) => {
+            quote! {
+                compile_error!("Pax derive can only be used with structs");
+            }
+        }
+    };
+
+    //wipe out our derives if `#[custom(...)]` attrs are set
+    if let Some(custom) = custom_values {
+        if custom.contains(&"Default".to_string()) {
+            default_impl = quote! {};
+        }
+        if custom.contains(&"Clone".to_string()) {
+            clone_impl = quote! {};
+        }
+    }
+
+    let is_pax_type = matches!(file_path, None) && matches!(inline_contents, None);
+    let is_pax_inline = matches!(inline_contents, Some(_));
+
+    let appended_tokens = if is_pax_type {
+        // an empty struct is treated as a pax_type, giving it special
+        // handling for certain codegen concerns, but not treating
+        // the struct as a full-blown component definition
+        handle_type()
+    } else if is_pax_type {
+        // pax_inline
+
+    } else {
+        // pax_file
+    };
+
+
+    let output = quote! {
+        #appended_tokens
+        #clone_impl
+        #default_impl
+    };
+
+    output.into()
+}
+
+
+
+
+
+
 
 #[proc_macro_attribute]
 pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {

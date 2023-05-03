@@ -11,15 +11,8 @@ pub struct StaticPropertyDefinition {
     pub scoped_resolvable_types: HashSet<String>,
     pub field_name: String,
     pub original_type: String,
-    /// How this property was defined, either via a Struct or an Enum
-    pub property_source: StaticPropertySource,
 }
 
-#[derive(Serialize)]
-pub enum StaticPropertySource {
-    StructField,
-    EnumVariant,
-}
 
 #[derive(TemplateOnce)]
 #[template(path = "../templates/pax_primitive.stpl", escape=false)]
@@ -39,6 +32,8 @@ pub struct TemplateArgsMacroPaxType {
     pub original_tokens: String,
     pub type_dependencies: Vec<String>,
     pub static_property_definitions: Vec<StaticPropertyDefinition>,
+    pub should_derive_default: bool,
+    pub should_derive_clone: bool,
 }
 
 #[derive(TemplateOnce)]
