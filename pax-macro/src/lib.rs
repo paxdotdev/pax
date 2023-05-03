@@ -367,14 +367,11 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
 }
 
 
-fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, is_root: bool, include_fix : Option<TokenStream>) -> proc_macro::TokenStream {
-    let original_tokens = input.to_string();
+fn pax_internal(raw_pax: String, input_parsed: DeriveInput, is_root: bool, include_fix : Option<TokenStream>) -> proc_macro2::TokenStream {
 
-    let input_parsed = parse_macro_input!(input as DeriveInput);
     let pascal_identifier = input_parsed.ident.to_string();
 
     let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
-    let raw_pax = args.to_string();
     let template_dependencies = parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
     // std::time::SystemTime::now().elapsed().unwrap().subsec_nanos()
@@ -391,7 +388,6 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
     let output = TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
-        original_tokens,
         is_root,
         template_dependencies,
         static_property_definitions,
@@ -410,14 +406,11 @@ fn pax_internal(args: proc_macro::TokenStream, input: proc_macro::TokenStream, i
 }
 
 #[proc_macro_derive(Pax, attributes(root, file, inline, custom))]
-pub fn pax_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(item as DeriveInput);
+pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
     let generics = &input.generics;
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-
-    let input = parse_macro_input!(item as DeriveInput);
-    let name = &input.ident;
     let attrs = &input.attrs;
 
     let mut is_root = false;
@@ -479,7 +472,7 @@ pub fn pax_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }
 
     // Implement Clone
-    let clone_impl = match &input.data {
+    let mut clone_impl = match &input.data {
         Data::Struct(data_struct) => {
             match &data_struct.fields {
                 Fields::Named(fields_named) => {
@@ -489,14 +482,14 @@ pub fn pax_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                     });
 
                     quote! {
-                    impl #impl_generics Clone for #name #ty_generics #where_clause {
-                        fn clone(&self) -> Self {
-                            Self {
-                                #(#field_clones,)*
+                        impl #impl_generics Clone for #name #ty_generics #where_clause {
+                            fn clone(&self) -> Self {
+                                Self {
+                                    #(#field_clones,)*
+                                }
                             }
                         }
                     }
-                }
                 }
                 Fields::Unnamed(_) | Fields::Unit => {
                     quote! {
@@ -509,9 +502,44 @@ pub fn pax_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 }
             }
         }
-        Data::Enum(_) | Data::Union(_) => {
+        Data::Enum(data_enum) => {
+            let variant_clones = data_enum.variants.iter().map(|variant| {
+                let variant_ident = &variant.ident;
+                let fields : Vec<TokenStream> = match &variant.fields {
+                    Fields::Named(fields_named) => {
+                        fields_named.named.iter().map(|f| {
+                            let name = &f.ident;
+                            quote! { #name: self.#name.clone() }
+                        }).collect()
+                    }
+                    Fields::Unnamed(fields_unnamed) => {
+                        fields_unnamed.unnamed.iter().enumerate().map(|(i, _)| {
+                            let index = syn::Index::from(i);
+                            quote! { self.#index.clone() }
+                        }).collect()
+                    }
+                    Fields::Unit => {
+                        return quote! {};
+                    }
+                };
+                quote! {
+                    Self::#variant_ident { #(#fields,)* }
+                }
+            });
+
             quote! {
-                compile_error!("Pax derive can only be used with structs");
+                impl #impl_generics Clone for #name #ty_generics #where_clause {
+                    fn clone(&self) -> Self {
+                        match self {
+                            #(#name::#variant_clones,)*
+                        }
+                    }
+                }
+            }
+        }
+        Data::Union(_) => {
+            quote! {
+                compile_error!("Pax derive does not support Unions");
             }
         }
     };
@@ -547,9 +575,32 @@ pub fn pax_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 }
             }
         }
-        Data::Enum(_) | Data::Union(_) => {
+        Data::Enum(data_enum) => {
+            let default_variant = data_enum.variants.iter().find(|variant| {
+                variant.attrs.iter().any(|attr| attr.path.is_ident("default"))
+            });
+
+            match default_variant {
+                Some(variant) => {
+                    let variant_ident = &variant.ident;
+                    quote! {
+                        impl #impl_generics Default for #name #ty_generics #where_clause {
+                            fn default() -> Self {
+                                Self::#variant_ident
+                            }
+                        }
+                    }
+                }
+                None => {
+                    quote! {
+                        compile_error!("Please add #[default] attribute to one of the enum variants");
+                    }
+                }
+            }
+        }
+        Data::Union(_) => {
             quote! {
-                compile_error!("Pax derive can only be used with structs");
+                compile_error!("Pax derive does not support Unions");
             }
         }
     };
@@ -568,17 +619,33 @@ pub fn pax_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let is_pax_inline = matches!(inline_contents, Some(_));
 
     let appended_tokens = if is_pax_type {
-        // an empty struct is treated as a pax_type, giving it special
-        // handling for certain codegen concerns, but not treating
-        // the struct as a full-blown component definition
-        handle_type()
-    } else if is_pax_type {
-        // pax_inline
 
+        // pax_type(input.into())
+        proc_macro2::TokenStream::default()
+    } else if is_pax_inline {
+        // pax_inline
+        let contents = if let Some(p) = inline_contents {p} else {unreachable!()};
+
+
+        pax_internal(contents, input.into(), is_root, None)
     } else {
         // pax_file
-    };
 
+        let filename = if let Some(p) = file_path {p} else {unreachable!()};
+        let current_dir = std::env::current_dir().expect("Unable to get current directory");
+        let path = current_dir.join(Path::new("src").join(Path::new(&filename)));
+
+        // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
+        let name = Ident::new("PaxFile", Span::call_site());
+        let include_fix = generate_include(&name,path.clone().to_str().unwrap());
+
+        let mut file = File::open(path);
+        let mut content = String::new();
+        let _ = file.unwrap().read_to_string(&mut content);
+        let stream: proc_macro::TokenStream = content.parse().unwrap();
+        pax_internal(stream.to_string(), input.into(), is_root, Some(include_fix))
+
+    };
 
     let output = quote! {
         #appended_tokens
@@ -591,71 +658,6 @@ pub fn pax_derive(item: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
 
 
-
-
-
-
-#[proc_macro_attribute]
-pub fn pax(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    pax_internal(args, input, false, None)
-}
-
-#[proc_macro_attribute]
-pub fn pax_app(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    pax_internal(args, input, true, None)
-}
-
-#[proc_macro_attribute]
-pub fn pax_file(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let path_arg = args.clone().into_iter().collect::<Vec<_>>();
-    if path_arg.len() != 1 {
-        let msg = format!("expected single string, got {}", path_arg.len());
-        return quote! { compile_error!(#msg) }.into();
-    }
-    let path_string = match StringLit::try_from(&path_arg[0]) {
-        // Error if the token is not a string literal
-        Err(e) => return e.to_compile_error(),
-        Ok(lit) => lit,
-    };
-    let filename = path_string.value();
-    let current_dir = std::env::current_dir().expect("Unable to get current directory");
-    let path = current_dir.join(Path::new("src").join(Path::new(filename)));
-
-    // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
-    let name = Ident::new("PaxFile", Span::call_site());
-    let include_fix = generate_include(&name,path.clone().to_str().unwrap());
-
-    let mut file = File::open(path);
-    let mut content = String::new();
-    let _ = file.unwrap().read_to_string(&mut content);
-    let stream: proc_macro::TokenStream = content.parse().unwrap();
-    pax_internal(stream, input, false, Some(include_fix))
-}
-
-#[proc_macro_attribute]
-pub fn pax_on(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let _ = args;
-    let _ = input;
-
-    // unimplemented!("pax_on not yet supported");
-    //TODO: register event handler (e.g. PreRender)
-    //Handle incremental compilation
-
-    input
-}
-
-
-#[proc_macro_attribute]
-pub fn pax_const(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let _ = args;
-    let _ = input;
-
-    // unimplemented!("pax_const not yet supported");
-    //TODO: expose reference to assoc. constant through reexports; support scope resolution for consts for expressions
-    //Handle incremental compilation
-
-    input
-}
 
 
 // Needed because Cargo wouldn't otherwise watch for changes in pax files.

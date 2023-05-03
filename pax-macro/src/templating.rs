@@ -41,7 +41,6 @@ pub struct TemplateArgsMacroPaxType {
 pub struct TemplateArgsMacroPax {
     pub raw_pax: String,
     pub pascal_identifier: String,
-    pub original_tokens: String,
     pub is_root: bool,
     pub template_dependencies: Vec<String>,
     pub static_property_definitions: Vec<StaticPropertyDefinition>,

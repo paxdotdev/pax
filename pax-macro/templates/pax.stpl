@@ -36,9 +36,6 @@ pub fn main() {
 //was specified for compiled project.
 <% } %>
 
-#[derive(Default)]
-<%= original_tokens %>
-
 #[cfg(feature = "parser")]
 impl <%= pascal_identifier %> {
     // For all components, a parse_to_manifest is generated under the `parser` feature
