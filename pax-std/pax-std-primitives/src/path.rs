@@ -94,6 +94,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
 
         for segment in properties.segments.get().iter() {
             match segment{
+                PathSegment::Empty => {/* no-op */},
                 PathSegment::LineSegment(data) => {
                     bez_path.move_to(data.start);
                     bez_path.line_to(data.end);

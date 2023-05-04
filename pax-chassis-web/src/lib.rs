@@ -83,10 +83,10 @@ impl PaxChassisWeb {
         let render_context = WebRenderContext::new(context, window);
 
         let instance_registry : Rc<RefCell<InstanceRegistry<WebRenderContext>>> = Rc::new(RefCell::new(InstanceRegistry::new()));
-        let root_component_instance = pax_cartridge::instantiate_root_component(Rc::clone(&instance_registry));
+        let main_component_instance = pax_cartridge::instantiate_main_component(Rc::clone(&instance_registry));
         let expression_table = pax_cartridge::instantiate_expression_table();
 
-        let engine = pax_core::PaxEngine::new(root_component_instance, expression_table, pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper), (width / dpr, height / dpr), instance_registry);
+        let engine = pax_core::PaxEngine::new(main_component_instance, expression_table, pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper), (width / dpr, height / dpr), instance_registry);
 
         let engine_container : Rc<RefCell<PaxEngine<WebRenderContext>>> = Rc::new(RefCell::new(engine));
 

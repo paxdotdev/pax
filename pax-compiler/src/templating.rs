@@ -42,7 +42,7 @@ pub struct TemplateArgsCodegenCartridgeLib {
 
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenCartridgeComponentFactory {
-    pub is_root: bool,
+    pub is_main_component: bool,
     pub snake_case_component_id: String,
     pub component_properties_struct: String,
     pub properties: Vec<PropertyDefinition>,

@@ -3,7 +3,7 @@ use pax::internal::{PropertyManifestable};
 #[cfg(feature = "parser")]
 use serde_json;
 
-<% if is_root { %>
+<% if is_main_component { %>
 // For the root component only, a `main` is generated for the `parser` bin target.
 // This method bootstraps the parsing process, parsing not only the root component
 // but every component/primitive found in its extended render tree. This main method
@@ -17,7 +17,7 @@ pub fn main() {
 
     let manifest = pax_compiler::manifest::PaxManifest {
         components: ctx.component_definitions,
-        root_component_id: ctx.root_component_id,
+        main_component_id: ctx.main_component_id,
         expression_specs: None,
     };
 
@@ -108,7 +108,7 @@ impl <%= pascal_identifier %> {
                         ctx,
                         &raw_pax,
                         PASCAL_IDENTIFIER,
-                        <%= is_root %>,
+                        <%= is_main_component %>,
                         template_map,
                         &source_id,
                         module_path!(),

@@ -29,11 +29,10 @@ pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
     pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
     pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct> >,
-    pub root_component: Rc<RefCell<ComponentInstance<R>>>,
+    pub main_component: Rc<RefCell<ComponentInstance<R>>>,
     pub runtime: Rc<RefCell<Runtime<R>>>,
     viewport_size: (f64, f64),
 }
-
 
 pub struct ExpressionVTable<R: 'static + RenderContext> {
     inner_map: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
@@ -260,7 +259,7 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
 
 impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn new(
-        root_component_instance: Rc<RefCell<ComponentInstance<R>>>,
+        main_component_instance: Rc<RefCell<ComponentInstance<R>>>,
         expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>)->TypesCoproduct>>,
         logger: pax_runtime_api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
@@ -272,7 +271,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             instance_registry,
             expression_table,
             runtime: Rc::new(RefCell::new(Runtime::new())),
-            root_component: root_component_instance,
+            main_component: main_component_instance,
             viewport_size,
         }
     }
@@ -283,7 +282,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // 2. find lowest node (last child of last node), accumulating transform along the way
         // 3. start rendering, from lowest node on-up
 
-        let cast_component_rc : RenderNodePtr<R> = self.root_component.clone();
+        let cast_component_rc : RenderNodePtr<R> = self.main_component.clone();
 
         let mut rtc = RenderTreeContext {
             engine: &self,

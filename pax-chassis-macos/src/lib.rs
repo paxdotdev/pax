@@ -39,13 +39,13 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     //engine can be passed back to Swift via the C (FFI) bridge
     //This could presumably be cleaned up -- see `pax_dealloc_engine`
     let instance_registry : Rc<RefCell<InstanceRegistry<CoreGraphicsContext<'static>>>> = Rc::new(RefCell::new(InstanceRegistry::new()));
-    let root_component_instance = pax_cartridge::instantiate_root_component(Rc::clone(&instance_registry));
+    let main_component_instance = pax_cartridge::instantiate_main_component(Rc::clone(&instance_registry));
     let expression_table = pax_cartridge::instantiate_expression_table();
 
     let engine : ManuallyDrop<Box<PaxEngine<CoreGraphicsContext<'static>>>> = ManuallyDrop::new(
         Box::new(
            PaxEngine::new(
-               root_component_instance,
+               main_component_instance,
                expression_table,
                pax_runtime_api::PlatformSpecificLogger::MacOS(logger),
                (1.0, 1.0),

@@ -1,5 +1,5 @@
-{% if is_root %}
-pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
+{% if is_main_component %}
+pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     ComponentInstance::instantiate( InstantiationArgs{
         properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{ component_properties_struct }}::default() ),
         handler_registry:  Some(Rc::new(RefCell::new(

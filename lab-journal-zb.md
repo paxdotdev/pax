@@ -3005,7 +3005,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let attrs = &input.attrs;
 
-    let mut is_root = false;
+    let mut is_main_component = false;
     let mut file_path: Option<String> = None;
     let mut inlined_contents: Option<String> = None;
     let mut custom_values: Option<Vec<String>> = None;
@@ -3015,7 +3015,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         match attr.parse_meta() {
             Ok(Meta::Path(path)) => {
                 if path.is_ident("root") {
-                    is_root = true;
+                    is_main_component = true;
                 }
             }
             Ok(Meta::NameValue(name_value)) => {

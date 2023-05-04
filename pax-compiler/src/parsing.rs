@@ -30,7 +30,7 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
     ComponentDefinition {
         is_primitive: true,
         primitive_instance_import_path: Some(primitive_instance_import_path),
-        is_root: false,
+        is_main_component: false,
         source_id: source_id.to_string(),
         pascal_identifier: pascal_identifier.to_string(),
         template: None,
@@ -720,7 +720,7 @@ pub struct ParsingContext {
     /// to prevent duplicate parsing
     pub visited_source_ids: HashSet<String>,
 
-    pub root_component_id: String,
+    pub main_component_id: String,
 
     pub component_definitions: HashMap<String, ComponentDefinition>,
 
@@ -737,7 +737,7 @@ pub struct ParsingContext {
 impl Default for ParsingContext {
     fn default() -> Self {
         Self {
-            root_component_id: "".into(),
+            main_component_id: "".into(),
             visited_source_ids: HashSet::new(),
             component_definitions: HashMap::new(),
             type_definitions: HashMap::new(),
@@ -749,13 +749,13 @@ impl Default for ParsingContext {
 }
 
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
-pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
+pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
-    if is_root {
-        ctx.root_component_id = source_id.to_string();
+    if is_main_component {
+        ctx.main_component_id = source_id.to_string();
     }
 
     let mut tpc = TemplateNodeParseContext {
@@ -784,7 +784,7 @@ pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str
 
     let new_def = ComponentDefinition {
         is_primitive: false,
-        is_root,
+        is_main_component,
         primitive_instance_import_path: None,
         source_id: source_id.into(),
         pascal_identifier: pascal_identifier.to_string(),

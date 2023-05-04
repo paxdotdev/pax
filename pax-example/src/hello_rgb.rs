@@ -5,7 +5,7 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 
 #[derive(Pax)]
-#[file = "hello_rgb.pax"]
+#[file("hello_rgb.pax")]
 pub struct HelloRGB {
     pub rotation: Property<f64>,
 }

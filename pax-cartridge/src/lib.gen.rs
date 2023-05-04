@@ -319,7 +319,7 @@ pub fn instantiate_component_stacker<R: 'static + RenderContext>(instance_regist
     ComponentInstance::instantiate(args)
 }
 
-pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
+pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     //Root
     ComponentInstance::instantiate(
         InstantiationArgs{

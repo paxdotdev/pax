@@ -22,6 +22,7 @@ use templating::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, TemplateAr
 use sailfish::TemplateOnce;
 
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Attribute, Meta, NestedMeta, parse2, MetaList, Lit};
+use syn::parse::{Parse, ParseStream};
 
 #[proc_macro_attribute]
 pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
@@ -273,7 +274,7 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
     }
 }
 
-fn pax_internal(raw_pax: String, input_parsed: DeriveInput, is_root: bool, include_fix : Option<TokenStream>) -> proc_macro2::TokenStream {
+fn pax_internal(raw_pax: String, input_parsed: DeriveInput, is_main_component: bool, include_fix : Option<TokenStream>) -> proc_macro2::TokenStream {
 
     let pascal_identifier = input_parsed.ident.to_string();
 
@@ -294,7 +295,7 @@ fn pax_internal(raw_pax: String, input_parsed: DeriveInput, is_root: bool, inclu
     let output = TemplateArgsMacroPax {
         raw_pax,
         pascal_identifier,
-        is_root,
+        is_main_component,
         template_dependencies,
         static_property_definitions,
         reexports_snippet
@@ -311,7 +312,7 @@ fn pax_internal(raw_pax: String, input_parsed: DeriveInput, is_root: bool, inclu
     }.into()
 }
 
-#[proc_macro_derive(Pax, attributes(root, file, inlined, custom, default))]
+#[proc_macro_derive(Pax, attributes(main, file, inlined, custom, default))]
 pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
@@ -319,47 +320,64 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
     let attrs = &input.attrs;
 
-    let mut is_root = false;
+    let mut is_main_component = false;
     let mut file_path: Option<String> = None;
     let mut inlined_contents: Option<String> = None;
     let mut custom_values: Option<Vec<String>> = None;
 
     // iterate through `derive macro helper attributes` to gather config & args
     for attr in attrs {
-        match attr.parse_meta() {
-            Ok(Meta::Path(path)) => {
-                if path.is_ident("root") {
-                    is_root = true;
-                }
-            }
-            Ok(Meta::NameValue(name_value)) => {
-                if name_value.path.is_ident("file") {
-                    if let Lit::Str(file_str) = &name_value.lit {
+        if attr.path.is_ident("file") {
+            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                if let Some(nested_meta) = meta_list.nested.first() {
+                    if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
                         file_path = Some(file_str.value());
                     }
-                } else if name_value.path.is_ident("inlined") {
-                    if let Lit::Str(inlined_str) = &name_value.lit {
-                        inlined_contents = Some(inlined_str.value());
+                }
+            }
+        } else if attr.path.is_ident("inlined") {
+            let tokens = attr.tokens.clone();
+            let mut content = proc_macro2::TokenStream::new();
+
+            for token in tokens {
+                match token {
+                    proc_macro2::TokenTree::Group(group) => {
+                        if group.delimiter() == proc_macro2::Delimiter::Parenthesis {
+                            content.extend(group.stream());
+                        }
+                    }
+                    _ => {}
+                }
+            }
+
+            if !content.is_empty() {
+                inlined_contents = Some(content.to_string());
+            }
+        } else {
+            match attr.parse_meta() {
+                Ok(Meta::Path(path)) => {
+                    if path.is_ident("main") {
+                        is_main_component = true;
                     }
                 }
-            }
-            Ok(Meta::List(meta_list)) => {
-                if meta_list.path.is_ident("custom") {
-                    let values: Vec<String> = meta_list
-                        .nested
-                        .into_iter()
-                        .filter_map(|nested_meta| {
-                            if let syn::NestedMeta::Meta(Meta::Path(path)) = nested_meta {
-                                path.get_ident().map(|ident| ident.to_string())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
-                    custom_values = Some(values);
+                Ok(Meta::List(meta_list)) => {
+                    if meta_list.path.is_ident("custom") {
+                        let values: Vec<String> = meta_list
+                            .nested
+                            .into_iter()
+                            .filter_map(|nested_meta| {
+                                if let syn::NestedMeta::Meta(Meta::Path(path)) = nested_meta {
+                                    path.get_ident().map(|ident| ident.to_string())
+                                } else {
+                                    None
+                                }
+                            })
+                            .collect();
+                        custom_values = Some(values);
+                    }
                 }
+                _ => {}
             }
-            _ => {}
         }
     }
 
@@ -371,8 +389,8 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     }
     if let (None, None) = (file_path.as_ref(), inlined_contents.as_ref()) {
         // &&
-        if is_root {
-            return syn::Error::new_spanned(input.ident, "Root components must specify either a Pax file or inlined Pax content, e.g. #[file=\"some-file.pax\"] or #[inlined=(<SomePax />)]")
+        if is_main_component {
+            return syn::Error::new_spanned(input.ident, "Main (application-root) components must specify either a Pax file or inlined Pax content, e.g. #[file(\"some-file.pax\")] or #[inlined(<SomePax />)]")
                 .to_compile_error()
                 .into();
         }
@@ -540,7 +558,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     let is_pax_file = matches!(&file_path, Some(_f));
     let is_pax_inlined = matches!(&inlined_contents, Some(_i));
-    let debug = format!("//is_pax_file:  {}, is_pax_inlined: {}\n", &is_pax_file, &is_pax_inlined);
+    // let debug = format!("//is_pax_file:  {}, is_pax_inlined: {}\n//inlined_contents: /*{:?}*/", &is_pax_file, &is_pax_inlined, &inlined_contents);
 
 
     let appended_tokens = if is_pax_file {
@@ -556,12 +574,12 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let mut content = String::new();
         let _ = file.unwrap().read_to_string(&mut content);
         let stream: proc_macro::TokenStream = content.parse().unwrap();
-        pax_internal(stream.to_string(), input.clone(), is_root, Some(include_fix))
+        pax_internal(stream.to_string(), input.clone(), is_main_component, Some(include_fix))
 
     } else if is_pax_inlined {
         let contents = if let Some(p) = inlined_contents {p} else {unreachable!()};
 
-        pax_internal(contents, input.clone(), is_root, None)
+        pax_internal(contents, input.clone(), is_main_component, None)
     } else  {
         // pax_type
         pax_type(input.clone())
@@ -573,7 +591,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         #default_impl
     };
 
-    fs::write(format!("/Users/zack/debug/out-{}.txt", &name.to_string()), debug + &output.to_string());
+    // fs::write(format!("/Users/zack/debug/out-{}.txt", &name.to_string()), debug + &output.to_string());
 
     output.into()
 }

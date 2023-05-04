@@ -11,9 +11,19 @@ use crate::primitives::Path;
 use pax_message::reflection::PathQualifiable;
 
 #[derive(Pax)]
+#[custom(Default)]
 pub struct Stroke {
     pub color: Box<dyn PropertyInstance<Color>>,
     pub width: Box<dyn PropertyInstance<SizePixels>>,
+}
+
+impl Default for Stroke {
+    fn default() -> Self {
+        Self {
+            color: Default::default(),
+            width: Box::new(PropertyLiteral::new(SizePixels(0.0.into()))),
+        }
+    }
 }
 
 #[derive(Pax)]

@@ -9,7 +9,7 @@ use serde_json;
 #[derive(Serialize, Deserialize)]
 pub struct PaxManifest {
     pub components: HashMap<String, ComponentDefinition>,
-    pub root_component_id: String,
+    pub main_component_id: String,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
 }
 
@@ -140,7 +140,7 @@ impl ExpressionSpecInvocation {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ComponentDefinition {
     pub source_id: String,
-    pub is_root: bool,
+    pub is_main_component: bool,
     pub is_primitive: bool,
     pub pascal_identifier: String,
     pub module_path: String,

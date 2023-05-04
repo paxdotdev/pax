@@ -133,7 +133,6 @@ impl Default for SizePixels {
         Self(Numeric::Float(150.0))
     }
 }
-
 impl From<&SizePixels > for f64{
     fn from(value: &SizePixels) -> Self {
         value.0.get_as_float()

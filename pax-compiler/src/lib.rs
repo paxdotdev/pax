@@ -673,7 +673,7 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
     };
 
     let args = TemplateArgsCodegenCartridgeComponentFactory {
-        is_root: cd.is_root,
+        is_main_component: cd.is_main_component,
         snake_case_component_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
         properties: cd.property_definitions.clone(),
