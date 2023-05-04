@@ -15,6 +15,7 @@ use crate::fireworks::Fireworks;
 const ROUTE_COUNT : usize = 3;
 
 #[derive(Pax)]
+#[root]
 #[inlined(
     <Frame width=100% height=100% @click=modulate >
         if current_route == 0 {

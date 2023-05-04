@@ -3,7 +3,7 @@ use pax::*;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 #[derive(Pax)]
-#[file("fireworks.pax")]
+#[file="fireworks.pax"]
 pub struct Fireworks {
     pub rotation: Property<f64>,
     pub ticks: Property<usize>,

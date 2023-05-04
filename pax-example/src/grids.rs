@@ -3,12 +3,11 @@ use pax::*;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 #[derive(Pax)]
-#[file("grids.pax")]
+#[file="grids.pax"]
 pub struct Grids {
     pub ticks: Property<usize>,
     pub rects: Property<Vec<RectDef>>,
 }
-
 
 impl Grids {
 

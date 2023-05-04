@@ -324,7 +324,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut inlined_contents: Option<String> = None;
     let mut custom_values: Option<Vec<String>> = None;
 
-    // Handle `derive macro helper attributes` — https://doc.rust-lang.org/reference/procedural-macros.html#derive-macro-helper-attributes
+    // iterate through `derive macro helper attributes` to gather config & args
     for attr in attrs {
         match attr.parse_meta() {
             Ok(Meta::Path(path)) => {
@@ -334,11 +334,11 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
             Ok(Meta::NameValue(name_value)) => {
                 if name_value.path.is_ident("file") {
-                    if let Lit::Str(file_str) = name_value.lit {
+                    if let Lit::Str(file_str) = &name_value.lit {
                         file_path = Some(file_str.value());
                     }
                 } else if name_value.path.is_ident("inlined") {
-                    if let Lit::Str(inlined_str) = name_value.lit {
+                    if let Lit::Str(inlined_str) = &name_value.lit {
                         inlined_contents = Some(inlined_str.value());
                     }
                 }
@@ -370,6 +370,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             .into();
     }
     if let (None, None) = (file_path.as_ref(), inlined_contents.as_ref()) {
+        // &&
         if is_root {
             return syn::Error::new_spanned(input.ident, "Root components must specify either a Pax file or inlined Pax content, e.g. #[file=\"some-file.pax\"] or #[inlined=(<SomePax />)]")
                 .to_compile_error()
@@ -462,7 +463,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
         Data::Union(_) => {
-            panic!("`CustomClone` derive macro does not support unions.");
+            panic!("`Pax` derive macro does not support unions.");
         }
     };
 
@@ -527,7 +528,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     };
 
-    //wipe out our derives if `#[custom(...)]` attrs are set
+    //wipe out the above derives if `#[custom(...)]` attrs are set
     if let Some(custom) = custom_values {
         if custom.contains(&"Default".to_string()) {
             default_impl = quote! {};
@@ -537,24 +538,13 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
-    let is_pax_type = matches!(file_path, None) && matches!(inlined_contents, None);
-    let is_pax_inlined = matches!(inlined_contents, Some(_));
+    let is_pax_file = matches!(&file_path, Some(_f));
+    let is_pax_inlined = matches!(&inlined_contents, Some(_i));
+    let debug = format!("//is_pax_file:  {}, is_pax_inlined: {}\n", &is_pax_file, &is_pax_inlined);
 
-    // let debug = quote!{"//is_pax_type: " #is_pax_type "\n"};
 
-    let appended_tokens = if is_pax_type {
-
-        // pax_type(input.into())
-        pax_type(input.clone())
-    } else if is_pax_inlined {
-        // pax_inline
-        let contents = if let Some(p) = inlined_contents {p} else {unreachable!()};
-
-        pax_internal(contents, input.clone(), is_root, None)
-    } else {
-        // pax_file
-
-        let filename = if let Some(p) = file_path {p} else {unreachable!()};
+    let appended_tokens = if is_pax_file {
+        let filename = if let Some(p) = file_path.as_ref() {p} else {unreachable!()};
         let current_dir = std::env::current_dir().expect("Unable to get current directory");
         let path = current_dir.join(Path::new("src").join(Path::new(&filename)));
 
@@ -568,6 +558,13 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let stream: proc_macro::TokenStream = content.parse().unwrap();
         pax_internal(stream.to_string(), input.clone(), is_root, Some(include_fix))
 
+    } else if is_pax_inlined {
+        let contents = if let Some(p) = inlined_contents {p} else {unreachable!()};
+
+        pax_internal(contents, input.clone(), is_root, None)
+    } else  {
+        // pax_type
+        pax_type(input.clone())
     };
 
     let output = quote! {
@@ -576,7 +573,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         #default_impl
     };
 
-    fs::write(format!("/Users/zack/debug/out-{}.txt", &name.to_string()), &output.to_string());
+    fs::write(format!("/Users/zack/debug/out-{}.txt", &name.to_string()), debug + &output.to_string());
 
     output.into()
 }
