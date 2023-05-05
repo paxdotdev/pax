@@ -203,11 +203,11 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
         }),
     );
 
-    //current_route==0
+    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
     vtable.insert(
         3,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            let current_route = {
+            let rotation = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
                     Rc::clone(&sf)
                 } else {
@@ -218,46 +218,40 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 .get_properties();
                 let properties = &*(*properties).borrow();
 
-                if let PropertiesCoproduct::Example(p) = properties {
-                    Numeric::from(p.current_route.get())
+                if let PropertiesCoproduct::HelloRGB(p) = properties {
+                    Numeric::from(p.rotation.get())
                 } else {
                     unreachable!("3")
                 }
             };
 
             #[allow(unused_parens)]
-            TypesCoproduct::bool((current_route == Numeric::from(0)))
+            TypesCoproduct::Transform2D(
+                ((Transform2D::align((Size::Percent(50.into())), (Size::Percent(50.into())))
+                    * (Transform2D::anchor(
+                        (Size::Percent(50.into())),
+                        (Size::Percent(50.into())),
+                    ))
+                    .into())
+                    * (Transform2D::rotate((rotation))).into()),
+            )
         }),
     );
 
-    //current_route==1
+    //Color::rgb(0.4,0.5,0)
     vtable.insert(
         4,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            let current_route = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }
-                .borrow()
-                .deref()
-                .get_properties();
-                let properties = &*(*properties).borrow();
-
-                if let PropertiesCoproduct::Example(p) = properties {
-                    Numeric::from(p.current_route.get())
-                } else {
-                    unreachable!("4")
-                }
-            };
-
             #[allow(unused_parens)]
-            TypesCoproduct::bool((current_route == Numeric::from(1)))
+            TypesCoproduct::__pax_stdCOCOtypesCOCOColor(Color::rgb(
+                (Numeric::from(0.4)),
+                (Numeric::from(0.5)),
+                (Numeric::from(0)),
+            ))
         }),
     );
 
-    //current_route==2
+    //current_route==0
     vtable.insert(
         5,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
@@ -280,15 +274,15 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
             };
 
             #[allow(unused_parens)]
-            TypesCoproduct::bool((current_route == Numeric::from(2)))
+            TypesCoproduct::bool((current_route == Numeric::from(0)))
         }),
     );
 
-    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
+    //current_route==1
     vtable.insert(
         6,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            let rotation = {
+            let current_route = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
                     Rc::clone(&sf)
                 } else {
@@ -299,36 +293,42 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 .get_properties();
                 let properties = &*(*properties).borrow();
 
-                if let PropertiesCoproduct::HelloRGB(p) = properties {
-                    Numeric::from(p.rotation.get())
+                if let PropertiesCoproduct::Example(p) = properties {
+                    Numeric::from(p.current_route.get())
                 } else {
                     unreachable!("6")
                 }
             };
 
             #[allow(unused_parens)]
-            TypesCoproduct::Transform2D(
-                ((Transform2D::align((Size::Percent(50.into())), (Size::Percent(50.into())))
-                    * (Transform2D::anchor(
-                        (Size::Percent(50.into())),
-                        (Size::Percent(50.into())),
-                    ))
-                    .into())
-                    * (Transform2D::rotate((rotation))).into()),
-            )
+            TypesCoproduct::bool((current_route == Numeric::from(1)))
         }),
     );
 
-    //Color::rgb(0.4,0.5,0)
+    //current_route==2
     vtable.insert(
         7,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            let current_route = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }
+                .borrow()
+                .deref()
+                .get_properties();
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::Example(p) = properties {
+                    Numeric::from(p.current_route.get())
+                } else {
+                    unreachable!("7")
+                }
+            };
+
             #[allow(unused_parens)]
-            TypesCoproduct::__pax_stdCOCOtypesCOCOColor(Color::rgb(
-                (Numeric::from(0.4)),
-                (Numeric::from(0.5)),
-                (Numeric::from(0)),
-            ))
+            TypesCoproduct::bool((current_route == Numeric::from(2)))
         }),
     );
 
@@ -485,6 +485,92 @@ pub fn instantiate_component_Fireworks<R: 'static + RenderContext>(
     ComponentInstance::instantiate(args)
 }
 
+pub fn instantiate_component_HelloRGB<R: 'static + RenderContext>(
+    instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
+    mut args: InstantiationArgs<R>,
+) -> Rc<RefCell<ComponentInstance<R>>> {
+    args.component_template = Some(Rc::new(RefCell::new(vec![
+        pax_std_primitives::ellipse::EllipseInstance::instantiate(InstantiationArgs {
+            properties: PropertiesCoproduct::Ellipse(Ellipse {
+                stroke: Box::new(PropertyLiteral::new(Default::default())),
+
+                fill: Box::new(PropertyExpression::new(4)),
+            }),
+            handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                click_handlers: vec![|stack_frame, args| {
+                    let properties = (*stack_frame).borrow().get_properties();
+                    let properties = &mut *properties.as_ref().borrow_mut();
+                    let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {
+                        p
+                    } else {
+                        unreachable!()
+                    };
+                    HelloRGB::handle_click(properties, args);
+                }],
+                will_render_handlers: vec![],
+                did_mount_handlers: vec![],
+                scroll_handlers: vec![|stack_frame, args| {
+                    let properties = (*stack_frame).borrow().get_properties();
+                    let properties = &mut *properties.as_ref().borrow_mut();
+                    let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {
+                        p
+                    } else {
+                        unreachable!()
+                    };
+                    HelloRGB::handle_scroll(properties, args);
+                }],
+            }))),
+            instance_registry: Rc::clone(&instance_registry),
+            transform: Rc::new(RefCell::new(PropertyExpression::new(3))),
+            size: Some(Rc::new(RefCell::new([
+                Box::new(PropertyLiteral::new(Size::Percent(50.into()))),
+                Box::new(PropertyLiteral::new(Size::Percent(50.into()))),
+            ]))),
+            children: Some(Rc::new(RefCell::new(vec![]))),
+            component_template: None,
+            scroller_args: None,
+            slot_index: None,
+            repeat_source_expression_vec: None,
+            repeat_source_expression_range: None,
+            conditional_boolean_expression: None,
+            compute_properties_fn: None,
+        }),
+    ])));
+
+    args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
+        click_handlers: vec![],
+        will_render_handlers: vec![],
+        did_mount_handlers: vec![],
+        scroll_handlers: vec![],
+    })));
+
+    args.compute_properties_fn = Some(Box::new(|properties, rtc| {
+        let properties = &mut *properties.as_ref().borrow_mut();
+        let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {
+            p
+        } else {
+            unreachable!()
+        };
+
+        if let Some(new_value) =
+            rtc.compute_eased_value(properties.rotation._get_transition_manager())
+        {
+            properties.rotation.set(new_value);
+        } else if let Some(new_value) =
+            rtc.compute_vtable_value(properties.rotation._get_vtable_id())
+        {
+            let new_value = if let TypesCoproduct::__f64(v) = new_value {
+                v
+            } else {
+                unreachable!()
+            };
+            properties.rotation.set(new_value);
+        }
+    }));
+
+    ComponentInstance::instantiate(args)
+}
+
 pub fn instantiate_main_component<R: 'static + RenderContext>(
     instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
 ) -> Rc<RefCell<ComponentInstance<R>>> {
@@ -582,7 +668,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(
                         slot_index: None,
                         repeat_source_expression_vec: None,
                         repeat_source_expression_range: None,
-                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(3))),
+                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(5))),
                         compute_properties_fn: None,
                     }),
                     ConditionalInstance::instantiate(InstantiationArgs {
@@ -642,7 +728,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(
                         slot_index: None,
                         repeat_source_expression_vec: None,
                         repeat_source_expression_range: None,
-                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(4))),
+                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(6))),
                         compute_properties_fn: None,
                     }),
                     ConditionalInstance::instantiate(InstantiationArgs {
@@ -700,7 +786,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(
                         slot_index: None,
                         repeat_source_expression_vec: None,
                         repeat_source_expression_range: None,
-                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(5))),
+                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(7))),
                         compute_properties_fn: None,
                     }),
                 ]))),
@@ -742,90 +828,4 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(
             }
         })),
     })
-}
-
-pub fn instantiate_component_HelloRGB<R: 'static + RenderContext>(
-    instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
-    mut args: InstantiationArgs<R>,
-) -> Rc<RefCell<ComponentInstance<R>>> {
-    args.component_template = Some(Rc::new(RefCell::new(vec![
-        pax_std_primitives::ellipse::EllipseInstance::instantiate(InstantiationArgs {
-            properties: PropertiesCoproduct::Ellipse(Ellipse {
-                stroke: Box::new(PropertyLiteral::new(Default::default())),
-
-                fill: Box::new(PropertyExpression::new(7)),
-            }),
-            handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                click_handlers: vec![|stack_frame, args| {
-                    let properties = (*stack_frame).borrow().get_properties();
-                    let properties = &mut *properties.as_ref().borrow_mut();
-                    let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {
-                        p
-                    } else {
-                        unreachable!()
-                    };
-                    HelloRGB::handle_click(properties, args);
-                }],
-                will_render_handlers: vec![],
-                did_mount_handlers: vec![],
-                scroll_handlers: vec![|stack_frame, args| {
-                    let properties = (*stack_frame).borrow().get_properties();
-                    let properties = &mut *properties.as_ref().borrow_mut();
-                    let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {
-                        p
-                    } else {
-                        unreachable!()
-                    };
-                    HelloRGB::handle_scroll(properties, args);
-                }],
-            }))),
-            instance_registry: Rc::clone(&instance_registry),
-            transform: Rc::new(RefCell::new(PropertyExpression::new(6))),
-            size: Some(Rc::new(RefCell::new([
-                Box::new(PropertyLiteral::new(Size::Percent(50.into()))),
-                Box::new(PropertyLiteral::new(Size::Percent(50.into()))),
-            ]))),
-            children: Some(Rc::new(RefCell::new(vec![]))),
-            component_template: None,
-            scroller_args: None,
-            slot_index: None,
-            repeat_source_expression_vec: None,
-            repeat_source_expression_range: None,
-            conditional_boolean_expression: None,
-            compute_properties_fn: None,
-        }),
-    ])));
-
-    args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
-        click_handlers: vec![],
-        will_render_handlers: vec![],
-        did_mount_handlers: vec![],
-        scroll_handlers: vec![],
-    })));
-
-    args.compute_properties_fn = Some(Box::new(|properties, rtc| {
-        let properties = &mut *properties.as_ref().borrow_mut();
-        let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {
-            p
-        } else {
-            unreachable!()
-        };
-
-        if let Some(new_value) =
-            rtc.compute_eased_value(properties.rotation._get_transition_manager())
-        {
-            properties.rotation.set(new_value);
-        } else if let Some(new_value) =
-            rtc.compute_vtable_value(properties.rotation._get_vtable_id())
-        {
-            let new_value = if let TypesCoproduct::__f64(v) = new_value {
-                v
-            } else {
-                unreachable!()
-            };
-            properties.rotation.set(new_value);
-        }
-    }));
-
-    ComponentInstance::instantiate(args)
 }

@@ -108,7 +108,7 @@ pub fn hue_shift() {
 2022-01-31
 
 How is the generated RIL consumed?
-- Chassis reaches into cartridge and calls a method to get root component instance(s)
+- Chassis reaches into cartridge and calls a method to get root/main component instance(s)
 - Chassis then passes instance to the Engine to start rendering
 
 
@@ -2120,8 +2120,8 @@ vs. "base" or "instance" or "concrete" nodes
 
 ex.
 `VirtualNode {}`
-`parent_hydrated_node`
-`hydrated_node_cache: HashMap<Vec<u64>, Rc<VirtualNode<R>>>,`
+`parent_repeat_expanded_node`
+`repeat_expanded_node_cache: HashMap<Vec<u64>, Rc<VirtualNode<R>>>,`
 
 Problematically, `virtual` could arguably be applied to both the `raw instance` and any `virtual` nodes
 
@@ -2885,10 +2885,11 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
         so `foo` can be used inside the invocation RIL for `foo_DOT_bar`
         [-] Alternate: a symbol trie, to handle `foo` and `foo_bar`, etc.
 [ ] Add necessary `parse_to_manifest` generation logic to `pax_type`
-    [ ] Add property reflection logic in `pax_type` macro 
-    [ ] Add hooks into calling types' `parse_to_manifest` logic during parser binary phase, as well as an enum for
-        co-mingling Type definitions with Component definitions (enum? or special flag field on
-        ComponentDefinition? Former is more explicit, which is probably best.)
+    [x] Add property reflection logic in `pax_type` macro 
+    [ ] Add hooks into calling types' `parse_to_manifest` logic during parser binary phase
+    [ ] Populate type definitions into manifest, punch through to compiler & expressions
+    [x] Figure out `Default` with `pax-std` types
+        [x] Implement macro API++ (derive plus attribute flags)
 [ ] Add `known_addressable_properties` to `PropertyTypeInfo`, allowing recursion through
     nested `PropertyTypeInfo`s, 
     [ ] Populate `known_addressable_properties` — this may need to happen after the initial full recursion
@@ -2898,7 +2899,7 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
 ```
 
 
-#### Appendix, code comments during exploration
+#### Appendix: early jots, formerly code comments 
 
 ```
 //TODO: how to handle nested symbol invocations, like `rect.width`?
@@ -2978,89 +2979,3 @@ let foo_bar_baz = (
 
 bar:
 
-```
-
-pub fn custom_derive_clone(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    
-    let mut clone_impl = /* TODO */
-    
-    quote! {clone_impl}
-}
-```
-
-
-
-
-I have a Rust derive macro, `#[derive(Pax)]`.
-
-Its definition currently looks like:
-
-```
-#[proc_macro_derive(Pax, attributes(root, file, inlined, custom, default))]
-pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    let name = &input.ident;
-    let generics = &input.generics;
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let attrs = &input.attrs;
-
-    let mut is_main_component = false;
-    let mut file_path: Option<String> = None;
-    let mut inlined_contents: Option<String> = None;
-    let mut custom_values: Option<Vec<String>> = None;
-
-    // iterate through `derive macro helper attributes` to gather config & args
-    for attr in attrs {
-        match attr.parse_meta() {
-            Ok(Meta::Path(path)) => {
-                if path.is_ident("root") {
-                    is_main_component = true;
-                }
-            }
-            Ok(Meta::NameValue(name_value)) => {
-                if name_value.path.is_ident("file") {
-                    if let Lit::Str(file_str) = name_value.lit {
-                        file_path = Some(file_str.value());
-                    }
-                } else if name_value.path.is_ident("inlined") {
-                    if let Lit::Str(inlined_str) = name_value.lit {
-                        inlined_contents = Some(inlined_str.value());
-                    }
-                }
-            }
-            Ok(Meta::List(meta_list)) => {
-                if meta_list.path.is_ident("custom") {
-                    let values: Vec<String> = meta_list
-                        .nested
-                        .into_iter()
-                        .filter_map(|nested_meta| {
-                            if let syn::NestedMeta::Meta(Meta::Path(path)) = nested_meta {
-                                path.get_ident().map(|ident| ident.to_string())
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
-                    custom_values = Some(values);
-                }
-            }
-            _ => {}
-        }
-    }
-    /* more logic follows, but just focused on the above for now. */
-```
-
-I believe there may be an error in the above logic — when I run
-
-```
-#[derive(Pax)]
-#[file("grids.pax")]
-pub struct Grids {
-    pub ticks: Property<usize>,
-    pub rects: Property<Vec<RectDef>>,
-}
-```
-
-it seems that `file_path` never gets set.  Can you see
-if something is wrong?

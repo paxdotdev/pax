@@ -4,8 +4,8 @@ use pax::internal::{PropertyManifestable};
 use serde_json;
 
 <% if is_main_component { %>
-// For the root component only, a `main` is generated for the `parser` bin target.
-// This method bootstraps the parsing process, parsing not only the root component
+// For the main (application-root) component only, a `main` is generated for the `parser` bin target.
+// This method bootstraps the parsing process, parsing not only the main/application-root component
 // but every component/primitive found in its extended render tree. This main method
 // also returns the parsed, serialized PaxManifest via stdio (println)
 #[cfg(feature = "parser")]

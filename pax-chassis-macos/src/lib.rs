@@ -31,7 +31,7 @@ pub struct PaxEngineContainer {
     //NOTE: since that has become a single field, this data structure may be be retired and `*mut PaxEngine` could be passed directly.
 }
 
-/// Allocate an instance of the Pax engine, with a specified root component from the loaded `pax_cartridge`.
+/// Allocate an instance of the Pax engine, with a specified root/main component from the loaded `pax_cartridge`.
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
 pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngineContainer {
 

@@ -12,17 +12,6 @@ pub trait PathQualifiable {
     }
 }
 
-//
-// pub trait IterableQualifiable {
-//     fn hello() {}
-// }
-//
-// impl<T> IterableQualifiable for Iter<T> where T: PathQualifiable {
-//     fn hello() {
-//         T::get_fully_qualified_path("hello");
-//     }
-// }
-
 impl PathQualifiable for usize {
     fn get_fully_qualified_path(_: &str) -> String {
         "usize".to_string()
