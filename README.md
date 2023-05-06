@@ -4,7 +4,7 @@ Pax is a user interface language and 2D layout engine.  Use Pax to develop cross
 
 ## Example
 
-Writing Pax is intended to feel familiar and the language borrows many ideas from [prior art](https://docs.pax.rs/intro-goals-prior-art.htmll#prior-art--inspiration).
+Writing Pax is intended to feel familiar and the language borrows many ideas from [prior art](https://docs.pax.rs/intro-goals-prior-art.html#prior-art--inspiration).
 
 Following is a simple Pax component called `IncrementMe`:
 
