@@ -1,42 +1,58 @@
 const path = require('path');
-const HtmlWebpackPlugin = require('html-webpack-plugin');
 const webpack = require('webpack');
 
 module.exports = {
   module: {
-      rules: [
-        {
-          test: /\.tsx?$/,
-          use: 'ts-loader',
-          exclude: /node_modules/
-        },
-        {
-          test: /\.wasm$/,
-          type: "webassembly/async"
-        }
-      ]
-    },
-  resolve: {
-    extensions: [ '.tsx', '.html', '.ts', '.js', '.wasm' ]
+    rules: [
+      {
+        test: /\.tsx?$/,
+        use: 'ts-loader',
+        exclude: /node_modules/,
+      },
+      {
+        test: /\.wasm$/,
+        type: 'webassembly/async',
+      },
+      {
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader'],
+      },
+      {
+        test: /\.(jpe?g|svg|png|gif|ico|eot|ttf|otf|woff2?)(\?v=\d+\.\d+\.\d+)?$/i,
+        type: 'asset/resource',
+      },
+    ],
   },
+
+  resolve: {
+    extensions: ['.tsx', '.html', '.ts', '.js', '.wasm', '.css'],
+  },
+
   devServer: {
     host: '0.0.0.0',
+    static: {
+      directory: path.resolve(__dirname, 'public'),
+    }
   },
+
   entry: './index.ts',
+
   output: {
     path: path.join(path.resolve(__dirname), 'dist'),
     filename: 'index.js',
+    publicPath: '/',
   },
+
   plugins: [
-    // Have this example work in Edge which doesn't ship `TextEncoder` or
-    // `TextDecoder` at this time.
     new webpack.ProvidePlugin({
-                              TextDecoder: ['text-encoding', 'TextDecoder'],
-                              TextEncoder: ['text-encoding', 'TextEncoder']
-    })
+      TextDecoder: ['text-encoding', 'TextDecoder'],
+      TextEncoder: ['text-encoding', 'TextEncoder'],
+    }),
   ],
+
   experiments: {
     asyncWebAssembly: true,
   },
-  mode: 'development'
+
+  mode: 'development',
 };

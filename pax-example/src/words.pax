@@ -10,8 +10,8 @@
         transform: {Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)},
     }
     #title {
-        paragraph_alignment: {Alignment::Center},
-        font: {Font::new("AZN Knuckles Trial", "Italic" , 64)},
+        paragraph_alignment: Alignment::Center,
+        font: {Font::new("Mexicana", "Regular" , 64)},
         fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
     }
     #background {
