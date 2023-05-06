@@ -7,7 +7,7 @@ use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 use pax_properties_coproduct::PropertiesCoproduct;
 
-use pax_runtime_api::{ArgsCoproduct, Size, Size2D};
+use pax_runtime_api::{Size, Size2D};
 
 use crate::{RenderTreeContext, HandlerRegistry, InstanceRegistry};
 

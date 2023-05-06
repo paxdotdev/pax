@@ -12,9 +12,7 @@ use pax_core::{
     RenderTreeContext, SlotInstance, StackFrame,
 };
 use pax_runtime_api::numeric::Numeric;
-use pax_runtime_api::{
-    ArgsCoproduct, PropertyInstance, PropertyLiteral, Size, Size2D, SizePixels, Transform2D,
-};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Size2D, SizePixels, Transform2D};
 use piet_common::RenderContext;
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
@@ -28,6 +26,8 @@ use pax_example::pax_reexports::pax_std::types::Stroke;
 use pax_example::pax_reexports::usize;
 
 use pax_example::pax_reexports::Example;
+
+use pax_example::pax_reexports::camera::Camera;
 
 use pax_example::pax_reexports::fireworks::Fireworks;
 
@@ -48,20 +48,11 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> =
         HashMap::new();
 
-    //0..60
+    //Transform2D::scale(1/zoom,1/zoom)*Transform2D::translate(pan_x,pan_y)
     vtable.insert(
         0,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            #[allow(unused_parens)]
-            TypesCoproduct::Range_isize_(0..60)
-        }),
-    );
-
-    //Color::hlc(ticks+i*360.0/30.0,75.0,150.0)
-    vtable.insert(
-        1,
-        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            let i = {
+            let pan_x = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
                     Rc::clone(&sf)
                 } else {
@@ -72,20 +63,15 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 .get_properties();
                 let properties = &*(*properties).borrow();
 
-                if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                    let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {
-                        i
-                    } else {
-                        unreachable!()
-                    };
-                    Numeric::from(unwrapped)
+                if let PropertiesCoproduct::Camera(p) = properties {
+                    Numeric::from(p.pan_x.get())
                 } else {
-                    unreachable!()
+                    unreachable!("0")
                 }
             };
 
-            let ticks = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(1) {
+            let pan_y = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
                     Rc::clone(&sf)
                 } else {
                     Rc::clone(&ec.stack_frame)
@@ -95,25 +81,199 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 .get_properties();
                 let properties = &*(*properties).borrow();
 
-                if let PropertiesCoproduct::Fireworks(p) = properties {
-                    Numeric::from(p.ticks.get())
+                if let PropertiesCoproduct::Camera(p) = properties {
+                    Numeric::from(p.pan_y.get())
                 } else {
-                    unreachable!("1")
+                    unreachable!("0")
+                }
+            };
+
+            let zoom = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }
+                .borrow()
+                .deref()
+                .get_properties();
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::Camera(p) = properties {
+                    Numeric::from(p.zoom.get())
+                } else {
+                    unreachable!("0")
                 }
             };
 
             #[allow(unused_parens)]
-            TypesCoproduct::__pax_stdCOCOtypesCOCOColor(Color::hlc(
-                (ticks + ((i * (Numeric::from(360.0)).into()) / Numeric::from(30.0))),
-                (Numeric::from(75.0)),
-                (Numeric::from(150.0)),
+            TypesCoproduct::Transform2D(
+                (Transform2D::scale((Numeric::from(1) / zoom), (Numeric::from(1) / zoom))
+                    * (Transform2D::translate((pan_x), (pan_y))).into()),
+            )
+        }),
+    );
+
+    //Transform2D::translate(0,0)
+    vtable.insert(
+        1,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::Transform2D(Transform2D::translate(
+                (Numeric::from(0)),
+                (Numeric::from(0)),
             ))
+        }),
+    );
+
+    //Color::rgb(100.0,0,0)
+    vtable.insert(
+        2,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::__pax_stdCOCOtypesCOCOColor(Color::rgb(
+                (Numeric::from(100.0)),
+                (Numeric::from(0)),
+                (Numeric::from(0)),
+            ))
+        }),
+    );
+
+    //Color::rgb(0,100.0,0)
+    vtable.insert(
+        3,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::__pax_stdCOCOtypesCOCOColor(Color::rgb(
+                (Numeric::from(0)),
+                (Numeric::from(100.0)),
+                (Numeric::from(0)),
+            ))
+        }),
+    );
+
+    //Transform2D::translate(0,200)
+    vtable.insert(
+        4,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::Transform2D(Transform2D::translate(
+                (Numeric::from(0)),
+                (Numeric::from(200)),
+            ))
+        }),
+    );
+
+    //Color::rgb(0,0,100.0)
+    vtable.insert(
+        5,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::__pax_stdCOCOtypesCOCOColor(Color::rgb(
+                (Numeric::from(0)),
+                (Numeric::from(0)),
+                (Numeric::from(100.0)),
+            ))
+        }),
+    );
+
+    //Transform2D::translate(200,0)
+    vtable.insert(
+        6,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::Transform2D(Transform2D::translate(
+                (Numeric::from(200)),
+                (Numeric::from(0)),
+            ))
+        }),
+    );
+
+    //Color::rgb(0,50.0,50.0)
+    vtable.insert(
+        7,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::__pax_stdCOCOtypesCOCOColor(Color::rgb(
+                (Numeric::from(0)),
+                (Numeric::from(50.0)),
+                (Numeric::from(50.0)),
+            ))
+        }),
+    );
+
+    //Transform2D::translate(200,200)
+    vtable.insert(
+        8,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::Transform2D(Transform2D::translate(
+                (Numeric::from(200)),
+                (Numeric::from(200)),
+            ))
+        }),
+    );
+
+    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
+    vtable.insert(
+        9,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            let rotation = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }
+                .borrow()
+                .deref()
+                .get_properties();
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::HelloRGB(p) = properties {
+                    Numeric::from(p.rotation.get())
+                } else {
+                    unreachable!("9")
+                }
+            };
+
+            #[allow(unused_parens)]
+            TypesCoproduct::Transform2D(
+                ((Transform2D::align((Size::Percent(50.into())), (Size::Percent(50.into())))
+                    * (Transform2D::anchor(
+                        (Size::Percent(50.into())),
+                        (Size::Percent(50.into())),
+                    ))
+                    .into())
+                    * (Transform2D::rotate((rotation))).into()),
+            )
+        }),
+    );
+
+    //Color::rgb(0.4,0.5,0)
+    vtable.insert(
+        10,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::__pax_stdCOCOtypesCOCOColor(Color::rgb(
+                (Numeric::from(0.4)),
+                (Numeric::from(0.5)),
+                (Numeric::from(0)),
+            ))
+        }),
+    );
+
+    //0..60
+    vtable.insert(
+        11,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::Range_isize_(0..60)
         }),
     );
 
     //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)*Transform2D::rotate((i+2)*rotation+ticks/1000.0)*Transform2D::scale(0.75+(i*rotation),0.75+(i*rotation))*Transform2D::scale(1-((rotation/5)+i/1000.0),1-((rotation/5)+i/1000.0))
     vtable.insert(
-        2,
+        12,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let i = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -152,7 +312,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 if let PropertiesCoproduct::Fireworks(p) = properties {
                     Numeric::from(p.rotation.get())
                 } else {
-                    unreachable!("2")
+                    unreachable!("12")
                 }
             };
 
@@ -170,7 +330,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 if let PropertiesCoproduct::Fireworks(p) = properties {
                     Numeric::from(p.ticks.get())
                 } else {
-                    unreachable!("2")
+                    unreachable!("12")
                 }
             };
 
@@ -203,11 +363,11 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
         }),
     );
 
-    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
+    //Color::hlc(ticks+i*360.0/30.0,75.0,150.0)
     vtable.insert(
-        3,
+        13,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            let rotation = {
+            let i = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
                     Rc::clone(&sf)
                 } else {
@@ -218,42 +378,48 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 .get_properties();
                 let properties = &*(*properties).borrow();
 
-                if let PropertiesCoproduct::HelloRGB(p) = properties {
-                    Numeric::from(p.rotation.get())
+                if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
+                    let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {
+                        i
+                    } else {
+                        unreachable!()
+                    };
+                    Numeric::from(unwrapped)
                 } else {
-                    unreachable!("3")
+                    unreachable!()
+                }
+            };
+
+            let ticks = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(1) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }
+                .borrow()
+                .deref()
+                .get_properties();
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::Fireworks(p) = properties {
+                    Numeric::from(p.ticks.get())
+                } else {
+                    unreachable!("13")
                 }
             };
 
             #[allow(unused_parens)]
-            TypesCoproduct::Transform2D(
-                ((Transform2D::align((Size::Percent(50.into())), (Size::Percent(50.into())))
-                    * (Transform2D::anchor(
-                        (Size::Percent(50.into())),
-                        (Size::Percent(50.into())),
-                    ))
-                    .into())
-                    * (Transform2D::rotate((rotation))).into()),
-            )
-        }),
-    );
-
-    //Color::rgb(0.4,0.5,0)
-    vtable.insert(
-        4,
-        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            #[allow(unused_parens)]
-            TypesCoproduct::__pax_stdCOCOtypesCOCOColor(Color::rgb(
-                (Numeric::from(0.4)),
-                (Numeric::from(0.5)),
-                (Numeric::from(0)),
+            TypesCoproduct::__pax_stdCOCOtypesCOCOColor(Color::hlc(
+                (ticks + ((i * (Numeric::from(360.0)).into()) / Numeric::from(30.0))),
+                (Numeric::from(75.0)),
+                (Numeric::from(150.0)),
             ))
         }),
     );
 
     //current_route==0
     vtable.insert(
-        5,
+        14,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let current_route = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -269,7 +435,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 if let PropertiesCoproduct::Example(p) = properties {
                     Numeric::from(p.current_route.get())
                 } else {
-                    unreachable!("5")
+                    unreachable!("14")
                 }
             };
 
@@ -280,7 +446,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
 
     //current_route==1
     vtable.insert(
-        6,
+        15,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let current_route = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -296,7 +462,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 if let PropertiesCoproduct::Example(p) = properties {
                     Numeric::from(p.current_route.get())
                 } else {
-                    unreachable!("6")
+                    unreachable!("15")
                 }
             };
 
@@ -307,7 +473,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
 
     //current_route==2
     vtable.insert(
-        7,
+        16,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let current_route = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -323,7 +489,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 if let PropertiesCoproduct::Example(p) = properties {
                     Numeric::from(p.current_route.get())
                 } else {
-                    unreachable!("7")
+                    unreachable!("16")
                 }
             };
 
@@ -337,37 +503,37 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
 
 //Begin component factory literals
 
-pub fn instantiate_component_Fireworks<R: 'static + RenderContext>(
+pub fn instantiate_component_Camera<R: 'static + RenderContext>(
     instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
     mut args: InstantiationArgs<R>,
 ) -> Rc<RefCell<ComponentInstance<R>>> {
     args.component_template = Some(Rc::new(RefCell::new(vec![
-        pax_std_primitives::group::GroupInstance::instantiate(InstantiationArgs {
-            properties: PropertiesCoproduct::Group(Group {}),
+        pax_std_primitives::frame::FrameInstance::instantiate(InstantiationArgs {
+            properties: PropertiesCoproduct::Frame(Frame {}),
             handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                click_handlers: vec![],
-                will_render_handlers: vec![],
-                did_mount_handlers: vec![],
-                scroll_handlers: vec![|stack_frame, args| {
+                click_handlers: vec![|stack_frame, ctx, args| {
                     let properties = (*stack_frame).borrow().get_properties();
                     let properties = &mut *properties.as_ref().borrow_mut();
-                    let properties = if let PropertiesCoproduct::Fireworks(p) = properties {
+                    let properties = if let PropertiesCoproduct::Camera(p) = properties {
                         p
                     } else {
                         unreachable!()
                     };
-                    Fireworks::handle_scroll(properties, args);
+                    Camera::handle_click(properties, ctx, args);
                 }],
+                will_render_handlers: vec![],
+                did_mount_handlers: vec![],
+                scroll_handlers: vec![],
             }))),
             instance_registry: Rc::clone(&instance_registry),
             transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
             size: Some(Rc::new(RefCell::new([
-                Box::new(PropertyLiteral::new(Default::default())),
-                Box::new(PropertyLiteral::new(Default::default())),
+                Box::new(PropertyLiteral::new(Size::Percent(100.into()))),
+                Box::new(PropertyLiteral::new(Size::Percent(100.into()))),
             ]))),
-            children: Some(Rc::new(RefCell::new(vec![RepeatInstance::instantiate(
-                InstantiationArgs {
-                    properties: PropertiesCoproduct::None,
+            children: Some(Rc::new(RefCell::new(vec![
+                pax_std_primitives::group::GroupInstance::instantiate(InstantiationArgs {
+                    properties: PropertiesCoproduct::Group(Group {}),
                     handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
                         click_handlers: vec![],
                         will_render_handlers: vec![],
@@ -375,7 +541,7 @@ pub fn instantiate_component_Fireworks<R: 'static + RenderContext>(
                         scroll_handlers: vec![],
                     }))),
                     instance_registry: Rc::clone(&instance_registry),
-                    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+                    transform: Rc::new(RefCell::new(PropertyExpression::new(0))),
                     size: Some(Rc::new(RefCell::new([
                         Box::new(PropertyLiteral::new(Default::default())),
                         Box::new(PropertyLiteral::new(Default::default())),
@@ -386,7 +552,7 @@ pub fn instantiate_component_Fireworks<R: 'static + RenderContext>(
                                 properties: PropertiesCoproduct::Rectangle(Rectangle {
                                     stroke: Box::new(PropertyLiteral::new(Default::default())),
 
-                                    fill: Box::new(PropertyExpression::new(1)),
+                                    fill: Box::new(PropertyExpression::new(2)),
                                 }),
                                 handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
                                     click_handlers: vec![],
@@ -395,10 +561,97 @@ pub fn instantiate_component_Fireworks<R: 'static + RenderContext>(
                                     scroll_handlers: vec![],
                                 }))),
                                 instance_registry: Rc::clone(&instance_registry),
-                                transform: Rc::new(RefCell::new(PropertyExpression::new(2))),
+                                transform: Rc::new(RefCell::new(PropertyExpression::new(1))),
                                 size: Some(Rc::new(RefCell::new([
-                                    Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),
-                                    Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),
+                                    Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
+                                    Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
+                                ]))),
+                                children: Some(Rc::new(RefCell::new(vec![]))),
+                                component_template: None,
+                                scroller_args: None,
+                                slot_index: None,
+                                repeat_source_expression_vec: None,
+                                repeat_source_expression_range: None,
+                                conditional_boolean_expression: None,
+                                compute_properties_fn: None,
+                            },
+                        ),
+                        pax_std_primitives::rectangle::RectangleInstance::instantiate(
+                            InstantiationArgs {
+                                properties: PropertiesCoproduct::Rectangle(Rectangle {
+                                    stroke: Box::new(PropertyLiteral::new(Default::default())),
+
+                                    fill: Box::new(PropertyExpression::new(3)),
+                                }),
+                                handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                                    click_handlers: vec![],
+                                    will_render_handlers: vec![],
+                                    did_mount_handlers: vec![],
+                                    scroll_handlers: vec![],
+                                }))),
+                                instance_registry: Rc::clone(&instance_registry),
+                                transform: Rc::new(RefCell::new(PropertyExpression::new(4))),
+                                size: Some(Rc::new(RefCell::new([
+                                    Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
+                                    Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
+                                ]))),
+                                children: Some(Rc::new(RefCell::new(vec![]))),
+                                component_template: None,
+                                scroller_args: None,
+                                slot_index: None,
+                                repeat_source_expression_vec: None,
+                                repeat_source_expression_range: None,
+                                conditional_boolean_expression: None,
+                                compute_properties_fn: None,
+                            },
+                        ),
+                        pax_std_primitives::rectangle::RectangleInstance::instantiate(
+                            InstantiationArgs {
+                                properties: PropertiesCoproduct::Rectangle(Rectangle {
+                                    stroke: Box::new(PropertyLiteral::new(Default::default())),
+
+                                    fill: Box::new(PropertyExpression::new(5)),
+                                }),
+                                handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                                    click_handlers: vec![],
+                                    will_render_handlers: vec![],
+                                    did_mount_handlers: vec![],
+                                    scroll_handlers: vec![],
+                                }))),
+                                instance_registry: Rc::clone(&instance_registry),
+                                transform: Rc::new(RefCell::new(PropertyExpression::new(6))),
+                                size: Some(Rc::new(RefCell::new([
+                                    Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
+                                    Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
+                                ]))),
+                                children: Some(Rc::new(RefCell::new(vec![]))),
+                                component_template: None,
+                                scroller_args: None,
+                                slot_index: None,
+                                repeat_source_expression_vec: None,
+                                repeat_source_expression_range: None,
+                                conditional_boolean_expression: None,
+                                compute_properties_fn: None,
+                            },
+                        ),
+                        pax_std_primitives::ellipse::EllipseInstance::instantiate(
+                            InstantiationArgs {
+                                properties: PropertiesCoproduct::Ellipse(Ellipse {
+                                    stroke: Box::new(PropertyLiteral::new(Default::default())),
+
+                                    fill: Box::new(PropertyExpression::new(7)),
+                                }),
+                                handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                                    click_handlers: vec![],
+                                    will_render_handlers: vec![],
+                                    did_mount_handlers: vec![],
+                                    scroll_handlers: vec![],
+                                }))),
+                                instance_registry: Rc::clone(&instance_registry),
+                                transform: Rc::new(RefCell::new(PropertyExpression::new(8))),
+                                size: Some(Rc::new(RefCell::new([
+                                    Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
+                                    Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
                                 ]))),
                                 children: Some(Rc::new(RefCell::new(vec![]))),
                                 component_template: None,
@@ -415,11 +668,11 @@ pub fn instantiate_component_Fireworks<R: 'static + RenderContext>(
                     scroller_args: None,
                     slot_index: None,
                     repeat_source_expression_vec: None,
-                    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(0))),
+                    repeat_source_expression_range: None,
                     conditional_boolean_expression: None,
                     compute_properties_fn: None,
-                },
-            )]))),
+                }),
+            ]))),
             component_template: None,
             scroller_args: None,
             slot_index: None,
@@ -432,41 +685,34 @@ pub fn instantiate_component_Fireworks<R: 'static + RenderContext>(
 
     args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
         click_handlers: vec![],
-        will_render_handlers: vec![|properties, args| {
+        will_render_handlers: vec![|properties, ctx| {
             let properties = &mut *properties.as_ref().borrow_mut();
-            let properties = if let PropertiesCoproduct::Fireworks(p) = properties {
+            let properties = if let PropertiesCoproduct::Camera(p) = properties {
                 p
             } else {
                 unreachable!()
             };
-            Fireworks::handle_will_render(properties, args);
+            Camera::handle_will_render(properties, ctx);
         }],
-        did_mount_handlers: vec![],
+        did_mount_handlers: vec![|properties, ctx| {
+            let properties = &mut *properties.as_ref().borrow_mut();
+            let properties = if let PropertiesCoproduct::Camera(p) = properties {
+                p
+            } else {
+                unreachable!()
+            };
+            Camera::handle_did_mount(properties, ctx);
+        }],
         scroll_handlers: vec![],
     })));
 
     args.compute_properties_fn = Some(Box::new(|properties, rtc| {
         let properties = &mut *properties.as_ref().borrow_mut();
-        let properties = if let PropertiesCoproduct::Fireworks(p) = properties {
+        let properties = if let PropertiesCoproduct::Camera(p) = properties {
             p
         } else {
             unreachable!()
         };
-
-        if let Some(new_value) =
-            rtc.compute_eased_value(properties.rotation._get_transition_manager())
-        {
-            properties.rotation.set(new_value);
-        } else if let Some(new_value) =
-            rtc.compute_vtable_value(properties.rotation._get_vtable_id())
-        {
-            let new_value = if let TypesCoproduct::__f64(v) = new_value {
-                v
-            } else {
-                unreachable!()
-            };
-            properties.rotation.set(new_value);
-        }
 
         if let Some(new_value) = rtc.compute_eased_value(properties.ticks._get_transition_manager())
         {
@@ -479,6 +725,44 @@ pub fn instantiate_component_Fireworks<R: 'static + RenderContext>(
                 unreachable!()
             };
             properties.ticks.set(new_value);
+        }
+
+        if let Some(new_value) = rtc.compute_eased_value(properties.zoom._get_transition_manager())
+        {
+            properties.zoom.set(new_value);
+        } else if let Some(new_value) = rtc.compute_vtable_value(properties.zoom._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::__f64(v) = new_value {
+                v
+            } else {
+                unreachable!()
+            };
+            properties.zoom.set(new_value);
+        }
+
+        if let Some(new_value) = rtc.compute_eased_value(properties.pan_x._get_transition_manager())
+        {
+            properties.pan_x.set(new_value);
+        } else if let Some(new_value) = rtc.compute_vtable_value(properties.pan_x._get_vtable_id())
+        {
+            let new_value = if let TypesCoproduct::__f64(v) = new_value {
+                v
+            } else {
+                unreachable!()
+            };
+            properties.pan_x.set(new_value);
+        }
+
+        if let Some(new_value) = rtc.compute_eased_value(properties.pan_y._get_transition_manager())
+        {
+            properties.pan_y.set(new_value);
+        } else if let Some(new_value) = rtc.compute_vtable_value(properties.pan_y._get_vtable_id())
+        {
+            let new_value = if let TypesCoproduct::__f64(v) = new_value {
+                v
+            } else {
+                unreachable!()
+            };
+            properties.pan_y.set(new_value);
         }
     }));
 
@@ -494,10 +778,10 @@ pub fn instantiate_component_HelloRGB<R: 'static + RenderContext>(
             properties: PropertiesCoproduct::Ellipse(Ellipse {
                 stroke: Box::new(PropertyLiteral::new(Default::default())),
 
-                fill: Box::new(PropertyExpression::new(4)),
+                fill: Box::new(PropertyExpression::new(10)),
             }),
             handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                click_handlers: vec![|stack_frame, args| {
+                click_handlers: vec![|stack_frame, ctx, args| {
                     let properties = (*stack_frame).borrow().get_properties();
                     let properties = &mut *properties.as_ref().borrow_mut();
                     let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {
@@ -505,11 +789,11 @@ pub fn instantiate_component_HelloRGB<R: 'static + RenderContext>(
                     } else {
                         unreachable!()
                     };
-                    HelloRGB::handle_click(properties, args);
+                    HelloRGB::handle_click(properties, ctx, args);
                 }],
                 will_render_handlers: vec![],
                 did_mount_handlers: vec![],
-                scroll_handlers: vec![|stack_frame, args| {
+                scroll_handlers: vec![|stack_frame, ctx, args| {
                     let properties = (*stack_frame).borrow().get_properties();
                     let properties = &mut *properties.as_ref().borrow_mut();
                     let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {
@@ -517,11 +801,11 @@ pub fn instantiate_component_HelloRGB<R: 'static + RenderContext>(
                     } else {
                         unreachable!()
                     };
-                    HelloRGB::handle_scroll(properties, args);
+                    HelloRGB::handle_scroll(properties, ctx, args);
                 }],
             }))),
             instance_registry: Rc::clone(&instance_registry),
-            transform: Rc::new(RefCell::new(PropertyExpression::new(3))),
+            transform: Rc::new(RefCell::new(PropertyExpression::new(9))),
             size: Some(Rc::new(RefCell::new([
                 Box::new(PropertyLiteral::new(Size::Percent(50.into()))),
                 Box::new(PropertyLiteral::new(Size::Percent(50.into()))),
@@ -571,6 +855,154 @@ pub fn instantiate_component_HelloRGB<R: 'static + RenderContext>(
     ComponentInstance::instantiate(args)
 }
 
+pub fn instantiate_component_Fireworks<R: 'static + RenderContext>(
+    instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
+    mut args: InstantiationArgs<R>,
+) -> Rc<RefCell<ComponentInstance<R>>> {
+    args.component_template = Some(Rc::new(RefCell::new(vec![
+        pax_std_primitives::group::GroupInstance::instantiate(InstantiationArgs {
+            properties: PropertiesCoproduct::Group(Group {}),
+            handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                click_handlers: vec![],
+                will_render_handlers: vec![],
+                did_mount_handlers: vec![],
+                scroll_handlers: vec![|stack_frame, ctx, args| {
+                    let properties = (*stack_frame).borrow().get_properties();
+                    let properties = &mut *properties.as_ref().borrow_mut();
+                    let properties = if let PropertiesCoproduct::Fireworks(p) = properties {
+                        p
+                    } else {
+                        unreachable!()
+                    };
+                    Fireworks::handle_scroll(properties, ctx, args);
+                }],
+            }))),
+            instance_registry: Rc::clone(&instance_registry),
+            transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+            size: Some(Rc::new(RefCell::new([
+                Box::new(PropertyLiteral::new(Default::default())),
+                Box::new(PropertyLiteral::new(Default::default())),
+            ]))),
+            children: Some(Rc::new(RefCell::new(vec![RepeatInstance::instantiate(
+                InstantiationArgs {
+                    properties: PropertiesCoproduct::None,
+                    handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                        click_handlers: vec![],
+                        will_render_handlers: vec![],
+                        did_mount_handlers: vec![],
+                        scroll_handlers: vec![],
+                    }))),
+                    instance_registry: Rc::clone(&instance_registry),
+                    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+                    size: Some(Rc::new(RefCell::new([
+                        Box::new(PropertyLiteral::new(Default::default())),
+                        Box::new(PropertyLiteral::new(Default::default())),
+                    ]))),
+                    children: Some(Rc::new(RefCell::new(vec![
+                        pax_std_primitives::rectangle::RectangleInstance::instantiate(
+                            InstantiationArgs {
+                                properties: PropertiesCoproduct::Rectangle(Rectangle {
+                                    stroke: Box::new(PropertyLiteral::new(Default::default())),
+
+                                    fill: Box::new(PropertyExpression::new(13)),
+                                }),
+                                handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                                    click_handlers: vec![],
+                                    will_render_handlers: vec![],
+                                    did_mount_handlers: vec![],
+                                    scroll_handlers: vec![],
+                                }))),
+                                instance_registry: Rc::clone(&instance_registry),
+                                transform: Rc::new(RefCell::new(PropertyExpression::new(12))),
+                                size: Some(Rc::new(RefCell::new([
+                                    Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),
+                                    Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),
+                                ]))),
+                                children: Some(Rc::new(RefCell::new(vec![]))),
+                                component_template: None,
+                                scroller_args: None,
+                                slot_index: None,
+                                repeat_source_expression_vec: None,
+                                repeat_source_expression_range: None,
+                                conditional_boolean_expression: None,
+                                compute_properties_fn: None,
+                            },
+                        ),
+                    ]))),
+                    component_template: None,
+                    scroller_args: None,
+                    slot_index: None,
+                    repeat_source_expression_vec: None,
+                    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(11))),
+                    conditional_boolean_expression: None,
+                    compute_properties_fn: None,
+                },
+            )]))),
+            component_template: None,
+            scroller_args: None,
+            slot_index: None,
+            repeat_source_expression_vec: None,
+            repeat_source_expression_range: None,
+            conditional_boolean_expression: None,
+            compute_properties_fn: None,
+        }),
+    ])));
+
+    args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
+        click_handlers: vec![],
+        will_render_handlers: vec![|properties, ctx| {
+            let properties = &mut *properties.as_ref().borrow_mut();
+            let properties = if let PropertiesCoproduct::Fireworks(p) = properties {
+                p
+            } else {
+                unreachable!()
+            };
+            Fireworks::handle_will_render(properties, ctx);
+        }],
+        did_mount_handlers: vec![],
+        scroll_handlers: vec![],
+    })));
+
+    args.compute_properties_fn = Some(Box::new(|properties, rtc| {
+        let properties = &mut *properties.as_ref().borrow_mut();
+        let properties = if let PropertiesCoproduct::Fireworks(p) = properties {
+            p
+        } else {
+            unreachable!()
+        };
+
+        if let Some(new_value) =
+            rtc.compute_eased_value(properties.rotation._get_transition_manager())
+        {
+            properties.rotation.set(new_value);
+        } else if let Some(new_value) =
+            rtc.compute_vtable_value(properties.rotation._get_vtable_id())
+        {
+            let new_value = if let TypesCoproduct::__f64(v) = new_value {
+                v
+            } else {
+                unreachable!()
+            };
+            properties.rotation.set(new_value);
+        }
+
+        if let Some(new_value) = rtc.compute_eased_value(properties.ticks._get_transition_manager())
+        {
+            properties.ticks.set(new_value);
+        } else if let Some(new_value) = rtc.compute_vtable_value(properties.ticks._get_vtable_id())
+        {
+            let new_value = if let TypesCoproduct::__usize(v) = new_value {
+                v
+            } else {
+                unreachable!()
+            };
+            properties.ticks.set(new_value);
+        }
+    }));
+
+    ComponentInstance::instantiate(args)
+}
+
 pub fn instantiate_main_component<R: 'static + RenderContext>(
     instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
 ) -> Rc<RefCell<ComponentInstance<R>>> {
@@ -590,16 +1022,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(
             pax_std_primitives::frame::FrameInstance::instantiate(InstantiationArgs {
                 properties: PropertiesCoproduct::Frame(Frame {}),
                 handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                    click_handlers: vec![|stack_frame, args| {
-                        let properties = (*stack_frame).borrow().get_properties();
-                        let properties = &mut *properties.as_ref().borrow_mut();
-                        let properties = if let PropertiesCoproduct::Example(p) = properties {
-                            p
-                        } else {
-                            unreachable!()
-                        };
-                        Example::modulate(properties, args);
-                    }],
+                    click_handlers: vec![],
                     will_render_handlers: vec![],
                     did_mount_handlers: vec![],
                     scroll_handlers: vec![],
@@ -625,50 +1048,48 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(
                             Box::new(PropertyLiteral::new(Default::default())),
                             Box::new(PropertyLiteral::new(Default::default())),
                         ]))),
-                        children: Some(Rc::new(RefCell::new(vec![
-                            instantiate_component_Fireworks(
-                                Rc::clone(&instance_registry),
-                                InstantiationArgs {
-                                    properties: PropertiesCoproduct::Fireworks(Fireworks {
-                                        rotation: Box::new(
-                                            PropertyLiteral::new(Default::default()),
-                                        ),
+                        children: Some(Rc::new(RefCell::new(vec![instantiate_component_Camera(
+                            Rc::clone(&instance_registry),
+                            InstantiationArgs {
+                                properties: PropertiesCoproduct::Camera(Camera {
+                                    ticks: Box::new(PropertyLiteral::new(Default::default())),
 
-                                        ticks: Box::new(PropertyLiteral::new(Default::default())),
-                                    }),
-                                    handler_registry: Some(Rc::new(RefCell::new(
-                                        HandlerRegistry {
-                                            click_handlers: vec![],
-                                            will_render_handlers: vec![],
-                                            did_mount_handlers: vec![],
-                                            scroll_handlers: vec![],
-                                        },
-                                    ))),
-                                    instance_registry: Rc::clone(&instance_registry),
-                                    transform: Rc::new(RefCell::new(PropertyLiteral::new(
-                                        Default::default(),
-                                    ))),
-                                    size: Some(Rc::new(RefCell::new([
-                                        Box::new(PropertyLiteral::new(Default::default())),
-                                        Box::new(PropertyLiteral::new(Default::default())),
-                                    ]))),
-                                    children: Some(Rc::new(RefCell::new(vec![]))),
-                                    component_template: None,
-                                    scroller_args: None,
-                                    slot_index: None,
-                                    repeat_source_expression_vec: None,
-                                    repeat_source_expression_range: None,
-                                    conditional_boolean_expression: None,
-                                    compute_properties_fn: None,
-                                },
-                            ),
-                        ]))),
+                                    zoom: Box::new(PropertyLiteral::new(Default::default())),
+
+                                    pan_x: Box::new(PropertyLiteral::new(Default::default())),
+
+                                    pan_y: Box::new(PropertyLiteral::new(Default::default())),
+                                }),
+                                handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                                    click_handlers: vec![],
+                                    will_render_handlers: vec![],
+                                    did_mount_handlers: vec![],
+                                    scroll_handlers: vec![],
+                                }))),
+                                instance_registry: Rc::clone(&instance_registry),
+                                transform: Rc::new(RefCell::new(PropertyLiteral::new(
+                                    Default::default(),
+                                ))),
+                                size: Some(Rc::new(RefCell::new([
+                                    Box::new(PropertyLiteral::new(Default::default())),
+                                    Box::new(PropertyLiteral::new(Default::default())),
+                                ]))),
+                                children: Some(Rc::new(RefCell::new(vec![]))),
+                                component_template: None,
+                                scroller_args: None,
+                                slot_index: None,
+                                repeat_source_expression_vec: None,
+                                repeat_source_expression_range: None,
+                                conditional_boolean_expression: None,
+                                compute_properties_fn: None,
+                            },
+                        )]))),
                         component_template: None,
                         scroller_args: None,
                         slot_index: None,
                         repeat_source_expression_vec: None,
                         repeat_source_expression_range: None,
-                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(5))),
+                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(14))),
                         compute_properties_fn: None,
                     }),
                     ConditionalInstance::instantiate(InstantiationArgs {
@@ -728,7 +1149,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(
                         slot_index: None,
                         repeat_source_expression_vec: None,
                         repeat_source_expression_range: None,
-                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(6))),
+                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(15))),
                         compute_properties_fn: None,
                     }),
                     ConditionalInstance::instantiate(InstantiationArgs {
@@ -786,7 +1207,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(
                         slot_index: None,
                         repeat_source_expression_vec: None,
                         repeat_source_expression_range: None,
-                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(7))),
+                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(16))),
                         compute_properties_fn: None,
                     }),
                 ]))),

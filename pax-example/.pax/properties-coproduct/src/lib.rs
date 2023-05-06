@@ -11,6 +11,8 @@ pub enum PropertiesCoproduct {
     Range_isize_(std::ops::Range<isize>),
 
     
+    Camera(pax_example::pax_reexports::camera::Camera),
+    
     Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
     
     Example(pax_example::pax_reexports::Example),

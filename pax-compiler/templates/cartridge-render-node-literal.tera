@@ -13,39 +13,39 @@ instantiate_{{ snake_case_component_id }}( Rc::clone(&instance_registry),
                                                  HandlerRegistry {
                                                      click_handlers: vec![
                                                          {%- if events['click'] -%}
-                                                                |stack_frame, args|{
+                                                                |stack_frame, ctx, args|{
                                                                     let properties = (*stack_frame).borrow().get_properties();
                                                                     let properties = &mut *properties.as_ref().borrow_mut();
                                                                     let properties = if let PropertiesCoproduct::{{ active_root }}(p) = properties {p} else {unreachable!()};
-                                                                    {{ active_root }}::{{events['click']}}(properties,args);
+                                                                    {{ active_root }}::{{events['click']}}(properties, ctx, args);
                                                                 },
                                                          {%- endif -%}
                                                      ],
                                                      will_render_handlers: vec![
                                                         {%- if events['will_render'] -%}
-                                                                |properties,args|{
+                                                                |properties, ctx|{
                                                                     let properties = &mut *properties.as_ref().borrow_mut();
                                                                     let properties = if let PropertiesCoproduct::{{ active_root }}(p) = properties {p} else {unreachable!()};
-                                                                    {{ active_root }}::{{events['will_render']}}(properties, args);
+                                                                    {{ active_root }}::{{events['will_render']}}(properties, ctx);
                                                                 }
                                                          {%- endif -%}
                                                      ],
                                                      did_mount_handlers: vec![
                                                          {%- if events['did_mount'] -%}
-                                                                 |properties|{
+                                                                 |properties, ctx|{
                                                                      let properties = &mut *properties.as_ref().borrow_mut();
                                                                      let properties = if let PropertiesCoproduct::{{ active_root }}(p) = properties {p} else {unreachable!()};
-                                                                     {{ active_root }}::{{events['did_mount']}}(properties);
+                                                                     {{ active_root }}::{{events['did_mount']}}(properties,ctx);
                                                                  }
                                                           {%- endif -%}
                                                       ],
                                                      scroll_handlers: vec![
                                                      {%- if events['scroll'] -%}
-                                                                 |stack_frame, args|{
+                                                                 |stack_frame, ctx, args|{
                                                                      let properties = (*stack_frame).borrow().get_properties();
                                                                      let properties = &mut *properties.as_ref().borrow_mut();
                                                                      let properties = if let PropertiesCoproduct::{{ active_root }}(p) = properties {p} else {unreachable!()};
-                                                                     {{ active_root }}::{{events['scroll']}}(properties,args);
+                                                                     {{ active_root }}::{{events['scroll']}}(properties,ctx,args);
                                                                  },
                                                           {%- endif -%}
                                                       ],

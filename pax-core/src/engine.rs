@@ -1,12 +1,10 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::env::Args;
-use std::f64::EPSILON;
 use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
 use kurbo::Point;
-
 
 
 use pax_message::NativeMessage;
@@ -17,13 +15,7 @@ use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, ArgsScroll, Interpolatable, TransitionManager};
-
-pub enum EventMessage {
-    Tick(ArgsRender),
-    Click(ArgsClick),
-    Jab(ArgsJab),
-}
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, NodeContext, Interpolatable, TransitionManager};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -51,6 +43,16 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext>
     pub inherited_adoptees: Option<RenderNodePtrList<R>>,
 }
 
+
+impl<'a, R: 'static + RenderContext> RenderTreeContext<'a, R> {
+    pub fn distill_userland_node_context(&self) -> NodeContext {
+        NodeContext {
+            bounds: self.bounds,
+            frames_elapsed: self.engine.frames_elapsed,
+        }
+    }
+}
+
 impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
     fn clone(&self) -> Self {
         RenderTreeContext {
@@ -62,28 +64,6 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             parent_repeat_expanded_node: self.parent_repeat_expanded_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
             inherited_adoptees: self.inherited_adoptees.clone(),
-        }
-    }
-}
-
-impl<'a, R: RenderContext> Into<ArgsRender> for RenderTreeContext<'a, R> {
-
-
-    fn into(self) -> ArgsRender {
-        // possible approach to enabling "auto cell count" in `Stacker`, for example:
-        // let adoptee_count = {
-        //     let stack_frame = (*(*self.runtime).borrow().peek_stack_frame().expect("Component required")).borrow();
-        //     if stack_frame.has_adoptees() {
-        //         (*stack_frame.get_adoptees()).borrow().len()
-        //     } else {
-        //         0
-        //     }
-        // };
-
-        ArgsRender {
-            frames_elapsed: self.engine.frames_elapsed,
-            bounds: self.bounds.clone(),
-            // adoptee_count,
         }
     }
 }
@@ -151,10 +131,10 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 
 #[derive(Default)]
 pub struct HandlerRegistry<R: 'static + RenderContext> {
-    pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsClick)>,
-    pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
-    pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>)>,
-    pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsScroll)>,
+    pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, NodeContext, ArgsClick)>,
+    pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, NodeContext)>,
+    pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, NodeContext)>,
+    pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, NodeContext, ArgsScroll)>,
 }
 
 /// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
@@ -166,23 +146,24 @@ pub struct RepeatExpandedNode<R: 'static + RenderContext> {
     instance_node: RenderNodePtr<R>,
     stack_frame: Rc<RefCell<crate::StackFrame<R>>>,
     tab: TransformAndBounds,
+    node_context: NodeContext,
 }
 
 impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
     pub fn dispatch_click(&self, args_click: ArgsClick) {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             (*registry).borrow().click_handlers.iter().for_each(|handler|{
-                handler(Rc::clone(&self.stack_frame), args_click.clone());
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_click.clone());
             })
         }
         if let Some(parent) = &self.parent_repeat_expanded_node {
-            parent.dispatch_click(args_click);
+            parent.dispatch_click( args_click);
         }
     }
     pub fn dispatch_scroll(&self, args_scroll: ArgsScroll) {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             (*registry).borrow().scroll_handlers.iter().for_each(|handler|{
-                handler(Rc::clone(&self.stack_frame), args_scroll.clone());
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_scroll.clone());
             })
         }
         if let Some(parent) = &self.parent_repeat_expanded_node {
@@ -339,8 +320,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     match rtc.runtime.borrow_mut().peek_stack_frame() {
                         Some(stack_frame) => {
                             for handler in (*registry).borrow().did_mount_handlers.iter() {
-                                // let args = ArgsRender { bounds: rtc.bounds.clone(), frames_elapsed: rtc.engine.frames_elapsed };
-                                handler(stack_frame.borrow_mut().get_properties());
+                                handler(stack_frame.borrow_mut().get_properties(), rtc.distill_userland_node_context());
                             }
                         },
                         None => {
@@ -396,8 +376,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             match rtc.runtime.borrow_mut().peek_stack_frame() {
                 Some(stack_frame) => {
                     for handler in (*registry).borrow().will_render_handlers.iter() {
-                        let args = ArgsRender { bounds: rtc.bounds.clone(), frames_elapsed: rtc.engine.frames_elapsed };
-                        handler(stack_frame.borrow_mut().get_properties(), args);
+                        handler(stack_frame.borrow_mut().get_properties(), rtc.distill_userland_node_context());
                     }
                 },
                 None => {
@@ -418,6 +397,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             id_chain: id_chain.clone(),
             instance_node: Rc::clone(&node),
             parent_repeat_expanded_node: rtc.parent_repeat_expanded_node.clone(),
+            node_context: rtc.distill_userland_node_context(),
         });
 
         //Note: ray-casting requires that the repeat_expanded_node_cache is sorted by z-index,

@@ -7,11 +7,11 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
                  click_handlers: vec![
                      {%- if events['click'] -%}
                         {% for handler in events['click'] %}
-                            |stack_frame, args|{
+                            |stack_frame, ctx, args|{
                                 let properties = ((*stack_frame).borrow().get_properties());
                                 let properties = &mut *properties.as_ref().borrow_mut();
                                 let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                {{ component_properties_struct }}::{{handler}}(properties,args);
+                                {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
                             },
                         {% endfor %}
                      {%- endif -%}
@@ -19,10 +19,10 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
                  will_render_handlers: vec![
                     {%- if events['will_render'] -%}
                          {% for handler in events['will_render'] %}
-                             |properties, args|{
+                             |properties, ctx|{
                                  let properties = &mut *properties.as_ref().borrow_mut();
                                  let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                 {{ component_properties_struct }}::{{handler}}(properties,args);
+                                 {{ component_properties_struct }}::{{handler}}(properties,ctx);
                              },
                          {% endfor %}
                     {%- endif -%}
@@ -30,10 +30,10 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
                  did_mount_handlers: vec![
                      {%- if events['did_mount'] -%}
                           {% for handler in events['did_mount'] %}
-                              |properties|{
+                              |properties, ctx|{
                                   let properties = &mut *properties.as_ref().borrow_mut();
                                   let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                  {{ component_properties_struct }}::{{handler}}(properties);
+                                  {{ component_properties_struct }}::{{handler}}(properties, ctx);
                               },
                           {% endfor %}
                      {%- endif -%}
@@ -41,11 +41,11 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
                  scroll_handlers: vec![
                      {%- if events['scroll'] -%}
                          {% for handler in events['scroll'] %}
-                             |stack_frame, args|{
+                             |stack_frame, ctx, args|{
                                  let properties = ((*stack_frame).borrow().get_properties());
                                  let properties = &mut *properties.as_ref().borrow_mut();
                                  let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                 {{ component_properties_struct }}::{{handler}}(properties,args);
+                                 {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
                              },
                          {% endfor %}
                      {%- endif -%}
@@ -86,11 +86,11 @@ pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(ins
         click_handlers: vec![
          {%- if events['click'] -%}
             {% for handler in events['click'] %}
-                |stack_frame, args|{
+                |stack_frame, ctx, args|{
                     let properties = ((*stack_frame).borrow().get_properties());
                     let properties = &mut *properties.as_ref().borrow_mut();
                     let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                    {{ component_properties_struct }}::{{handler}}(properties,args);
+                    {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
                 },
             {% endfor %}
          {%- endif -%}
@@ -98,10 +98,10 @@ pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(ins
         will_render_handlers: vec![
         {%- if events['will_render'] -%}
              {% for handler in events['will_render'] %}
-                 |properties, args|{
+                 |properties, ctx|{
                      let properties = &mut *properties.as_ref().borrow_mut();
                      let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                     {{ component_properties_struct }}::{{handler}}(properties,args);
+                     {{ component_properties_struct }}::{{handler}}(properties,ctx);
                  },
              {% endfor %}
         {%- endif -%}
@@ -109,10 +109,10 @@ pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(ins
         did_mount_handlers: vec![
          {%- if events['did_mount'] -%}
               {% for handler in events['did_mount'] %}
-                  |properties|{
+                  |properties, ctx|{
                       let properties = &mut *properties.as_ref().borrow_mut();
                       let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                      {{ component_properties_struct }}::{{handler}}(properties);
+                      {{ component_properties_struct }}::{{handler}}(properties,ctx);
                   },
               {% endfor %}
          {%- endif -%}
@@ -120,11 +120,11 @@ pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(ins
         scroll_handlers: vec![
          {%- if events['scroll'] -%}
              {% for handler in events['scroll'] %}
-                 |stack_frame, args|{
+                 |stack_frame, ctx, args|{
                      let properties = ((*stack_frame).borrow().get_properties());
                      let properties = &mut *properties.as_ref().borrow_mut();
                      let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                     {{ component_properties_struct }}::{{handler}}(properties,args);
+                     {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
                  },
              {% endfor %}
          {%- endif -%}

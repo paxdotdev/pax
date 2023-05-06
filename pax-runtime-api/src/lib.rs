@@ -64,22 +64,20 @@ impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
     }
 }
 
-pub enum ArgsCoproduct {
-    Render(ArgsRender),
-    Click(ArgsClick),
-}
-
 pub type Property<T: Interpolatable> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
-pub struct ArgsRender {
+pub struct NodeContext {
     /// The current global engine tick count
     pub frames_elapsed: usize,
     /// The bounds of this element's container in px
     pub bounds: (f64, f64),
     // /// The number of adoptees passed to the current component (used by Stacker for auto cell-count calc; might be extended/adjusted for other use-cases)
     // pub adoptee_count: usize,
+    // /// Current playhead position(s) for current component
+    //pub timeline_playhead_position: usize,
 }
+
 
 /// A Click occurs when the following sequence occurs:
 ///   0. mousedown

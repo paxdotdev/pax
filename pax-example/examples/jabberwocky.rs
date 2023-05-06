@@ -1,5 +1,5 @@
 use pax::*;
-use pax::api::{EasingCurve, ArgsRender, ArgsClick};
+use pax::api::{EasingCurve, ArgsClick, NodeContext};
 use pax_std::primitives::{Text, Rectangle, Group};
 use pax_std::components::{Stacker};
 
@@ -54,7 +54,7 @@ pub struct Jabberwocky {
 impl Jabberwocky {
 
     #[pax_on(WillRender)]
-    pub fn handle_tick(&mut self, args: ArgsRender) {
+    pub fn handle_tick(&mut self, ctx: NodeContext) {
         if args.frames_elapsed % 180 == 0 {
             //every 3s
             pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
