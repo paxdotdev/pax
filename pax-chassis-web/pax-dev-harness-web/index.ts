@@ -1,7 +1,7 @@
 
 // const rust = import('./dist/pax_chassis_web');
 import {PaxChassisWeb} from './dist/pax_chassis_web';
-
+import './fonts.css';
 const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_ID = "native-overlay";
 const CANVAS_ID = "canvas";
@@ -139,7 +139,7 @@ class NativeElementPool {
         let suffix = ""
         if (patch.font.variant != null) {
             if(patch.font.variant != "Regular") {
-                suffix = " " + patch.font.variant
+                suffix = "-" + patch.font.variant
             }
         }
 

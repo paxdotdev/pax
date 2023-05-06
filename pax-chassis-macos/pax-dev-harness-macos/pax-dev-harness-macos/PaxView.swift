@@ -74,11 +74,14 @@ struct PaxView: View {
             for fileURL in resourceFiles {
                 let fileExtension = fileURL.pathExtension.lowercased()
                 if fontFileExtensions.contains(fileExtension) {
-                    let fontName = fileURL.deletingPathExtension().lastPathComponent
-                    if !isFontRegistered(fontName: fontName) {
-                        var errorRef: Unmanaged<CFError>?
-                        if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
-                            print("Error registering font: \(fontName) - \(String(describing: errorRef))")
+                    let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
+                    if let fontDescriptor = fontDescriptors.first,
+                       let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String {
+                        if !isFontRegistered(fontName: postscriptName) {
+                            var errorRef: Unmanaged<CFError>?
+                            if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
+                                print("Error registering font: \(postscriptName) - \(String(describing: errorRef))")
+                            }
                         }
                     }
                 }
@@ -88,13 +91,20 @@ struct PaxView: View {
         }
     }
 
+
     func isFontRegistered(fontName: String) -> Bool {
         let fontFamilies = CTFontManagerCopyAvailableFontFamilyNames() as! [String]
-        return fontFamilies.contains(fontName)
+        for fontFamily in fontFamilies {
+            let fontDescriptors = CTFontDescriptorCreateMatchingFontDescriptors(CTFontDescriptorCreateWithNameAndSize(fontFamily as CFString, 0), nil) as? [CTFontDescriptor]
+            for fontDescriptor in fontDescriptors ?? [] {
+                let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as! String
+                if postscriptName == fontName {
+                    return true
+                }
+            }
+        }
+        return false
     }
-
-
-
 
     class PaxEngineContainer {
         static var paxEngineContainer : OpaquePointer? = nil
@@ -138,18 +148,23 @@ struct PaxView: View {
                 tx: CGFloat(textElement.transform[4]),
                 ty: CGFloat(textElement.transform[5])
             )
-
+            var text: AttributedString {
+                var attributedString: AttributedString = try! AttributedString(markdown: textElement.content)
+                let fullStringRange = attributedString.startIndex..<attributedString.endIndex
+                attributedString[fullStringRange].foregroundColor = textElement.fill
+                return attributedString
+            }
             let textGroup = Group {
-                    Text(textElement.content)
-                        .foregroundColor(textElement.fill)
+                Text(text)
                         .font(textElement.font_spec.cachedFont)
-                        .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y))
+                        .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
                         .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
                         .padding(.horizontal, 0)
                         .multilineTextAlignment(textElement.paragraphAlignment)
                         .drawingGroup()
                         .transformEffect(transform)
             }
+            
             if !textElement.clipping_ids.isEmpty {
                 textGroup.mask(getClippingMask(clippingIds: textElement.clipping_ids))
             } else {
