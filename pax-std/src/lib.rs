@@ -48,5 +48,8 @@ pub mod primitives {
         pub font: pax::Property<crate::types::Font>,
         pub fill: pax::Property<crate::types::Color>,
         pub paragraph_alignment: pax::Property<crate::types::Alignment>,
+        pub vertical_alignment: pax::Property<crate::types::VAlignment>,
+        pub horizontal_alignment: pax::Property<crate::types::Alignment>,
+        pub bounding_box: pax::Property<crate::types::BoundingBox>,
     }
 }

@@ -52,8 +52,10 @@ class TextElement {
     var font_spec: FontSpec
     var fill: Color
     var paragraphAlignment: TextAlignment
+    var alignment: Alignment
+    var autoResize: Bool
     
-    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: FontSpec, fill: Color, paragraphAlignment: TextAlignment) {
+    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: FontSpec, fill: Color, paragraphAlignment: TextAlignment, alignment: Alignment, autoResize: Bool) {
         self.id_chain = id_chain
         self.clipping_ids = clipping_ids
         self.content = content
@@ -63,10 +65,12 @@ class TextElement {
         self.font_spec = font
         self.fill = fill
         self.paragraphAlignment = paragraphAlignment
+        self.alignment = alignment
+        self.autoResize = autoResize
     }
     
     static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
-        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontSpec(), fill: Color(.black), paragraphAlignment: .leading)
+        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontSpec(), fill: Color(.black), paragraphAlignment: .leading, alignment: .topLeading, autoResize: false)
     }
     
     func applyPatch(patch: TextUpdatePatch) {
@@ -94,16 +98,22 @@ class TextElement {
         if patch.paragraphAlignment != nil {
             self.paragraphAlignment = patch.paragraphAlignment!.toTextAlignment()
         }
+        if patch.verticalAlignment != nil && patch.horizontalAlignment != nil {
+            self.alignment = toAlignment(horizontalAlignment: patch.horizontalAlignment!, verticalAlignment: patch.verticalAlignment!)
+        }
+        if patch.autoResize != nil {
+            self.autoResize = patch.autoResize!
+        }
     }
 }
 
-enum Alignment {
+enum HAlignment {
     case center
     case left
     case right
 }
 
-extension Alignment {
+extension HAlignment {
     func toTextAlignment() -> TextAlignment {
         switch self {
         case .center:
@@ -116,6 +126,39 @@ extension Alignment {
     }
 }
 
+enum VAlignment {
+    case top
+    case center
+    case bottom
+}
+
+
+func toAlignment(horizontalAlignment: HAlignment, verticalAlignment: VAlignment) -> Alignment {
+    let horizontal: HorizontalAlignment
+    let vertical: VerticalAlignment
+    
+    switch horizontalAlignment {
+    case .center:
+        horizontal = .center
+    case .left:
+        horizontal = .leading
+    case .right:
+        horizontal = .trailing
+    }
+    
+    switch verticalAlignment {
+    case .top:
+        vertical = .top
+    case .center:
+        vertical = .center
+    case .bottom:
+        vertical = .bottom
+    }
+    return Alignment(horizontal: horizontal, vertical: vertical)
+}
+
+
+
 /// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
 class TextUpdatePatch {
     var id_chain: [UInt64]
@@ -127,7 +170,10 @@ class TextUpdatePatch {
     var fontBuffer: FlxbReference
     var fill: Color?
     
-    var paragraphAlignment: Alignment?
+    var paragraphAlignment: HAlignment?
+    var verticalAlignment: VAlignment?
+    var horizontalAlignment: HAlignment?
+    var autoResize: Bool?
 
     init(fb: FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
@@ -173,6 +219,43 @@ class TextUpdatePatch {
                 self.paragraphAlignment = nil
             }
         }
+        
+        if let verticalAlignmentValue = fb["vertical_alignment"]?.asString {
+            switch verticalAlignmentValue {
+            case "Top":
+                self.verticalAlignment = .top
+            case "Center":
+                self.verticalAlignment = .center
+            case "Bottom":
+                self.verticalAlignment = .bottom
+            default:
+                self.verticalAlignment = nil
+            }
+        }
+        
+        if let alignmentValue = fb["horizontal_alignment"]?.asString {
+            switch alignmentValue {
+            case "Center":
+                self.horizontalAlignment = .center
+            case "Left":
+                self.horizontalAlignment = .left
+            case "Right":
+                self.horizontalAlignment = .right
+            default:
+                self.horizontalAlignment = nil
+            }
+        }
+        
+        if let boundingBoxValue = fb["bounding_box"]?.asString {
+            switch boundingBoxValue {
+            case "Fixed":
+                self.autoResize = false
+            case "Auto":
+                self.autoResize = true
+            default:
+                self.autoResize = false
+            }
+        }
     }
 }
 
@@ -198,9 +281,9 @@ class FontSpec {
     }
     
     init() {
-        self.family = "MondayMiracle"
+        self.family = "Arial"
         self.variant = "Regular"
-        self.size = 14.0
+        self.size = 64.0
         self.cachedFont = self.intoFont()
     }
     

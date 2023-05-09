@@ -19,9 +19,11 @@ pub mod pax_reexports {
 		}
 		pub mod types {
 			pub use pax_std::types::Alignment;
+			pub use pax_std::types::BoundingBox;
 			pub use pax_std::types::Color;
 			pub use pax_std::types::Font;
 			pub use pax_std::types::Stroke;
+			pub use pax_std::types::VAlignment;
 		}
 	}
 	pub mod std {

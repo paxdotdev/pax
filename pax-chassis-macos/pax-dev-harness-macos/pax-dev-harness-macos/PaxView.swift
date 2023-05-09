@@ -150,25 +150,25 @@ struct PaxView: View {
             )
             var text: AttributedString {
                 var attributedString: AttributedString = try! AttributedString(markdown: textElement.content)
-                let fullStringRange = attributedString.startIndex..<attributedString.endIndex
-                attributedString[fullStringRange].foregroundColor = textElement.fill
+                attributedString.foregroundColor = textElement.fill
                 return attributedString
             }
-            let textGroup = Group {
+            
+            let width = !textElement.autoResize ? CGFloat(textElement.size_x): nil
+            let height = !textElement.autoResize ? CGFloat(textElement.size_y): nil
+            let textView =
                 Text(text)
-                        .font(textElement.font_spec.cachedFont)
-                        .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
-                        .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
-                        .padding(.horizontal, 0)
-                        .multilineTextAlignment(textElement.paragraphAlignment)
-                        .drawingGroup()
-                        .transformEffect(transform)
-            }
+                    .font(textElement.font_spec.cachedFont)
+                    .frame(width: width, height: height, alignment: textElement.alignment)
+                    .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+                    .padding(.horizontal, 0)
+                    .multilineTextAlignment(textElement.paragraphAlignment)
+                    .transformEffect(transform)
             
             if !textElement.clipping_ids.isEmpty {
-                textGroup.mask(getClippingMask(clippingIds: textElement.clipping_ids))
+                textView.mask(getClippingMask(clippingIds: textElement.clipping_ids))
             } else {
-                textGroup
+                textView
             }
         }
 

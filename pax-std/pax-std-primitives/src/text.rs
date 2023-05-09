@@ -90,6 +90,21 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             properties.paragraph_alignment.set(new_value);
         }
 
+        if let Some(vertical_alignment) = rtc.compute_vtable_value(properties.vertical_alignment._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOVAlignment(v) = vertical_alignment {v} else { unreachable!() };
+            properties.vertical_alignment.set(new_value);
+        }
+
+        if let Some(horizontal_alignment) = rtc.compute_vtable_value(properties.horizontal_alignment._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOAlignment(v) = horizontal_alignment {v} else { unreachable!() };
+            properties.horizontal_alignment.set(new_value);
+        }
+
+        if let Some(bounding_box) = rtc.compute_vtable_value(properties.bounding_box._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOBoundingBox(v) = bounding_box {v} else { unreachable!() };
+            properties.bounding_box.set(new_value);
+        }
+
         if let Some(font) = rtc.compute_vtable_value(properties.font._get_vtable_id()) {
             let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOFont(v) = font { v } else { unreachable!() };
             properties.font.set(new_value);
@@ -219,6 +234,51 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         if is_new_value {
             new_message.paragraph_alignment = Some(val.into());
             last_patch.paragraph_alignment = Some(val.into());
+            has_any_updates = true;
+        }
+
+        let val = properties.vertical_alignment.get();
+        let is_new_value = match &last_patch.vertical_alignment {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.vertical_alignment = Some(val.into());
+            last_patch.vertical_alignment = Some(val.into());
+            has_any_updates = true;
+        }
+
+        let val = properties.horizontal_alignment.get();
+        let is_new_value = match &last_patch.horizontal_alignment {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.horizontal_alignment = Some(val.into());
+            last_patch.horizontal_alignment = Some(val.into());
+            has_any_updates = true;
+        }
+
+        let val = properties.bounding_box.get();
+        let is_new_value = match &last_patch.bounding_box {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.bounding_box = Some(val.into());
+            last_patch.bounding_box = Some(val.into());
             has_any_updates = true;
         }
 
