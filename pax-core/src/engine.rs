@@ -47,7 +47,7 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext>
 impl<'a, R: 'static + RenderContext> RenderTreeContext<'a, R> {
     pub fn distill_userland_node_context(&self) -> RuntimeContext {
         RuntimeContext {
-            parent_bounds: self.bounds,
+            bounds_parent: self.bounds,
             frames_elapsed: self.engine.frames_elapsed,
         }
     }

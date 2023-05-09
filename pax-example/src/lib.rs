@@ -20,7 +20,7 @@ const ROUTE_COUNT : usize = 3;
 #[inlined(
     <Frame width=100% height=100% @click=modulate  >
         if current_route == 0 {
-            <Grids />
+            <Fireworks />
         }
         if current_route == 1 {
             <Fireworks />

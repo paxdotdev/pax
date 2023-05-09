@@ -2891,7 +2891,9 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
     [x] Figure out `Default` with `pax-std` types
         [x] Implement macro API++ (derive plus attribute flags)
 [ ] Update `scope_stack` to include strings for all statically discovered addressable properties,
-    e.g. `foo.bar.baz` and `elem.some.deeply.nested.thing`.  
+    e.g. `foo.bar.baz` and `elem.some.deeply.nested.thing`.
+[ ] Refactor: remove `PropertyTypeInfo` and consolidate
+    into `PropertyDefinition` (with recursive `sub_properties` field)  
 [ ] Add `known_addressable_properties` to `PropertyTypeInfo`, allowing recursion through
     nested `PropertyTypeInfo`s, 
     [ ] Populate `known_addressable_properties` — this may need to happen after the initial full recursion

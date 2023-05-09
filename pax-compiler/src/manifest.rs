@@ -163,14 +163,14 @@ impl ComponentDefinition {
         self.source_id.replace("::", "_")
     }
 
-    pub fn get_static_addressable_property_tree(&self) -> Vec<String> {
-        //For each property definition
-        //  - add self to vec
-        //  - look at self.property_type_info.known_addressable_properties — if it's Some(Vec), then
-        //
-
-        self.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()
-    }
+    // pub fn get_static_addressable_property_tree(&self) -> Vec<String> {
+    //     //For each property definition
+    //     //  - add self to vec
+    //     //  - look at self.property_type_info.known_addressable_properties — if it's Some(Vec), then
+    //     //
+    //
+    //     self.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()
+    // }
 }
 
 impl ComponentDefinition {
@@ -214,6 +214,17 @@ pub struct TemplateNodeDefinition {
 // What is the distinction between PropertyDefinition and PropertyTypeInfo?
 // It seems like we may be able to flatten these — in particular, PropertyDefinition
 // acts as a "special-case top-level" variant of PropertyTypeInfo, incl. duplicate info.
+
+// Flattening `PropertyDefinition` and `PropertyTypeInfo`:
+
+// Name
+// fully_qualified_type: String,
+// pascalized_fully_qualified_type: String,
+// iterable_type: Option<Box<PropertyTypeInfo>>,
+// sub_properties: Option<Vec<(String, PropertyTypeInfo)>>,
+
+
+
 
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
