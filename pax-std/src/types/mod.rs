@@ -204,18 +204,30 @@ pub enum ColorVariant {
     Rgb([f64; 3]),
 }
 
-#[derive(Clone)]
+#[derive(Clone, Default)]
 #[pax_type]
 pub enum Alignment {
-    Center,
+    #[default]
     Left,
+    Center,
     Right,
 }
 
-impl Default for Alignment {
-    fn default() -> Self {
-        Alignment::Right
-    }
+#[derive(Clone, Default)]
+#[pax_type]
+pub enum VAlignment {
+    #[default]
+    Top,
+    Center,
+    Bottom,
+}
+
+#[derive(Clone, Default)]
+#[pax_type]
+pub enum BoundingBox {
+    #[default]
+    Fixed,
+    Auto
 }
 
 impl Into<AlignmentMessage> for &Alignment {
@@ -239,9 +251,49 @@ impl PartialEq<AlignmentMessage> for Alignment {
     }
 }
 
-pub use pax::api::Size;
+impl Into<VAlignmentMessage> for &VAlignment {
+    fn into(self) -> VAlignmentMessage {
+        match self {
+            VAlignment::Top => VAlignmentMessage::Top,
+            VAlignment::Center => VAlignmentMessage::Center,
+            VAlignment::Bottom => VAlignmentMessage::Bottom,
+        }
+    }
+}
 
-use pax_message::{ColorVariantMessage, FontPatch, AlignmentMessage};
+impl PartialEq<VAlignmentMessage> for VAlignment {
+    fn eq(&self, other: &VAlignmentMessage) -> bool {
+        match (self, other) {
+            (VAlignment::Top, VAlignmentMessage::Top) => true,
+            (VAlignment::Center, VAlignmentMessage::Center) => true,
+            (VAlignment::Bottom, VAlignmentMessage::Bottom) => true,
+            _ => false,
+        }
+    }
+}
+
+impl Into<BoundingBoxMessage> for &BoundingBox {
+    fn into(self) -> BoundingBoxMessage {
+        match self {
+            BoundingBox::Fixed => BoundingBoxMessage::Fixed,
+            BoundingBox::Auto => BoundingBoxMessage::Auto,
+        }
+    }
+}
+
+impl PartialEq<BoundingBoxMessage> for BoundingBox {
+    fn eq(&self, other: &BoundingBoxMessage) -> bool {
+        match (self, other) {
+            (BoundingBox::Fixed, BoundingBoxMessage::Fixed) => true,
+            (BoundingBox::Auto, BoundingBoxMessage::Auto) => true,
+            _ => false,
+        }
+    }
+}
+
+
+pub use pax::api::Size;
+use pax_message::{ColorVariantMessage, FontPatch, AlignmentMessage, VAlignmentMessage, BoundingBoxMessage};
 use crate::primitives::Path;
 
 

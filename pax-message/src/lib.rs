@@ -88,6 +88,9 @@ pub struct TextPatch {
     pub font: FontPatch,
     pub fill: Option<ColorVariantMessage>, //FUTURE: more robust Fill support (multiple fills, ordering, gradients, opacity, etc.)
     pub paragraph_alignment: Option<AlignmentMessage>,
+    pub vertical_alignment: Option<VAlignmentMessage>,
+    pub horizontal_alignment: Option<AlignmentMessage>,
+    pub bounding_box: Option<BoundingBoxMessage>,
 }
 
 #[derive(Default, Serialize)]
@@ -113,20 +116,31 @@ impl Default for ColorVariantMessage {
     }
 }
 
-#[derive(Serialize)]
+#[derive(Default, Serialize)]
 #[repr(C)]
-pub enum AlignmentMessage{
-    Center,
+pub enum AlignmentMessage {
+    #[default]
     Left,
+    Center,
     Right,
 }
 
-impl Default for AlignmentMessage {
-    fn default() -> Self {
-        AlignmentMessage::Left
-    }
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub enum VAlignmentMessage {
+    #[default]
+    Top,
+    Center,
+    Bottom,
 }
 
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub enum BoundingBoxMessage {
+    #[default]
+    Fixed,
+    Auto
+}
 
 
 #[derive(Default, Serialize)]

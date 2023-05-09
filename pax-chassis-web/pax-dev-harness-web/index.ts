@@ -2,6 +2,9 @@
 // const rust = import('./dist/pax_chassis_web');
 import {PaxChassisWeb} from './dist/pax_chassis_web';
 import './fonts.css';
+// @ts-ignore
+import snarkdown from 'snarkdown';
+
 const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_ID = "native-overlay";
 const CANVAS_ID = "canvas";
@@ -86,6 +89,58 @@ function renderLoop (chassis: PaxChassisWeb) {
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
+enum Alignment {
+    Left = "Left",
+    Center = "Center",
+    Right = "Right",
+}
+
+function getJustifyContent(horizontalAlignment: string): string {
+    switch (horizontalAlignment) {
+        case Alignment.Left:
+            return 'flex-start';
+        case Alignment.Center:
+            return 'center';
+        case Alignment.Right:
+            return 'flex-end';
+        default:
+            return 'flex-start';
+    }
+}
+
+function getTextAlign(paragraphAlignment: string): string {
+    switch (paragraphAlignment) {
+        case Alignment.Left:
+            return 'left';
+        case Alignment.Center:
+            return 'center';
+        case Alignment.Right:
+            return 'right';
+        default:
+            return 'left';
+    }
+}
+
+enum VAlignment {
+    Top = "Top",
+    Center = "Center",
+    Bottom = "Bottom",
+}
+
+function getAlignItems(verticalAlignment: string): string {
+    switch (verticalAlignment) {
+        case VAlignment.Top:
+            return 'flex-start';
+        case VAlignment.Center:
+            return 'center';
+        case VAlignment.Bottom:
+            return 'flex-end';
+        default:
+            return 'flex-start';
+    }
+}
+
+
 class NativeElementPool {
     private textNodes : any = {};
     private clippingNodes : any = {};
@@ -96,6 +151,8 @@ class NativeElementPool {
         console.assert(patch.clipping_ids != null);
 
         let runningChain = document.createElement("div")
+        let textChild = document.createElement('div');
+        runningChain.appendChild(textChild);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
 
         let attachPoint = getAttachPointFromClippingIds(patch.clipping_ids);
@@ -114,12 +171,26 @@ class NativeElementPool {
         let leaf = this.textNodes[patch.id_chain];
         console.assert(leaf !== undefined);
 
-        if (patch.size_x != null) {
-            leaf.style.width = patch.size_x + "px";
+        let textChild = leaf.firstChild;
+
+        if(patch.boundingBox == "Fixed"){
+            if (patch.size_x != null) {
+                leaf.style.width = patch.size_x + "px";
+            }
+            if (patch.size_y != null) {
+                leaf.style.height = patch.size_y + "px";
+            }
+            leaf.style.display = "flex";
+            leaf.style.justifyContent = getJustifyContent(patch.horizontalAlignment);
+            leaf.style.alignItems = getAlignItems(patch.verticalAlignment);
+
+        } else if (patch.boundingBox == "Auto"){
+            leaf.style.width = "fit-content";
+            leaf.style.height = "fit-content";
         }
-        if (patch.size_y != null) {
-            leaf.style.height = patch.size_y + "px";
-        }
+
+        textChild.style.textAlign = getTextAlign(patch.paragraphAlignment);
+
         if (patch.transform != null) {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
@@ -152,9 +223,11 @@ class NativeElementPool {
         }
 
         if (patch.content != null) {
-            leaf.innerText = patch.content;
+            textChild.innerHTML = snarkdown(patch.content);
         }
     }
+
+
 
     textDelete(id_chain: number[]) {
 
@@ -240,6 +313,11 @@ class TextUpdatePatch {
     public transform?: number[];
     public font: FontGroup;
     public fill: ColorGroup;
+    public paragraphAlignment: string;
+    public horizontalAlignment: string;
+    public verticalAlignment: string;
+    public boundingBox : string;
+
     constructor(jsonMessage: any) {
         this.font = jsonMessage["font"];
         this.fill = jsonMessage["fill"];
@@ -248,6 +326,10 @@ class TextUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.paragraphAlignment = jsonMessage["paragraph_alignment"];
+        this.horizontalAlignment = jsonMessage["horizontal_alignment"];
+        this.verticalAlignment = jsonMessage["vertical_alignment"];
+        this.boundingBox = jsonMessage["bounding_box"];
     }
 }
 

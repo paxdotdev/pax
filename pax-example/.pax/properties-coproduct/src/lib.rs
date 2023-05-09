@@ -53,11 +53,15 @@ pub enum TypesCoproduct {
     
     __pax_stdCOCOtypesCOCOAlignment(pax_example::pax_reexports::pax_std::types::Alignment),
     
+    __pax_stdCOCOtypesCOCOBoundingBox(pax_example::pax_reexports::pax_std::types::BoundingBox),
+    
     __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
     __pax_stdCOCOtypesCOCOFont(pax_example::pax_reexports::pax_std::types::Font),
     
     __pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
+    
+    __pax_stdCOCOtypesCOCOVAlignment(pax_example::pax_reexports::pax_std::types::VAlignment),
     
     __stdCOCOstringCOCOString(pax_example::pax_reexports::std::string::String),
     

@@ -2655,6 +2655,11 @@ signal-exit@^4.0.1:
   resolved "https://registry.npmjs.org/signal-exit/-/signal-exit-4.0.1.tgz"
   integrity sha512-uUWsN4aOxJAS8KOuf3QMyFtgm1pkb6I+KRZbRF/ghdf5T7sM+B1lLLzPDxswUjkmHyxQAVzEgG35E3NzDM9GVw==
 
+snarkdown@^2.0.0:
+  version "2.0.0"
+  resolved "https://registry.npmjs.org/snarkdown/-/snarkdown-2.0.0.tgz"
+  integrity sha512-MgL/7k/AZdXCTJiNgrO7chgDqaB9FGM/1Tvlcenenb7div6obaDATzs16JhFyHHBGodHT3B7RzRc5qk8pFhg3A==
+
 sockjs@^0.3.24:
   version "0.3.24"
   resolved "https://registry.npmjs.org/sockjs/-/sockjs-0.3.24.tgz"
