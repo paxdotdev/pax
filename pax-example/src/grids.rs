@@ -16,7 +16,7 @@ impl Grids {
         self.rects.set(vec![]);
     }
 
-    pub fn handle_will_render(&mut self, ctx: NodeContext) {
+    pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
         self.ticks.set(ctx.frames_elapsed);
     }
 

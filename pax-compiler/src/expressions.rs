@@ -240,7 +240,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
                 (range_expression_paxel.to_string(), PropertyTypeInfo::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
-
+                let symbolic_binding_property  = ctx.resolve_symbol(symbolic_binding).expect(&format!("Unable to resolve symbol {}",symbolic_binding));
                 (symbolic_binding.to_string(), PropertyTypeInfo::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
@@ -262,11 +262,16 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         is_repeat_elem: true,
                     };
 
-                    ctx.scope_stack.push(HashMap::from([
+
+                    let mut scope = HashMap::from([
                         //`elem` property (by specified name)
                         (elem_id.clone(),
                         property_definition)
-                    ]));
+                    ]);
+
+
+
+                    ctx.scope_stack.push(scope);
                 },
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
                     let elem_property_definition = PropertyDefinition {
@@ -400,28 +405,17 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
     //Handle built-ins, like $container
     if BUILTIN_MAP.contains_key(sym) {
-        ExpressionSpecInvocation {
-            identifier: "TODO".to_string(),
-            escaped_identifier: "TODO".to_string(),
-            stack_offset: 0,
-            properties_coproduct_type: "".to_string(),
-            pascalized_iterable_type: None,
-            is_repeat_elem: false,
-            is_repeat_i: false,
-            is_iterable_primitive_nonnumeric: false,
-            is_iterable_numeric: false,
-            is_numeric_property: false,
-        }
+        unimplemented!("Built-ins like $container are not yet supported")
     } else {
-        let identifier = if sym.starts_with("self.") {
-            sym.replacen("self.", "", 1)
-        } else if sym.starts_with("this.") {
-            sym.replacen("this.", "", 1)
-        } else {
-            sym.to_string()
-        };
 
-        let prop_def = ctx.resolve_symbol(&identifier).expect(&format!("Symbol not found: {}", &identifier));
+        //TODO: handle simple (`self.foo` or `foo`) vs nested (`self.foo.bar` or `elem.width`)
+        //      Perhaps each gets escaped & flattened at this stage, so there's no nesting / traversal of ESIs necessary
+        //      (e.g. `elem_DOT_width` is represented by a single ESI)
+        //      This seems manageable if `elem.foo.bar` also invokes `elem` and `elem.foo`, so that
+        //      each may be referred to in the codegen for their latter, further nested desc.
+
+
+        let prop_def = ctx.resolve_symbol(&sym).expect(&format!("Symbol not found: {}", &sym));
 
         let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
 
@@ -435,8 +429,8 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         let mut current_depth = 0;
         let mut found_val : Option<PropertyDefinition> = None;
         while let None = found_depth {
-            let map = ctx.scope_stack.get((ctx.scope_stack.len() - 1) - current_depth).expect(&format!("Symbol not found: {}", &identifier));
-            if let Some(val) = map.get(&identifier) {
+            let map = ctx.scope_stack.get((ctx.scope_stack.len() - 1) - current_depth).unwrap();
+            if let Some(val) = map.get(&prop_def.name) {
                 found_depth = Some(current_depth);
                 found_val = Some(val.clone());
             } else {
@@ -446,11 +440,11 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let stack_offset = found_depth.unwrap();
 
-        let escaped_identifier = crate::reflection::escape_identifier(identifier.clone());
+        let escaped_identifier = crate::reflection::escape_identifier(prop_def.name.clone());
         let (is_repeat_elem, is_repeat_i) = (found_val.as_ref().unwrap().is_repeat_elem,found_val.as_ref().unwrap().is_repeat_i);
 
         ExpressionSpecInvocation {
-            identifier,
+            identifier: prop_def.name.clone(),
             escaped_identifier,
             stack_offset,
             is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.property_type_info.fully_qualified_type.split("::").last().unwrap()),
@@ -523,13 +517,21 @@ lazy_static! {
 
 impl<'a> ExpressionCompilationContext<'a> {
 
-    /// for an input symbol like `i` or `num_clicks` (already pruned of `self.` or `this.`)
+    /// for an input symbol like `i` or `self.num_clicks`
     /// traverse the self-attached `scope_stack`
     /// and return a copy of the related `PropertyDefinition`, if found
     pub fn resolve_symbol(&self, symbol: &str) -> Option<PropertyDefinition> {
 
+        let symbol = if symbol.starts_with("self.") {
+            symbol.replacen("self.", "", 1)
+        } else if symbol.starts_with("this.") {
+            symbol.replacen("this.", "", 1)
+        } else {
+            symbol.to_string()
+        };
+
         //1. resolve through builtin map
-        if BUILTIN_MAP.contains_key(symbol) {
+        if BUILTIN_MAP.contains_key(symbol.as_str()) {
             None
         } else {
             //2. resolve through stack
@@ -540,7 +542,7 @@ impl<'a> ExpressionCompilationContext<'a> {
             let mut ret: Option<PropertyDefinition> = None;
             while !found && !exhausted {
                 if let Some(frame) = current_frame {
-                    if let Some(pv) = frame.get(symbol) {
+                    if let Some(pv) = frame.get(&symbol) {
                         ret = Some(pv.clone());
                         found = true;
                     }

@@ -1,7 +1,7 @@
 use pax::*;
 use pax::api::{Size2D, Size, Property, Transform2D};
 use pax::api::numeric::Numeric;
-use pax_runtime_api::NodeContext;
+use pax_runtime_api::RuntimeContext;
 use crate::primitives::{Frame};
 use crate::types::{StackerDirection, StackerCell};
 
@@ -36,10 +36,10 @@ impl Stacker {
         todo!()
     }
 
-    pub fn compute_dimensions(&mut self, ctx: NodeContext) {
+    pub fn compute_dimensions(&mut self, ctx: RuntimeContext) {
 
         //TODO: dirty check
-        let bounds = ctx.bounds;
+        let bounds = ctx.bounds_parent;
 
         let active_bound = match *self.direction.get() {
             StackerDirection::Horizontal => bounds.0,

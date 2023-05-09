@@ -65,7 +65,7 @@ pub struct  ExpressionSpecInvocation {
     pub identifier: String,
 
     /// Identifier escaped so that all operations (like `.` or `[...]`) are
-    /// encoded as a valid single identifier — e.g. `self.foo` => `self__
+    /// encoded as a valid single identifier
     pub escaped_identifier: String,
 
     /// Statically known stack offset for traversing Repeat-based scopes at runtime
@@ -156,9 +156,20 @@ pub struct ComponentDefinition {
     pub property_definitions: Vec<PropertyDefinition>,
 }
 
+
+
 impl ComponentDefinition {
     pub fn get_snake_case_id(&self) -> String {
         self.source_id.replace("::", "_")
+    }
+
+    pub fn get_static_addressable_property_tree(&self) -> Vec<String> {
+        //For each property definition
+        //  - add self to vec
+        //  - look at self.property_type_info.known_addressable_properties — if it's Some(Vec), then
+        //
+
+        self.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()
     }
 }
 
@@ -200,6 +211,11 @@ pub struct TemplateNodeDefinition {
     pub pascal_identifier: String,
 }
 
+// What is the distinction between PropertyDefinition and PropertyTypeInfo?
+// It seems like we may be able to flatten these — in particular, PropertyDefinition
+// acts as a "special-case top-level" variant of PropertyTypeInfo, incl. duplicate info.
+
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PropertyDefinition {
     /// String representation of the identifier of a declared Property
@@ -208,7 +224,7 @@ pub struct PropertyDefinition {
     pub original_type: String,
     /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
     pub fully_qualified_constituent_types: Vec<String>,
-    /// Store of fully qualified types that may be needed for expression vtable generation
+    /// Type metadata used for e.g. expression vtable generation and symbol resolution
     pub property_type_info: PropertyTypeInfo,
 
     ///Flags, used ultimately by ExpressionSpecInvocations, to denote

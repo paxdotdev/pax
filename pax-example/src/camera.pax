@@ -3,7 +3,7 @@
 //Camera
 <Frame width=100% height=100% @click=handle_click >
     <Group transform={
-        Transform2D::scale(1 / zoom, 1 / zoom) *
+        Transform2D::scale(zoom, zoom) *
         Transform2D::translate(pan_x, pan_y)
     }>
         <Rectangle width=100px height=100px fill={Color::rgb(100.0, 0, 0)} transform={Transform2D::translate(0,0)} />

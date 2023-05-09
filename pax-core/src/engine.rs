@@ -15,7 +15,7 @@ use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, NodeContext, Interpolatable, TransitionManager};
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, RuntimeContext, Interpolatable, TransitionManager};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -45,9 +45,9 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext>
 
 
 impl<'a, R: 'static + RenderContext> RenderTreeContext<'a, R> {
-    pub fn distill_userland_node_context(&self) -> NodeContext {
-        NodeContext {
-            bounds: self.bounds,
+    pub fn distill_userland_node_context(&self) -> RuntimeContext {
+        RuntimeContext {
+            parent_bounds: self.bounds,
             frames_elapsed: self.engine.frames_elapsed,
         }
     }
@@ -131,10 +131,10 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 
 #[derive(Default)]
 pub struct HandlerRegistry<R: 'static + RenderContext> {
-    pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, NodeContext, ArgsClick)>,
-    pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, NodeContext)>,
-    pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, NodeContext)>,
-    pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, NodeContext, ArgsScroll)>,
+    pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsClick)>,
+    pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
+    pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
+    pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsScroll)>,
 }
 
 /// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
@@ -146,7 +146,7 @@ pub struct RepeatExpandedNode<R: 'static + RenderContext> {
     instance_node: RenderNodePtr<R>,
     stack_frame: Rc<RefCell<crate::StackFrame<R>>>,
     tab: TransformAndBounds,
-    node_context: NodeContext,
+    node_context: RuntimeContext,
 }
 
 impl<R: 'static + RenderContext> RepeatExpandedNode<R> {

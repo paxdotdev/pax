@@ -2890,6 +2890,8 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
     [ ] Populate type definitions into manifest, punch through to compiler & expressions
     [x] Figure out `Default` with `pax-std` types
         [x] Implement macro API++ (derive plus attribute flags)
+[ ] Update `scope_stack` to include strings for all statically discovered addressable properties,
+    e.g. `foo.bar.baz` and `elem.some.deeply.nested.thing`.  
 [ ] Add `known_addressable_properties` to `PropertyTypeInfo`, allowing recursion through
     nested `PropertyTypeInfo`s, 
     [ ] Populate `known_addressable_properties` — this may need to happen after the initial full recursion

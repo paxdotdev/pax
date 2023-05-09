@@ -779,7 +779,6 @@ fn persistent_extract<S: AsRef<Path>>(dir: &Dir, base_path: S) -> std::io::Resul
     Ok(())
 }
 
-
 /// Simple recursive fs copy function, since std::fs::copy doesn't recurse for us
 fn libdev_chassis_copy(src: &PathBuf, dest: &PathBuf) {
     for entry_wrapped in fs::read_dir(src).unwrap() {
@@ -794,7 +793,6 @@ fn libdev_chassis_copy(src: &PathBuf, dest: &PathBuf) {
         }
     }
 }
-
 
 static CHASSIS_MACOS_LIBDEV: &str = "../pax-chassis-macos";
 static CHASSIS_MACOS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos");
@@ -854,7 +852,6 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
         }
     }
     Ok(())
-
 
 }
 
