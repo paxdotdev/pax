@@ -210,7 +210,7 @@
 		D082094129FE19DD006C5651 /* Copy Font Files */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
-			buildActionMask = 2147483647;
+			buildActionMask = 12;
 			files = (
 			);
 			inputFileListPaths = (
@@ -224,7 +224,8 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "RESOURCES_PATH=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\n\n# Find the .pax folder and assets/fonts folder\nRUST_TARGET_DIR=$(find ../../../../../../ -type d -path \"*/assets/fonts\" -print -quit)\n\nif [ -n \"$RUST_TARGET_DIR\" ]; then\n  cp \"$RUST_TARGET_DIR\"/*.ttf \"$RESOURCES_PATH\"\n  cp \"$RUST_TARGET_DIR\"/*.otf \"$RESOURCES_PATH\"\nelse\n  echo \"WARNING: RUST_TARGET_DIR not found! Skipping font copy.\"\nfi\n";
+			shellScript = "# Define the target folder for resources\nRESOURCES_PATH=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\n\n# Find the .pax folder\nPAX_FOLDER_DIR=$(find ../../../../../../ -type d -name \"*.pax\" -print -quit)\n\n# Get the parent directory of the .pax folder\nPAX_PARENT_DIR=$(dirname \"$PAX_FOLDER_DIR\")\n\n# Find the assets/fonts folder on the same level as the .pax folder\nRUST_TARGET_DIR=$(find \"$PAX_PARENT_DIR\" -maxdepth 1 -type d -name \"assets\" -print -quit)/fonts\necho \"Copying fonts from: $RUST_TARGET_DIR to: $RESOURCES_PATH\"\n\n# Copy the font files if the RUST_TARGET_DIR is found\nif [ -d \"$RUST_TARGET_DIR\" ]; then\n  if [ \"$(ls -A \"$RUST_TARGET_DIR\"/*.ttf 2>/dev/null)\" ]; then\n    cp \"$RUST_TARGET_DIR\"/*.ttf \"$RESOURCES_PATH\"\n  fi\n  if [ \"$(ls -A \"$RUST_TARGET_DIR\"/*.otf 2>/dev/null)\" ]; then\n    cp \"$RUST_TARGET_DIR\"/*.otf \"$RESOURCES_PATH\"\n  fi\nelse\n  echo \"WARNING: RUST_TARGET_DIR not found! Skipping font copy.\"\nfi\n";
+			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
 

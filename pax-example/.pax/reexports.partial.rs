@@ -1,4 +1,9 @@
 pub mod pax_reexports { 
+	pub mod core {
+		pub mod option {
+			pub use core::option::Option;
+		}
+	}
 	pub use crate::Example;
 	pub mod fireworks {
 		pub use crate::fireworks::Fireworks;
@@ -19,7 +24,6 @@ pub mod pax_reexports {
 		}
 		pub mod types {
 			pub use pax_std::types::Alignment;
-			pub use pax_std::types::BoundingBox;
 			pub use pax_std::types::Color;
 			pub use pax_std::types::Font;
 			pub use pax_std::types::Stroke;

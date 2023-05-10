@@ -1,5 +1,5 @@
 <Group>
-<Text text="Lorem ipsum dolor sit amet Lorem ipsum dolor sit amet  \nconsectetur adipiscing elit  \nconsectetur adipiscing elit" id=title class=small_center />
+<Text text="[Welcome to Pax](https://www.pax.rs)" id=title class=small_center />
 <Rectangle id=background class=small_center />
 </Group>
 
@@ -10,14 +10,12 @@
         transform: {Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)},
     }
     #title {
-        paragraph_alignment: Alignment::Left,
-        font: {Font::new("Arial", "Regular" , 10)},
-        fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
-        vertical_alignment: VAlignment::Bottom,
-        horizontal_alignment: Alignment::Right,
-        bounding_box: BoundingBox::Fixed
+        font: {Font::get("Esenka", "Bold" , 72)},
+        fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+        alignment_vertical: VAlignment::Center,
+        alignment_horizontal: Alignment::Center,
     }
     #background {
-        fill: {Color::rgba(0.3, 0.3, 1.0, 0.4)},
+        fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
     }
 }

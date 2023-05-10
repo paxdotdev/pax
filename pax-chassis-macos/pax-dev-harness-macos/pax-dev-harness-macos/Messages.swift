@@ -51,11 +51,10 @@ class TextElement {
     var size_y: Float
     var font_spec: FontSpec
     var fill: Color
-    var paragraphAlignment: TextAlignment
+    var alignmentMultiline: TextAlignment
     var alignment: Alignment
-    var autoResize: Bool
     
-    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: FontSpec, fill: Color, paragraphAlignment: TextAlignment, alignment: Alignment, autoResize: Bool) {
+    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: FontSpec, fill: Color, alignmentMultiline: TextAlignment, alignment: Alignment) {
         self.id_chain = id_chain
         self.clipping_ids = clipping_ids
         self.content = content
@@ -64,13 +63,12 @@ class TextElement {
         self.size_y = size_y
         self.font_spec = font
         self.fill = fill
-        self.paragraphAlignment = paragraphAlignment
+        self.alignmentMultiline = alignmentMultiline
         self.alignment = alignment
-        self.autoResize = autoResize
     }
     
     static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
-        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontSpec(), fill: Color(.black), paragraphAlignment: .leading, alignment: .topLeading, autoResize: false)
+        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontSpec(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading)
     }
     
     func applyPatch(patch: TextUpdatePatch) {
@@ -95,14 +93,13 @@ class TextElement {
             self.fill = patch.fill!
         }
         
-        if patch.paragraphAlignment != nil {
-            self.paragraphAlignment = patch.paragraphAlignment!.toTextAlignment()
+        if patch.alignment_multiline != nil {
+            self.alignmentMultiline = patch.alignment_multiline!.toTextAlignment()
+        } else if patch.alignment_horizontal != nil {
+            self.alignmentMultiline = patch.alignment_horizontal!.toTextAlignment()
         }
-        if patch.verticalAlignment != nil && patch.horizontalAlignment != nil {
-            self.alignment = toAlignment(horizontalAlignment: patch.horizontalAlignment!, verticalAlignment: patch.verticalAlignment!)
-        }
-        if patch.autoResize != nil {
-            self.autoResize = patch.autoResize!
+        if patch.alignment_vertical != nil && patch.alignment_horizontal != nil {
+            self.alignment = toAlignment(horizontalAlignment: patch.alignment_horizontal!, verticalAlignment: patch.alignment_vertical!)
         }
     }
 }
@@ -170,10 +167,9 @@ class TextUpdatePatch {
     var fontBuffer: FlxbReference
     var fill: Color?
     
-    var paragraphAlignment: HAlignment?
-    var verticalAlignment: VAlignment?
-    var horizontalAlignment: HAlignment?
-    var autoResize: Bool?
+    var alignment_multiline: HAlignment?
+    var alignment_vertical: VAlignment?
+    var alignment_horizontal: HAlignment?
 
     init(fb: FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
@@ -207,53 +203,42 @@ class TextUpdatePatch {
             }
         }
         
-        if let alignmentValue = fb["paragraph_alignment"]?.asString {
+        if let alignmentValue = fb["alignment_multiline"]?.asString {
             switch alignmentValue {
             case "Center":
-                self.paragraphAlignment = .center
+                self.alignment_multiline = .center
             case "Left":
-                self.paragraphAlignment = .left
+                self.alignment_multiline = .left
             case "Right":
-                self.paragraphAlignment = .right
+                self.alignment_multiline = .right
             default:
-                self.paragraphAlignment = nil
+                self.alignment_multiline = nil
             }
         }
         
-        if let verticalAlignmentValue = fb["vertical_alignment"]?.asString {
+        if let verticalAlignmentValue = fb["alignment_vertical"]?.asString {
             switch verticalAlignmentValue {
             case "Top":
-                self.verticalAlignment = .top
+                self.alignment_vertical = .top
             case "Center":
-                self.verticalAlignment = .center
+                self.alignment_vertical = .center
             case "Bottom":
-                self.verticalAlignment = .bottom
+                self.alignment_vertical = .bottom
             default:
-                self.verticalAlignment = nil
+                self.alignment_vertical = nil
             }
         }
         
-        if let alignmentValue = fb["horizontal_alignment"]?.asString {
+        if let alignmentValue = fb["alignment_horizontal"]?.asString {
             switch alignmentValue {
             case "Center":
-                self.horizontalAlignment = .center
+                self.alignment_horizontal = .center
             case "Left":
-                self.horizontalAlignment = .left
+                self.alignment_horizontal = .left
             case "Right":
-                self.horizontalAlignment = .right
+                self.alignment_horizontal = .right
             default:
-                self.horizontalAlignment = nil
-            }
-        }
-        
-        if let boundingBoxValue = fb["bounding_box"]?.asString {
-            switch boundingBoxValue {
-            case "Fixed":
-                self.autoResize = false
-            case "Auto":
-                self.autoResize = true
-            default:
-                self.autoResize = false
+                self.alignment_horizontal = nil
             }
         }
     }
