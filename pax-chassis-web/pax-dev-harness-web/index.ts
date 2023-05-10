@@ -67,8 +67,23 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
         chassis.interrupt(JSON.stringify(event));
     }, true);
 
+    //Reset Markdown text base styling
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+            .text-child a {
+              color: inherit;
+              text-decoration: inherit;
+              font: inherit;
+              background: none;
+              border: none;
+              padding: 0;
+              margin: 0;
+            }`;
+    document.head.appendChild(styleElement);
+
     //Kick off render loop
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
+
 }
 
 function getStringIdFromClippingId(prefix: string, id_chain: number[]) {
@@ -163,6 +178,7 @@ class NativeElementPool {
         this.textNodes[patch.id_chain] = runningChain;
     }
 
+
     textUpdate(patch: TextUpdatePatch) {
 
         //@ts-ignore
@@ -172,24 +188,32 @@ class NativeElementPool {
         console.assert(leaf !== undefined);
 
         let textChild = leaf.firstChild;
-
-        if(patch.boundingBox == "Fixed"){
-            if (patch.size_x != null) {
-                leaf.style.width = patch.size_x + "px";
-            }
-            if (patch.size_y != null) {
-                leaf.style.height = patch.size_y + "px";
-            }
-            leaf.style.display = "flex";
-            leaf.style.justifyContent = getJustifyContent(patch.horizontalAlignment);
-            leaf.style.alignItems = getAlignItems(patch.verticalAlignment);
-
-        } else if (patch.boundingBox == "Auto"){
-            leaf.style.width = "fit-content";
-            leaf.style.height = "fit-content";
+        if (patch.content != null) {
+            textChild.innerHTML = snarkdown(patch.content);
+            textChild.classList.add('text-child');
         }
 
-        textChild.style.textAlign = getTextAlign(patch.paragraphAlignment);
+        if (patch.size_x != null) {
+            leaf.style.width = patch.size_x + "px";
+        }
+        if (patch.size_y != null) {
+            leaf.style.height = patch.size_y + "px";
+        }
+
+        if(patch.alignment_horizontal != null){
+            leaf.style.display = "flex";
+            leaf.style.justifyContent = getJustifyContent(patch.alignment_horizontal);
+        }
+
+        if(patch.alignment_vertical != null){
+            leaf.style.alignItems = getAlignItems(patch.alignment_vertical);
+        }
+
+        if(patch.alignment_multiline != null){
+            textChild.style.textAlign = getTextAlign(patch.alignment_multiline);
+        } else if(patch.alignment_horizontal != null) {
+            textChild.style.textAlign = getTextAlign(patch.alignment_horizontal);
+        }
 
         if (patch.transform != null) {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
@@ -204,7 +228,7 @@ class NativeElementPool {
                 let p = patch.fill.Hsla!;
                 newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
             }
-            leaf.style.color = newValue;
+            textChild.style.color = newValue;
         }
 
         let suffix = ""
@@ -220,10 +244,6 @@ class NativeElementPool {
 
         if (patch.font.size != null) {
             leaf.style.fontSize = patch.font.size + "px"
-        }
-
-        if (patch.content != null) {
-            textChild.innerHTML = snarkdown(patch.content);
         }
     }
 
@@ -313,10 +333,9 @@ class TextUpdatePatch {
     public transform?: number[];
     public font: FontGroup;
     public fill: ColorGroup;
-    public paragraphAlignment: string;
-    public horizontalAlignment: string;
-    public verticalAlignment: string;
-    public boundingBox : string;
+    public alignment_multiline: string;
+    public alignment_horizontal: string;
+    public alignment_vertical: string;
 
     constructor(jsonMessage: any) {
         this.font = jsonMessage["font"];
@@ -326,10 +345,9 @@ class TextUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
-        this.paragraphAlignment = jsonMessage["paragraph_alignment"];
-        this.horizontalAlignment = jsonMessage["horizontal_alignment"];
-        this.verticalAlignment = jsonMessage["vertical_alignment"];
-        this.boundingBox = jsonMessage["bounding_box"];
+        this.alignment_multiline = jsonMessage["alignment_multiline"];
+        this.alignment_horizontal = jsonMessage["alignment_horizontal"];
+        this.alignment_vertical = jsonMessage["alignment_vertical"];
     }
 }
 

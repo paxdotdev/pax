@@ -33,6 +33,8 @@ pub enum PropertiesCoproduct {
 #[repr(u32)]
 pub enum TypesCoproduct {
     
+    OptionLABR__pax_stdCOCOtypesCOCOAlignmentRABR(Option<pax_example::pax_reexports::pax_std::types::Alignment>),
+    
     Range_isize_(std::ops::Range<isize>),
     
     Size(pax_runtime_api::Size),
@@ -52,8 +54,6 @@ pub enum TypesCoproduct {
     __f64(pax_example::pax_reexports::f64),
     
     __pax_stdCOCOtypesCOCOAlignment(pax_example::pax_reexports::pax_std::types::Alignment),
-    
-    __pax_stdCOCOtypesCOCOBoundingBox(pax_example::pax_reexports::pax_std::types::BoundingBox),
     
     __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     

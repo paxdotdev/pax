@@ -67,10 +67,9 @@ struct PaxView: View {
     func registerFonts() {
         guard let resourceURL = Bundle.main.resourceURL else { return }
         let fontFileExtensions = ["ttf", "otf"]
-
+        
         do {
             let resourceFiles = try FileManager.default.contentsOfDirectory(at: resourceURL, includingPropertiesForKeys: nil, options: [])
-
             for fileURL in resourceFiles {
                 let fileExtension = fileURL.pathExtension.lowercased()
                 if fontFileExtensions.contains(fileExtension) {
@@ -79,7 +78,7 @@ struct PaxView: View {
                        let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String {
                         if !isFontRegistered(fontName: postscriptName) {
                             var errorRef: Unmanaged<CFError>?
-                            if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
+                            if CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {} else {
                                 print("Error registering font: \(postscriptName) - \(String(describing: errorRef))")
                             }
                         }
@@ -154,15 +153,13 @@ struct PaxView: View {
                 return attributedString
             }
             
-            let width = !textElement.autoResize ? CGFloat(textElement.size_x): nil
-            let height = !textElement.autoResize ? CGFloat(textElement.size_y): nil
             let textView =
                 Text(text)
                     .font(textElement.font_spec.cachedFont)
-                    .frame(width: width, height: height, alignment: textElement.alignment)
+                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.alignment)
                     .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
                     .padding(.horizontal, 0)
-                    .multilineTextAlignment(textElement.paragraphAlignment)
+                    .multilineTextAlignment(textElement.alignmentMultiline)
                     .transformEffect(transform)
             
             if !textElement.clipping_ids.isEmpty {

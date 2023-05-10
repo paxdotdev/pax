@@ -89,7 +89,7 @@ impl Default for Font {
 impl Interpolatable for Font {}
 
 impl Font {
-    pub fn new(family: String, variant: String, size: Numeric) -> Self {
+    pub fn get(family: String, variant: String, size: Numeric) -> Self {
         Self {
             family: Box::new(PropertyLiteral::new(family)),
             variant: Box::new(PropertyLiteral::new(variant)),
@@ -251,6 +251,24 @@ impl PartialEq<AlignmentMessage> for Alignment {
     }
 }
 
+pub fn opt_alignment_to_message(opt_alignment: &Option<Alignment>) -> Option<AlignmentMessage> {
+    opt_alignment.as_ref().map(|alignment| {
+        match alignment {
+            Alignment::Center => AlignmentMessage::Center,
+            Alignment::Left => AlignmentMessage::Left,
+            Alignment::Right => AlignmentMessage::Right,
+        }
+    })
+}
+
+pub fn opt_alignment_eq_opt_msg(opt_alignment: &Option<Alignment>, opt_alignment_msg: &Option<AlignmentMessage>) -> bool {
+    match (opt_alignment, opt_alignment_msg) {
+        (Some(alignment), Some(alignment_msg)) => alignment.eq(alignment_msg),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
 impl Into<VAlignmentMessage> for &VAlignment {
     fn into(self) -> VAlignmentMessage {
         match self {
@@ -272,28 +290,9 @@ impl PartialEq<VAlignmentMessage> for VAlignment {
     }
 }
 
-impl Into<BoundingBoxMessage> for &BoundingBox {
-    fn into(self) -> BoundingBoxMessage {
-        match self {
-            BoundingBox::Fixed => BoundingBoxMessage::Fixed,
-            BoundingBox::Auto => BoundingBoxMessage::Auto,
-        }
-    }
-}
-
-impl PartialEq<BoundingBoxMessage> for BoundingBox {
-    fn eq(&self, other: &BoundingBoxMessage) -> bool {
-        match (self, other) {
-            (BoundingBox::Fixed, BoundingBoxMessage::Fixed) => true,
-            (BoundingBox::Auto, BoundingBoxMessage::Auto) => true,
-            _ => false,
-        }
-    }
-}
-
 
 pub use pax::api::Size;
-use pax_message::{ColorVariantMessage, FontPatch, AlignmentMessage, VAlignmentMessage, BoundingBoxMessage};
+use pax_message::{ColorVariantMessage, FontPatch, AlignmentMessage, VAlignmentMessage};
 use crate::primitives::Path;
 
 

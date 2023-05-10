@@ -87,10 +87,9 @@ pub struct TextPatch {
     pub size_y: Option<f64>,
     pub font: FontPatch,
     pub fill: Option<ColorVariantMessage>, //FUTURE: more robust Fill support (multiple fills, ordering, gradients, opacity, etc.)
-    pub paragraph_alignment: Option<AlignmentMessage>,
-    pub vertical_alignment: Option<VAlignmentMessage>,
-    pub horizontal_alignment: Option<AlignmentMessage>,
-    pub bounding_box: Option<BoundingBoxMessage>,
+    pub alignment_multiline: Option<AlignmentMessage>,
+    pub alignment_vertical: Option<VAlignmentMessage>,
+    pub alignment_horizontal: Option<AlignmentMessage>,
 }
 
 #[derive(Default, Serialize)]
@@ -132,14 +131,6 @@ pub enum VAlignmentMessage {
     Top,
     Center,
     Bottom,
-}
-
-#[derive(Default, Serialize)]
-#[repr(C)]
-pub enum BoundingBoxMessage {
-    #[default]
-    Fixed,
-    Auto
 }
 
 
