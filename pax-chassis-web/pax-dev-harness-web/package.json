@@ -5,10 +5,7 @@
   },
   "devDependencies": {
     "css-loader": "^6.7.3",
-    "file-loader": "^6.2.0",
-    "glob": "^10.2.2",
     "html-webpack-plugin": "^4.5.2",
-    "resolve-url-loader": "^5.0.0",
     "style-loader": "^3.3.2",
     "text-encoding": "^0.7.0",
     "ts-loader": "^8.4.0",

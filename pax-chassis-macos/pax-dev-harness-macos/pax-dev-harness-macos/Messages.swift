@@ -277,7 +277,7 @@ class FontSpec {
         if self.variant != "Regular" {
             suffix = " " + self.variant
         }
-        return Font.custom(String(self.family + suffix), size: CGFloat(self.size)).width(Font.Width.expanded)
+        return Font.custom(String(self.family + suffix), size: CGFloat(self.size))
     }
 }
 //
