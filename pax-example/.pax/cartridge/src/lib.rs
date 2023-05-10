@@ -57,7 +57,7 @@ use pax_example::pax_reexports::words::Words;
 pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> {
     let mut vtable: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>> = HashMap::new();
 
-    
+
     //Color::rgb(0.4,0.5,0)
     vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
@@ -98,7 +98,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //0 .. 60
-    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(0, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
@@ -165,7 +165,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                             Numeric::from(p.ticks.get())
                         
                     } else {
+
                         unreachable!("3")
+
                     }
                 
             };
@@ -184,7 +186,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                             Numeric::from(p.heartbeat.get())
                         
                     } else {
+
                         unreachable!("3")
+
                     }
                 
             };
@@ -208,12 +212,13 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 let properties = &*(*properties).borrow();
 
                 
-                    if let PropertiesCoproduct::Fireworks(p) = properties {
+                    if let PropertiesCoproduct::Example(p) = properties {
                         
+
                             Numeric::from(p.ticks.get())
                         
                     } else {
-                        unreachable!("4")
+                        unreachable!("3")
                     }
                 
             };
@@ -264,7 +269,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                             Numeric::from(p.current_route.get())
                         
                     } else {
-                        unreachable!("5")
+                        unreachable!("4")
                     }
                 
             };
@@ -276,10 +281,10 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //current_route == 1 
-    vtable.insert(6, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
+    vtable.insert(5, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
-            let current_route = {
+            let rotation = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
                     Rc::clone(&sf)
                 } else {
@@ -288,20 +293,20 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 let properties = &*(*properties).borrow();
 
                 
-                    if let PropertiesCoproduct::Example(p) = properties {
+                    if let PropertiesCoproduct::HelloRGB(p) = properties {
                         
-                            Numeric::from(p.current_route.get())
+                            Numeric::from(p.rotation.get())
                         
                     } else {
-                        unreachable!("6")
+                        unreachable!("5")
                     }
                 
             };
         
 
         #[allow(unused_parens)]
-        TypesCoproduct::bool(
-            (current_route ==Numeric::from(1 ))
+        TypesCoproduct::Transform2D(
+            ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())*(Transform2D::rotate((rotation),)).into())
         )
     }));
     
@@ -428,43 +433,18 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
     ))),
     children: Some(Rc::new(RefCell::new(vec![
         
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-])));
 
-    args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
-        click_handlers: vec![],
-        will_render_handlers: vec![],
-        did_mount_handlers: vec![],
-        scroll_handlers: vec![],
-    })));
-
-    args.compute_properties_fn = Some(Box::new(|properties, rtc|{
-        let properties = &mut *properties.as_ref().borrow_mut();
-        let properties = if let PropertiesCoproduct::HelloRGB(p) = properties {p} else {unreachable!()};
-
-        
-            if let Some(new_value) = rtc.compute_eased_value(properties.rotation._get_transition_manager()) {
-            properties.rotation.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.rotation._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::__f64(v) = new_value { v } else { unreachable!() };
-            properties.rotation.set(new_value);
-            }
-        
+        #[allow(unused_parens)]
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::rgb((Numeric::from(0.4)),(Numeric::from(0.5)),(Numeric::from(0)),)
+        )
     }));
+    
 
-    ComponentInstance::instantiate(args)
+    vtable
 }
 
-
-
+//Begin component factory literals
 
     
 pub fn instantiate_component_Fireworks<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
@@ -557,7 +537,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     scroller_args: None,
     slot_index: None,
     repeat_source_expression_vec: None,
-    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(2))),
+    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(0))),
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
@@ -583,13 +563,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
                      Fireworks::handle_will_render(properties,args);
                  },
              ],
-        did_mount_handlers: vec![
-                  |properties|{
-                      let properties = &mut *properties.as_ref().borrow_mut();
-                      let properties = if let PropertiesCoproduct::Fireworks(p) = properties {p} else {unreachable!()};
-                      Fireworks::handle_did_mount(properties);
-                  },
-              ],
+        did_mount_handlers: vec![],
         scroll_handlers: vec![],
     })));
 
@@ -610,20 +584,6 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
             } else if let Some(new_value) = rtc.compute_vtable_value(properties.ticks._get_vtable_id()) {
             let new_value = if let TypesCoproduct::__usize(v) = new_value { v } else { unreachable!() };
             properties.ticks.set(new_value);
-            }
-        
-            if let Some(new_value) = rtc.compute_eased_value(properties.heartbeat._get_transition_manager()) {
-            properties.heartbeat.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.heartbeat._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::__f64(v) = new_value { v } else { unreachable!() };
-            properties.heartbeat.set(new_value);
-            }
-        
-            if let Some(new_value) = rtc.compute_eased_value(properties.squares._get_transition_manager()) {
-            properties.squares.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.squares._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::VecLABR__f64RABR(v) = new_value { v } else { unreachable!() };
-            properties.squares.set(new_value);
             }
         
     }));
@@ -707,10 +667,6 @@ instantiate_component_Fireworks( Rc::clone(&instance_registry),
         
             ticks: Box::new( PropertyLiteral::new(Default::default()) ),
         
-            heartbeat: Box::new( PropertyLiteral::new(Default::default()) ),
-        
-            squares: Box::new( PropertyLiteral::new(Default::default()) ),
-        
     }),
     handler_registry:  Some(Rc::new(RefCell::new(
                                                  HandlerRegistry {
@@ -744,7 +700,7 @@ instantiate_component_Fireworks( Rc::clone(&instance_registry),
     slot_index: None,
     repeat_source_expression_vec: None,
     repeat_source_expression_range: None,
-    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(5))),
+    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(3))),
     compute_properties_fn: None,
 })
 ,
@@ -810,7 +766,7 @@ instantiate_component_HelloRGB( Rc::clone(&instance_registry),
     slot_index: None,
     repeat_source_expression_vec: None,
     repeat_source_expression_range: None,
-    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(6))),
+    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(4))),
     compute_properties_fn: None,
 })
 ,
