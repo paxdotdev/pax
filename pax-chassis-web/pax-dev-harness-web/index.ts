@@ -104,7 +104,7 @@ function renderLoop (chassis: PaxChassisWeb) {
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
-enum Alignment {
+enum TextAlignHorizontal {
     Left = "Left",
     Center = "Center",
     Right = "Right",
@@ -112,11 +112,11 @@ enum Alignment {
 
 function getJustifyContent(horizontalAlignment: string): string {
     switch (horizontalAlignment) {
-        case Alignment.Left:
+        case TextAlignHorizontal.Left:
             return 'flex-start';
-        case Alignment.Center:
+        case TextAlignHorizontal.Center:
             return 'center';
-        case Alignment.Right:
+        case TextAlignHorizontal.Right:
             return 'flex-end';
         default:
             return 'flex-start';
@@ -125,18 +125,18 @@ function getJustifyContent(horizontalAlignment: string): string {
 
 function getTextAlign(paragraphAlignment: string): string {
     switch (paragraphAlignment) {
-        case Alignment.Left:
+        case TextAlignHorizontal.Left:
             return 'left';
-        case Alignment.Center:
+        case TextAlignHorizontal.Center:
             return 'center';
-        case Alignment.Right:
+        case TextAlignHorizontal.Right:
             return 'right';
         default:
             return 'left';
     }
 }
 
-enum VAlignment {
+enum TextAlignVertical {
     Top = "Top",
     Center = "Center",
     Bottom = "Bottom",
@@ -144,11 +144,11 @@ enum VAlignment {
 
 function getAlignItems(verticalAlignment: string): string {
     switch (verticalAlignment) {
-        case VAlignment.Top:
+        case TextAlignVertical.Top:
             return 'flex-start';
-        case VAlignment.Center:
+        case TextAlignVertical.Center:
             return 'center';
-        case VAlignment.Bottom:
+        case TextAlignVertical.Bottom:
             return 'flex-end';
         default:
             return 'flex-start';
@@ -200,19 +200,19 @@ class NativeElementPool {
             leaf.style.height = patch.size_y + "px";
         }
 
-        if(patch.alignment_horizontal != null){
+        if(patch.align_horizontal != null){
             leaf.style.display = "flex";
-            leaf.style.justifyContent = getJustifyContent(patch.alignment_horizontal);
+            leaf.style.justifyContent = getJustifyContent(patch.align_horizontal);
         }
 
-        if(patch.alignment_vertical != null){
-            leaf.style.alignItems = getAlignItems(patch.alignment_vertical);
+        if(patch.align_vertical != null){
+            leaf.style.alignItems = getAlignItems(patch.align_vertical);
         }
 
-        if(patch.alignment_multiline != null){
-            textChild.style.textAlign = getTextAlign(patch.alignment_multiline);
-        } else if(patch.alignment_horizontal != null) {
-            textChild.style.textAlign = getTextAlign(patch.alignment_horizontal);
+        if(patch.align_multiline != null){
+            textChild.style.textAlign = getTextAlign(patch.align_multiline);
+        } else if(patch.align_horizontal != null) {
+            textChild.style.textAlign = getTextAlign(patch.align_horizontal);
         }
 
         if (patch.transform != null) {
@@ -333,9 +333,9 @@ class TextUpdatePatch {
     public transform?: number[];
     public font: FontGroup;
     public fill: ColorGroup;
-    public alignment_multiline: string;
-    public alignment_horizontal: string;
-    public alignment_vertical: string;
+    public align_multiline: string;
+    public align_horizontal: string;
+    public align_vertical: string;
 
     constructor(jsonMessage: any) {
         this.font = jsonMessage["font"];
@@ -345,9 +345,9 @@ class TextUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
-        this.alignment_multiline = jsonMessage["alignment_multiline"];
-        this.alignment_horizontal = jsonMessage["alignment_horizontal"];
-        this.alignment_vertical = jsonMessage["alignment_vertical"];
+        this.align_multiline = jsonMessage["align_multiline"];
+        this.align_horizontal = jsonMessage["align_horizontal"];
+        this.align_vertical = jsonMessage["align_vertical"];
     }
 }
 

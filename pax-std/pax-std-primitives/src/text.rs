@@ -85,19 +85,19 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             properties.fill.set(new_value);
         }
 
-        if let Some(alignment_multiline) = rtc.compute_vtable_value(properties.alignment_multiline._get_vtable_id()){
-            let new_value = if let TypesCoproduct::OptionLABR__pax_stdCOCOtypesCOCOAlignmentRABR(v) = alignment_multiline {v} else { unreachable!() };
-            properties.alignment_multiline.set(new_value);
+        if let Some(align_multiline) = rtc.compute_vtable_value(properties.align_multiline._get_vtable_id()){
+            let new_value = if let TypesCoproduct::OptionLABR__pax_stdCOCOtypesCOCOTextAlignHorizontalRABR(v) = align_multiline {v} else { unreachable!() };
+            properties.align_multiline.set(new_value);
         }
 
-        if let Some(alignment_vertical) = rtc.compute_vtable_value(properties.alignment_vertical._get_vtable_id()){
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOVAlignment(v) = alignment_vertical {v} else { unreachable!() };
-            properties.alignment_vertical.set(new_value);
+        if let Some(align_vertical) = rtc.compute_vtable_value(properties.align_vertical._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOTextAlignVertical(v) = align_vertical {v} else { unreachable!() };
+            properties.align_vertical.set(new_value);
         }
 
-        if let Some(alignment_horizontal) = rtc.compute_vtable_value(properties.alignment_horizontal._get_vtable_id()){
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOAlignment(v) = alignment_horizontal {v} else { unreachable!() };
-            properties.alignment_horizontal.set(new_value);
+        if let Some(align_horizontal) = rtc.compute_vtable_value(properties.align_horizontal._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOTextAlignHorizontal(v) = align_horizontal {v} else { unreachable!() };
+            properties.align_horizontal.set(new_value);
         }
 
         if let Some(font) = rtc.compute_vtable_value(properties.font._get_vtable_id()) {
@@ -218,17 +218,17 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
 
 
-        let val = properties.alignment_multiline.get();
-        let is_new_value = !opt_alignment_eq_opt_msg(&val, &last_patch.alignment_multiline);
+        let val = properties.align_multiline.get();
+        let is_new_value = !opt_alignment_eq_opt_msg(&val, &last_patch.align_multiline);
 
         if is_new_value {
-            new_message.alignment_multiline = opt_alignment_to_message(val);
-            last_patch.alignment_multiline = opt_alignment_to_message(val);
+            new_message.align_multiline = opt_alignment_to_message(val);
+            last_patch.align_multiline = opt_alignment_to_message(val);
             has_any_updates = true;
         }
 
-        let val = properties.alignment_vertical.get();
-        let is_new_value = match &last_patch.alignment_vertical {
+        let val = properties.align_vertical.get();
+        let is_new_value = match &last_patch.align_vertical {
             Some(cached_value) => {
                 !val.eq(cached_value)
             },
@@ -237,13 +237,13 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             },
         };
         if is_new_value {
-            new_message.alignment_vertical = Some(val.into());
-            last_patch.alignment_vertical = Some(val.into());
+            new_message.align_vertical = Some(val.into());
+            last_patch.align_vertical = Some(val.into());
             has_any_updates = true;
         }
 
-        let val = properties.alignment_horizontal.get();
-        let is_new_value = match &last_patch.alignment_horizontal {
+        let val = properties.align_horizontal.get();
+        let is_new_value = match &last_patch.align_horizontal {
             Some(cached_value) => {
                 !val.eq(cached_value)
             },
@@ -252,8 +252,8 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             },
         };
         if is_new_value {
-            new_message.alignment_horizontal = Some(val.into());
-            last_patch.alignment_horizontal = Some(val.into());
+            new_message.align_horizontal = Some(val.into());
+            last_patch.align_horizontal = Some(val.into());
             has_any_updates = true;
         }
 
