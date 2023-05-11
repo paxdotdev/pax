@@ -7,8 +7,9 @@ use pax_std::primitives::{Text};
 use pax_core::{ComputableTransform, TabCache, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral};
+use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log};
 use pax::api::numeric::Numeric;
+use pax_std::types::{opt_alignment_to_message, opt_alignment_eq_opt_msg};
 
 pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
@@ -58,7 +59,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         if let Some(content) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
             let new_value = if let TypesCoproduct::String(v) = content { v } else { unreachable!() };
@@ -79,6 +79,32 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             let new_value = if let TypesCoproduct::String(v) = variant { v } else { unreachable!() };
             properties.font.get_mut().variant.set(new_value);
         }
+
+        if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = fill {v} else { unreachable!() };
+            properties.fill.set(new_value);
+        }
+
+        if let Some(align_multiline) = rtc.compute_vtable_value(properties.align_multiline._get_vtable_id()){
+            let new_value = if let TypesCoproduct::OptionLABR__pax_stdCOCOtypesCOCOTextAlignHorizontalRABR(v) = align_multiline {v} else { unreachable!() };
+            properties.align_multiline.set(new_value);
+        }
+
+        if let Some(align_vertical) = rtc.compute_vtable_value(properties.align_vertical._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOTextAlignVertical(v) = align_vertical {v} else { unreachable!() };
+            properties.align_vertical.set(new_value);
+        }
+
+        if let Some(align_horizontal) = rtc.compute_vtable_value(properties.align_horizontal._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOTextAlignHorizontal(v) = align_horizontal {v} else { unreachable!() };
+            properties.align_horizontal.set(new_value);
+        }
+
+        if let Some(font) = rtc.compute_vtable_value(properties.font._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOFont(v) = font { v } else { unreachable!() };
+            properties.font.set(new_value);
+        }
+
 
         let mut size = &mut *self.size.as_ref().borrow_mut();
 
@@ -191,6 +217,46 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
+
+        let val = properties.align_multiline.get();
+        let is_new_value = !opt_alignment_eq_opt_msg(&val, &last_patch.align_multiline);
+
+        if is_new_value {
+            new_message.align_multiline = opt_alignment_to_message(val);
+            last_patch.align_multiline = opt_alignment_to_message(val);
+            has_any_updates = true;
+        }
+
+        let val = properties.align_vertical.get();
+        let is_new_value = match &last_patch.align_vertical {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.align_vertical = Some(val.into());
+            last_patch.align_vertical = Some(val.into());
+            has_any_updates = true;
+        }
+
+        let val = properties.align_horizontal.get();
+        let is_new_value = match &last_patch.align_horizontal {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.align_horizontal = Some(val.into());
+            last_patch.align_horizontal = Some(val.into());
+            has_any_updates = true;
+        }
+
         let val = computed_size.0;
         let is_new_value = match &last_patch.size_x {
             Some(cached_value) => {
@@ -263,12 +329,11 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     }
 
     fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-
         // unplugged in desperation, search codebase for "unplugged in desperation"
-
-        // let id_chain = rtc.get_id_chain(self.instance_id);
-        // (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-        //     pax_message::NativeMessage::TextDelete(id_chain)
-        // );
+        self.last_patches.clear();
+        let id_chain = _rtc.get_id_chain(self.instance_id);
+        (*_rtc.engine.runtime).borrow_mut().enqueue_native_message(
+            pax_message::NativeMessage::TextDelete(id_chain)
+        );
     }
 }

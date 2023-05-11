@@ -21,7 +21,6 @@ pub enum NativeMessage {
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(Vec<u64>),
     //FUTURE: native form controls
-
 }
 
 #[derive(Deserialize)]
@@ -88,6 +87,9 @@ pub struct TextPatch {
     pub size_y: Option<f64>,
     pub font: FontPatch,
     pub fill: Option<ColorVariantMessage>, //FUTURE: more robust Fill support (multiple fills, ordering, gradients, opacity, etc.)
+    pub align_multiline: Option<TextAlignHorizontalMessage>,
+    pub align_vertical: Option<TextAlignVerticalMessage>,
+    pub align_horizontal: Option<TextAlignHorizontalMessage>,
 }
 
 #[derive(Default, Serialize)]
@@ -113,8 +115,23 @@ impl Default for ColorVariantMessage {
     }
 }
 
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub enum TextAlignHorizontalMessage {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
 
-
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub enum TextAlignVerticalMessage {
+    #[default]
+    Top,
+    Center,
+    Bottom,
+}
 
 
 #[derive(Default, Serialize)]

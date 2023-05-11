@@ -64,3 +64,9 @@ impl<T> PathQualifiable for std::vec::Vec<T> {
         "std::vec::Vec".to_string()
     }
 }
+
+impl<T> PathQualifiable for core::option::Option<T> {
+    fn get_fully_qualified_path(_: &str) -> String {
+        "core::option::Option".to_string()
+    }
+}

@@ -45,6 +45,8 @@ struct PaxView: View {
         ZStack {
             self.canvasView
             NativeRenderingLayer()
+        }.onAppear {
+            registerFonts()
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
                     //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
                     let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f} }", dragGesture.location.x, dragGesture.location.y);
@@ -58,10 +60,50 @@ struct PaxView: View {
                             pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
                         }
                     })
-                })
+        })
 
     }
 
+    func registerFonts() {
+        guard let resourceURL = Bundle.main.resourceURL else { return }
+        let fontFileExtensions = ["ttf", "otf"]
+        
+        do {
+            let resourceFiles = try FileManager.default.contentsOfDirectory(at: resourceURL, includingPropertiesForKeys: nil, options: [])
+            for fileURL in resourceFiles {
+                let fileExtension = fileURL.pathExtension.lowercased()
+                if fontFileExtensions.contains(fileExtension) {
+                    let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
+                    if let fontDescriptor = fontDescriptors.first,
+                       let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String {
+                        if !isFontRegistered(fontName: postscriptName) {
+                            var errorRef: Unmanaged<CFError>?
+                            if CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {} else {
+                                print("Error registering font: \(postscriptName) - \(String(describing: errorRef))")
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {
+            print("Error reading font files from resources: \(error)")
+        }
+    }
+
+
+    func isFontRegistered(fontName: String) -> Bool {
+        let fontFamilies = CTFontManagerCopyAvailableFontFamilyNames() as! [String]
+        for fontFamily in fontFamilies {
+            let fontDescriptors = CTFontDescriptorCreateMatchingFontDescriptors(CTFontDescriptorCreateWithNameAndSize(fontFamily as CFString, 0), nil) as? [CTFontDescriptor]
+            for fontDescriptor in fontDescriptors ?? [] {
+                let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as! String
+                if postscriptName == fontName {
+                    return true
+                }
+            }
+        }
+        return false
+    }
 
     class PaxEngineContainer {
         static var paxEngineContainer : OpaquePointer? = nil
@@ -95,27 +137,35 @@ struct PaxView: View {
             } }
         }
 
+        @ViewBuilder
         func getPositionedTextGroup(textElement: TextElement) -> some View {
-            return Group {
-                Group {
-                    Text(textElement.content)
-                            .foregroundColor(textElement.fill)
-                            .font(textElement.font_spec.cachedFont)
-                            .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: .topLeading)
-                            .clipped()
-                            .position(x: CGFloat(textElement.size_x) / 2.0, y: CGFloat(textElement.size_y) / 2.0)
-                            .transformEffect(CGAffineTransform.init(
-                                    a: CGFloat(textElement.transform[0]),
-                                    b: CGFloat(textElement.transform[1]),
-                                    c: CGFloat(textElement.transform[2]),
-                                    d: CGFloat(textElement.transform[3]),
-                                    tx: CGFloat(textElement.transform[4]),
-                                    ty: CGFloat(textElement.transform[5])
-                            ))
-                }
-                        .mask(
-                                getClippingMask(clippingIds: textElement.clipping_ids)
-                        )
+            let transform = CGAffineTransform.init(
+                a: CGFloat(textElement.transform[0]),
+                b: CGFloat(textElement.transform[1]),
+                c: CGFloat(textElement.transform[2]),
+                d: CGFloat(textElement.transform[3]),
+                tx: CGFloat(textElement.transform[4]),
+                ty: CGFloat(textElement.transform[5])
+            )
+            var text: AttributedString {
+                var attributedString: AttributedString = try! AttributedString(markdown: textElement.content)
+                attributedString.foregroundColor = textElement.fill
+                return attributedString
+            }
+            
+            let textView =
+                Text(text)
+                    .font(textElement.font_spec.cachedFont)
+                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.alignment)
+                    .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+                    .padding(.horizontal, 0)
+                    .multilineTextAlignment(textElement.alignmentMultiline)
+                    .transformEffect(transform)
+            
+            if !textElement.clipping_ids.isEmpty {
+                textView.mask(getClippingMask(clippingIds: textElement.clipping_ids))
+            } else {
+                textView
             }
         }
 
@@ -190,7 +240,7 @@ struct PaxView: View {
 
                 //For manual debugger attachment:
                 //do {
-                //    sleep(10)
+                  //  sleep(30)
                 //}
 
                 PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)

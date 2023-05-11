@@ -1,6 +1,9 @@
 
 // const rust = import('./dist/pax_chassis_web');
 import {PaxChassisWeb} from './dist/pax_chassis_web';
+import './fonts.css';
+// @ts-ignore
+import snarkdown from 'snarkdown';
 
 const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_ID = "native-overlay";
@@ -64,8 +67,23 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
         chassis.interrupt(JSON.stringify(event));
     }, true);
 
+    //Reset Markdown text base styling
+    const styleElement = document.createElement('style');
+    styleElement.textContent = `
+            .text-child a {
+              color: inherit;
+              text-decoration: inherit;
+              font: inherit;
+              background: none;
+              border: none;
+              padding: 0;
+              margin: 0;
+            }`;
+    document.head.appendChild(styleElement);
+
     //Kick off render loop
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
+
 }
 
 function getStringIdFromClippingId(prefix: string, id_chain: number[]) {
@@ -86,6 +104,58 @@ function renderLoop (chassis: PaxChassisWeb) {
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
+enum TextAlignHorizontal {
+    Left = "Left",
+    Center = "Center",
+    Right = "Right",
+}
+
+function getJustifyContent(horizontalAlignment: string): string {
+    switch (horizontalAlignment) {
+        case TextAlignHorizontal.Left:
+            return 'flex-start';
+        case TextAlignHorizontal.Center:
+            return 'center';
+        case TextAlignHorizontal.Right:
+            return 'flex-end';
+        default:
+            return 'flex-start';
+    }
+}
+
+function getTextAlign(paragraphAlignment: string): string {
+    switch (paragraphAlignment) {
+        case TextAlignHorizontal.Left:
+            return 'left';
+        case TextAlignHorizontal.Center:
+            return 'center';
+        case TextAlignHorizontal.Right:
+            return 'right';
+        default:
+            return 'left';
+    }
+}
+
+enum TextAlignVertical {
+    Top = "Top",
+    Center = "Center",
+    Bottom = "Bottom",
+}
+
+function getAlignItems(verticalAlignment: string): string {
+    switch (verticalAlignment) {
+        case TextAlignVertical.Top:
+            return 'flex-start';
+        case TextAlignVertical.Center:
+            return 'center';
+        case TextAlignVertical.Bottom:
+            return 'flex-end';
+        default:
+            return 'flex-start';
+    }
+}
+
+
 class NativeElementPool {
     private textNodes : any = {};
     private clippingNodes : any = {};
@@ -96,6 +166,8 @@ class NativeElementPool {
         console.assert(patch.clipping_ids != null);
 
         let runningChain = document.createElement("div")
+        let textChild = document.createElement('div');
+        runningChain.appendChild(textChild);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
 
         let attachPoint = getAttachPointFromClippingIds(patch.clipping_ids);
@@ -106,6 +178,7 @@ class NativeElementPool {
         this.textNodes[patch.id_chain] = runningChain;
     }
 
+
     textUpdate(patch: TextUpdatePatch) {
 
         //@ts-ignore
@@ -114,12 +187,34 @@ class NativeElementPool {
         let leaf = this.textNodes[patch.id_chain];
         console.assert(leaf !== undefined);
 
+        let textChild = leaf.firstChild;
+        if (patch.content != null) {
+            textChild.innerHTML = snarkdown(patch.content);
+            textChild.classList.add('text-child');
+        }
+
         if (patch.size_x != null) {
             leaf.style.width = patch.size_x + "px";
         }
         if (patch.size_y != null) {
             leaf.style.height = patch.size_y + "px";
         }
+
+        if(patch.align_horizontal != null){
+            leaf.style.display = "flex";
+            leaf.style.justifyContent = getJustifyContent(patch.align_horizontal);
+        }
+
+        if(patch.align_vertical != null){
+            leaf.style.alignItems = getAlignItems(patch.align_vertical);
+        }
+
+        if(patch.align_multiline != null){
+            textChild.style.textAlign = getTextAlign(patch.align_multiline);
+        } else if(patch.align_horizontal != null) {
+            textChild.style.textAlign = getTextAlign(patch.align_horizontal);
+        }
+
         if (patch.transform != null) {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
@@ -133,13 +228,13 @@ class NativeElementPool {
                 let p = patch.fill.Hsla!;
                 newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
             }
-            leaf.style.color = newValue;
+            textChild.style.color = newValue;
         }
 
         let suffix = ""
         if (patch.font.variant != null) {
             if(patch.font.variant != "Regular") {
-                suffix = " " + patch.font.variant
+                suffix = "-" + patch.font.variant
             }
         }
 
@@ -150,17 +245,17 @@ class NativeElementPool {
         if (patch.font.size != null) {
             leaf.style.fontSize = patch.font.size + "px"
         }
-
-        if (patch.content != null) {
-            leaf.innerText = patch.content;
-        }
     }
 
+
+
     textDelete(id_chain: number[]) {
-        
-        let oldNode = this.textNodes.get(id_chain);
+
+        // @ts-ignore
+        let oldNode = this.textNodes[id_chain];
         console.assert(oldNode !== undefined);
-        this.textNodes.delete(id_chain);
+        // @ts-ignore
+        delete this.textNodes[id_chain];
 
         let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
         nativeLayer?.removeChild(oldNode);
@@ -238,6 +333,10 @@ class TextUpdatePatch {
     public transform?: number[];
     public font: FontGroup;
     public fill: ColorGroup;
+    public align_multiline: string;
+    public align_horizontal: string;
+    public align_vertical: string;
+
     constructor(jsonMessage: any) {
         this.font = jsonMessage["font"];
         this.fill = jsonMessage["fill"];
@@ -246,6 +345,9 @@ class TextUpdatePatch {
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
+        this.align_multiline = jsonMessage["align_multiline"];
+        this.align_horizontal = jsonMessage["align_horizontal"];
+        this.align_vertical = jsonMessage["align_vertical"];
     }
 }
 
@@ -321,7 +423,7 @@ function processMessages(messages: any[]) {
             nativePool.textUpdate(new TextUpdatePatch(msg));
         }else if (unwrapped_msg["TextDelete"]) {
             let msg = unwrapped_msg["TextDelete"];
-            nativePool.frameDelete(msg["id_chain"])
+            nativePool.textDelete(msg)
         } else if(unwrapped_msg["FrameCreate"]) {
             let msg = unwrapped_msg["FrameCreate"]
             nativePool.frameCreate(new AnyCreatePatch(msg));

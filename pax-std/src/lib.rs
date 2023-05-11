@@ -47,5 +47,8 @@ pub mod primitives {
         pub text: pax::Property<String>,
         pub font: pax::Property<crate::types::Font>,
         pub fill: pax::Property<crate::types::Color>,
+        pub align_multiline: pax::Property<Option<crate::types::TextAlignHorizontal>>,
+        pub align_vertical: pax::Property<crate::types::TextAlignVertical>,
+        pub align_horizontal: pax::Property<crate::types::TextAlignHorizontal>,
     }
 }
