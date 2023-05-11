@@ -76,7 +76,7 @@ fn extract_custom_attr(attr: &MetaList) -> Option<Vec<String>> {
     Some(custom_values)
 }
 
-fn pax_type(input_parsed: DeriveInput) -> proc_macro2::TokenStream {
+fn pax_type(input_parsed: DeriveInput, include_imports: bool) -> proc_macro2::TokenStream {
 
 
     let pascal_identifier = input_parsed.ident.to_string();
@@ -91,6 +91,7 @@ fn pax_type(input_parsed: DeriveInput) -> proc_macro2::TokenStream {
         pascal_identifier: pascal_identifier.clone(),
         static_property_definitions,
         type_dependencies,
+        include_imports,
     }.render_once().unwrap().to_string();
     
     // fs::write(format!("/Users/zack/debug/out-{}.txt", &pascal_identifier), &output);
@@ -546,13 +547,20 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     };
 
+    let mut include_imports = true;
+
     //wipe out the above derives if `#[custom(...)]` attrs are set
     if let Some(custom) = custom_values {
         if custom.contains(&"Default".to_string()) {
+            //wipe out the above derive
             default_impl = quote! {};
         }
         if custom.contains(&"Clone".to_string()) {
+            //wipe out the above derive
             clone_impl = quote! {};
+        }
+        if custom.contains(&"Imports".to_string()) {
+            include_imports = false;
         }
     }
 
@@ -582,7 +590,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         pax_internal(contents, input.clone(), is_main_component, None)
     } else  {
         // pax_type
-        pax_type(input.clone())
+        pax_type(input.clone(), include_imports)
     };
 
     let output = quote! {

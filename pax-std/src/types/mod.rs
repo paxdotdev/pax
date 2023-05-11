@@ -6,10 +6,6 @@ pub use pax::api::Size;
 use pax_message::{ColorVariantMessage, FontPatch};
 use crate::primitives::Path;
 
-#[allow(unused_imports)]
-#[cfg(feature = "parser")]
-use pax_message::reflection::PathQualifiable;
-
 #[derive(Pax)]
 #[custom(Default)]
 pub struct Stroke {
@@ -27,11 +23,13 @@ impl Default for Stroke {
 }
 
 #[derive(Pax)]
+#[custom(Imports)]
 pub struct Text {
     pub content: Box<dyn PropertyInstance<String>>,
 }
 
 #[derive(Pax)]
+#[custom(Imports)]
 pub struct StackerCell {
     pub x_px: f64,
     pub y_px: f64,
@@ -40,6 +38,7 @@ pub struct StackerCell {
 }
 
 #[derive(Pax)]
+#[custom(Imports)]
 pub enum StackerDirection {
     Vertical,
     #[default]
@@ -47,7 +46,7 @@ pub enum StackerDirection {
 }
 
 #[derive(Pax)]
-#[custom(Default)]
+#[custom(Default, Imports)]
 pub struct Font {
     pub family: Box<dyn pax::api::PropertyInstance<String>>,
     pub variant: Box<dyn pax::api::PropertyInstance<String>>,
@@ -81,7 +80,7 @@ impl Default for Font {
 }
 
 #[derive(Pax)]
-#[custom(Default)]
+#[custom(Default, Imports)]
 pub struct Color{
     pub color_variant: ColorVariant,
 }
@@ -171,7 +170,7 @@ impl PartialEq<ColorVariantMessage> for Color {
 
 
 #[derive(Pax)]
-#[custom(Default)]
+#[custom(Default, Imports)]
 pub enum ColorVariant {
     Hlca([f64; 4]),
     Hlc([f64; 3]),
@@ -186,6 +185,7 @@ impl Default for ColorVariant {
 }
 
 #[derive(Pax)]
+#[custom(Imports)]
 pub enum PathSegment {
     #[default]
     Empty,
@@ -194,12 +194,14 @@ pub enum PathSegment {
 }
 
 #[derive(Pax)]
+#[custom(Imports)]
 pub struct LineSegmentData {
     pub start : Point,
     pub end : Point,
 }
 
 #[derive(Pax)]
+#[custom(Imports)]
 pub struct CurveSegmentData {
     pub start : Point,
     pub handle : Point,

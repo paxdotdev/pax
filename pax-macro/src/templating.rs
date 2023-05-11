@@ -29,6 +29,7 @@ pub struct TemplateArgsMacroPaxType {
     pub pascal_identifier: String,
     pub type_dependencies: Vec<String>,
     pub static_property_definitions: Vec<StaticPropertyDefinition>,
+    pub include_imports: bool,
 }
 
 #[derive(TemplateOnce)]

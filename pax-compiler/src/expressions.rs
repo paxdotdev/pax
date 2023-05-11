@@ -438,7 +438,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let stack_offset = found_depth.unwrap();
 
-        let escaped_identifier = crate::reflection::escape_identifier(prop_def.name.clone());
+        let escaped_identifier = crate::parsing::escape_identifier(prop_def.name.clone());
 
         let (is_repeat_elem, is_repeat_i) = match found_val.unwrap().flags {
             Some(flags) => {(flags.is_repeat_elem, flags.is_repeat_i)},

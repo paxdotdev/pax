@@ -27,6 +27,7 @@ impl Grids {
 }
 
 #[derive(Pax)]
+#[custom(Imports)]
 pub struct RectDef {
     x: usize,
     y: usize,

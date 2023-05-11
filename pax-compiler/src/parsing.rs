@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{PropertyDefinition, TypeDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition};
+use crate::manifest::{PropertyDefinition, TypeDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, PropertyTypeData};
 
 use uuid::Uuid;
 
@@ -16,6 +16,7 @@ use pest::iterators::{Pair, Pairs};
 use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
 };
+use pax_message::reflection::PathQualifiable;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -715,6 +716,10 @@ pub fn create_uuid() -> String {
     Uuid::new_v4().to_string()
 }
 
+
+
+
+
 pub struct ParsingContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
@@ -749,7 +754,7 @@ impl Default for ParsingContext {
 }
 
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
-pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
+pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
@@ -818,3 +823,88 @@ pub fn assemble_type_definition(ctx: ParsingContext, pascal_identifier: &str, so
     (ctx, new_def)
 }
 
+
+
+pub fn assemble_property_type_data(ctx: ParsingContext, source_id: &str, original_type: &str, fully_qualified_constituent_types: Vec<String>, dep_to_fqd_map: &HashMap<&str, String>,) -> (ParsingContext, PropertyTypeData) {
+
+    let mut fully_qualified_type = original_type.to_string();
+    //extract dep_to_fqd_map into a Vec<String>; string-replace each looked-up value present in
+    //unexpanded_path, ensuring that each looked-up value is not preceded by a `::`
+    dep_to_fqd_map.keys().for_each(|key| {
+        fully_qualified_type.clone().match_indices(key).for_each(|i|{
+            if i.0 < 2 || {let maybe_coco : String = fully_qualified_type.chars().skip((i.0 as i64) as usize - 2).take(2).collect(); maybe_coco != "::" } {
+                let new_value = "{PREFIX}".to_string() + &dep_to_fqd_map.get(key).unwrap();
+                let starting_index : i64 = i.0 as i64;
+                let end_index_exclusive = starting_index + key.len() as i64;
+                fully_qualified_type.replace_range(starting_index as usize..end_index_exclusive as usize, &new_value);
+            }
+        });
+    });
+
+    let fully_qualified_type_pascalized = escape_identifier(fully_qualified_type.clone());
+
+    let properties = ctx.all_property_definitions.get(source_id).unwrap().clone();
+    let mut sub_properties: HashMap<String, PropertyDefinition> = HashMap::new();
+
+    properties.iter().for_each(|p|{
+        sub_properties.insert(p.name.clone(),p.clone());
+    });
+
+    let sub_properties= if sub_properties.len() > 0 {
+        Some(sub_properties)
+    } else {
+        None
+    };
+
+    let new_def = PropertyTypeData {
+        original_type: original_type.to_string(),
+        fully_qualified_type,
+        fully_qualified_type_pascalized,
+        fully_qualified_constituent_types,
+        iterable_type: None,
+        sub_properties,
+    };
+
+    (ctx, new_def)
+}
+
+
+pub fn escape_identifier(input: String) -> String {
+    input
+        .replace("(","LPAR")
+        .replace("::","COCO")
+        .replace(")","RPAR")
+        .replace("<","LABR")
+        .replace(">","RABR")
+        .replace(",","COMM")
+        .replace(".","PERI")
+        .replace("[","LSQB")
+        .replace("]","RSQB")
+}
+
+/// This trait is used only to extend primitives like u64
+/// with the parser-time method `parse_type_to_manifest`.  This
+/// allows the parser binary to call `.parse_type_to_manifest)
+pub trait TypeParsable {
+    fn parse_type_to_manifest(mut ctx: ParsingContext) -> ParsingContext {
+        //Default impl: no-op
+        ctx
+    }
+}
+
+impl TypeParsable for usize {}
+impl TypeParsable for isize {}
+impl TypeParsable for i128 {}
+impl TypeParsable for u128 {}
+impl TypeParsable for i64 {}
+impl TypeParsable for u64 {}
+impl TypeParsable for i32 {}
+impl TypeParsable for u32 {}
+impl TypeParsable for i8 {}
+impl TypeParsable for u8 {}
+impl TypeParsable for f64 {}
+impl TypeParsable for f32 {}
+impl TypeParsable for bool {}
+impl TypeParsable for std::string::String {}
+impl<T> TypeParsable for std::rc::Rc<T> {}
+impl<T: PathQualifiable> TypeParsable for std::vec::Vec<T> {}

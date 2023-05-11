@@ -10,6 +10,8 @@ pub trait PathQualifiable {
         let fully_qualified_path = module_path!().to_owned() + "::" + atomic_self_type;
         fully_qualified_path
     }
+
+
 }
 
 impl PathQualifiable for usize {

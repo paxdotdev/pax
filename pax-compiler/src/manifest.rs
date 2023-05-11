@@ -270,7 +270,8 @@ impl PropertyDefinition {
 
 /// Describes metadata surrounding a property's type, gathered from a combination of static & dynamic analysis
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct PropertyTypeData {
+pub struct
+PropertyTypeData {
     /// Type as authored, literally.  May be partially namespace-qualified or aliased.
     pub original_type: String,
 
