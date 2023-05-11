@@ -206,7 +206,7 @@ pub enum ColorVariant {
 
 #[derive(Clone, Default)]
 #[pax_type]
-pub enum Alignment {
+pub enum TextAlignHorizontal {
     #[default]
     Left,
     Center,
@@ -215,7 +215,7 @@ pub enum Alignment {
 
 #[derive(Clone, Default)]
 #[pax_type]
-pub enum VAlignment {
+pub enum TextAlignVertical {
     #[default]
     Top,
     Center,
@@ -230,38 +230,38 @@ pub enum BoundingBox {
     Auto
 }
 
-impl Into<AlignmentMessage> for &Alignment {
-    fn into(self) -> AlignmentMessage {
+impl Into<TextAlignHorizontalMessage> for &TextAlignHorizontal {
+    fn into(self) -> TextAlignHorizontalMessage {
         match self {
-            Alignment::Center => {AlignmentMessage::Center}
-            Alignment::Left => {AlignmentMessage::Left}
-            Alignment::Right => {AlignmentMessage::Right}
+            TextAlignHorizontal::Center => {TextAlignHorizontalMessage::Center}
+            TextAlignHorizontal::Left => {TextAlignHorizontalMessage::Left}
+            TextAlignHorizontal::Right => {TextAlignHorizontalMessage::Right}
         }
     }
 }
 
-impl PartialEq<AlignmentMessage> for Alignment {
-    fn eq(&self, other: &AlignmentMessage) -> bool {
+impl PartialEq<TextAlignHorizontalMessage> for TextAlignHorizontal {
+    fn eq(&self, other: &TextAlignHorizontalMessage) -> bool {
         match (self, other) {
-            (Alignment::Center, AlignmentMessage::Center) => true,
-            (Alignment::Left, AlignmentMessage::Left) => true,
-            (Alignment::Right, AlignmentMessage::Right) => true,
+            (TextAlignHorizontal::Center, TextAlignHorizontalMessage::Center) => true,
+            (TextAlignHorizontal::Left, TextAlignHorizontalMessage::Left) => true,
+            (TextAlignHorizontal::Right, TextAlignHorizontalMessage::Right) => true,
             _ => false,
         }
     }
 }
 
-pub fn opt_alignment_to_message(opt_alignment: &Option<Alignment>) -> Option<AlignmentMessage> {
+pub fn opt_alignment_to_message(opt_alignment: &Option<TextAlignHorizontal>) -> Option<TextAlignHorizontalMessage> {
     opt_alignment.as_ref().map(|alignment| {
         match alignment {
-            Alignment::Center => AlignmentMessage::Center,
-            Alignment::Left => AlignmentMessage::Left,
-            Alignment::Right => AlignmentMessage::Right,
+            TextAlignHorizontal::Center => TextAlignHorizontalMessage::Center,
+            TextAlignHorizontal::Left => TextAlignHorizontalMessage::Left,
+            TextAlignHorizontal::Right => TextAlignHorizontalMessage::Right,
         }
     })
 }
 
-pub fn opt_alignment_eq_opt_msg(opt_alignment: &Option<Alignment>, opt_alignment_msg: &Option<AlignmentMessage>) -> bool {
+pub fn opt_alignment_eq_opt_msg(opt_alignment: &Option<TextAlignHorizontal>, opt_alignment_msg: &Option<TextAlignHorizontalMessage>) -> bool {
     match (opt_alignment, opt_alignment_msg) {
         (Some(alignment), Some(alignment_msg)) => alignment.eq(alignment_msg),
         (None, None) => true,
@@ -269,22 +269,22 @@ pub fn opt_alignment_eq_opt_msg(opt_alignment: &Option<Alignment>, opt_alignment
     }
 }
 
-impl Into<VAlignmentMessage> for &VAlignment {
-    fn into(self) -> VAlignmentMessage {
+impl Into<TextAlignVerticalMessage> for &TextAlignVertical {
+    fn into(self) -> TextAlignVerticalMessage {
         match self {
-            VAlignment::Top => VAlignmentMessage::Top,
-            VAlignment::Center => VAlignmentMessage::Center,
-            VAlignment::Bottom => VAlignmentMessage::Bottom,
+            TextAlignVertical::Top => TextAlignVerticalMessage::Top,
+            TextAlignVertical::Center => TextAlignVerticalMessage::Center,
+            TextAlignVertical::Bottom => TextAlignVerticalMessage::Bottom,
         }
     }
 }
 
-impl PartialEq<VAlignmentMessage> for VAlignment {
-    fn eq(&self, other: &VAlignmentMessage) -> bool {
+impl PartialEq<TextAlignVerticalMessage> for TextAlignVertical {
+    fn eq(&self, other: &TextAlignVerticalMessage) -> bool {
         match (self, other) {
-            (VAlignment::Top, VAlignmentMessage::Top) => true,
-            (VAlignment::Center, VAlignmentMessage::Center) => true,
-            (VAlignment::Bottom, VAlignmentMessage::Bottom) => true,
+            (TextAlignVertical::Top, TextAlignVerticalMessage::Top) => true,
+            (TextAlignVertical::Center, TextAlignVerticalMessage::Center) => true,
+            (TextAlignVertical::Bottom, TextAlignVerticalMessage::Bottom) => true,
             _ => false,
         }
     }
@@ -292,7 +292,7 @@ impl PartialEq<VAlignmentMessage> for VAlignment {
 
 
 pub use pax::api::Size;
-use pax_message::{ColorVariantMessage, FontPatch, AlignmentMessage, VAlignmentMessage};
+use pax_message::{ColorVariantMessage, FontPatch, TextAlignHorizontalMessage, TextAlignVerticalMessage};
 use crate::primitives::Path;
 
 

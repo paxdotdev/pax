@@ -93,24 +93,24 @@ class TextElement {
             self.fill = patch.fill!
         }
         
-        if patch.alignment_multiline != nil {
-            self.alignmentMultiline = patch.alignment_multiline!.toTextAlignment()
-        } else if patch.alignment_horizontal != nil {
-            self.alignmentMultiline = patch.alignment_horizontal!.toTextAlignment()
+        if patch.align_multiline != nil {
+            self.alignmentMultiline = patch.align_multiline!.toTextAlignment()
+        } else if patch.align_horizontal != nil {
+            self.alignmentMultiline = patch.align_horizontal!.toTextAlignment()
         }
-        if patch.alignment_vertical != nil && patch.alignment_horizontal != nil {
-            self.alignment = toAlignment(horizontalAlignment: patch.alignment_horizontal!, verticalAlignment: patch.alignment_vertical!)
+        if patch.align_vertical != nil && patch.align_horizontal != nil {
+            self.alignment = toAlignment(horizontalAlignment: patch.align_horizontal!, verticalAlignment: patch.align_vertical!)
         }
     }
 }
 
-enum HAlignment {
+enum TextAlignHorizontal {
     case center
     case left
     case right
 }
 
-extension HAlignment {
+extension TextAlignHorizontal {
     func toTextAlignment() -> TextAlignment {
         switch self {
         case .center:
@@ -123,14 +123,14 @@ extension HAlignment {
     }
 }
 
-enum VAlignment {
+enum TextAlignVertical {
     case top
     case center
     case bottom
 }
 
 
-func toAlignment(horizontalAlignment: HAlignment, verticalAlignment: VAlignment) -> Alignment {
+func toAlignment(horizontalAlignment: TextAlignHorizontal, verticalAlignment: TextAlignVertical) -> Alignment {
     let horizontal: HorizontalAlignment
     let vertical: VerticalAlignment
     
@@ -167,9 +167,9 @@ class TextUpdatePatch {
     var fontBuffer: FlxbReference
     var fill: Color?
     
-    var alignment_multiline: HAlignment?
-    var alignment_vertical: VAlignment?
-    var alignment_horizontal: HAlignment?
+    var align_multiline: TextAlignHorizontal?
+    var align_vertical: TextAlignVertical?
+    var align_horizontal: TextAlignHorizontal?
 
     init(fb: FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
@@ -203,42 +203,42 @@ class TextUpdatePatch {
             }
         }
         
-        if let alignmentValue = fb["alignment_multiline"]?.asString {
+        if let alignmentValue = fb["align_multiline"]?.asString {
             switch alignmentValue {
             case "Center":
-                self.alignment_multiline = .center
+                self.align_multiline = .center
             case "Left":
-                self.alignment_multiline = .left
+                self.align_multiline = .left
             case "Right":
-                self.alignment_multiline = .right
+                self.align_multiline = .right
             default:
-                self.alignment_multiline = nil
+                self.align_multiline = nil
             }
         }
         
-        if let verticalAlignmentValue = fb["alignment_vertical"]?.asString {
+        if let verticalAlignmentValue = fb["align_vertical"]?.asString {
             switch verticalAlignmentValue {
             case "Top":
-                self.alignment_vertical = .top
+                self.align_vertical = .top
             case "Center":
-                self.alignment_vertical = .center
+                self.align_vertical = .center
             case "Bottom":
-                self.alignment_vertical = .bottom
+                self.align_vertical = .bottom
             default:
-                self.alignment_vertical = nil
+                self.align_vertical = nil
             }
         }
         
-        if let alignmentValue = fb["alignment_horizontal"]?.asString {
+        if let alignmentValue = fb["align_horizontal"]?.asString {
             switch alignmentValue {
             case "Center":
-                self.alignment_horizontal = .center
+                self.align_horizontal = .center
             case "Left":
-                self.alignment_horizontal = .left
+                self.align_horizontal = .left
             case "Right":
-                self.alignment_horizontal = .right
+                self.align_horizontal = .right
             default:
-                self.alignment_horizontal = nil
+                self.align_horizontal = nil
             }
         }
     }

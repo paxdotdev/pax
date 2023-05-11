@@ -12,8 +12,8 @@
     #title {
         font: {Font::get("Esenka", "Bold" , 72)},
         fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
-        alignment_vertical: VAlignment::Center,
-        alignment_horizontal: Alignment::Center,
+        align_vertical: TextAlignVertical::Center,
+        align_horizontal: TextAlignHorizontal::Center,
     }
     #background {
         fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},

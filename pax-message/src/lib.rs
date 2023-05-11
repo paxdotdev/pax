@@ -87,9 +87,9 @@ pub struct TextPatch {
     pub size_y: Option<f64>,
     pub font: FontPatch,
     pub fill: Option<ColorVariantMessage>, //FUTURE: more robust Fill support (multiple fills, ordering, gradients, opacity, etc.)
-    pub alignment_multiline: Option<AlignmentMessage>,
-    pub alignment_vertical: Option<VAlignmentMessage>,
-    pub alignment_horizontal: Option<AlignmentMessage>,
+    pub align_multiline: Option<TextAlignHorizontalMessage>,
+    pub align_vertical: Option<TextAlignVerticalMessage>,
+    pub align_horizontal: Option<TextAlignHorizontalMessage>,
 }
 
 #[derive(Default, Serialize)]
@@ -117,7 +117,7 @@ impl Default for ColorVariantMessage {
 
 #[derive(Default, Serialize)]
 #[repr(C)]
-pub enum AlignmentMessage {
+pub enum TextAlignHorizontalMessage {
     #[default]
     Left,
     Center,
@@ -126,7 +126,7 @@ pub enum AlignmentMessage {
 
 #[derive(Default, Serialize)]
 #[repr(C)]
-pub enum VAlignmentMessage {
+pub enum TextAlignVerticalMessage {
     #[default]
     Top,
     Center,
