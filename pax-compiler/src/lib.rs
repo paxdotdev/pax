@@ -42,7 +42,7 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
 
     let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
         cd.1.property_definitions.iter().map(|pm|{
-            pm.fully_qualified_constituent_types.clone()
+            pm.type_data.fully_qualified_constituent_types.clone()
         }).flatten().collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -253,8 +253,8 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
     //update property types in-place
     manifest.components.iter_mut().for_each(|cd| {
         cd.1.property_definitions.iter_mut().for_each(|pm| {
-            pm.property_type_info.pascalized_fully_qualified_type = pm.property_type_info.pascalized_fully_qualified_type.replace("{PREFIX}", "__");
-            pm.property_type_info.fully_qualified_type = pm.property_type_info.fully_qualified_type.replace("{PREFIX}", &host_crate_info.import_prefix);
+            pm.type_data.fully_qualified_type_pascalized = pm.type_data.fully_qualified_type_pascalized.replace("{PREFIX}", "__");
+            pm.type_data.fully_qualified_type = pm.type_data.fully_qualified_type.replace("{PREFIX}", &host_crate_info.import_prefix);
         });
     });
 }
@@ -300,8 +300,8 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     // - include all T such that T is the iterator type for some Property<Vec<T>>
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
         cd.1.property_definitions.iter().map(|pm|{
-            (pm.property_type_info.pascalized_fully_qualified_type.clone(),
-             pm.property_type_info.fully_qualified_type.clone().replace("crate::", ""))
+            (pm.type_data.fully_qualified_type_pascalized.clone(),
+             pm.type_data.fully_qualified_type.clone().replace("crate::", ""))
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -360,7 +360,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
     let mut imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
         comp_def.property_definitions.iter().map(|prop_def|{
-            prop_def.fully_qualified_constituent_types.iter().map(|fqct|{
+            prop_def.type_data.fully_qualified_constituent_types.iter().map(|fqct|{
                 IMPORT_PREFIX.clone() + &fqct.replace("crate::", "")
             }).collect::<Vec<String>>()
         }).flatten().collect::<Vec<String>>()

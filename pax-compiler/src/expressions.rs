@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::ops::{IndexMut, RangeFrom};
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use crate::manifest::PropertyTypeInfo;
+use crate::manifest::{PropertyDefinitionFlags, PropertyTypeData};
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
@@ -160,7 +160,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             |property_def| {
                                 property_def.name == inline.0
                             }
-                        ).unwrap().property_type_info.pascalized_fully_qualified_type).clone();
+                        ).unwrap().type_data.fully_qualified_type_pascalized).clone();
 
                         ctx.expression_specs.insert(id, ExpressionSpec {
                             id,
@@ -196,7 +196,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             property_def.name == inline.0
                         }).expect(
                             &format!("Property `{}` not found on component `{}`", &inline.0, &active_node_component.pascal_identifier)
-                        ).property_type_info.pascalized_fully_qualified_type).clone()
+                        ).type_data.fully_qualified_type_pascalized).clone()
                     };
 
                     let mut whitespace_removed_input = input.clone();
@@ -238,10 +238,10 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
 
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
-                (range_expression_paxel.to_string(), PropertyTypeInfo::builtin_range_isize())
+                (range_expression_paxel.to_string(), PropertyTypeData::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                 let symbolic_binding_property  = ctx.resolve_symbol(symbolic_binding).expect(&format!("Unable to resolve symbol {}",symbolic_binding));
-                (symbolic_binding.to_string(), PropertyTypeInfo::builtin_vec_rc_properties_coproduct())
+                (symbolic_binding.to_string(), PropertyTypeData::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
@@ -255,13 +255,12 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
                     let property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
-                        original_type: return_type.fully_qualified_type.to_string(),
-                        fully_qualified_constituent_types: vec![],
-                        property_type_info: return_type.clone(),
-                        is_repeat_i: false,
-                        is_repeat_elem: true,
+                        type_data: return_type.clone(),
+                        flags: Some(PropertyDefinitionFlags {
+                            is_repeat_i: false,
+                            is_repeat_elem: true,
+                        }),
                     };
-
 
                     let mut scope = HashMap::from([
                         //`elem` property (by specified name)
@@ -269,31 +268,31 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         property_definition)
                     ]);
 
-
-
                     ctx.scope_stack.push(scope);
                 },
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
                     let elem_property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
-                        original_type: return_type.fully_qualified_type.to_string(),
-                        fully_qualified_constituent_types: vec![],
-                        property_type_info: return_type.clone(),
-                        is_repeat_elem: true,
-                        is_repeat_i: false,
+                        type_data: return_type.clone(),
+                        flags: Some(PropertyDefinitionFlags {
+                            is_repeat_elem: true,
+                            is_repeat_i: false,
+                        }),
                     };
 
                     let mut i_property_definition = PropertyDefinition::primitive_with_name("usize", index_id);
-                    i_property_definition.is_repeat_i = true;
+                    i_property_definition.flags = Some(PropertyDefinitionFlags {
+                        is_repeat_i: true,
+                        is_repeat_elem: false,
+                    });
 
                     ctx.scope_stack.push(HashMap::from([
                         //`elem` property (by specified name)
                         (elem_id.clone(),
-                         elem_property_definition),
+                            elem_property_definition),
                         //`i` property (by specified name)
                         (index_id.clone(),
-                            i_property_definition
-                         )
+                            i_property_definition),
                     ]));
                 },
             };
@@ -317,7 +316,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
-                pascalized_return_type: return_type.pascalized_fully_qualified_type,
+                pascalized_return_type: return_type.fully_qualified_type_pascalized,
                 invocations,
                 output_statement,
                 input_statement: whitespace_removed_input,
@@ -414,13 +413,12 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         //      This seems manageable if `elem.foo.bar` also invokes `elem` and `elem.foo`, so that
         //      each may be referred to in the codegen for their latter, further nested desc.
 
-
         let prop_def = ctx.resolve_symbol(&sym).expect(&format!("Symbol not found: {}", &sym));
 
         let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
 
-        let pascalized_iterable_type = if let Some(x) = &prop_def.property_type_info.iterable_type {
-            Some(x.pascalized_fully_qualified_type.clone())
+        let pascalized_iterable_type = if let Some(x) = &prop_def.type_data.iterable_type {
+            Some(x.fully_qualified_type_pascalized.clone())
         } else {
             None
         };
@@ -441,20 +439,23 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         let stack_offset = found_depth.unwrap();
 
         let escaped_identifier = crate::reflection::escape_identifier(prop_def.name.clone());
-        let (is_repeat_elem, is_repeat_i) = (found_val.as_ref().unwrap().is_repeat_elem,found_val.as_ref().unwrap().is_repeat_i);
+
+        let (is_repeat_elem, is_repeat_i) = match found_val.unwrap().flags {
+            Some(flags) => {(flags.is_repeat_elem, flags.is_repeat_i)},
+            None => {(false, false)}
+        };
 
         ExpressionSpecInvocation {
             identifier: prop_def.name.clone(),
-            escaped_identifier,
-            stack_offset,
-            is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.property_type_info.fully_qualified_type.split("::").last().unwrap()),
-            properties_coproduct_type,
+            is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.type_data.fully_qualified_type.split("::").last().unwrap()),
             is_iterable_primitive_nonnumeric: ExpressionSpecInvocation::is_iterable_primitive_nonnumeric(&pascalized_iterable_type),
             is_iterable_numeric: ExpressionSpecInvocation::is_iterable_numeric(&pascalized_iterable_type),
+            escaped_identifier,
+            stack_offset,
             pascalized_iterable_type,
+            properties_coproduct_type,
             is_repeat_elem,
             is_repeat_i,
-
         }
     }
 }

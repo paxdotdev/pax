@@ -101,10 +101,12 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
                 Some(topmost_node) => {
                     let args_click = ArgsClick {x: args.x , y: args.y};
                     topmost_node.dispatch_click(args_click);
+
                 },
                 _ => {},
             };
         },
+
         NativeInterrupt::Scroll(args) => {
             let prospective_hit = engine.get_topmost_hydrated_element_beneath_ray((args.x, args.y));
             match prospective_hit {

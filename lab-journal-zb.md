@@ -2890,13 +2890,15 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
     [ ] Populate type definitions into manifest, punch through to compiler & expressions
     [x] Figure out `Default` with `pax-std` types
         [x] Implement macro API++ (derive plus attribute flags)
+    [ ] Update iterable_type population logic;
+        codegen calls to `populate_property_type_data` for each nested Vec<Vec<T...
 [ ] Update `scope_stack` to include strings for all statically discovered addressable properties,
     e.g. `foo.bar.baz` and `elem.some.deeply.nested.thing`.
-[ ] Refactor: remove `PropertyTypeInfo` and consolidate
-    into `PropertyDefinition` (with recursive `sub_properties` field)  
-[ ] Add `known_addressable_properties` to `PropertyTypeInfo`, allowing recursion through
+    [ ] Double-check behavior on scope shadowing
+[ ] Add `sub_properties` to `PropertyTypeInfo`, allowing recursion through
     nested `PropertyTypeInfo`s, 
-    [ ] Populate `known_addressable_properties` — this may need to happen after the initial full recursion
+    [ ] Refactor: `PropertyDefinition` and `PropertyTypeInfo`; clean-up and consolidate
+    [ ] Populate `sub_properties` — this may need to happen after the initial full recursion
         in the parser binary, right before we currently terminate and write to stdout — 
         recurse the entire tree one more time, populating `known_addressable_properties` with the benefit
         of the whole manifest in hand.  

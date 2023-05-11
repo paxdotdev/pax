@@ -70,7 +70,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
             if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.name}}._get_transition_manager()) {
             properties.{{ prop.name }}.set(new_value);
             } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.name }}._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::{{ prop.property_type_info.pascalized_fully_qualified_type }}(v) = new_value { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::{{ prop.property_type_data.fully_qualified_type_pascalized }}(v) = new_value { v } else { unreachable!() };
             properties.{{ prop.name }}.set(new_value);
             }
             {% endfor %}
@@ -139,7 +139,7 @@ pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(ins
             if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.name}}._get_transition_manager()) {
             properties.{{ prop.name }}.set(new_value);
             } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.name }}._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::{{ prop.property_type_info.pascalized_fully_qualified_type }}(v) = new_value { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::{{ prop.property_type_data.fully_qualified_type_pascalized }}(v) = new_value { v } else { unreachable!() };
             properties.{{ prop.name }}.set(new_value);
             }
         {% endfor %}

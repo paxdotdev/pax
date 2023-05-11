@@ -1,5 +1,5 @@
-use std::collections::HashMap;
-use crate::manifest::PropertyTypeInfo;
+use std::collections::{HashMap, VecDeque};
+use crate::manifest::{PropertyDefinition, PropertyTypeData};
 
 
 static PRELUDE_TYPES: [&'static str; 5] = [
@@ -30,9 +30,9 @@ pub fn is_prelude_type(identifier: &str) -> bool {
 //Returns a fully expanded path and a pascalized version of that fully expanded path — for example:
 // Vec<Rc<StackerCell>> becomes
 // std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCell>>
-pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_fqd_map: &HashMap<&str, String>) -> PropertyTypeInfo {
+pub fn populate_property_type_data(original_type: &str, fully_qualified_constituent_types: Vec<String>, dep_to_fqd_map: &HashMap<&str, String>, sub_properties: Option<HashMap<String, PropertyDefinition>>, iterable_type: Option<Box<PropertyTypeData>>) -> PropertyTypeData {
 
-    let mut fully_qualified_type = unexpanded_path.to_string();
+    let mut fully_qualified_type = original_type.to_string();
 
     //extract dep_to_fqd_map into a Vec<String>; string-replace each looked-up value present in
     //unexpanded_path, ensuring that each looked-up value is not preceded by a `::`
@@ -47,27 +47,17 @@ pub fn expand_fully_qualified_type_and_pascalize(unexpanded_path: &str, dep_to_f
         });
     });
 
-    let pascalized_fully_qualified_type = escape_identifier(fully_qualified_type.clone());
-
-    let iterable_type = if fully_qualified_type.starts_with("Vec<") {
-        //Statically retrieve to `Vec<T>`'s `T` through hacky-af string edits
-        //This will be a problem down the line any time a Vec is qualified in place e.g. as `std::collections:Vec<T>` instead of `Vec<T>` — or if Vec is aliased at import-time.
-        let mut iterable_type_id = fully_qualified_type.clone().replacen("Vec<", "", 1);
-        //remove final angle bracket
-        iterable_type_id.remove(iterable_type_id.len() - 1);
-
-        //Note: recursive
-        Some(Box::new(expand_fully_qualified_type_and_pascalize(&iterable_type_id, dep_to_fqd_map) ))
-    } else {
-        None
-    };
+    let fully_qualified_type_pascalized = escape_identifier(fully_qualified_type.clone());
 
 
-    PropertyTypeInfo {
-        pascalized_fully_qualified_type,
+
+    PropertyTypeData {
+        original_type: original_type.to_string(),
         fully_qualified_type,
+        fully_qualified_type_pascalized,
+        fully_qualified_constituent_types,
         iterable_type,
-        known_addressable_properties: None,
+        sub_properties,
     }
 }
 

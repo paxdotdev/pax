@@ -20,13 +20,13 @@ impl <%= pascal_identifier %> {
                 );
             <% } %>
 
-            let property_type_info =  pax_compiler::reflection::expand_fully_qualified_type_and_pascalize("<%= spd.original_type %>", &dep_to_fqd_map);
+            let property_type_data =  pax_compiler::reflection::populate_property_type_data("<%= spd.original_type %>", &dep_to_fqd_map);
 
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                 name: "<%= spd.field_name %>".to_string(),
                 original_type: "<%= spd.original_type %>".to_string(),
                 fully_qualified_constituent_types,
-                property_type_info,
+                property_type_data,
                 is_repeat_elem: false,
                 is_repeat_i: false,
             });

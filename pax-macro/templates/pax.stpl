@@ -52,15 +52,9 @@ impl <%= pascal_identifier %> {
             //Here we bridge from pure static analysis into some dynamic analysis via `parser`, in order
             //to fully qualify module paths for scoped atomic types.
 
-            //For each compile-time property definition, populate a full (parse-time) PropertyDefinition:
-            //1. name | from template args
-            //2. (full original type: punt) | from template args (via macro)
-            //3. unique, fully qualified dependencies (HashSet, perhaps) | AT PARSE-TIME: from imperative calls to `get_fully_qualified_path`
-            //4. (default settings value?  punt) | from default-block parsing
-
             let mut fully_qualified_constituent_types = vec![];
             let mut dep_to_fqd_map = std::collections::HashMap::new();
-            <% for scoped_resolvable_type in spd.scoped_resolvable_types { %>
+            <% for scoped_resolvable_type in spd.type_data.scoped_resolvable_types { %>
                 let fqd = <%= scoped_resolvable_type %>::get_fully_qualified_path("<%= scoped_resolvable_type %>");
                 dep_to_fqd_map.insert("<%= scoped_resolvable_type %>",fqd.clone());
 
@@ -69,15 +63,17 @@ impl <%= pascal_identifier %> {
                 );
             <% } %>
 
-            let property_type_info =  pax_compiler::reflection::expand_fully_qualified_type_and_pascalize("<%= spd.original_type %>", &dep_to_fqd_map);
+            let property_type_data =  pax_compiler::reflection::populate_property_type_data(
+                "<%= spd.original_type %>",
+                fully_qualified_constituent_types,
+                &dep_to_fqd_map,
+                sub_properties
+            );
 
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                 name: "<%= spd.field_name %>".to_string(),
-                original_type: "<%= spd.original_type %>".to_string(),
-                fully_qualified_constituent_types,
-                property_type_info,
-                is_repeat_elem: false,
-                is_repeat_i: false,
+                property_type_data,
+                flags: None,
             });
         <% } %>
         ctx.all_property_definitions.insert(source_id.to_string(), property_definitions);
