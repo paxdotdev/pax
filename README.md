@@ -111,7 +111,7 @@ Use `rustc` 1.65.0 via `rustup`
 
 - Install 'wasm-pack' via:
    ```shell
-    curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh 
+    cargo install wasm-pack
    ```
 
 - Install `node` v14 LTS, recommended via [`nvm`](https://github.com/nvm-sh/nvm#installing-and-updating)

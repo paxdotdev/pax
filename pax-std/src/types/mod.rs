@@ -79,13 +79,24 @@ impl PartialEq<FontPatch> for Font {
 impl Default for Font {
     fn default() -> Self {
         Self {
-            family: Box::new(PropertyLiteral::new("Courier New".to_string())),
-            variant: Box::new(PropertyLiteral::new("Regular".to_string())),
-            size: Box::new(PropertyLiteral::new(SizePixels(Numeric::from(14.0)))),
+            family: Box::new(PropertyLiteral::new("Arial".to_string())),
+            variant: Box::new(PropertyLiteral::new("Italic".to_string())),
+            size: Box::new(PropertyLiteral::new(SizePixels(Numeric::from(50.0)))),
         }
     }
 }
+
 impl Interpolatable for Font {}
+
+impl Font {
+    pub fn get(family: String, variant: String, size: Numeric) -> Self {
+        Self {
+            family: Box::new(PropertyLiteral::new(family)),
+            variant: Box::new(PropertyLiteral::new(variant)),
+            size: Box::new(PropertyLiteral::new(SizePixels(size))),
+        }
+    }
+}
 
 #[derive(Clone)]
 #[pax_type]
@@ -193,9 +204,95 @@ pub enum ColorVariant {
     Rgb([f64; 3]),
 }
 
-pub use pax::api::Size;
+#[derive(Clone, Default)]
+#[pax_type]
+pub enum TextAlignHorizontal {
+    #[default]
+    Left,
+    Center,
+    Right,
+}
 
-use pax_message::{ColorVariantMessage, FontPatch};
+#[derive(Clone, Default)]
+#[pax_type]
+pub enum TextAlignVertical {
+    #[default]
+    Top,
+    Center,
+    Bottom,
+}
+
+#[derive(Clone, Default)]
+#[pax_type]
+pub enum BoundingBox {
+    #[default]
+    Fixed,
+    Auto
+}
+
+impl Into<TextAlignHorizontalMessage> for &TextAlignHorizontal {
+    fn into(self) -> TextAlignHorizontalMessage {
+        match self {
+            TextAlignHorizontal::Center => {TextAlignHorizontalMessage::Center}
+            TextAlignHorizontal::Left => {TextAlignHorizontalMessage::Left}
+            TextAlignHorizontal::Right => {TextAlignHorizontalMessage::Right}
+        }
+    }
+}
+
+impl PartialEq<TextAlignHorizontalMessage> for TextAlignHorizontal {
+    fn eq(&self, other: &TextAlignHorizontalMessage) -> bool {
+        match (self, other) {
+            (TextAlignHorizontal::Center, TextAlignHorizontalMessage::Center) => true,
+            (TextAlignHorizontal::Left, TextAlignHorizontalMessage::Left) => true,
+            (TextAlignHorizontal::Right, TextAlignHorizontalMessage::Right) => true,
+            _ => false,
+        }
+    }
+}
+
+pub fn opt_alignment_to_message(opt_alignment: &Option<TextAlignHorizontal>) -> Option<TextAlignHorizontalMessage> {
+    opt_alignment.as_ref().map(|alignment| {
+        match alignment {
+            TextAlignHorizontal::Center => TextAlignHorizontalMessage::Center,
+            TextAlignHorizontal::Left => TextAlignHorizontalMessage::Left,
+            TextAlignHorizontal::Right => TextAlignHorizontalMessage::Right,
+        }
+    })
+}
+
+pub fn opt_alignment_eq_opt_msg(opt_alignment: &Option<TextAlignHorizontal>, opt_alignment_msg: &Option<TextAlignHorizontalMessage>) -> bool {
+    match (opt_alignment, opt_alignment_msg) {
+        (Some(alignment), Some(alignment_msg)) => alignment.eq(alignment_msg),
+        (None, None) => true,
+        _ => false,
+    }
+}
+
+impl Into<TextAlignVerticalMessage> for &TextAlignVertical {
+    fn into(self) -> TextAlignVerticalMessage {
+        match self {
+            TextAlignVertical::Top => TextAlignVerticalMessage::Top,
+            TextAlignVertical::Center => TextAlignVerticalMessage::Center,
+            TextAlignVertical::Bottom => TextAlignVerticalMessage::Bottom,
+        }
+    }
+}
+
+impl PartialEq<TextAlignVerticalMessage> for TextAlignVertical {
+    fn eq(&self, other: &TextAlignVerticalMessage) -> bool {
+        match (self, other) {
+            (TextAlignVertical::Top, TextAlignVerticalMessage::Top) => true,
+            (TextAlignVertical::Center, TextAlignVerticalMessage::Center) => true,
+            (TextAlignVertical::Bottom, TextAlignVerticalMessage::Bottom) => true,
+            _ => false,
+        }
+    }
+}
+
+
+pub use pax::api::Size;
+use pax_message::{ColorVariantMessage, FontPatch, TextAlignHorizontalMessage, TextAlignVerticalMessage};
 use crate::primitives::Path;
 
 

@@ -51,8 +51,10 @@ class TextElement {
     var size_y: Float
     var font_spec: FontSpec
     var fill: Color
+    var alignmentMultiline: TextAlignment
+    var alignment: Alignment
     
-    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: FontSpec, fill: Color) {
+    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: FontSpec, fill: Color, alignmentMultiline: TextAlignment, alignment: Alignment) {
         self.id_chain = id_chain
         self.clipping_ids = clipping_ids
         self.content = content
@@ -61,10 +63,12 @@ class TextElement {
         self.size_y = size_y
         self.font_spec = font
         self.fill = fill
+        self.alignmentMultiline = alignmentMultiline
+        self.alignment = alignment
     }
     
     static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
-        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontSpec(), fill: Color(.black))
+        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontSpec(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading)
     }
     
     func applyPatch(patch: TextUpdatePatch) {
@@ -88,7 +92,66 @@ class TextElement {
         if patch.fill != nil {
             self.fill = patch.fill!
         }
+        
+        if patch.align_multiline != nil {
+            self.alignmentMultiline = patch.align_multiline!.toTextAlignment()
+        } else if patch.align_horizontal != nil {
+            self.alignmentMultiline = patch.align_horizontal!.toTextAlignment()
+        }
+        if patch.align_vertical != nil && patch.align_horizontal != nil {
+            self.alignment = toAlignment(horizontalAlignment: patch.align_horizontal!, verticalAlignment: patch.align_vertical!)
+        }
     }
+}
+
+enum TextAlignHorizontal {
+    case center
+    case left
+    case right
+}
+
+extension TextAlignHorizontal {
+    func toTextAlignment() -> TextAlignment {
+        switch self {
+        case .center:
+            return .center
+        case .left:
+            return .leading
+        case .right:
+            return .trailing
+        }
+    }
+}
+
+enum TextAlignVertical {
+    case top
+    case center
+    case bottom
+}
+
+
+func toAlignment(horizontalAlignment: TextAlignHorizontal, verticalAlignment: TextAlignVertical) -> Alignment {
+    let horizontal: HorizontalAlignment
+    let vertical: VerticalAlignment
+    
+    switch horizontalAlignment {
+    case .center:
+        horizontal = .center
+    case .left:
+        horizontal = .leading
+    case .right:
+        horizontal = .trailing
+    }
+    
+    switch verticalAlignment {
+    case .top:
+        vertical = .top
+    case .center:
+        vertical = .center
+    case .bottom:
+        vertical = .bottom
+    }
+    return Alignment(horizontal: horizontal, vertical: vertical)
 }
 
 
@@ -103,6 +166,10 @@ class TextUpdatePatch {
 
     var fontBuffer: FlxbReference
     var fill: Color?
+    
+    var align_multiline: TextAlignHorizontal?
+    var align_vertical: TextAlignVertical?
+    var align_horizontal: TextAlignHorizontal?
 
     init(fb: FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
@@ -115,10 +182,8 @@ class TextUpdatePatch {
         self.size_x = fb["size_x"]?.asFloat
         self.size_y = fb["size_y"]?.asFloat
         self.fontBuffer =  fb["font"]!
-
+        
         if fb["fill"] != nil && !fb["fill"]!.isNull {
-            
-            
             if fb["fill"]!["Rgba"] != nil && !fb["fill"]!["Rgba"]!.isNull {
                 let stub = fb["fill"]!["Rgba"]!
                 self.fill = Color(
@@ -135,6 +200,45 @@ class TextUpdatePatch {
                     brightness: Double(stub[2]!.asFloat!),
                     opacity: Double(stub[3]!.asFloat!)
                 )
+            }
+        }
+        
+        if let alignmentValue = fb["align_multiline"]?.asString {
+            switch alignmentValue {
+            case "Center":
+                self.align_multiline = .center
+            case "Left":
+                self.align_multiline = .left
+            case "Right":
+                self.align_multiline = .right
+            default:
+                self.align_multiline = nil
+            }
+        }
+        
+        if let verticalAlignmentValue = fb["align_vertical"]?.asString {
+            switch verticalAlignmentValue {
+            case "Top":
+                self.align_vertical = .top
+            case "Center":
+                self.align_vertical = .center
+            case "Bottom":
+                self.align_vertical = .bottom
+            default:
+                self.align_vertical = nil
+            }
+        }
+        
+        if let alignmentValue = fb["align_horizontal"]?.asString {
+            switch alignmentValue {
+            case "Center":
+                self.align_horizontal = .center
+            case "Left":
+                self.align_horizontal = .left
+            case "Right":
+                self.align_horizontal = .right
+            default:
+                self.align_horizontal = nil
             }
         }
     }
@@ -162,9 +266,9 @@ class FontSpec {
     }
     
     init() {
-        self.family = "Courier New"
+        self.family = "Arial"
         self.variant = "Regular"
-        self.size = 14.0
+        self.size = 64.0
         self.cachedFont = self.intoFont()
     }
     
@@ -257,6 +361,4 @@ class FrameUpdatePatch {
         self.size_y = fb["size_y"]?.asFloat
     }
 }
-
-
 

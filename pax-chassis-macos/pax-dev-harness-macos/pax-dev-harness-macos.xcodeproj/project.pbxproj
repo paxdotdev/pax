@@ -146,12 +146,15 @@
 				14965BFE27FE3D0F00A38CA1 /* Frameworks */,
 				14965BFF27FE3D0F00A38CA1 /* Resources */,
 				1459D7E6280F2922006391F8 /* Embed Libraries */,
+				D082094129FE19DD006C5651 /* Copy Font Files */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
 			name = "Pax macOS";
+			packageProductDependencies = (
+			);
 			productName = "pax-dev-harness-macos";
 			productReference = 14965C0127FE3D0F00A38CA1 /* Pax macOS.app */;
 			productType = "com.apple.product-type.application";
@@ -164,7 +167,7 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = 1;
 				LastSwiftUpdateCheck = 1300;
-				LastUpgradeCheck = 1300;
+				LastUpgradeCheck = 1430;
 				TargetAttributes = {
 					14965C0027FE3D0F00A38CA1 = {
 						CreatedOnToolsVersion = 13.0;
@@ -202,6 +205,29 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXResourcesBuildPhase section */
+
+/* Begin PBXShellScriptBuildPhase section */
+		D082094129FE19DD006C5651 /* Copy Font Files */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 12;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+			);
+			name = "Copy Font Files";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "# Define the target folder for resources\nRESOURCES_PATH=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\n\n# Find the .pax folder\nPAX_FOLDER_DIR=$(find ../../../../../../ -type d -name \"*.pax\" -print -quit)\n\n# Get the parent directory of the .pax folder\nPAX_PARENT_DIR=$(dirname \"$PAX_FOLDER_DIR\")\n\n# Find the assets/fonts folder on the same level as the .pax folder\nRUST_TARGET_DIR=$(find \"$PAX_PARENT_DIR\" -maxdepth 1 -type d -name \"assets\" -print -quit)/fonts\necho \"Copying fonts from: $RUST_TARGET_DIR to: $RESOURCES_PATH\"\n\n# Copy the font files if the RUST_TARGET_DIR is found\nif [ -d \"$RUST_TARGET_DIR\" ]; then\n  if [ \"$(ls -A \"$RUST_TARGET_DIR\"/*.ttf 2>/dev/null)\" ]; then\n    cp \"$RUST_TARGET_DIR\"/*.ttf \"$RESOURCES_PATH\"\n  fi\n  if [ \"$(ls -A \"$RUST_TARGET_DIR\"/*.otf 2>/dev/null)\" ]; then\n    cp \"$RUST_TARGET_DIR\"/*.otf \"$RESOURCES_PATH\"\n  fi\nelse\n  echo \"WARNING: RUST_TARGET_DIR not found! Skipping font copy.\"\nfi\n";
+			showEnvVarsInLog = 0;
+		};
+/* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		14965BFD27FE3D0F00A38CA1 /* Sources */ = {
@@ -254,6 +280,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "";
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = dwarf;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
 				ENABLE_TESTABILITY = YES;
@@ -272,12 +299,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.1;
+				MACOSX_DEPLOYMENT_TARGET = 13.3;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				NEW_SETTING = "";
 				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = macosx13.1;
+				SDKROOT = macosx;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 			};
@@ -318,6 +345,7 @@
 				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
 				CODE_SIGN_IDENTITY = "";
 				COPY_PHASE_STRIP = NO;
+				DEAD_CODE_STRIPPING = YES;
 				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
 				ENABLE_NS_ASSERTIONS = NO;
 				ENABLE_STRICT_OBJC_MSGSEND = YES;
@@ -330,12 +358,12 @@
 				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
-				MACOSX_DEPLOYMENT_TARGET = 13.1;
+				MACOSX_DEPLOYMENT_TARGET = 13.3;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
 				NEW_SETTING = "";
 				ONLY_ACTIVE_ARCH = YES;
-				SDKROOT = macosx13.1;
+				SDKROOT = macosx;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				SWIFT_OPTIMIZATION_LEVEL = "-O";
 			};
@@ -352,6 +380,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"pax-dev-harness-macos/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -368,7 +397,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "org.pax-lang.pax-dev-harness-macos";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SDKROOT = macosx13.3;
+				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/Paxchassismacos-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
@@ -386,6 +415,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"pax-dev-harness-macos/Preview Content\"";
 				DEVELOPMENT_TEAM = CAV3CH2A5S;
 				ENABLE_HARDENED_RUNTIME = NO;
@@ -402,7 +432,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = "org.pax-lang.pax-dev-harness-macos";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
-				SDKROOT = macosx13.3;
+				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "$(PROJECT_DIR)/Paxchassismacos-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
