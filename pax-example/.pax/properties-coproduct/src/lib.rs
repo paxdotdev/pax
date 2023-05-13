@@ -33,7 +33,7 @@ pub enum PropertiesCoproduct {
 #[repr(u32)]
 pub enum TypesCoproduct {
     
-    OptionLABR__pax_stdCOCOtypesCOCOTextAlignHorizontalRABR(Option<pax_example::pax_reexports::pax_std::types::TextAlignHorizontal>),
+    OptionLABR__pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontalRABR(Option<pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal>),
     
     Range_isize_(std::ops::Range<isize>),
     
@@ -53,13 +53,17 @@ pub enum TypesCoproduct {
     
     __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
-    __pax_stdCOCOtypesCOCOFont(pax_example::pax_reexports::pax_std::types::Font),
-    
     __pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
     
-    __pax_stdCOCOtypesCOCOTextAlignHorizontal(pax_example::pax_reexports::pax_std::types::TextAlignHorizontal),
+    __pax_stdCOCOtypesCOCOtextCOCOFont(pax_example::pax_reexports::pax_std::types::text::Font),
     
-    __pax_stdCOCOtypesCOCOTextAlignVertical(pax_example::pax_reexports::pax_std::types::TextAlignVertical),
+    __pax_stdCOCOtypesCOCOtextCOCOFontStyle(pax_example::pax_reexports::pax_std::types::text::FontStyle),
+    
+    __pax_stdCOCOtypesCOCOtextCOCOFontWeight(pax_example::pax_reexports::pax_std::types::text::FontWeight),
+    
+    __pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontal(pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal),
+    
+    __pax_stdCOCOtypesCOCOtextCOCOTextAlignVertical(pax_example::pax_reexports::pax_std::types::text::TextAlignVertical),
     
     __stdCOCOstringCOCOString(pax_example::pax_reexports::std::string::String),
     

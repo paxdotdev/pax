@@ -1,3 +1,5 @@
+pub mod text;
+
 use kurbo::{Point};
 use pax::*;
 use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
@@ -20,12 +22,6 @@ impl Default for Stroke {
             width: Box::new(PropertyLiteral::new(SizePixels(Numeric::from(0.0)))),
         }
     }
-}
-
-#[derive(Default, Clone)]
-#[pax_type]
-pub struct Text {
-    pub content: Box<dyn PropertyInstance<String>>,
 }
 
 #[derive(Clone)]
@@ -51,52 +47,6 @@ impl Default for StackerDirection {
 }
 impl Interpolatable for StackerDirection {}
 
-
-#[derive(Clone)]
-#[pax_type]
-pub struct Font {
-    pub family: Box<dyn pax::api::PropertyInstance<String>>,
-    pub variant: Box<dyn pax::api::PropertyInstance<String>>,
-    pub size: Box<dyn pax::api::PropertyInstance<SizePixels>>,
-}
-impl Into<FontPatch> for &Font {
-    fn into(self) -> FontPatch {
-        FontPatch {
-             family: Some(self.family.get().clone()),
-             variant: Some(self.variant.get().clone()),
-             size: Some(self.size.get().0.get_as_float()),
-        }
-    }
-}
-
-impl PartialEq<FontPatch> for Font {
-    fn eq(&self, other: &FontPatch) -> bool {
-        matches!(&other.family, Some(family) if family.eq(self.family.get()))
-            && matches!(&other.variant, Some(variant) if variant.eq(self.variant.get()))
-            && matches!(&other.size, Some(size) if size.eq(&self.size.get().0.get_as_float()))
-    }
-}
-impl Default for Font {
-    fn default() -> Self {
-        Self {
-            family: Box::new(PropertyLiteral::new("Arial".to_string())),
-            variant: Box::new(PropertyLiteral::new("Italic".to_string())),
-            size: Box::new(PropertyLiteral::new(SizePixels(Numeric::from(50.0)))),
-        }
-    }
-}
-
-impl Interpolatable for Font {}
-
-impl Font {
-    pub fn get(family: String, variant: String, size: Numeric) -> Self {
-        Self {
-            family: Box::new(PropertyLiteral::new(family)),
-            variant: Box::new(PropertyLiteral::new(variant)),
-            size: Box::new(PropertyLiteral::new(SizePixels(size))),
-        }
-    }
-}
 
 #[derive(Clone)]
 #[pax_type]
@@ -202,92 +152,6 @@ pub enum ColorVariant {
     Hlc([f64; 3]),
     Rgba([f64; 4]),
     Rgb([f64; 3]),
-}
-
-#[derive(Clone, Default)]
-#[pax_type]
-pub enum TextAlignHorizontal {
-    #[default]
-    Left,
-    Center,
-    Right,
-}
-
-#[derive(Clone, Default)]
-#[pax_type]
-pub enum TextAlignVertical {
-    #[default]
-    Top,
-    Center,
-    Bottom,
-}
-
-#[derive(Clone, Default)]
-#[pax_type]
-pub enum BoundingBox {
-    #[default]
-    Fixed,
-    Auto
-}
-
-impl Into<TextAlignHorizontalMessage> for &TextAlignHorizontal {
-    fn into(self) -> TextAlignHorizontalMessage {
-        match self {
-            TextAlignHorizontal::Center => {TextAlignHorizontalMessage::Center}
-            TextAlignHorizontal::Left => {TextAlignHorizontalMessage::Left}
-            TextAlignHorizontal::Right => {TextAlignHorizontalMessage::Right}
-        }
-    }
-}
-
-impl PartialEq<TextAlignHorizontalMessage> for TextAlignHorizontal {
-    fn eq(&self, other: &TextAlignHorizontalMessage) -> bool {
-        match (self, other) {
-            (TextAlignHorizontal::Center, TextAlignHorizontalMessage::Center) => true,
-            (TextAlignHorizontal::Left, TextAlignHorizontalMessage::Left) => true,
-            (TextAlignHorizontal::Right, TextAlignHorizontalMessage::Right) => true,
-            _ => false,
-        }
-    }
-}
-
-pub fn opt_alignment_to_message(opt_alignment: &Option<TextAlignHorizontal>) -> Option<TextAlignHorizontalMessage> {
-    opt_alignment.as_ref().map(|alignment| {
-        match alignment {
-            TextAlignHorizontal::Center => TextAlignHorizontalMessage::Center,
-            TextAlignHorizontal::Left => TextAlignHorizontalMessage::Left,
-            TextAlignHorizontal::Right => TextAlignHorizontalMessage::Right,
-        }
-    })
-}
-
-pub fn opt_alignment_eq_opt_msg(opt_alignment: &Option<TextAlignHorizontal>, opt_alignment_msg: &Option<TextAlignHorizontalMessage>) -> bool {
-    match (opt_alignment, opt_alignment_msg) {
-        (Some(alignment), Some(alignment_msg)) => alignment.eq(alignment_msg),
-        (None, None) => true,
-        _ => false,
-    }
-}
-
-impl Into<TextAlignVerticalMessage> for &TextAlignVertical {
-    fn into(self) -> TextAlignVerticalMessage {
-        match self {
-            TextAlignVertical::Top => TextAlignVerticalMessage::Top,
-            TextAlignVertical::Center => TextAlignVerticalMessage::Center,
-            TextAlignVertical::Bottom => TextAlignVerticalMessage::Bottom,
-        }
-    }
-}
-
-impl PartialEq<TextAlignVerticalMessage> for TextAlignVertical {
-    fn eq(&self, other: &TextAlignVerticalMessage) -> bool {
-        match (self, other) {
-            (TextAlignVertical::Top, TextAlignVerticalMessage::Top) => true,
-            (TextAlignVertical::Center, TextAlignVerticalMessage::Center) => true,
-            (TextAlignVertical::Bottom, TextAlignVerticalMessage::Bottom) => true,
-            _ => false,
-        }
-    }
 }
 
 

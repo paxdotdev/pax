@@ -76,7 +76,7 @@ struct PaxView: View {
                     let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
                     if let fontDescriptor = fontDescriptors.first,
                        let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String {
-                        if !isFontRegistered(fontName: postscriptName) {
+                        if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
                             var errorRef: Unmanaged<CFError>?
                             if CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {} else {
                                 print("Error registering font: \(postscriptName) - \(String(describing: errorRef))")
@@ -90,20 +90,6 @@ struct PaxView: View {
         }
     }
 
-
-    func isFontRegistered(fontName: String) -> Bool {
-        let fontFamilies = CTFontManagerCopyAvailableFontFamilyNames() as! [String]
-        for fontFamily in fontFamilies {
-            let fontDescriptors = CTFontDescriptorCreateMatchingFontDescriptors(CTFontDescriptorCreateWithNameAndSize(fontFamily as CFString, 0), nil) as? [CTFontDescriptor]
-            for fontDescriptor in fontDescriptors ?? [] {
-                let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as! String
-                if postscriptName == fontName {
-                    return true
-                }
-            }
-        }
-        return false
-    }
 
     class PaxEngineContainer {
         static var paxEngineContainer : OpaquePointer? = nil
@@ -149,16 +135,16 @@ struct PaxView: View {
             )
             var text: AttributedString {
                 var attributedString: AttributedString = try! AttributedString(markdown: textElement.content)
-                attributedString.foregroundColor = textElement.fill
+                attributedString.foregroundColor = Color.white
                 return attributedString
             }
-            
             let textView =
                 Text(text)
-                    .font(textElement.font_spec.cachedFont)
+                .font(textElement.font_spec.getFont(size: 64))
                     .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.alignment)
                     .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
                     .padding(.horizontal, 0)
+                    .drawingGroup()
                     .multilineTextAlignment(textElement.alignmentMultiline)
                     .transformEffect(transform)
             
