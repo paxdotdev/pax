@@ -9,7 +9,7 @@ use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log};
 use pax::api::numeric::Numeric;
-use pax_std::types::{opt_alignment_to_message, opt_alignment_eq_opt_msg};
+use pax_std::types::text::{opt_alignment_to_message, opt_alignment_eq_opt_msg};
 
 pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
@@ -65,19 +65,10 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             properties.text.set(new_value);
         }
 
-        if let Some(size) = rtc.compute_vtable_value(properties.font.get().size._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::SizePixels(v) = size { v } else { unreachable!() };
-            properties.font.get_mut().size.set(new_value);
-        }
-
-        if let Some(family) = rtc.compute_vtable_value(properties.font.get().family._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::String(v) = family { v } else { unreachable!() };
-            properties.font.get_mut().family.set(new_value);
-        }
-
-        if let Some(variant) = rtc.compute_vtable_value(properties.font.get().variant._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::String(v) = variant { v } else { unreachable!() };
-            properties.font.get_mut().variant.set(new_value);
+        // Compute the new Font value
+        if let Some(font) = rtc.compute_vtable_value(properties.font._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOtextCOCOFont(v) = font { v } else { unreachable!() };
+            properties.font.set(new_value);
         }
 
         if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()){
@@ -86,25 +77,19 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
 
         if let Some(align_multiline) = rtc.compute_vtable_value(properties.align_multiline._get_vtable_id()){
-            let new_value = if let TypesCoproduct::OptionLABR__pax_stdCOCOtypesCOCOTextAlignHorizontalRABR(v) = align_multiline {v} else { unreachable!() };
+            let new_value = if let TypesCoproduct::OptionLABR__pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontalRABR(v) = align_multiline {v} else { unreachable!() };
             properties.align_multiline.set(new_value);
         }
 
         if let Some(align_vertical) = rtc.compute_vtable_value(properties.align_vertical._get_vtable_id()){
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOTextAlignVertical(v) = align_vertical {v} else { unreachable!() };
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOtextCOCOTextAlignVertical(v) = align_vertical {v} else { unreachable!() };
             properties.align_vertical.set(new_value);
         }
 
         if let Some(align_horizontal) = rtc.compute_vtable_value(properties.align_horizontal._get_vtable_id()){
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOTextAlignHorizontal(v) = align_horizontal {v} else { unreachable!() };
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontal(v) = align_horizontal {v} else { unreachable!() };
             properties.align_horizontal.set(new_value);
         }
-
-        if let Some(font) = rtc.compute_vtable_value(properties.font._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOFont(v) = font { v } else { unreachable!() };
-            properties.font.set(new_value);
-        }
-
 
         let mut size = &mut *self.size.as_ref().borrow_mut();
 
@@ -157,66 +142,20 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
-        let val = properties.font.get().size.get();
-        let is_new_value = match &last_patch.font.size {
-            Some(cached_value) => {
-                !val.eq( &Numeric::Float(*cached_value))
+        let font = properties.font.get();
+        let is_new_font = match &last_patch.font {
+            Some(cached_font) => {
+                !font.eq(cached_font)
             },
             None => {
                 true
             },
         };
-        if is_new_value {
-            new_message.font.size = Some(val.into());
-            last_patch.font.size = Some(val.into());
+        if is_new_font {
+            new_message.font = Some(font.clone().into());
+            last_patch.font = Some(font.clone().into());
             has_any_updates = true;
         }
-
-        let val = properties.font.get().family.get();
-        let is_new_value = match &last_patch.font.family {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            },
-        };
-        if is_new_value {
-            new_message.font.family = Some(val.into());
-            last_patch.font.family = Some(val.into());
-            has_any_updates = true;
-        }
-
-        let val = properties.font.get().variant.get();
-        let is_new_value = match &last_patch.font.variant {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            },
-        };
-        if is_new_value {
-            new_message.font.variant = Some(val.into());
-            last_patch.font.variant = Some(val.into());
-            has_any_updates = true;
-        }
-
-        let val = properties.fill.get();
-        let is_new_value = match &last_patch.fill {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            },
-        };
-        if is_new_value {
-            new_message.fill = Some(val.into());
-            last_patch.fill = Some(val.into());
-            has_any_updates = true;
-        }
-
 
         let val = properties.align_multiline.get();
         let is_new_value = !opt_alignment_eq_opt_msg(&val, &last_patch.align_multiline);

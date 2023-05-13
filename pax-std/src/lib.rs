@@ -45,10 +45,12 @@ pub mod primitives {
     #[pax_primitive("./pax-std-primitives",  pax_std_primitives::text::TextInstance)]
     pub struct Text {
         pub text: pax::Property<String>,
-        pub font: pax::Property<crate::types::Font>,
+        pub font: pax::Property<crate::types::text::Font>,
         pub fill: pax::Property<crate::types::Color>,
-        pub align_multiline: pax::Property<Option<crate::types::TextAlignHorizontal>>,
-        pub align_vertical: pax::Property<crate::types::TextAlignVertical>,
-        pub align_horizontal: pax::Property<crate::types::TextAlignHorizontal>,
+        pub align_multiline: pax::Property<Option<crate::types::text::TextAlignHorizontal>>,
+        pub align_vertical: pax::Property<crate::types::text::TextAlignVertical>,
+        pub align_horizontal: pax::Property<crate::types::text::TextAlignHorizontal>,
+        pub font_weight : pax::Property<crate::types::text::FontWeight>,
+        pub font_style : pax::Property<crate::types::text::FontStyle>,
     }
 }

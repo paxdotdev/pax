@@ -24,10 +24,14 @@ pub mod pax_reexports {
 		}
 		pub mod types {
 			pub use pax_std::types::Color;
-			pub use pax_std::types::Font;
 			pub use pax_std::types::Stroke;
-			pub use pax_std::types::TextAlignHorizontal;
-			pub use pax_std::types::TextAlignVertical;
+			pub mod text {
+				pub use pax_std::types::text::Font;
+				pub use pax_std::types::text::FontStyle;
+				pub use pax_std::types::text::FontWeight;
+				pub use pax_std::types::text::TextAlignHorizontal;
+				pub use pax_std::types::text::TextAlignVertical;
+			}
 		}
 	}
 	pub mod std {

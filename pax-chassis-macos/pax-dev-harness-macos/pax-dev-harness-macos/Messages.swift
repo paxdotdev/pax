@@ -49,12 +49,12 @@ class TextElement {
     var transform: [Float]
     var size_x: Float
     var size_y: Float
-    var font_spec: FontSpec
+    var font_spec: PaxFont
     var fill: Color
     var alignmentMultiline: TextAlignment
     var alignment: Alignment
     
-    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: FontSpec, fill: Color, alignmentMultiline: TextAlignment, alignment: Alignment) {
+    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: PaxFont, fill: Color, alignmentMultiline: TextAlignment, alignment: Alignment) {
         self.id_chain = id_chain
         self.clipping_ids = clipping_ids
         self.content = content
@@ -68,7 +68,7 @@ class TextElement {
     }
     
     static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
-        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: FontSpec(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading)
+        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: PaxFont.makeDefault(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading)
     }
     
     func applyPatch(patch: TextUpdatePatch) {
@@ -88,7 +88,7 @@ class TextElement {
         }
         
         self.font_spec.applyPatch(fb: patch.fontBuffer)
-        
+
         if patch.fill != nil {
             self.fill = patch.fill!
         }
@@ -245,39 +245,191 @@ class TextUpdatePatch {
 }
 
 
-class FontSpec {
-    var family: String
-    var variant: String
-    var size: Float
+enum WebFontFormat: String {
+    case TTF
+    case OTF
+}
+
+enum FontStyle: String {
+    case normal = "Normal"
+    case italic = "Italic"
+    case oblique = "Oblique"
+}
+
+extension FontWeight {
+    func fontWeight() -> Font.Weight {
+        switch self {
+        case .thin: return .thin
+        case .extraLight: return .ultraLight
+        case .light: return .light
+        case .normal: return .regular
+        case .medium: return .medium
+        case .semiBold: return .semibold
+        case .bold: return .bold
+        case .extraBold: return .heavy
+        case .black: return .black
+        }
+    }
+}
+
+enum FontWeight: String {
+    case thin = "Thin"
+    case extraLight = "ExtraLight"
+    case light = "Light"
+    case normal = "Normal"
+    case medium = "Medium"
+    case semiBold = "SemiBold"
+    case bold = "Bold"
+    case extraBold = "ExtraBold"
+    case black = "Black"
+}
+
+class PaxFont {
+    enum PaxFontType {
+        case system(SystemFont)
+        case web(WebFont)
+        case local(LocalFont)
+    }
+
+    struct SystemFont {
+        let family: String
+        let style: FontStyle
+        let weight: FontWeight
+    }
+
+    struct WebFont {
+        let family: String
+        let url: URL
+        let format: WebFontFormat
+        let style: FontStyle
+        let weight: FontWeight
+    }
+
+    struct LocalFont {
+        let family: String
+        let path: URL
+        let style: FontStyle
+        let weight: FontWeight
+    }
+
+    var type: PaxFontType
     var cachedFont: Font?
+    var currentSize: CGFloat
+
+    init(type: PaxFontType) {
+        self.type = type
+        self.currentSize = 12
+    }
     
-    func applyPatch(fb: FlxbReference) {
-        if fb["variant"] != nil && !fb["variant"]!.isNull {
-            self.variant = fb["variant"]!.asString!
-        }
-        if fb["family"] != nil && !fb["family"]!.isNull {
-            self.family = fb["family"]!.asString!
-        }
-        if fb["size"] != nil && !fb["size"]!.isNull {
-            self.size = fb["size"]!.asFloat!
+    static func makeDefault() -> PaxFont {
+        let defaultSystemFont = SystemFont(family: "Helvetica", style: .normal, weight: .normal)
+        return PaxFont(type: .system(defaultSystemFont))
+    }
+    
+    func getFont(size: CGFloat) -> Font {
+        if let cachedFont = cachedFont, currentSize == size {
+            return cachedFont
         }
         
-        self.cachedFont = self.intoFont()
-    }
-    
-    init() {
-        self.family = "Arial"
-        self.variant = "Regular"
-        self.size = 64.0
-        self.cachedFont = self.intoFont()
-    }
-    
-    private func intoFont() -> Font {
-        var suffix = ""
-        if self.variant != "Regular" {
-            suffix = " " + self.variant
+        var fontFamily: String?
+        var fontStyle: FontStyle?
+        var fontWeight: FontWeight?
+
+        switch type {
+        case .system(let systemFont):
+            fontFamily = systemFont.family
+            fontStyle = systemFont.style
+            fontWeight = systemFont.weight
+        case .web(let webFont):
+            fontFamily = webFont.family
+            fontStyle = webFont.style
+            fontWeight = webFont.weight
+        case .local(let localFont):
+            fontFamily = localFont.family
+            fontStyle = localFont.style
+            fontWeight = localFont.weight
         }
-        return Font.custom(String(self.family + suffix), size: CGFloat(self.size))
+        
+        let isFontRegistered = PaxFont.isFontRegistered(fontFamily: fontFamily!)
+        
+        let baseFont: Font
+        if isFontRegistered {
+            baseFont = Font.custom(fontFamily!, size: size).weight(fontWeight!.fontWeight())
+        } else {
+            baseFont = .system(size: size).weight(fontWeight!.fontWeight())
+        }
+
+        let finalFont: Font
+        switch fontStyle! {
+        case .normal:
+            finalFont = baseFont
+        case .italic:
+            finalFont = baseFont.italic()
+        case .oblique:
+            finalFont = baseFont
+        }
+
+        cachedFont = finalFont
+        currentSize = size
+
+        return finalFont
+    }
+
+
+
+    func applyPatch(fb: FlxbReference) {
+        if let systemFontMessage = fb["System"] {
+            if let family = systemFontMessage["family"]?.asString {
+                let styleMessage = FontStyle(rawValue: systemFontMessage["style"]?.asString ?? "normal") ?? .normal
+                let weightMessage = FontWeight(rawValue: systemFontMessage["weight"]?.asString ?? "normal") ?? .normal
+                self.type = .system(SystemFont(family: family, style: styleMessage, weight: weightMessage))
+            }
+        } else if let webFontMessage = fb["Web"] {
+            if let family = webFontMessage["family"]?.asString,
+               let urlString = webFontMessage["url"]?.asString,
+               let url = URL(string: urlString),
+               let formatString = webFontMessage["format"]?.asString,
+               let format = WebFontFormat(rawValue: formatString) {
+                let style = FontStyle(rawValue: webFontMessage["style"]?.asString ?? "normal") ?? .normal
+                let weight = FontWeight(rawValue: webFontMessage["weight"]?.asString ?? "normal") ?? .normal
+
+                self.type = .web(WebFont(family: family, url: url, format: format, style: style, weight: weight))
+            }
+        } else if let localFontMessage = fb["Local"] {
+            if let family = localFontMessage["family"]?.asString,
+               let pathString = localFontMessage["path"]?.asString,
+               let path = URL(string: pathString) {
+                let style = FontStyle(rawValue: localFontMessage["style"]?.asString ?? "normal") ?? .normal
+                let weight = FontWeight(rawValue: localFontMessage["weight"]?.asString ?? "normal") ?? .normal
+
+                self.type = .local(LocalFont(family: family, path: path, style: style, weight: weight))
+            }
+        }
+    }
+
+    static func isFontRegistered(fontFamily: String) -> Bool {
+        let fontFamilies = CTFontManagerCopyAvailableFontFamilyNames() as! [String]
+
+        if fontFamilies.contains(fontFamily) {
+            return true
+        }
+
+        // Check if the font is installed on the system using CTFontManager
+        let installedFontURLs = CTFontManagerCopyAvailableFontURLs() as? [URL] ?? []
+
+        for url in installedFontURLs {
+            if let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor] {
+                for descriptor in fontDescriptors {
+                    if let fontFamilyName = CTFontDescriptorCopyAttribute(descriptor, kCTFontFamilyNameAttribute) as? String {
+                        if fontFamilyName == fontFamily {
+                            return true
+                        }
+                    }
+                }
+            }
+        }
+
+        return false
     }
 }
 //
@@ -306,6 +458,30 @@ class FontSpec {
 ////        return Font(family: "Courier New", variant: "Regular", size: 14)
 //    }
 //}
+
+//func registerWebFont() {
+//       if case let .web(webFont) = type, !Self.isFontRegistered(fontFamily: webFont.family) {
+//           URLSession.shared.dataTask(with: webFont.url) { data, response, error in
+//               guard let data = data, error == nil else {
+//                   print("Error downloading font: \(String(describing: error))")
+//                   return
+//               }
+//               guard let provider = CGDataProvider(data: data as CFData) else {
+//                   print("Error creating font provider")
+//                   return
+//               }
+//               guard let font = CGFont(provider) else {
+//                   print("Error creating font from data")
+//                   return
+//               }
+//               print(font.fullName)
+//               var errorRef: Unmanaged<CFError>?
+//               if !CTFontManagerRegisterGraphicsFont(font, &errorRef) {
+//                   print("Error registering font: \(webFont.family) - \(String(describing: errorRef))")
+//               }
+//           }.resume()
+//       }
+//   }
 
 
 
