@@ -67,7 +67,7 @@ struct PaxView: View {
     func registerFonts() {
         guard let resourceURL = Bundle.main.resourceURL else { return }
         let fontFileExtensions = ["ttf", "otf"]
-        
+
         do {
             let resourceFiles = try FileManager.default.contentsOfDirectory(at: resourceURL, includingPropertiesForKeys: nil, options: [])
             for fileURL in resourceFiles {
@@ -75,12 +75,15 @@ struct PaxView: View {
                 if fontFileExtensions.contains(fileExtension) {
                     let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
                     if let fontDescriptor = fontDescriptors.first,
-                       let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String {
+                       let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
+                       let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
                         if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
                             var errorRef: Unmanaged<CFError>?
-                            if CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {} else {
-                                print("Error registering font: \(postscriptName) - \(String(describing: errorRef))")
+                            if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
+                                print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
                             }
+                        } else {
+                            print("Font already registered: \(fontFamily) - PostScript name: \(postscriptName)")
                         }
                     }
                 }
@@ -89,6 +92,8 @@ struct PaxView: View {
             print("Error reading font files from resources: \(error)")
         }
     }
+
+
 
 
     class PaxEngineContainer {
@@ -135,7 +140,7 @@ struct PaxView: View {
             )
             var text: AttributedString {
                 var attributedString: AttributedString = try! AttributedString(markdown: textElement.content)
-                attributedString.foregroundColor = Color.white
+                attributedString.foregroundColor = textElement.fill
                 return attributedString
             }
             let textView =

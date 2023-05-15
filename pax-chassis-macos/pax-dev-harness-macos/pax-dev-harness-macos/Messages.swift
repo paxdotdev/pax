@@ -244,12 +244,6 @@ class TextUpdatePatch {
     }
 }
 
-
-enum WebFontFormat: String {
-    case TTF
-    case OTF
-}
-
 enum FontStyle: String {
     case normal = "Normal"
     case italic = "Italic"
@@ -300,7 +294,6 @@ class PaxFont {
     struct WebFont {
         let family: String
         let url: URL
-        let format: WebFontFormat
         let style: FontStyle
         let weight: FontWeight
     }
@@ -387,13 +380,11 @@ class PaxFont {
         } else if let webFontMessage = fb["Web"] {
             if let family = webFontMessage["family"]?.asString,
                let urlString = webFontMessage["url"]?.asString,
-               let url = URL(string: urlString),
-               let formatString = webFontMessage["format"]?.asString,
-               let format = WebFontFormat(rawValue: formatString) {
+               let url = URL(string: urlString) {
                 let style = FontStyle(rawValue: webFontMessage["style"]?.asString ?? "normal") ?? .normal
                 let weight = FontWeight(rawValue: webFontMessage["weight"]?.asString ?? "normal") ?? .normal
 
-                self.type = .web(WebFont(family: family, url: url, format: format, style: style, weight: weight))
+                self.type = .web(WebFont(family: family, url: url, style: style, weight: weight))
             }
         } else if let localFontMessage = fb["Local"] {
             if let family = localFontMessage["family"]?.asString,

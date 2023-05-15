@@ -157,6 +157,21 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
+        let val = properties.fill.get();
+        let is_new_value = match &last_patch.fill {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            },
+        };
+        if is_new_value {
+            new_message.fill = Some(val.into());
+            last_patch.fill = Some(val.into());
+            has_any_updates = true;
+        }
+
         let val = properties.align_multiline.get();
         let is_new_value = !opt_alignment_eq_opt_msg(&val, &last_patch.align_multiline);
 

@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 use pax::api::{Interpolatable, PropertyLiteral};
-use pax_message::{FontPatch, FontWeightMessage, WebFontFormatMessage, FontStyleMessage,  LocalFontMessage, SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, WebFontMessage};
+use pax_message::{FontPatch, FontWeightMessage, FontStyleMessage,  LocalFontMessage, SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, WebFontMessage};
 use pax_message::reflection::PathQualifiable;
 use pax::*;
 
@@ -27,19 +27,9 @@ pub struct SystemFont {
 pub struct WebFont {
     pub family: String,
     pub url: String,
-    pub format: WebFontFormat,
     pub style: FontStyle,
     pub weight: FontWeight,
 }
-
-
-#[derive(Clone)]
-#[pax_type]
-pub enum WebFontFormat {
-    TTF,
-    OTF,
-}
-
 
 #[derive(Clone)]
 #[pax_type]
@@ -182,7 +172,6 @@ impl From<Font> for FontPatch {
             Font::Web(web_font) => FontPatch::Web(WebFontMessage {
                 family: Some(web_font.family),
                 url: Some(web_font.url),
-                format: Some(web_font.format.into()),
                 style: Some(web_font.style.into()),
                 weight: Some(web_font.weight.into()),
             }),
@@ -224,16 +213,6 @@ impl PartialEq<FontWeightMessage> for FontWeight {
     }
 }
 
-impl PartialEq<WebFontFormatMessage> for WebFontFormat {
-    fn eq(&self, other: &WebFontFormatMessage) -> bool {
-        match (self, other) {
-            (WebFontFormat::TTF, WebFontFormatMessage::TTF) => true,
-            (WebFontFormat::OTF, WebFontFormatMessage::OTF) => true,
-            _ => false,
-        }
-    }
-}
-
 impl PartialEq<FontPatch> for Font {
     fn eq(&self, other: &FontPatch) -> bool {
         match (self, other) {
@@ -245,7 +224,6 @@ impl PartialEq<FontPatch> for Font {
             (Font::Web(web_font), FontPatch::Web(web_font_patch)) => {
                 web_font_patch.family.as_ref().map_or(false, |family| *family == web_font.family)
                     && web_font_patch.url.as_ref().map_or(false, |url| *url == web_font.url)
-                    && web_font_patch.format.as_ref().map_or(false, |format| web_font.format.eq(format))
                     && web_font_patch.style.as_ref().map_or(false, |style| web_font.style.eq(style))
                     && web_font_patch.weight.as_ref().map_or(false, |weight| web_font.weight.eq(weight))
             }
@@ -278,7 +256,6 @@ impl Font {
         Self::Web(WebFont {
             family,
             url,
-            format: WebFontFormat::OTF,
             style,
             weight,
         })
@@ -341,26 +318,6 @@ impl From<FontWeight> for FontWeightMessage {
         }
     }
 }
-
-impl From<WebFontFormatMessage> for WebFontFormat {
-    fn from(format_msg: WebFontFormatMessage) -> Self {
-        match format_msg {
-            WebFontFormatMessage::TTF => WebFontFormat::TTF,
-            WebFontFormatMessage::OTF => WebFontFormat::OTF,
-        }
-    }
-}
-
-impl From<WebFontFormat> for WebFontFormatMessage {
-    fn from(format: WebFontFormat) -> Self {
-        match format {
-            WebFontFormat::TTF => WebFontFormatMessage::TTF,
-            WebFontFormat::OTF => WebFontFormatMessage::OTF,
-        }
-    }
-}
-
-
 // impl PathQualifiable for Font {
 //     fn get_fully_qualified_path(atomic_self_type: &str) -> String {
 //         "pax::api::Size".to_string()
