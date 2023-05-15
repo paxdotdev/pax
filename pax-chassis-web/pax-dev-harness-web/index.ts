@@ -1,7 +1,6 @@
 
 // const rust = import('./dist/pax_chassis_web');
 import {PaxChassisWeb} from './dist/pax_chassis_web';
-import './fonts.css';
 // @ts-ignore
 import snarkdown from 'snarkdown';
 
@@ -13,6 +12,8 @@ const NATIVE_LEAF_CLASS = "native-leaf";
 const NATIVE_CLIPPING_CLASS = "native-clipping";
 
 const CLIP_PREFIX = "clip"
+
+const registeredFontFaces = new Set<string>();
 
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
@@ -187,6 +188,10 @@ class NativeElementPool {
         let leaf = this.textNodes[patch.id_chain];
         console.assert(leaf !== undefined);
 
+        if (patch.font != null) {
+            patch.font.applyFontToDiv(leaf);
+        }
+
         let textChild = leaf.firstChild;
         if (patch.content != null) {
             textChild.innerHTML = snarkdown(patch.content);
@@ -231,20 +236,8 @@ class NativeElementPool {
             textChild.style.color = newValue;
         }
 
-        let suffix = ""
-        if (patch.font.variant != null) {
-            if(patch.font.variant != "Regular") {
-                suffix = "-" + patch.font.variant
-            }
-        }
 
-        if (patch.font.family != null) {
-            leaf.style.fontFamily = patch.font.family + suffix
-        }
-
-        if (patch.font.size != null) {
-            leaf.style.fontSize = patch.font.size + "px"
-        }
+        leaf.style.fontSize = "64px"
     }
 
 
@@ -331,14 +324,13 @@ class TextUpdatePatch {
     public size_x?: number;
     public size_y?: number;
     public transform?: number[];
-    public font: FontGroup;
+    public font?: Font;
     public fill: ColorGroup;
     public align_multiline: string;
     public align_horizontal: string;
     public align_vertical: string;
 
     constructor(jsonMessage: any) {
-        this.font = jsonMessage["font"];
         this.fill = jsonMessage["fill"];
         this.id_chain = jsonMessage["id_chain"];
         this.content = jsonMessage["content"];
@@ -348,6 +340,12 @@ class TextUpdatePatch {
         this.align_multiline = jsonMessage["align_multiline"];
         this.align_horizontal = jsonMessage["align_horizontal"];
         this.align_vertical = jsonMessage["align_vertical"];
+
+        const fontPatch = jsonMessage["font"];
+        if(fontPatch){
+            this.font = new Font();
+            this.font.fromFontPatch(fontPatch);
+        }
     }
 }
 
@@ -356,12 +354,149 @@ class ColorGroup {
     Rgba?: number[];
 }
 
-
-class FontGroup {
+class Font {
+    public type?: string;
     public family?: string;
-    public variant?: string;
-    public size?: number;
+    public style?: FontStyle;
+    public weight?: FontWeight;
+    public url?: string; // for WebFontMessage
+    public path?: string; // for LocalFontMessage
+
+    mapFontWeight(fontWeight : FontWeight) {
+        switch (fontWeight) {
+            case FontWeight.Thin:
+                return 100;
+            case FontWeight.ExtraLight:
+                return 200;
+            case FontWeight.Light:
+                return 300;
+            case FontWeight.Normal:
+                return 400;
+            case FontWeight.Medium:
+                return 500;
+            case FontWeight.SemiBold:
+                return 600;
+            case FontWeight.Bold:
+                return 700;
+            case FontWeight.ExtraBold:
+                return 800;
+            case FontWeight.Black:
+                return 900;
+            default:
+                return 400; // Return a default value if fontWeight is not found
+        }
+    }
+
+    mapFontStyle(fontStyle: FontStyle) {
+        switch (fontStyle) {
+            case FontStyle.Normal:
+                return 'normal';
+            case FontStyle.Italic:
+                return 'italic';
+            case FontStyle.Oblique:
+                return 'oblique';
+            default:
+                return 'normal'; // Return a default value if fontStyle is not found
+        }
+    }
+    fromFontPatch(fontPatch: any) {
+        const type = Object.keys(fontPatch)[0];
+        const data = fontPatch[type];
+        this.type = type;
+        if (type === "System") {
+            this.family = data.family;
+            this.style = FontStyle[data.style as keyof typeof FontStyle];
+            this.weight = FontWeight[data.weight as keyof typeof FontWeight];
+        } else if (type === "Web") {
+            this.family = data.family;
+            this.url = data.url;
+            this.style = FontStyle[data.style as keyof typeof FontStyle];
+            this.weight = FontWeight[data.weight as keyof typeof FontWeight];
+        } else if (type === "Local") {
+            this.family = data.family;
+            this.path = data.path;
+            this.style = FontStyle[data.style as keyof typeof FontStyle];
+            this.weight = FontWeight[data.weight as keyof typeof FontWeight];
+        }
+        this.registerFontFace();
+    }
+
+
+    private fontKey(): string {
+        return `${this.type}-${this.family}-${this.style}-${this.weight}`;
+    }
+
+    registerFontFace() {
+        const fontKey = this.fontKey();
+        if (!registeredFontFaces.has(fontKey)) {
+            registeredFontFaces.add(fontKey);
+
+            if (this.type === "Web" && this.url && this.family) {
+                if (this.url.includes("fonts.googleapis.com/css")) {
+                    // Fetch the Google Fonts CSS file and create a <style> element to insert its content
+                    fetch(this.url)
+                        .then(response => response.text())
+                        .then(css => {
+                            const style = document.createElement("style");
+                            style.textContent = css;
+                            document.head.appendChild(style);
+                        });
+                } else {
+                    const fontFace = new FontFace(this.family, `url(${this.url})`, {
+                        style: this.style ? FontStyle[this.style] : undefined,
+                        weight: this.weight ? FontWeight[this.weight] : undefined,
+                    });
+
+                    fontFace.load().then(loadedFontFace => {
+                        document.fonts.add(loadedFontFace);
+                    });
+                }
+            } else if (this.type === "Local" && this.path && this.family) {
+                const fontFace = new FontFace(this.family, `url(${this.path})`, {
+                    style: this.style ? FontStyle[this.style] : undefined,
+                    weight: this.weight ? FontWeight[this.weight] : undefined,
+                });
+
+                fontFace.load().then(loadedFontFace => {
+                    document.fonts.add(loadedFontFace);
+                });
+            }
+        }
+    }
+
+
+    applyFontToDiv(div: HTMLDivElement) {
+        if (this.family) {
+            div.style.fontFamily = this.family;
+        }
+        if (this.style) {
+            div.style.fontStyle = this.mapFontStyle(this.style);
+        }
+        if (this.weight) {
+            div.style.fontWeight = String(this.mapFontWeight(this.weight));
+        }
+    }
 }
+
+enum FontStyle {
+    Normal,
+    Italic,
+    Oblique,
+}
+
+enum FontWeight {
+    Thin,
+    ExtraLight,
+    Light,
+    Normal,
+    Medium,
+    SemiBold,
+    Bold,
+    ExtraBold,
+    Black,
+}
+
+
 
 class FrameUpdatePatch {
     public id_chain?: number[];

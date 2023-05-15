@@ -197,7 +197,6 @@ impl Default for SystemFontMessage {
 pub struct WebFontMessage {
     pub family: Option<String>,
     pub url: Option<String>,
-    pub format: Option<WebFontFormatMessage>,
     pub style: Option<FontStyleMessage>,
     pub weight: Option<FontWeightMessage>,
 }
@@ -230,11 +229,4 @@ pub enum FontWeightMessage {
     Bold,
     ExtraBold,
     Black,
-}
-
-#[derive(Clone, Serialize)]
-#[repr(C)]
-pub enum WebFontFormatMessage {
-    TTF,
-    OTF,
 }
