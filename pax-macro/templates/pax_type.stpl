@@ -42,7 +42,7 @@ impl <%= pascal_identifier %> {
 
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                 name: "<%= spd.field_name %>".to_string(),
-                type_data: property_type_definition,
+                type_definition: property_type_definition,
                 flags: None,
             });
         <% } %>

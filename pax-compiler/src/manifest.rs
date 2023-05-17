@@ -74,7 +74,7 @@ pub struct  ExpressionSpecInvocation {
     /// Type of the containing Properties struct, for unwrapping from PropertiesCoproduct.  For example, `Foo` for `PropertiesCoproduct::Foo` or `RepeatItem` for PropertiesCoproduct::RepeatItem
     pub properties_coproduct_type: String,
 
-    /// For invocations that reference repeat elements, this is the enum identifier within
+    /// For symbolic invocations that refer to repeat elements, this is the enum identifier within
     /// the TypesCoproduct that represents the appropriate `datum_cast` type
     pub pascalized_iterable_type: Option<String>,
 
@@ -155,8 +155,6 @@ pub struct ComponentDefinition {
     pub property_definitions: Vec<PropertyDefinition>,
 }
 
-
-
 impl ComponentDefinition {
     pub fn get_snake_case_id(&self) -> String {
 
@@ -211,11 +209,11 @@ pub struct PropertyDefinition {
     pub name: String,
 
     /// Used for e.g. expression vtable generation and PAXEL symbol resolution
-    pub type_data: PropertyTypeDefinition,
+    pub type_definition: PropertyTypeDefinition,
 
-    ///Flags, used ultimately by ExpressionSpecInvocations, to denote
-    ///e.g. whether a property is the `i` or `elem` of a `Repeat`, which allows
-    ///for special-handling the codegen that invokes these values in expressions
+    /// Flags, used ultimately by ExpressionSpecInvocations, to denote
+    /// e.g. whether a property is the `i` or `elem` of a `Repeat`, which allows
+    /// for special-handling the RIL that invokes these values
     pub flags: Option<PropertyDefinitionFlags>,
 }
 
@@ -233,7 +231,7 @@ impl PropertyDefinition {
     pub fn primitive_with_name(type_name: &str, symbol_name: &str) -> Self {
         PropertyDefinition {
             name: symbol_name.to_string(),
-            type_data: PropertyTypeDefinition {
+            type_definition: PropertyTypeDefinition {
                 original_type: type_name.to_string(),
                 fully_qualified_type: type_name.to_string(),
                 fully_qualified_constituent_types: vec![],

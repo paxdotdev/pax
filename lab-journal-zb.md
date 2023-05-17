@@ -2887,16 +2887,15 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
 [ ] Add necessary `parse_to_manifest` or `parse_type_to_manifest` generation logic to `pax_type`
     [x] Add property reflection logic in `pax_type` macro 
     [x] Add hooks into calling types' `parse_to_manifest` logic during parser binary phase
-    [ ] Populate type definitions into manifest (alongside component definitions), punch through to compiler & expressions
-        - What if types are EXACTLY empty-template components?  fits with `#[derive(Pax)]` intuition.  Decide which direction is conceptually cleaner.
+    [x] Populate type definitions into manifest (alongside component definitions), punch through to compiler & expressions
+        [x] What if types are EXACTLY empty-template components?  fits with `#[derive(Pax)]` intuition.  Decide which direction is conceptually cleaner.
     [x] Figure out `Default` with `pax-std` types
         [x] Implement macro API++ (derive plus attribute flags)
         [x] `#[custom(...)]` escape hatches
     [ ] Update iterable_type population logic;
         codegen calls to `populate_property_type_definition` for each nested Vec<Vec<T...
-[ ] Update `scope_stack` to include strings for all statically discovered addressable properties,
-    e.g. `foo.bar.baz` and `elem.some.deeply.nested.thing`.
-    [ ] Double-check behavior on scope shadowing
+[ ] Update `resolve_symbol` logic to handle nested symbols like `foo.bar.baz` and `elem.some.deeply.nested.thing`.
+    [ ] Split by `.`, recurse PropertyDefinition => PropertyTypeDefinition.sub_properties => PropertyDefinition => ...  
 [ ] Add `sub_properties` to `PropertyTypeInfo`, allowing recursion through
     nested `PropertyTypeInfo`s, 
     [x] Refactor: `PropertyDefinition` and `PropertyTypeInfo`; clean-up and consolidate

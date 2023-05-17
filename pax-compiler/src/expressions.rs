@@ -160,7 +160,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             |property_def| {
                                 property_def.name == inline.0
                             }
-                        ).unwrap().type_data.fully_qualified_type_pascalized).clone();
+                        ).unwrap().type_definition.fully_qualified_type_pascalized).clone();
 
                         ctx.expression_specs.insert(id, ExpressionSpec {
                             id,
@@ -196,7 +196,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             property_def.name == inline.0
                         }).expect(
                             &format!("Property `{}` not found on component `{}`", &inline.0, &active_node_component.pascal_identifier)
-                        ).type_data.fully_qualified_type_pascalized).clone()
+                        ).type_definition.fully_qualified_type_pascalized).clone()
                     };
 
                     let mut whitespace_removed_input = input.clone();
@@ -255,7 +255,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
                     let property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
-                        type_data: return_type.clone(),
+                        type_definition: return_type.clone(),
                         flags: Some(PropertyDefinitionFlags {
                             is_repeat_i: false,
                             is_repeat_elem: true,
@@ -273,7 +273,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
                     let elem_property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
-                        type_data: return_type.clone(),
+                        type_definition: return_type.clone(),
                         flags: Some(PropertyDefinitionFlags {
                             is_repeat_elem: true,
                             is_repeat_i: false,
@@ -298,8 +298,8 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             };
 
             //Though we are compiling this as an arbitrary expression, we must already have validated
-            //that we are only binding to a simple symbolic id, like `self.foo`.  This is because we
-            //are inferring the return type of this expression based on the declared-and-known
+            //with the parser that we are only binding to a simple symbolic id, like `self.foo`.
+            //This is because we are inferring the return type of this expression based on the declared-and-known
             //type of property `self.foo`
             let (output_statement, invocations) = compile_paxel_to_ril(&paxel, &ctx);
 
@@ -310,7 +310,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             // we need some way to infer the return type, statically.  This may mean requiring
             // an explicit type declaration by the end-user, or perhaps we can hack something
             // with further compiletime "reflection" magic
-
+            
             let mut whitespace_removed_input = paxel.clone();
             whitespace_removed_input.retain(|c| !c.is_whitespace());
 
@@ -417,7 +417,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
 
-        let pascalized_iterable_type = if let Some(x) = &prop_def.type_data.iterable_type {
+        let pascalized_iterable_type = if let Some(x) = &prop_def.type_definition.iterable_type {
             Some(x.fully_qualified_type_pascalized.clone())
         } else {
             None
@@ -447,7 +447,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         ExpressionSpecInvocation {
             identifier: prop_def.name.clone(),
-            is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.type_data.fully_qualified_type.split("::").last().unwrap()),
+            is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.type_definition.fully_qualified_type.split("::").last().unwrap()),
             is_iterable_primitive_nonnumeric: ExpressionSpecInvocation::is_iterable_primitive_nonnumeric(&pascalized_iterable_type),
             is_iterable_numeric: ExpressionSpecInvocation::is_iterable_numeric(&pascalized_iterable_type),
             escaped_identifier,
