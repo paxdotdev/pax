@@ -77,16 +77,19 @@ pub struct FramePatch {
     pub transform: Option<Vec<f64>>,
 }
 
+
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct TextPatch {
     pub id_chain: Vec<u64>,
-    pub content: Option<String>, //See `TextContentMessage` for a sketched-out approach to rich text
+    pub content: Option<String>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub font: Option<FontPatch>,
-    pub fill: Option<ColorVariantMessage>, //FUTURE: more robust Fill support (multiple fills, ordering, gradients, opacity, etc.)
+    pub fill: Option<ColorVariantMessage>,
+    pub size: Option<f64>,
+    pub style_link: Option<LinkStyleMessage>,
     pub align_multiline: Option<TextAlignHorizontalMessage>,
     pub align_vertical: Option<TextAlignVerticalMessage>,
     pub align_horizontal: Option<TextAlignHorizontalMessage>,
@@ -125,6 +128,15 @@ pub enum TextAlignVerticalMessage {
     Bottom,
 }
 
+
+#[derive(Serialize)]
+#[repr(C)]
+pub struct LinkStyleMessage {
+    pub font: Option<FontPatch>,
+    pub fill: Option<ColorVariantMessage>,
+    pub underline: Option<bool>,
+    pub size: Option<f64>,
+}
 
 #[derive(Default, Serialize)]
 #[repr(C)]
@@ -230,3 +242,4 @@ pub enum FontWeightMessage {
     ExtraBold,
     Black,
 }
+

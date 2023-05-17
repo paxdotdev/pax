@@ -128,6 +128,7 @@ impl pax_message::reflection::PathQualifiable for Size {
 
 #[derive(Copy, Clone)]
 pub struct SizePixels(pub Numeric);
+
 impl Default for SizePixels {
     fn default() -> Self {
         Self(Numeric::Float(150.0))

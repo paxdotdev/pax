@@ -9,7 +9,7 @@ use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log};
 use pax::api::numeric::Numeric;
-use pax_std::types::text::{opt_alignment_to_message, opt_alignment_eq_opt_msg};
+use pax_std::types::text::{opt_align_to_message, opt_link_style_to_message, opt_value_eq_opt_msg };
 
 pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
@@ -60,12 +60,12 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
+
         if let Some(content) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
             let new_value = if let TypesCoproduct::String(v) = content { v } else { unreachable!() };
             properties.text.set(new_value);
         }
 
-        // Compute the new Font value
         if let Some(font) = rtc.compute_vtable_value(properties.font._get_vtable_id()) {
             let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOtextCOCOFont(v) = font { v } else { unreachable!() };
             properties.font.set(new_value);
@@ -74,6 +74,16 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()){
             let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = fill {v} else { unreachable!() };
             properties.fill.set(new_value);
+        }
+
+        if let Some(size) = rtc.compute_vtable_value(properties.size_font._get_vtable_id()){
+            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOtextCOCOSizeWrapper(v) = size {v} else { unreachable!() };
+            properties.size_font.set(new_value);
+        }
+
+        if let Some(link_style) = rtc.compute_vtable_value(properties.style_link._get_vtable_id()){
+            let new_value = if let TypesCoproduct::OptionLABR__pax_stdCOCOtypesCOCOtextCOCOLinkStyleRABR(v) = link_style {v} else { unreachable!() };
+            properties.style_link.set(new_value);
         }
 
         if let Some(align_multiline) = rtc.compute_vtable_value(properties.align_multiline._get_vtable_id()){
@@ -115,26 +125,21 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     }
 
     fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>) {
-
-        let mut new_message : TextPatch = Default::default();
+        let mut new_message: TextPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
-        if ! self.last_patches.contains_key(&new_message.id_chain) {
+        if !self.last_patches.contains_key(&new_message.id_chain) {
             let mut patch = TextPatch::default();
             patch.id_chain = new_message.id_chain.clone();
             self.last_patches.insert(new_message.id_chain.clone(), patch);
         }
-        let last_patch = self.last_patches.get_mut( &new_message.id_chain).unwrap();
+        let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
         let val = properties.text.get();
         let is_new_value = match &last_patch.content {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            },
+            Some(cached_value) => !val.eq(cached_value),
+            None => true,
         };
         if is_new_value {
             new_message.content = Some(val.clone());
@@ -144,12 +149,8 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
         let font = properties.font.get();
         let is_new_font = match &last_patch.font {
-            Some(cached_font) => {
-                !font.eq(cached_font)
-            },
-            None => {
-                true
-            },
+            Some(cached_font) => !font.eq(cached_font),
+            None => true,
         };
         if is_new_font {
             new_message.font = Some(font.clone().into());
@@ -159,12 +160,8 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
         let val = properties.fill.get();
         let is_new_value = match &last_patch.fill {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            },
+            Some(cached_value) => !val.eq(cached_value),
+            None => true,
         };
         if is_new_value {
             new_message.fill = Some(val.into());
@@ -172,12 +169,24 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
+        let val = properties.size_font.get();
+        let is_new_value = match &last_patch.size {
+            Some(cached_value) => !val.size.0.get_as_float().eq(cached_value),
+            None => true,
+        };
+        if is_new_value {
+            new_message.size = Some(val.size.0.get_as_float().clone());
+            last_patch.size = Some(val.size.0.get_as_float().clone());
+            has_any_updates = true;
+        }
+
+
         let val = properties.align_multiline.get();
-        let is_new_value = !opt_alignment_eq_opt_msg(&val, &last_patch.align_multiline);
+        let is_new_value = !opt_value_eq_opt_msg(&val, &last_patch.align_multiline);
 
         if is_new_value {
-            new_message.align_multiline = opt_alignment_to_message(val);
-            last_patch.align_multiline = opt_alignment_to_message(val);
+            new_message.align_multiline = opt_align_to_message(val);
+            last_patch.align_multiline = opt_align_to_message(val);
             has_any_updates = true;
         }
 
@@ -208,6 +217,15 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         if is_new_value {
             new_message.align_horizontal = Some(val.into());
             last_patch.align_horizontal = Some(val.into());
+            has_any_updates = true;
+        }
+
+
+        let val = properties.style_link.get();
+        let is_new_value = !opt_value_eq_opt_msg(&val, &last_patch.style_link);
+        if is_new_value {
+            new_message.style_link = opt_link_style_to_message(&val);
+            last_patch.style_link = opt_link_style_to_message(&val);
             has_any_updates = true;
         }
 
@@ -258,10 +276,9 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
+
         if has_any_updates {
-            (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-                pax_message::NativeMessage::TextUpdate(new_message)
-            );
+            (*rtc.engine.runtime).borrow_mut().enqueue_native_message(pax_message::NativeMessage::TextUpdate(new_message));
         }
     }
 
