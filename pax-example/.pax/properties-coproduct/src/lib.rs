@@ -33,6 +33,8 @@ pub enum PropertiesCoproduct {
 #[repr(u32)]
 pub enum TypesCoproduct {
     
+    OptionLABR__pax_stdCOCOtypesCOCOtextCOCOLinkStyleRABR(Option<pax_example::pax_reexports::pax_std::types::text::LinkStyle>),
+    
     OptionLABR__pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontalRABR(Option<pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal>),
     
     Range_isize_(std::ops::Range<isize>),
@@ -60,6 +62,8 @@ pub enum TypesCoproduct {
     __pax_stdCOCOtypesCOCOtextCOCOFontStyle(pax_example::pax_reexports::pax_std::types::text::FontStyle),
     
     __pax_stdCOCOtypesCOCOtextCOCOFontWeight(pax_example::pax_reexports::pax_std::types::text::FontWeight),
+    
+    __pax_stdCOCOtypesCOCOtextCOCOSizeWrapper(pax_example::pax_reexports::pax_std::types::text::SizeWrapper),
     
     __pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontal(pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal),
     

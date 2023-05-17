@@ -29,6 +29,8 @@ pub mod pax_reexports {
 				pub use pax_std::types::text::Font;
 				pub use pax_std::types::text::FontStyle;
 				pub use pax_std::types::text::FontWeight;
+				pub use pax_std::types::text::LinkStyle;
+				pub use pax_std::types::text::SizeWrapper;
 				pub use pax_std::types::text::TextAlignHorizontal;
 				pub use pax_std::types::text::TextAlignVertical;
 			}

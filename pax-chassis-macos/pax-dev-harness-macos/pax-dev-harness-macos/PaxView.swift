@@ -45,7 +45,8 @@ struct PaxView: View {
         ZStack {
             self.canvasView
             NativeRenderingLayer()
-        }.onAppear {
+        }
+        .onAppear {
             registerFonts()
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
                     //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
@@ -139,19 +140,35 @@ struct PaxView: View {
                 ty: CGFloat(textElement.transform[5])
             )
             var text: AttributedString {
-                var attributedString: AttributedString = try! AttributedString(markdown: textElement.content)
-                attributedString.foregroundColor = textElement.fill
+                var attributedString: AttributedString = try! AttributedString(markdown: textElement.content, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace))
+                
+                for run in attributedString.runs {
+                    if run.link != nil {
+                        if let linkStyle = textElement.style_link {
+                            attributedString[run.range].font = linkStyle.font.getFont(size: linkStyle.size)
+                            if(linkStyle.underline){
+                                attributedString[run.range].underlineStyle = .single
+                            } else {
+                                attributedString[run.range].underlineStyle = .none
+                            }
+                            attributedString[run.range].foregroundColor = linkStyle.fill
+                        }
+                    }
+                }
                 return attributedString
+
             }
-            let textView =
+            var textView : some View =
                 Text(text)
-                .font(textElement.font_spec.getFont(size: 64))
-                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.alignment)
-                    .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
-                    .padding(.horizontal, 0)
-                    .drawingGroup()
-                    .multilineTextAlignment(textElement.alignmentMultiline)
-                    .transformEffect(transform)
+                .foregroundColor(textElement.fill)
+                .font(textElement.font_spec.getFont(size: textElement.size))
+                .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.alignment)
+                .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+                .padding(.horizontal, 0)
+                .multilineTextAlignment(textElement.alignmentMultiline)
+                .transformEffect(transform)
+                .textSelection(.enabled)
+
             
             if !textElement.clipping_ids.isEmpty {
                 textView.mask(getClippingMask(clippingIds: textElement.clipping_ids))
@@ -162,7 +179,7 @@ struct PaxView: View {
 
         var body: some View {
             ZStack{
-                ForEach(Array(self.textElements.elements.values), id: \.id_chain) { textElement in
+               ForEach(Array(self.textElements.elements.values), id: \.id_chain) { textElement in
                     getPositionedTextGroup(textElement: textElement)
                 }
             }

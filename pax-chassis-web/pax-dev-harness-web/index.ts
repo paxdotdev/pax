@@ -68,20 +68,6 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
         chassis.interrupt(JSON.stringify(event));
     }, true);
 
-    //Reset Markdown text base styling
-    const styleElement = document.createElement('style');
-    styleElement.textContent = `
-            .text-child a {
-              color: inherit;
-              text-decoration: inherit;
-              font: inherit;
-              background: none;
-              border: none;
-              padding: 0;
-              margin: 0;
-            }`;
-    document.head.appendChild(styleElement);
-
     //Kick off render loop
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 
@@ -178,8 +164,7 @@ class NativeElementPool {
         // @ts-ignore
         this.textNodes[patch.id_chain] = runningChain;
     }
-
-
+    
     textUpdate(patch: TextUpdatePatch) {
 
         //@ts-ignore
@@ -195,7 +180,35 @@ class NativeElementPool {
         let textChild = leaf.firstChild;
         if (patch.content != null) {
             textChild.innerHTML = snarkdown(patch.content);
-            textChild.classList.add('text-child');
+            // Apply the link styles if they exist
+            console.log(patch);
+            if (patch.style_link != null) {
+                let linkStyle = patch.style_link;
+                const links = textChild.querySelectorAll('a');
+                console.log(links);
+                links.forEach((link: HTMLDivElement) => {
+                    if (linkStyle.font) {
+                        linkStyle.font.applyFontToDiv(link);
+                    }
+                    if (linkStyle.fill) {
+                        let newValue = "";
+                        if(linkStyle.fill.Rgba != null) {
+                            let p = linkStyle.fill.Rgba;
+                            newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
+                        } else {
+                            let p = linkStyle.fill.Hsla!;
+                            newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
+                        }
+                        link.style.color = newValue;
+                    }
+                    if (linkStyle.size != null) {
+                        link.style.fontSize = linkStyle.size + "px";
+                    }
+                    if (linkStyle.underline != null) {
+                        link.style.textDecoration = linkStyle.underline ? 'underline' : 'none';
+                    }
+                });
+            }
         }
 
         if (patch.size_x != null) {
@@ -203,6 +216,10 @@ class NativeElementPool {
         }
         if (patch.size_y != null) {
             leaf.style.height = patch.size_y + "px";
+        }
+
+        if (patch.size != null) {
+            textChild.style.fontSize = patch.size + "px";
         }
 
         if(patch.align_horizontal != null){
@@ -236,8 +253,6 @@ class NativeElementPool {
             textChild.style.color = newValue;
         }
 
-
-        leaf.style.fontSize = "64px"
     }
 
 
@@ -317,18 +332,22 @@ class NativeElementPool {
     }
 }
 
+
+
 //Type-safe wrappers around JSON representation
 class TextUpdatePatch {
     public id_chain: number[];
     public content?: string;
     public size_x?: number;
     public size_y?: number;
+    public size? : number;
     public transform?: number[];
     public font?: Font;
     public fill: ColorGroup;
     public align_multiline: string;
     public align_horizontal: string;
     public align_vertical: string;
+    public style_link? : LinkStyle;
 
     constructor(jsonMessage: any) {
         this.fill = jsonMessage["fill"];
@@ -340,11 +359,18 @@ class TextUpdatePatch {
         this.align_multiline = jsonMessage["align_multiline"];
         this.align_horizontal = jsonMessage["align_horizontal"];
         this.align_vertical = jsonMessage["align_vertical"];
+        this.size = jsonMessage["size"];
 
         const fontPatch = jsonMessage["font"];
         if(fontPatch){
             this.font = new Font();
             this.font.fromFontPatch(fontPatch);
+        }
+
+        let styleLinkPatch = jsonMessage["style_link"];
+        if (styleLinkPatch) {
+            this.style_link = new LinkStyle();
+            this.style_link.fromFontPatch(jsonMessage["style_link"])
         }
     }
 }
@@ -354,6 +380,24 @@ class ColorGroup {
     Rgba?: number[];
 }
 
+class LinkStyle {
+    public size? : number;
+    public font?: Font;
+    public fill?: ColorGroup;
+    public underline?: boolean;
+
+    fromFontPatch(linkStylePatch: any){
+        const fontPatch = linkStylePatch["font"];
+        if(fontPatch){
+            this.font = new Font();
+            this.font.fromFontPatch(fontPatch);
+        }
+        this.fill = linkStylePatch["fill"];
+        this.underline = linkStylePatch["underline"];
+        this.size = linkStylePatch["size"];
+    }
+
+}
 class Font {
     public type?: string;
     public family?: string;

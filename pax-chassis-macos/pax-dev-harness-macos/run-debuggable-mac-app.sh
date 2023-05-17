@@ -10,7 +10,6 @@ EXCLUDE_ARCHS=$2
 SHOULD_ALSO_RUN=$3
 OUTPUT_PATH=$4
 
-
 runbuild () {
   xcodebuild archive \
   -configuration Debug \
