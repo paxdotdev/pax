@@ -58,14 +58,14 @@ impl <%= pascal_identifier %> {
                 let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";
 
                 let (mut ctx, type_def) =
-                    pax_compiler::parsing::assemble_type_definition(
+                    pax_compiler::parsing::assemble_pax_type_definition(
                         ctx,
                         PASCAL_IDENTIFIER,
                         &source_id,
                         module_path!(),
                     );
 
-                ctx.type_definitions
+                ctx.component_definitions
                     .insert(type_def.source_id.clone(), type_def);
 
                 ctx

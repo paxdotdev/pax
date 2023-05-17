@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{PropertyDefinition, TypeDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, PropertyTypeDefinition};
+use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, PropertyTypeDefinition};
 
 use uuid::Uuid;
 
@@ -30,6 +30,7 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
     };
     ComponentDefinition {
         is_primitive: true,
+        is_type: false,
         primitive_instance_import_path: Some(primitive_instance_import_path),
         is_main_component: false,
         source_id: source_id.to_string(),
@@ -725,8 +726,6 @@ pub struct ParsingContext {
 
     pub component_definitions: HashMap<String, ComponentDefinition>,
 
-    pub type_definitions: HashMap<String, TypeDefinition>,
-
     pub template_map: HashMap<String, String>,
 
     //(SourceID, associated Strings)
@@ -741,13 +740,15 @@ impl Default for ParsingContext {
             main_component_id: "".into(),
             visited_source_ids: HashSet::new(),
             component_definitions: HashMap::new(),
-            type_definitions: HashMap::new(),
             template_map: HashMap::new(),
             all_property_definitions: HashMap::new(),
             template_node_definitions: vec![],
         }
     }
 }
+
+
+
 
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
 pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
@@ -785,6 +786,7 @@ pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_
 
     let new_def = ComponentDefinition {
         is_primitive: false,
+        is_type: false,
         is_main_component,
         primitive_instance_import_path: None,
         source_id: source_id.into(),
@@ -799,7 +801,7 @@ pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_
     (ctx, new_def)
 }
 
-pub fn assemble_type_definition(ctx: ParsingContext, pascal_identifier: &str, source_id: &str, module_path: &str) -> (ParsingContext, TypeDefinition) {
+pub fn assemble_pax_type_definition(ctx: ParsingContext, pascal_identifier: &str, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
 
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
@@ -809,10 +811,17 @@ pub fn assemble_type_definition(ctx: ParsingContext, pascal_identifier: &str, so
 
     let property_definitions = ctx.all_property_definitions.get(source_id).unwrap().clone();
 
-    let new_def = TypeDefinition {
+    let new_def = ComponentDefinition {
         source_id: source_id.into(),
+        is_main_component: false,
+        is_primitive: false,
+        is_type: true,
         pascal_identifier: pascal_identifier.to_string(),
         module_path: modified_module_path,
+        primitive_instance_import_path: None,
+        template: None,
+        settings: None,
+        events: None,
         property_definitions,
     };
 

@@ -133,8 +133,6 @@ impl ExpressionSpecInvocation {
     }
 }
 
-
-
 /// Container for an entire component definition — includes template, settings,
 /// event bindings, property definitions, and compiler + reflection metadata
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -142,6 +140,7 @@ pub struct ComponentDefinition {
     pub source_id: String,
     pub is_main_component: bool,
     pub is_primitive: bool,
+    pub is_type: bool,
     pub pascal_identifier: String,
     pub module_path: String,
 
@@ -186,18 +185,6 @@ impl ComponentDefinition {
     }
 }
 
-/// Roughly a subset of a ComponentDefinition —
-/// a type annotated by `pax_type` that may be used as a `T` for `Property<T>`
-/// This container stores the parsed property & type information from a `pax_type`,
-/// which is important at least for referring to nested properties in PAXEL, e.g. the `elem.width` in `for elem in some_vec { <Rectangle width={elem.width } /> }`
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TypeDefinition {
-    pub source_id: String,
-    pub pascal_identifier: String,
-    pub module_path: String,
-    pub property_definitions: Vec<PropertyDefinition>,
-}
-
 /// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
 /// Each node in a template is represented by exactly one `TemplateNodeDefinition`, and this is a compile-time
 /// concern.  Note the difference between compile-time `definitions` and runtime `instances`.
@@ -217,22 +204,6 @@ pub struct TemplateNodeDefinition {
     /// e.g. the `SomeName` in `<SomeName some_key="some_value" />`
     pub pascal_identifier: String,
 }
-
-// What is the distinction between PropertyDefinition and PropertyTypeInfo?
-// It seems like we may be able to flatten these — in particular, PropertyDefinition
-// acts as a "special-case top-level" variant of PropertyTypeInfo, incl. duplicate info.
-
-// Flattening `PropertyDefinition` and `PropertyTypeInfo`:
-
-// Name
-// fully_qualified_type: String,
-// fully_qualified_type_pascalized: String,
-// iterable_type: Option<Box<PropertyTypeInfo>>,
-// sub_properties: Option<Vec<(String, PropertyTypeInfo)>>,
-
-
-
-
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PropertyDefinition {

@@ -13,7 +13,7 @@ use crate::hello_rgb::HelloRGB;
 use crate::fireworks::Fireworks;
 use crate::camera::Camera;
 
-const ROUTE_COUNT : usize = 3;
+const ROUTE_COUNT : usize = 4;
 
 #[derive(Pax)]
 #[main]

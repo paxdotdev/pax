@@ -495,7 +495,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     }
 
     /// Workhorse method to advance rendering and property calculation by one discrete tick
-    /// Expected to be called up to 60-120 times/second.
+    /// Will be executed synchronously up to 240 times/second.
     pub fn tick(&mut self, rc: &mut R) -> Vec<NativeMessage> {
         rc.clear(None, Color::rgb(1.0, 1.0, 1.0));
         (*self.instance_registry).borrow_mut().reset_repeat_expanded_node_cache();

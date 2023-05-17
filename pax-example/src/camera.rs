@@ -9,6 +9,13 @@ pub struct Camera {
     pub zoom: Property<f64>,
     pub pan_x: Property<f64>,
     pub pan_y: Property<f64>,
+    pub type_example: Property<TypeExample>,
+}
+
+#[derive(Pax)]
+#[custom(Imports)]
+pub struct TypeExample {
+    pub foo: Property<usize>,
 }
 
 const LOOP_DURATION_FRAMES : usize = 600;
