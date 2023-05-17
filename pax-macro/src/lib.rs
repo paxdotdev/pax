@@ -7,7 +7,6 @@ use std::io::Read;
 use std::fs;
 use std::str::FromStr;
 use std::collections::HashSet;
-use std::env::current_dir;
 use std::fs::File;
 use std::convert::TryFrom;
 use std::path::Path;
@@ -535,7 +534,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 }
                 None => {
                     quote! {
-                        compile_error!("Please add #[default] attribute to one of the enum variants");
+                        compile_error!("#[default] attribute required on one of the enum variants");
                     }
                 }
             }

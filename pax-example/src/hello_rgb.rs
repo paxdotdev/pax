@@ -1,6 +1,5 @@
 use pax::api::*;
 use pax::*;
-use pax_std::components::Stacker;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 

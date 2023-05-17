@@ -1,5 +1,5 @@
 #[cfg(feature = "parser")]
-use pax::internal::{PathQualifiable};
+use pax::internal::{Reflectable};
 #[cfg(feature = "parser")]
 use pax_compiler::parsing::TypeParsable;
 #[cfg(feature = "parser")]
@@ -46,7 +46,7 @@ impl <%= pascal_identifier %> {
     // One way to look at this, in conjunction with the `parser` bin target: a solution to "coordinating between macros"
     pub fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, String) {
 
-        let source_id = "component::<%= pascal_identifier %>";
+        let source_id = <%= pascal_identifier %>::get_source_id();
         let mut property_definitions = vec![];
 
         // Populate `PropertyDefinition`s
@@ -63,11 +63,12 @@ impl <%= pascal_identifier %> {
                 fully_qualified_constituent_types.push(
                     fqd
                 );
+
+                let mut ctx = <%= scoped_resolvable_type %>::parse_type_to_manifest(ctx);
             <% } %>
 
-            let (mut ctx, property_type_data) =  pax_compiler::parsing::assemble_property_type_data(
+            let (mut ctx, property_type_definition) =  pax_compiler::parsing::assemble_property_type_definition(
                 ctx,
-                &source_id,
                 "<%= spd.original_type %>",
                 fully_qualified_constituent_types.clone(),
                 &dep_to_fqd_map
@@ -75,7 +76,7 @@ impl <%= pascal_identifier %> {
 
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                 name: "<%= spd.field_name %>".to_string(),
-                type_data: property_type_data,
+                type_data: property_type_definition,
                 flags: None,
             });
         <% } %>
@@ -120,5 +121,26 @@ impl <%= pascal_identifier %> {
             },
             _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
         }
+    }
+}
+
+#[cfg(feature = "parser")]
+impl pax_message::reflection::Reflectable for <%= pascal_identifier %> {
+
+    fn get_source_id() -> String {
+        file!().to_string() + "::" + "<%= pascal_identifier %>"
+    }
+
+    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
+        //this type may come in qualified, e.g. with `crate::some::mod::some::Type`
+        //in this case, we want only `Type`.  This is a crude heuristic and may need to be revisited.
+        let chopped_type = {
+            if atomic_self_type.contains("::") {
+                atomic_self_type.split("::").last().unwrap()
+            } else {
+                atomic_self_type
+            }
+        };
+        module_path!().to_owned().replacen("parser", "crate", 1) + "::" + chopped_type
     }
 }

@@ -1,6 +1,6 @@
 <% if include_imports { %>
 #[cfg(feature = "parser")]
-use pax::internal::{PathQualifiable};
+use pax::internal::{Reflectable};
 #[cfg(feature = "parser")]
 use pax_compiler::parsing::TypeParsable;
 <% } %>
@@ -9,7 +9,7 @@ impl <%= pascal_identifier %> {
 
     pub fn parse_type_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> pax_compiler::parsing::ParsingContext {
 
-        let source_id = "type::<%= pascal_identifier %>";
+        let source_id = <%= pascal_identifier %>::get_source_id();
         let mut property_definitions = vec![];
 
         // Populate `PropertyDefinition`s
@@ -28,11 +28,13 @@ impl <%= pascal_identifier %> {
                 fully_qualified_constituent_types.push(
                     fqd
                 );
+
+                let mut ctx = <%= scoped_resolvable_type %>::parse_type_to_manifest(ctx);
+
             <% } %>
 
-            let (mut ctx, property_type_data) =  pax_compiler::parsing::assemble_property_type_data(
+            let (mut ctx, property_type_definition) =  pax_compiler::parsing::assemble_property_type_definition(
                 ctx,
-                &source_id,
                 "<%= spd.original_type %>",
                 fully_qualified_constituent_types.clone(),
                 &dep_to_fqd_map
@@ -40,7 +42,7 @@ impl <%= pascal_identifier %> {
 
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                 name: "<%= spd.field_name %>".to_string(),
-                type_data: property_type_data,
+                type_data: property_type_definition,
                 flags: None,
             });
         <% } %>
@@ -74,7 +76,12 @@ impl <%= pascal_identifier %> {
 }
 
 #[cfg(feature = "parser")]
-impl pax_message::reflection::PathQualifiable for <%= pascal_identifier %> {
+impl pax_message::reflection::Reflectable for <%= pascal_identifier %> {
+
+    fn get_source_id() -> String {
+        file!().to_string() + "::" + "<%= pascal_identifier %>"
+    }
+
     fn get_fully_qualified_path(atomic_self_type: &str) -> String {
         //this type may come in qualified, e.g. with `crate::some::mod::some::Type`
         //in this case, we want only `Type`.  This is a crude heuristic and may need to be revisited.

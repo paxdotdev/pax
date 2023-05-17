@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::ops::{IndexMut, RangeFrom};
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use crate::manifest::{PropertyDefinitionFlags, PropertyTypeData};
+use crate::manifest::{PropertyDefinitionFlags, PropertyTypeDefinition};
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
@@ -238,10 +238,10 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
 
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
-                (range_expression_paxel.to_string(), PropertyTypeData::builtin_range_isize())
+                (range_expression_paxel.to_string(), PropertyTypeDefinition::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                 let symbolic_binding_property  = ctx.resolve_symbol(symbolic_binding).expect(&format!("Unable to resolve symbol {}",symbolic_binding));
-                (symbolic_binding.to_string(), PropertyTypeData::builtin_vec_rc_properties_coproduct())
+                (symbolic_binding.to_string(), PropertyTypeDefinition::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be

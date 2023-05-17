@@ -39,9 +39,8 @@ impl <%= pascal_identifier %> {
                         );
                     <% } %>
 
-                    let (mut ctx, property_type_data) =  pax_compiler::parsing::assemble_property_type_data(
+                    let (mut ctx, property_type_definition) =  pax_compiler::parsing::assemble_property_type_definition(
                         ctx,
-                        &source_id,
                         "<%= spd.original_type %>",
                         fully_qualified_constituent_types.clone(),
                         &dep_to_fqd_map
@@ -49,7 +48,7 @@ impl <%= pascal_identifier %> {
 
                     property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                         name: "<%= spd.field_name %>".to_string(),
-                        type_data: property_type_data,
+                        type_data: property_type_definition,
                         flags: None,
                     });
                 <% } %>

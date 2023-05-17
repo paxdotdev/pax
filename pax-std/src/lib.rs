@@ -14,7 +14,7 @@ pub mod primitives {
     #[cfg(feature = "parser")]
     use pax_compiler;
     #[cfg(feature = "parser")]
-    use pax_message::reflection::PathQualifiable;
+    use pax_message::reflection::Reflectable;
     use crate::types::PathSegment;
 
     #[pax_primitive("./pax-std-primitives",  pax_std_primitives::frame::FrameInstance)]

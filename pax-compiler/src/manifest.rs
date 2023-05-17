@@ -160,13 +160,20 @@ pub struct ComponentDefinition {
 
 impl ComponentDefinition {
     pub fn get_snake_case_id(&self) -> String {
-        self.source_id.replace("::", "_")
+
+        self.source_id
+            .replace("::", "_")
+            .replace("/", "_")
+            .replace("\\", "_")
+            .replace(">", "_")
+            .replace("<", "_")
+            .replace(".", "_")
     }
 
     // pub fn get_static_addressable_property_tree(&self) -> Vec<String> {
     //     //For each property definition
     //     //  - add self to vec
-    //     //  - look at self.property_type_data.known_addressable_properties — if it's Some(Vec), then
+    //     //  - look at self.property_type_definition.known_addressable_properties — if it's Some(Vec), then
     //     //
     //
     //     self.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()
@@ -233,7 +240,7 @@ pub struct PropertyDefinition {
     pub name: String,
 
     /// Used for e.g. expression vtable generation and PAXEL symbol resolution
-    pub type_data: PropertyTypeData,
+    pub type_data: PropertyTypeDefinition,
 
     ///Flags, used ultimately by ExpressionSpecInvocations, to denote
     ///e.g. whether a property is the `i` or `elem` of a `Repeat`, which allows
@@ -255,7 +262,7 @@ impl PropertyDefinition {
     pub fn primitive_with_name(type_name: &str, symbol_name: &str) -> Self {
         PropertyDefinition {
             name: symbol_name.to_string(),
-            type_data: PropertyTypeData {
+            type_data: PropertyTypeDefinition {
                 original_type: type_name.to_string(),
                 fully_qualified_type: type_name.to_string(),
                 fully_qualified_constituent_types: vec![],
@@ -271,7 +278,7 @@ impl PropertyDefinition {
 /// Describes metadata surrounding a property's type, gathered from a combination of static & dynamic analysis
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct
-PropertyTypeData {
+PropertyTypeDefinition {
     /// Type as authored, literally.  May be partially namespace-qualified or aliased.
     pub original_type: String,
 
@@ -285,7 +292,7 @@ PropertyTypeData {
     pub fully_qualified_constituent_types: Vec<String>,
 
     /// If present, the type `T` in a `Property<Vec<T>>` — i.e. that which can be traversed with `for`
-    pub iterable_type: Option<Box<PropertyTypeData>>,
+    pub iterable_type: Option<Box<PropertyTypeDefinition>>,
 
     /// A vec of (String, PropertyType) tuples, describing known addressable properties
     /// of this PropertyType.  For Example, a struct `Foo {bar: String, baz: SomeOtherStruct}`
@@ -293,7 +300,7 @@ PropertyTypeData {
     pub sub_properties: Option<HashMap<String, PropertyDefinition>>,
 }
 
-impl PropertyTypeData {
+impl PropertyTypeDefinition {
     pub fn primitive(type_name: &str) -> Self {
         Self {
             original_type: type_name.to_string(),

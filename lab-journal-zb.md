@@ -2480,7 +2480,7 @@ where type annotations are explicit.  Alternatively, all of the `elem` iteration
 is available by array access with `i` — `some_collection[i]`
 - could introduce PropertyVec<T>, which offers a Vec-like API and knows how to reflect and offer "T"
 - might be able to impl a new parser method via traits, populating an Optional field representing `iter`'s `<T>` if present
-  - something like `impl<T> IterableQualifiable for Iter<T> where T: PathQualifiable { fn get_iter_type() -> String {...} }`
+  - something like `impl<T> IterableQualifiable for Iter<T> where T: Reflectable { fn get_iter_type() -> String {...} }`
 - could hard-code support for `Vec`, special-handling pulling the `T` out of `Property<Vec<T>>` or `Property<std::vec::Vec<T>>`, and later extending that support to other built-ins.  
 
 
@@ -2863,7 +2863,7 @@ See `TemplateArgsCodegenCartridgeRenderNodeLiteral` and its fields
 
 ## On nestable properties
 
-Apr 2023
+Apr-May 2023
 
 #### Use-case: 
 
@@ -2884,20 +2884,22 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
     [x] Maybe: sort invocations alphabetically, thus guaranteeing `foo` will already exist for `foo_DOT_bar`, 
         so `foo` can be used inside the invocation RIL for `foo_DOT_bar`
         [-] Alternate: a symbol trie, to handle `foo` and `foo_bar`, etc.
-[ ] Add necessary `parse_to_manifest` generation logic to `pax_type`
+[ ] Add necessary `parse_to_manifest` or `parse_type_to_manifest` generation logic to `pax_type`
     [x] Add property reflection logic in `pax_type` macro 
-    [ ] Add hooks into calling types' `parse_to_manifest` logic during parser binary phase
-    [ ] Populate type definitions into manifest, punch through to compiler & expressions
+    [x] Add hooks into calling types' `parse_to_manifest` logic during parser binary phase
+    [ ] Populate type definitions into manifest (alongside component definitions), punch through to compiler & expressions
+        - What if types are EXACTLY empty-template components?  fits with `#[derive(Pax)]` intuition.  Decide which direction is conceptually cleaner.
     [x] Figure out `Default` with `pax-std` types
         [x] Implement macro API++ (derive plus attribute flags)
+        [x] `#[custom(...)]` escape hatches
     [ ] Update iterable_type population logic;
-        codegen calls to `populate_property_type_data` for each nested Vec<Vec<T...
+        codegen calls to `populate_property_type_definition` for each nested Vec<Vec<T...
 [ ] Update `scope_stack` to include strings for all statically discovered addressable properties,
     e.g. `foo.bar.baz` and `elem.some.deeply.nested.thing`.
     [ ] Double-check behavior on scope shadowing
 [ ] Add `sub_properties` to `PropertyTypeInfo`, allowing recursion through
     nested `PropertyTypeInfo`s, 
-    [ ] Refactor: `PropertyDefinition` and `PropertyTypeInfo`; clean-up and consolidate
+    [x] Refactor: `PropertyDefinition` and `PropertyTypeInfo`; clean-up and consolidate
     [ ] Populate `sub_properties` — this may need to happen after the initial full recursion
         in the parser binary, right before we currently terminate and write to stdout — 
         recurse the entire tree one more time, populating `known_addressable_properties` with the benefit

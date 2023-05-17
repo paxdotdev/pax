@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{PropertyDefinition, TypeDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, PropertyTypeData};
+use crate::manifest::{PropertyDefinition, TypeDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, PropertyTypeDefinition};
 
 use uuid::Uuid;
 
@@ -16,7 +16,7 @@ use pest::iterators::{Pair, Pairs};
 use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
 };
-use pax_message::reflection::PathQualifiable;
+use pax_message::reflection::Reflectable;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -716,10 +716,6 @@ pub fn create_uuid() -> String {
     Uuid::new_v4().to_string()
 }
 
-
-
-
-
 pub struct ParsingContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
@@ -823,9 +819,7 @@ pub fn assemble_type_definition(ctx: ParsingContext, pascal_identifier: &str, so
     (ctx, new_def)
 }
 
-
-
-pub fn assemble_property_type_data(ctx: ParsingContext, source_id: &str, original_type: &str, fully_qualified_constituent_types: Vec<String>, dep_to_fqd_map: &HashMap<&str, String>,) -> (ParsingContext, PropertyTypeData) {
+pub fn assemble_property_type_definition(ctx: ParsingContext, original_type: &str, fully_qualified_constituent_types: Vec<String>, dep_to_fqd_map: &HashMap<&str, String>,) -> (ParsingContext, PropertyTypeDefinition) {
 
     let mut fully_qualified_type = original_type.to_string();
     //extract dep_to_fqd_map into a Vec<String>; string-replace each looked-up value present in
@@ -843,26 +837,35 @@ pub fn assemble_property_type_data(ctx: ParsingContext, source_id: &str, origina
 
     let fully_qualified_type_pascalized = escape_identifier(fully_qualified_type.clone());
 
-    let properties = ctx.all_property_definitions.get(source_id).unwrap().clone();
-    let mut sub_properties: HashMap<String, PropertyDefinition> = HashMap::new();
+    //Two problems:
+    //  1. we're passing the wrong source_id (e.g. component::Example instead of the source_id for this type)
+    //     - Robustify the source_id generation logic, probably code-genning method definitions
+    //       alongside where we generate parse_to_manifest and parse_type_to_manifest.
+    //     - probably codegen calls that `get_source_id()` method
+    //  2. this type will need to be traversed & populated BEFORE recursing into this `assemble_property_type_definition` method call.
+    //     the same sort of "already parsed" check should be implemented.
+    // let properties = ctx.all_property_definitions.get(source_id).unwrap().clone();
+    // let mut sub_properties: HashMap<String, PropertyDefinition> = HashMap::new();
 
-    properties.iter().for_each(|p|{
-        sub_properties.insert(p.name.clone(),p.clone());
-    });
+    // properties.iter().for_each(|p|{
+    //     sub_properties.insert(p.name.clone(),p.clone());
+    // });
 
-    let sub_properties= if sub_properties.len() > 0 {
-        Some(sub_properties)
-    } else {
-        None
-    };
+    //TODO: need to populate sub_properties on a completely separate pass, because
+    //      we are unable to populate it here.
+    // let sub_properties= if sub_properties.len() > 0 {
+    //     Some(sub_properties)
+    // } else {
+    //     None
+    // };
 
-    let new_def = PropertyTypeData {
+    let new_def = PropertyTypeDefinition {
         original_type: original_type.to_string(),
         fully_qualified_type,
         fully_qualified_type_pascalized,
         fully_qualified_constituent_types,
         iterable_type: None,
-        sub_properties,
+        sub_properties: None,
     };
 
     (ctx, new_def)
@@ -884,7 +887,8 @@ pub fn escape_identifier(input: String) -> String {
 
 /// This trait is used only to extend primitives like u64
 /// with the parser-time method `parse_type_to_manifest`.  This
-/// allows the parser binary to call `.parse_type_to_manifest)
+/// allows the parser binary to codegen calls to `::parse_type_to_manifest()` even
+/// on primitive types
 pub trait TypeParsable {
     fn parse_type_to_manifest(mut ctx: ParsingContext) -> ParsingContext {
         //Default impl: no-op
@@ -907,4 +911,4 @@ impl TypeParsable for f32 {}
 impl TypeParsable for bool {}
 impl TypeParsable for std::string::String {}
 impl<T> TypeParsable for std::rc::Rc<T> {}
-impl<T: PathQualifiable> TypeParsable for std::vec::Vec<T> {}
+impl<T: Reflectable> TypeParsable for std::vec::Vec<T> {}

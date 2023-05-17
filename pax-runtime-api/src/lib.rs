@@ -114,17 +114,14 @@ pub struct ArgsScroll {
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
 
-#[derive(Copy, Clone)]
+#[derive(Pax, Copy)]
+#[custom(Default)]
 pub enum Size {
+    #[default]
     Pixels(Numeric),
     Percent(Numeric),
 }
 
-impl pax_message::reflection::PathQualifiable for Size {
-    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
-        "pax::api::Size".to_string()
-    }
-}
 
 #[derive(Copy, Clone)]
 pub struct SizePixels(pub Numeric);
