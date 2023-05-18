@@ -310,7 +310,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             // we need some way to infer the return type, statically.  This may mean requiring
             // an explicit type declaration by the end-user, or perhaps we can hack something
             // with further compiletime "reflection" magic
-            
+
             let mut whitespace_removed_input = paxel.clone();
             whitespace_removed_input.retain(|c| !c.is_whitespace());
 
@@ -406,6 +406,9 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
     if BUILTIN_MAP.contains_key(sym) {
         unimplemented!("Built-ins like $container are not yet supported")
     } else {
+
+        //TODO: what is the overlap between `resolve_symbol` and
+        //      `resolve_symbol_as_invocation`?
 
         //TODO: handle simple (`self.foo` or `foo`) vs nested (`self.foo.bar` or `elem.width`)
         //      Perhaps each gets escaped & flattened at this stage, so there's no nesting / traversal of ESIs necessary

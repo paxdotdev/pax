@@ -24,12 +24,6 @@ impl Default for Stroke {
 
 #[derive(Pax)]
 #[custom(Imports)]
-pub struct Text {
-    pub content: Box<dyn PropertyInstance<String>>,
-}
-
-#[derive(Pax)]
-#[custom(Imports)]
 pub struct StackerCell {
     pub x_px: f64,
     pub y_px: f64,

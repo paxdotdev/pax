@@ -2895,7 +2895,10 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
     [ ] Update iterable_type population logic;
         codegen calls to `populate_property_type_definition` for each nested Vec<Vec<T...
 [ ] Update `resolve_symbol` logic to handle nested symbols like `foo.bar.baz` and `elem.some.deeply.nested.thing`.
-    [ ] Split by `.`, recurse PropertyDefinition => PropertyTypeDefinition.sub_properties => PropertyDefinition => ...  
+    [ ] Split by `.`, recurse PropertyDefinition => PropertyTypeDefinition.sub_properties => PropertyDefinition => ...
+    [ ] Add RIL generation logic to handle trailing `.foo.bar` — 
+        What does this look like?  If `foo` is a Property<T>, then we opaquely call
+        `.get()`.  Do we also need to unwrap the propertiescoproduct?  
 [ ] Add `sub_properties` to `PropertyTypeInfo`, allowing recursion through
     nested `PropertyTypeInfo`s, 
     [x] Refactor: `PropertyDefinition` and `PropertyTypeInfo`; clean-up and consolidate
