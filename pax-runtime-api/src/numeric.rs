@@ -10,6 +10,30 @@ pub enum Numeric {
     Float(f64),
 }
 
+impl Default for Numeric {
+    fn default() -> Self {
+        Numeric::Float(0.0)
+    }
+}
+
+impl PartialEq<f64> for Numeric {
+    fn eq(&self, other: &f64) -> bool {
+        match self {
+            Numeric::Float(f) => f == other,
+            _ => false,
+        }
+    }
+}
+
+impl PartialEq<isize> for Numeric {
+    fn eq(&self, other: &isize) -> bool {
+        match self {
+            Numeric::Integer(i) => i == other,
+            _ => false,
+        }
+    }
+}
+
 impl From<u8> for Numeric {
     fn from(value: u8) -> Self {
         Numeric::Integer(value as isize)
@@ -141,7 +165,14 @@ impl From<&f64> for Numeric {
         Numeric::Float(*value as f64)
     }
 }
-
+impl From<Numeric> for f64 {
+    fn from(value: Numeric) -> Self {
+        match value {
+            Numeric::Integer(i) => i as Self,
+            Numeric::Float(f) => f,
+        }
+    }
+}
 impl Numeric {
     fn widen(
         f: fn(f64, f64) -> f64,

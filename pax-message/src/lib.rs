@@ -77,27 +77,22 @@ pub struct FramePatch {
     pub transform: Option<Vec<f64>>,
 }
 
+
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct TextPatch {
     pub id_chain: Vec<u64>,
-    pub content: Option<String>, //See `TextContentMessage` for a sketched-out approach to rich text
+    pub content: Option<String>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
-    pub font: FontPatch,
-    pub fill: Option<ColorVariantMessage>, //FUTURE: more robust Fill support (multiple fills, ordering, gradients, opacity, etc.)
+    pub font: Option<FontPatch>,
+    pub fill: Option<ColorVariantMessage>,
+    pub size: Option<f64>,
+    pub style_link: Option<LinkStyleMessage>,
     pub align_multiline: Option<TextAlignHorizontalMessage>,
     pub align_vertical: Option<TextAlignVerticalMessage>,
     pub align_horizontal: Option<TextAlignHorizontalMessage>,
-}
-
-#[derive(Default, Serialize)]
-#[repr(C)]
-pub struct FontPatch {
-    pub family:  Option<String>,
-    pub variant:  Option<String>,
-    pub size: Option<f64>,
 }
 
 #[derive(Serialize)]
@@ -134,6 +129,15 @@ pub enum TextAlignVerticalMessage {
 }
 
 
+#[derive(Serialize)]
+#[repr(C)]
+pub struct LinkStyleMessage {
+    pub font: Option<FontPatch>,
+    pub fill: Option<ColorVariantMessage>,
+    pub underline: Option<bool>,
+    pub size: Option<f64>,
+}
+
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct ScrollerPatch {
@@ -165,4 +169,77 @@ pub struct AnyCreatePatch {
 //     pub set_decoration: Option<String>,
 // }
 
+#[derive(Serialize)]
+#[repr(C)]
+pub enum FontPatch {
+    System(SystemFontMessage),
+    Web(WebFontMessage),
+    Local(LocalFontMessage),
+}
+
+impl Default for FontPatch {
+    fn default() -> Self {
+        Self::System(SystemFontMessage::default())
+    }
+}
+
+
+#[derive(Serialize)]
+#[repr(C)]
+pub struct SystemFontMessage {
+    pub family: Option<String>,
+    pub style: Option<FontStyleMessage>,
+    pub weight: Option<FontWeightMessage>,
+}
+
+impl Default for SystemFontMessage {
+    fn default() -> Self {
+        Self {
+            family: Some("Brush Script MT".to_string()),
+            style: Some(FontStyleMessage::Normal),
+            weight: Some(FontWeightMessage::Normal),
+        }
+    }
+}
+
+
+
+#[derive(Serialize)]
+#[repr(C)]
+pub struct WebFontMessage {
+    pub family: Option<String>,
+    pub url: Option<String>,
+    pub style: Option<FontStyleMessage>,
+    pub weight: Option<FontWeightMessage>,
+}
+
+#[derive(Serialize)]
+#[repr(C)]
+pub struct LocalFontMessage {
+    pub family: Option<String>,
+    pub path: Option<String>,
+    pub style: Option<FontStyleMessage>,
+    pub weight: Option<FontWeightMessage>,
+}
+#[derive(Clone, Serialize)]
+#[repr(C)]
+pub enum FontStyleMessage {
+    Normal,
+    Italic,
+    Oblique,
+}
+
+#[derive(Clone, Serialize)]
+#[repr(C)]
+pub enum FontWeightMessage {
+    Thin,
+    ExtraLight,
+    Light,
+    Normal,
+    Medium,
+    SemiBold,
+    Bold,
+    ExtraBold,
+    Black,
+}
 

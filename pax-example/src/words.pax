@@ -1,5 +1,5 @@
 <Group>
-<Text text="[Welcome to Pax](https://www.pax.rs)" id=title class=small_center />
+<Text text="Welcome to [Pax](https://www.pax.rs)!" id=title class=small_center />
 <Rectangle id=background class=small_center />
 </Group>
 
@@ -10,10 +10,13 @@
         transform: {Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)},
     }
     #title {
-        font: {Font::get("Esenka", "Bold" , 72)},
+        font: {Font::local("Esenka", "assets/fonts/Esenka.otf" , FontStyle::Normal, FontWeight::Normal)},
         fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
         align_vertical: TextAlignVertical::Center,
         align_horizontal: TextAlignHorizontal::Center,
+        align_multiline: Some(TextAlignHorizontal::Right),
+        style_link: {LinkStyle::arbitrary()},
+        size_font: {SizeWrapper::set(32)},
     }
     #background {
         fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},

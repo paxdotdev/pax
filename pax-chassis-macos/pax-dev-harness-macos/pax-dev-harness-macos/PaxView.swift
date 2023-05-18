@@ -45,7 +45,8 @@ struct PaxView: View {
         ZStack {
             self.canvasView
             NativeRenderingLayer()
-        }.onAppear {
+        }
+        .onAppear {
             registerFonts()
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
                     //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
@@ -67,7 +68,7 @@ struct PaxView: View {
     func registerFonts() {
         guard let resourceURL = Bundle.main.resourceURL else { return }
         let fontFileExtensions = ["ttf", "otf"]
-        
+
         do {
             let resourceFiles = try FileManager.default.contentsOfDirectory(at: resourceURL, includingPropertiesForKeys: nil, options: [])
             for fileURL in resourceFiles {
@@ -75,12 +76,15 @@ struct PaxView: View {
                 if fontFileExtensions.contains(fileExtension) {
                     let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(fileURL as CFURL) as! [CTFontDescriptor]
                     if let fontDescriptor = fontDescriptors.first,
-                       let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String {
-                        if !isFontRegistered(fontName: postscriptName) {
+                       let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
+                       let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
+                        if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
                             var errorRef: Unmanaged<CFError>?
-                            if CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {} else {
-                                print("Error registering font: \(postscriptName) - \(String(describing: errorRef))")
+                            if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
+                                print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
                             }
+                        } else {
+                            print("Font already registered: \(fontFamily) - PostScript name: \(postscriptName)")
                         }
                     }
                 }
@@ -91,19 +95,7 @@ struct PaxView: View {
     }
 
 
-    func isFontRegistered(fontName: String) -> Bool {
-        let fontFamilies = CTFontManagerCopyAvailableFontFamilyNames() as! [String]
-        for fontFamily in fontFamilies {
-            let fontDescriptors = CTFontDescriptorCreateMatchingFontDescriptors(CTFontDescriptorCreateWithNameAndSize(fontFamily as CFString, 0), nil) as? [CTFontDescriptor]
-            for fontDescriptor in fontDescriptors ?? [] {
-                let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as! String
-                if postscriptName == fontName {
-                    return true
-                }
-            }
-        }
-        return false
-    }
+
 
     class PaxEngineContainer {
         static var paxEngineContainer : OpaquePointer? = nil
@@ -148,19 +140,35 @@ struct PaxView: View {
                 ty: CGFloat(textElement.transform[5])
             )
             var text: AttributedString {
-                var attributedString: AttributedString = try! AttributedString(markdown: textElement.content)
-                attributedString.foregroundColor = textElement.fill
+                var attributedString: AttributedString = try! AttributedString(markdown: textElement.content, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace))
+                
+                for run in attributedString.runs {
+                    if run.link != nil {
+                        if let linkStyle = textElement.style_link {
+                            attributedString[run.range].font = linkStyle.font.getFont(size: linkStyle.size)
+                            if(linkStyle.underline){
+                                attributedString[run.range].underlineStyle = .single
+                            } else {
+                                attributedString[run.range].underlineStyle = .none
+                            }
+                            attributedString[run.range].foregroundColor = linkStyle.fill
+                        }
+                    }
+                }
                 return attributedString
+
             }
-            
-            let textView =
+            var textView : some View =
                 Text(text)
-                    .font(textElement.font_spec.cachedFont)
-                    .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.alignment)
-                    .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
-                    .padding(.horizontal, 0)
-                    .multilineTextAlignment(textElement.alignmentMultiline)
-                    .transformEffect(transform)
+                .foregroundColor(textElement.fill)
+                .font(textElement.font_spec.getFont(size: textElement.size))
+                .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.alignment)
+                .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
+                .padding(.horizontal, 0)
+                .multilineTextAlignment(textElement.alignmentMultiline)
+                .transformEffect(transform)
+                .textSelection(.enabled)
+
             
             if !textElement.clipping_ids.isEmpty {
                 textView.mask(getClippingMask(clippingIds: textElement.clipping_ids))
@@ -171,7 +179,7 @@ struct PaxView: View {
 
         var body: some View {
             ZStack{
-                ForEach(Array(self.textElements.elements.values), id: \.id_chain) { textElement in
+               ForEach(Array(self.textElements.elements.values), id: \.id_chain) { textElement in
                     getPositionedTextGroup(textElement: textElement)
                 }
             }
