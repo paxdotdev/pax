@@ -20,6 +20,7 @@ pub enum NativeMessage {
     ScrollerCreate(AnyCreatePatch),
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(Vec<u64>),
+    ImageLoad(ImagePatch)
     //FUTURE: native form controls
 }
 
@@ -28,14 +29,39 @@ pub enum NativeMessage {
 pub enum NativeInterrupt {
     Click(ClickInterruptArgs),
     Scroll(ScrollInterruptArgs),
+    Image(ImageLoadInterruptArgs),
 }
 
+#[derive(Deserialize)]
+#[repr(C)]
+pub enum ImageLoadInterruptArgs {
+    Reference(ImagePointerArgs),
+    Data(ImageDataArgs),
+}
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct ImagePointerArgs {
+    pub id_chain: Vec<u64>,
+    pub image_data: u64,
+    pub image_data_length: usize,
+    pub width: usize,
+    pub height: usize,
+}
 
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct ImageDataArgs {
+    pub id_chain: Vec<u64>,
+    pub image_data: Vec<u8>,
+    pub width: usize,
+    pub height: usize,
+}
 
 #[repr(C)]
 pub struct InterruptBuffer {
     pub data_ptr: *const u8,
     pub length: u64,
+    pub sender: Option<Vec<u64>>,
 }
 
 #[repr(C)]
@@ -93,6 +119,13 @@ pub struct TextPatch {
     pub align_multiline: Option<TextAlignHorizontalMessage>,
     pub align_vertical: Option<TextAlignVerticalMessage>,
     pub align_horizontal: Option<TextAlignHorizontalMessage>,
+}
+
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct ImagePatch {
+    pub id_chain: Vec<u64>,
+    pub path: Option<String>,
 }
 
 #[derive(Serialize)]

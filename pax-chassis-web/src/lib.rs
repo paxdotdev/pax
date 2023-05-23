@@ -11,7 +11,7 @@ use piet_web::WebRenderContext;
 use pax_core::{InstanceRegistry, PaxEngine};
 
 use serde_json;
-use pax_message::NativeInterrupt;
+use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
 use pax_runtime_api::{ArgsClick, ArgsScroll};
 
 // Console.log support, piped from `pax::log`
@@ -143,6 +143,15 @@ impl PaxChassisWeb {
                     },
                     _ => {},
                 };
+            }
+            NativeInterrupt::Image(args) => {
+                match args {
+                    ImageLoadInterruptArgs::Reference(ref_args) => {}
+                    ImageLoadInterruptArgs::Data(data_args) => {
+                        println!("{:?}", data_args.image_data);
+                        (*self.engine).borrow_mut().loadImage(data_args.id_chain, data_args.image_data, data_args.width, data_args.height);
+                    }
+                }
             }
         }
     }

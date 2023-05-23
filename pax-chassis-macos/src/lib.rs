@@ -17,12 +17,13 @@ use flexbuffers::{Buffer, DeserializationError, Reader};
 
 use pax_core::{InstanceRegistry, PaxEngine};
 use pax_cartridge;
+use piet::TextStorage;
 
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `paxchassismacos.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-use pax_runtime_api::{ArgsClick, ArgsScroll};
+use pax_runtime_api::{ArgsClick, ArgsScroll, log};
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via paxchassismacos.h
@@ -114,6 +115,17 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
                 },
                 _ => {},
             };
+        }
+        NativeInterrupt::Image(args) => {
+            match args {
+                ImageLoadInterruptArgs::Reference(ref_args) => {
+                    let ptr = ref_args.image_data as *const u8;
+                    let slice = unsafe { std::slice::from_raw_parts(ptr, ref_args.image_data_length) };
+                    let owned_data: Vec<u8> = slice.to_vec();
+                    engine.loadImage(ref_args.id_chain, owned_data, ref_args.width, ref_args.height);
+                }
+                ImageLoadInterruptArgs::Data(_) => {}
+            }
         }
     }
 

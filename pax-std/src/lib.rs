@@ -60,4 +60,9 @@ pub mod primitives {
         pub font_weight : pax::Property<crate::types::text::FontWeight>,
         pub font_style : pax::Property<crate::types::text::FontStyle>,
     }
+
+    #[pax_primitive("./pax-std-primitives",  pax_std_primitives::image::ImageInstance)]
+    pub struct Image {
+        pub path: pax::Property<String>,
+    }
 }
