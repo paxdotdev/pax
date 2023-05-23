@@ -17,13 +17,12 @@ use flexbuffers::{Buffer, DeserializationError, Reader};
 
 use pax_core::{InstanceRegistry, PaxEngine};
 use pax_cartridge;
-use piet::TextStorage;
 
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `paxchassismacos.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-use pax_runtime_api::{ArgsClick, ArgsScroll, log};
+use pax_runtime_api::{ArgsClick, ArgsScroll};
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via paxchassismacos.h

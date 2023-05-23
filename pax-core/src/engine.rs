@@ -16,9 +16,8 @@ use piet_common::RenderContext;
 use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode, TabCache, TransformAndBounds, StackFrame, ScrollerArgs};
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use piet::TextStorage;
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, ArgsScroll, Interpolatable, log, TransitionManager};
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, ArgsScroll, Interpolatable, TransitionManager};
 
 pub enum EventMessage {
     Tick(ArgsRender),

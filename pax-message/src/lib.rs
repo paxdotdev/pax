@@ -61,7 +61,6 @@ pub struct ImageDataArgs {
 pub struct InterruptBuffer {
     pub data_ptr: *const u8,
     pub length: u64,
-    pub sender: Option<Vec<u64>>,
 }
 
 #[repr(C)]
