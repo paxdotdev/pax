@@ -3,7 +3,6 @@
 import {PaxChassisWeb} from './dist/pax_chassis_web';
 // @ts-ignore
 import snarkdown from 'snarkdown';
-import {wasm} from "webpack";
 
 const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_ID = "native-overlay";

@@ -1,6 +1,3 @@
-//FUTURE: bitmap (and maybe .svg) image rendering
-//      asset management with chassis --
-//      looks like can load images as base64
 use kurbo::{BezPath, Rect, Ellipse as KurboEllipse, Shape};
 use piet::{ImageFormat, InterpolationMode, RenderContext, Image as PietImage, Error, TextStorage};
 use std::collections::HashMap;
