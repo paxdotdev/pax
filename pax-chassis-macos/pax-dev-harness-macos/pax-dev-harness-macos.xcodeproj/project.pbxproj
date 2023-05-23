@@ -146,7 +146,7 @@
 				14965BFE27FE3D0F00A38CA1 /* Frameworks */,
 				14965BFF27FE3D0F00A38CA1 /* Resources */,
 				1459D7E6280F2922006391F8 /* Embed Libraries */,
-				D082094129FE19DD006C5651 /* Copy Font Files */,
+				D082094129FE19DD006C5651 /* Copy Font & Image Files */,
 			);
 			buildRules = (
 			);
@@ -207,7 +207,7 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXShellScriptBuildPhase section */
-		D082094129FE19DD006C5651 /* Copy Font Files */ = {
+		D082094129FE19DD006C5651 /* Copy Font & Image Files */ = {
 			isa = PBXShellScriptBuildPhase;
 			alwaysOutOfDate = 1;
 			buildActionMask = 12;
@@ -217,14 +217,14 @@
 			);
 			inputPaths = (
 			);
-			name = "Copy Font Files";
+			name = "Copy Font & Image Files";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "# Define the target folder for resources\nRESOURCES_PATH=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\n\n# Find the .pax folder\nPAX_FOLDER_DIR=$(find ../../../../../../ -type d -name \"*.pax\" -print -quit)\n\n# Get the parent directory of the .pax folder\nPAX_PARENT_DIR=$(dirname \"$PAX_FOLDER_DIR\")\n\n# Find the assets/fonts folder on the same level as the .pax folder\nRUST_TARGET_DIR=$(find \"$PAX_PARENT_DIR\" -maxdepth 1 -type d -name \"assets\" -print -quit)/fonts\necho \"Copying fonts from: $RUST_TARGET_DIR to: $RESOURCES_PATH\"\n\n# Copy the font files if the RUST_TARGET_DIR is found\nif [ -d \"$RUST_TARGET_DIR\" ]; then\n  if [ \"$(ls -A \"$RUST_TARGET_DIR\"/*.ttf 2>/dev/null)\" ]; then\n    cp \"$RUST_TARGET_DIR\"/*.ttf \"$RESOURCES_PATH\"\n  fi\n  if [ \"$(ls -A \"$RUST_TARGET_DIR\"/*.otf 2>/dev/null)\" ]; then\n    cp \"$RUST_TARGET_DIR\"/*.otf \"$RESOURCES_PATH\"\n  fi\nelse\n  echo \"WARNING: RUST_TARGET_DIR not found! Skipping font copy.\"\nfi\n";
+			shellScript = "# Define the target folder for resources\nRESOURCES_PATH=\"$TARGET_BUILD_DIR/$UNLOCALIZED_RESOURCES_FOLDER_PATH\"\n\n# Find the .pax folder\nPAX_FOLDER_DIR=$(find ../../../../../../ -type d -name \"*.pax\" -print -quit)\n\n# Get the parent directory of the .pax folder\nPAX_PARENT_DIR=$(dirname \"$PAX_FOLDER_DIR\")\n\n# Find the assets folder on the same level as the .pax folder\nASSETS_TARGET_DIR=$(find \"$PAX_PARENT_DIR\" -maxdepth 1 -type d -name \"assets\" -print -quit)\necho \"Copying assets from: $ASSETS_TARGET_DIR to: $RESOURCES_PATH\"\n\n# Copy all the files recursively if the ASSETS_TARGET_DIR is found\nif [ -d \"$ASSETS_TARGET_DIR\" ]; then\n  # Using find to locate and copy files including the directory structure\n  for ext in ttf otf jpg png gif tif bmp svg; do\n    find \"$ASSETS_TARGET_DIR\" -name \"*.$ext\" -exec cp {} \"$RESOURCES_PATH\" \\;\n  done\nelse\n  echo \"WARNING: ASSETS_TARGET_DIR not found! Skipping assets copy.\"\nfi\n";
 			showEnvVarsInLog = 0;
 		};
 /* End PBXShellScriptBuildPhase section */
@@ -376,8 +376,8 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "Pax macOSDebug.entitlements";
 				CODE_SIGN_IDENTITY = "Apple Development";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
@@ -411,13 +411,13 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CODE_SIGN_ENTITLEMENTS = "pax-dev-harness-macos/pax_dev_harness_macos.entitlements";
 				CODE_SIGN_IDENTITY = "";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "-";
-				CODE_SIGN_STYLE = Automatic;
+				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "";
+				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
 				DEVELOPMENT_ASSET_PATHS = "\"pax-dev-harness-macos/Preview Content\"";
-				DEVELOPMENT_TEAM = CAV3CH2A5S;
+				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;

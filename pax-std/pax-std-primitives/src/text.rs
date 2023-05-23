@@ -9,7 +9,7 @@ use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log};
 use pax::api::numeric::Numeric;
-use pax_std::types::text::{opt_align_to_message, opt_link_style_to_message, opt_value_eq_opt_msg };
+use pax_std::types::text::{Font, LinkStyle, opt_align_to_message, opt_link_style_to_message, opt_value_eq_opt_msg, SizeWrapper, TextAlignHorizontal, TextAlignVertical};
 
 pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
@@ -67,7 +67,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
 
         if let Some(font) = rtc.compute_vtable_value(properties.font._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOtextCOCOFont(v) = font { v } else { unreachable!() };
+            let new_value = unsafe_unwrap!(font, TypesCoproduct, Font);
             properties.font.set(new_value);
         }
 
@@ -77,27 +77,27 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
 
         if let Some(size) = rtc.compute_vtable_value(properties.size_font._get_vtable_id()){
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOtextCOCOSizeWrapper(v) = size {v} else { unreachable!() };
+            let new_value = unsafe_unwrap!(size, TypesCoproduct, SizeWrapper);
             properties.size_font.set(new_value);
         }
 
         if let Some(link_style) = rtc.compute_vtable_value(properties.style_link._get_vtable_id()){
-            let new_value = if let TypesCoproduct::OptionLABR__pax_stdCOCOtypesCOCOtextCOCOLinkStyleRABR(v) = link_style {v} else { unreachable!() };
+            let new_value = unsafe_unwrap!(link_style, TypesCoproduct, Option<LinkStyle>);
             properties.style_link.set(new_value);
         }
 
         if let Some(align_multiline) = rtc.compute_vtable_value(properties.align_multiline._get_vtable_id()){
-            let new_value = if let TypesCoproduct::OptionLABR__pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontalRABR(v) = align_multiline {v} else { unreachable!() };
+            let new_value = unsafe_unwrap!(align_multiline, TypesCoproduct, Option<TextAlignHorizontal>);
             properties.align_multiline.set(new_value);
         }
 
         if let Some(align_vertical) = rtc.compute_vtable_value(properties.align_vertical._get_vtable_id()){
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOtextCOCOTextAlignVertical(v) = align_vertical {v} else { unreachable!() };
+            let new_value = unsafe_unwrap!(align_vertical, TypesCoproduct, TextAlignVertical);
             properties.align_vertical.set(new_value);
         }
 
         if let Some(align_horizontal) = rtc.compute_vtable_value(properties.align_horizontal._get_vtable_id()){
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontal(v) = align_horizontal {v} else { unreachable!() };
+            let new_value = unsafe_unwrap!(align_horizontal, TypesCoproduct, TextAlignHorizontal);
             properties.align_horizontal.set(new_value);
         }
 
