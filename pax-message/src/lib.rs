@@ -52,7 +52,6 @@ pub struct ImagePointerArgs {
 #[repr(C)]
 pub struct ImageDataArgs {
     pub id_chain: Vec<u64>,
-    pub image_data: Vec<u8>,
     pub width: usize,
     pub height: usize,
 }
