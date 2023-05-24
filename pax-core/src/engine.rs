@@ -31,6 +31,7 @@ pub struct PaxEngine<R: 'static + RenderContext> {
     pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct> >,
     pub root_component: Rc<RefCell<ComponentInstance<R>>>,
     pub runtime: Rc<RefCell<Runtime<R>>>,
+    pub image_map: HashMap<Vec<u64>, (Vec<u8>, usize, usize)>,
     viewport_size: (f64, f64),
 }
 
@@ -274,6 +275,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             runtime: Rc::new(RefCell::new(Runtime::new())),
             root_component: root_component_instance,
             viewport_size,
+            image_map: HashMap::new(),
         }
     }
 
@@ -527,4 +529,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         native_render_queue
     }
 
+    pub fn loadImage(&mut self, id_chain: Vec<u64>, image_data: Vec<u8>, width: usize, height: usize) {
+        self.image_map.insert(id_chain, (image_data, width, height));
+    }
 }

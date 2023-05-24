@@ -115,6 +115,17 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
                 _ => {},
             };
         }
+        NativeInterrupt::Image(args) => {
+            match args {
+                ImageLoadInterruptArgs::Reference(ref_args) => {
+                    let ptr = ref_args.image_data as *const u8;
+                    let slice = unsafe { std::slice::from_raw_parts(ptr, ref_args.image_data_length) };
+                    let owned_data: Vec<u8> = slice.to_vec();
+                    engine.loadImage(ref_args.id_chain, owned_data, ref_args.width, ref_args.height);
+                }
+                ImageLoadInterruptArgs::Data(_) => {}
+            }
+        }
     }
 
     unsafe {(*engine_container)._engine=  Box::into_raw(engine)};

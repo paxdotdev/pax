@@ -40,6 +40,7 @@ class AnyDeletePatch {
     }
 }
 
+
 /// Represents a native Text element, as received by message patches from Pax core
 class TextElement {
     var id_chain: [UInt64]
@@ -164,6 +165,18 @@ func toAlignment(horizontalAlignment: TextAlignHorizontal, verticalAlignment: Te
 }
 
 
+/// A patch representing an image load request from a given id_chain
+class ImageLoadPatch {
+    var id_chain: [UInt64]
+    var path: String?
+    
+    init(fb:FlxbReference) {
+        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
+            fb.asUInt64!
+        })
+        self.path = fb["path"]?.asString
+    }
+}
 
 /// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
 class TextUpdatePatch {

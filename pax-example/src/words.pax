@@ -1,24 +1,25 @@
 <Group>
-<Text text="Welcome to [Pax](https://www.pax.rs)!" id=title class=small_center />
-<Rectangle id=background class=small_center />
+<Image path="assets/images/pax-logo.png" id=logo />
+<Image path="assets/images/jpeg_test.jpg" id=card />
+
+<Rectangle id=background />
 </Group>
 
 @settings {
-    .small_center {
-        height: 600px,
-        width: 600px,
-        transform: {Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)},
+    #logo {
+        height: 120px,
+        width: 280px,
+        transform: {Transform2D::anchor(0%, 0%) * Transform2D::align(0%, 0%)},
     }
-    #title {
-        font: {Font::local("Esenka", "assets/fonts/Esenka.otf" , FontStyle::Normal, FontWeight::Normal)},
-        fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
-        align_vertical: TextAlignVertical::Center,
-        align_horizontal: TextAlignHorizontal::Center,
-        align_multiline: Some(TextAlignHorizontal::Right),
-        style_link: {LinkStyle::arbitrary()},
-        size_font: {SizeWrapper::set(32)},
+    #card {
+        height: 500px,
+        width: 500px,
+        transform: {Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)},
     }
     #background {
         fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
+        height: 550px,
+        width: 550px,
+        transform: {Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)},
     }
 }

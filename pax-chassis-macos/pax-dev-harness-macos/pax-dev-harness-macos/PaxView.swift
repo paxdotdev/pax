@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import Foundation
 
 class TextElements: ObservableObject {
     static let singleton : TextElements = TextElements()
@@ -158,7 +159,7 @@ struct PaxView: View {
                 return attributedString
 
             }
-            var textView : some View =
+            let textView : some View =
                 Text(text)
                 .foregroundColor(textElement.fill)
                 .font(textElement.font_spec.getFont(size: textElement.size))
@@ -300,6 +301,100 @@ struct PaxView: View {
         func handleFrameDelete(patch: AnyDeletePatch) {
             frameElements.remove(id: patch.id_chain)
         }
+        
+//        let buffer = try! FlexBufferBuilder.encodeMap { builder in
+//            builder.add("id_chain", patch.id_chain)
+//            builder.addVector("image_data") { imageBuilder in
+//                for byte in imageData {
+//                    imageBuilder.add(Int(byte))
+//                }
+//            }
+//        }
+
+        func printAllFilesInBundle() {
+            let bundleURL = Bundle.main.bundleURL
+            
+            do {
+                let resourceURLs = try FileManager.default.contentsOfDirectory(at: bundleURL, includingPropertiesForKeys: nil, options: [])
+                for url in resourceURLs {
+                    print(url.lastPathComponent)
+                }
+            } catch {
+                print("Error: \(error)")
+            }
+        }
+
+        
+        func handleImageLoad(patch: ImageLoadPatch) {
+            Task {
+                do {
+                    let path = patch.path!
+                    let url = URL(fileURLWithPath: path)
+                    let fileNameWithExtension = url.lastPathComponent
+                    let fileExtension = url.pathExtension
+                    let fileName = String(fileNameWithExtension.prefix(fileNameWithExtension.count - fileExtension.count - 1))
+
+                    guard let bundleURL = Bundle.main.url(forResource: fileName, withExtension: fileExtension) else {
+                        throw NSError(domain: "", code: 100, userInfo: [NSLocalizedDescriptionKey : "Image file not found in bundle"])
+                    }
+
+                    guard let image = NSImage(contentsOf: bundleURL) else {
+                        throw NSError(domain: "", code: 101, userInfo: [NSLocalizedDescriptionKey : "Could not create NSImage from data"])
+                    }
+
+                    guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
+                        throw NSError(domain: "", code: 102, userInfo: [NSLocalizedDescriptionKey : "Could not create CGImage from NSImage"])
+                    }
+
+                    let width = cgImage.width
+                    let height = cgImage.height
+                    let bitsPerComponent = cgImage.bitsPerComponent
+                    let bytesPerRow = cgImage.bytesPerRow
+                    let totalBytes = height * bytesPerRow
+
+                    let colorSpace = CGColorSpaceCreateDeviceRGB()
+                    let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
+                    
+                    guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: bitsPerComponent, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: bitmapInfo) else {
+                        throw NSError(domain: "", code: 103, userInfo: [NSLocalizedDescriptionKey : "Could not create CGContext"])
+                    }
+
+                    context.draw(cgImage, in: CGRect(x: 0, y: 0, width: width, height: height))
+
+                    guard let data = context.data else {
+                        throw NSError(domain: "", code: 104, userInfo: [NSLocalizedDescriptionKey : "Could not retrieve pixel data from context"])
+                    }
+
+                    let byteBuffer = data.assumingMemoryBound(to: UInt8.self)
+                                        
+                    let id_chain : FlxbValueVector = FlxbValueVector.init(values: patch.id_chain.map { (number) -> FlxbValue in
+                        return number as FlxbValue
+                    })
+                    let raw_pointer_uint = UInt(bitPattern: byteBuffer)
+                    
+                    let buffer = try! FlexBufferBuilder.encode(
+                        [ "Image": [ "Reference": [
+                            "id_chain": id_chain,
+                            "image_data": raw_pointer_uint,
+                            "image_data_length": totalBytes,
+                            "width": width,
+                            "height": height,
+                        ] as FlxbValueMap] as FlxbValueMap ] as FlxbValueMap)
+                    
+                        buffer.data.withUnsafeBytes { ptr in
+                            var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
+                            withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
+                                pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+                            }
+                        }
+                } catch {
+                    print("Failed to load image data: \(error)")
+                }
+            }
+
+        }
+
+
 
         func processNativeMessageQueue(queue: NativeMessageQueue) {
 
@@ -336,6 +431,11 @@ struct PaxView: View {
                 let frameDeleteMessage = message["FrameDelete"]
                 if frameDeleteMessage != nil {
                     handleFrameDelete(patch: AnyDeletePatch(fb: frameDeleteMessage!))
+                }
+                
+                let imageLoadMessage = message["ImageLoad"]
+                if imageLoadMessage != nil {
+                    handleImageLoad(patch: ImageLoadPatch(fb: imageLoadMessage!))
                 }
 
                 //^ Add new message-receive handlers here ^

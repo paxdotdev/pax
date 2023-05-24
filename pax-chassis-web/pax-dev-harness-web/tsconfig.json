@@ -1,9 +1,10 @@
 {
   "compilerOptions": {
     "target": "es5",
+    "moduleResolution": "node",
     "module": "esNext",
     "lib": ["dom", "es2015"],
     "strict": true,
-    "esModuleInterop": true
+    "esModuleInterop": true,
   }
 }
