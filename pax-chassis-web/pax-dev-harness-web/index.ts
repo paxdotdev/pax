@@ -350,7 +350,7 @@ class NativeElementPool {
 }
 
 
-async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: number[], width: number, height: number }> {
+async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
     const response = await fetch(imagePath);
     const blob = await response.blob();
     const img = await createImageBitmap(blob);
@@ -361,8 +361,7 @@ async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: numbe
     ctx.drawImage(img, 0, 0, img.width, img.height);
     // @ts-ignore
     const imageData = ctx.getImageData(0, 0, img.width, img.height);
-
-    const pixels = Array.from(imageData.data);
+    let pixels = imageData.data;
 
     const width = img.width;
     const height = img.height;
