@@ -86,7 +86,7 @@ function renderLoop (chassis: PaxChassisWeb) {
      messages = JSON.parse(messages);
 
      // @ts-ignore
-     processMessages(messages);
+     processMessages(messages, chassis);
      messages;
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
@@ -164,7 +164,7 @@ class NativeElementPool {
         // @ts-ignore
         this.textNodes[patch.id_chain] = runningChain;
     }
-    
+
     textUpdate(patch: TextUpdatePatch) {
 
         //@ts-ignore
@@ -330,8 +330,61 @@ class NativeElementPool {
         // let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
         // nativeLayer?.removeChild(oldNode);
     }
+
+
+
+    async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
+
+        let path = patch.path;
+        let id_chain = patch.id_chain;
+        let image_data = await readImageToByteBuffer(path);
+        let message = {
+            "Image": {
+                "Data": {
+                    "id_chain": patch.id_chain,
+                    "image_data": image_data.pixels,
+                    "width": image_data.width,
+                    "height": image_data.height,
+                }
+            }
+        }
+
+        chassis.interrupt(JSON.stringify(message));
+    }
 }
 
+
+async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: number[], width: number, height: number }> {
+    const response = await fetch(imagePath);
+    const blob = await response.blob();
+    const img = await createImageBitmap(blob);
+
+    const canvas = new OffscreenCanvas(img.width, img.height);
+    const ctx = canvas.getContext('2d');
+
+    // @ts-ignore
+    ctx.drawImage(img, 0, 0, img.width, img.height);
+
+    // @ts-ignore
+    const imageData = ctx.getImageData(0, 0, img.width, img.height);
+
+    const pixels = Array.from(imageData.data);
+
+    const width = img.width;
+    const height = img.height;
+
+    return { pixels, width, height };
+}
+
+class ImageLoadPatch {
+    public id_chain: number[];
+    public path: string;
+
+    constructor(jsonMessage: any) {
+        this.id_chain = jsonMessage["id_chain"];
+        this.path = jsonMessage["path"];
+    }
+}
 
 
 //Type-safe wrappers around JSON representation
@@ -589,7 +642,7 @@ function getQuadClipPolygonCommand(width: number, height: number, transform: num
 
 let nativePool = new NativeElementPool();
 
-function processMessages(messages: any[]) {
+function processMessages(messages: any[], chassis: PaxChassisWeb) {
 
     messages?.forEach((unwrapped_msg) => {
 
@@ -612,6 +665,9 @@ function processMessages(messages: any[]) {
         }else if (unwrapped_msg["FrameDelete"]) {
             let msg = unwrapped_msg["FrameDelete"];
             nativePool.frameDelete(msg["id_chain"])
+        }else if (unwrapped_msg["ImageLoad"]){
+            let msg = unwrapped_msg["ImageLoad"];
+            nativePool.imageLoad(new ImageLoadPatch(msg), chassis)
         }
     })
 }

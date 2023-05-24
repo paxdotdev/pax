@@ -6,3 +6,4 @@ pub mod ellipse;
 pub mod text;
 pub mod scroller;
 pub mod path;
+pub mod image;

@@ -21,9 +21,9 @@ pub enum PropertiesCoproduct {
     
     HelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
     
-    Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
+    Image(pax_example::pax_reexports::pax_std::primitives::Image),
     
-    Text(pax_example::pax_reexports::pax_std::primitives::Text),
+    Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
     Words(pax_example::pax_reexports::words::Words),
     
@@ -32,10 +32,6 @@ pub enum PropertiesCoproduct {
 //used namely for return types of expressions — may have other purposes
 #[repr(u32)]
 pub enum TypesCoproduct {
-    
-    OptionLABR__pax_stdCOCOtypesCOCOtextCOCOLinkStyleRABR(Option<pax_example::pax_reexports::pax_std::types::text::LinkStyle>),
-    
-    OptionLABR__pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontalRABR(Option<pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal>),
     
     Range_isize_(std::ops::Range<isize>),
     
@@ -56,18 +52,6 @@ pub enum TypesCoproduct {
     __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
     __pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOFont(pax_example::pax_reexports::pax_std::types::text::Font),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOFontStyle(pax_example::pax_reexports::pax_std::types::text::FontStyle),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOFontWeight(pax_example::pax_reexports::pax_std::types::text::FontWeight),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOSizeWrapper(pax_example::pax_reexports::pax_std::types::text::SizeWrapper),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontal(pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOTextAlignVertical(pax_example::pax_reexports::pax_std::types::text::TextAlignVertical),
     
     __stdCOCOstringCOCOString(pax_example::pax_reexports::std::string::String),
     
