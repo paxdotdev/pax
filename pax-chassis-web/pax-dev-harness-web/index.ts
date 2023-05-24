@@ -181,11 +181,9 @@ class NativeElementPool {
         if (patch.content != null) {
             textChild.innerHTML = snarkdown(patch.content);
             // Apply the link styles if they exist
-            console.log(patch);
             if (patch.style_link != null) {
                 let linkStyle = patch.style_link;
                 const links = textChild.querySelectorAll('a');
-                console.log(links);
                 links.forEach((link: HTMLDivElement) => {
                     if (linkStyle.font) {
                         linkStyle.font.applyFontToDiv(link);
@@ -338,7 +336,6 @@ class NativeElementPool {
         let path = patch.path;
         let id_chain = patch.id_chain;
         let image_data = await readImageToByteBuffer(path);
-        console.log(4)
         let message = {
             "Image": {
                 "Data": {
@@ -348,7 +345,6 @@ class NativeElementPool {
                 }
             }
         }
-        console.log(5)
         chassis.interrupt(JSON.stringify(message), image_data.pixels);
     }
 }
@@ -358,13 +354,11 @@ async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: numbe
     const response = await fetch(imagePath);
     const blob = await response.blob();
     const img = await createImageBitmap(blob);
-    console.log(1)
     const canvas = new OffscreenCanvas(img.width, img.height);
     const ctx = canvas.getContext('2d');
 
     // @ts-ignore
     ctx.drawImage(img, 0, 0, img.width, img.height);
-    console.log(2)
     // @ts-ignore
     const imageData = ctx.getImageData(0, 0, img.width, img.height);
 
@@ -372,7 +366,6 @@ async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: numbe
 
     const width = img.width;
     const height = img.height;
-    console.log(3)
     return { pixels, width, height };
 }
 
