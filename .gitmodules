@@ -2,5 +2,7 @@
 	path = docs
 	url = git@github.com:pax-lang/docs.git
 [submodule "www.pax-lang.org"]
-	path = www.pax-lang.org
+	path = www.pax.dev
 	url = git@github.com:pax-lang/www.pax-lang.org
+[submodule "www.pax.dev/"]
+	url = git@github.com:pax-lang/www.pax.dev.git
