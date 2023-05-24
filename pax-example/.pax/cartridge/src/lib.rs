@@ -135,8 +135,18 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
+    //Color::rgb(0.4,0.5,0)
     vtable.insert(3, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
+            Color::rgb((Numeric::from(0.4)),(Numeric::from(0.5)),(Numeric::from(0)),)
+        )
+    }));
+    
+    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
+    vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let rotation = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -152,7 +162,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                             Numeric::from(p.rotation.get())
                         
                     } else {
-                        unreachable!("3")
+                        unreachable!("4")
                     }
                 
             };
@@ -161,16 +171,6 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         #[allow(unused_parens)]
         TypesCoproduct::Transform2D(
             ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())*(Transform2D::rotate((rotation),)).into())
-        )
-    }));
-    
-    //Color::rgb(0.4,0.5,0)
-    vtable.insert(4, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
-            Color::rgb((Numeric::from(0.4)),(Numeric::from(0.5)),(Numeric::from(0)),)
         )
     }));
     
@@ -194,23 +194,23 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)
-    vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::Transform2D(
-            (Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())
-        )
-    }));
-    
     //Color::rgba(0.0,0.0,0.0,1.0)
-    vtable.insert(8, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         #[allow(unused_parens)]
         TypesCoproduct::__pax_stdCOCOtypesCOCOColor(
             Color::rgba((Numeric::from(0.0)),(Numeric::from(0.0)),(Numeric::from(0.0)),(Numeric::from(1.0)),)
+        )
+    }));
+    
+    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)
+    vtable.insert(8, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::Transform2D(
+            (Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())
         )
     }));
     
@@ -637,7 +637,7 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
         
             stroke: Box::new( PropertyLiteral::new(Default::default()) ),
         
-            fill: Box::new( PropertyExpression::new(4) ),
+            fill: Box::new( PropertyExpression::new(3) ),
         
     }),
     handler_registry:  Some(Rc::new(RefCell::new(
@@ -659,7 +659,7 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
                                                  }
                                              ))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(3))),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(4))),
     size: Some(Rc::new(RefCell::new(
         [Box::new(PropertyLiteral::new(Size::Percent(50.into()))),Box::new(PropertyLiteral::new(Size::Percent(50.into())))]
     ))),
@@ -805,7 +805,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
         
             stroke: Box::new( PropertyLiteral::new(Default::default()) ),
         
-            fill: Box::new( PropertyExpression::new(8) ),
+            fill: Box::new( PropertyExpression::new(7) ),
         
     }),
     handler_registry:  Some(Rc::new(RefCell::new(
@@ -817,7 +817,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
                                                  }
                                              ))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(7))),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(8))),
     size: Some(Rc::new(RefCell::new(
         [Box::new(PropertyLiteral::new(Size::Pixels(550.into()))),Box::new(PropertyLiteral::new(Size::Pixels(550.into())))]
     ))),

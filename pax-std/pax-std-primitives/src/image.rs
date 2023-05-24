@@ -132,7 +132,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
             let bottom_right = transform * kurbo::Point::new(bounds.max_x(), bounds.max_y());
             let transformed_bounds = kurbo::Rect::new(top_left.x, top_left.y, bottom_right.x, bottom_right.y);
             let (bytes, width, height) = rtc.engine.image_map.get(&id_chain).unwrap();
-            let image = rc.make_image(*width, *height, bytes, ImageFormat::RgbaSeparate).unwrap();
+            let image = rc.make_image(*width, *height, &*bytes, ImageFormat::RgbaSeparate).unwrap();
             rc.draw_image(&image, transformed_bounds, InterpolationMode::Bilinear);
         }
     }
