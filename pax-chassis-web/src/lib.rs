@@ -3,6 +3,7 @@
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::JsCast;
 use web_sys::{window, HtmlCanvasElement};
+use js_sys::Uint8Array;
 use std::rc::Rc;
 use std::cell::RefCell;
 
@@ -121,7 +122,7 @@ impl PaxChassisWeb {
         }
     }
 
-    pub fn interrupt(&mut self, native_interrupt: String) {
+    pub fn interrupt(&mut self, native_interrupt: String, additional_payload: &JsValue) {
         let x : NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
         match x {
             NativeInterrupt::Click(args) => {
@@ -148,8 +149,8 @@ impl PaxChassisWeb {
                 match args {
                     ImageLoadInterruptArgs::Reference(ref_args) => {}
                     ImageLoadInterruptArgs::Data(data_args) => {
-                        println!("{:?}", data_args.image_data);
-                        (*self.engine).borrow_mut().loadImage(data_args.id_chain, data_args.image_data, data_args.width, data_args.height);
+                        let data = Uint8Array::new(additional_payload).to_vec();
+                        (*self.engine).borrow_mut().loadImage(data_args.id_chain, data, data_args.width, data_args.height);
                     }
                 }
             }
