@@ -52,7 +52,7 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
                 "y": evt.y,
             }
         }
-        chassis.interrupt(JSON.stringify(event));
+        chassis.interrupt(JSON.stringify(event), []);
     }, true);
 
     //Handle scroll events on native layer
@@ -65,7 +65,7 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
                 "delta_y": evt.deltaY,
             }
         }
-        chassis.interrupt(JSON.stringify(event));
+        chassis.interrupt(JSON.stringify(event), []);
     }, true);
 
     //Kick off render loop
@@ -181,11 +181,9 @@ class NativeElementPool {
         if (patch.content != null) {
             textChild.innerHTML = snarkdown(patch.content);
             // Apply the link styles if they exist
-            console.log(patch);
             if (patch.style_link != null) {
                 let linkStyle = patch.style_link;
                 const links = textChild.querySelectorAll('a');
-                console.log(links);
                 links.forEach((link: HTMLDivElement) => {
                     if (linkStyle.font) {
                         linkStyle.font.applyFontToDiv(link);
@@ -342,37 +340,31 @@ class NativeElementPool {
             "Image": {
                 "Data": {
                     "id_chain": patch.id_chain,
-                    "image_data": image_data.pixels,
                     "width": image_data.width,
                     "height": image_data.height,
                 }
             }
         }
-
-        chassis.interrupt(JSON.stringify(message));
+        chassis.interrupt(JSON.stringify(message), image_data.pixels);
     }
 }
 
 
-async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: number[], width: number, height: number }> {
+async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8ClampedArray, width: number, height: number }> {
     const response = await fetch(imagePath);
     const blob = await response.blob();
     const img = await createImageBitmap(blob);
-
     const canvas = new OffscreenCanvas(img.width, img.height);
     const ctx = canvas.getContext('2d');
 
     // @ts-ignore
     ctx.drawImage(img, 0, 0, img.width, img.height);
-
     // @ts-ignore
     const imageData = ctx.getImageData(0, 0, img.width, img.height);
-
-    const pixels = Array.from(imageData.data);
+    let pixels = imageData.data;
 
     const width = img.width;
     const height = img.height;
-
     return { pixels, width, height };
 }
 
