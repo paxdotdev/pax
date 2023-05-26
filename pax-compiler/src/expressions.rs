@@ -1,6 +1,7 @@
 use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, PropertyDefinition, SettingsSelectorBlockDefinition};
 use std::collections::HashMap;
 use std::ops::{IndexMut, RangeFrom};
+use std::str::Split;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use crate::manifest::{PropertyDefinitionFlags, PropertyTypeDefinition};
@@ -240,7 +241,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
                 (range_expression_paxel.to_string(), PropertyTypeDefinition::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
-                let symbolic_binding_property  = ctx.resolve_symbol(symbolic_binding).expect(&format!("Unable to resolve symbol {}",symbolic_binding));
+                let symbolic_binding_property  = ctx.resolve_symbol_as_prop_def(symbolic_binding).expect(&format!("Unable to resolve symbol {}", symbolic_binding));
                 (symbolic_binding.to_string(), PropertyTypeDefinition::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
@@ -407,16 +408,19 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         unimplemented!("Built-ins like $container are not yet supported")
     } else {
 
-        //TODO: what is the overlap between `resolve_symbol` and
-        //      `resolve_symbol_as_invocation`?
-
         //TODO: handle simple (`self.foo` or `foo`) vs nested (`self.foo.bar` or `elem.width`)
         //      Perhaps each gets escaped & flattened at this stage, so there's no nesting / traversal of ESIs necessary
         //      (e.g. `elem_DOT_width` is represented by a single ESI)
         //      This seems manageable if `elem.foo.bar` also invokes `elem` and `elem.foo`, so that
         //      each may be referred to in the codegen for their latter, further nested desc.
 
-        let prop_def = ctx.resolve_symbol(&sym).expect(&format!("Symbol not found: {}", &sym));
+        let prop_def = ctx.resolve_symbol_as_prop_def(&sym).expect(&format!("Symbol not found: {}", &sym));
+
+        let mut split_symbols = clean_and_split_symbols(&sym);
+        let escaped_identifier = crate::parsing::escape_identifier(split_symbols.join("::"));
+
+        let mut split_symbols = clean_and_split_symbols(&sym);
+        let root_identifier= split_symbols.iter().next().unwrap().to_string();
 
         let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
 
@@ -441,7 +445,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let stack_offset = found_depth.unwrap();
 
-        let escaped_identifier = crate::parsing::escape_identifier(prop_def.name.clone());
+
 
         let (is_repeat_elem, is_repeat_i) = match found_val.unwrap().flags {
             Some(flags) => {(flags.is_repeat_elem, flags.is_repeat_i)},
@@ -449,7 +453,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         };
 
         ExpressionSpecInvocation {
-            identifier: prop_def.name.clone(),
+            root_identifier,
             is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.type_definition.fully_qualified_type.split("::").last().unwrap()),
             is_iterable_primitive_nonnumeric: ExpressionSpecInvocation::is_iterable_primitive_nonnumeric(&pascalized_iterable_type),
             is_iterable_numeric: ExpressionSpecInvocation::is_iterable_numeric(&pascalized_iterable_type),
@@ -459,6 +463,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             properties_coproduct_type,
             is_repeat_elem,
             is_repeat_i,
+            nested_symbol_literal_tail: None,
         }
     }
 }
@@ -473,8 +478,8 @@ fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &ExpressionCompilationContext<'a>)
     let invocations = symbolic_ids.iter().map(|sym| {
         resolve_symbol_as_invocation(&sym.trim(), ctx)
     })
-        .unique_by(|esi|{esi.identifier.clone()})
-        .sorted_by(|esi0, esi1|{esi0.identifier.cmp(&esi1.identifier)})
+        .unique_by(|esi|{esi.escaped_identifier.clone()})
+        .sorted_by(|esi0, esi1|{esi0.escaped_identifier.cmp(&esi1.escaped_identifier)})
         .collect();
 
     //3. return tuple of (RIL string,ExpressionSpecInvocations)
@@ -519,26 +524,33 @@ lazy_static! {
     ]);
 }
 
+pub fn clean_and_split_symbols(possibly_nested_symbols: &str) -> Vec<String> {
+    let entire_symbol = if possibly_nested_symbols.starts_with("self.") {
+        possibly_nested_symbols.replacen("self.", "", 1)
+    } else if possibly_nested_symbols.starts_with("this.") {
+        possibly_nested_symbols.replacen("this.", "", 1)
+    } else {
+        possibly_nested_symbols.to_string()
+    };
+
+    entire_symbol.split(".").map(|atomic_symbol|{atomic_symbol.to_string()}).collect::<Vec<_>>()
+}
+
 impl<'a> ExpressionCompilationContext<'a> {
 
     /// for an input symbol like `i` or `self.num_clicks`
     /// traverse the self-attached `scope_stack`
     /// and return a copy of the related `PropertyDefinition`, if found
-    pub fn resolve_symbol(&self, symbol: &str) -> Option<PropertyDefinition> {
+    pub fn resolve_symbol_as_prop_def(&self, symbol: &str) -> Option<PropertyDefinition> {
 
-        let symbol = if symbol.starts_with("self.") {
-            symbol.replacen("self.", "", 1)
-        } else if symbol.starts_with("this.") {
-            symbol.replacen("this.", "", 1)
-        } else {
-            symbol.to_string()
-        };
+        let mut split_symbols = clean_and_split_symbols(symbol);
+        let root_symbol = split_symbols.iter().next().unwrap();
 
-        //1. resolve through builtin map
-        if BUILTIN_MAP.contains_key(symbol.as_str()) {
-            None
+        let root_property_def = if BUILTIN_MAP.contains_key(root_symbol.as_str()) {
+            // resolve root symbol through builtin map
+            None //FUTURE: support built-ins
         } else {
-            //2. resolve through stack
+            // resolve through scope stack
             let mut found = false;
             let mut exhausted = false;
             let mut iter = self.scope_stack.iter();
@@ -546,7 +558,7 @@ impl<'a> ExpressionCompilationContext<'a> {
             let mut ret: Option<PropertyDefinition> = None;
             while !found && !exhausted {
                 if let Some(frame) = current_frame {
-                    if let Some(pv) = frame.get(&symbol) {
+                    if let Some(pv) = frame.get(symbol) {
                         ret = Some(pv.clone());
                         found = true;
                     }
@@ -556,6 +568,20 @@ impl<'a> ExpressionCompilationContext<'a> {
                 }
             }
             ret
+        };
+
+        // handle nested symbols like `foo.bar`
+        match root_property_def {
+            None => None,
+            Some(rpd) => {
+                let mut split_symbols = clean_and_split_symbols(symbol).into_iter();
+                let mut ret = rpd;
+                //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
+                while let Some(atomic_symbol) = split_symbols.next() {
+                    ret = ret.type_definition.sub_properties.unwrap().get(atomic_symbol.as_str()).unwrap().clone();
+                }
+                Some(ret)
+            }
         }
     }
 }

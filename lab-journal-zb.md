@@ -2898,7 +2898,10 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
     [ ] Split by `.`, recurse PropertyDefinition => PropertyTypeDefinition.sub_properties => PropertyDefinition => ...
     [ ] Add RIL generation logic to handle trailing `.foo.bar` — 
         What does this look like?  If `foo` is a Property<T>, then we opaquely call
-        `.get()`.  Do we also need to unwrap the propertiescoproduct?  
+        `.get()`.  Do we also need to unwrap the propertiescoproduct? 
+        - yes: .get() each subsequent property.  gather terminal symbol's PropertyTypeDefinition.
+        - do not need to unwrap properties coproduct after the root -- once unwrapped, it "owns"
+          the subsequent chained symbols, in a strongly typed way. 
 [ ] Add `sub_properties` to `PropertyTypeInfo`, allowing recursion through
     nested `PropertyTypeInfo`s, 
     [x] Refactor: `PropertyDefinition` and `PropertyTypeInfo`; clean-up and consolidate

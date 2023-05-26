@@ -60,9 +60,11 @@ pub struct ExpressionSpec {
 /// to some data on the other side of `i` for the context of a particular expression.  `ExpressionSpecInvocation`
 /// holds the recipe for such an `invocation`, populated as a part of expression compilation.
 #[derive(Serialize, Deserialize, Clone)]
-pub struct  ExpressionSpecInvocation {
-    /// Identifier as authored, for example: `self.some_prop`
-    pub identifier: String,
+pub struct ExpressionSpecInvocation {
+
+    /// Identifier of the top-level symbol (stripped of `this` or `self`) for nested symbols (`foo` for `foo.bar`) or the
+    /// identifier itself for non-nested symbols (`foo` for `foo`)
+    pub root_identifier: String,
 
     /// Identifier escaped so that all operations (like `.` or `[...]`) are
     /// encoded as a valid single identifier
@@ -88,6 +90,12 @@ pub struct  ExpressionSpecInvocation {
     pub is_numeric_property: bool,
     pub is_iterable_numeric: bool,
     pub is_iterable_primitive_nonnumeric: bool,
+
+    /// Metadata used for nested symbol invocation, like `foo.bar.baz`
+    /// Holds an RIL string like `.bar.get().baz.get()` for the nested
+    /// symbol invocation `foo.bar.baz`.
+    pub nested_symbol_literal_tail: Option<String>,
+
 }
 
 const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
