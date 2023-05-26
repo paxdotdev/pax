@@ -13,7 +13,6 @@ pub trait Reflectable {
     ///
     fn get_source_id() -> String;
 
-
 }
 
 impl Reflectable for usize {

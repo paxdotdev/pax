@@ -30,6 +30,9 @@ impl <%= pascal_identifier %> {
 
                     let mut fully_qualified_constituent_types = vec![];
                     let mut dep_to_fqd_map = std::collections::HashMap::new();
+
+
+
                     <% for scoped_resolvable_type in spd.scoped_resolvable_types { %>
                         let fqd = <%= scoped_resolvable_type %>::get_fully_qualified_path("<%= scoped_resolvable_type %>");
                         dep_to_fqd_map.insert("<%= scoped_resolvable_type %>",fqd.clone());
@@ -39,7 +42,22 @@ impl <%= pascal_identifier %> {
                         );
                     <% } %>
 
-                    let (mut ctx, property_type_definition) =  pax_compiler::parsing::assemble_property_type_definition(
+
+                    <%= spd.root_scoped_resolvable_type %>::get_static_property_tree()
+
+                    // We need to connect to the property type DAGs here, somehow.
+
+                    //A Root component will have multiple Property<T> or Property<Vec<T>>
+                    //Each of those T maybe have child Property<T> or Property<Vec<T>>
+                    //For each property, we need to assemble references to T's child (Property<T> or Property<Vec<T>>)s
+                    
+                    // !!
+                    // Try a `source_id` => `Vec<source_id>` map, populated at parse-time, which
+                    //  suggests an approach where we "punch" out the sub_properties on a subsequent
+                    //  pass, by traversing those string IDs, (similar in spirit to "punching" the vtable ids in the manifest)
+                    // !!
+
+                    let (mut ctx, property_type_definition) = pax_compiler::parsing::assemble_property_type_definition(
                         ctx,
                         "<%= spd.original_type %>",
                         fully_qualified_constituent_types.clone(),

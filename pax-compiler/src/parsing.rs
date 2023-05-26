@@ -747,9 +747,6 @@ impl Default for ParsingContext {
     }
 }
 
-
-
-
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
 pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
@@ -828,7 +825,12 @@ pub fn assemble_pax_type_definition(ctx: ParsingContext, pascal_identifier: &str
     (ctx, new_def)
 }
 
-pub fn assemble_property_type_definition(ctx: ParsingContext, original_type: &str, fully_qualified_constituent_types: Vec<String>, dep_to_fqd_map: &HashMap<&str, String>,) -> (ParsingContext, PropertyTypeDefinition) {
+pub fn assemble_property_type_definition(
+    ctx: ParsingContext,
+    original_type: &str,
+    fully_qualified_constituent_types: Vec<String>,
+    dep_to_fqd_map: &HashMap<&str, String>,
+) -> (ParsingContext, PropertyTypeDefinition) {
 
     let mut fully_qualified_type = original_type.to_string();
     //extract dep_to_fqd_map into a Vec<String>; string-replace each looked-up value present in
@@ -847,26 +849,28 @@ pub fn assemble_property_type_definition(ctx: ParsingContext, original_type: &st
     let fully_qualified_type_pascalized = escape_identifier(fully_qualified_type.clone());
 
     //Two problems:
-    //  1. we're passing the wrong source_id (e.g. component::Example instead of the source_id for this type)
+    //  [x] we're passing the wrong source_id (e.g. component::Example instead of the source_id for this type)
     //     - Robustify the source_id generation logic, probably code-genning method definitions
     //       alongside where we generate parse_to_manifest and parse_type_to_manifest.
     //     - probably codegen calls that `get_source_id()` method
-    //  2. this type will need to be traversed & populated BEFORE recursing into this `assemble_property_type_definition` method call.
+    //  [ ] this type will need to be traversed & populated BEFORE recursing into this `assemble_property_type_definition` method call.
     //     the same sort of "already parsed" check should be implemented.
-    // let properties = ctx.all_property_definitions.get(source_id).unwrap().clone();
-    // let mut sub_properties: HashMap<String, PropertyDefinition> = HashMap::new();
 
-    // properties.iter().for_each(|p|{
-    //     sub_properties.insert(p.name.clone(),p.clone());
-    // });
+    //~~We want `T`'s source_id, for Property<T>~~
+    //~~  If T is a Vec, we ignore for now (may need to revisit for `[]` access support)~~
+    //We don't want T!!  We want the  `Property` itself, not its type.
+    let properties =  //ctx.all_property_definitions.get(source_id).unwrap().clone();
+    let mut sub_properties: HashMap<String, PropertyDefinition> = HashMap::new();
 
-    //TODO: need to populate sub_properties on a completely separate pass, because
-    //      we are unable to populate it here.
-    // let sub_properties= if sub_properties.len() > 0 {
-    //     Some(sub_properties)
-    // } else {
-    //     None
-    // };
+    properties.iter().for_each(|p|{
+        sub_properties.insert(p.name.clone(),p.clone());
+    });
+
+    let sub_properties= if sub_properties.len() > 0 {
+        Some(sub_properties)
+    } else {
+        None
+    };
 
     let new_def = PropertyTypeDefinition {
         original_type: original_type.to_string(),
@@ -874,7 +878,7 @@ pub fn assemble_property_type_definition(ctx: ParsingContext, original_type: &st
         fully_qualified_type_pascalized,
         fully_qualified_constituent_types,
         iterable_type: None,
-        sub_properties: None,
+        sub_properties,
     };
 
     (ctx, new_def)
@@ -904,8 +908,6 @@ pub trait TypeParsable {
         ctx
     }
 }
-
-
 
 impl TypeParsable for usize {}
 impl TypeParsable for isize {}

@@ -408,12 +408,6 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         unimplemented!("Built-ins like $container are not yet supported")
     } else {
 
-        //TODO: handle simple (`self.foo` or `foo`) vs nested (`self.foo.bar` or `elem.width`)
-        //      Perhaps each gets escaped & flattened at this stage, so there's no nesting / traversal of ESIs necessary
-        //      (e.g. `elem_DOT_width` is represented by a single ESI)
-        //      This seems manageable if `elem.foo.bar` also invokes `elem` and `elem.foo`, so that
-        //      each may be referred to in the codegen for their latter, further nested desc.
-
         let prop_def = ctx.resolve_symbol_as_prop_def(&sym).expect(&format!("Symbol not found: {}", &sym));
 
         let mut split_symbols = clean_and_split_symbols(&sym);
