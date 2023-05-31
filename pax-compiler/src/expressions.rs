@@ -4,7 +4,7 @@ use std::ops::{IndexMut, RangeFrom};
 use std::str::Split;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use crate::manifest::{PropertyDefinitionFlags, TypeDefinition};
+use crate::manifest::{PropertyDefinitionFlags, TypeDefinition, TypeTable};
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
@@ -34,6 +34,7 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
                 all_components: manifest.components.clone(),
                 expression_specs: &mut swap_expression_specs,
                 component_def: &read_only_component_def,
+                type_table: &manifest.type_table,
             };
 
             ctx = recurse_compile_expressions(ctx);
@@ -161,7 +162,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             |property_def| {
                                 property_def.name == inline.0
                             }
-                        ).unwrap().type_definition.fully_qualified_type_pascalized).clone();
+                        ).unwrap().get_type_definition(ctx.type_table).unwrap().type_id_pascalized).clone();
 
                         ctx.expression_specs.insert(id, ExpressionSpec {
                             id,
@@ -197,7 +198,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             property_def.name == inline.0
                         }).expect(
                             &format!("Property `{}` not found on component `{}`", &inline.0, &active_node_component.pascal_identifier)
-                        ).type_definition.fully_qualified_type_pascalized).clone()
+                        ).get_type_definition(ctx.type_table).unwrap().type_id_pascalized).clone()
                     };
 
                     let mut whitespace_removed_input = input.clone();
@@ -250,20 +251,18 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             match cfa.repeat_predicate_definition.as_ref().unwrap() {
                 ControlFlowRepeatPredicateDefinition::ElemId(elem_id) => {
                     //for i in 0..5
-                    // i describes the element (not the index!), which in this case is a `usize`
+                    // i describes the element (not the index!), which in this case is a `isize`
                     // property definition: called `i`
-                    // property_type:usize (the iterable_type)
+                    // property_type:isize (the iterable_type)
 
                     let property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
-                        type_definition: return_type.clone(),
+
                         flags: Some(PropertyDefinitionFlags {
                             is_repeat_i: false,
                             is_repeat_elem: true,
                         }),
-                        type_source_id: "".to_string(),
-                        iterable_type_source_id: None,
-                        type_table: None,
+                        type_id: "isize".to_string(),
                     };
 
                     let mut scope = HashMap::from([
@@ -277,7 +276,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
                     let elem_property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
-                        type_definition: return_type.clone(),
+                        type_id: return_type.type_id.clone(),
                         flags: Some(PropertyDefinitionFlags {
                             is_repeat_elem: true,
                             is_repeat_i: false,
@@ -320,7 +319,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
-                pascalized_return_type: return_type.fully_qualified_type_pascalized,
+                pascalized_return_type: return_type.type_id_pascalized,
                 invocations,
                 output_statement,
                 input_statement: whitespace_removed_input,
@@ -422,7 +421,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
 
         let pascalized_iterable_type = if let Some(x) = &prop_def.type_definition.iterable_type {
-            Some(x.fully_qualified_type_pascalized.clone())
+            Some(x.type_id_pascalized.clone())
         } else {
             None
         };
@@ -451,7 +450,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         ExpressionSpecInvocation {
             root_identifier,
-            is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.type_definition.fully_qualified_type.split("::").last().unwrap()),
+            is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.type_definition.type_id.split("::").last().unwrap()),
             is_iterable_primitive_nonnumeric: ExpressionSpecInvocation::is_iterable_primitive_nonnumeric(&pascalized_iterable_type),
             is_iterable_numeric: ExpressionSpecInvocation::is_iterable_numeric(&pascalized_iterable_type),
             escaped_identifier,
@@ -510,6 +509,9 @@ pub struct ExpressionCompilationContext<'a> {
 
     /// All components, by ID
     pub all_components: HashMap<String, ComponentDefinition>,
+
+    /// Type table, used for looking up property types by string source_ids
+    pub type_table: &'a TypeTable,
 
 }
 
@@ -575,7 +577,7 @@ impl<'a> ExpressionCompilationContext<'a> {
                 let mut ret = rpd;
                 //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
                 while let Some(atomic_symbol) = split_symbols.next() {
-                    ret = ret.type_definition.sub_properties.unwrap().get(atomic_symbol.as_str()).unwrap().clone();
+                    ret = ret.type_definition.property_definitions.unwrap().get(atomic_symbol.as_str()).unwrap().clone();
                 }
                 Some(ret)
             }

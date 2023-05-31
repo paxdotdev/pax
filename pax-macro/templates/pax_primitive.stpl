@@ -48,7 +48,7 @@ impl <%= pascal_identifier %> {
                     
                     // !!
                     // Try a `source_id` => `Vec<source_id>` map, populated at parse-time, which
-                    //  suggests an approach where we "punch" out the sub_properties on a subsequent
+                    //  suggests an approach where we "punch" out the property_definitions on a subsequent
                     //  pass, by traversing those string IDs, (similar in spirit to "punching" the vtable ids in the manifest)
                     // !!
 

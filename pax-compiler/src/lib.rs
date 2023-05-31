@@ -1,7 +1,6 @@
 extern crate core;
 
 pub mod manifest;
-pub mod reflection;
 pub mod templating;
 pub mod parsing;
 pub mod expressions;
@@ -253,8 +252,8 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
     //update property types in-place
     manifest.components.iter_mut().for_each(|cd| {
         cd.1.get_property_definitions().iter_mut().for_each(|pm| {
-            pm.type_definition.fully_qualified_type_pascalized = pm.type_definition.fully_qualified_type_pascalized.replace("{PREFIX}", "__");
-            pm.type_definition.fully_qualified_type = pm.type_definition.fully_qualified_type.replace("{PREFIX}", &host_crate_info.import_prefix);
+            pm.type_definition.type_id_pascalized = pm.type_definition.type_id_pascalized.replace("{PREFIX}", "__");
+            pm.type_definition.type_id = pm.type_definition.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
         });
     });
 }
@@ -300,8 +299,8 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     // - include all T such that T is the iterator type for some Property<Vec<T>>
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
         cd.1.get_property_definitions().iter().map(|pm|{
-            (pm.type_definition.fully_qualified_type_pascalized.clone(),
-             pm.type_definition.fully_qualified_type.clone().replace("crate::", ""))
+            (pm.type_definition.type_id_pascalized.clone(),
+             pm.type_definition.type_id.clone().replace("crate::", ""))
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 

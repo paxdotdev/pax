@@ -29,14 +29,14 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
         module_path.to_string()
     };
 
-    let sub_properties : HashMap<String, PropertyDefinition> = property_definitions.iter().map(|pd|{(pd.name.clone(), pd.clone())}).collect();
-    let sub_properties = Some(sub_properties);
+    let property_definitions : HashMap<String, PropertyDefinition> = property_definitions.iter().map(|pd|{(pd.name.clone(), pd.clone())}).collect();
+    let property_definitions = Some(property_definitions);
     let x = TypeDefinition {
         original_type: pascal_identifier.to_string(),
-        fully_qualified_type: "".to_string(),
-        fully_qualified_type_pascalized: "".to_string(),
+        type_id: "".to_string(),
+        type_id_pascalized: "".to_string(),
         fully_qualified_constituent_types: vec![],
-        sub_properties,
+        property_definitions: property_definitions,
     };
 
     ComponentDefinition {
@@ -738,12 +738,13 @@ pub struct ParsingContext {
     pub component_definitions: HashMap<String, ComponentDefinition>,
 
     pub template_map: HashMap<String, String>,
-    pub source_type_map: HashMap<String, TypeDefinition>,
 
     //(SourceID, associated Strings)
     pub all_property_definitions: HashMap<String, Vec<PropertyDefinition>>,
 
     pub template_node_definitions: Vec<TemplateNodeDefinition>,
+
+    pub type_table: TypeTable,
 }
 
 impl Default for ParsingContext {
@@ -753,7 +754,7 @@ impl Default for ParsingContext {
             visited_source_ids: HashSet::new(),
             component_definitions: HashMap::new(),
             template_map: HashMap::new(),
-            source_type_map: Default::default(),
+            type_table: Default::default(),
             all_property_definitions: HashMap::new(),
             template_node_definitions: vec![],
         }
@@ -805,7 +806,7 @@ pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_
         settings: parse_settings_from_component_definition_string(pax),
         events: parse_events_from_component_definition_string(pax),
         module_path: modified_module_path,
-        self_type_definition,
+
     };
 
     (ctx, new_def)
@@ -843,31 +844,32 @@ pub fn assemble_type_definition(
     original_type: &str,
     fully_qualified_constituent_types: Vec<String>,
     dep_to_fqd_map: &HashMap<&str, String>,
-    sub_properties: Option<HashMap<String, PropertyDefinition>>,
+    property_definitions: Vec<PropertyDefinition>,
 ) -> (ParsingContext, TypeDefinition) {
 
-    let mut fully_qualified_type = original_type.to_string();
+    let mut type_id = original_type.to_string();
     //extract dep_to_fqd_map into a Vec<String>; string-replace each looked-up value present in
     //unexpanded_path, ensuring that each looked-up value is not preceded by a `::`
     dep_to_fqd_map.keys().for_each(|key| {
-        fully_qualified_type.clone().match_indices(key).for_each(|i|{
-            if i.0 < 2 || {let maybe_coco : String = fully_qualified_type.chars().skip((i.0 as i64) as usize - 2).take(2).collect(); maybe_coco != "::" } {
+        type_id.clone().match_indices(key).for_each(|i|{
+            if i.0 < 2 || {let maybe_coco : String = type_id.chars().skip((i.0 as i64) as usize - 2).take(2).collect(); maybe_coco != "::" } {
                 let new_value = "{PREFIX}".to_string() + &dep_to_fqd_map.get(key).unwrap();
                 let starting_index : i64 = i.0 as i64;
                 let end_index_exclusive = starting_index + key.len() as i64;
-                fully_qualified_type.replace_range(starting_index as usize..end_index_exclusive as usize, &new_value);
+                type_id.replace_range(starting_index as usize..end_index_exclusive as usize, &new_value);
             }
         });
     });
 
-    let fully_qualified_type_pascalized = escape_identifier(fully_qualified_type.clone());
+    let type_id_pascalized = escape_identifier(type_id.clone());
 
     let new_def = TypeDefinition {
         original_type: original_type.to_string(),
-        fully_qualified_type,
-        fully_qualified_type_pascalized,
+        type_id,
+        type_id_pascalized,
         fully_qualified_constituent_types,
-        sub_properties,
+        inner_iterable_type_id: None,
+        property_definitions,
     };
 
     (ctx, new_def)

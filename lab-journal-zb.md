@@ -2902,17 +2902,17 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
         [ ] pax_component 
     [ ] determine 
 [ ] Update `resolve_symbol` logic to handle nested symbols like `foo.bar.baz` and `elem.some.deeply.nested.thing`.
-    [x] Split by `.`, recurse PropertyDefinition => TypeDefinition.sub_properties => PropertyDefinition => ...
+    [x] Split by `.`, recurse PropertyDefinition => TypeDefinition.property_definitions => PropertyDefinition => ...
     [ ] Add RIL generation logic to handle trailing `.foo.bar` — 
         What does this look like?  If `foo` is a Property<T>, then we opaquely call
         `.get()`.  Do we also need to unwrap the propertiescoproduct? 
         - yes: .get() each subsequent property.  gather terminal symbol's TypeDefinition.
         - do not need to unwrap properties coproduct after the root -- once unwrapped, it "owns"
           the subsequent chained symbols, in a strongly typed way. 
-[ ] Add `sub_properties` to `TypeDefinition`, allowing recursion through
+[ ] Add `property_definitions` to `TypeDefinition`, allowing recursion through
     nested `TypeDefinition`s, 
     [x] Refactor: `PropertyDefinition` and `TypeDefinition`; clean-up and consolidate
-    [ ] Populate `sub_properties` — this may need to happen after the initial full recursion
+    [ ] Populate `property_definitions` — this may need to happen after the initial full recursion
         in the parser binary, right before we currently terminate and write to stdout — 
         recurse the entire tree one more time, populating `known_addressable_properties` with the benefit
         of the whole manifest in hand.  

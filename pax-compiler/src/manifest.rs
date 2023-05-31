@@ -13,6 +13,7 @@ pub struct PaxManifest {
     pub components: HashMap<String, ComponentDefinition>,
     pub main_component_id: String,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
+    pub type_table: TypeTable,
 }
 
 
@@ -164,7 +165,8 @@ pub struct ComponentDefinition {
     pub events: Option<Vec<EventDefinition>>,
 
     //Properties are a concern of the `TypeDefinition` and the `PropertyDefinition`s are stored therein
-    pub self_type_definition: TypeDefinition,
+    //This self_type_id can be used to retrieve a TypeDefinition from a populated TypeTable
+    pub self_type_id: String,
 }
 
 impl ComponentDefinition {
@@ -179,7 +181,7 @@ impl ComponentDefinition {
     }
 
     pub fn get_property_definitions(&self) -> &Vec<&PropertyDefinition> {
-        &self.self_type_definition.sub_properties.unwrap().values().collect()
+        &self.self_type_definition.property_definitions.unwrap().values().collect()
     }
 }
 
@@ -216,46 +218,27 @@ pub struct PropertyDefinition {
     /// String representation of the symbolic identifier of a declared Property
     pub name: String,
 
-    /// Used for e.g. expression vtable generation and PAXEL symbol resolution
-    pub type_definition: TypeDefinition,
-
     /// Flags, used ultimately by ExpressionSpecInvocations, to denote
     /// e.g. whether a property is the `i` or `elem` of a `Repeat`, which allows
     /// for special-handling the RIL that invokes these values
     pub flags: Option<PropertyDefinitionFlags>,
 
     /// Statically known source_id for this Property's associated TypeDefinition
-    pub type_source_id: String,
+    pub type_id: String,
 
-    /// Statically known source_id for this Property's iterable TypeDefinition, that is,
-    /// T for some Property<Vec<T>>
-    pub iterable_type_source_id: Option<String>,
-
-    /// Rc populated at post-parse-time for enabling
-    /// TypeDefinition lookup by source_id.  Specifically, this
-    /// approach enables self-referentially recursive and lazy property / type resolution
-    #[serde(skip)]
-    pub type_table: Option<Rc<TypeTable>>,
 }
 
 impl PropertyDefinition {
-    pub fn get_type_definition(&self) -> Option<&TypeDefinition> {
-        if let Some(tt) = &self.type_table {
-            tt.get(&self.type_source_id)
-        } else {
-            panic!("Cannot get type definition unless `type_table` has been initialized.")
-        }
+
+    pub fn get_type_definition(&self, tt: &TypeTable) -> Option<&TypeDefinition> {
+        tt.get(&self.type_id)
     }
 
-    pub fn get_iterable_type_definition(&self) -> Option<&TypeDefinition> {
-        if let Some(tt) = &self.type_table {
-            if let Some(itsi) = &self.iterable_type_source_id {
-                tt.get(itsi)
-            } else {
-                None
-            }
+    pub fn get_iterable_type_definition(&self, tt: &TypeTable) -> Option<&TypeDefinition> {
+        if let Some(iiti) = &self.inner_iterable_type_id {
+            tt.get(iiti)
         } else {
-            panic!("Cannot get type definition unless `type_table` has been initialized.")
+            None
         }
     }
 }
@@ -274,17 +257,9 @@ impl PropertyDefinition {
     pub fn primitive_with_name(type_name: &str, symbol_name: &str) -> Self {
         PropertyDefinition {
             name: symbol_name.to_string(),
-            type_definition: TypeDefinition {
-                original_type: type_name.to_string(),
-                fully_qualified_type: type_name.to_string(),
-                fully_qualified_constituent_types: vec![],
-                fully_qualified_type_pascalized: type_name.to_string(),
-                sub_properties: None,
-            },
             flags: None,
-            type_source_id: type_name.to_string(),
-            iterable_type_source_id: None,
-            type_table: None,
+            type_id: type_name.to_string(),
+            inner_iterable_type_id: None,
         }
     }
 }
@@ -297,18 +272,20 @@ TypeDefinition {
     pub original_type: String,
 
     /// Same type as `original_type`, but dynamically normalized to be fully qualified, suitable for reexporting.  For example, the original_type `Vec<SomeStruct>` would be fully qualified as `std::vec::Vec<some_crate::SomeStruct>`
-    pub fully_qualified_type: String,
+    pub type_id: String,
 
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
-    pub fully_qualified_type_pascalized: String,
+    pub type_id_pascalized: String,
 
     /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
     pub fully_qualified_constituent_types: Vec<String>,
 
-    /// A vec of (String, PropertyType) tuples, describing known addressable properties
-    /// of this PropertyType.  For Example, a struct `Foo {bar: String, baz: SomeOtherStruct}`
-    /// would have entries `("bar", PropertyDefinition {...})`, `("baz", PropertyDefinition {...})`
-    pub sub_properties: Option<HashMap<String, PropertyDefinition>>,
+    /// Statically known source_id for this Property's iterable TypeDefinition, that is,
+    /// T for some Property<Vec<T>>
+    pub inner_iterable_type_id: Option<String>,
+
+    /// A vec of PropertyType, describing known addressable (sub-)properties of this PropertyType
+    pub property_definitions: Vec<PropertyDefinition>,
 }
 
 impl TypeDefinition {
@@ -317,10 +294,10 @@ impl TypeDefinition {
     pub fn primitive(type_name: &str) -> Self {
         Self {
             original_type: type_name.to_string(),
-            fully_qualified_type_pascalized: type_name.to_string(),
-            fully_qualified_type: type_name.to_string(),
+            type_id_pascalized: type_name.to_string(),
+            type_id: type_name.to_string(),
             fully_qualified_constituent_types: vec![],
-            sub_properties: None,
+            property_definitions: vec![],
         }
     }
 
@@ -328,30 +305,30 @@ impl TypeDefinition {
     pub fn builtin_vec_rc_properties_coproduct() -> Self {
         Self {
             original_type: "Vec<Rc<PropertiesCoproduct>>".to_string(),
-            fully_qualified_type: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
-            fully_qualified_type_pascalized: "Vec_Rc_PropertiesCoproduct___".to_string(),
+            type_id: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
+            type_id_pascalized: "Vec_Rc_PropertiesCoproduct___".to_string(),
             fully_qualified_constituent_types: vec!["std::vec::Vec".to_string(), "std::rc::Rc".to_string()],
-            sub_properties: None,
+            property_definitions: vec![],
         }
     }
 
     pub fn builtin_range_isize() -> Self {
         Self {
             original_type: "std::ops::Range<isize>".to_string(),
-            fully_qualified_type: "std::ops::Range<isize>".to_string(),
-            fully_qualified_type_pascalized: "Range_isize_".to_string(),
+            type_id: "std::ops::Range<isize>".to_string(),
+            type_id_pascalized: "Range_isize_".to_string(),
             fully_qualified_constituent_types: vec!["std::ops::Range".to_string()],
-            sub_properties: None,
+            property_definitions: vec![],
         }
     }
 
     pub fn builtin_rc_properties_coproduct() -> Self {
         Self {
             original_type: "Rc<PropertiesCoproduct>".to_string(),
-            fully_qualified_type: "std::rc::Rc<PropertiesCoproduct>".to_string(),
-            fully_qualified_type_pascalized: "Rc_PropertiesCoproduct__".to_string(),
+            type_id: "std::rc::Rc<PropertiesCoproduct>".to_string(),
+            type_id_pascalized: "Rc_PropertiesCoproduct__".to_string(),
             fully_qualified_constituent_types: vec!["std::rc::Rc".to_string()],
-            sub_properties: None,
+            property_definitions: vec![],
         }
     }
 
