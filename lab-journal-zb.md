@@ -2893,18 +2893,25 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
         [x] Implement macro API++ (derive plus attribute flags)
         [x] `#[custom(...)]` escape hatches
     [ ] Update iterable_type population logic;
-        codegen calls to `populate_property_type_definition` for each nested Vec<Vec<T...
+        codegen calls to `populate_type_definition` for each nested Vec<Vec<T...
+[ ] connect `ComponentDefinition` with `TypeDefinition`
+    [x] refactor access / mutation of ComponentDefinition.property_definitions
+    [ ] assemble `source_type_map` with a TypeDefinition for each visited source
+        [ ] pax_type
+        [ ] pax_primitive
+        [ ] pax_component 
+    [ ] determine 
 [ ] Update `resolve_symbol` logic to handle nested symbols like `foo.bar.baz` and `elem.some.deeply.nested.thing`.
-    [x] Split by `.`, recurse PropertyDefinition => PropertyTypeDefinition.sub_properties => PropertyDefinition => ...
+    [x] Split by `.`, recurse PropertyDefinition => TypeDefinition.sub_properties => PropertyDefinition => ...
     [ ] Add RIL generation logic to handle trailing `.foo.bar` — 
         What does this look like?  If `foo` is a Property<T>, then we opaquely call
         `.get()`.  Do we also need to unwrap the propertiescoproduct? 
-        - yes: .get() each subsequent property.  gather terminal symbol's PropertyTypeDefinition.
+        - yes: .get() each subsequent property.  gather terminal symbol's TypeDefinition.
         - do not need to unwrap properties coproduct after the root -- once unwrapped, it "owns"
           the subsequent chained symbols, in a strongly typed way. 
-[ ] Add `sub_properties` to `PropertyTypeInfo`, allowing recursion through
-    nested `PropertyTypeInfo`s, 
-    [x] Refactor: `PropertyDefinition` and `PropertyTypeInfo`; clean-up and consolidate
+[ ] Add `sub_properties` to `TypeDefinition`, allowing recursion through
+    nested `TypeDefinition`s, 
+    [x] Refactor: `PropertyDefinition` and `TypeDefinition`; clean-up and consolidate
     [ ] Populate `sub_properties` — this may need to happen after the initial full recursion
         in the parser binary, right before we currently terminate and write to stdout — 
         recurse the entire tree one more time, populating `known_addressable_properties` with the benefit

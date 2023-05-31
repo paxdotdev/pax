@@ -41,7 +41,7 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     }).collect();
 
     let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
-        cd.1.property_definitions.iter().map(|pm|{
+        cd.1.get_property_definitions().iter().map(|pm|{
             pm.type_definition.fully_qualified_constituent_types.clone()
         }).flatten().collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
@@ -252,7 +252,7 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
 fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
     //update property types in-place
     manifest.components.iter_mut().for_each(|cd| {
-        cd.1.property_definitions.iter_mut().for_each(|pm| {
+        cd.1.get_property_definitions().iter_mut().for_each(|pm| {
             pm.type_definition.fully_qualified_type_pascalized = pm.type_definition.fully_qualified_type_pascalized.replace("{PREFIX}", "__");
             pm.type_definition.fully_qualified_type = pm.type_definition.fully_qualified_type.replace("{PREFIX}", &host_crate_info.import_prefix);
         });
@@ -299,7 +299,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     // - include all Property types, representing all possible return types for Expressions
     // - include all T such that T is the iterator type for some Property<Vec<T>>
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
-        cd.1.property_definitions.iter().map(|pm|{
+        cd.1.get_property_definitions().iter().map(|pm|{
             (pm.type_definition.fully_qualified_type_pascalized.clone(),
              pm.type_definition.fully_qualified_type.clone().replace("crate::", ""))
         }).collect::<Vec<_>>()
@@ -359,7 +359,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     #[allow(non_snake_case)]
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
     let mut imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
-        comp_def.property_definitions.iter().map(|prop_def|{
+        comp_def.get_property_definitions().iter().map(|prop_def|{
             prop_def.type_definition.fully_qualified_constituent_types.iter().map(|fqct|{
                 IMPORT_PREFIX.clone() + &fqct.replace("crate::", "")
             }).collect::<Vec<String>>()
@@ -569,7 +569,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //    stage for any `Properties` that are bound to something other than an expression / literal)
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
-        let property_ril_tuples: Vec<(String, String)> = component_for_current_node.property_definitions.iter().map(|pd| {
+        let property_ril_tuples: Vec<(String, String)> = component_for_current_node.get_property_definitions().iter().map(|pd| {
             let ril_literal_string = {
                 if let Some(inline_settings) = &tnd.settings {
                     if let Some(matched_setting) = inline_settings.iter().find(|avd| { avd.0 == pd.name }) {
@@ -676,7 +676,7 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
         is_main_component: cd.is_main_component,
         snake_case_component_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
-        properties: cd.property_definitions.clone(),
+        properties: cd.get_property_definitions().clone(),
         events: generate_events_map(cd.events.clone()),
         render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc),
         properties_coproduct_variant: cd.pascal_identifier.to_string()

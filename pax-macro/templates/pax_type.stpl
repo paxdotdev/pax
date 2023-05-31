@@ -33,7 +33,7 @@ impl <%= pascal_identifier %> {
 
             <% } %>
 
-            let (mut ctx, property_type_definition) =  pax_compiler::parsing::assemble_property_type_definition(
+            let (mut ctx, type_definition) =  pax_compiler::parsing::assemble_type_definition(
                 ctx,
                 "<%= spd.original_type %>",
                 fully_qualified_constituent_types.clone(),
@@ -42,7 +42,7 @@ impl <%= pascal_identifier %> {
 
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                 name: "<%= spd.field_name %>".to_string(),
-                type_definition: property_type_definition,
+                type_definition: type_definition,
                 flags: None,
             });
         <% } %>

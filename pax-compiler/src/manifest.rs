@@ -1,5 +1,7 @@
 use std::collections::{HashMap};
 use std::cmp::Ordering;
+use std::ops::Deref;
+use std::rc::Rc;
 
 use serde_derive::{Serialize, Deserialize};
 #[allow(unused_imports)]
@@ -160,12 +162,13 @@ pub struct ComponentDefinition {
     pub template: Option<Vec<TemplateNodeDefinition>>,
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
     pub events: Option<Vec<EventDefinition>>,
-    pub property_definitions: Vec<PropertyDefinition>,
+
+    //Properties are a concern of the `TypeDefinition` and the `PropertyDefinition`s are stored therein
+    pub self_type_definition: TypeDefinition,
 }
 
 impl ComponentDefinition {
     pub fn get_snake_case_id(&self) -> String {
-
         self.source_id
             .replace("::", "_")
             .replace("/", "_")
@@ -175,19 +178,14 @@ impl ComponentDefinition {
             .replace(".", "_")
     }
 
-    // pub fn get_static_addressable_property_tree(&self) -> Vec<String> {
-    //     //For each property definition
-    //     //  - add self to vec
-    //     //  - look at self.property_type_definition.known_addressable_properties — if it's Some(Vec), then
-    //     //
-    //
-    //     self.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()
-    // }
+    pub fn get_property_definitions(&self) -> &Vec<&PropertyDefinition> {
+        &self.self_type_definition.sub_properties.unwrap().values().collect()
+    }
 }
 
 impl ComponentDefinition {
-    pub fn get_property_definition_by_name(&self, name: &str) -> PropertyDefinition {
-        self.property_definitions.iter().find(|pd| { pd.name.eq(name) }).expect(&format!("Property not found with name {}", &name)).clone()
+    pub fn get_property_definition_by_name(&self, name: &str) -> &PropertyDefinition {
+        self.get_property_definitions().iter().find(|pd| { pd.name.eq(name) }).expect(&format!("Property not found with name {}", &name)).clone()
     }
 }
 
@@ -211,18 +209,55 @@ pub struct TemplateNodeDefinition {
     pub pascal_identifier: String,
 }
 
+pub type TypeTable = HashMap<String, TypeDefinition>;
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PropertyDefinition {
     /// String representation of the symbolic identifier of a declared Property
     pub name: String,
 
     /// Used for e.g. expression vtable generation and PAXEL symbol resolution
-    pub type_definition: PropertyTypeDefinition,
+    pub type_definition: TypeDefinition,
 
     /// Flags, used ultimately by ExpressionSpecInvocations, to denote
     /// e.g. whether a property is the `i` or `elem` of a `Repeat`, which allows
     /// for special-handling the RIL that invokes these values
     pub flags: Option<PropertyDefinitionFlags>,
+
+    /// Statically known source_id for this Property's associated TypeDefinition
+    pub type_source_id: String,
+
+    /// Statically known source_id for this Property's iterable TypeDefinition, that is,
+    /// T for some Property<Vec<T>>
+    pub iterable_type_source_id: Option<String>,
+
+    /// Rc populated at post-parse-time for enabling
+    /// TypeDefinition lookup by source_id.  Specifically, this
+    /// approach enables self-referentially recursive and lazy property / type resolution
+    #[serde(skip)]
+    pub type_table: Option<Rc<TypeTable>>,
+}
+
+impl PropertyDefinition {
+    pub fn get_type_definition(&self) -> Option<&TypeDefinition> {
+        if let Some(tt) = &self.type_table {
+            tt.get(&self.type_source_id)
+        } else {
+            panic!("Cannot get type definition unless `type_table` has been initialized.")
+        }
+    }
+
+    pub fn get_iterable_type_definition(&self) -> Option<&TypeDefinition> {
+        if let Some(tt) = &self.type_table {
+            if let Some(itsi) = &self.iterable_type_source_id {
+                tt.get(itsi)
+            } else {
+                None
+            }
+        } else {
+            panic!("Cannot get type definition unless `type_table` has been initialized.")
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
@@ -232,22 +267,24 @@ pub struct PropertyDefinitionFlags {
 }
 
 /// Describes static metadata surrounding a property, for example
-/// the string representation of the property's name and a `PropertyTypeInfo`
+/// the string representation of the property's name and a `TypeInfo`
 /// entry for the property's statically discovered type
 impl PropertyDefinition {
     /// Shorthand factory / constructor
     pub fn primitive_with_name(type_name: &str, symbol_name: &str) -> Self {
         PropertyDefinition {
             name: symbol_name.to_string(),
-            type_definition: PropertyTypeDefinition {
+            type_definition: TypeDefinition {
                 original_type: type_name.to_string(),
                 fully_qualified_type: type_name.to_string(),
                 fully_qualified_constituent_types: vec![],
                 fully_qualified_type_pascalized: type_name.to_string(),
-                iterable_type: None,
                 sub_properties: None,
             },
             flags: None,
+            type_source_id: type_name.to_string(),
+            iterable_type_source_id: None,
+            type_table: None,
         }
     }
 }
@@ -255,7 +292,7 @@ impl PropertyDefinition {
 /// Describes metadata surrounding a property's type, gathered from a combination of static & dynamic analysis
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct
-PropertyTypeDefinition {
+TypeDefinition {
     /// Type as authored, literally.  May be partially namespace-qualified or aliased.
     pub original_type: String,
 
@@ -268,22 +305,20 @@ PropertyTypeDefinition {
     /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
     pub fully_qualified_constituent_types: Vec<String>,
 
-    /// If present, the type `T` in a `Property<Vec<T>>` — i.e. that which can be traversed with `for`
-    pub iterable_type: Option<Box<PropertyTypeDefinition>>,
-
     /// A vec of (String, PropertyType) tuples, describing known addressable properties
     /// of this PropertyType.  For Example, a struct `Foo {bar: String, baz: SomeOtherStruct}`
     /// would have entries `("bar", PropertyDefinition {...})`, `("baz", PropertyDefinition {...})`
     pub sub_properties: Option<HashMap<String, PropertyDefinition>>,
 }
 
-impl PropertyTypeDefinition {
+impl TypeDefinition {
+
+
     pub fn primitive(type_name: &str) -> Self {
         Self {
             original_type: type_name.to_string(),
             fully_qualified_type_pascalized: type_name.to_string(),
             fully_qualified_type: type_name.to_string(),
-            iterable_type: None,
             fully_qualified_constituent_types: vec![],
             sub_properties: None,
         }
@@ -295,7 +330,6 @@ impl PropertyTypeDefinition {
             original_type: "Vec<Rc<PropertiesCoproduct>>".to_string(),
             fully_qualified_type: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
             fully_qualified_type_pascalized: "Vec_Rc_PropertiesCoproduct___".to_string(),
-            iterable_type: Some(Box::new(Self::builtin_rc_properties_coproduct())),
             fully_qualified_constituent_types: vec!["std::vec::Vec".to_string(), "std::rc::Rc".to_string()],
             sub_properties: None,
         }
@@ -306,7 +340,6 @@ impl PropertyTypeDefinition {
             original_type: "std::ops::Range<isize>".to_string(),
             fully_qualified_type: "std::ops::Range<isize>".to_string(),
             fully_qualified_type_pascalized: "Range_isize_".to_string(),
-            iterable_type: Some(Box::new(Self::primitive("isize"))),
             fully_qualified_constituent_types: vec!["std::ops::Range".to_string()],
             sub_properties: None,
         }
@@ -317,7 +350,6 @@ impl PropertyTypeDefinition {
             original_type: "Rc<PropertiesCoproduct>".to_string(),
             fully_qualified_type: "std::rc::Rc<PropertiesCoproduct>".to_string(),
             fully_qualified_type_pascalized: "Rc_PropertiesCoproduct__".to_string(),
-            iterable_type: None,
             fully_qualified_constituent_types: vec!["std::rc::Rc".to_string()],
             sub_properties: None,
         }

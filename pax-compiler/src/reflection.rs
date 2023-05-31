@@ -1,5 +1,5 @@
 use std::collections::{HashMap, VecDeque};
-use crate::manifest::{PropertyDefinition, PropertyTypeDefinition};
+use crate::manifest::{PropertyDefinition, TypeDefinition};
 
 
 static PRELUDE_TYPES: [&'static str; 5] = [
@@ -30,7 +30,7 @@ pub fn is_prelude_type(identifier: &str) -> bool {
 //Returns a fully expanded path and a pascalized version of that fully expanded path — for example:
 // Vec<Rc<StackerCell>> becomes
 // std::collections::Vec<std::rc::Rc<pax_example::pax_reexports::pax_std::types::StackerCell>>
-// pub fn populate_property_type_definition(original_type: &str, fully_qualified_constituent_types: Vec<String>, dep_to_fqd_map: &HashMap<&str, String>, sub_properties: Option<HashMap<String, PropertyDefinition>>, iterable_type: Option<Box<PropertyTypeDefinition>>) -> PropertyTypeDefinition {
+// pub fn populate_type_definition(original_type: &str, fully_qualified_constituent_types: Vec<String>, dep_to_fqd_map: &HashMap<&str, String>, sub_properties: Option<HashMap<String, PropertyDefinition>>, iterable_type: Option<Box<TypeDefinition>>) -> TypeDefinition {
 //
 //     let mut fully_qualified_type = original_type.to_string();
 //
@@ -52,7 +52,7 @@ pub fn is_prelude_type(identifier: &str) -> bool {
 //     let property_definitions = ctx.all_property_definitions.get(source_id).unwrap().clone();
 //
 //
-//     PropertyTypeDefinition {
+//     TypeDefinition {
 //         original_type: original_type.to_string(),
 //         fully_qualified_type,
 //         fully_qualified_type_pascalized,

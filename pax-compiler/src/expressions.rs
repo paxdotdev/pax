@@ -4,7 +4,7 @@ use std::ops::{IndexMut, RangeFrom};
 use std::str::Split;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use crate::manifest::{PropertyDefinitionFlags, PropertyTypeDefinition};
+use crate::manifest::{PropertyDefinitionFlags, TypeDefinition};
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
@@ -29,7 +29,7 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
             let mut ctx = ExpressionCompilationContext {
                 template,
                 active_node_def,
-                scope_stack: vec![component_def.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
+                scope_stack: vec![component_def.get_property_definitions().iter().map(|pd| {(pd.name.clone(), *pd.clone())}).collect()],
                 uid_gen: uid_track..,
                 all_components: manifest.components.clone(),
                 expression_specs: &mut swap_expression_specs,
@@ -157,7 +157,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
                         let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
 
-                        let pascalized_return_type = (&ctx.component_def.property_definitions.iter().find(
+                        let pascalized_return_type = (&ctx.component_def.get_property_definitions().iter().find(
                             |property_def| {
                                 property_def.name == inline.0
                             }
@@ -193,7 +193,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*inline.0) {
                         type_string.to_string()
                     } else {
-                        (active_node_component.property_definitions.iter().find(|property_def| {
+                        (active_node_component.get_property_definitions().iter().find(|property_def| {
                             property_def.name == inline.0
                         }).expect(
                             &format!("Property `{}` not found on component `{}`", &inline.0, &active_node_component.pascal_identifier)
@@ -239,10 +239,10 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
 
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
-                (range_expression_paxel.to_string(), PropertyTypeDefinition::builtin_range_isize())
+                (range_expression_paxel.to_string(), TypeDefinition::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                 let symbolic_binding_property  = ctx.resolve_symbol_as_prop_def(symbolic_binding).expect(&format!("Unable to resolve symbol {}", symbolic_binding));
-                (symbolic_binding.to_string(), PropertyTypeDefinition::builtin_vec_rc_properties_coproduct())
+                (symbolic_binding.to_string(), TypeDefinition::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
@@ -261,6 +261,9 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             is_repeat_i: false,
                             is_repeat_elem: true,
                         }),
+                        type_source_id: "".to_string(),
+                        iterable_type_source_id: None,
+                        type_table: None,
                     };
 
                     let mut scope = HashMap::from([

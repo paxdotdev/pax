@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, PropertyTypeDefinition};
+use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, TypeDefinition, TypeTable};
 
 use uuid::Uuid;
 
@@ -22,12 +22,23 @@ use pax_message::reflection::Reflectable;
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
-pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String) -> ComponentDefinition {
+pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String, self_type_definition: TypeDefinition) -> ComponentDefinition {
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
     } else {
         module_path.to_string()
     };
+
+    let sub_properties : HashMap<String, PropertyDefinition> = property_definitions.iter().map(|pd|{(pd.name.clone(), pd.clone())}).collect();
+    let sub_properties = Some(sub_properties);
+    let x = TypeDefinition {
+        original_type: pascal_identifier.to_string(),
+        fully_qualified_type: "".to_string(),
+        fully_qualified_type_pascalized: "".to_string(),
+        fully_qualified_constituent_types: vec![],
+        sub_properties,
+    };
+
     ComponentDefinition {
         is_primitive: true,
         is_type: false,
@@ -38,7 +49,7 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
         template: None,
         settings: None,
         module_path: modified_module_path,
-        property_definitions: property_definitions.to_vec(),
+        self_type_definition,
         events: None,
     }
 }
@@ -727,6 +738,7 @@ pub struct ParsingContext {
     pub component_definitions: HashMap<String, ComponentDefinition>,
 
     pub template_map: HashMap<String, String>,
+    pub source_type_map: HashMap<String, TypeDefinition>,
 
     //(SourceID, associated Strings)
     pub all_property_definitions: HashMap<String, Vec<PropertyDefinition>>,
@@ -741,6 +753,7 @@ impl Default for ParsingContext {
             visited_source_ids: HashSet::new(),
             component_definitions: HashMap::new(),
             template_map: HashMap::new(),
+            source_type_map: Default::default(),
             all_property_definitions: HashMap::new(),
             template_node_definitions: vec![],
         }
@@ -748,7 +761,7 @@ impl Default for ParsingContext {
 }
 
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
-pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
+pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str, self_type_definition: TypeDefinition) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
@@ -792,7 +805,7 @@ pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_
         settings: parse_settings_from_component_definition_string(pax),
         events: parse_events_from_component_definition_string(pax),
         module_path: modified_module_path,
-        property_definitions,
+        self_type_definition,
     };
 
     (ctx, new_def)
@@ -819,18 +832,19 @@ pub fn assemble_pax_type_definition(ctx: ParsingContext, pascal_identifier: &str
         template: None,
         settings: None,
         events: None,
-        property_definitions,
+        self_type_definition: Default::default(),
     };
 
     (ctx, new_def)
 }
 
-pub fn assemble_property_type_definition(
+pub fn assemble_type_definition(
     ctx: ParsingContext,
     original_type: &str,
     fully_qualified_constituent_types: Vec<String>,
     dep_to_fqd_map: &HashMap<&str, String>,
-) -> (ParsingContext, PropertyTypeDefinition) {
+    sub_properties: Option<HashMap<String, PropertyDefinition>>,
+) -> (ParsingContext, TypeDefinition) {
 
     let mut fully_qualified_type = original_type.to_string();
     //extract dep_to_fqd_map into a Vec<String>; string-replace each looked-up value present in
@@ -848,36 +862,11 @@ pub fn assemble_property_type_definition(
 
     let fully_qualified_type_pascalized = escape_identifier(fully_qualified_type.clone());
 
-    //Two problems:
-    //  [x] we're passing the wrong source_id (e.g. component::Example instead of the source_id for this type)
-    //     - Robustify the source_id generation logic, probably code-genning method definitions
-    //       alongside where we generate parse_to_manifest and parse_type_to_manifest.
-    //     - probably codegen calls that `get_source_id()` method
-    //  [ ] this type will need to be traversed & populated BEFORE recursing into this `assemble_property_type_definition` method call.
-    //     the same sort of "already parsed" check should be implemented.
-
-    //~~We want `T`'s source_id, for Property<T>~~
-    //~~  If T is a Vec, we ignore for now (may need to revisit for `[]` access support)~~
-    //We don't want T!!  We want the  `Property` itself, not its type.
-    let properties =  //ctx.all_property_definitions.get(source_id).unwrap().clone();
-    let mut sub_properties: HashMap<String, PropertyDefinition> = HashMap::new();
-
-    properties.iter().for_each(|p|{
-        sub_properties.insert(p.name.clone(),p.clone());
-    });
-
-    let sub_properties= if sub_properties.len() > 0 {
-        Some(sub_properties)
-    } else {
-        None
-    };
-
-    let new_def = PropertyTypeDefinition {
+    let new_def = TypeDefinition {
         original_type: original_type.to_string(),
         fully_qualified_type,
         fully_qualified_type_pascalized,
         fully_qualified_constituent_types,
-        iterable_type: None,
         sub_properties,
     };
 
