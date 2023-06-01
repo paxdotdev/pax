@@ -40,8 +40,9 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     }).collect();
 
     let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
-        cd.1.get_property_definitions().iter().map(|pm|{
-            pm.type_definition.fully_qualified_constituent_types.clone()
+        cd.1.get_property_definitions(&manifest.type_table).iter().map(|pm|{
+            let td = &manifest.type_table.get(&pm.type_id).unwrap();
+            td.fully_qualified_constituent_types.clone()
         }).flatten().collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -250,11 +251,12 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
 
 fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
     //update property types in-place
-    manifest.components.iter_mut().for_each(|cd| {
-        cd.1.get_property_definitions().iter_mut().for_each(|pm| {
-            pm.type_definition.type_id_pascalized = pm.type_definition.type_id_pascalized.replace("{PREFIX}", "__");
-            pm.type_definition.type_id = pm.type_definition.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
-        });
+    manifest.type_table.iter_mut().for_each(|t|{
+        t.1.type_id_pascalized = t.1.type_id_pascalized.replace("{PREFIX}", "__");
+        t.1.type_id = t.1.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
+        t.1.property_definitions.iter_mut().for_each(|pd|{
+            pd.type_id = pd.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
+        })
     });
 }
 
@@ -298,9 +300,10 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     // - include all Property types, representing all possible return types for Expressions
     // - include all T such that T is the iterator type for some Property<Vec<T>>
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
-        cd.1.get_property_definitions().iter().map(|pm|{
-            (pm.type_definition.type_id_pascalized.clone(),
-             pm.type_definition.type_id.clone().replace("crate::", ""))
+        cd.1.get_property_definitions(&manifest.type_table).iter().map(|pm|{
+            let td = pm.get_type_definition(&manifest.type_table);
+            (td.type_id_pascalized.clone(),
+             td.type_id.clone().replace("crate::", ""))
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -358,8 +361,9 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     #[allow(non_snake_case)]
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
     let mut imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
-        comp_def.get_property_definitions().iter().map(|prop_def|{
-            prop_def.type_definition.fully_qualified_constituent_types.iter().map(|fqct|{
+        comp_def.get_property_definitions(&manifest.type_table).iter().map(|prop_def|{
+            let td = prop_def.get_type_definition(&manifest.type_table);
+            td.fully_qualified_constituent_types.iter().map(|fqct|{
                 IMPORT_PREFIX.clone() + &fqct.replace("crate::", "")
             }).collect::<Vec<String>>()
         }).flatten().collect::<Vec<String>>()

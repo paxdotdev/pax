@@ -139,8 +139,8 @@ impl ExpressionSpecInvocation {
         }
     }
 
-    pub fn is_numeric_property(properties_coproduct_type: &str) -> bool {
-        SUPPORTED_NUMERIC_PRIMITIVES.contains(&properties_coproduct_type)
+    pub fn is_numeric_property(property_properties_coproduct_type: &str) -> bool {
+        SUPPORTED_NUMERIC_PRIMITIVES.contains(&property_properties_coproduct_type)
     }
 }
 
@@ -180,14 +180,8 @@ impl ComponentDefinition {
             .replace(".", "_")
     }
 
-    pub fn get_property_definitions(&self) -> &Vec<&PropertyDefinition> {
-        &self.self_type_definition.property_definitions.unwrap().values().collect()
-    }
-}
-
-impl ComponentDefinition {
-    pub fn get_property_definition_by_name(&self, name: &str) -> &PropertyDefinition {
-        self.get_property_definitions().iter().find(|pd| { pd.name.eq(name) }).expect(&format!("Property not found with name {}", &name)).clone()
+    pub fn get_property_definitions(&self, tt: &TypeTable) -> &Vec<PropertyDefinition> {
+        &tt.get(&self.self_type_id).unwrap().property_definitions
     }
 }
 
@@ -230,16 +224,17 @@ pub struct PropertyDefinition {
 
 impl PropertyDefinition {
 
-    pub fn get_type_definition(&self, tt: &TypeTable) -> Option<&TypeDefinition> {
-        tt.get(&self.type_id)
+    pub fn get_type_definition(&self, tt: &TypeTable) -> &TypeDefinition {
+        tt.get(&self.type_id).unwrap()
     }
 
-    pub fn get_iterable_type_definition(&self, tt: &TypeTable) -> Option<&TypeDefinition> {
-        if let Some(iiti) = &self.inner_iterable_type_id {
-            tt.get(iiti)
+    pub fn get_inner_iterable_type_definition(&self, tt: &TypeTable) -> Option<&TypeDefinition> {
+        if let Some(ref iiti) = tt.get(&self.type_id).unwrap().inner_iterable_type_id {
+            Some(tt.get(iiti).unwrap())
         } else {
             None
         }
+
     }
 }
 
@@ -259,7 +254,6 @@ impl PropertyDefinition {
             name: symbol_name.to_string(),
             flags: None,
             type_id: type_name.to_string(),
-            inner_iterable_type_id: None,
         }
     }
 }
@@ -298,6 +292,7 @@ impl TypeDefinition {
             type_id: type_name.to_string(),
             fully_qualified_constituent_types: vec![],
             property_definitions: vec![],
+            inner_iterable_type_id: None,
         }
     }
 
@@ -309,6 +304,7 @@ impl TypeDefinition {
             type_id_pascalized: "Vec_Rc_PropertiesCoproduct___".to_string(),
             fully_qualified_constituent_types: vec!["std::vec::Vec".to_string(), "std::rc::Rc".to_string()],
             property_definitions: vec![],
+            inner_iterable_type_id: None,
         }
     }
 
@@ -319,6 +315,7 @@ impl TypeDefinition {
             type_id_pascalized: "Range_isize_".to_string(),
             fully_qualified_constituent_types: vec!["std::ops::Range".to_string()],
             property_definitions: vec![],
+            inner_iterable_type_id: None,
         }
     }
 
@@ -329,6 +326,7 @@ impl TypeDefinition {
             type_id_pascalized: "Rc_PropertiesCoproduct__".to_string(),
             fully_qualified_constituent_types: vec!["std::rc::Rc".to_string()],
             property_definitions: vec![],
+            inner_iterable_type_id: None,
         }
     }
 

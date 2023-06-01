@@ -29,7 +29,7 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
             let mut ctx = ExpressionCompilationContext {
                 template,
                 active_node_def,
-                scope_stack: vec![component_def.get_property_definitions().iter().map(|pd| {(pd.name.clone(), *pd.clone())}).collect()],
+                scope_stack: vec![component_def.get_property_definitions(&manifest.type_table).iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
                 uid_gen: uid_track..,
                 all_components: manifest.components.clone(),
                 expression_specs: &mut swap_expression_specs,
@@ -158,11 +158,11 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
                         let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
 
-                        let pascalized_return_type = (&ctx.component_def.get_property_definitions().iter().find(
+                        let pascalized_return_type = (&ctx.component_def.get_property_definitions(ctx.type_table).iter().find(
                             |property_def| {
                                 property_def.name == inline.0
                             }
-                        ).unwrap().get_type_definition(ctx.type_table).unwrap().type_id_pascalized).clone();
+                        ).unwrap().get_type_definition(ctx.type_table).type_id_pascalized).clone();
 
                         ctx.expression_specs.insert(id, ExpressionSpec {
                             id,
@@ -194,11 +194,11 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*inline.0) {
                         type_string.to_string()
                     } else {
-                        (active_node_component.get_property_definitions().iter().find(|property_def| {
+                        (active_node_component.get_property_definitions(ctx.type_table).iter().find(|property_def| {
                             property_def.name == inline.0
                         }).expect(
                             &format!("Property `{}` not found on component `{}`", &inline.0, &active_node_component.pascal_identifier)
-                        ).get_type_definition(ctx.type_table).unwrap().type_id_pascalized).clone()
+                        ).get_type_definition(ctx.type_table).type_id_pascalized).clone()
                     };
 
                     let mut whitespace_removed_input = input.clone();
@@ -420,8 +420,9 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
 
-        let pascalized_iterable_type = if let Some(x) = &prop_def.type_definition.iterable_type {
-            Some(x.type_id_pascalized.clone())
+        let pascalized_iterable_type = if let Some(iiti) = &prop_def.get_type_definition(ctx.type_table).inner_iterable_type_id {
+            let iterable_type_def = ctx.type_table.get(iiti).unwrap();
+            Some(iterable_type_def.type_id_pascalized.to_string())
         } else {
             None
         };
@@ -442,15 +443,16 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         let stack_offset = found_depth.unwrap();
 
 
-
         let (is_repeat_elem, is_repeat_i) = match found_val.unwrap().flags {
             Some(flags) => {(flags.is_repeat_elem, flags.is_repeat_i)},
             None => {(false, false)}
         };
 
+        let property_properties_coproduct_type = &prop_def.get_type_definition(ctx.type_table).type_id.split("::").last().unwrap();
+
         ExpressionSpecInvocation {
             root_identifier,
-            is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.type_definition.type_id.split("::").last().unwrap()),
+            is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&property_properties_coproduct_type),
             is_iterable_primitive_nonnumeric: ExpressionSpecInvocation::is_iterable_primitive_nonnumeric(&pascalized_iterable_type),
             is_iterable_numeric: ExpressionSpecInvocation::is_iterable_numeric(&pascalized_iterable_type),
             escaped_identifier,
@@ -577,7 +579,8 @@ impl<'a> ExpressionCompilationContext<'a> {
                 let mut ret = rpd;
                 //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
                 while let Some(atomic_symbol) = split_symbols.next() {
-                    ret = ret.type_definition.property_definitions.unwrap().get(atomic_symbol.as_str()).unwrap().clone();
+                    let td = ret.get_type_definition(self.type_table);
+                    ret = td.property_definitions.iter().find(|pd|{pd.name == atomic_symbol}).unwrap().clone();
                 }
                 Some(ret)
             }

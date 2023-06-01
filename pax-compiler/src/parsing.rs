@@ -22,21 +22,22 @@ use pax_message::reflection::Reflectable;
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
-pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String, self_type_definition: TypeDefinition) -> ComponentDefinition {
+pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String, self_type_id: String) -> ComponentDefinition {
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
     } else {
         module_path.to_string()
     };
 
-    let property_definitions : HashMap<String, PropertyDefinition> = property_definitions.iter().map(|pd|{(pd.name.clone(), pd.clone())}).collect();
-    let property_definitions = Some(property_definitions);
+    let property_definitions = property_definitions.clone();
+
     let x = TypeDefinition {
         original_type: pascal_identifier.to_string(),
         type_id: "".to_string(),
         type_id_pascalized: "".to_string(),
         fully_qualified_constituent_types: vec![],
-        property_definitions: property_definitions,
+        inner_iterable_type_id: None,
+        property_definitions,
     };
 
     ComponentDefinition {
@@ -49,7 +50,7 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
         template: None,
         settings: None,
         module_path: modified_module_path,
-        self_type_definition,
+        self_type_id,
         events: None,
     }
 }
@@ -762,7 +763,7 @@ impl Default for ParsingContext {
 }
 
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
-pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str, self_type_definition: TypeDefinition) -> (ParsingContext, ComponentDefinition) {
+pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
@@ -806,13 +807,13 @@ pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_
         settings: parse_settings_from_component_definition_string(pax),
         events: parse_events_from_component_definition_string(pax),
         module_path: modified_module_path,
-
+        self_type_id: self_type_id.to_string(),
     };
 
     (ctx, new_def)
 }
 
-pub fn assemble_pax_type_definition(ctx: ParsingContext, pascal_identifier: &str, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
+pub fn assemble_pax_type_definition(ctx: ParsingContext, pascal_identifier: &str, source_id: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
 
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
@@ -833,7 +834,7 @@ pub fn assemble_pax_type_definition(ctx: ParsingContext, pascal_identifier: &str
         template: None,
         settings: None,
         events: None,
-        self_type_definition: Default::default(),
+        self_type_id: self_type_id.to_string(),
     };
 
     (ctx, new_def)
