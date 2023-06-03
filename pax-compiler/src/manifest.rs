@@ -180,7 +180,7 @@ impl ComponentDefinition {
             .replace(".", "_")
     }
 
-    pub fn get_property_definitions(&self, tt: &TypeTable) -> &Vec<PropertyDefinition> {
+    pub fn get_property_definitions<'a>(&self, tt: &'a TypeTable) -> &'a Vec<PropertyDefinition> {
         &tt.get(&self.self_type_id).unwrap().property_definitions
     }
 }
@@ -224,11 +224,11 @@ pub struct PropertyDefinition {
 
 impl PropertyDefinition {
 
-    pub fn get_type_definition(&self, tt: &TypeTable) -> &TypeDefinition {
+    pub fn get_type_definition<'a>(&'a self, tt: &'a TypeTable) -> &TypeDefinition {
         tt.get(&self.type_id).unwrap()
     }
 
-    pub fn get_inner_iterable_type_definition(&self, tt: &TypeTable) -> Option<&TypeDefinition> {
+    pub fn get_inner_iterable_type_definition<'a>(&'a self, tt: &'a TypeTable) -> Option<&TypeDefinition> {
         if let Some(ref iiti) = tt.get(&self.type_id).unwrap().inner_iterable_type_id {
             Some(tt.get(iiti).unwrap())
         } else {

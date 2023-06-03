@@ -22,7 +22,7 @@ use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Item};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use crate::manifest::{ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition};
+use crate::manifest::{ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition, TypeTable};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
 //relative to pax_dir
@@ -572,7 +572,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //    stage for any `Properties` that are bound to something other than an expression / literal)
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
-        let property_ril_tuples: Vec<(String, String)> = component_for_current_node.get_property_definitions().iter().map(|pd| {
+        let property_ril_tuples: Vec<(String, String)> = component_for_current_node.get_property_definitions(rngc.type_table).iter().map(|pd| {
             let ril_literal_string = {
                 if let Some(inline_settings) = &tnd.settings {
                     if let Some(matched_setting) = inline_settings.iter().find(|avd| { avd.0 == pd.name }) {
@@ -652,6 +652,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 struct RenderNodesGenerationContext<'a> {
     components: &'a std::collections::HashMap<String, ComponentDefinition>,
     active_component_definition: &'a ComponentDefinition,
+    type_table: &'a TypeTable,
 }
 
 fn generate_events_map(events: Option<Vec<EventDefinition>>) -> HashMap<String, Vec<String>> {
@@ -673,13 +674,14 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
     let rngc = RenderNodesGenerationContext {
         components: &manifest.components,
         active_component_definition: cd,
+        type_table: &manifest.type_table,
     };
 
     let args = TemplateArgsCodegenCartridgeComponentFactory {
         is_main_component: cd.is_main_component,
         snake_case_component_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
-        properties: cd.get_property_definitions().clone(),
+        properties: cd.get_property_definitions(&manifest.type_table).clone(),
         events: generate_events_map(cd.events.clone()),
         render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc),
         properties_coproduct_variant: cd.pascal_identifier.to_string()
