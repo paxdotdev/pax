@@ -813,7 +813,7 @@ pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_
     (ctx, new_def)
 }
 
-pub fn assemble_pax_type_definition(ctx: ParsingContext, pascal_identifier: &str, source_id: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
+pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_identifier: &str, source_id: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
 
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)

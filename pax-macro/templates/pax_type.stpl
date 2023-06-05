@@ -7,7 +7,7 @@ use pax_compiler::parsing::TypeParsable;
 #[cfg(feature = "parser")]
 impl <%= pascal_identifier %> {
 
-    pub fn parse_type_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> pax_compiler::parsing::ParsingContext {
+    pub fn parse_type_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<PropertyDefinition>) {
 
         let source_id = <%= pascal_identifier %>::get_source_id();
         let mut property_definitions = vec![];
@@ -17,11 +17,15 @@ impl <%= pascal_identifier %> {
 
             let mut fully_qualified_constituent_types = vec![];
             let mut dep_to_fqd_map = std::collections::HashMap::new();
+
+
+            //Special-handle the root scoped_resolvable_type (the one whose properties
+            //must be available as nested symbols in PAXEL, like `foo.bar`).  Specifically,
+            //we want need the Vec<PropertyDefinitions> for that root type.
+            let (mut ctx, mut property_definitions) = <%= spd.root_scoped_resolvable_type %>::parse_type_to_manifest(ctx);
+
             <% for scoped_resolvable_type in spd.scoped_resolvable_types { %>
                 let fqd = <%= scoped_resolvable_type %>::get_fully_qualified_path("<%= scoped_resolvable_type %>");
-
-                //Parse types recursively here, too, as they rely on scoped_resolvable_types
-                let mut ctx = <%= scoped_resolvable_type %>::parse_type_to_manifest(ctx);
 
                 dep_to_fqd_map.insert("<%= scoped_resolvable_type %>",fqd.clone());
 
@@ -29,15 +33,16 @@ impl <%= pascal_identifier %> {
                     fqd
                 );
 
+                //Parse types recursively here, too, as they rely on scoped_resolvable_types
                 let mut ctx = <%= scoped_resolvable_type %>::parse_type_to_manifest(ctx);
-
             <% } %>
 
             let (mut ctx, type_definition) =  pax_compiler::parsing::assemble_type_definition(
                 ctx,
                 "<%= spd.original_type %>",
                 fully_qualified_constituent_types.clone(),
-                &dep_to_fqd_map
+                &dep_to_fqd_map,
+                property_definitions,
             );
 
             property_definitions.push(pax_compiler::manifest::PropertyDefinition {
@@ -46,10 +51,9 @@ impl <%= pascal_identifier %> {
                 flags: None,
             });
         <% } %>
-        ctx.all_property_definitions.insert(source_id.to_string(), property_definitions);
+        ctx.all_property_definitions.insert(source_id.to_string(), property_definitions.clone());
 
         match ctx.visited_source_ids.get(&source_id as &str) {
-
             None => {
                 //First time visiting this file/source
 
@@ -58,7 +62,7 @@ impl <%= pascal_identifier %> {
                 let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";
 
                 let (mut ctx, type_def) =
-                    pax_compiler::parsing::assemble_pax_type_definition(
+                    pax_compiler::parsing::assemble_struct_only_component_definition(
                         ctx,
                         PASCAL_IDENTIFIER,
                         &source_id,
@@ -68,9 +72,9 @@ impl <%= pascal_identifier %> {
                 ctx.component_definitions
                     .insert(type_def.source_id.clone(), type_def);
 
-                ctx
+                (ctx, property_definitions)
             },
-            _ => ctx, //early return; this file has already been parsed
+            _ => (ctx, property_definitions), //early return; this file has already been parsed
         }
     }
 }

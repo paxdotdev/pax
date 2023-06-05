@@ -140,13 +140,15 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
 /// For example: `K` and `T::<K>`, which become `K::get_fully_qualified_path(...)` and `T::<K>::get_fully_qualified_path(...)`.
 /// This is used to bridge from static to dynamic analysis, parse-time "reflection,"
 /// so that the Pax compiler can resolve fully qualified paths.
-fn get_scoped_resolvable_types(t: &Type) -> HashSet<String> {
-    let mut accum: HashSet<String> = HashSet::new();
+fn get_scoped_resolvable_types(t: &Type) -> (Vec<String>, String) {
+    let mut accum: Vec<String> = vec![];
+    let mut root_register : Option<String> = None;
     recurse_get_scoped_resolvable_types(t, &mut accum);
-    accum
+    let root_scoped_resolvable_type = accum.get(0).unwrap().clone();
+    (accum, root_scoped_resolvable_type)
 }
 
-fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut HashSet<String>) {
+fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut Vec<String>) {
     match t {
         Type::Path(tp) => {
             match tp.qself {
@@ -197,7 +199,7 @@ fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut HashSet<String>) {
                         }
                     });
 
-                    accum.insert(accumulated_scoped_resolvable_type);
+                    accum.push(accumulated_scoped_resolvable_type);
                 },
                 _ => { unimplemented!("Self-types not yet supported with Pax `Property<...>`")}
             }
@@ -227,13 +229,14 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                             Some(ty) => {
                                 let name = quote!(#ty).to_string().replace(" ", "");
 
-                                let scoped_resolvable_types = get_scoped_resolvable_types(&ty);
+                                let (scoped_resolvable_types, root_scoped_resolvable_type) = get_scoped_resolvable_types(&ty);
 
                                 ret.push(
                                     StaticPropertyDefinition {
                                         original_type: name,
                                         field_name: quote!(#field_name).to_string(),
                                         scoped_resolvable_types,
+                                        root_scoped_resolvable_type,
                                     }
                                 )
                             }
@@ -255,12 +258,13 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                 variant.fields.iter().for_each(|f| {
                     if let Some(ty) = get_property_wrapped_field(f) {
                         let original_type = quote!(#ty).to_string().replace(" ", "");
-                        let scoped_resolvable_types = get_scoped_resolvable_types(&ty);
+                        let (scoped_resolvable_types, root_scoped_resolvable_type) = get_scoped_resolvable_types(&ty);
                         ret.push(
                             StaticPropertyDefinition {
                                 original_type,
                                 field_name: quote!(#variant_name).to_string(),
                                 scoped_resolvable_types,
+                                root_scoped_resolvable_type,
                             }
                         )
                     }

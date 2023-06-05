@@ -7,7 +7,8 @@ use std::collections::HashSet;
 
 #[derive(Serialize)]
 pub struct StaticPropertyDefinition {
-    pub scoped_resolvable_types: HashSet<String>,
+    pub scoped_resolvable_types: Vec<String>,
+    pub root_scoped_resolvable_type: String,
     pub field_name: String,
     pub original_type: String,
 }
