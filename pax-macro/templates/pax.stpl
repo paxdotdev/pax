@@ -21,7 +21,7 @@ pub fn main() {
         components: ctx.component_definitions,
         main_component_id: ctx.main_component_id,
         expression_specs: None,
-        type_table: std::collections::HashMap::new(),
+        type_table: ctx.type_table,
     };
 
     //Send data back to parent process by printing to stdout

@@ -841,7 +841,7 @@ pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_ide
 }
 
 pub fn assemble_type_definition(
-    ctx: ParsingContext,
+    mut ctx: ParsingContext,
     original_type: &str,
     fully_qualified_constituent_types: Vec<String>,
     dep_to_fqd_map: &HashMap<&str, String>,
@@ -866,12 +866,14 @@ pub fn assemble_type_definition(
 
     let new_def = TypeDefinition {
         original_type: original_type.to_string(),
-        type_id,
+        type_id: type_id.clone(),
         type_id_pascalized,
         fully_qualified_constituent_types,
         inner_iterable_type_id: None,
         property_definitions,
     };
+
+    ctx.type_table.insert(type_id.clone(), new_def.clone());
 
     (ctx, new_def)
 }

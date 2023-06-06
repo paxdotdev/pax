@@ -250,14 +250,20 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
 }
 
 fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
-    //update property types in-place
+
+    //update property types by populating into a new hashmap (need to
+    //change the keys) and then swapping
+    let mut updated_type_table = HashMap::new();
     manifest.type_table.iter_mut().for_each(|t|{
         t.1.type_id_pascalized = t.1.type_id_pascalized.replace("{PREFIX}", "__");
         t.1.type_id = t.1.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
         t.1.property_definitions.iter_mut().for_each(|pd|{
             pd.type_id = pd.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
-        })
+        });
+        updated_type_table.insert(t.0.replace("{PREFIX}", &host_crate_info.import_prefix), t.1.clone());
     });
+    std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
+
 }
 
 
