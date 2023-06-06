@@ -22,7 +22,7 @@ use pax_message::reflection::Reflectable;
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
-pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String, self_type_id: String) -> ComponentDefinition {
+pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String, self_type_id: &str) -> ComponentDefinition {
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
     } else {
@@ -50,7 +50,7 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
         template: None,
         settings: None,
         module_path: modified_module_path,
-        self_type_id,
+        self_type_id: self_type_id.to_string(),
         events: None,
     }
 }
@@ -821,7 +821,7 @@ pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_ide
         module_path.to_string()
     };
 
-    let property_definitions = ctx.all_property_definitions.get(source_id).unwrap().clone();
+    ctx.all_property_definitions.get(source_id).unwrap().clone();
 
     let new_def = ComponentDefinition {
         source_id: source_id.into(),
@@ -895,9 +895,9 @@ pub fn escape_identifier(input: String) -> String {
 /// allows the parser binary to codegen calls to `::parse_type_to_manifest()` even
 /// on primitive types
 pub trait TypeParsable {
-    fn parse_type_to_manifest(mut ctx: ParsingContext) -> ParsingContext {
+    fn parse_type_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         //Default impl: no-op
-        ctx
+        (ctx, vec![])
     }
 }
 

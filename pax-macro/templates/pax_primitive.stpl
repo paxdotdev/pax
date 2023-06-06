@@ -14,7 +14,9 @@ impl <%= pascal_identifier %> {
                 ctx.template_map.insert(PASCAL_IDENTIFIER.to_string(), source_id.to_string());
                 let template_map= ctx.template_map.clone();
 
-                let mut property_definitions = vec![];
+                let mut property_definitions : Vec<pax_compiler::manifest::PropertyDefinition> = vec![];
+                let mut dep_to_fqd_map = std::collections::HashMap::new();
+
 
                 // Populate `PropertyDefinition`s
                 <% for spd in static_property_definitions { %>
@@ -29,8 +31,6 @@ impl <%= pascal_identifier %> {
 
 
                     let mut fully_qualified_constituent_types = vec![];
-                    let mut dep_to_fqd_map = std::collections::HashMap::new();
-
 
                     //Special-handle the root scoped_resolvable_type (the one whose properties
                     //must be available as nested symbols in PAXEL, like `foo.bar`).  Specifically,
@@ -45,14 +45,9 @@ impl <%= pascal_identifier %> {
                             fqd
                         );
 
-                        //Parse types recursively here, too, as they rely on scoped_resolvable_types
-                        let mut ctx = <%= scoped_resolvable_type %>::parse_type_to_manifest(ctx);
+                        //Parse each scoped resolvable type, but no need to track the child property_definitions like we did for the root scoped resolvable type
+                        let (mut ctx, _) = <%= scoped_resolvable_type %>::parse_type_to_manifest(ctx);
                     <% } %>
-
-
-
-                    todo!("gather property_definitions recursively")
-                    //How can we get property definitions at this stage?
 
                     let (mut ctx, type_definition) = pax_compiler::parsing::assemble_type_definition(
                         ctx,
@@ -64,7 +59,7 @@ impl <%= pascal_identifier %> {
 
                     property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                         name: "<%= spd.field_name %>".to_string(),
-                        type_definition,
+                        type_id: type_definition.type_id,
                         flags: None,
                     });
                 <% } %>
@@ -75,7 +70,8 @@ impl <%= pascal_identifier %> {
                     ctx,
                     PASCAL_IDENTIFIER,
                     vec![],
-                    &dep_to_fqd_map
+                    &dep_to_fqd_map,
+                    property_definitions,
                 );
 
                 let comp_def = pax_compiler::parsing::assemble_primitive_definition(
@@ -84,7 +80,7 @@ impl <%= pascal_identifier %> {
                     &source_id,
                     &property_definitions,
                     "<%=  primitive_instance_import_path  %>".to_string(),
-                    self_type_definition,
+                    &self_type_definition.type_id,
                 );
                 ctx.component_definitions
                     .insert(comp_def.source_id.clone(), comp_def);

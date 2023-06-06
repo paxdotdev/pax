@@ -7,16 +7,17 @@ use pax_compiler::parsing::TypeParsable;
 #[cfg(feature = "parser")]
 impl <%= pascal_identifier %> {
 
-    pub fn parse_type_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<PropertyDefinition>) {
+    pub fn parse_type_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<pax_compiler::manifest::PropertyDefinition>) {
 
         let source_id = <%= pascal_identifier %>::get_source_id();
         let mut property_definitions = vec![];
+        let mut dep_to_fqd_map = std::collections::HashMap::new();
+
 
         // Populate `PropertyDefinition`s
         <% for spd in static_property_definitions { %>
 
             let mut fully_qualified_constituent_types = vec![];
-            let mut dep_to_fqd_map = std::collections::HashMap::new();
 
 
             //Special-handle the root scoped_resolvable_type (the one whose properties
@@ -33,8 +34,8 @@ impl <%= pascal_identifier %> {
                     fqd
                 );
 
-                //Parse types recursively here, too, as they rely on scoped_resolvable_types
-                let mut ctx = <%= scoped_resolvable_type %>::parse_type_to_manifest(ctx);
+                //Parse each scoped resolvable type, but no need to track the child property_definitions like we did for the root scoped resolvable type
+                let (mut ctx, _) = <%= scoped_resolvable_type %>::parse_type_to_manifest(ctx);
             <% } %>
 
             let (mut ctx, type_definition) =  pax_compiler::parsing::assemble_type_definition(
@@ -61,12 +62,22 @@ impl <%= pascal_identifier %> {
 
                 let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";
 
+                let (mut ctx, self_type_definition) =  pax_compiler::parsing::assemble_type_definition(
+                    ctx,
+                    "<%= pascal_identifier %>",
+                    vec!["<%= pascal_identifier %>".to_string()],
+                    &dep_to_fqd_map,
+                    property_definitions.clone(),
+                );
+
+
                 let (mut ctx, type_def) =
                     pax_compiler::parsing::assemble_struct_only_component_definition(
                         ctx,
                         PASCAL_IDENTIFIER,
                         &source_id,
                         module_path!(),
+                        &self_type_definition.type_id,
                     );
 
                 ctx.component_definitions

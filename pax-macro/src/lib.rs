@@ -93,7 +93,7 @@ fn pax_type(input_parsed: DeriveInput, include_imports: bool) -> proc_macro2::To
         include_imports,
     }.render_once().unwrap().to_string();
     
-    // fs::write(format!("/Users/zack/debug/out-{}.txt", &pascal_identifier), &output);
+    fs::write(format!("/Users/zack/debug/out-{}.txt", &pascal_identifier), &output);
 
     TokenStream::from_str(&output).unwrap().into()
 }
@@ -142,9 +142,17 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
 /// so that the Pax compiler can resolve fully qualified paths.
 fn get_scoped_resolvable_types(t: &Type) -> (Vec<String>, String) {
     let mut accum: Vec<String> = vec![];
-    let mut root_register : Option<String> = None;
     recurse_get_scoped_resolvable_types(t, &mut accum);
-    let root_scoped_resolvable_type = accum.get(0).unwrap().clone();
+
+    //the recursion above was post-order, so we will assume
+    //the final element is root
+    let root_scoped_resolvable_type = accum.get(accum.len() - 1).unwrap().clone();
+    let mut buffer = fs::read_to_string("/Users/zack/scrap/debug-0.txt").unwrap();
+    buffer = buffer + &format!("\n{}", root_scoped_resolvable_type);
+
+    todo!("bug in scoped_resolvable_type logic is returning Vec::<PathSegment> instead of Vec and PathSegment");
+    fs::write("/Users/zack/scrap/debug-0.txt", &buffer);
+
     (accum, root_scoped_resolvable_type)
 }
 
