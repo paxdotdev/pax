@@ -11,7 +11,7 @@ use serde_json;
 #[derive(Serialize, Deserialize)]
 pub struct PaxManifest {
     pub components: HashMap<String, ComponentDefinition>,
-    pub main_component_id: String,
+    pub main_component_type_id: String,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
     pub type_table: TypeTable,
 }
@@ -148,10 +148,14 @@ impl ExpressionSpecInvocation {
 /// event bindings, property definitions, and compiler + reflection metadata
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ComponentDefinition {
-    pub source_id: String,
+    pub type_id: String,
     pub is_main_component: bool,
     pub is_primitive: bool,
-    pub is_type: bool,
+
+    /// Flag describing whether this component definition is a "struct-only component", a
+    /// struct decorated with `#[derive(Pax)]` for use as the `T` in `Property<T>`.
+    pub is_struct_only_component: bool,
+
     pub pascal_identifier: String,
     pub module_path: String,
 
@@ -163,15 +167,11 @@ pub struct ComponentDefinition {
     pub template: Option<Vec<TemplateNodeDefinition>>,
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
     pub events: Option<Vec<EventDefinition>>,
-
-    //Properties are a concern of the `TypeDefinition` and the `PropertyDefinition`s are stored therein
-    //This self_type_id can be used to retrieve a TypeDefinition from a populated TypeTable
-    pub self_type_id: String,
 }
 
 impl ComponentDefinition {
     pub fn get_snake_case_id(&self) -> String {
-        self.source_id
+        self.type_id
             .replace("::", "_")
             .replace("/", "_")
             .replace("\\", "_")
@@ -181,7 +181,7 @@ impl ComponentDefinition {
     }
 
     pub fn get_property_definitions<'a>(&self, tt: &'a TypeTable) -> &'a Vec<PropertyDefinition> {
-        &tt.get(&self.self_type_id).unwrap().property_definitions
+        &tt.get(&self.type_id).unwrap().property_definitions
     }
 }
 
@@ -217,7 +217,7 @@ pub struct PropertyDefinition {
     /// for special-handling the RIL that invokes these values
     pub flags: Option<PropertyDefinitionFlags>,
 
-    /// Statically known source_id for this Property's associated TypeDefinition
+    /// Statically known type_id for this Property's associated TypeDefinition
     pub type_id: String,
 
 }
@@ -274,7 +274,7 @@ TypeDefinition {
     /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
     pub fully_qualified_constituent_types: Vec<String>,
 
-    /// Statically known source_id for this Property's iterable TypeDefinition, that is,
+    /// Statically known type_id for this Property's iterable TypeDefinition, that is,
     /// T for some Property<Vec<T>>
     pub inner_iterable_type_id: Option<String>,
 

@@ -19,7 +19,7 @@ pub fn main() {
 
     let manifest = pax_compiler::manifest::PaxManifest {
         components: ctx.component_definitions,
-        main_component_id: ctx.main_component_id,
+        main_component_type_id: ctx.main_component_type_id,
         expression_specs: None,
         type_table: ctx.type_table,
     };
@@ -47,7 +47,7 @@ impl <%= pascal_identifier %> {
     // One way to look at this, in conjunction with the `parser` bin target: a solution to "coordinating between macros"
     pub fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, String) {
 
-        let source_id = <%= pascal_identifier %>::get_source_id();
+        let type_id = <%= pascal_identifier %>::get_type_id();
         let mut property_definitions = vec![];
 
         let mut dep_to_fqd_map = std::collections::HashMap::new();
@@ -94,19 +94,19 @@ impl <%= pascal_identifier %> {
                 flags: None,
             });
         <% } %>
-        ctx.all_property_definitions.insert(source_id.to_string(), property_definitions.clone());
+        ctx.all_property_definitions.insert(type_id.to_string(), property_definitions.clone());
 
         //FUTURE: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate/parse `raw_pax` before templating.
 
         const raw_pax: &str = r#####"<%= raw_pax %>
 "#####;
-        match ctx.visited_source_ids.get(&source_id as &str) {
+        match ctx.visited_type_ids.get(&type_id as &str) {
 
             None => {
                 //First time visiting this file/source — parse the relevant contents
                 //then recurse through child nodes, unrolled here in the macro as
                 //parsed from the template
-                ctx.visited_source_ids.insert(source_id.clone().into());
+                ctx.visited_type_ids.insert(type_id.clone().into());
 
                 <% for dep in template_dependencies { %>
                 let (mut ctx, component_id) = <%= dep %>::parse_to_manifest(ctx);
@@ -132,17 +132,17 @@ impl <%= pascal_identifier %> {
                         PASCAL_IDENTIFIER,
                         <%= is_main_component %>,
                         template_map,
-                        &source_id,
+                        &type_id,
                         module_path!(),
                         &self_type_definition.type_id,
                     );
 
                 ctx.component_definitions
-                    .insert(comp_def.source_id.clone(), comp_def);
+                    .insert(comp_def.type_id.clone(), comp_def);
 
-                (ctx, source_id.to_string())
+                (ctx, type_id.to_string())
             },
-            _ => (ctx, source_id.to_string()), //early return; this file has already been parsed
+            _ => (ctx, type_id.to_string()), //early return; this file has already been parsed
         }
     }
 }
@@ -150,7 +150,7 @@ impl <%= pascal_identifier %> {
 #[cfg(feature = "parser")]
 impl pax_message::reflection::Reflectable for <%= pascal_identifier %> {
 
-    fn get_source_id() -> String {
+    fn get_type_id() -> String {
         file!().to_string() + "::" + "<%= pascal_identifier %>"
     }
 

@@ -242,7 +242,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
                 (range_expression_paxel.to_string(), TypeDefinition::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
-                let symbolic_binding_property  = ctx.resolve_symbol_as_prop_def(symbolic_binding).expect(&format!("Unable to resolve symbol {}", symbolic_binding));
                 (symbolic_binding.to_string(), TypeDefinition::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
@@ -512,7 +511,7 @@ pub struct ExpressionCompilationContext<'a> {
     /// All components, by ID
     pub all_components: HashMap<String, ComponentDefinition>,
 
-    /// Type table, used for looking up property types by string source_ids
+    /// Type table, used for looking up property types by string type_ids
     pub type_table: &'a TypeTable,
 
 }
@@ -545,9 +544,11 @@ impl<'a> ExpressionCompilationContext<'a> {
     pub fn resolve_symbol_as_prop_def(&self, symbol: &str) -> Option<PropertyDefinition> {
 
         let mut split_symbols = clean_and_split_symbols(symbol);
-        let root_symbol = split_symbols.iter().next().unwrap();
+        let mut split_symbols = split_symbols.iter();
 
-        let root_property_def = if BUILTIN_MAP.contains_key(root_symbol.as_str()) {
+        let root_symbol = split_symbols.next().unwrap();
+
+        let root_symbol_pd = if BUILTIN_MAP.contains_key(root_symbol.as_str()) {
             // resolve root symbol through builtin map
             None //FUTURE: support built-ins
         } else {
@@ -571,16 +572,15 @@ impl<'a> ExpressionCompilationContext<'a> {
             ret
         };
 
-        // handle nested symbols like `foo.bar`
-        match root_property_def {
+        // handle nested symbols like `foo.bar`.
+        match root_symbol_pd {
             None => None,
-            Some(rpd) => {
-                let mut split_symbols = clean_and_split_symbols(symbol).into_iter();
-                let mut ret = rpd;
+            Some(root_symbol_pd) => {
+                let mut ret = root_symbol_pd;
                 //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
                 while let Some(atomic_symbol) = split_symbols.next() {
                     let td = ret.get_type_definition(self.type_table);
-                    ret = td.property_definitions.iter().find(|pd|{pd.name == atomic_symbol}).unwrap().clone();
+                    ret = td.property_definitions.iter().find(|pd|{pd.name == *atomic_symbol}).unwrap().clone();
                 }
                 Some(ret)
             }

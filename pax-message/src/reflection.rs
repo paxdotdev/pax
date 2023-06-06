@@ -11,7 +11,7 @@ pub trait Reflectable {
     }*/
 
     ///
-    fn get_source_id() -> String;
+    fn get_type_id() -> String;
 
 }
 
@@ -20,7 +20,7 @@ impl Reflectable for usize {
         "usize".to_string()
     }
 
-    fn get_source_id() -> String {
+    fn get_type_id() -> String {
         "usize".to_string()
     }
 }
@@ -29,7 +29,7 @@ impl Reflectable for f64 {
     fn get_fully_qualified_path(_: &str) -> String {
         "f64".to_string()
     }
-    fn get_source_id() -> String {
+    fn get_type_id() -> String {
         "f64".to_string()
     }
 }
@@ -39,7 +39,7 @@ impl Reflectable for bool {
         "bool".to_string()
     }
 
-    fn get_source_id() -> String {
+    fn get_type_id() -> String {
         "bool".to_string()
     }
 }
@@ -49,7 +49,7 @@ impl Reflectable for i64 {
         "i64".to_string()
     }
 
-    fn get_source_id() -> String {
+    fn get_type_id() -> String {
         "i64".to_string()
     }
 }
@@ -59,7 +59,7 @@ impl Reflectable for std::string::String {
         "std::string::String".to_string()
     }
 
-    fn get_source_id() -> String {
+    fn get_type_id() -> String {
         "std::string::String".to_string()
     }
 }
@@ -69,7 +69,7 @@ impl<T> Reflectable for std::rc::Rc<T> {
         "std::rc::Rc".to_string()
     }
 
-    fn get_source_id() -> String {
+    fn get_type_id() -> String {
         "std::rc::Rc".to_string()
     }
 }
@@ -79,7 +79,7 @@ impl<T> Reflectable for std::vec::Vec<T> {
         "std::vec::Vec".to_string()
     }
 
-    fn get_source_id() -> String {
+    fn get_type_id() -> String {
         "std::vec::Vec".to_string()
     }
 }

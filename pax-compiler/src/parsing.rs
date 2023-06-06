@@ -22,7 +22,7 @@ use pax_message::reflection::Reflectable;
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
-pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String, self_type_id: &str) -> ComponentDefinition {
+pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, type_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String, self_type_id: &str) -> ComponentDefinition {
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
     } else {
@@ -42,15 +42,14 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
 
     ComponentDefinition {
         is_primitive: true,
-        is_type: false,
+        is_struct_only_component: false,
         primitive_instance_import_path: Some(primitive_instance_import_path),
         is_main_component: false,
-        source_id: source_id.to_string(),
+        type_id: self_type_id.to_string(),
         pascal_identifier: pascal_identifier.to_string(),
         template: None,
         settings: None,
         module_path: modified_module_path,
-        self_type_id: self_type_id.to_string(),
         events: None,
     }
 }
@@ -732,9 +731,9 @@ pub fn create_uuid() -> String {
 pub struct ParsingContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
-    pub visited_source_ids: HashSet<String>,
+    pub visited_type_ids: HashSet<String>,
 
-    pub main_component_id: String,
+    pub main_component_type_id: String,
 
     pub component_definitions: HashMap<String, ComponentDefinition>,
 
@@ -751,8 +750,8 @@ pub struct ParsingContext {
 impl Default for ParsingContext {
     fn default() -> Self {
         Self {
-            main_component_id: "".into(),
-            visited_source_ids: HashSet::new(),
+            main_component_type_id: "".into(),
+            visited_type_ids: HashSet::new(),
             component_definitions: HashMap::new(),
             template_map: HashMap::new(),
             type_table: Default::default(),
@@ -763,13 +762,13 @@ impl Default for ParsingContext {
 }
 
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
-pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
+pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, type_id: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
     if is_main_component {
-        ctx.main_component_id = source_id.to_string();
+        ctx.main_component_type_id = type_id.to_string();
     }
 
     let mut tpc = TemplateNodeParseContext {
@@ -791,29 +790,28 @@ pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_
         module_path.to_string()
     };
 
-    let property_definitions = ctx.all_property_definitions.get(source_id).unwrap().clone();
+    let property_definitions = ctx.all_property_definitions.get(type_id).unwrap().clone();
 
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
     ctx.template_node_definitions = tpc.template_node_definitions.clone();
 
     let new_def = ComponentDefinition {
         is_primitive: false,
-        is_type: false,
+        is_struct_only_component: false,
         is_main_component,
         primitive_instance_import_path: None,
-        source_id: source_id.into(),
+        type_id: self_type_id.to_string(),
         pascal_identifier: pascal_identifier.to_string(),
         template: Some(tpc.template_node_definitions),
         settings: parse_settings_from_component_definition_string(pax),
         events: parse_events_from_component_definition_string(pax),
         module_path: modified_module_path,
-        self_type_id: self_type_id.to_string(),
     };
 
     (ctx, new_def)
 }
 
-pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_identifier: &str, source_id: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
+pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_identifier: &str, type_id: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
 
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
@@ -821,20 +819,19 @@ pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_ide
         module_path.to_string()
     };
 
-    ctx.all_property_definitions.get(source_id).unwrap().clone();
+    ctx.all_property_definitions.get(type_id).unwrap().clone();
 
     let new_def = ComponentDefinition {
-        source_id: source_id.into(),
+        type_id: self_type_id.to_string(),
         is_main_component: false,
         is_primitive: false,
-        is_type: true,
+        is_struct_only_component: true,
         pascal_identifier: pascal_identifier.to_string(),
         module_path: modified_module_path,
         primitive_instance_import_path: None,
         template: None,
         settings: None,
         events: None,
-        self_type_id: self_type_id.to_string(),
     };
 
     (ctx, new_def)

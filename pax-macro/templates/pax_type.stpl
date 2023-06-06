@@ -9,7 +9,7 @@ impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
 
     fn parse_type_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, Vec<pax_compiler::manifest::PropertyDefinition>) {
 
-        let source_id = <%= pascal_identifier %>::get_source_id();
+        let type_id = <%= pascal_identifier %>::get_type_id();
         let mut property_definitions : Vec<pax_compiler::manifest::PropertyDefinition> = vec![];
         let mut dep_to_fqd_map = std::collections::HashMap::new();
 
@@ -52,13 +52,13 @@ impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
                 flags: None,
             });
         <% } %>
-        ctx.all_property_definitions.insert(source_id.to_string(), property_definitions.clone());
+        ctx.all_property_definitions.insert(type_id.to_string(), property_definitions.clone());
 
-        match ctx.visited_source_ids.get(&source_id as &str) {
+        match ctx.visited_type_ids.get(&type_id as &str) {
             None => {
                 //First time visiting this file/source
 
-                ctx.visited_source_ids.insert(source_id.clone().into());
+                ctx.visited_type_ids.insert(type_id.clone().into());
 
                 let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";
 
@@ -75,13 +75,13 @@ impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
                     pax_compiler::parsing::assemble_struct_only_component_definition(
                         ctx,
                         PASCAL_IDENTIFIER,
-                        &source_id,
+                        &type_id,
                         module_path!(),
                         &self_type_definition.type_id,
                     );
 
                 ctx.component_definitions
-                    .insert(type_def.source_id.clone(), type_def);
+                    .insert(type_def.type_id.clone(), type_def);
 
                 (ctx, property_definitions)
             },
@@ -93,7 +93,7 @@ impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
 #[cfg(feature = "parser")]
 impl pax_message::reflection::Reflectable for <%= pascal_identifier %> {
 
-    fn get_source_id() -> String {
+    fn get_type_id() -> String {
         file!().to_string() + "::" + "<%= pascal_identifier %>"
     }
 

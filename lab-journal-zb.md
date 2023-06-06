@@ -2902,9 +2902,9 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
         [x] pax_primitive
         [x] pax_component 
     [x] conslidate pax_primitive API with pax derive API
-    [ ] refactor type_id generation logic, clean, consistent, & DRY
-        - look at feasibility of making a dynamic method like parse_to_manifest, part of TypeParsable or Reflectable
-        - 
+    [x] refactor type_id generation logic, clean, consistent, & DRY
+        [-] look at feasibility of making a dynamic method like parse_to_manifest, part of TypeParsable or Reflectable
+        [x] or consolidate with source_id?
 [ ] Update `resolve_symbol` logic to handle nested symbols like `foo.bar.baz` and `elem.some.deeply.nested.thing`.
     [x] Split by `.`, recurse PropertyDefinition => TypeDefinition.property_definitions => PropertyDefinition => ...
     [ ] Add RIL generation logic to handle trailing `.foo.bar` — 
