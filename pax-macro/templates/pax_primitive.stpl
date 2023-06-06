@@ -1,5 +1,9 @@
-//Following is the macro expansion of: #[pax_primitive("./pax-std-primitives", crate::<%= pascal_identifier %>Instance)]
-<%= original_tokens %>
+<% if include_imports { %>
+#[cfg(feature = "parser")]
+use pax::internal::{Reflectable};
+#[cfg(feature = "parser")]
+use pax_compiler::parsing::TypeParsable;
+<% } %>
 #[cfg(feature = "parser")]
 impl <%= pascal_identifier %> {
     pub fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, String) {
@@ -35,7 +39,7 @@ impl <%= pascal_identifier %> {
                     //Special-handle the root scoped_resolvable_type (the one whose properties
                     //must be available as nested symbols in PAXEL, like `foo.bar`).  Specifically,
                     //we want need the Vec<PropertyDefinitions> for that root type.
-                    let (mut ctx, mut property_definitions) = <%= spd.root_scoped_resolvable_type %>::parse_type_to_manifest(ctx);
+                    let (mut ctx, mut sub_property_definitions) = <%= spd.root_scoped_resolvable_type %>::parse_type_to_manifest(ctx);
 
                     <% for scoped_resolvable_type in spd.scoped_resolvable_types { %>
                         let fqd = <%= scoped_resolvable_type %>::get_fully_qualified_path("<%= scoped_resolvable_type %>");
@@ -54,7 +58,7 @@ impl <%= pascal_identifier %> {
                         "<%= spd.original_type %>",
                         fully_qualified_constituent_types.clone(),
                         &dep_to_fqd_map,
-                        property_definitions,
+                        sub_property_definitions,
                     );
 
                     property_definitions.push(pax_compiler::manifest::PropertyDefinition {
@@ -62,6 +66,8 @@ impl <%= pascal_identifier %> {
                         type_id: type_definition.type_id,
                         flags: None,
                     });
+
+
                 <% } %>
 
                 ctx.all_property_definitions.insert(source_id.to_string(), property_definitions.clone());
@@ -71,7 +77,7 @@ impl <%= pascal_identifier %> {
                     PASCAL_IDENTIFIER,
                     vec![],
                     &dep_to_fqd_map,
-                    property_definitions,
+                    property_definitions.clone(),
                 );
 
                 let comp_def = pax_compiler::parsing::assemble_primitive_definition(

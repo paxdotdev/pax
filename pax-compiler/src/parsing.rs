@@ -916,4 +916,8 @@ impl TypeParsable for f32 {}
 impl TypeParsable for bool {}
 impl TypeParsable for std::string::String {}
 impl<T> TypeParsable for std::rc::Rc<T> {}
-impl<T: Reflectable> TypeParsable for std::vec::Vec<T> {}
+impl<T: TypeParsable> TypeParsable for std::vec::Vec<T> {
+    fn parse_type_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+        T::parse_type_to_manifest(ctx)
+    }
+}

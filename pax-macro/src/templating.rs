@@ -22,6 +22,7 @@ pub struct TemplateArgsMacroPaxPrimitive {
     pub static_property_definitions: Vec<StaticPropertyDefinition>,
     /// For example: "pax_std_primitives::RectangleInstance" for Rectangle (pax_std::primitives::Rectangle)
     pub primitive_instance_import_path: String,
+    pub include_imports: bool,
 }
 
 #[derive(TemplateOnce)]

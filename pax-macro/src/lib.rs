@@ -23,28 +23,18 @@ use sailfish::TemplateOnce;
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Attribute, Meta, NestedMeta, parse2, MetaList, Lit};
 use syn::parse::{Parse, ParseStream};
 
-#[proc_macro_attribute]
-pub fn pax_primitive(args: proc_macro::TokenStream, input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let original_tokens = input.to_string();
-
-    let input_parsed = parse_macro_input!(input as DeriveInput);
+fn pax_primitive(input_parsed: DeriveInput, primitive_instance_import_path: String, include_imports: bool) -> proc_macro2::TokenStream {
+    let original_tokens = quote! { #input_parsed }.to_string();
     let pascal_identifier = input_parsed.ident.to_string();
 
     let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
-
-    // for a macro invocation like the following:
-    // #[pax_primitive("./pax-std-primitives",  "pax_std_primitives::GroupInstance")]
-    //                                           ^
-    //                                           |
-    // the second argument, above, is our `primitive_instance_import_path`.
-    // Note that these tokens are already parsed by rustc, thus the symbols come with spaces injected in between tokens
-    let primitive_instance_import_path= args.to_string().split(",").last().unwrap().to_string().replace(" ", "");
 
     let output = TemplateArgsMacroPaxPrimitive{
         pascal_identifier,
         original_tokens,
         static_property_definitions,
         primitive_instance_import_path,
+        include_imports,
     }.render_once().unwrap().to_string();
 
     TokenStream::from_str(&output).unwrap().into()
@@ -149,9 +139,6 @@ fn get_scoped_resolvable_types(t: &Type) -> (Vec<String>, String) {
     let root_scoped_resolvable_type = accum.get(accum.len() - 1).unwrap().clone();
     let mut buffer = fs::read_to_string("/Users/zack/scrap/debug-0.txt").unwrap();
     buffer = buffer + &format!("\n{}", root_scoped_resolvable_type);
-
-    todo!("bug in scoped_resolvable_type logic is returning Vec::<PathSegment> instead of Vec and PathSegment");
-    fs::write("/Users/zack/scrap/debug-0.txt", &buffer);
 
     (accum, root_scoped_resolvable_type)
 }
@@ -324,7 +311,7 @@ fn pax_internal(raw_pax: String, input_parsed: DeriveInput, is_main_component: b
     }.into()
 }
 
-#[proc_macro_derive(Pax, attributes(main, file, inlined, custom, default))]
+#[proc_macro_derive(Pax, attributes(main, file, inlined, primitive, custom, default))]
 pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let input = parse_macro_input!(input as DeriveInput);
     let name = &input.ident;
@@ -336,6 +323,8 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let mut file_path: Option<String> = None;
     let mut inlined_contents: Option<String> = None;
     let mut custom_values: Option<Vec<String>> = None;
+    let mut primitive_instance_import_path: Option<String> = None;
+    let mut is_primitive = false;
 
     // iterate through `derive macro helper attributes` to gather config & args
     for attr in attrs {
@@ -344,6 +333,15 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 if let Some(nested_meta) = meta_list.nested.first() {
                     if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
                         file_path = Some(file_str.value());
+                    }
+                }
+            }
+        } else if attr.path.is_ident("primitive") {
+            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                if let Some(nested_meta) = meta_list.nested.first() {
+                    if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
+                        primitive_instance_import_path = Some(file_str.value());
+                        is_primitive = true;
                     }
                 }
             }
@@ -406,6 +404,21 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 .to_compile_error()
                 .into();
         }
+    }
+    if is_primitive {
+        const ERR : &str = "Primitives cannot have attached templates.  Instead, specify a fully qualified Rust import path pointing to the `impl RenderNode` struct for this primitive.";
+
+        if let Some(_) = file_path.as_ref() {
+            return syn::Error::new_spanned(input.ident, ERR)
+                .to_compile_error()
+                .into();
+        }
+        if let Some(_) = inlined_contents.as_ref() {
+            return syn::Error::new_spanned(input.ident, ERR)
+                .to_compile_error()
+                .into();
+        }
+
     }
 
     // Implement Clone
@@ -553,7 +566,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
         Data::Union(_) => {
             quote! {
-                compile_error!("Pax derive does not support Unions");
+                compile_error!("Pax derive does not currently support Unions");
             }
         }
     };
@@ -599,8 +612,10 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let contents = if let Some(p) = inlined_contents {p} else {unreachable!()};
 
         pax_internal(contents, input.clone(), is_main_component, None)
-    } else  {
-        // pax_type
+    } else if is_primitive {
+        pax_primitive(input.clone(), primitive_instance_import_path.unwrap(), include_imports)
+    } else {
+        // Struct-only component, née pax_type
         pax_type(input.clone(), include_imports)
     };
 
