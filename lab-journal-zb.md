@@ -2894,13 +2894,17 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
         [x] `#[custom(...)]` escape hatches
     [ ] Update iterable_type population logic;
         codegen calls to `populate_type_definition` for each nested Vec<Vec<T...
-[ ] connect `ComponentDefinition` with `TypeDefinition`
+        possibly: hook into TypeParsable / Reflectable
+[x] connect `ComponentDefinition` with `TypeDefinition`
     [x] refactor access / mutation of ComponentDefinition.property_definitions
-    [ ] assemble `source_type_map` with a TypeDefinition for each visited source
-        [ ] pax_type
-        [ ] pax_primitive
-        [ ] pax_component 
-    [ ] determine 
+    [x] assemble `type_table` with a TypeDefinition for each visited entity
+        [x] pax_type
+        [x] pax_primitive
+        [x] pax_component 
+    [x] conslidate pax_primitive API with pax derive API
+    [ ] refactor type_id generation logic, clean, consistent, & DRY
+        - look at feasibility of making a dynamic method like parse_to_manifest, part of TypeParsable or Reflectable
+        - 
 [ ] Update `resolve_symbol` logic to handle nested symbols like `foo.bar.baz` and `elem.some.deeply.nested.thing`.
     [x] Split by `.`, recurse PropertyDefinition => TypeDefinition.property_definitions => PropertyDefinition => ...
     [ ] Add RIL generation logic to handle trailing `.foo.bar` — 
@@ -2909,10 +2913,10 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
         - yes: .get() each subsequent property.  gather terminal symbol's TypeDefinition.
         - do not need to unwrap properties coproduct after the root -- once unwrapped, it "owns"
           the subsequent chained symbols, in a strongly typed way. 
-[ ] Add `property_definitions` to `TypeDefinition`, allowing recursion through
+[x] Add `property_definitions` to `TypeDefinition`, allowing recursion through
     nested `TypeDefinition`s, 
     [x] Refactor: `PropertyDefinition` and `TypeDefinition`; clean-up and consolidate
-    [ ] Populate `property_definitions` — this may need to happen after the initial full recursion
+    [x] Populate `property_definitions` / types into `type_table` — this may need to happen after the initial full recursion
         in the parser binary, right before we currently terminate and write to stdout — 
         recurse the entire tree one more time, populating `known_addressable_properties` with the benefit
         of the whole manifest in hand.  
