@@ -9,6 +9,7 @@ use manifest::PaxManifest;
 use rust_format::Formatter;
 
 use std::{fs};
+use std::any::Any;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -303,8 +304,11 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
         cd.1.get_property_definitions(&manifest.type_table).iter().map(|pm|{
             let td = pm.get_type_definition(&manifest.type_table);
-            (td.type_id_pascalized.clone(),
-             td..clone().replace("crate::", ""))
+
+            (
+                td.type_id_pascalized.clone(),
+                host_crate_info.import_prefix.to_string() + &td.type_id.clone().replace("crate::", "")
+            )
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -328,6 +332,8 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     TYPES_COPRODUCT_BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
     types_coproduct_tuples.extend(set.into_iter());
     types_coproduct_tuples.sort();
+
+    types_coproduct_tuples = types_coproduct_tuples.into_iter().unique_by(|elem|{elem.0.to_string()}).collect::<Vec<(String, String)>>();
 
     //press template into String
     let generated_lib_rs = templating::press_template_codegen_properties_coproduct_lib(templating::TemplateArgsCodegenPropertiesCoproductLib {

@@ -47,7 +47,7 @@ impl <%= pascal_identifier %> {
     // One way to look at this, in conjunction with the `parser` bin target: a solution to "coordinating between macros"
     pub fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, String) {
 
-        let self_type_id = <%= pascal_identifier %>::get_type_id();
+        let self_type_id = <%= pascal_identifier %>::get_type_id("<%= pascal_identifier %>");
         let mut property_definitions = vec![];
 
         // Populate `PropertyDefinition`s
@@ -63,7 +63,7 @@ impl <%= pascal_identifier %> {
             let (mut ctx, mut sub_property_definitions) = <%= spd.root_scoped_resolvable_type %>::parse_type_to_manifest(ctx);
 
             <% for scoped_resolvable_type in spd.scoped_resolvable_types { %>
-                let fqd = <%= scoped_resolvable_type %>::get_fully_qualified_path("<%= scoped_resolvable_type %>");
+                let fqd = <%= scoped_resolvable_type %>::get_type_id("<%= scoped_resolvable_type %>");
 
                 fully_qualified_constituent_types.push(
                     fqd
@@ -73,7 +73,7 @@ impl <%= pascal_identifier %> {
                 let (mut ctx, _) = <%= scoped_resolvable_type %>::parse_type_to_manifest(ctx);
             <% } %>
 
-            let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id();
+            let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id("<%= spd.pascal_identifier %>");
 
             let (mut ctx, _type_def) =  pax_compiler::parsing::assemble_type_definition(
                 ctx,
@@ -143,18 +143,12 @@ impl <%= pascal_identifier %> {
 #[cfg(feature = "parser")]
 impl pax_message::reflection::Reflectable for <%= pascal_identifier %> {
 
-    fn get_type_id() -> String {
-        file!().to_string() + "#" + "<%= pascal_identifier %>"
-    }
-
-    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
-        //this type may come in qualified, e.g. with `crate::some::mod::some::Type`
-        //in this case, we want only `Type`.  This is a crude heuristic and may need to be revisited.
+    fn get_type_id(pascal_identifier: &str) -> String {
         let chopped_type = {
-            if atomic_self_type.contains("::") {
-                atomic_self_type.split("::").last().unwrap()
+            if pascal_identifier.contains("::") {
+                pascal_identifier.split("::").last().unwrap()
             } else {
-                atomic_self_type
+                pascal_identifier
             }
         };
         module_path!().to_owned().replacen("parser", "crate", 1) + "::" + chopped_type

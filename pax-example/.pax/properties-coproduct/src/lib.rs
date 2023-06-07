@@ -39,10 +39,6 @@ pub enum PropertiesCoproduct {
 #[repr(u32)]
 pub enum TypesCoproduct {
     
-    FSLAUsersFSLAzackFSLAcodeFSLApaxFSLApax-stdFSLAsrcFSLAtypesFSLAmodPERIrsHASHColor(/Users/zack/code/pax/pax-std/src/types/mod.rs#Color),
-    
-    FSLAUsersFSLAzackFSLAcodeFSLApaxFSLApax-stdFSLAsrcFSLAtypesFSLAmodPERIrsHASHStroke(/Users/zack/code/pax/pax-std/src/types/mod.rs#Stroke),
-    
     Range_isize_(std::ops::Range<isize>),
     
     Size(pax_runtime_api::Size),
@@ -59,12 +55,16 @@ pub enum TypesCoproduct {
     
     bool(bool),
     
+    crateCOCOcameraCOCOTypeExample(pax_example::pax_reexports::camera::TypeExample),
+    
     f64(f64),
     
     isize(isize),
     
-    srcFSLAcameraPERIrsHASHTypeExample(src/camera.rs#TypeExample),
+    pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
-    usize(usize),
+    pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
+    
+    usize(pax_example::pax_reexports::usize),
     
 }

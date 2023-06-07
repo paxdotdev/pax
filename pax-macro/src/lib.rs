@@ -126,8 +126,8 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
 
 /// Break apart a raw Property inner type (`T<K>` for `Property<T<K>>`):
 /// into a list of `rustc` resolvable identifiers, possible namespace-nested,
-/// which may be appended with `::get_fully_qualified_path(...)` for dynamic analysis.
-/// For example: `K` and `T::<K>`, which become `K::get_fully_qualified_path(...)` and `T::<K>::get_fully_qualified_path(...)`.
+/// which may be appended with `::get_type_id(...)` for dynamic analysis.
+/// For example: `K` and `T::<K>`, which become `K::get_type_id(...)` and `T::<K>::get_type_id(...)`.
 /// This is used to bridge from static to dynamic analysis, parse-time "reflection,"
 /// so that the Pax compiler can resolve fully qualified paths.
 fn get_scoped_resolvable_types(t: &Type) -> (Vec<String>, String) {
@@ -222,16 +222,18 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                         let field_type = match get_property_wrapped_field(f) {
                             None => { /* noop */ },
                             Some(ty) => {
-                                let name = quote!(#ty).to_string().replace(" ", "");
+                                let type_name = quote!(#ty).to_string().replace(" ", "");
 
                                 let (scoped_resolvable_types, root_scoped_resolvable_type) = get_scoped_resolvable_types(&ty);
 
+                                let pascal_identifier = type_name.split("::").last().unwrap().to_string();
                                 ret.push(
                                     StaticPropertyDefinition {
-                                        original_type: name,
+                                        original_type: type_name,
                                         field_name: quote!(#field_name).to_string(),
                                         scoped_resolvable_types,
                                         root_scoped_resolvable_type,
+                                        pascal_identifier,
                                     }
                                 )
                             }
@@ -254,12 +256,14 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                     if let Some(ty) = get_property_wrapped_field(f) {
                         let original_type = quote!(#ty).to_string().replace(" ", "");
                         let (scoped_resolvable_types, root_scoped_resolvable_type) = get_scoped_resolvable_types(&ty);
+                        let pascal_identifier = original_type.split("::").last().unwrap().to_string();
                         ret.push(
                             StaticPropertyDefinition {
                                 original_type,
                                 field_name: quote!(#variant_name).to_string(),
                                 scoped_resolvable_types,
                                 root_scoped_resolvable_type,
+                                pascal_identifier,
                             }
                         )
                     }

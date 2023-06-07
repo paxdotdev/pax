@@ -11,6 +11,7 @@ pub struct StaticPropertyDefinition {
     pub root_scoped_resolvable_type: String,
     pub field_name: String,
     pub original_type: String,
+    pub pascal_identifier: String,
 }
 
 #[derive(TemplateOnce)]
