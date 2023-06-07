@@ -67,11 +67,11 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
             let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
 
             {% for prop in properties %}
-            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.name}}._get_transition_manager()) {
-            properties.{{ prop.name }}.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.name }}._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::{{ prop.type_definition.type_id_pascalized }}(v) = new_value { v } else { unreachable!() };
-            properties.{{ prop.name }}.set(new_value);
+            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+            properties.{{ prop.0.name }}.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.0.name }}._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::{{ prop.1 }}(v) = new_value { v } else { unreachable!() };
+            properties.{{ prop.0.name }}.set(new_value);
             }
             {% endfor %}
         })),
@@ -136,11 +136,11 @@ pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(instance
         let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
 
         {% for prop in properties %}
-            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.name}}._get_transition_manager()) {
-            properties.{{ prop.name }}.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.name }}._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::{{ prop.type_definition.type_id_pascalized }}(v) = new_value { v } else { unreachable!() };
-            properties.{{ prop.name }}.set(new_value);
+            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+            properties.{{ prop.0.name }}.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.0.name }}._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::{{ prop.1 }}(v) = new_value { v } else { unreachable!() };
+            properties.{{ prop.0.name }}.set(new_value);
             }
         {% endfor %}
     }));

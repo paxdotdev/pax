@@ -45,7 +45,7 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
     pub is_main_component: bool,
     pub snake_case_type_id: String,
     pub component_properties_struct: String,
-    pub properties: Vec<PropertyDefinition>,
+    pub properties: Vec<(PropertyDefinition, String)>, //PropertyDefinition, TypeIdPascalized
     pub events: HashMap<String,Vec<String>>,
     pub render_nodes_literal: String,
     pub properties_coproduct_variant: String,

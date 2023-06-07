@@ -251,11 +251,9 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
 
 fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
 
-    //update property types by populating into a new hashmap (need to
-    //change the keys) and then swapping
     let mut updated_type_table = HashMap::new();
     manifest.type_table.iter_mut().for_each(|t|{
-        t.1.type_id_pascalized = t.1.type_id_pascalized.replace("{PREFIX}", "__");
+        t.1.type_id_pascalized = t.1.type_id_pascalized.replace("{PREFIX}", "");
         t.1.type_id = t.1.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
         t.1.property_definitions.iter_mut().for_each(|pd|{
             pd.type_id = pd.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
@@ -287,7 +285,6 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
 
-
     //build tuples for PropertiesCoproduct
     let mut properties_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|comp_def| {
         let mod_path = if &comp_def.1.module_path == "crate" {"".to_string()} else { comp_def.1.module_path.replace("crate::", "") + "::"};
@@ -300,8 +297,6 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     properties_coproduct_tuples.extend(set.into_iter());
     properties_coproduct_tuples.sort();
 
-
-
     //build tuples for TypesCoproduct
     // - include all Property types, representing all possible return types for Expressions
     // - include all T such that T is the iterator type for some Property<Vec<T>>
@@ -309,7 +304,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
         cd.1.get_property_definitions(&manifest.type_table).iter().map(|pm|{
             let td = pm.get_type_definition(&manifest.type_table);
             (td.type_id_pascalized.clone(),
-             td.type_id.clone().replace("crate::", ""))
+             td..clone().replace("crate::", ""))
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -425,7 +420,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     let mut expression_specs : Vec<ExpressionSpec> = manifest.expression_specs.as_ref().unwrap().values().map(|es: &ExpressionSpec|{es.clone()}).collect();
     expression_specs = expression_specs.iter().sorted().cloned().collect();
 
-    let component_factories_literal =  manifest.components.values().into_iter().filter(|cd|{!cd.is_primitive}).map(|cd|{
+    let component_factories_literal =  manifest.components.values().into_iter().filter(|cd|{!cd.is_primitive && !cd.is_struct_only_component}).map(|cd|{
         generate_cartridge_component_factory_literal(manifest, cd)
     }).collect();
 
@@ -687,7 +682,9 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
         is_main_component: cd.is_main_component,
         snake_case_type_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
-        properties: cd.get_property_definitions(&manifest.type_table).clone(),
+        properties: cd.get_property_definitions(&manifest.type_table).iter().map(|pd|{
+            (pd.clone(),pd.get_type_definition(&manifest.type_table).type_id_pascalized.clone())
+        }).collect(),
         events: generate_events_map(cd.events.clone()),
         render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc),
         properties_coproduct_variant: cd.pascal_identifier.to_string()

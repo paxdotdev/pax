@@ -101,7 +101,7 @@ pub struct ExpressionSpecInvocation {
 
 }
 
-const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
+pub const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
     "u8",
     "u16",
     "u32",
@@ -117,7 +117,7 @@ const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
     "f64",
 ];
 
-const SUPPORTED_NONNUMERIC_PRIMITIVES : [&str; 2] = [
+pub const SUPPORTED_NONNUMERIC_PRIMITIVES : [&str; 2] = [
     "String",
     "bool",
 ];
@@ -206,6 +206,18 @@ pub struct TemplateNodeDefinition {
 }
 
 pub type TypeTable = HashMap<String, TypeDefinition>;
+pub fn get_primitive_type_table() -> TypeTable {
+    let mut ret : TypeTable = Default::default();
+
+    SUPPORTED_NUMERIC_PRIMITIVES.into_iter().for_each(|snp| {
+        ret.insert(snp.to_string(), TypeDefinition::primitive(snp));
+    });
+    SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter().for_each(|snnp| {
+        ret.insert(snnp.to_string(), TypeDefinition::primitive(snnp));
+    });
+
+    ret
+}
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PropertyDefinition {

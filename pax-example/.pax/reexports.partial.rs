@@ -2,6 +2,7 @@ pub mod pax_reexports {
     pub use crate::Example;
     pub mod camera {
         pub use crate::camera::Camera;
+        pub use crate::camera::TypeExample;
     }
     pub mod fireworks {
         pub use crate::fireworks::Fireworks;

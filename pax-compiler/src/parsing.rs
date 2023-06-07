@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, TypeDefinition, TypeTable};
+use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, TypeDefinition, TypeTable, get_primitive_type_table};
 
 use uuid::Uuid;
 
@@ -716,7 +716,7 @@ impl Default for ParsingContext {
             visited_type_ids: HashSet::new(),
             component_definitions: HashMap::new(),
             template_map: HashMap::new(),
-            type_table: Default::default(),
+            type_table: get_primitive_type_table(),
             template_node_definitions: vec![],
         }
     }
@@ -870,6 +870,10 @@ pub fn escape_identifier(input: String) -> String {
         .replace(".","PERI")
         .replace("[","LSQB")
         .replace("]","RSQB")
+        .replace("/", "FSLA")
+        .replace("\\", "BSLA")
+        .replace("#", "HASH")
+        .replace("-", "HYPH")
 }
 
 /// This trait is used only to extend primitives like u64
