@@ -21,18 +21,10 @@ impl <%= pascal_identifier %> {
                 let mut property_definitions : Vec<pax_compiler::manifest::PropertyDefinition> = vec![];
                 let mut dep_to_fqd_map = std::collections::HashMap::new();
 
-
                 // Populate `PropertyDefinition`s
                 <% for spd in static_property_definitions { %>
                     //Here we bridge from pure static analysis into some dynamic analysis via `parser`, in order
                     //to fully qualify module paths for scoped atomic types.
-
-                    //For each compile-time property definition, populate a full (parse-time) PropertyDefinition:
-                    //1. name | from template args
-                    //2. (full original type: punt) | from template args (via macro)
-                    //3. unique, fully qualified dependencies (HashSet, perhaps) | AT PARSE-TIME: from imperative calls to `get_fully_qualified_path`
-                    //4. (default value?  punt)
-
 
                     let mut fully_qualified_constituent_types = vec![];
 
@@ -67,10 +59,7 @@ impl <%= pascal_identifier %> {
                         flags: None,
                     });
 
-
                 <% } %>
-
-                ctx.all_property_definitions.insert(type_id.to_string(), property_definitions.clone());
 
                 let (mut ctx, self_type_definition) = pax_compiler::parsing::assemble_type_definition(
                     ctx,
@@ -83,7 +72,6 @@ impl <%= pascal_identifier %> {
                 let comp_def = pax_compiler::parsing::assemble_primitive_definition(
                     PASCAL_IDENTIFIER,
                     module_path!(),
-                    &type_id,
                     &property_definitions,
                     "<%=  primitive_instance_import_path  %>".to_string(),
                     &self_type_definition.type_id,

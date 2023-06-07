@@ -490,7 +490,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
     //pull inline event binding and store into map
     let events = generate_bound_events(tnd.settings.clone());
-    let args = if tnd.component_id == parsing::COMPONENT_ID_REPEAT {
+    let args = if tnd.type_id == parsing::TYPE_ID_REPEAT {
         // Repeat
         let rsd = tnd.control_flow_settings.as_ref().unwrap().repeat_source_definition.as_ref().unwrap();
         let id = rsd.vtable_id.unwrap();
@@ -506,7 +506,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
-            snake_case_component_id: "UNREACHABLE".into(),
+            snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("RepeatInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
@@ -521,13 +521,13 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             repeat_source_expression_literal_vec: rse_vec,
             repeat_source_expression_literal_range: rse_range,
         }
-    } else if tnd.component_id == parsing::COMPONENT_ID_IF {
+    } else if tnd.type_id == parsing::TYPE_ID_IF {
         // If
         let id = tnd.control_flow_settings.as_ref().unwrap().condition_expression_vtable_id.unwrap();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
-            snake_case_component_id: "UNREACHABLE".into(),
+            snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("ConditionalInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
@@ -542,13 +542,13 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             active_root: rngc.active_component_definition.pascal_identifier.to_string(),
             events,
         }
-    } else if tnd.component_id == parsing::COMPONENT_ID_SLOT {
+    } else if tnd.type_id == parsing::TYPE_ID_SLOT {
         // Slot
         let id = tnd.control_flow_settings.as_ref().unwrap().slot_index_expression_vtable_id.unwrap();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
-            snake_case_component_id: "UNREACHABLE".into(),
+            snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("ConditionalInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
@@ -566,7 +566,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
     } else {
         //Handle anything that's not a built-in
 
-        let component_for_current_node = rngc.components.get(&tnd.component_id).unwrap();
+        let component_for_current_node = rngc.components.get(&tnd.type_id).unwrap();
 
         //Properties:
         //  - for each property on cfcn, there will either be:
@@ -635,7 +635,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //then, on the post-order traversal, press template string and return
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: component_for_current_node.is_primitive,
-            snake_case_component_id: component_for_current_node.get_snake_case_id(),
+            snake_case_type_id: component_for_current_node.get_snake_case_id(),
             primitive_instance_import_path: component_for_current_node.primitive_instance_import_path.clone(),
             properties_coproduct_variant: component_for_current_node.pascal_identifier.to_string(),
             component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
@@ -685,7 +685,7 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
 
     let args = TemplateArgsCodegenCartridgeComponentFactory {
         is_main_component: cd.is_main_component,
-        snake_case_component_id: cd.get_snake_case_id(),
+        snake_case_type_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
         properties: cd.get_property_definitions(&manifest.type_table).clone(),
         events: generate_events_map(cd.events.clone()),

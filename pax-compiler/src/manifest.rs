@@ -196,7 +196,7 @@ pub struct TemplateNodeDefinition {
     /// Vec of int IDs representing the child TemplateNodeDefinitions of this TemplateNodeDefinition
     pub child_ids: Vec<usize>,
     /// Reference to the unique string ID for a component, e.g. `primitive::Frame` or `component::Stacker`
-    pub component_id: String,
+    pub type_id: String,
     /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
     pub control_flow_settings: Option<ControlFlowSettingsDefinition>,
     /// IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)

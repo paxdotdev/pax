@@ -14,12 +14,10 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
     let mut new_components = manifest.components.clone();
     let mut uid_track  = 0;
 
-
     new_components.values_mut().for_each(|component_def : &mut ComponentDefinition|{
 
         let mut new_component_def = component_def.clone();
         let read_only_component_def = component_def.clone();
-
 
         if let Some(ref mut template) = new_component_def.template {
 
@@ -49,7 +47,6 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
     manifest.expression_specs = Some(swap_expression_specs);
 }
 
-
 fn pull_matched_identifiers_from_inline(inline_settings: &Option<Vec<(String, ValueDefinition)>>, s: String) -> Vec<String>{
     let mut ret = Vec::new();
     if let Some(val) = inline_settings {
@@ -75,8 +72,6 @@ fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefini
     }
 }
 
-
-
 fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(String, ValueDefinition)>>, settings_block: &Option<Vec<SettingsSelectorBlockDefinition>>) -> Option<Vec<(String, ValueDefinition)>> {
 
     // collect id settings
@@ -100,7 +95,6 @@ fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(Strin
             class_settings.extend(settings.clone());
         }
     }
-
 
     let mut map = HashMap::new();
 
@@ -179,7 +173,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
                     let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
 
-                    let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
+                    let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.type_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.type_id, &ctx.active_node_def.type_id));
 
                     let builtin_types = HashMap::from([
                         ("transform","Transform2D".to_string()),
@@ -440,7 +434,6 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         }
 
         let stack_offset = found_depth.unwrap();
-
 
         let (is_repeat_elem, is_repeat_i) = match found_val.unwrap().flags {
             Some(flags) => {(flags.is_repeat_elem, flags.is_repeat_i)},

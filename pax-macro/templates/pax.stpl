@@ -59,8 +59,6 @@ impl <%= pascal_identifier %> {
 
             let mut fully_qualified_constituent_types = vec![];
 
-
-
             //Special-handle the root scoped_resolvable_type (the one whose properties
             //must be available as nested symbols in PAXEL, like `foo.bar`).  Specifically,
             //we want need the Vec<PropertyDefinitions> for that root type.
@@ -94,7 +92,6 @@ impl <%= pascal_identifier %> {
                 flags: None,
             });
         <% } %>
-        ctx.all_property_definitions.insert(type_id.to_string(), property_definitions.clone());
 
         //FUTURE: mitigate injection risk here -- notable risk if dealing with untrusted input.  A mitigation may be to sanitize/validate/parse `raw_pax` before templating.
 
@@ -109,8 +106,8 @@ impl <%= pascal_identifier %> {
                 ctx.visited_type_ids.insert(type_id.clone().into());
 
                 <% for dep in template_dependencies { %>
-                let (mut ctx, component_id) = <%= dep %>::parse_to_manifest(ctx);
-                ctx.template_map.insert("<%= dep %>".into(), component_id);
+                let (mut ctx, type_id) = <%= dep %>::parse_to_manifest(ctx);
+                ctx.template_map.insert("<%= dep %>".into(), type_id.clone());
                 <% } %>
 
                 let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";

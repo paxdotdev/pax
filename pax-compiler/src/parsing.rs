@@ -22,37 +22,6 @@ use pax_message::reflection::Reflectable;
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
-pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, type_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String, self_type_id: &str) -> ComponentDefinition {
-    let modified_module_path = if module_path.starts_with("parser") {
-        module_path.replacen("parser", "crate", 1)
-    } else {
-        module_path.to_string()
-    };
-
-    let property_definitions = property_definitions.clone();
-
-    let x = TypeDefinition {
-        original_type: pascal_identifier.to_string(),
-        type_id: "".to_string(),
-        type_id_pascalized: "".to_string(),
-        fully_qualified_constituent_types: vec![],
-        inner_iterable_type_id: None,
-        property_definitions,
-    };
-
-    ComponentDefinition {
-        is_primitive: true,
-        is_struct_only_component: false,
-        primitive_instance_import_path: Some(primitive_instance_import_path),
-        is_main_component: false,
-        type_id: self_type_id.to_string(),
-        pascal_identifier: pascal_identifier.to_string(),
-        template: None,
-        settings: None,
-        module_path: modified_module_path,
-        events: None,
-    }
-}
 
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
@@ -346,7 +315,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
         TemplateNodeDefinition {
             id: 0,
             child_ids: roots_ids,
-            component_id: "IMPLICIT_ROOT".to_string(),
+            type_id: "IMPLICIT_ROOT".to_string(),
             control_flow_settings: None,
             settings: None,
             pascal_identifier: "<UNREACHABLE>".to_string()
@@ -358,7 +327,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
 
 struct TemplateNodeParseContext {
     pub template_node_definitions: Vec<TemplateNodeDefinition>,
-    pub pascal_identifier_to_component_id_map: HashMap<String, String>,
+    pub pascal_identifier_to_type_id_map: HashMap<String, String>,
     //each frame of the outer vec represents a list of
     //children for a given node;
     //a new frame is added when descending the tree
@@ -367,9 +336,9 @@ struct TemplateNodeParseContext {
     pub uid_gen: MultiPeek<RangeFrom<usize>>,
 }
 
-pub static COMPONENT_ID_IF : &str = "IF";
-pub static COMPONENT_ID_REPEAT : &str = "REPEAT";
-pub static COMPONENT_ID_SLOT : &str = "SLOT";
+pub static TYPE_ID_IF : &str = "IF";
+pub static TYPE_ID_REPEAT : &str = "REPEAT";
+pub static TYPE_ID_SLOT : &str = "SLOT";
 
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_tag_pair: Pair<Rule>)  {
     let new_id = ctx.uid_gen.next().unwrap();
@@ -407,7 +376,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
             let mut template_node = TemplateNodeDefinition {
                 id: new_id,
                 control_flow_settings: None,
-                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
+                type_id: ctx.pascal_identifier_to_type_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
@@ -421,7 +390,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
             let mut template_node = TemplateNodeDefinition {
                 id: new_id,
                 control_flow_settings: None,
-                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
+                type_id: ctx.pascal_identifier_to_type_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 child_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
@@ -460,7 +429,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             repeat_predicate_definition: None,
                             repeat_source_definition: None
                         }),
-                        component_id: COMPONENT_ID_IF.to_string(),
+                        type_id: TYPE_ID_IF.to_string(),
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
@@ -518,7 +487,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     //`for` TemplateNodeDefinition
                     TemplateNodeDefinition {
                         id: new_id.clone(),
-                        component_id: COMPONENT_ID_REPEAT.to_string(),
+                        type_id: TYPE_ID_REPEAT.to_string(),
                         control_flow_settings: Some(cfavd),
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
@@ -547,7 +516,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             repeat_predicate_definition: None,
                             repeat_source_definition: None
                         }),
-                        component_id: COMPONENT_ID_SLOT.to_string(),
+                        type_id: TYPE_ID_SLOT.to_string(),
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
@@ -724,10 +693,6 @@ fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<EventD
     Some(ret)
 }
 
-pub fn create_uuid() -> String {
-    Uuid::new_v4().to_string()
-}
-
 pub struct ParsingContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
@@ -738,9 +703,6 @@ pub struct ParsingContext {
     pub component_definitions: HashMap<String, ComponentDefinition>,
 
     pub template_map: HashMap<String, String>,
-
-    //(SourceID, associated Strings)
-    pub all_property_definitions: HashMap<String, Vec<PropertyDefinition>>,
 
     pub template_node_definitions: Vec<TemplateNodeDefinition>,
 
@@ -755,7 +717,6 @@ impl Default for ParsingContext {
             component_definitions: HashMap::new(),
             template_map: HashMap::new(),
             type_table: Default::default(),
-            all_property_definitions: HashMap::new(),
             template_node_definitions: vec![],
         }
     }
@@ -772,7 +733,7 @@ pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_
     }
 
     let mut tpc = TemplateNodeParseContext {
-        pascal_identifier_to_component_id_map: template_map,
+        pascal_identifier_to_type_id_map: template_map,
         template_node_definitions: vec![],
         //each frame of the outer vec represents a list of
         //children for a given node; child order matters because of z-index defaults;
@@ -789,8 +750,6 @@ pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_
     } else {
         module_path.to_string()
     };
-
-    let property_definitions = ctx.all_property_definitions.get(type_id).unwrap().clone();
 
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
     ctx.template_node_definitions = tpc.template_node_definitions.clone();
@@ -811,15 +770,13 @@ pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_
     (ctx, new_def)
 }
 
-pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_identifier: &str, type_id: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
+pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_identifier: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
 
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
     } else {
         module_path.to_string()
     };
-
-    ctx.all_property_definitions.get(type_id).unwrap().clone();
 
     let new_def = ComponentDefinition {
         type_id: self_type_id.to_string(),
@@ -837,6 +794,38 @@ pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_ide
     (ctx, new_def)
 }
 
+pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String, self_type_id: &str) -> ComponentDefinition {
+    let modified_module_path = if module_path.starts_with("parser") {
+        module_path.replacen("parser", "crate", 1)
+    } else {
+        module_path.to_string()
+    };
+
+    let property_definitions = property_definitions.clone();
+
+    let x = TypeDefinition {
+        original_type: pascal_identifier.to_string(),
+        type_id: "".to_string(),
+        type_id_pascalized: "".to_string(),
+        fully_qualified_constituent_types: vec![],
+        inner_iterable_type_id: None,
+        property_definitions,
+    };
+
+    ComponentDefinition {
+        is_primitive: true,
+        is_struct_only_component: false,
+        primitive_instance_import_path: Some(primitive_instance_import_path),
+        is_main_component: false,
+        type_id: self_type_id.to_string(),
+        pascal_identifier: pascal_identifier.to_string(),
+        template: None,
+        settings: None,
+        module_path: modified_module_path,
+        events: None,
+    }
+}
+
 pub fn assemble_type_definition(
     mut ctx: ParsingContext,
     original_type: &str,
@@ -845,9 +834,9 @@ pub fn assemble_type_definition(
     property_definitions: Vec<PropertyDefinition>,
 ) -> (ParsingContext, TypeDefinition) {
 
-    let mut type_id = original_type.to_string();
     //extract dep_to_fqd_map into a Vec<String>; string-replace each looked-up value present in
     //unexpanded_path, ensuring that each looked-up value is not preceded by a `::`
+    let mut type_id = original_type.to_string();
     dep_to_fqd_map.keys().for_each(|key| {
         type_id.clone().match_indices(key).for_each(|i|{
             if i.0 < 2 || {let maybe_coco : String = type_id.chars().skip((i.0 as i64) as usize - 2).take(2).collect(); maybe_coco != "::" } {
@@ -858,7 +847,6 @@ pub fn assemble_type_definition(
             }
         });
     });
-
     let type_id_pascalized = escape_identifier(type_id.clone());
 
     let new_def = TypeDefinition {
@@ -915,8 +903,11 @@ impl TypeParsable for f32 {}
 impl TypeParsable for bool {}
 impl TypeParsable for std::string::String {}
 impl<T> TypeParsable for std::rc::Rc<T> {}
+impl<T: TypeParsable> TypeParsable for std::vec::Vec<T> {}
+/* Alt:\
 impl<T: TypeParsable> TypeParsable for std::vec::Vec<T> {
     fn parse_type_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         T::parse_type_to_manifest(ctx)
     }
 }
+}*/

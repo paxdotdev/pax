@@ -2,7 +2,7 @@
 {% if is_primitive %}
 {{ primitive_instance_import_path }}::instantiate(
 {% else %}
-instantiate_{{ snake_case_component_id }}( Rc::clone(&instance_registry),
+instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
 {% endif %} InstantiationArgs {
     properties: PropertiesCoproduct::{{ properties_coproduct_variant }}{% if properties_coproduct_variant != "None" %}( {{component_properties_struct}} {
         {% for property in properties %}

@@ -52,7 +52,6 @@ impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
                 flags: None,
             });
         <% } %>
-        ctx.all_property_definitions.insert(type_id.to_string(), property_definitions.clone());
 
         match ctx.visited_type_ids.get(&type_id as &str) {
             None => {
@@ -75,7 +74,6 @@ impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
                     pax_compiler::parsing::assemble_struct_only_component_definition(
                         ctx,
                         PASCAL_IDENTIFIER,
-                        &type_id,
                         module_path!(),
                         &self_type_definition.type_id,
                     );
