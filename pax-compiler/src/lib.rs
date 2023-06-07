@@ -973,7 +973,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     #[allow(non_snake_case)]
     let PAX_BADGE = "[Pax]".bold().on_black().white();
 
-    println!("{} 🛠 Building Rust project with cargo...", &PAX_BADGE);
+    println!("{} 🛠 Running `cargo build`...", &PAX_BADGE);
     let pax_dir = get_or_create_pax_directory(&ctx.path);
 
     // Run parser bin from host project with `--features parser`

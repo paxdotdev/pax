@@ -265,7 +265,7 @@ TypeDefinition {
     /// Type as authored, literally.  May be partially namespace-qualified or aliased.
     pub original_type: String,
 
-    /// Same type as `original_type`, but dynamically normalized to be fully qualified, suitable for reexporting.  For example, the original_type `Vec<SomeStruct>` would be fully qualified as `std::vec::Vec<some_crate::SomeStruct>`
+
     pub type_id: String,
 
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier

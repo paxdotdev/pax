@@ -7,19 +7,18 @@ use pax_compiler::parsing::TypeParsable;
 #[cfg(feature = "parser")]
 impl <%= pascal_identifier %> {
     pub fn parse_to_manifest(mut ctx: pax_compiler::parsing::ParsingContext) -> (pax_compiler::parsing::ParsingContext, String) {
-        let type_id = <%= pascal_identifier %>::get_type_id();
-        match ctx.visited_type_ids.get(&type_id as &str) {
+        let self_type_id = <%= pascal_identifier %>::get_type_id();
+        match ctx.visited_type_ids.get(&self_type_id as &str) {
             None => {
                 //First time visiting this file/source — parse the relevant contents
                 //then recurse through child nodes, unrolled here in the macro as
                 //parsed from the template
-                ctx.visited_type_ids.insert(type_id.to_string());
+                ctx.visited_type_ids.insert(self_type_id.clone());
                 let PASCAL_IDENTIFIER = "<%= pascal_identifier %>";
-                ctx.template_map.insert(PASCAL_IDENTIFIER.to_string(), type_id.to_string());
+                ctx.template_map.insert(PASCAL_IDENTIFIER.to_string(), self_type_id.clone());
                 let template_map= ctx.template_map.clone();
 
                 let mut property_definitions : Vec<pax_compiler::manifest::PropertyDefinition> = vec![];
-                let mut dep_to_fqd_map = std::collections::HashMap::new();
 
                 // Populate `PropertyDefinition`s
                 <% for spd in static_property_definitions { %>
@@ -35,7 +34,6 @@ impl <%= pascal_identifier %> {
 
                     <% for scoped_resolvable_type in spd.scoped_resolvable_types { %>
                         let fqd = <%= scoped_resolvable_type %>::get_fully_qualified_path("<%= scoped_resolvable_type %>");
-                        dep_to_fqd_map.insert("<%= scoped_resolvable_type %>",fqd.clone());
 
                         fully_qualified_constituent_types.push(
                             fqd
@@ -45,17 +43,19 @@ impl <%= pascal_identifier %> {
                         let (mut ctx, _) = <%= scoped_resolvable_type %>::parse_type_to_manifest(ctx);
                     <% } %>
 
-                    let (mut ctx, type_definition) = pax_compiler::parsing::assemble_type_definition(
+                    let property_type_id = <%= spd.root_scoped_resolvable_type %>::get_type_id();
+
+                    let (mut ctx, _type_def) =  pax_compiler::parsing::assemble_type_definition(
                         ctx,
                         "<%= spd.original_type %>",
                         fully_qualified_constituent_types.clone(),
-                        &dep_to_fqd_map,
                         sub_property_definitions,
+                        &property_type_id,
                     );
 
                     property_definitions.push(pax_compiler::manifest::PropertyDefinition {
                         name: "<%= spd.field_name %>".to_string(),
-                        type_id: type_definition.type_id,
+                        type_id: property_type_id,
                         flags: None,
                     });
 
@@ -65,8 +65,8 @@ impl <%= pascal_identifier %> {
                     ctx,
                     PASCAL_IDENTIFIER,
                     vec![],
-                    &dep_to_fqd_map,
                     property_definitions.clone(),
+                    &self_type_id,
                 );
 
                 let comp_def = pax_compiler::parsing::assemble_primitive_definition(
@@ -74,13 +74,13 @@ impl <%= pascal_identifier %> {
                     module_path!(),
                     &property_definitions,
                     "<%=  primitive_instance_import_path  %>".to_string(),
-                    &self_type_definition.type_id,
+                    &self_type_id,
                 );
                 ctx.component_definitions
-                    .insert(comp_def.type_id.clone(), comp_def);
-                (ctx, type_id.to_string())
+                    .insert(self_type_id.clone(), comp_def);
+                (ctx, self_type_id)
             },
-            _ => (ctx, type_id.to_string()), //early return; this file has already been parsed
+            _ => (ctx, self_type_id), //early return; this file has already been parsed
         }
     }
 }
@@ -89,7 +89,7 @@ impl <%= pascal_identifier %> {
 impl pax_message::reflection::Reflectable for <%= pascal_identifier %> {
 
     fn get_type_id() -> String {
-        file!().to_string() + "::" + "<%= pascal_identifier %>"
+        file!().to_string() + "#" + "<%= pascal_identifier %>"
     }
 
     fn get_fully_qualified_path(atomic_self_type: &str) -> String {

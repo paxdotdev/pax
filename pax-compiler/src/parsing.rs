@@ -723,13 +723,21 @@ impl Default for ParsingContext {
 }
 
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
-pub fn assemble_component_definition(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_main_component: bool, template_map: HashMap<String, String>, type_id: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
+pub fn assemble_component_definition(
+    mut ctx: ParsingContext,
+    pax: &str,
+    pascal_identifier: &str,
+    is_main_component: bool,
+    template_map: HashMap<String, String>,
+    module_path: &str,
+    self_type_id: &str
+) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
     if is_main_component {
-        ctx.main_component_type_id = type_id.to_string();
+        ctx.main_component_type_id = self_type_id.to_string();
     }
 
     let mut tpc = TemplateNodeParseContext {
@@ -830,35 +838,22 @@ pub fn assemble_type_definition(
     mut ctx: ParsingContext,
     original_type: &str,
     fully_qualified_constituent_types: Vec<String>,
-    dep_to_fqd_map: &HashMap<&str, String>,
     property_definitions: Vec<PropertyDefinition>,
+    self_type_id: &str,
 ) -> (ParsingContext, TypeDefinition) {
 
-    //extract dep_to_fqd_map into a Vec<String>; string-replace each looked-up value present in
-    //unexpanded_path, ensuring that each looked-up value is not preceded by a `::`
-    let mut type_id = original_type.to_string();
-    dep_to_fqd_map.keys().for_each(|key| {
-        type_id.clone().match_indices(key).for_each(|i|{
-            if i.0 < 2 || {let maybe_coco : String = type_id.chars().skip((i.0 as i64) as usize - 2).take(2).collect(); maybe_coco != "::" } {
-                let new_value = "{PREFIX}".to_string() + &dep_to_fqd_map.get(key).unwrap();
-                let starting_index : i64 = i.0 as i64;
-                let end_index_exclusive = starting_index + key.len() as i64;
-                type_id.replace_range(starting_index as usize..end_index_exclusive as usize, &new_value);
-            }
-        });
-    });
-    let type_id_pascalized = escape_identifier(type_id.clone());
+    let type_id_pascalized = escape_identifier(self_type_id.to_string());
 
     let new_def = TypeDefinition {
         original_type: original_type.to_string(),
-        type_id: type_id.clone(),
+        type_id: self_type_id.to_string(),
         type_id_pascalized,
         fully_qualified_constituent_types,
         inner_iterable_type_id: None,
         property_definitions,
     };
 
-    ctx.type_table.insert(type_id.clone(), new_def.clone());
+    ctx.type_table.insert(self_type_id.to_string(), new_def.clone());
 
     (ctx, new_def)
 }
@@ -904,7 +899,7 @@ impl TypeParsable for bool {}
 impl TypeParsable for std::string::String {}
 impl<T> TypeParsable for std::rc::Rc<T> {}
 impl<T: TypeParsable> TypeParsable for std::vec::Vec<T> {}
-/* Alt:\
+/* Consider similar approach to the following for
 impl<T: TypeParsable> TypeParsable for std::vec::Vec<T> {
     fn parse_type_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         T::parse_type_to_manifest(ctx)
