@@ -31,7 +31,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Path);
 
         let mut instance_registry = (*args.instance_registry).borrow_mut();
@@ -61,7 +61,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        let properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.get().width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width { v } else { unreachable!() };

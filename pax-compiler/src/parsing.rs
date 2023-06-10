@@ -802,22 +802,16 @@ pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_ide
     (ctx, new_def)
 }
 
-pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String, self_type_id: &str) -> ComponentDefinition {
+pub fn assemble_primitive_definition(
+    pascal_identifier: &str,
+    module_path: &str,
+    primitive_instance_import_path: String,
+    self_type_id: &str
+) -> ComponentDefinition {
     let modified_module_path = if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
     } else {
         module_path.to_string()
-    };
-
-    let property_definitions = property_definitions.clone();
-
-    let x = TypeDefinition {
-        original_type: pascal_identifier.to_string(),
-        type_id: "".to_string(),
-        type_id_pascalized: "".to_string(),
-        fully_qualified_constituent_types: vec![],
-        inner_iterable_type_id: None,
-        property_definitions,
     };
 
     ComponentDefinition {
@@ -836,7 +830,6 @@ pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str,
 
 pub fn assemble_type_definition(
     mut ctx: ParsingContext,
-    original_type: &str,
     fully_qualified_constituent_types: Vec<String>,
     property_definitions: Vec<PropertyDefinition>,
     self_type_id: &str,
@@ -845,7 +838,6 @@ pub fn assemble_type_definition(
     let type_id_pascalized = escape_identifier(self_type_id.to_string());
 
     let new_def = TypeDefinition {
-        original_type: original_type.to_string(),
         type_id: self_type_id.to_string(),
         type_id_pascalized,
         fully_qualified_constituent_types,
@@ -881,7 +873,7 @@ pub fn escape_identifier(input: String) -> String {
 /// allows the parser binary to codegen calls to `::parse_type_to_manifest()` even
 /// on primitive types
 pub trait TypeParsable {
-    fn parse_type_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+    fn parse_type_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         //Default impl: no-op
         (ctx, vec![])
     }

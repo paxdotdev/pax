@@ -258,7 +258,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         type_id: "isize".to_string(),
                     };
 
-                    let mut scope = HashMap::from([
+                    let scope = HashMap::from([
                         //`elem` property (by specified name)
                         (elem_id.clone(),
                         property_definition)
@@ -405,10 +405,9 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let prop_def = ctx.resolve_symbol_as_prop_def(&sym).expect(&format!("Symbol not found: {}", &sym));
 
-        let mut split_symbols = clean_and_split_symbols(&sym);
+        let split_symbols = clean_and_split_symbols(&sym);
         let escaped_identifier = crate::parsing::escape_identifier(split_symbols.join("::"));
 
-        let mut split_symbols = clean_and_split_symbols(&sym);
         let root_identifier= split_symbols.iter().next().unwrap().to_string();
 
         let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
@@ -536,7 +535,7 @@ impl<'a> ExpressionCompilationContext<'a> {
     /// and return a copy of the related `PropertyDefinition`, if found
     pub fn resolve_symbol_as_prop_def(&self, symbol: &str) -> Option<PropertyDefinition> {
 
-        let mut split_symbols = clean_and_split_symbols(symbol);
+        let split_symbols = clean_and_split_symbols(symbol);
         let mut split_symbols = split_symbols.iter();
 
         let root_symbol = split_symbols.next().unwrap();

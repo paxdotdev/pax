@@ -38,7 +38,6 @@ impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
 
             let (mut ctx, _type_def) =  pax_compiler::parsing::assemble_type_definition(
                 ctx,
-                "<%= spd.original_type %>",
                 fully_qualified_constituent_types.clone(),
                 sub_property_definitions,
                 &property_type_id,
@@ -61,7 +60,6 @@ impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
 
                 let (mut ctx, self_type_definition) =  pax_compiler::parsing::assemble_type_definition(
                     ctx,
-                    "<%= pascal_identifier %>",
                     vec!["<%= pascal_identifier %>".to_string()],
                     property_definitions.clone(),
                     &self_type_id,

@@ -1,8 +1,11 @@
 
 for (elem, i) in self.rects {
-    <Rectangle width={elem.width} height={elem.height} transform={Transform2D::translate(elem.x, elem.y)} />
+    <Rectangle
+        width={elem.width}
+        height={elem.height}
+        transform={Transform2D::translate(elem.x, elem.y)}
+    />
 }
-
 
 @events {
     did_mount: handle_did_mount

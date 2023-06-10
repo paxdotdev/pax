@@ -274,10 +274,8 @@ impl PropertyDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct
 TypeDefinition {
-    /// Type as authored, literally.  May be partially namespace-qualified or aliased.
-    pub original_type: String,
 
-
+    /// Program-unique ID for this type
     pub type_id: String,
 
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
@@ -299,7 +297,6 @@ impl TypeDefinition {
 
     pub fn primitive(type_name: &str) -> Self {
         Self {
-            original_type: type_name.to_string(),
             type_id_pascalized: type_name.to_string(),
             type_id: type_name.to_string(),
             fully_qualified_constituent_types: vec![],
@@ -311,7 +308,6 @@ impl TypeDefinition {
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
     pub fn builtin_vec_rc_properties_coproduct() -> Self {
         Self {
-            original_type: "Vec<Rc<PropertiesCoproduct>>".to_string(),
             type_id: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
             type_id_pascalized: "Vec_Rc_PropertiesCoproduct___".to_string(),
             fully_qualified_constituent_types: vec!["std::vec::Vec".to_string(), "std::rc::Rc".to_string()],
@@ -322,7 +318,6 @@ impl TypeDefinition {
 
     pub fn builtin_range_isize() -> Self {
         Self {
-            original_type: "std::ops::Range<isize>".to_string(),
             type_id: "std::ops::Range<isize>".to_string(),
             type_id_pascalized: "Range_isize_".to_string(),
             fully_qualified_constituent_types: vec!["std::ops::Range".to_string()],
@@ -333,7 +328,6 @@ impl TypeDefinition {
 
     pub fn builtin_rc_properties_coproduct() -> Self {
         Self {
-            original_type: "Rc<PropertiesCoproduct>".to_string(),
             type_id: "std::rc::Rc<PropertiesCoproduct>".to_string(),
             type_id_pascalized: "Rc_PropertiesCoproduct__".to_string(),
             fully_qualified_constituent_types: vec!["std::rc::Rc".to_string()],

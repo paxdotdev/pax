@@ -375,8 +375,6 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
             }).collect::<Vec<String>>()
         }).flatten().collect::<Vec<String>>()
     }).flatten().collect::<Vec<String>>();
-    let unique_imports: HashSet<String> = imports.drain(..).collect();
-    imports.extend(unique_imports.into_iter().sorted());
 
     //Also add component property structs to the imports list, with same reexports prefix
     let properties_structs_imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
@@ -388,6 +386,9 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
         format!("{}{}{}", &IMPORT_PREFIX, &module_path, comp_def.pascal_identifier)
     }).collect::<Vec<String>>();
     imports.extend(properties_structs_imports.into_iter().sorted());
+
+    let unique_imports: HashSet<String> = imports.drain(..).collect();
+    imports.extend(unique_imports.into_iter().sorted());
 
     let consts = vec![];//TODO!
 

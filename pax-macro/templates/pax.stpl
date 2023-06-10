@@ -77,7 +77,6 @@ impl <%= pascal_identifier %> {
 
             let (mut ctx, _type_def) =  pax_compiler::parsing::assemble_type_definition(
                 ctx,
-                "<%= spd.original_type %>",
                 fully_qualified_constituent_types.clone(),
                 sub_property_definitions,
                 &property_type_id,
@@ -113,7 +112,6 @@ impl <%= pascal_identifier %> {
 
                 let (mut ctx, self_type_definition) =  pax_compiler::parsing::assemble_type_definition(
                     ctx,
-                    PASCAL_IDENTIFIER,
                     vec![module_path!().to_string() + "::" + PASCAL_IDENTIFIER],
                     property_definitions.clone(),
                     &self_type_id,

@@ -12,16 +12,27 @@ pub struct Grids {
 impl Grids {
 
     pub fn handle_did_mount(&mut self) {
-        pax::log("Grids mounted!");
-        self.rects.set(vec![]);
-    }
 
-    pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
-        self.ticks.set(ctx.frames_elapsed);
-    }
-
-    pub fn handle_scroll(&mut self, args: ArgsScroll) {
-
+        self.rects.set(vec![
+            RectDef {
+                x: 50,
+                y: 200,
+                width: 200,
+                height: 500,
+            },
+            RectDef {
+                x: 200,
+                y: 150,
+                width: 100,
+                height: 100,
+            },
+            RectDef {
+                x: 500,
+                y: 300,
+                width: 250,
+                height: 350,
+            },
+        ]);
     }
 
 }
