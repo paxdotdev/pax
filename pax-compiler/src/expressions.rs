@@ -254,6 +254,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         flags: Some(PropertyDefinitionFlags {
                             is_repeat_i: false,
                             is_repeat_elem: true,
+                            is_repeat_range: true,
                         }),
                         type_id: "isize".to_string(),
                     };
@@ -273,6 +274,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         flags: Some(PropertyDefinitionFlags {
                             is_repeat_elem: true,
                             is_repeat_i: false,
+                            is_repeat_range: false,
                         }),
                     };
 
@@ -280,6 +282,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     i_property_definition.flags = Some(PropertyDefinitionFlags {
                         is_repeat_i: true,
                         is_repeat_elem: false,
+                        is_repeat_range: false,
                     });
 
                     ctx.scope_stack.push(HashMap::from([
@@ -434,9 +437,9 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let stack_offset = found_depth.unwrap();
 
-        let (is_repeat_elem, is_repeat_i) = match found_val.unwrap().flags {
-            Some(flags) => {(flags.is_repeat_elem, flags.is_repeat_i)},
-            None => {(false, false)}
+        let (is_repeat_elem, is_repeat_i, is_repeat_range) = match found_val.unwrap().flags {
+            Some(flags) => {(flags.is_repeat_elem, flags.is_repeat_i, flags.is_repeat_range)},
+            None => {(false, false, false)}
         };
 
         let property_properties_coproduct_type = &prop_def.get_type_definition(ctx.type_table).type_id.split("::").last().unwrap();
@@ -452,6 +455,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             properties_coproduct_type,
             is_repeat_elem,
             is_repeat_i,
+            is_repeat_range,
             nested_symbol_literal_tail: None,
         }
     }

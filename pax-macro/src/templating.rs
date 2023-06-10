@@ -33,6 +33,7 @@ pub struct TemplateArgsMacroPaxType {
     pub type_dependencies: Vec<String>,
     pub static_property_definitions: Vec<StaticPropertyDefinition>,
     pub include_imports: bool,
+    pub is_custom_interpolatable: bool,
 }
 
 #[derive(TemplateOnce)]

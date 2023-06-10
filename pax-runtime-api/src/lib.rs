@@ -115,12 +115,13 @@ pub struct ArgsScroll {
 /// or a percent of parent bounds.
 
 #[derive(Pax, Copy)]
-#[custom(Default)]
+#[custom(Default, Interpolatable)]
 pub enum Size {
     #[default]
     Pixels(Numeric),
     Percent(Numeric),
 }
+
 
 
 #[derive(Copy, Clone)]

@@ -51,6 +51,11 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                                 Numeric::from(unwrapped)
                             {% elif invocation.is_iterable_primitive_nonnumeric %}
                                 elem.clone()
+                            {% elif invocation.is_repeat_range %}
+                                {# This element represents the `elem` in `for elem in 0..5`.  Special-handle and unwrap as an isize. #}
+                                if let PropertiesCoproduct::isize(i) = **elem {
+                                    Numeric::from(i)
+                                } else {unreachable!()}
                             {% else %}
                                 {# This should be iterating over a `Rc<PropertiesCoproduct>`, so pass that forward for chained unwrapping #}
                                 Rc::clone(elem)

@@ -4,6 +4,11 @@ use pax::internal::{Reflectable};
 #[cfg(feature = "parser")]
 use pax_compiler::parsing::TypeParsable;
 <% } %>
+
+<% if !is_custom_interpolatable { %>
+impl pax::api::Interpolatable for <%= pascal_identifier %> {}
+<% } %>
+
 #[cfg(feature = "parser")]
 impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
 

@@ -45,5 +45,3 @@ pub struct RectDef {
     width: usize,
     height: usize,
 }
-
-impl pax::api::Interpolatable for RectDef {}

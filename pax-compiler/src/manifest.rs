@@ -93,6 +93,7 @@ pub struct ExpressionSpecInvocation {
     pub is_numeric_property: bool,
     pub is_iterable_numeric: bool,
     pub is_iterable_primitive_nonnumeric: bool,
+    pub is_repeat_range: bool,
 
     /// Metadata used for nested symbol invocation, like `foo.bar.baz`
     /// Holds an RIL string like `.bar.get().baz.get()` for the nested
@@ -252,8 +253,12 @@ impl PropertyDefinition {
 
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PropertyDefinitionFlags {
+    //Is this property representing the index `i` of a `for (elem, i)` ?
     pub is_repeat_i: bool,
+    //Is this property representing the elem `elem` of a `for (elem, i)` OR `for elem in 0..5` ?
     pub is_repeat_elem: bool,
+    //Is this property representing the elem `elem` of a `for elem in 0..5`
+    pub is_repeat_range: bool,
 }
 
 /// Describes static metadata surrounding a property, for example
