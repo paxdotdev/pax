@@ -1,6 +1,4 @@
 #[cfg(feature = "parser")]
-use pax::internal::{Reflectable};
-#[cfg(feature = "parser")]
 use pax_compiler::parsing::TypeParsable;
 #[cfg(feature = "parser")]
 use serde_json;
@@ -139,7 +137,7 @@ impl <%= pascal_identifier %> {
 }
 
 #[cfg(feature = "parser")]
-impl pax_message::reflection::Reflectable for <%= pascal_identifier %> {
+impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
 
     fn get_type_id(pascal_identifier: &str) -> String {
         let chopped_type = {

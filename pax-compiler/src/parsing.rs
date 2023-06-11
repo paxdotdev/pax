@@ -16,7 +16,6 @@ use pest::iterators::{Pair, Pairs};
 use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
 };
-use pax_message::reflection::Reflectable;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -878,25 +877,87 @@ pub trait TypeParsable {
         (ctx, vec![])
     }
 
-
+    fn get_type_id(pascal_identifier: &str) -> String;
 }
 
-impl TypeParsable for usize {}
-impl TypeParsable for isize {}
-impl TypeParsable for i128 {}
-impl TypeParsable for u128 {}
-impl TypeParsable for i64 {}
-impl TypeParsable for u64 {}
-impl TypeParsable for i32 {}
-impl TypeParsable for u32 {}
-impl TypeParsable for i8 {}
-impl TypeParsable for u8 {}
-impl TypeParsable for f64 {}
-impl TypeParsable for f32 {}
-impl TypeParsable for bool {}
-impl TypeParsable for std::string::String {}
-impl<T> TypeParsable for std::rc::Rc<T> {}
-impl<T: TypeParsable> TypeParsable for std::vec::Vec<T> {}
+impl TypeParsable for usize {
+    fn get_type_id(_: &str) -> String {
+        "usize".to_string()
+    }
+}
+impl TypeParsable for isize {
+    fn get_type_id(_: &str) -> String {
+        "isize".to_string()
+    }
+}
+impl TypeParsable for i128 {
+    fn get_type_id(_: &str) -> String {
+        "i128".to_string()
+    }
+}
+impl TypeParsable for u128 {
+    fn get_type_id(_: &str) -> String {
+        "u128".to_string()
+    }
+}
+impl TypeParsable for i64 {
+    fn get_type_id(_: &str) -> String {
+        "i64".to_string()
+    }
+}
+impl TypeParsable for u64 {
+    fn get_type_id(_: &str) -> String {
+        "bool".to_string()
+    }
+}
+impl TypeParsable for i32 {
+    fn get_type_id(_: &str) -> String {
+        "bool".to_string()
+    }
+}
+impl TypeParsable for u32 {
+    fn get_type_id(_: &str) -> String {
+        "bool".to_string()
+    }
+}
+impl TypeParsable for i8 {
+    fn get_type_id(_: &str) -> String {
+        "bool".to_string()
+    }
+}
+impl TypeParsable for u8 {
+    fn get_type_id(_: &str) -> String {
+        "u8".to_string()
+    }
+}
+impl TypeParsable for f64 {
+    fn get_type_id(_: &str) -> String {
+        "f64".to_string()
+    }
+}
+impl TypeParsable for f32 {
+    fn get_type_id(_: &str) -> String {
+        "f32".to_string()
+    }
+}
+impl TypeParsable for bool {
+    fn get_type_id(_: &str) -> String {
+        "bool".to_string()
+    }
+}
+impl TypeParsable for std::string::String {
+    fn get_type_id(_: &str) -> String {
+        "std::string::String".to_string()
+    }
+}
+impl<T> TypeParsable for std::rc::Rc<T> {
+    fn get_type_id(_: &str) -> String {
+        "std::rc::Rc".to_string()
+    }
+}
+impl<T: TypeParsable> TypeParsable for std::vec::Vec<T> {
+    fn get_type_id(_: &str) -> String { "std::vec::Vec".to_string() }
+}
 /* Consider similar approach to the following for
 impl<T: TypeParsable> TypeParsable for std::vec::Vec<T> {
     fn parse_type_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {

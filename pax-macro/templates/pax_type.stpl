@@ -1,7 +1,5 @@
 <% if include_imports { %>
 #[cfg(feature = "parser")]
-use pax::internal::{Reflectable};
-#[cfg(feature = "parser")]
 use pax_compiler::parsing::TypeParsable;
 <% } %>
 
@@ -87,10 +85,6 @@ impl pax_compiler::parsing::TypeParsable for <%= pascal_identifier %> {
             _ => (ctx, property_definitions), //early return; this file has already been parsed
         }
     }
-}
-
-#[cfg(feature = "parser")]
-impl pax_message::reflection::Reflectable for <%= pascal_identifier %> {
 
     fn get_type_id(pascal_identifier: &str) -> String {
         let chopped_type = {
@@ -102,5 +96,4 @@ impl pax_message::reflection::Reflectable for <%= pascal_identifier %> {
         };
         module_path!().to_owned().replacen("parser", "crate", 1) + "::" + chopped_type
     }
-
 }

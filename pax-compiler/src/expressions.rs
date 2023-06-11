@@ -268,9 +268,20 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     ctx.scope_stack.push(scope);
                 },
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
+
+                    //if repeat_source is a range, this is simply isize
+                    //if repeat_source is a symbolic binding, then we resolve that symbolic
+                    //binding and use that resolved type here
+                    let repeat_source_type = if let Some(_) = &repeat_source_definition.range_expression_paxel {
+                        TypeDefinition::primitive("isize")
+                    } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
+                        let pd = ctx.resolve_symbol_as_prop_def(symbolic_binding).expect(&format!("Property not found: {}", symbolic_binding));
+                        pd.get_type_definition(ctx.type_table).clone()
+                    } else {unreachable!()};
+
                     let elem_property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
-                        type_id: todo!("this needs to be the iterable type... (of what? of the repeat source's type)"),//return_type.type_id.clone(),
+                        type_id: repeat_source_type.type_id,
                         flags: Some(PropertyDefinitionFlags {
                             is_repeat_elem: true,
                             is_repeat_i: false,
