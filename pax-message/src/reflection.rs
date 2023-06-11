@@ -3,6 +3,7 @@
 /// into this leaf node package (PaxMessage)
 pub trait Reflectable {
     fn get_type_id(pascal_identifier: &str) -> String;
+
 }
 
 impl Reflectable for usize {

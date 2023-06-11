@@ -270,7 +270,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
                     let elem_property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
-                        type_id: return_type.type_id.clone(),
+                        type_id: todo!("this needs to be the iterable type... (of what? of the repeat source's type)"),//return_type.type_id.clone(),
                         flags: Some(PropertyDefinitionFlags {
                             is_repeat_elem: true,
                             is_repeat_i: false,
@@ -556,7 +556,7 @@ impl<'a> ExpressionCompilationContext<'a> {
             let mut ret: Option<PropertyDefinition> = None;
             while !found && !exhausted {
                 if let Some(frame) = current_frame {
-                    if let Some(pv) = frame.get(symbol) {
+                    if let Some(pv) = frame.get(root_symbol) {
                         ret = Some(pv.clone());
                         found = true;
                     }

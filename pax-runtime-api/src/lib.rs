@@ -64,7 +64,7 @@ impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
     }
 }
 
-pub type Property<T: Interpolatable> = Box<dyn PropertyInstance<T>>;
+pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
 pub struct RuntimeContext {
