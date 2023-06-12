@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+//Component types
 #[repr(u32)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
@@ -15,7 +16,7 @@ pub enum PropertiesCoproduct {
     {% endfor %}
 }
 
-//used namely for return types of expressions — may have other purposes
+//Property types
 #[repr(u32)]
 pub enum TypesCoproduct {
     {% for types_coproduct_tuple in types_coproduct_tuples %}

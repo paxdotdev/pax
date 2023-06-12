@@ -2894,7 +2894,7 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
         [x] `#[custom(...)]` escape hatches
     [ ] Update iterable_type population logic;
         codegen calls to `populate_type_definition` for each nested Vec<Vec<T...
-        possibly: hook into TypeParsable / Reflectable
+        possibly: hook into Reflectable / Reflectable
 [x] connect `ComponentDefinition` with `TypeDefinition`
     [x] refactor access / mutation of ComponentDefinition.property_definitions
     [x] assemble `type_table` with a TypeDefinition for each visited entity
@@ -2903,7 +2903,7 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
         [x] pax_component 
     [x] conslidate pax_primitive API with pax derive API
     [x] refactor type_id generation logic, clean, consistent, & DRY
-        [-] look at feasibility of making a dynamic method like parse_to_manifest, part of TypeParsable or Reflectable
+        [-] look at feasibility of making a dynamic method like parse_to_manifest, part of Reflectable or Reflectable
         [x] or consolidate with source_id?
 [ ] Update `resolve_symbol` logic to handle nested symbols like `foo.bar.baz` and `elem.some.deeply.nested.thing`.
     [x] Split by `.`, recurse PropertyDefinition => TypeDefinition.property_definitions => PropertyDefinition => ...

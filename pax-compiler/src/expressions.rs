@@ -276,7 +276,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         TypeDefinition::primitive("isize")
                     } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                         let pd = ctx.resolve_symbol_as_prop_def(symbolic_binding).expect(&format!("Property not found: {}", symbolic_binding));
-                        pd.get_type_definition(ctx.type_table).clone()
+                        pd.get_inner_iterable_type_definition(ctx.type_table).unwrap().clone()
                     } else {unreachable!()};
 
                     let elem_property_definition = PropertyDefinition {

@@ -506,7 +506,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     }
 
                     TemplateNodeDefinition {
-                        id: new_id.clone(),
+                        id: *&new_id.clone(),
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: None,
                             condition_expression_vtable_id: None,
@@ -831,6 +831,7 @@ pub fn assemble_type_definition(
     mut ctx: ParsingContext,
     fully_qualified_constituent_types: Vec<String>,
     property_definitions: Vec<PropertyDefinition>,
+    inner_iterable_type_id: Option<String>,
     self_type_id: &str,
 ) -> (ParsingContext, TypeDefinition) {
 
@@ -840,7 +841,7 @@ pub fn assemble_type_definition(
         type_id: self_type_id.to_string(),
         type_id_pascalized,
         fully_qualified_constituent_types,
-        inner_iterable_type_id: None,
+        inner_iterable_type_id,
         property_definitions,
     };
 
@@ -871,95 +872,121 @@ pub fn escape_identifier(input: String) -> String {
 /// with the parser-time method `parse_type_to_manifest`.  This
 /// allows the parser binary to codegen calls to `::parse_type_to_manifest()` even
 /// on primitive types
-pub trait TypeParsable {
+pub trait Reflectable {
     fn parse_type_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         //Default impl: no-op
         (ctx, vec![])
     }
 
-    fn get_type_id(pascal_identifier: &str) -> String;
+    fn get_self_pascal_identifier() -> String;
+
+    fn get_type_id() -> String {
+        //This default is used by primitives but expected to
+        //be overridden by userland Pax components / primitives
+        Self::get_self_pascal_identifier()
+    }
+
+    fn get_iterable_type_id() -> Option<String> {
+        //Most types do not have an iterable type (e.g. the T in Vec<T>) —
+        //it is the responsibility of iterable types to override this fn
+        None
+    }
 }
 
-impl TypeParsable for usize {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for usize {
+    fn get_self_pascal_identifier() -> String {
         "usize".to_string()
     }
 }
-impl TypeParsable for isize {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for isize {
+    fn get_self_pascal_identifier() -> String {
         "isize".to_string()
     }
 }
-impl TypeParsable for i128 {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for i128 {
+    fn get_self_pascal_identifier() -> String {
         "i128".to_string()
     }
 }
-impl TypeParsable for u128 {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for u128 {
+    fn get_self_pascal_identifier() -> String {
         "u128".to_string()
     }
 }
-impl TypeParsable for i64 {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for i64 {
+    fn get_self_pascal_identifier() -> String {
         "i64".to_string()
     }
 }
-impl TypeParsable for u64 {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for u64 {
+    fn get_self_pascal_identifier() -> String {
         "bool".to_string()
     }
 }
-impl TypeParsable for i32 {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for i32 {
+    fn get_self_pascal_identifier() -> String {
         "bool".to_string()
     }
 }
-impl TypeParsable for u32 {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for u32 {
+    fn get_self_pascal_identifier() -> String {
         "bool".to_string()
     }
 }
-impl TypeParsable for i8 {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for i8 {
+    fn get_self_pascal_identifier() -> String {
         "bool".to_string()
     }
 }
-impl TypeParsable for u8 {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for u8 {
+    fn get_self_pascal_identifier() -> String {
         "u8".to_string()
     }
 }
-impl TypeParsable for f64 {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for f64 {
+    fn get_self_pascal_identifier() -> String {
         "f64".to_string()
     }
 }
-impl TypeParsable for f32 {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for f32 {
+    fn get_self_pascal_identifier() -> String {
         "f32".to_string()
     }
 }
-impl TypeParsable for bool {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for bool {
+    fn get_self_pascal_identifier() -> String {
         "bool".to_string()
     }
 }
-impl TypeParsable for std::string::String {
-    fn get_type_id(_: &str) -> String {
+impl Reflectable for std::string::String {
+    fn get_self_pascal_identifier() -> String {
+        "String".to_string()
+    }
+    fn get_type_id() -> String {
         "std::string::String".to_string()
     }
 }
-impl<T> TypeParsable for std::rc::Rc<T> {
-    fn get_type_id(_: &str) -> String {
+impl<T> Reflectable for std::rc::Rc<T> {
+    fn get_self_pascal_identifier() -> String {
+        "Rc".to_string()
+    }
+    fn get_type_id() -> String {
         "std::rc::Rc".to_string()
     }
 }
-impl<T: TypeParsable> TypeParsable for std::vec::Vec<T> {
-    fn get_type_id(_: &str) -> String { "std::vec::Vec".to_string() }
+impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
+    fn get_self_pascal_identifier() -> String {
+        "Vec".to_string()
+    }
+    fn get_type_id() -> String {
+        format!("std::vec::Vec<{}>",&Self::get_iterable_type_id().unwrap())
+    }
+    fn get_iterable_type_id() -> Option<String> {
+        Some(T::get_type_id())
+    }
 }
 /* Consider similar approach to the following for
-impl<T: TypeParsable> TypeParsable for std::vec::Vec<T> {
+impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     fn parse_type_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         T::parse_type_to_manifest(ctx)
     }
