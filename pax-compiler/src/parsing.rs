@@ -777,13 +777,17 @@ pub fn assemble_component_definition(
     (ctx, new_def)
 }
 
-pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_identifier: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
-
-    let modified_module_path = if module_path.starts_with("parser") {
+pub fn clean_module_path(module_path: &str) -> String {
+    if module_path.starts_with("parser") {
         module_path.replacen("parser", "crate", 1)
     } else {
         module_path.to_string()
-    };
+    }
+}
+
+pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_identifier: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
+
+    let modified_module_path = clean_module_path(module_path);
 
     let new_def = ComponentDefinition {
         type_id: self_type_id.to_string(),
@@ -807,11 +811,7 @@ pub fn assemble_primitive_definition(
     primitive_instance_import_path: String,
     self_type_id: &str
 ) -> ComponentDefinition {
-    let modified_module_path = if module_path.starts_with("parser") {
-        module_path.replacen("parser", "crate", 1)
-    } else {
-        module_path.to_string()
-    };
+    let modified_module_path = clean_module_path(module_path);
 
     ComponentDefinition {
         is_primitive: true,

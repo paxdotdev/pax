@@ -14,35 +14,34 @@ pub struct StaticPropertyDefinition {
     pub pascal_identifier: String,
 }
 
-#[derive(TemplateOnce)]
-#[template(path = "../templates/pax_primitive.stpl", escape=false)]
-pub struct TemplateArgsMacroPaxPrimitive {
-    pub pascal_identifier: String,
-    pub original_tokens: String,
-    /// Used to codegen get_property_manifest calls, which allows parser to "reflect"
-    pub static_property_definitions: Vec<StaticPropertyDefinition>,
+#[derive(Serialize)]
+pub struct ArgsPrimitive {
     /// For example: "pax_std_primitives::RectangleInstance" for Rectangle (pax_std::primitives::Rectangle)
     pub primitive_instance_import_path: String,
-    pub include_imports: bool,
 }
 
-#[derive(TemplateOnce)]
-#[template(path = "../templates/pax_type.stpl", escape=false)]
-pub struct TemplateArgsMacroPaxType {
-    pub pascal_identifier: String,
-    pub type_dependencies: Vec<String>,
-    pub static_property_definitions: Vec<StaticPropertyDefinition>,
-    pub include_imports: bool,
-    pub is_custom_interpolatable: bool,
-}
+#[derive(Serialize)]
+pub struct ArgsStructOnlyComponent {}
 
-#[derive(TemplateOnce)]
-#[template(path = "../templates/pax.stpl", escape=false)]
-pub struct TemplateArgsMacroPax {
+#[derive(Serialize)]
+pub struct ArgsFullComponent {
     pub raw_pax: String,
-    pub pascal_identifier: String,
     pub is_main_component: bool,
     pub template_dependencies: Vec<String>,
-    pub static_property_definitions: Vec<StaticPropertyDefinition>,
     pub reexports_snippet: String,
+}
+
+#[derive(TemplateOnce)]
+#[template(path = "../templates/derive_pax.stpl", escape=false)]
+pub struct TemplateArgsDerivePax {
+    /// Modal properties
+    pub args_primitive: Option<ArgsPrimitive>,
+    pub args_struct_only_component: Option<ArgsStructOnlyComponent>,
+    pub args_full_component: Option<ArgsFullComponent>,
+
+    /// Shared properties
+    pub static_property_definitions: Vec<StaticPropertyDefinition>,
+    pub pascal_identifier: String,
+    pub include_imports: bool,
+    pub is_custom_interpolatable: bool,
 }

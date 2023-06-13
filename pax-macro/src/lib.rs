@@ -16,25 +16,29 @@ use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
 use quote::{quote, ToTokens};
 
-use templating::{TemplateArgsMacroPaxPrimitive, TemplateArgsMacroPax, TemplateArgsMacroPaxType, StaticPropertyDefinition};
+use templating::{ArgsPrimitive, ArgsFullComponent, ArgsStructOnlyComponent, TemplateArgsDerivePax, StaticPropertyDefinition};
 
 use sailfish::TemplateOnce;
 
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Attribute, Meta, NestedMeta, parse2, MetaList, Lit};
 use syn::parse::{Parse, ParseStream};
 
-fn pax_primitive(input_parsed: DeriveInput, primitive_instance_import_path: String, include_imports: bool) -> proc_macro2::TokenStream {
+fn pax_primitive(input_parsed: DeriveInput, primitive_instance_import_path: String, include_imports: bool, is_custom_interpolatable: bool,) -> proc_macro2::TokenStream {
     let original_tokens = quote! { #input_parsed }.to_string();
     let pascal_identifier = input_parsed.ident.to_string();
 
     let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
 
-    let output = TemplateArgsMacroPaxPrimitive{
-        pascal_identifier,
-        original_tokens,
+    let output = TemplateArgsDerivePax {
+        args_primitive: Some(ArgsPrimitive {
+            primitive_instance_import_path,
+        }),
+        args_struct_only_component: None,
+        args_full_component: None,
         static_property_definitions,
-        primitive_instance_import_path,
+        pascal_identifier,
         include_imports,
+        is_custom_interpolatable,
     }.render_once().unwrap().to_string();
 
     TokenStream::from_str(&output).unwrap().into()
@@ -72,14 +76,13 @@ fn pax_type(input_parsed: DeriveInput, include_imports: bool, is_custom_interpol
 
     let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
 
-    let type_dependencies= static_property_definitions.iter().map(|spd|{
-        spd.original_type.clone()
-    }).collect();
+    let output = templating::TemplateArgsDerivePax{
+        args_full_component: None,
+        args_primitive: None,
+        args_struct_only_component: Some(ArgsStructOnlyComponent {}),
 
-    let output = templating::TemplateArgsMacroPaxType{
         pascal_identifier: pascal_identifier.clone(),
         static_property_definitions,
-        type_dependencies,
         include_imports,
         is_custom_interpolatable,
     }.render_once().unwrap().to_string();
@@ -278,7 +281,7 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
     }
 }
 
-fn pax_internal(raw_pax: String, input_parsed: DeriveInput, is_main_component: bool, include_fix : Option<TokenStream>) -> proc_macro2::TokenStream {
+fn pax_full_component(raw_pax: String, input_parsed: DeriveInput, is_main_component: bool, include_fix : Option<TokenStream>, include_imports: bool, is_custom_interpolatable: bool) -> proc_macro2::TokenStream {
 
     let pascal_identifier = input_parsed.ident.to_string();
 
@@ -296,13 +299,19 @@ fn pax_internal(raw_pax: String, input_parsed: DeriveInput, is_main_component: b
         "".to_string()
     };
 
-    let output = TemplateArgsMacroPax {
-        raw_pax,
+    let output = TemplateArgsDerivePax {
+        args_primitive: None,
+        args_struct_only_component: None,
+        args_full_component: Some(ArgsFullComponent {
+            is_main_component,
+            raw_pax,
+            template_dependencies,
+            reexports_snippet,
+        }),
         pascal_identifier,
-        is_main_component,
-        template_dependencies,
+        include_imports,
         static_property_definitions,
-        reexports_snippet
+        is_custom_interpolatable,
     }.render_once().unwrap().to_string();
 
     let ret = TokenStream::from_str(&output).unwrap().into();
@@ -615,14 +624,14 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let mut content = String::new();
         let _ = file.unwrap().read_to_string(&mut content);
         let stream: proc_macro::TokenStream = content.parse().unwrap();
-        pax_internal(stream.to_string(), input.clone(), is_main_component, Some(include_fix))
+        pax_full_component(stream.to_string(), input.clone(), is_main_component, Some(include_fix),include_imports, is_custom_interpolatable)
 
     } else if is_pax_inlined {
         let contents = if let Some(p) = inlined_contents {p} else {unreachable!()};
 
-        pax_internal(contents, input.clone(), is_main_component, None)
+        pax_full_component(contents, input.clone(), is_main_component, None,include_imports, is_custom_interpolatable)
     } else if is_primitive {
-        pax_primitive(input.clone(), primitive_instance_import_path.unwrap(), include_imports)
+        pax_primitive(input.clone(), primitive_instance_import_path.unwrap(), include_imports, is_custom_interpolatable)
     } else {
         // Struct-only component, née pax_type
         pax_type(input.clone(), include_imports, is_custom_interpolatable)
