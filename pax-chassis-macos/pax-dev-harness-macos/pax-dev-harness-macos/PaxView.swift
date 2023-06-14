@@ -7,6 +7,7 @@
 
 import SwiftUI
 import Foundation
+import CoreGraphics
 
 class TextElements: ObservableObject {
     static let singleton : TextElements = TextElements()
@@ -37,15 +38,20 @@ class FrameElements: ObservableObject {
     }
 }
 
+
+
+
 struct PaxView: View {
 
-    var canvasView : some View = PaxCanvasViewRepresentable()
-            .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
-
+    @ObservedObject var viewManager = ViewManager()
+    
     var body: some View {
         ZStack {
-            self.canvasView
-            NativeRenderingLayer()
+            ForEach(0..<viewManager.canvasViews.count, id: \.self) { index in
+                PaxCanvasViewRepresentable(canvasView: viewManager.canvasViews[index])
+                    .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+                viewManager.nativeViews[index]
+            }
         }
         .onAppear {
             registerFonts()
@@ -79,13 +85,11 @@ struct PaxView: View {
                     if let fontDescriptor = fontDescriptors.first,
                        let postscriptName = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontNameAttribute) as? String,
                        let fontFamily = CTFontDescriptorCopyAttribute(fontDescriptor, kCTFontFamilyNameAttribute) as? String {
-                        if !PaxFont.isFontRegistered(fontFamily: postscriptName) {
+                        if !PaxFont.isFontRegistered(fontFamily: fontFamily) {
                             var errorRef: Unmanaged<CFError>?
                             if !CTFontManagerRegisterFontsForURL(fileURL as CFURL, .process, &errorRef) {
                                 print("Error registering font: \(fontFamily) - PostScript name: \(postscriptName) - \(String(describing: errorRef))")
                             }
-                        } else {
-                            print("Font already registered: \(fontFamily) - PostScript name: \(postscriptName)")
                         }
                     }
                 }
@@ -190,92 +194,106 @@ struct PaxView: View {
 
     struct PaxCanvasViewRepresentable: NSViewRepresentable {
         typealias NSViewType = PaxCanvasView
+        let canvasView: PaxCanvasView
 
         func makeNSView(context: Context) -> PaxCanvasView {
-            let view = PaxCanvasView()
-            return view
+            return canvasView
         }
 
         func updateNSView(_ canvas: PaxCanvasView, context: Context) { }
     }
-
-
-    class PaxCanvasView: NSView {
+    class ViewManager: ObservableObject {
 
         @ObservedObject var textElements = TextElements.singleton
         @ObservedObject var frameElements = FrameElements.singleton
 
         private var displayLink: CVDisplayLink?
+        var canvasViews: [PaxCanvasView]
+        var nativeViews: [NativeRenderingLayer]
 
-        override init(frame frameRect: NSRect) {
-            super.init(frame: frameRect)
-            self.wantsLayer = true
-            self.layer?.drawsAsynchronously = true
-            createDisplayLink()
-        }
-
-        required init?(coder: NSCoder) {
-            super.init(coder: coder)
-            createDisplayLink()
-        }
-
-        private func createDisplayLink() {
-            CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
-            CVDisplayLinkSetOutputHandler(displayLink!) { [weak self] (_, _, _, _, _) -> CVReturn in
-                DispatchQueue.main.async {
-                    self?.setNeedsDisplay(self?.bounds ?? NSRect.zero)
-                }
-                return kCVReturnSuccess
+        init() {
+            self.canvasViews = []
+            self.nativeViews = []
+            for _ in 0..<1 {
+                let canvasView = PaxCanvasView()
+                let nativeView = NativeRenderingLayer()
+                self.canvasViews.append(canvasView)
+                self.nativeViews.append(nativeView)
+                canvasView.setNeedsDisplay(canvasView.bounds)
             }
-            CVDisplayLinkStart(displayLink!)
+            createDisplayLink()
         }
 
-        deinit {
-            CVDisplayLinkStop(displayLink!)
-        }
+        
+        private func createDisplayLink() {
+           CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
+           CVDisplayLinkSetOutputHandler(displayLink!) { [weak self] (_, _, _, _, _) -> CVReturn in
+               DispatchQueue.main.async {
+                   self?.render()
+               }
+               return kCVReturnSuccess
+           }
+           CVDisplayLinkStart(displayLink!)
+       }
 
-        override func draw(_ dirtyRect: NSRect) {
-
-            super.draw(dirtyRect)
-            guard let context = NSGraphicsContext.current else { return }
-            var cgContext = context.cgContext
-
+        private func render() {
+            var contexts: [CGContext] = []
             if PaxEngineContainer.paxEngineContainer == nil {
-                let swiftLoggerCallback : @convention(c) (UnsafePointer<CChar>?) -> () = {
-                    (msg) -> () in
+                let swiftLoggerCallback: @convention(c) (UnsafePointer<CChar>?) -> () = { (msg) -> () in
                     let outputString = String(cString: msg!)
                     print(outputString)
                 }
-
-                //For manual debugger attachment:
-                //do {
-                  //  sleep(30)
-                //}
-
                 PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
             } else {
+                for canvasView in canvasViews {
+                    guard var c = canvasView.cachedContext else {continue}
+                    // Clear the CGContext by filling it with transparent color
+                    c.clear(CGRect(x: 0, y: 0, width: c.width, height: c.height))
+                    contexts.append(c)
+                }
+                let bounds = canvasViews.first?.bounds
+                
+//                let nativeMessageQueue = contexts.withUnsafeMutableBufferPointer { buffer in
+//                     pax_tick(
+//                         PaxEngineContainer.paxEngineContainer!,
+//                         buffer.baseAddress,
+//                         buffer.count,
+//                         Float(bounds!.width),
+//                         Float(bounds!.height)
+//                     )
+//                 }
+                var c = contexts.first!
+                let nativeMessageQueue = pax_tick(
+                                         PaxEngineContainer.paxEngineContainer!,
+                                         &c,
+                                         Float(bounds!.width),
+                                         Float(bounds!.height)
+                                     )
+                                 
 
-                let nativeMessageQueue = pax_tick(PaxEngineContainer.paxEngineContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
+                // Capture content of CGContext and store it as an NSImage to display on PaxCanvasView
+                for (index, canvasView) in canvasViews.enumerated() {
+                    var c = contexts[index]
+                    let cgImage = c.makeImage()!
+                    let nsImage = NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+                    canvasView.cachedImage = nsImage
+                    canvasView.setNeedsDisplay(canvasView.bounds)
+                
+                }
                 processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
                 pax_dealloc_message_queue(nativeMessageQueue)
+  
             }
-
-            //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which
-            //would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
-            //This cancellation + shared singleton (`tickWorkItem`) ensures that only one DispatchWorkItem is enqueued at a time.
-            if currentTickWorkItem != nil {
-                currentTickWorkItem!.cancel()
-            }
-
-            currentTickWorkItem = DispatchWorkItem {
-                self.setNeedsDisplay(dirtyRect)
-                self.displayIfNeeded()
-            }
-
         }
 
-        var currentTickWorkItem : DispatchWorkItem? = nil
+        deinit {
+            if let link = displayLink {
+                CVDisplayLinkStop(link)
+            }
+        }
 
+
+        
         func handleTextCreate(patch: AnyCreatePatch) {
             textElements.add(element: TextElement.makeDefault(id_chain: patch.id_chain, clipping_ids: patch.clipping_ids))
         }
@@ -301,15 +319,7 @@ struct PaxView: View {
         func handleFrameDelete(patch: AnyDeletePatch) {
             frameElements.remove(id: patch.id_chain)
         }
-        
-//        let buffer = try! FlexBufferBuilder.encodeMap { builder in
-//            builder.add("id_chain", patch.id_chain)
-//            builder.addVector("image_data") { imageBuilder in
-//                for byte in imageData {
-//                    imageBuilder.add(Int(byte))
-//                }
-//            }
-//        }
+
 
         func printAllFilesInBundle() {
             let bundleURL = Bundle.main.bundleURL
@@ -324,7 +334,7 @@ struct PaxView: View {
             }
         }
 
-        
+
         func handleImageLoad(patch: ImageLoadPatch) {
             Task {
                 do {
@@ -442,7 +452,65 @@ struct PaxView: View {
             })
 
         }
+    }
 
+    class PaxCanvasView: NSView {
+
+        var currentTickWorkItem: DispatchWorkItem?
+        var cachedImage: NSImage?
+        var cachedContext: CGContext?
+        var width: CGFloat?
+        var height: CGFloat?
+        
+        
+        override init(frame frameRect: NSRect) {
+            super.init(frame: frameRect)
+            self.wantsLayer = true
+            self.layer?.drawsAsynchronously = true
+            self.width = frame.width
+            self.height = frame.height
+        }
+
+        required init?(coder: NSCoder) {
+            super.init(coder: coder)
+        }
+        
+        private func createContext(width: CGFloat, height: CGFloat) -> CGContext {
+            let width = Int(width)
+            let height = Int(height)
+            let bitsPerComponent = 8
+            let bytesPerPixel = 4
+            let bytesPerRow = bytesPerPixel * width
+            let colorSpace = CGColorSpaceCreateDeviceRGB()
+            let bitmapInfo: UInt32 = CGBitmapInfo.byteOrder32Big.rawValue | CGImageAlphaInfo.premultipliedLast.rawValue
+ 
+            return CGContext(data: nil, width: width, height: height, bitsPerComponent: bitsPerComponent, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: bitmapInfo)!
+        }
+
+
+        override func draw(_ dirtyRect: NSRect) {
+            super.draw(dirtyRect)
+            
+            if cachedContext == nil || dirtyRect.width != self.width! || dirtyRect.height != self.height! {
+                self.cachedContext = createContext(width: dirtyRect.width, height: dirtyRect.height)
+            }
+            
+            if let cachedImage = cachedImage {
+                cachedImage.draw(in: dirtyRect)
+            }
+            
+            // This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which
+            // would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
+            // This cancellation + shared singleton (`tickWorkItem`) ensures that only one DispatchWorkItem is enqueued at a time.
+             if currentTickWorkItem != nil {
+                 currentTickWorkItem!.cancel()
+             }
+
+            currentTickWorkItem = DispatchWorkItem {
+                self.setNeedsDisplay(dirtyRect)
+                self.displayIfNeeded()
+            }
+        }
         override func scrollWheel(with event: NSEvent){
             let deltaX = event.scrollingDeltaX
             let deltaY = -event.scrollingDeltaY
