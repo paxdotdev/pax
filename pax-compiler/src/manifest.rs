@@ -14,6 +14,7 @@ pub struct PaxManifest {
     pub main_component_type_id: String,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
     pub type_table: TypeTable,
+    pub import_paths: std::collections::HashSet<String>,
 }
 
 
@@ -233,6 +234,7 @@ pub struct PropertyDefinition {
     /// Statically known type_id for this Property's associated TypeDefinition
     pub type_id: String,
 
+
 }
 
 impl PropertyDefinition {
@@ -286,12 +288,13 @@ TypeDefinition {
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
     pub type_id_pascalized: String,
 
-    /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
-    pub fully_qualified_constituent_types: Vec<String>,
+    /// Unlike type_id, contains no generics data.  Simply used for qualifying / importing a type, like `std::vec::Vec`
+    pub import_path: String,
 
     /// Statically known type_id for this Property's iterable TypeDefinition, that is,
     /// T for some Property<Vec<T>>
     pub inner_iterable_type_id: Option<String>,
+
 
     /// A vec of PropertyType, describing known addressable (sub-)properties of this PropertyType
     pub property_definitions: Vec<PropertyDefinition>,
@@ -304,9 +307,9 @@ impl TypeDefinition {
         Self {
             type_id_pascalized: type_name.to_string(),
             type_id: type_name.to_string(),
-            fully_qualified_constituent_types: vec![],
             property_definitions: vec![],
             inner_iterable_type_id: None,
+            import_path: type_name.to_string(),
         }
     }
 
@@ -315,9 +318,9 @@ impl TypeDefinition {
         Self {
             type_id: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
             type_id_pascalized: "Vec_Rc_PropertiesCoproduct___".to_string(),
-            fully_qualified_constituent_types: vec!["std::vec::Vec".to_string(), "std::rc::Rc".to_string()],
             property_definitions: vec![],
             inner_iterable_type_id: None,
+            import_path: "std::vec::Vec".to_string(),
         }
     }
 
@@ -325,9 +328,9 @@ impl TypeDefinition {
         Self {
             type_id: "std::ops::Range<isize>".to_string(),
             type_id_pascalized: "Range_isize_".to_string(),
-            fully_qualified_constituent_types: vec!["std::ops::Range".to_string()],
             property_definitions: vec![],
             inner_iterable_type_id: None,
+            import_path: "std::ops::Range".to_string(),
         }
     }
 
@@ -335,9 +338,9 @@ impl TypeDefinition {
         Self {
             type_id: "std::rc::Rc<PropertiesCoproduct>".to_string(),
             type_id_pascalized: "Rc_PropertiesCoproduct__".to_string(),
-            fully_qualified_constituent_types: vec!["std::rc::Rc".to_string()],
             property_definitions: vec![],
             inner_iterable_type_id: None,
+            import_path: "std::rc::Rc".to_string(),
         }
     }
 

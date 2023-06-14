@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+//Component types
 #[repr(u32)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
@@ -23,9 +24,13 @@ pub enum PropertiesCoproduct {
     
     Frame(pax_example::pax_reexports::pax_std::primitives::Frame),
     
+    Grids(pax_example::pax_reexports::grids::Grids),
+    
     Group(pax_example::pax_reexports::pax_std::primitives::Group),
     
     HelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
+    
+    RectDef(pax_example::pax_reexports::grids::RectDef),
     
     Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
@@ -35,7 +40,7 @@ pub enum PropertiesCoproduct {
     
 }
 
-//used namely for return types of expressions — may have other purposes
+//Property types
 #[repr(u32)]
 pub enum TypesCoproduct {
     
@@ -64,6 +69,8 @@ pub enum TypesCoproduct {
     pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
     pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
+    
+    stdCOCOvecCOCOVecLABRcrateCOCOgridsCOCORectDefRABR(pax_example::pax_reexports::std::vec::Vec<pax_example::pax_reexports::grids::RectDef>),
     
     usize(pax_example::pax_reexports::usize),
     

@@ -5,7 +5,7 @@ use serde_json;
 
 use std::collections::HashSet;
 
-#[derive(Serialize)]
+#[derive(Serialize, Debug)]
 pub struct StaticPropertyDefinition {
     pub scoped_resolvable_types: Vec<String>,
     pub root_scoped_resolvable_type: String,

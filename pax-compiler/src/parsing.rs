@@ -706,6 +706,8 @@ pub struct ParsingContext {
     pub template_node_definitions: Vec<TemplateNodeDefinition>,
 
     pub type_table: TypeTable,
+
+    pub import_paths: HashSet<String>,
 }
 
 impl Default for ParsingContext {
@@ -717,6 +719,7 @@ impl Default for ParsingContext {
             template_map: HashMap::new(),
             type_table: get_primitive_type_table(),
             template_node_definitions: vec![],
+            import_paths: HashSet::new(),
         }
     }
 }
@@ -829,10 +832,10 @@ pub fn assemble_primitive_definition(
 
 pub fn assemble_type_definition(
     mut ctx: ParsingContext,
-    fully_qualified_constituent_types: Vec<String>,
     property_definitions: Vec<PropertyDefinition>,
     inner_iterable_type_id: Option<String>,
     self_type_id: &str,
+    import_path: String,
 ) -> (ParsingContext, TypeDefinition) {
 
     let type_id_pascalized = escape_identifier(self_type_id.to_string());
@@ -840,9 +843,9 @@ pub fn assemble_type_definition(
     let new_def = TypeDefinition {
         type_id: self_type_id.to_string(),
         type_id_pascalized,
-        fully_qualified_constituent_types,
         inner_iterable_type_id,
         property_definitions,
+        import_path,
     };
 
     ctx.type_table.insert(self_type_id.to_string(), new_def.clone());
@@ -869,13 +872,36 @@ pub fn escape_identifier(input: String) -> String {
 }
 
 /// This trait is used only to extend primitives like u64
-/// with the parser-time method `parse_type_to_manifest`.  This
-/// allows the parser binary to codegen calls to `::parse_type_to_manifest()` even
+/// with the parser-time method `parse_to_manifest`.  This
+/// allows the parser binary to codegen calls to `::parse_to_manifest()` even
 /// on primitive types
 pub trait Reflectable {
-    fn parse_type_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
-        //Default impl: no-op
+    fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+        //Default impl for primitives
+        let type_id = Self::get_type_id();
+        let td = TypeDefinition {
+            type_id: type_id.to_string(),
+            type_id_pascalized: type_id.to_string(),
+            inner_iterable_type_id: None,
+            property_definitions: vec![],
+            import_path: type_id.to_string(),
+        };
+
+        if ! ctx.type_table.contains_key(&type_id) {
+            ctx.type_table.insert(type_id, td);
+        }
+
         (ctx, vec![])
+    }
+
+    ///The import path is the fully namespace-qualified path for a type, like `std::vec::Vec`
+    ///This is distinct from type_id ONLY when the type has generics, like Vec, where
+    ///the type_id is distinct across a Vec<Foo> and a Vec<Bar>.  In both cases of Vec,
+    ///the import_path will remain the same.
+    fn get_import_path() -> String {
+        //This default is used by primitives but expected to
+        //be overridden by userland Pax components / primitives
+        Self::get_self_pascal_identifier()
     }
 
     fn get_self_pascal_identifier() -> String;
@@ -883,7 +909,7 @@ pub trait Reflectable {
     fn get_type_id() -> String {
         //This default is used by primitives but expected to
         //be overridden by userland Pax components / primitives
-        Self::get_self_pascal_identifier()
+        Self::get_import_path()
     }
 
     fn get_iterable_type_id() -> Option<String> {
@@ -962,7 +988,7 @@ impl Reflectable for std::string::String {
     fn get_self_pascal_identifier() -> String {
         "String".to_string()
     }
-    fn get_type_id() -> String {
+    fn get_import_path() -> String {
         "std::string::String".to_string()
     }
 }
@@ -970,7 +996,7 @@ impl<T> Reflectable for std::rc::Rc<T> {
     fn get_self_pascal_identifier() -> String {
         "Rc".to_string()
     }
-    fn get_type_id() -> String {
+    fn get_import_path() -> String {
         "std::rc::Rc".to_string()
     }
 }
@@ -979,16 +1005,37 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
         "Vec".to_string()
     }
     fn get_type_id() -> String {
-        format!("std::vec::Vec<{}>",&Self::get_iterable_type_id().unwrap())
+        //Need to encode generics contents as part of unique id for iterables
+        format!("std::vec::Vec<{}{}>","{PREFIX}",&Self::get_iterable_type_id().unwrap())
+    }
+    fn get_import_path() -> String {
+        "std::vec::Vec".to_string()
     }
     fn get_iterable_type_id() -> Option<String> {
         Some(T::get_type_id())
     }
+    fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+        let type_id = Self::get_type_id();
+        let td = TypeDefinition {
+            type_id: type_id.to_string(),
+            type_id_pascalized: escape_identifier(type_id.to_string()),
+            import_path: Self::get_import_path(),
+            inner_iterable_type_id: Self::get_iterable_type_id(),
+            property_definitions: vec![],
+        };
+
+        if ! ctx.type_table.contains_key(&type_id) {
+            ctx.type_table.insert(type_id, td);
+        }
+
+        /// Also parse iterable type
+        T::parse_to_manifest(ctx)
+    }
 }
 /* Consider similar approach to the following for
 impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
-    fn parse_type_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
-        T::parse_type_to_manifest(ctx)
+    fn parse_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+        T::parse_to_manifest(ctx)
     }
 }
 }*/

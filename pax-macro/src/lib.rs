@@ -23,6 +23,7 @@ use sailfish::TemplateOnce;
 use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Attribute, Meta, NestedMeta, parse2, MetaList, Lit};
 use syn::parse::{Parse, ParseStream};
 
+
 fn pax_primitive(input_parsed: DeriveInput, primitive_instance_import_path: String, include_imports: bool, is_custom_interpolatable: bool,) -> proc_macro2::TokenStream {
     let original_tokens = quote! { #input_parsed }.to_string();
     let pascal_identifier = input_parsed.ident.to_string();
@@ -69,7 +70,7 @@ fn extract_custom_attr(attr: &MetaList) -> Option<Vec<String>> {
     Some(custom_values)
 }
 
-fn pax_type(input_parsed: DeriveInput, include_imports: bool, is_custom_interpolatable: bool) -> proc_macro2::TokenStream {
+fn pax_struct_only_component(input_parsed: DeriveInput, include_imports: bool, is_custom_interpolatable: bool) -> proc_macro2::TokenStream {
 
 
     let pascal_identifier = input_parsed.ident.to_string();
@@ -86,8 +87,6 @@ fn pax_type(input_parsed: DeriveInput, include_imports: bool, is_custom_interpol
         include_imports,
         is_custom_interpolatable,
     }.render_once().unwrap().to_string();
-    
-    fs::write(format!("/Users/zack/debug/out-{}.txt", &pascal_identifier), &output);
 
     TokenStream::from_str(&output).unwrap().into()
 }
@@ -141,8 +140,7 @@ fn get_scoped_resolvable_types(t: &Type) -> (Vec<String>, String) {
     //the recursion above was post-order, so we will assume
     //the final element is root
     let root_scoped_resolvable_type = accum.get(accum.len() - 1).unwrap().clone();
-    let mut buffer = fs::read_to_string("/Users/zack/scrap/debug-0.txt").unwrap();
-    buffer = buffer + &format!("\n{}", root_scoped_resolvable_type);
+
 
     (accum, root_scoped_resolvable_type)
 }
@@ -216,7 +214,7 @@ fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut Vec<String>) {
 }
 
 fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticPropertyDefinition> {
-    match data {
+    let ret = match data {
         Data::Struct(ref data) => {
             match data.fields {
                 Fields::Named(ref fields) => {
@@ -275,10 +273,14 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
 
 
             });
+
             ret
         }
+
         _ => {unreachable!("Pax may only be attached to `struct`s")}
-    }
+    };
+
+    ret
 }
 
 fn pax_full_component(raw_pax: String, input_parsed: DeriveInput, is_main_component: bool, include_fix : Option<TokenStream>, include_imports: bool, is_custom_interpolatable: bool) -> proc_macro2::TokenStream {
@@ -633,8 +635,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     } else if is_primitive {
         pax_primitive(input.clone(), primitive_instance_import_path.unwrap(), include_imports, is_custom_interpolatable)
     } else {
-        // Struct-only component, née pax_type
-        pax_type(input.clone(), include_imports, is_custom_interpolatable)
+        pax_struct_only_component(input.clone(), include_imports, is_custom_interpolatable)
     };
 
     let output = quote! {

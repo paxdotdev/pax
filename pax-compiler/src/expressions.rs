@@ -438,7 +438,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         let mut found_val : Option<PropertyDefinition> = None;
         while let None = found_depth {
             let map = ctx.scope_stack.get((ctx.scope_stack.len() - 1) - current_depth).unwrap();
-            if let Some(val) = map.get(&prop_def.name) {
+            if let Some(val) = map.get(&root_identifier) {
                 found_depth = Some(current_depth);
                 found_val = Some(val.clone());
             } else {

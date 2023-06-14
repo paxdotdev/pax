@@ -30,34 +30,9 @@ use crate::templating::{press_template_codegen_cartridge_component_factory, pres
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
 /// Returns a sorted and de-duped list of combined_reexports.
 fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
-    //traverse ComponentDefinitions in manifest
-    //gather module_path and PascalIdentifier --
-    //  handle `parser` module_path and any sub-paths
-    //re-expose module_path::PascalIdentifier underneath `pax_reexports`
-    //ensure that this partial.rs file is loaded included under the `pax_app` macro
-    let reexport_components: Vec<String> = manifest.components.iter().map(|cd|{
-        //e.g.: "some::module::path::SomePascalIdentifier"
-        cd.1.module_path.clone() + "::" + &cd.1.pascal_identifier
-    }).collect();
+    let imports = manifest.import_paths.clone().into_iter().sorted().collect();
 
-    let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
-        cd.1.get_property_definitions(&manifest.type_table).iter().map(|pm|{
-            let td = &manifest.type_table.get(&pm.type_id).unwrap();
-            td.fully_qualified_constituent_types.clone()
-        }).flatten().collect::<Vec<_>>()
-    }).flatten().collect::<Vec<_>>();
-
-    let mut combined_reexports = reexport_components;
-    combined_reexports.append(&mut reexport_types);
-    combined_reexports.sort();
-
-
-    //Make combined_reexports unique by pouring into a Set and back
-    let set: HashSet<_> = combined_reexports.drain(..).collect();
-    combined_reexports.extend(set.into_iter());
-    combined_reexports.sort();
-
-    let file_contents = &bundle_reexports_into_namespace_string(&combined_reexports);
+    let file_contents = &bundle_reexports_into_namespace_string(&imports);
 
     let path = pax_dir.join(Path::new(REEXPORTS_PARTIAL_RS_PATH));
     fs::write(path, file_contents).unwrap();
@@ -364,31 +339,11 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
 
-    //Gather all fully_qualified_constituent_types from manifest; prepend with re-export prefix; make unique
     #[allow(non_snake_case)]
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
-    let mut imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
-        comp_def.get_property_definitions(&manifest.type_table).iter().map(|prop_def|{
-            let td = prop_def.get_type_definition(&manifest.type_table);
-            td.fully_qualified_constituent_types.iter().map(|fqct|{
-                IMPORT_PREFIX.clone() + &fqct.replace("crate::", "")
-            }).collect::<Vec<String>>()
-        }).flatten().collect::<Vec<String>>()
-    }).flatten().collect::<Vec<String>>();
-
-    //Also add component property structs to the imports list, with same reexports prefix
-    let properties_structs_imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
-        let module_path = if comp_def.module_path == "crate" {
-            "".to_string()
-        } else {
-            comp_def.module_path.replace("crate::", "") + "::"
-        };
-        format!("{}{}{}", &IMPORT_PREFIX, &module_path, comp_def.pascal_identifier)
-    }).collect::<Vec<String>>();
-    imports.extend(properties_structs_imports.into_iter().sorted());
-
-    let unique_imports: HashSet<String> = imports.drain(..).collect();
-    imports.extend(unique_imports.into_iter().sorted());
+    let imports : Vec<String> = manifest.import_paths.iter().map(|path|{
+        IMPORT_PREFIX.clone() + &path.replace("crate::", "")
+    }).collect();
 
     let consts = vec![];//TODO!
 
