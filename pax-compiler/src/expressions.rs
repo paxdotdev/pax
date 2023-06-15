@@ -217,6 +217,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
     else if let Some(ref mut cfa) = cloned_control_flow_settings {
         //Handle attributes for control flow
 
+        cfa.repeat_source_definition.unwrap().
         // Definitions are stored modally as `Option<T>`s in ControlFlowAttributeValueDefinition,
         // so: iff `repeat_source_definition` is present, then we can assume this is a Repeat element
         if let Some(ref mut repeat_source_definition) = &mut cfa.repeat_source_definition {
@@ -230,8 +231,13 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let id = ctx.uid_gen.next().unwrap();
             repeat_source_definition.vtable_id = Some(id);
 
+            //Our purpose here is twofold:
+            //  1. attach symbols / properties to the stack
+            //  2. create an expression vtable entry for `source`
+
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
+            // todo!("map 'this is a source' into a flag for codegen, so we can rewrap Rc<>s");
 
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
                 (range_expression_paxel.to_string(), TypeDefinition::builtin_range_isize())
@@ -239,10 +245,16 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 (symbolic_binding.to_string(), TypeDefinition::builtin_vec_rc_properties_coproduct())
             } else {unreachable!()};
 
+            let is_repeat_source_range = repeat_source_definition.range_expression_paxel.is_some();
+            let is_repeat_source_iterable = repeat_source_definition.symbolic_binding.is_some();
+
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL
             match cfa.repeat_predicate_definition.as_ref().unwrap() {
                 ControlFlowRepeatPredicateDefinition::ElemId(elem_id) => {
+
+                    //if repeat_source is a range, elem is bound to the element within the range
+                    //if repeat_source is a symbolic binding,
                     //for i in 0..5
                     // i describes the element (not the index!), which in this case is a `isize`
                     // property definition: called `i`
@@ -252,9 +264,11 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         name: format!("{}", elem_id),
 
                         flags: Some(PropertyDefinitionFlags {
-                            is_repeat_i: false,
-                            is_repeat_elem: true,
-                            is_repeat_range: true,
+                            is_binding_repeat_i: false,
+                            is_binding_repeat_elem: true,
+                            is_binding_repeat_source: false,
+                            is_repeat_source_range,
+                            is_repeat_source_iterable,
                         }),
                         type_id: "isize".to_string(),
                     };
@@ -270,8 +284,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
 
                     //if repeat_source is a range, this is simply isize
-                    //if repeat_source is a symbolic binding, then we resolve that symbolic
-                    //binding and use that resolved type here
+                    //if repeat_source is a symbolic binding, then we resolve that symbolic binding and use that resolved type here
                     let repeat_source_type = if let Some(_) = &repeat_source_definition.range_expression_paxel {
                         TypeDefinition::primitive("isize")
                     } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
@@ -283,17 +296,21 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         name: format!("{}", elem_id),
                         type_id: repeat_source_type.type_id,
                         flags: Some(PropertyDefinitionFlags {
-                            is_repeat_elem: true,
-                            is_repeat_i: false,
-                            is_repeat_range: false,
+                            is_binding_repeat_elem: true,
+                            is_binding_repeat_i: false,
+                            is_binding_repeat_source: false,
+                            is_repeat_source_range,
+                            is_repeat_source_iterable,
                         }),
                     };
 
                     let mut i_property_definition = PropertyDefinition::primitive_with_name("usize", index_id);
                     i_property_definition.flags = Some(PropertyDefinitionFlags {
-                        is_repeat_i: true,
-                        is_repeat_elem: false,
-                        is_repeat_range: false,
+                        is_binding_repeat_i: true,
+                        is_binding_repeat_elem: false,
+                        is_binding_repeat_source: false,
+                        is_repeat_source_range,
+                        is_repeat_source_iterable,
                     });
 
                     ctx.scope_stack.push(HashMap::from([
@@ -420,7 +437,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         let prop_def = ctx.resolve_symbol_as_prop_def(&sym).expect(&format!("Symbol not found: {}", &sym));
 
         let split_symbols = clean_and_split_symbols(&sym);
-        let escaped_identifier = crate::parsing::escape_identifier(split_symbols.join("::"));
+        let escaped_identifier = crate::parsing::escape_identifier(split_symbols.join("."));
 
         let root_identifier= split_symbols.iter().next().unwrap().to_string();
 
@@ -448,8 +465,8 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let stack_offset = found_depth.unwrap();
 
-        let (is_repeat_elem, is_repeat_i, is_repeat_range) = match found_val.unwrap().flags {
-            Some(flags) => {(flags.is_repeat_elem, flags.is_repeat_i, flags.is_repeat_range)},
+        let (is_binding_repeat_elem, is_binding_repeat_i, is_repeat_source_range) = match found_val.unwrap().flags {
+            Some(flags) => {(flags.is_binding_repeat_elem, flags.is_binding_repeat_i, flags.is_repeat_source_range)},
             None => {(false, false, false)}
         };
 
@@ -464,9 +481,10 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             stack_offset,
             pascalized_iterable_type,
             properties_coproduct_type,
-            is_repeat_elem,
-            is_repeat_i,
-            is_repeat_range,
+            is_binding_repeat_elem,
+            is_binding_repeat_i,
+            is_repeat_source_range,
+            is_repeat_source_iterable: todo!(),
             nested_symbol_literal_tail: None,
         }
     }

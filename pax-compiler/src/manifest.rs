@@ -84,18 +84,12 @@ pub struct ExpressionSpecInvocation {
     /// the TypesCoproduct that represents the appropriate `datum_cast` type
     pub pascalized_iterable_type: Option<String>,
 
-    /// Flag describing whether this invocation should be bound to the `elem` in `(elem, i)`
-    pub is_repeat_elem: bool,
-
-    /// Flag describing whether this invocation should be bound to the `i` in `(elem, i)`
-    pub is_repeat_i: bool,
-
     /// Flags used for particular corner cases of `Repeat` codegen
     pub is_numeric_property: bool,
     pub is_iterable_numeric: bool,
     pub is_iterable_primitive_nonnumeric: bool,
-    pub is_repeat_range: bool,
 
+    pub property_flags: PropertyDefinitionFlags,
     /// Metadata used for nested symbol invocation, like `foo.bar.baz`
     /// Holds an RIL string like `.bar.get().baz.get()` for the nested
     /// symbol invocation `foo.bar.baz`.
@@ -253,14 +247,28 @@ impl PropertyDefinition {
     }
 }
 
+/// These flags describe the aspects of properties that affect RIL codegen.
+/// Properties are divided into modal axes (exactly one value should be true per axis per struct instance)
+/// Codegen considers each element of the cartesian product of these axes
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct PropertyDefinitionFlags {
-    //Is this property representing the index `i` of a `for (elem, i)` ?
-    pub is_repeat_i: bool,
-    //Is this property representing the elem `elem` of a `for (elem, i)` OR `for elem in 0..5` ?
-    pub is_repeat_elem: bool,
-    //Is this property representing the elem `elem` of a `for elem in 0..5`
-    pub is_repeat_range: bool,
+    // // //
+    // Binding axis
+    //
+    //Does this property represent the index `i` in `for (elem, i)` ?
+    pub is_binding_repeat_i: bool,
+    //Does this property represent `elem` in `for (elem, i)` OR `for elem in 0..5` ?
+    pub is_binding_repeat_elem: bool,
+    //Does this property represent `source` in `for _ in source`
+    pub is_binding_repeat_source: bool,
+
+    // // //
+    // Source axis
+    //
+    //Is the source being iterated over a Range?
+    pub is_repeat_source_range: bool,
+    //Is the source being iterated over an iterable, like Vec<T>?
+    pub is_repeat_source_iterable: bool,
 }
 
 /// Describes static metadata surrounding a property, for example

@@ -42,16 +42,16 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                     (numeric or nonnumeric), or it's a known PropertiesCoproduct type, either a component
                     properties struct or an annotated `pax_type` #}
 
-                {% if invocation.is_repeat_elem or invocation.is_repeat_i %}
+                {% if invocation.is_binding_repeat_elem or invocation.is_binding_repeat_i %}
                     if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                        {% if invocation.is_repeat_elem %}
+                        {% if invocation.is_binding_repeat_elem %}
                             {% if invocation.is_iterable_numeric %}
                                 {# For known numeric primitives, we can safely deref-copy and wrap in Numeric #}
                                 let unwrapped = if let PropertiesCoproduct::{{invocation.pascalized_iterable_type}}(i) = **elem {i} else {unreachable!()};
                                 Numeric::from(unwrapped)
                             {% elif invocation.is_iterable_primitive_nonnumeric %}
                                 elem.clone()
-                            {% elif invocation.is_repeat_range %}
+                            {% elif invocation.is_repeat_source_range %}
                                 {# This element represents the `elem` in `for elem in 0..5`.  Special-handle and unwrap as an isize. #}
                                 if let PropertiesCoproduct::isize(i) = **elem {
                                     Numeric::from(i)
@@ -74,7 +74,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                             p.{{invocation.root_identifier}}.get().clone()
                         {% endif %}
                     } else {
-                        unreachable!("{{ expression_spec.id }}")
+                        unreachable!()
                     }
                 {% endif %}
             };

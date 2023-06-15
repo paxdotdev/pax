@@ -53,8 +53,7 @@ pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
 }
 
 
-/// Removes leading `self.` or `this.`
-/// Converts any remaining `.` to `_DOT_`
+/// Removes leading `self.` or `this.`, escapes remaining symbol to be a suitable atomic identifier
 fn convert_symbolic_binding_from_paxel_to_ril(xo_symbol: Pair<Rule>) -> String {
     let mut pairs = xo_symbol.clone().into_inner();
     let maybe_this_or_self = pairs.next().unwrap().as_str();
@@ -74,7 +73,7 @@ fn convert_symbolic_binding_from_paxel_to_ril(xo_symbol: Pair<Rule>) -> String {
         xo_symbol.as_str().to_string()
     };
 
-    self_or_this_removed.replace(".", "_DOT_")
+    escape_identifier(self_or_this_removed)
 }
 
 /// Workhorse method for compiling Expressions into Rust Intermediate Language (RIL, a string of Rust)
