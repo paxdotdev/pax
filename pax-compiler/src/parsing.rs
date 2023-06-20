@@ -769,6 +769,7 @@ pub fn assemble_component_definition(
         is_main_component,
         primitive_instance_import_path: None,
         type_id: self_type_id.to_string(),
+        type_id_escaped: escape_identifier(self_type_id.to_string()),
         pascal_identifier: pascal_identifier.to_string(),
         template: Some(tpc.template_node_definitions),
         settings: parse_settings_from_component_definition_string(pax),
@@ -793,6 +794,7 @@ pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_ide
 
     let new_def = ComponentDefinition {
         type_id: self_type_id.to_string(),
+        type_id_escaped: escape_identifier(self_type_id.to_string()),
         is_main_component: false,
         is_primitive: false,
         is_struct_only_component: true,
@@ -821,6 +823,7 @@ pub fn assemble_primitive_definition(
         primitive_instance_import_path: Some(primitive_instance_import_path),
         is_main_component: false,
         type_id: self_type_id.to_string(),
+        type_id_escaped: escape_identifier(self_type_id.to_string()),
         pascal_identifier: pascal_identifier.to_string(),
         template: None,
         settings: None,
@@ -837,11 +840,11 @@ pub fn assemble_type_definition(
     import_path: String,
 ) -> (ParsingContext, TypeDefinition) {
 
-    let type_id_pascalized = escape_identifier(self_type_id.to_string());
+    let type_id_escaped = escape_identifier(self_type_id.to_string());
 
     let new_def = TypeDefinition {
         type_id: self_type_id.to_string(),
-        type_id_pascalized,
+        type_id_escaped,
         inner_iterable_type_id,
         property_definitions,
         import_path,
@@ -880,7 +883,7 @@ pub trait Reflectable {
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
             type_id: type_id.to_string(),
-            type_id_pascalized: type_id.to_string(),
+            type_id_escaped: type_id.to_string(),
             inner_iterable_type_id: None,
             property_definitions: vec![],
             import_path: type_id.to_string(),
@@ -1017,7 +1020,7 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
             type_id: type_id.to_string(),
-            type_id_pascalized: escape_identifier(type_id.to_string()),
+            type_id_escaped: escape_identifier(type_id.to_string()),
             import_path: Self::get_import_path(),
             inner_iterable_type_id: Self::get_iterable_type_id(),
             property_definitions: vec![],

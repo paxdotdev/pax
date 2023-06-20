@@ -229,7 +229,7 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
 
     let mut updated_type_table = HashMap::new();
     manifest.type_table.iter_mut().for_each(|t|{
-        t.1.type_id_pascalized = t.1.type_id_pascalized.replace("{PREFIX}", "");
+        t.1.type_id_escaped = t.1.type_id_escaped.replace("{PREFIX}", "");
         t.1.type_id = t.1.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
         t.1.property_definitions.iter_mut().for_each(|pd|{
             pd.type_id = pd.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
@@ -264,7 +264,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     let mut properties_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|comp_def| {
         let mod_path = if &comp_def.1.module_path == "crate" {"".to_string()} else { comp_def.1.module_path.replace("crate::", "") + "::"};
         (
-            comp_def.1.pascal_identifier.clone(),
+            comp_def.1.type_id_escaped.clone(),
             format!("{}{}{}", &host_crate_info.import_prefix, &mod_path, &comp_def.1.pascal_identifier)
         )
     }).collect();
@@ -280,7 +280,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
             let td = pm.get_type_definition(&manifest.type_table);
 
             (
-                td.type_id_pascalized.clone(),
+                td.type_id_escaped.clone(),
                 host_crate_info.import_prefix.to_string() + &td.type_id.clone().replace("crate::", "")
             )
         }).collect::<Vec<_>>()
@@ -472,7 +472,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             children_literal,
             slot_index_literal: "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
-            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
+            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
             events,
             repeat_source_expression_literal_vec: rse_vec,
             repeat_source_expression_literal_range: rse_range,
@@ -495,7 +496,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             repeat_source_expression_literal_vec:  "None".to_string(),
             repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
-            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
+            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
             events,
         }
     } else if tnd.type_id == parsing::TYPE_ID_SLOT {
@@ -516,7 +518,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             repeat_source_expression_literal_vec:  "None".to_string(),
             repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
-            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
+            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
             events,
         }
     } else {
@@ -593,7 +596,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             is_primitive: component_for_current_node.is_primitive,
             snake_case_type_id: component_for_current_node.get_snake_case_id(),
             primitive_instance_import_path: component_for_current_node.primitive_instance_import_path.clone(),
-            properties_coproduct_variant: component_for_current_node.pascal_identifier.to_string(),
+            properties_coproduct_variant: component_for_current_node.type_id_escaped.to_string(),
             component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
             properties: property_ril_tuples,
             transform_ril: builtins_ril[2].clone(),
@@ -603,7 +606,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             repeat_source_expression_literal_vec: "None".to_string(),
             repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
-            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
+            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
             events,
         }
     };
@@ -644,11 +648,11 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
         snake_case_type_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
         properties: cd.get_property_definitions(&manifest.type_table).iter().map(|pd|{
-            (pd.clone(),pd.get_type_definition(&manifest.type_table).type_id_pascalized.clone())
+            (pd.clone(),pd.get_type_definition(&manifest.type_table).type_id_escaped.clone())
         }).collect(),
         events: generate_events_map(cd.events.clone()),
         render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc),
-        properties_coproduct_variant: cd.pascal_identifier.to_string()
+        properties_coproduct_variant: cd.type_id_escaped.to_string()
     };
 
     press_template_codegen_cartridge_component_factory(args)
@@ -921,6 +925,7 @@ pub fn run_parser_binary(path: &str) -> Output {
 
 
 use colored::Colorize;
+use crate::parsing::escape_identifier;
 
 
 /// For the specified file path or current working directory, first compile Pax project,

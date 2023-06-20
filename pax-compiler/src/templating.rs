@@ -66,7 +66,8 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub repeat_source_expression_literal_vec: String,
     pub repeat_source_expression_literal_range: String,
     pub conditional_boolean_expression_literal: String,
-    pub active_root: String,
+    pub pascal_identifier: String,
+    pub type_id_escaped: String,
     pub events: HashMap<String,String>,
 }
 

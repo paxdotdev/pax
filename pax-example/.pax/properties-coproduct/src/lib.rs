@@ -12,31 +12,31 @@ pub enum PropertiesCoproduct {
     Range_isize_(std::ops::Range<isize>),
 
     
-    Camera(pax_example::pax_reexports::camera::Camera),
+    crateCOCOExample(pax_example::pax_reexports::Example),
     
-    Color(pax_example::pax_reexports::pax_std::types::Color),
+    crateCOCOcameraCOCOCamera(pax_example::pax_reexports::camera::Camera),
     
-    Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
+    crateCOCOcameraCOCOTypeExample(pax_example::pax_reexports::camera::TypeExample),
     
-    Example(pax_example::pax_reexports::Example),
+    crateCOCOfireworksCOCOFireworks(pax_example::pax_reexports::fireworks::Fireworks),
     
-    Fireworks(pax_example::pax_reexports::fireworks::Fireworks),
+    crateCOCOgridsCOCOGrids(pax_example::pax_reexports::grids::Grids),
     
-    Frame(pax_example::pax_reexports::pax_std::primitives::Frame),
+    crateCOCOgridsCOCORectDef(pax_example::pax_reexports::grids::RectDef),
     
-    Grids(pax_example::pax_reexports::grids::Grids),
+    crateCOCOhello_rgbCOCOHelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
     
-    Group(pax_example::pax_reexports::pax_std::primitives::Group),
+    pax_stdCOCOprimitivesCOCOEllipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
     
-    HelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
+    pax_stdCOCOprimitivesCOCOFrame(pax_example::pax_reexports::pax_std::primitives::Frame),
     
-    RectDef(pax_example::pax_reexports::grids::RectDef),
+    pax_stdCOCOprimitivesCOCOGroup(pax_example::pax_reexports::pax_std::primitives::Group),
     
-    Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
+    pax_stdCOCOprimitivesCOCORectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
-    Stroke(pax_example::pax_reexports::pax_std::types::Stroke),
+    pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
-    TypeExample(pax_example::pax_reexports::camera::TypeExample),
+    pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
     
 }
 

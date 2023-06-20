@@ -156,7 +156,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             |property_def| {
                                 property_def.name == inline.0
                             }
-                        ).unwrap().get_type_definition(ctx.type_table).type_id_pascalized).clone();
+                        ).unwrap().get_type_definition(ctx.type_table).type_id_escaped).clone();
 
                         ctx.expression_specs.insert(id, ExpressionSpec {
                             id,
@@ -193,7 +193,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             property_def.name == inline.0
                         }).expect(
                             &format!("Property `{}` not found on component `{}`", &inline.0, &active_node_component.pascal_identifier)
-                        ).get_type_definition(ctx.type_table).type_id_pascalized).clone()
+                        ).get_type_definition(ctx.type_table).type_id_escaped).clone()
                     };
 
                     let mut whitespace_removed_input = input.clone();
@@ -340,7 +340,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
-                pascalized_return_type: return_type.type_id_pascalized,
+                pascalized_return_type: return_type.type_id_escaped,
                 invocations,
                 output_statement,
                 input_statement: whitespace_removed_input,
@@ -441,11 +441,11 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let root_identifier= split_symbols.iter().next().unwrap().to_string();
 
-        let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
+        let properties_coproduct_type = ctx.component_def.type_id_escaped.clone();
 
         let pascalized_iterable_type = if let Some(iiti) = &prop_def.get_type_definition(ctx.type_table).inner_iterable_type_id {
             let iterable_type_def = ctx.type_table.get(iiti).unwrap();
-            Some(iterable_type_def.type_id_pascalized.to_string())
+            Some(iterable_type_def.type_id_escaped.to_string())
         } else {
             None
         };

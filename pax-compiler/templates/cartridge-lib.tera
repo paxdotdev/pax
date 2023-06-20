@@ -37,25 +37,6 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
 
-                {# if this is a `repeat source expression` and it's a `vec` (rather than range), we want to
-                    re-wrap each repeated element into a PropertiesCoproduct::x, where x is either a primitive
-                    (numeric or nonnumeric), or it's a known PropertiesCoproduct type, a struct attached to some Pax component
-
-                    The reason we need to do this is because the userland struct is e.g. a Vec<RectDef>,
-                    as opposed to a Vec<PropertiesCoproduct> (or more specifically: a Vec<Rc<PropertiesCoproduct>>)
-                    And what we need to iterate over with Repeat is a Vec<Rc<PropertiesCoproduct>>
-                        What else could Repeat get away with iterating over?
-
-
-                    At this juncture: is there an easier way to handle userland iterables?
-                    Property<Vec<RectDef>>, vs., say, PropertyVec<RectDef>
-
-                    And do we need to wrap RectDef properties in Property<T> ?
-                        We could include "read-only" properties when detecting properties at macro-time (instead of only Property<T>)
-                        This would allow us to use simple structs inside PAXEL without .get/.set, Box, or PropertyLiteral
-
-                #}
-
                 {% if invocation.is_binding_repeat_elem %}
 
                     if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
@@ -90,7 +71,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         {% endfor %}
 
         {% if expression_spec.is_repeat_source_iterable_expression %}
-            {# We have a Vec<T> and we need to rewrap it into a Vec<Rc<PropertiesCoproduct>> #}
+            {# We have a Vec<T> and we need to rewrap it into a Vec<Rc<PropertiesCoproduct>> for Repeat #}
             {% for invocation in expression_spec.invocations %}
                 let {{ invocation.escaped_identifier }} = {{ invocation.escaped_identifier }}.iter().map(|t|{
                     Rc::new(PropertiesCoproduct::{{invocation.pascalized_iterable_type}}(t.clone()))

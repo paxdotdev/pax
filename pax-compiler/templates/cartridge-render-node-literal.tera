@@ -4,53 +4,56 @@
 {% else %}
 instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
 {% endif %} InstantiationArgs {
-    properties: PropertiesCoproduct::{{ properties_coproduct_variant }}{% if properties_coproduct_variant != "None" %}( {{component_properties_struct}} {
-        {% for property in properties %}
-            {{ property.0 }}: Box::new( {{ property.1 }} ),
-        {% endfor %}
-    }){% endif %},
+    properties: PropertiesCoproduct::{{ properties_coproduct_variant }}
+    {% if properties_coproduct_variant != "None" %}
+        ( {{component_properties_struct}} {
+            {% for property in properties %}
+                {{ property.0 }}: Box::new( {{ property.1 }} ),
+            {% endfor %}
+        })
+    {% endif %},
     handler_registry:  Some(Rc::new(RefCell::new(
-                                                 HandlerRegistry {
-                                                     click_handlers: vec![
-                                                         {%- if events['click'] -%}
-                                                                |stack_frame, ctx, args|{
-                                                                    let properties = (*stack_frame).borrow().get_properties();
-                                                                    let properties = &mut *properties.as_ref().borrow_mut();
-                                                                    let properties = if let PropertiesCoproduct::{{ active_root }}(p) = properties {p} else {unreachable!()};
-                                                                    {{ active_root }}::{{events['click']}}(properties, ctx, args);
-                                                                },
-                                                         {%- endif -%}
-                                                     ],
-                                                     will_render_handlers: vec![
-                                                        {%- if events['will_render'] -%}
-                                                                |properties, ctx|{
-                                                                    let properties = &mut *properties.as_ref().borrow_mut();
-                                                                    let properties = if let PropertiesCoproduct::{{ active_root }}(p) = properties {p} else {unreachable!()};
-                                                                    {{ active_root }}::{{events['will_render']}}(properties, ctx);
-                                                                }
-                                                         {%- endif -%}
-                                                     ],
-                                                     did_mount_handlers: vec![
-                                                         {%- if events['did_mount'] -%}
-                                                                 |properties, ctx|{
-                                                                     let properties = &mut *properties.as_ref().borrow_mut();
-                                                                     let properties = if let PropertiesCoproduct::{{ active_root }}(p) = properties {p} else {unreachable!()};
-                                                                     {{ active_root }}::{{events['did_mount']}}(properties,ctx);
-                                                                 }
-                                                          {%- endif -%}
-                                                      ],
-                                                     scroll_handlers: vec![
-                                                     {%- if events['scroll'] -%}
-                                                                 |stack_frame, ctx, args|{
-                                                                     let properties = (*stack_frame).borrow().get_properties();
-                                                                     let properties = &mut *properties.as_ref().borrow_mut();
-                                                                     let properties = if let PropertiesCoproduct::{{ active_root }}(p) = properties {p} else {unreachable!()};
-                                                                     {{ active_root }}::{{events['scroll']}}(properties,ctx,args);
-                                                                 },
-                                                          {%- endif -%}
-                                                      ],
-                                                 }
-                                             ))),
+    HandlerRegistry {
+         click_handlers: vec![
+             {%- if events['click'] -%}
+                    |stack_frame, ctx, args|{
+                        let properties = (*stack_frame).borrow().get_properties();
+                        let properties = &mut *properties.as_ref().borrow_mut();
+                        let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
+                        {{ pascal_identifier }}::{{events['click']}}(properties, ctx, args);
+                    },
+             {%- endif -%}
+         ],
+         will_render_handlers: vec![
+            {%- if events['will_render'] -%}
+                    |properties, ctx|{
+                        let properties = &mut *properties.as_ref().borrow_mut();
+                        let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
+                        {{ pascal_identifier }}::{{events['will_render']}}(properties, ctx);
+                    }
+             {%- endif -%}
+         ],
+         did_mount_handlers: vec![
+             {%- if events['did_mount'] -%}
+                     |properties, ctx|{
+                         let properties = &mut *properties.as_ref().borrow_mut();
+                         let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
+                         {{ pascal_identifier }}::{{events['did_mount']}}(properties,ctx);
+                     }
+              {%- endif -%}
+          ],
+         scroll_handlers: vec![
+         {%- if events['scroll'] -%}
+                     |stack_frame, ctx, args|{
+                         let properties = (*stack_frame).borrow().get_properties();
+                         let properties = &mut *properties.as_ref().borrow_mut();
+                         let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
+                         {{ pascal_identifier }}::{{events['scroll']}}(properties,ctx,args);
+                     },
+              {%- endif -%}
+          ],
+    }
+    ))),
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new({{ transform_ril }})),
     size: Some(Rc::new(RefCell::new(

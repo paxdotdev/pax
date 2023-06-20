@@ -149,6 +149,7 @@ impl ExpressionSpecInvocation {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ComponentDefinition {
     pub type_id: String,
+    pub type_id_escaped: String,
     pub is_main_component: bool,
     pub is_primitive: bool,
 
@@ -296,7 +297,7 @@ TypeDefinition {
     pub type_id: String,
 
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
-    pub type_id_pascalized: String,
+    pub type_id_escaped: String,
 
     /// Unlike type_id, contains no generics data.  Simply used for qualifying / importing a type, like `std::vec::Vec`
     pub import_path: String,
@@ -315,7 +316,7 @@ impl TypeDefinition {
 
     pub fn primitive(type_name: &str) -> Self {
         Self {
-            type_id_pascalized: type_name.to_string(),
+            type_id_escaped: type_name.to_string(),
             type_id: type_name.to_string(),
             property_definitions: vec![],
             inner_iterable_type_id: None,
@@ -327,7 +328,7 @@ impl TypeDefinition {
     pub fn builtin_vec_rc_properties_coproduct() -> Self {
         Self {
             type_id: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
-            type_id_pascalized: "Vec_Rc_PropertiesCoproduct___".to_string(),
+            type_id_escaped: "Vec_Rc_PropertiesCoproduct___".to_string(),
             property_definitions: vec![],
             inner_iterable_type_id: None,
             import_path: "std::vec::Vec".to_string(),
@@ -337,7 +338,7 @@ impl TypeDefinition {
     pub fn builtin_range_isize() -> Self {
         Self {
             type_id: "std::ops::Range<isize>".to_string(),
-            type_id_pascalized: "Range_isize_".to_string(),
+            type_id_escaped: "Range_isize_".to_string(),
             property_definitions: vec![],
             inner_iterable_type_id: None,
             import_path: "std::ops::Range".to_string(),
@@ -347,7 +348,7 @@ impl TypeDefinition {
     pub fn builtin_rc_properties_coproduct() -> Self {
         Self {
             type_id: "std::rc::Rc<PropertiesCoproduct>".to_string(),
-            type_id_pascalized: "Rc_PropertiesCoproduct__".to_string(),
+            type_id_escaped: "Rc_PropertiesCoproduct__".to_string(),
             property_definitions: vec![],
             inner_iterable_type_id: None,
             import_path: "std::rc::Rc".to_string(),
