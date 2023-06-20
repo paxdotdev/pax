@@ -39,32 +39,43 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
                 {# if this is a `repeat source expression` and it's a `vec` (rather than range), we want to
                     re-wrap each repeated element into a PropertiesCoproduct::x, where x is either a primitive
-                    (numeric or nonnumeric), or it's a known PropertiesCoproduct type, either a component
-                    properties struct or an annotated `pax_type` #}
+                    (numeric or nonnumeric), or it's a known PropertiesCoproduct type, a struct attached to some Pax component
 
-                {% if invocation.is_binding_repeat_elem or invocation.is_binding_repeat_i %}
+                    The reason we need to do this is because the userland struct is e.g. a Vec<RectDef>,
+                    as opposed to a Vec<PropertiesCoproduct> (or more specifically: a Vec<Rc<PropertiesCoproduct>>)
+                    And what we need to iterate over with Repeat is a Vec<Rc<PropertiesCoproduct>>
+                        What else could Repeat get away with iterating over?
+
+
+                    At this juncture: is there an easier way to handle userland iterables?
+                    Property<Vec<RectDef>>, vs., say, PropertyVec<RectDef>
+
+                    And do we need to wrap RectDef properties in Property<T> ?
+                        We could include "read-only" properties when detecting properties at macro-time (instead of only Property<T>)
+                        This would allow us to use simple structs inside PAXEL without .get/.set, Box, or PropertyLiteral
+
+                #}
+
+                {% if invocation.is_binding_repeat_elem %}
+
                     if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                        {% if invocation.is_binding_repeat_elem %}
-                            {% if invocation.is_iterable_numeric %}
-                                {# For known numeric primitives, we can safely deref-copy and wrap in Numeric #}
-                                let unwrapped = if let PropertiesCoproduct::{{invocation.pascalized_iterable_type}}(i) = **elem {i} else {unreachable!()};
-                                Numeric::from(unwrapped)
-                            {% elif invocation.is_iterable_primitive_nonnumeric %}
-                                elem.clone()
-                            {% elif invocation.is_repeat_source_range %}
-                                {# This element represents the `elem` in `for elem in 0..5`.  Special-handle and unwrap as an isize. #}
-                                if let PropertiesCoproduct::isize(i) = **elem {
-                                    Numeric::from(i)
-                                } else {unreachable!()}
-                            {% else %}
-                                {# This should be iterating over a `Rc<PropertiesCoproduct>`, so pass that forward for chained unwrapping #}
-                                Rc::clone(elem)
-                            {% endif %}
+                        {% if invocation.is_iterable_numeric %}
+                            {# For known numeric primitives, we can safely deref-copy and wrap in Numeric #}
+                            let unwrapped = if let PropertiesCoproduct::{{invocation.pascalized_iterable_type}}(i) = **elem {i} else {unreachable!()};
+                            Numeric::from(unwrapped)
+                        {% elif invocation.is_iterable_primitive_nonnumeric %}
+                            elem.clone()
                         {% else %}
-                            {# We're binding to `i`, an index, so wrap it in `Numeric` #}
-                            Numeric::from(*i)
+                            {# This should be iterating over a `Rc<PropertiesCoproduct>`, so pass that forward #}
+                            Rc::clone(elem)
                         {% endif %}
 
+                    } else {unreachable!()}
+
+                {% elif invocation.is_binding_repeat_i %}
+                    if let PropertiesCoproduct::RepeatItem(_, i) = properties {
+                        {# We're binding to `i`, an index, so wrap it in `Numeric` #}
+                        Numeric::from(*i)
                     } else {unreachable!()}
                 {% else %}
                     if let PropertiesCoproduct::{{ invocation.properties_coproduct_type }}(p) = properties {
@@ -73,12 +84,19 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                         {% else %}
                             p.{{invocation.root_identifier}}.get().clone()
                         {% endif %}
-                    } else {
-                        unreachable!()
-                    }
+                    } else {unreachable!()}
                 {% endif %}
-            };
+            }{{ invocation.nested_symbol_tail_literal }};
         {% endfor %}
+
+        {% if expression_spec.is_repeat_source_iterable_expression %}
+            {# We have a Vec<T> and we need to rewrap it into a Vec<Rc<PropertiesCoproduct>> #}
+            {% for invocation in expression_spec.invocations %}
+                let {{ invocation.escaped_identifier }} = {{ invocation.escaped_identifier }}.iter().map(|t|{
+                    Rc::new(PropertiesCoproduct::{{invocation.pascalized_iterable_type}}(t.clone()))
+                }).collect::<Vec<Rc<PropertiesCoproduct>>>();
+            {% endfor %}
+        {% endif %}
 
         #[allow(unused_parens)]
         TypesCoproduct::{{ expression_spec.pascalized_return_type }}(

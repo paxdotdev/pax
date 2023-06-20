@@ -17,7 +17,6 @@ pub struct PaxManifest {
     pub import_paths: std::collections::HashSet<String>,
 }
 
-
 impl Eq for ExpressionSpec {}
 
 impl PartialEq<Self> for ExpressionSpec {
@@ -56,6 +55,9 @@ pub struct ExpressionSpec {
     /// String representation of the original input statement
     pub input_statement: String,
 
+    /// Flag for special-handling of Repeat codegen
+    pub is_repeat_source_iterable_expression: bool,
+
 }
 
 /// The spec of an expression `invocation`, the necessary configuration
@@ -89,11 +91,13 @@ pub struct ExpressionSpecInvocation {
     pub is_iterable_numeric: bool,
     pub is_iterable_primitive_nonnumeric: bool,
 
+    /// Flags describing attributes of properties
     pub property_flags: PropertyDefinitionFlags,
+
     /// Metadata used for nested symbol invocation, like `foo.bar.baz`
-    /// Holds an RIL string like `.bar.get().baz.get()` for the nested
-    /// symbol invocation `foo.bar.baz`.
-    pub nested_symbol_literal_tail: Option<String>,
+    /// Holds an RIL "tail" string for appending to invocation literal bodies,
+    /// like `.bar.get().baz.get()` for the nested symbol invocation `foo.bar.baz`.
+    pub nested_symbol_tail_literal: Option<String>,
 
 }
 
@@ -255,19 +259,17 @@ pub struct PropertyDefinitionFlags {
     // // //
     // Binding axis
     //
-    //Does this property represent the index `i` in `for (elem, i)` ?
+    /// Does this property represent the index `i` in `for (elem, i)` ?
     pub is_binding_repeat_i: bool,
-    //Does this property represent `elem` in `for (elem, i)` OR `for elem in 0..5` ?
+    /// Does this property represent `elem` in `for (elem, i)` OR `for elem in 0..5` ?
     pub is_binding_repeat_elem: bool,
-    //Does this property represent `source` in `for _ in source`
-    pub is_binding_repeat_source: bool,
 
     // // //
     // Source axis
     //
-    //Is the source being iterated over a Range?
+    /// Is the source being iterated over a Range?
     pub is_repeat_source_range: bool,
-    //Is the source being iterated over an iterable, like Vec<T>?
+    /// Is the source being iterated over an iterable, like Vec<T>?
     pub is_repeat_source_iterable: bool,
 }
 

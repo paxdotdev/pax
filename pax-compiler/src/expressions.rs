@@ -164,6 +164,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             invocations,
                             output_statement,
                             input_statement: identifier.clone(),
+                            is_repeat_source_iterable_expression: false,
                         });
                     }
                 }
@@ -204,6 +205,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         invocations,
                         output_statement,
                         input_statement: whitespace_removed_input,
+                        is_repeat_source_iterable_expression: false,
                     });
 
                     //Write this id back to the manifest, for downstream use by RIL component tree generator
@@ -216,8 +218,10 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
     }
     else if let Some(ref mut cfa) = cloned_control_flow_settings {
         //Handle attributes for control flow
+        //Our purpose here is broadly twofold:
+        //  1. attach repeat-created symbols / properties to the stack, so they may be resolved in PAXEL
+        //  2. compile & create an expression vtable entry for `source`
 
-        cfa.repeat_source_definition.unwrap().
         // Definitions are stored modally as `Option<T>`s in ControlFlowAttributeValueDefinition,
         // so: iff `repeat_source_definition` is present, then we can assume this is a Repeat element
         if let Some(ref mut repeat_source_definition) = &mut cfa.repeat_source_definition {
@@ -226,14 +230,10 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             //  - must be a symbolic identifier, such as `elements` or `self.elements`
             // for i in 0..max_elems
             //  - may use an integer literal or symbolic identifier in either position
-            //  - must use an exclusive (..) range operator
+            //  - must use an exclusive (..) range operator (inclusive could be supported; effort required)
 
             let id = ctx.uid_gen.next().unwrap();
             repeat_source_definition.vtable_id = Some(id);
-
-            //Our purpose here is twofold:
-            //  1. attach symbols / properties to the stack
-            //  2. create an expression vtable entry for `source`
 
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
@@ -266,7 +266,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         flags: Some(PropertyDefinitionFlags {
                             is_binding_repeat_i: false,
                             is_binding_repeat_elem: true,
-                            is_binding_repeat_source: false,
                             is_repeat_source_range,
                             is_repeat_source_iterable,
                         }),
@@ -298,7 +297,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         flags: Some(PropertyDefinitionFlags {
                             is_binding_repeat_elem: true,
                             is_binding_repeat_i: false,
-                            is_binding_repeat_source: false,
                             is_repeat_source_range,
                             is_repeat_source_iterable,
                         }),
@@ -308,7 +306,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     i_property_definition.flags = Some(PropertyDefinitionFlags {
                         is_binding_repeat_i: true,
                         is_binding_repeat_elem: false,
-                        is_binding_repeat_source: false,
                         is_repeat_source_range,
                         is_repeat_source_iterable,
                     });
@@ -347,6 +344,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 invocations,
                 output_statement,
                 input_statement: whitespace_removed_input,
+                is_repeat_source_iterable_expression: is_repeat_source_iterable,
             });
 
         } else if let Some(condition_expression_paxel) = &cfa.condition_expression_paxel {
@@ -365,6 +363,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 invocations,
                 output_statement,
                 input_statement: whitespace_removed_input,
+                is_repeat_source_iterable_expression: false,
             });
         } else if let Some(slot_index_expression_paxel) = &cfa.slot_index_expression_paxel {
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
@@ -382,6 +381,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 invocations,
                 output_statement,
                 input_statement: whitespace_removed_input,
+                is_repeat_source_iterable_expression: false,
             });
         } else {
             unreachable!("encountered invalid control flow definition")
@@ -465,12 +465,18 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let stack_offset = found_depth.unwrap();
 
-        let (is_binding_repeat_elem, is_binding_repeat_i, is_repeat_source_range) = match found_val.unwrap().flags {
-            Some(flags) => {(flags.is_binding_repeat_elem, flags.is_binding_repeat_i, flags.is_repeat_source_range)},
-            None => {(false, false, false)}
+        let (is_binding_repeat_elem, is_binding_repeat_i, is_repeat_source_range, is_repeat_source_iterable) = match found_val.unwrap().flags {
+            Some(flags) => {(flags.is_binding_repeat_elem, flags.is_binding_repeat_i, flags.is_repeat_source_range, flags.is_repeat_source_iterable)},
+            None => {(false, false, false, false)}
         };
 
         let property_properties_coproduct_type = &prop_def.get_type_definition(ctx.type_table).type_id.split("::").last().unwrap();
+        let property_flags = PropertyDefinitionFlags {
+            is_binding_repeat_i,
+            is_binding_repeat_elem,
+            is_repeat_source_range,
+            is_repeat_source_iterable,
+        };
 
         ExpressionSpecInvocation {
             root_identifier,
@@ -481,11 +487,8 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             stack_offset,
             pascalized_iterable_type,
             properties_coproduct_type,
-            is_binding_repeat_elem,
-            is_binding_repeat_i,
-            is_repeat_source_range,
-            is_repeat_source_iterable: todo!(),
-            nested_symbol_literal_tail: None,
+            property_flags,
+            nested_symbol_tail_literal: None,
         }
     }
 }
@@ -538,7 +541,6 @@ pub struct ExpressionCompilationContext<'a> {
 
     /// Type table, used for looking up property types by string type_ids
     pub type_table: &'a TypeTable,
-
 }
 
 lazy_static! {
@@ -599,7 +601,6 @@ impl<'a> ExpressionCompilationContext<'a> {
 
         // handle nested symbols like `foo.bar`.
         match root_symbol_pd {
-            None => None,
             Some(root_symbol_pd) => {
                 let mut ret = root_symbol_pd;
                 //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
@@ -609,6 +610,7 @@ impl<'a> ExpressionCompilationContext<'a> {
                 }
                 Some(ret)
             }
+            None => None,
         }
     }
 }

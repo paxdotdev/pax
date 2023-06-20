@@ -249,7 +249,6 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
 
-
     clean_dependencies_table_of_relative_paths("pax-properties-coproduct", target_cargo_toml_contents["dependencies"].as_table_mut().unwrap(), host_crate_info);
 
     //insert new entry pointing to userland crate, where `pax_app` is defined

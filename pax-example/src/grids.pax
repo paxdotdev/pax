@@ -1,9 +1,9 @@
 
-for (elem, i) in self.rects {
+for (rect, i) in self.rects {
     <Rectangle
-        width={elem.width}
-        height={elem.height}
-        transform={Transform2D::translate(elem.x, elem.y)}
+        width={rect.width}
+        height={rect.height}
+        transform={Transform2D::translate(rect.x, rect.y)}
     />
 }
 
