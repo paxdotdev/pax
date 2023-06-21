@@ -256,6 +256,22 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             } else {unreachable!()};
 
 
+
+
+            let repeat_source_iterable_type_id_escaped = if let Some(iiti) = return_type.inner_iterable_type_id {
+                escape_identifier(iiti.clone())
+            } else {
+                "".to_string()
+            };
+
+            //Though we are compiling this as an arbitrary expression, we must already have validated
+            //with the parser that we are only binding to a simple symbolic id, like `self.foo`.
+            //This is because we are inferring the return type of this expression based on the declared-and-known
+            //type of property `self.foo`
+            let (output_statement, invocations) = compile_paxel_to_ril(&paxel, &ctx);
+
+
+
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL
             match cfa.repeat_predicate_definition.as_ref().unwrap() {
@@ -328,18 +344,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     ]));
                 },
             };
-
-            let repeat_source_iterable_type_id_escaped = if let Some(iiti) = return_type.inner_iterable_type_id {
-                escape_identifier(iiti.clone())
-            } else {
-                "".to_string()
-            };
-
-            //Though we are compiling this as an arbitrary expression, we must already have validated
-            //with the parser that we are only binding to a simple symbolic id, like `self.foo`.
-            //This is because we are inferring the return type of this expression based on the declared-and-known
-            //type of property `self.foo`
-            let (output_statement, invocations) = compile_paxel_to_ril(&paxel, &ctx);
 
             // The return type for a repeat source expression will either be:
             //   1. isize, for ranges (including ranges with direct symbolic references as either operand, like `self.x..10`)
