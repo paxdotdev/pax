@@ -38,8 +38,8 @@ impl Grids {
 #[derive(Pax)]
 #[custom(Imports)]
 pub struct RectDef {
-    x: Property<usize>,
-    y: Property<usize>,
-    width: Property<usize>,
-    height: Property<usize>,
+    pub x: Property<usize>,
+    pub y: Property<usize>,
+    pub width: Property<usize>,
+    pub height: Property<usize>,
 }

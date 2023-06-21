@@ -29,7 +29,11 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     //{{ expression_spec.input_statement}}
     vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         {% for invocation in expression_spec.invocations %}
-            let {{ invocation.escaped_identifier }} = {
+            let {{ invocation.escaped_identifier }} =
+            {% if invocation.is_nested_numeric %}
+                Numeric::from(
+            {% endif %}
+            {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth({{ invocation.stack_offset }}) {
                     Rc::clone(&sf)
                 } else {
@@ -37,44 +41,54 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 }.borrow().deref().get_properties();
                 let properties = &*(*properties).borrow();
 
-                {% if invocation.is_binding_repeat_elem %}
-
+                {% if invocation.property_flags.is_binding_repeat_elem %}
+                    //binding repeat elem
                     if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                        {% if invocation.is_iterable_numeric %}
+                        {% if invocation.is_numeric %}
+                            //iterable numeric
                             {# For known numeric primitives, we can safely deref-copy and wrap in Numeric #}
-                            let unwrapped = if let PropertiesCoproduct::{{invocation.pascalized_iterable_type}}(i) = **elem {i} else {unreachable!()};
+                            let unwrapped = if let PropertiesCoproduct::{{invocation.iterable_type_id_escaped}}(i) = **elem {i} else {unreachable!()};
                             Numeric::from(unwrapped)
-                        {% elif invocation.is_iterable_primitive_nonnumeric %}
+                        {% elif invocation.is_primitive_nonnumeric %}
+                            //iterable primitive non-numeric
                             elem.clone()
                         {% else %}
-                            {# This should be iterating over a `Rc<PropertiesCoproduct>`, so pass that forward #}
-                            Rc::clone(elem)
+                            //iterable complex type
+                            if let PropertiesCoproduct::{{invocation.iterable_type_id_escaped}}(ict) = elem.deref() {
+                                ict.clone()
+                            } else {unreachable!()}
                         {% endif %}
 
                     } else {unreachable!()}
 
-                {% elif invocation.is_binding_repeat_i %}
+                {% elif invocation.property_flags.is_binding_repeat_i %}
+                    //binding repeat i
                     if let PropertiesCoproduct::RepeatItem(_, i) = properties {
-                        {# We're binding to `i`, an index, so wrap it in `Numeric` #}
                         Numeric::from(*i)
                     } else {unreachable!()}
                 {% else %}
                     if let PropertiesCoproduct::{{ invocation.properties_coproduct_type }}(p) = properties {
-                        {% if invocation.is_numeric_property %}
+                        {% if invocation.is_numeric %}
+                            //binding simple numeric property
                             Numeric::from(p.{{invocation.root_identifier}}.get())
                         {% else %}
+                            //binding cloneable property
                             p.{{invocation.root_identifier}}.get().clone()
                         {% endif %}
                     } else {unreachable!()}
                 {% endif %}
-            }{{ invocation.nested_symbol_tail_literal }};
+            }{{ invocation.nested_symbol_tail_literal }}
+            {% if invocation.is_nested_numeric %}
+                ) //close Numeric::from(...
+            {% endif %}
+            ;
         {% endfor %}
 
         {% if expression_spec.is_repeat_source_iterable_expression %}
             {# We have a Vec<T> and we need to rewrap it into a Vec<Rc<PropertiesCoproduct>> for Repeat #}
             {% for invocation in expression_spec.invocations %}
                 let {{ invocation.escaped_identifier }} = {{ invocation.escaped_identifier }}.iter().map(|t|{
-                    Rc::new(PropertiesCoproduct::{{invocation.pascalized_iterable_type}}(t.clone()))
+                    Rc::new(PropertiesCoproduct::{{expression_spec.repeat_source_iterable_type_id_escaped}}(t.clone()))
                 }).collect::<Vec<Rc<PropertiesCoproduct>>>();
             {% endfor %}
         {% endif %}

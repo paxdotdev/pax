@@ -55,8 +55,9 @@ pub struct ExpressionSpec {
     /// String representation of the original input statement
     pub input_statement: String,
 
-    /// Flag for special-handling of Repeat codegen
+    /// Special-handling of Repeat codegen
     pub is_repeat_source_iterable_expression: bool,
+    pub repeat_source_iterable_type_id_escaped: String,
 
 }
 
@@ -84,12 +85,11 @@ pub struct ExpressionSpecInvocation {
 
     /// For symbolic invocations that refer to repeat elements, this is the enum identifier within
     /// the TypesCoproduct that represents the appropriate `datum_cast` type
-    pub pascalized_iterable_type: Option<String>,
+    pub iterable_type_id_escaped: String,
 
     /// Flags used for particular corner cases of `Repeat` codegen
-    pub is_numeric_property: bool,
-    pub is_iterable_numeric: bool,
-    pub is_iterable_primitive_nonnumeric: bool,
+    pub is_numeric: bool,
+    pub is_primitive_nonnumeric: bool,
 
     /// Flags describing attributes of properties
     pub property_flags: PropertyDefinitionFlags,
@@ -97,7 +97,10 @@ pub struct ExpressionSpecInvocation {
     /// Metadata used for nested symbol invocation, like `foo.bar.baz`
     /// Holds an RIL "tail" string for appending to invocation literal bodies,
     /// like `.bar.get().baz.get()` for the nested symbol invocation `foo.bar.baz`.
-    pub nested_symbol_tail_literal: Option<String>,
+    pub nested_symbol_tail_literal: String,
+    /// Flag describing whether the nested symbolic invocation, e.g. `foo.bar`, ultimately
+    /// resolves to a numeric type (as opposed to `is_numeric`, which represents the root of a nested type)
+    pub is_nested_numeric: bool,
 
 }
 
@@ -123,23 +126,12 @@ pub const SUPPORTED_NONNUMERIC_PRIMITIVES : [&str; 2] = [
 ];
 
 impl ExpressionSpecInvocation {
-    pub fn is_iterable_numeric(pascalized_iterable_type: &Option<String>) -> bool {
-        if let Some(pit) = &pascalized_iterable_type {
-            SUPPORTED_NUMERIC_PRIMITIVES.contains(&&**pit)
-        } else {
-            false
-        }
+
+    pub fn is_primitive_nonnumeric(property_properties_coproduct_type: &str) -> bool {
+        SUPPORTED_NONNUMERIC_PRIMITIVES.contains(&property_properties_coproduct_type)
     }
 
-    pub fn is_iterable_primitive_nonnumeric(pascalized_iterable_type: &Option<String>) -> bool {
-        if let Some(pit) = &pascalized_iterable_type {
-            SUPPORTED_NONNUMERIC_PRIMITIVES.contains(&&**pit)
-        } else {
-            false
-        }
-    }
-
-    pub fn is_numeric_property(property_properties_coproduct_type: &str) -> bool {
+    pub fn is_numeric(property_properties_coproduct_type: &str) -> bool {
         SUPPORTED_NUMERIC_PRIMITIVES.contains(&property_properties_coproduct_type)
     }
 }
@@ -228,7 +220,7 @@ pub struct PropertyDefinition {
     /// Flags, used ultimately by ExpressionSpecInvocations, to denote
     /// e.g. whether a property is the `i` or `elem` of a `Repeat`, which allows
     /// for special-handling the RIL that invokes these values
-    pub flags: Option<PropertyDefinitionFlags>,
+    pub flags: PropertyDefinitionFlags,
 
     /// Statically known type_id for this Property's associated TypeDefinition
     pub type_id: String,
@@ -265,6 +257,7 @@ pub struct PropertyDefinitionFlags {
     /// Does this property represent `elem` in `for (elem, i)` OR `for elem in 0..5` ?
     pub is_binding_repeat_elem: bool,
 
+
     // // //
     // Source axis
     //
@@ -282,7 +275,7 @@ impl PropertyDefinition {
     pub fn primitive_with_name(type_name: &str, symbol_name: &str) -> Self {
         PropertyDefinition {
             name: symbol_name.to_string(),
-            flags: None,
+            flags: PropertyDefinitionFlags::default(),
             type_id: type_name.to_string(),
         }
     }
@@ -325,12 +318,12 @@ impl TypeDefinition {
     }
 
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
-    pub fn builtin_vec_rc_properties_coproduct() -> Self {
+    pub fn builtin_vec_rc_properties_coproduct(inner_iterable_type_id: String) -> Self {
         Self {
             type_id: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
             type_id_escaped: "Vec_Rc_PropertiesCoproduct___".to_string(),
             property_definitions: vec![],
-            inner_iterable_type_id: None,
+            inner_iterable_type_id: Some(inner_iterable_type_id),
             import_path: "std::vec::Vec".to_string(),
         }
     }
@@ -340,7 +333,7 @@ impl TypeDefinition {
             type_id: "std::ops::Range<isize>".to_string(),
             type_id_escaped: "Range_isize_".to_string(),
             property_definitions: vec![],
-            inner_iterable_type_id: None,
+            inner_iterable_type_id: Some("isize".to_string()),
             import_path: "std::ops::Range".to_string(),
         }
     }

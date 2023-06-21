@@ -1,8 +1,8 @@
 
 for (rect, i) in self.rects {
     <Rectangle
-        width={rect.width}
-        height={rect.height}
+        width={(rect.width)px}
+        height={(rect.height)px}
         transform={Transform2D::translate(rect.x, rect.y)}
     />
 }
