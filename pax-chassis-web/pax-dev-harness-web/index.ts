@@ -28,12 +28,11 @@ let layers: { "native": HTMLDivElement[], "canvas": HTMLCanvasElement[] } = { "n
 
 function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
 
-    initializeLayers(1);
-
+    initializeLayers(100);
     //Initialize chassis & engine
     let chassis = wasmMod.PaxChassisWeb.new();
 
-    //Handle click events on native layer
+    //Handle click events on canvas layer
     layers.canvas[0].addEventListener('click', (evt) => {
         let event = {
             "Click": {
@@ -44,7 +43,7 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
 
-    //Handle scroll events on native layer
+    //Handle scroll events on canvas layer
     layers.canvas[0].addEventListener('wheel', (evt) => {
         let event = {
             "Scroll": {
@@ -57,9 +56,39 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
 
+    addEventListenersToNativeLayers(0, layers.native.length, chassis);
+
     //Kick off render loop
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 
+}
+
+function addEventListenersToNativeLayers(starting_index: number, count: number, chassis: PaxChassisWeb){
+    for (let i = starting_index; i < starting_index+count; i++) {
+        //Handle click events on native layer
+        layers.native[i].addEventListener('click', (evt) => {
+            let event = {
+                "Click": {
+                    "x": evt.screenX,
+                    "y": evt.screenY,
+                }
+            }
+            chassis.interrupt(JSON.stringify(event), []);
+        }, true);
+
+        //Handle scroll events on native layer
+        layers.native[i].addEventListener('wheel', (evt) => {
+            let event = {
+                "Scroll": {
+                    "x": evt.screenX,
+                    "y": evt.screenY,
+                    "delta_x": evt.deltaX,
+                    "delta_y": evt.deltaY,
+                }
+            }
+            chassis.interrupt(JSON.stringify(event), []);
+        }, true);
+    }
 }
 
 function initializeLayers(num: number){
@@ -721,7 +750,9 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
         }else if (unwrapped_msg["LayerAdd"]){
             let msg = unwrapped_msg["LayerAdd"];
             let layersToAdd = msg["num_layers_to_add"];
+            let old_length = layers.native.length;
             initializeLayers(layersToAdd);
+            addEventListenersToNativeLayers(old_length, layersToAdd, chassis);
             let event = {
                 "AddedLayer": {
                     "num_layers_added": layersToAdd,
