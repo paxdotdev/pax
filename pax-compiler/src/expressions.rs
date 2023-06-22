@@ -626,7 +626,9 @@ impl<'a> ExpressionCompilationContext<'a> {
                 //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
                 while let Some(atomic_symbol) = split_symbols.next() {
                     let td = ret.get_type_definition(self.type_table);
-                    ret = td.property_definitions.iter().find(|pd|{pd.name == *atomic_symbol}).unwrap().clone();
+                    ret = td.property_definitions.iter().find(|pd|{pd.name == *atomic_symbol})
+                        .expect(&format!("Unable to resolve nested symbol `{}` while evaluating `{}`.", atomic_symbol, symbol))
+                        .clone();
                 }
                 Some(ret)
             }
