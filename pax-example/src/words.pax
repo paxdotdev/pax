@@ -1,7 +1,13 @@
 <Group>
+<Text text="Layer" width=300px height=300px/>
 <Image path="assets/images/pax-logo.png" id=logo />
 <Image path="assets/images/jpeg_test.jpg" id=card />
-
+<Text text="apple" width=300px height=300px />
+<Rectangle id=background />
+<Text text="carrot" width=300px height=300px/>
+<Image path="assets/images/pax-logo.png" id=logo />
+<Image path="assets/images/jpeg_test.jpg" id=card />
+<Text text="hello world" width=300px height=300px />
 <Rectangle id=background />
 </Group>
 
