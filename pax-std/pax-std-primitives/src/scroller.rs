@@ -75,7 +75,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         true
     }
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth: usize) {
 
         let mut new_message : ScrollerPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
@@ -86,6 +86,21 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         }
         let last_patch = self.last_patches.get_mut( &new_message.id_chain).unwrap();
         let mut has_any_updates = false;
+
+        let val = depth;
+        let is_new_value = match &last_patch.depth {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            }
+        };
+        if is_new_value {
+            new_message.depth = Some(val);
+            last_patch.depth = Some(val);
+            has_any_updates = true;
+        }
 
         let val = computed_size.0;
         let is_new_value = match &last_patch.size_frame_x {
@@ -249,7 +264,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         }
     }
 
-    fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut Vec<R>) {
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounds;
 
@@ -265,15 +280,18 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         bez_path.close_path();
 
         let transformed_bez_path = transform * bez_path;
-        rc.save().unwrap(); //our "save point" before clipping — restored to in the did_render
-        rc.clip(transformed_bez_path);
-
+        for rc in rcs {
+            rc.save().unwrap(); //our "save point" before clipping — restored to in the did_render
+            rc.clip(transformed_bez_path.clone());
+        }
         let id_chain = rtc.get_id_chain(self.instance_id);
         (*rtc.runtime).borrow_mut().push_clipping_stack_id(id_chain);
     }
-    fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
-        //pop the clipping context from the stack
-        rc.restore().unwrap();
+    fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut Vec<R>) {
+        for rc in _rcs {
+            //pop the clipping context from the stack
+            rc.restore().unwrap();
+        }
 
         (*rtc.runtime).borrow_mut().pop_clipping_stack_id();
     }
