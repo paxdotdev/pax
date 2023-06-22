@@ -6,7 +6,7 @@ pub mod parsing;
 pub mod expressions;
 
 use manifest::PaxManifest;
-use rust_format::Formatter;
+use rust_format::{Config, Formatter};
 
 use std::{fs};
 use std::any::Any;
@@ -396,11 +396,15 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
 
     //format output
     let formatted = {
-        if let Ok(out) = rust_format::RustFmt::default().format_str(generated_lib_rs.clone()) {
+        let mut formatter = rust_format::RustFmt::from_config(rust_format::Config::from_hash_map_str(vec![
+            ("error_on_line_overflow","true"),
+        ].into_iter().collect()));
+
+        if let Ok(out) = formatter.format_str(generated_lib_rs.clone()) {
             out
         } else {
             //if formatting fails (e.g. parsing error, common expected case) then
-            //fall back to unformattted generated code
+            //fall back to unformatted generated code
             generated_lib_rs
         }
     };

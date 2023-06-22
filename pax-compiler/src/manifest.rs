@@ -55,8 +55,11 @@ pub struct ExpressionSpec {
     /// String representation of the original input statement
     pub input_statement: String,
 
-    /// Special-handling of Repeat codegen
+    /// Special-handling for Repeat codegen
     pub is_repeat_source_iterable_expression: bool,
+
+    /// The PropertiesCoproduct variant (type_id_escaped) of the inner
+    /// type `T` for some iterable repeat source type, e.g. `Vec<T>`
     pub repeat_source_iterable_type_id_escaped: String,
 
 }

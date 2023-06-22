@@ -256,8 +256,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             } else {unreachable!()};
 
 
-
-
             let repeat_source_iterable_type_id_escaped = if let Some(iiti) = return_type.inner_iterable_type_id {
                 escape_identifier(iiti.clone())
             } else {
@@ -269,8 +267,6 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             //This is because we are inferring the return type of this expression based on the declared-and-known
             //type of property `self.foo`
             let (output_statement, invocations) = compile_paxel_to_ril(&paxel, &ctx);
-
-
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL
@@ -452,14 +448,14 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
     //Handle built-ins, like $container
     if BUILTIN_MAP.contains_key(sym) {
-        unimplemented!("Built-ins like $container are not yet supported")
+        unimplemented!("Built-ins like $bounds are not yet supported")
     } else {
 
         let nested_prop_def = ctx.resolve_symbol_as_prop_def(&sym).expect(&format!("Symbol not found: {}", &sym));
         let is_nested_numeric = ExpressionSpecInvocation::is_numeric(&nested_prop_def.type_id);
 
         let split_symbols = clean_and_split_symbols(&sym);
-        let escaped_identifier = crate::parsing::escape_identifier(split_symbols.join("."));
+        let escaped_identifier = escape_identifier(split_symbols.join("."));
 
         let mut split_symbols = split_symbols.into_iter();
         let root_identifier= split_symbols.next().unwrap().to_string();
@@ -499,7 +495,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         let property_flags = found_val.flags;
         let property_properties_coproduct_type = &root_prop_def.get_type_definition(ctx.type_table).type_id.split("::").last().unwrap();
         let nested_symbol_tail_literal = if tail_symbols.len() > 0 {
-            ".".to_string() + &tail_symbols.join(".get().") + ".get()"
+            ".".to_string() + &tail_symbols.join(".get().") + ".get().clone()"
         } else {"".to_string()};
 
         ExpressionSpecInvocation {
