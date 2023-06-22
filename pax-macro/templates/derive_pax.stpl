@@ -35,10 +35,7 @@
     //after parsing.
 
     <%= args_full_component.as_ref().unwrap().reexports_snippet %>
-<% } else { %>
-    //WARNING: No pax_reexports were introduced by macro because no PAX_DIR env was specified for compiled project.
 <% } %>
-
 
 <% if !is_custom_interpolatable { %>
     impl pax::api::Interpolatable for <%= pascal_identifier %> {}

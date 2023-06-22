@@ -14,6 +14,5 @@ description = "API exposed by the Pax runtime, for runtime manipulation of Pax p
 kurbo = "0.9.0"
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
-pax-macro = {version="0.0.1", path = "../pax-macro"}
 uuid = {version = "0.8", features = ["v4", "wasm-bindgen"]}
 pax-message = {version="0.0.1", path="../pax-message"}

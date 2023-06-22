@@ -18,6 +18,7 @@ cbor = ["serde"]
 
 [dependencies]
 pax-message = {version = "0.0.1", path="../pax-message"}
+pax-runtime-api = {version= "0.0.1", path="../pax-runtime-api"}
 pest = "2.6.0"
 pest_derive = "2.6.0"
 itertools = "0.10.5"

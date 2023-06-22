@@ -396,9 +396,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
 
     //format output
     let formatted = {
-        let mut formatter = rust_format::RustFmt::from_config(rust_format::Config::from_hash_map_str(vec![
-            ("error_on_line_overflow","true"),
-        ].into_iter().collect()));
+        let mut formatter = rust_format::RustFmt::default();
 
         if let Ok(out) = formatter.format_str(generated_lib_rs.clone()) {
             out

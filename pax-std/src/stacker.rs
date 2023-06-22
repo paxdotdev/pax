@@ -11,20 +11,72 @@ use crate::types::{StackerDirection, StackerCell};
 /// and vertically, along with `Transform.align` and `Transform.anchor` to compose any rectilinear 2D layout.
 #[derive(Pax)]
 #[inlined(
-    for i in 0..self.cells {
-        <Frame transform={self::get_frame_transform(i, $container)} size={(get_frame_size(i, $container))}>
+    for (cell_spec, i) in 0..self._cell_specs {
+        <Frame
+            transform={Transform2D::translate(cell_spec.x, cell_spec.y)}
+            width={cell_spec.width}
+            height={cell_spec.height}
+        >
             slot(i)
         </Frame>
     }
+
+    @events {
+        will_render: handle_will_render
+    }
+
 )]
-pub struct Stacker {}
-//     pub direction: Property<StackerDirection>,
-//     pub cells: Property<Vec<StackerCell>>,
-//     pub gutter_width: Property<Size>,
-//
-//     pub overrides_cell_size: Property<Vec<(usize, Size)>>,
-//     pub overrides_gutter_size: Property<Vec<(usize, Size)>>,
-// }
+pub struct Stacker {
+    pub cells: Property<usize>,
+    pub direction: Property<crate::types::StackerDirection>,
+    pub _cell_specs: Property<Vec<StackerCell>>,
+    pub gutter_width: Property<Size>,
+
+    /// For for specifying sizes of each cell.  None-values (or array-index out-of-bounds values)
+    /// will fall back to computed, equal-sizing
+    pub sizes: Property<Vec<Option<Size>>>,
+}
+
+impl Stacker {
+    pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
+
+        let cells = *self.cells.get() as f64;
+        let bounds = ctx.bounds_parent;
+        let active_bound = match *self.direction.get() {
+            StackerDirection::Horizontal => bounds.0,
+            StackerDirection::Vertical => bounds.1
+        };
+
+        let gutter_calc = match *self.gutter_width.get() {
+             Size::Pixels(px) => px,
+             Size::Percent(pct) => Numeric::from(active_bound)* (pct / Numeric::from(100.0)),
+        };
+
+        let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc.get_as_float();
+        let per_cell_space = usable_interior_space / cells;
+
+        let new_cell_specs = (0..cells as usize).into_iter().map(|i|{
+            match self.direction.get() {
+                StackerDirection::Horizontal =>
+                    StackerCell {
+                        height_px: bounds.1,
+                        width_px: per_cell_space,
+                        x_px: ((i) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
+                        y_px: 0.0,
+                    },
+                StackerDirection::Vertical =>
+                    StackerCell {
+                        height_px: per_cell_space,
+                        width_px: bounds.0,
+                        x_px: 0.0,
+                        y_px: ((i) as f64) * (gutter_calc) + (i as f64) * per_cell_space,
+                    },
+            }
+        }).collect();
+
+        self._cell_specs.set(new_cell_specs);
+    }
+}
 //
 // impl Stacker {
 //

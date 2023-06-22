@@ -7,8 +7,6 @@ use std::rc::Rc;
 use std::ffi::CString;
 use std::ops::{Deref, Mul};
 
-pub extern crate pax_macro;
-pub use pax_macro::*;
 
 #[macro_use]
 extern crate lazy_static;
@@ -129,14 +127,17 @@ pub struct ArgsScroll {
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
 
-#[derive(Pax, Copy)]
-#[custom(Default, Interpolatable)]
+#[derive(Copy, Clone)]
 pub enum Size {
-    #[default]
     Pixels(Numeric),
     Percent(Numeric),
 }
 
+impl Default for Size {
+    fn default() -> Self {
+        Self::Pixels(250.0.into())
+    }
+}
 
 
 #[derive(Copy, Clone)]
@@ -225,13 +226,6 @@ impl Mul for Size {
                 }
             }
         }
-    }
-}
-
-// NOTE: may be worth revisiting if 100% is the most ergonomic default size (remember Dreamweaver)
-impl Default for Size {
-    fn default() -> Self {
-        Self::Percent(Numeric::from(100.0))
     }
 }
 

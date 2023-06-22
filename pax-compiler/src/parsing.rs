@@ -987,35 +987,61 @@ impl Reflectable for bool {
     }
 }
 impl Reflectable for std::string::String {
-    fn get_self_pascal_identifier() -> String {
-        "String".to_string()
-    }
     fn get_import_path() -> String {
         "std::string::String".to_string()
     }
+    fn get_self_pascal_identifier() -> String {
+        "String".to_string()
+    }
 }
 impl<T> Reflectable for std::rc::Rc<T> {
-    fn get_self_pascal_identifier() -> String {
-        "Rc".to_string()
-    }
     fn get_import_path() -> String {
         "std::rc::Rc".to_string()
     }
-}
-impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     fn get_self_pascal_identifier() -> String {
-        "Vec".to_string()
+        "Rc".to_string()
     }
-    fn get_type_id() -> String {
-        //Need to encode generics contents as part of unique id for iterables
-        format!("std::vec::Vec<{}{}>","{PREFIX}",&Self::get_iterable_type_id().unwrap())
+}
+
+impl<T: Reflectable> Reflectable for std::option::Option<T> {
+    fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+        let type_id = Self::get_type_id();
+        let td = TypeDefinition {
+            type_id: type_id.to_string(),
+            type_id_escaped: type_id.to_string(),
+            inner_iterable_type_id: None,
+            property_definitions: vec![],
+            import_path: type_id.to_string(),
+        };
+
+        if ! ctx.type_table.contains_key(&type_id) {
+            ctx.type_table.insert(type_id, td);
+        }
+
+        let (ctx,_) = T::parse_to_manifest(ctx);
+        (ctx, vec![]) //Option itself has no PAXEL-addressable properties
     }
     fn get_import_path() -> String {
-        "std::vec::Vec".to_string()
+        "std::option::Option".to_string()
     }
-    fn get_iterable_type_id() -> Option<String> {
-        Some(T::get_type_id())
+    fn get_self_pascal_identifier() -> String {
+        "Option".to_string()
     }
+}
+
+
+impl Reflectable for pax_runtime_api::Size {
+
+    fn get_import_path() -> String {
+        "pax_runtime_api::Size".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "Size".to_string()
+    }
+}
+
+impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
@@ -1033,11 +1059,17 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
         /// Also parse iterable type
         T::parse_to_manifest(ctx)
     }
-}
-/* Consider similar approach to the following for
-impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
-    fn parse_to_manifest(ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
-        T::parse_to_manifest(ctx)
+    fn get_import_path() -> String {
+        "std::vec::Vec".to_string()
+    }
+    fn get_self_pascal_identifier() -> String {
+        "Vec".to_string()
+    }
+    fn get_type_id() -> String {
+        //Need to encode generics contents as part of unique id for iterables
+        format!("std::vec::Vec<{}{}>","{PREFIX}",&Self::get_iterable_type_id().unwrap())
+    }
+    fn get_iterable_type_id() -> Option<String> {
+        Some(T::get_type_id())
     }
 }
-}*/

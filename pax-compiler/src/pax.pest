@@ -31,7 +31,7 @@ matched_tag = {open_tag ~ inner_nodes ~ closing_tag}
 inner_nodes = { node_inner_content | (any_tag_pair)* }
 
 //Describes an atomic symbolic identifier, like `id`, `Engine`, or `some_thing`
-identifier = @{ ASCII_ALPHA ~ (ASCII_ALPHANUMERIC | "_")* }
+identifier = @{ (ASCII_ALPHA | "_") ~ (ASCII_ALPHANUMERIC | "_")* }
 
 //Describes a symbolic identifier with an Uppercase first letter, a la PascalCase
 //Does not enforce the presence of any other uppercase letters.

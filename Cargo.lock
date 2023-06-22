@@ -1077,6 +1077,7 @@ dependencies = [
  "itertools",
  "lazy_static",
  "pax-message",
+ "pax-runtime-api",
  "pest",
  "pest_derive",
  "portpicker",
@@ -1165,7 +1166,6 @@ dependencies = [
  "kurbo",
  "lazy_static",
  "mut_static",
- "pax-macro",
  "pax-message",
  "uuid",
 ]
