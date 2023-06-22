@@ -4,6 +4,7 @@ for (rect, i) in self.rects {
         width={(rect.width)px}
         height={(rect.height)px}
         transform={Transform2D::translate(rect.x, rect.y)}
+        fill={rect.fill}
     />
 }
 

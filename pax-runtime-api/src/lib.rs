@@ -5,7 +5,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::ffi::CString;
-use std::ops::Mul;
+use std::ops::{Deref, Mul};
 
 pub extern crate pax_macro;
 pub use pax_macro::*;
@@ -51,7 +51,6 @@ pub trait PropertyInstance<T: Default + Clone> {
     // ease_to_default: set back to default value via interpolation
 }
 
-
 impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
     fn default() -> Box<dyn PropertyInstance<T>> {
         Box::new(PropertyLiteral::new(Default::default()))
@@ -60,11 +59,27 @@ impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
 
 impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
     fn clone(&self) -> Self {
-        Box::clone(self)
+        Box::new(PropertyLiteral::new(self.deref().get().clone()))
     }
 }
 
 pub type Property<T> = Box<dyn PropertyInstance<T>>;
+//
+// pub struct Property<T> {
+//     inner: Box<dyn PropertyInstance<T>>
+// }
+//
+// impl Clone for Property<T> {
+//     fn clone(&self) -> Self {
+//         self.inner.d
+//     }
+// }
+//
+// impl Deref for Property<T> {
+//     fn deref(&self) -> &Self::Target {
+//         todo!()
+//     }
+// }
 
 #[derive(Clone)]
 pub struct RuntimeContext {

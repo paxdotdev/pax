@@ -1,6 +1,7 @@
 use pax::api::*;
 use pax::*;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
+use pax_std::types::Color;
 
 #[derive(Pax)]
 #[file("grids.pax")]
@@ -20,6 +21,7 @@ impl Grids {
                     y: 150,
                     width: 100,
                     height: 100,
+                    fill: Color::rgb(1.0.into(), 0.0.into(), 0.0.into()),
                 }
             ),
             pax_struct!(
@@ -28,6 +30,7 @@ impl Grids {
                     y: 300,
                     width: 250,
                     height: 350,
+                    fill: Color::rgb(0.0.into(), 1.0.into(), 0.0.into()),
                 }
             ),
         ]);
@@ -42,4 +45,5 @@ pub struct RectDef {
     pub y: Property<usize>,
     pub width: Property<usize>,
     pub height: Property<usize>,
+    pub fill: Property<pax_std::types::Color>,
 }
