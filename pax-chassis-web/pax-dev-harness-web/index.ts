@@ -5,8 +5,8 @@ import {PaxChassisWeb} from './dist/pax_chassis_web';
 import snarkdown from 'snarkdown';
 
 const MOUNT_ID = "mount";
-const NATIVE_OVERLAY_ID = "native-overlay";
-const CANVAS_ID = "canvas";
+const NATIVE_OVERLAY_CLASS = "native-overlay";
+const CANVAS_CLASS = "canvas";
 
 const NATIVE_LEAF_CLASS = "native-leaf";
 const NATIVE_CLIPPING_CLASS = "native-clipping";
@@ -14,6 +14,8 @@ const NATIVE_CLIPPING_CLASS = "native-clipping";
 const CLIP_PREFIX = "clip"
 
 const registeredFontFaces = new Set<string>();
+
+let layers: { "native": HTMLDivElement[], "canvas": HTMLCanvasElement[] } = { "native": [], "canvas": [] };
 
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
@@ -25,27 +27,14 @@ const registeredFontFaces = new Set<string>();
 //This ID mechanism will also likely knock out most of the work for DOM element pooling/recycling
 
 function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
-    let mount = document.querySelector("#" + MOUNT_ID); // FUTURE: make more general; see approach used by Vue & React
 
-    //Create layer for native (DOM) rendering
-    let nativeLayer = document.createElement("div");
-    nativeLayer.id = NATIVE_OVERLAY_ID;
-
-    //Create canvas element for piet drawing.
-    //Note that width and height are set by the chassis each frame.
-    let canvas = document.createElement("canvas");
-    canvas.id = CANVAS_ID;
-    
-    //Attach layers to mount
-    //FIRST-APPLIED IS LOWEST
-    mount?.appendChild(canvas);
-    mount?.appendChild(nativeLayer);
+    initializeLayers(1);
 
     //Initialize chassis & engine
     let chassis = wasmMod.PaxChassisWeb.new();
 
     //Handle click events on native layer
-    nativeLayer.addEventListener('click', (evt) => {
+    layers.canvas[0].addEventListener('click', (evt) => {
         let event = {
             "Click": {
                 "x": evt.x,
@@ -56,7 +45,7 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     }, true);
 
     //Handle scroll events on native layer
-    nativeLayer.addEventListener('wheel', (evt) => {
+    layers.canvas[0].addEventListener('wheel', (evt) => {
         let event = {
             "Scroll": {
                 "x": evt.x,
@@ -73,6 +62,51 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
 
 }
 
+function initializeLayers(num: number){
+    let mount = document.querySelector("#" + MOUNT_ID); // FUTURE: make more general; see approach used by Vue & React
+    // Set the position of the container to relative
+    // @ts-ignore
+    mount.style.position = 'relative';
+
+    let starting_index = layers.canvas.length;
+
+    for (let i = 0; i < num; i++) {
+        let index = starting_index + i;
+        //Create canvas element for piet drawing.
+        //Note that width and height are set by the chassis each frame.
+        let canvas = document.createElement("canvas");
+        canvas.className = CANVAS_CLASS
+        canvas.id = CANVAS_CLASS + "_" + index.toString();
+        layers.canvas.push(canvas)
+
+        // Set the position of the canvas to absolute
+        canvas.style.position = 'absolute';
+        canvas.style.top = '0';
+        canvas.style.left = '0';
+
+        if(index != 0) {
+            // Ignore pointer events on the canvas
+            canvas.style.pointerEvents = 'none';
+        }
+
+        //Create layer for native (DOM) rendering
+        let nativeLayer = document.createElement("div");
+        nativeLayer.className = NATIVE_OVERLAY_CLASS;
+        nativeLayer.id = NATIVE_OVERLAY_CLASS +"_"+ index.toString();
+        layers.native.push(nativeLayer)
+
+        // Set the position of the native layer to absolute
+        nativeLayer.style.position = 'absolute';
+        nativeLayer.style.top = '0';
+        nativeLayer.style.left = '0';
+
+        //Attach layers to mount
+        //FIRST-APPLIED IS LOWEST
+        mount?.appendChild(canvas)
+        mount?.appendChild(nativeLayer);
+    }
+}
+
 function getStringIdFromClippingId(prefix: string, id_chain: number[]) {
     return prefix + "_" + id_chain.join("_");
 }
@@ -81,7 +115,18 @@ function escapeHtml(content: string){
     return new Option(content).innerHTML;
 }
 
+function clearCanvases(){
+    for (let i = 0; i < layers.canvas.length; i++) {
+        let canvas = layers.canvas[i];
+        let context = canvas.getContext('2d');
+        if (context) {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+        }
+    }
+}
+
 function renderLoop (chassis: PaxChassisWeb) {
+     clearCanvases()
      let messages : string = chassis.tick();
      messages = JSON.parse(messages);
 
@@ -177,6 +222,17 @@ class NativeElementPool {
             patch.font.applyFontToDiv(leaf);
         }
 
+        let depth = patch.depth;
+        if(depth != null && depth < layers.native.length) {
+                let parentElement = leaf.parentElement;
+                let newParent = layers.native[depth]
+                if (parentElement != newParent) {
+                    parentElement.removeChild(leaf);
+                    newParent?.appendChild(leaf);
+                }
+        }
+
+
         let textChild = leaf.firstChild;
         if (patch.content != null) {
             textChild.innerHTML = snarkdown(patch.content);
@@ -263,8 +319,8 @@ class NativeElementPool {
         // @ts-ignore
         delete this.textNodes[id_chain];
 
-        let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
-        nativeLayer?.removeChild(oldNode);
+        let parent = oldNode.parentElement;
+        parent.removeChild(oldNode);
     }
 
     frameCreate(patch: AnyCreatePatch) {
@@ -325,7 +381,7 @@ class NativeElementPool {
         // console.assert(oldNode !== undefined);
         // this.textNodes.delete(id_chain);
 
-        // let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_ID);
+        // let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_CLASS);
         // nativeLayer?.removeChild(oldNode);
     }
 
@@ -393,6 +449,7 @@ class TextUpdatePatch {
     public align_horizontal: string;
     public align_vertical: string;
     public style_link? : LinkStyle;
+    public depth? : number;
 
     constructor(jsonMessage: any) {
         this.fill = jsonMessage["fill"];
@@ -405,6 +462,7 @@ class TextUpdatePatch {
         this.align_horizontal = jsonMessage["align_horizontal"];
         this.align_vertical = jsonMessage["align_vertical"];
         this.size = jsonMessage["size"];
+        this.depth = jsonMessage["depth"];
 
         const fontPatch = jsonMessage["font"];
         if(fontPatch){
@@ -660,6 +718,16 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
         }else if (unwrapped_msg["ImageLoad"]){
             let msg = unwrapped_msg["ImageLoad"];
             nativePool.imageLoad(new ImageLoadPatch(msg), chassis)
+        }else if (unwrapped_msg["LayerAdd"]){
+            let msg = unwrapped_msg["LayerAdd"];
+            let layersToAdd = msg["num_layers_to_add"];
+            initializeLayers(layersToAdd);
+            let event = {
+                "AddedLayer": {
+                    "num_layers_added": layersToAdd,
+                }
+            }
+            chassis.interrupt(JSON.stringify(event), []);
         }
     })
 }
@@ -728,7 +796,7 @@ function getAttachPointFromClippingIds(clipping_ids: number[][]) {
             console.assert(clippingLeaf != null);
             return clippingLeaf
         }else {
-            return document.querySelector("#" + NATIVE_OVERLAY_ID)
+            return document.querySelector("#" + NATIVE_OVERLAY_CLASS+"_0")
         }
     })();
     return attachPoint;

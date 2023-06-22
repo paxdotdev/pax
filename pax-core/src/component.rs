@@ -44,7 +44,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         }
     }
 
-    fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut Vec<R>) {
         (*rtc.runtime).borrow_mut().pop_stack_frame();
     }
 
