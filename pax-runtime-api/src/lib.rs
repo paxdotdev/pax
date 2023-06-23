@@ -544,3 +544,39 @@ pub struct Timeline {
     pub frame_count: usize,
     pub is_playing: bool,
 }
+
+#[derive(Clone, PartialEq)]
+pub enum Layer {
+    Native,
+    Canvas
+}
+
+pub struct LayerInfo {
+    depth: usize,
+    layer: Layer,
+}
+
+impl LayerInfo {
+    pub fn new() -> Self {
+        LayerInfo {
+            depth: 0,
+            layer: Layer::Canvas,
+        }
+    }
+
+    pub fn get_depth(&mut self) -> usize {
+        self.depth
+    }
+
+    pub fn get_current_layer(&mut self) -> Layer {
+        self.layer.clone()
+    }
+    pub fn update_depth(&mut self, layer: Layer) {
+        if self.layer != layer {
+            if layer == Layer::Canvas {
+                self.depth += 1;
+            }
+            self.layer = layer.clone();
+        }
+    }
+}

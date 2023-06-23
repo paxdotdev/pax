@@ -20,7 +20,8 @@ pub enum NativeMessage {
     ScrollerCreate(AnyCreatePatch),
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(Vec<u64>),
-    ImageLoad(ImagePatch)
+    ImageLoad(ImagePatch),
+    LayerAdd(LayerAddPatch)
     //FUTURE: native form controls
 }
 
@@ -30,7 +31,10 @@ pub enum NativeInterrupt {
     Click(ClickInterruptArgs),
     Scroll(ScrollInterruptArgs),
     Image(ImageLoadInterruptArgs),
+    AddedLayer(AddedLayerArgs),
 }
+
+
 
 #[derive(Deserialize)]
 #[repr(C)]
@@ -91,6 +95,11 @@ pub struct ScrollInterruptArgs {
     pub delta_y: f64,
 }
 
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct AddedLayerArgs {
+    pub num_layers_added: u32,
+}
 
 #[derive(Default, Serialize)]
 #[repr(C)]
@@ -99,6 +108,7 @@ pub struct FramePatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
+    pub depth: Option<usize>,
 }
 
 
@@ -117,6 +127,7 @@ pub struct TextPatch {
     pub align_multiline: Option<TextAlignHorizontalMessage>,
     pub align_vertical: Option<TextAlignVerticalMessage>,
     pub align_horizontal: Option<TextAlignHorizontalMessage>,
+    pub depth: Option<usize>,
 }
 
 #[derive(Default, Serialize)]
@@ -180,6 +191,7 @@ pub struct ScrollerPatch {
     pub transform: Option<Vec<f64>>,
     pub scroll_x: Option<bool>,
     pub scroll_y: Option<bool>,
+    pub depth: Option<usize>,
 }
 
 
@@ -272,5 +284,11 @@ pub enum FontWeightMessage {
     Bold,
     ExtraBold,
     Black,
+}
+
+#[derive(Serialize)]
+#[repr(C)]
+pub struct LayerAddPatch {
+    pub num_layers_to_add: usize,
 }
 

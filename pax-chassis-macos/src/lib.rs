@@ -126,6 +126,7 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
                 ImageLoadInterruptArgs::Data(_) => {}
             }
         }
+        _ => {}
     }
 
     unsafe {(*engine_container)._engine=  Box::into_raw(engine)};
@@ -143,7 +144,10 @@ pub extern "C" fn pax_tick(engine_container: *mut PaxEngineContainer, cgContext:
     let mut render_context = CoreGraphicsContext::new_y_up(ctx, height as f64, None);
     (*engine).set_viewport_size((width as f64, height as f64));
 
-    let messages = (*engine).tick(&mut render_context);
+    let mut render_contexts = Vec::new();
+    render_contexts.push(render_context);
+
+    let messages = (*engine).tick(&mut render_contexts);
 
     let wrapped_queue = MessageQueue{messages,};
     let mut serializer = flexbuffers::FlexbufferSerializer::new();

@@ -7,7 +7,7 @@ use pax_std::primitives::{Text};
 use pax_core::{ComputableTransform, TabCache, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log};
+use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log, Layer};
 use pax::api::numeric::Numeric;
 use pax_std::types::text::{Font, LinkStyle, opt_align_to_message, opt_link_style_to_message, opt_value_eq_opt_msg, SizeWrapper, TextAlignHorizontal, TextAlignVertical};
 
@@ -124,7 +124,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
     }
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth: usize) {
         let mut new_message: TextPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
         if !self.last_patches.contains_key(&new_message.id_chain) {
@@ -136,6 +136,22 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         let mut has_any_updates = false;
 
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
+
+        let val = depth;
+        let is_new_value = match &last_patch.depth {
+            Some(cached_value) => {
+                !val.eq(cached_value)
+            },
+            None => {
+                true
+            }
+        };
+        if is_new_value {
+            new_message.depth = Some(val);
+            last_patch.depth = Some(val);
+            has_any_updates = true;
+        }
+
         let val = properties.text.get();
         let is_new_value = match &last_patch.content {
             Some(cached_value) => !val.eq(cached_value),
@@ -306,5 +322,9 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         (*_rtc.engine.runtime).borrow_mut().enqueue_native_message(
             pax_message::NativeMessage::TextDelete(id_chain)
         );
+    }
+
+    fn get_layer_type(&mut self) -> Layer {
+        Layer::Native
     }
 }

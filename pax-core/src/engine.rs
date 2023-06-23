@@ -9,15 +9,16 @@ use kurbo::Point;
 
 
 
-use pax_message::NativeMessage;
+use pax_message::{LayerAddPatch, NativeMessage};
 
 use piet_common::RenderContext;
 
 use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode, TabCache, TransformAndBounds, StackFrame, ScrollerArgs};
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use pax_message::NativeMessage::LayerAdd;
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, ArgsScroll, Interpolatable, TransitionManager};
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, ArgsScroll, Interpolatable, TransitionManager, Layer, LayerInfo};
 
 pub enum EventMessage {
     Tick(ArgsRender),
@@ -279,7 +280,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
-    fn hydrate_render_tree(&self, rc: &mut R) -> Vec<pax_message::NativeMessage> {
+    fn hydrate_render_tree(&self, rcs: &mut Vec<R>) -> Vec<pax_message::NativeMessage> {
         //Broadly:
         // 1. compute properties
         // 2. find lowest node (last child of last node), accumulating transform along the way
@@ -298,13 +299,22 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             inherited_adoptees: None,
         };
 
-        self.recurse_hydrate_render_tree(&mut rtc, rc, Rc::clone(&cast_component_rc));
+        let mut depth = LayerInfo::new();
+        self.recurse_hydrate_render_tree(&mut rtc, rcs, Rc::clone(&cast_component_rc), &mut depth);
 
+        if depth.get_depth() >= rcs.len() {
+            let layerAddPatch = LayerAddPatch {
+                num_layers_to_add: depth.get_depth()-rcs.len()+1,
+            };
+            (*self.runtime).borrow_mut().enqueue_native_message(LayerAdd(layerAddPatch));
+        }
+
+        // here I have depth, compare with rcs length and if rcs less than depth add native message to chassis to increase layers for next tick
         let native_render_queue = (*self.runtime).borrow_mut().swap_native_message_queue();
         native_render_queue.into()
     }
 
-    fn recurse_hydrate_render_tree(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R, node: RenderNodePtr<R>)  {
+    fn recurse_hydrate_render_tree(&self, rtc: &mut RenderTreeContext<R>, rcs: &mut Vec<R>, node: RenderNodePtr<R>, layer_info: &mut LayerInfo)  {
         //Recurse:
         //  - compute properties for this node
         //  - fire lifecycle events for this node
@@ -386,12 +396,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         rtc.bounds = new_accumulated_bounds.clone();
         rtc.transform = new_accumulated_transform.clone();
 
-        //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
-        //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
-        node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec());
-
         //lifecycle: will_render for primitives
-        node.borrow_mut().handle_will_render(rtc, rc);
+        node.borrow_mut().handle_will_render(rtc, rcs);
 
         //fire `will_render` handlers
         let registry = (*node).borrow().get_handler_registry();
@@ -430,21 +436,34 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
             new_rtc.parent_hydrated_node = Some(Rc::clone(&hydrated_node));
-            &self.recurse_hydrate_render_tree(&mut new_rtc, rc, Rc::clone(child));
+            &self.recurse_hydrate_render_tree(&mut new_rtc, rcs, Rc::clone(child), layer_info );
             //FUTURE: for dependency management, return computed values from subtree above
         });
+
+        let node_type = node.borrow_mut().get_layer_type();
+        layer_info.update_depth(node_type);
+        let current_depth = layer_info.get_depth();
+
+
+        let mut opt_rc = rcs.get_mut(current_depth);
+
+        if let Some(rc) = opt_rc {
+            //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
+            //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
+            node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec(), current_depth);
+
+            //lifecycle: render
+            //this is this node's time to do its own rendering, aside
+            //from the rendering of its children. Its children have already been rendered.
+            node.borrow_mut().handle_render(rtc, rc);
+        }
+
+        //lifecycle: did_render
+        node.borrow_mut().handle_did_render(rtc, rcs);
 
         //Note: ray-casting requires that the hydrated_node_cache is sorted by z-index,
         //so the order in which `add_to_hydrated_node_cache` is invoked vs. descendants is important
         (*rtc.engine.instance_registry).borrow_mut().add_to_hydrated_node_cache(Rc::clone(&hydrated_node));
-
-        //lifecycle: render
-        //this is this node's time to do its own rendering, aside
-        //from the rendering of its children. Its children have already been rendered.
-        node.borrow_mut().handle_render(rtc, rc);
-
-        //lifecycle: did_render
-        node.borrow_mut().handle_did_render(rtc, rc);
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
@@ -521,10 +540,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
     /// Workhorse method to advance rendering and property calculation by one discrete tick
     /// Expected to be called up to 60-120 times/second.
-    pub fn tick(&mut self, rc: &mut R) -> Vec<NativeMessage> {
-        rc.clear(None, Color::rgb(1.0, 1.0, 1.0));
+    pub fn tick(&mut self, rcs: &mut Vec<R>) -> Vec<NativeMessage> {
         (*self.instance_registry).borrow_mut().reset_hydrated_node_cache();
-        let native_render_queue = self.hydrate_render_tree(rc);
+        let native_render_queue = self.hydrate_render_tree(rcs);
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue
     }
