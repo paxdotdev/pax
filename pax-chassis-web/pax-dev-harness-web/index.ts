@@ -28,7 +28,7 @@ let layers: { "native": HTMLDivElement[], "canvas": HTMLCanvasElement[] } = { "n
 
 function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
 
-    initializeLayers(100);
+    initializeLayers(1);
     //Initialize chassis & engine
     let chassis = wasmMod.PaxChassisWeb.new();
 
