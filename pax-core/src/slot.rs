@@ -61,8 +61,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
         if let Some(index) = rtc.compute_vtable_value(self.index._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::usize(v) = index { v } else { unreachable!() };
-            self.index.set(pax_runtime_api::Numeric::from(new_value));
+            let new_value = if let TypesCoproduct::Numeric(v) = index { v } else { unreachable!() };
+            self.index.set(new_value);
         }
 
         // The following sort of children-caching is done by "control flow" primitives

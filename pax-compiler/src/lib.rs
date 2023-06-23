@@ -510,7 +510,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
             snake_case_type_id: "UNREACHABLE".into(),
-            primitive_instance_import_path: Some("ConditionalInstance".into()),
+            primitive_instance_import_path: Some("SlotInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
             properties: vec![],

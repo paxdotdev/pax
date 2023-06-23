@@ -2,7 +2,7 @@ use pax::api::*;
 use pax::*;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 use pax_std::components::{Stacker};
-use pax_std::types::Color;
+use pax_std::types::{Color, StackerDirection};
 
 
 #[derive(Pax)]
