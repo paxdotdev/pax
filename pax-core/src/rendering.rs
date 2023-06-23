@@ -7,7 +7,7 @@ use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 use pax_properties_coproduct::PropertiesCoproduct;
 
-use pax_runtime_api::{ArgsCoproduct, Size, Size2D};
+use pax_runtime_api::{ArgsCoproduct, Layer, Size, Size2D};
 
 use crate::{RenderTreeContext, HandlerRegistry, InstanceRegistry};
 
@@ -248,16 +248,16 @@ pub trait RenderNode<R: 'static + RenderContext>
     ///
     /// An implementor of `compute_native_patches` is responsible for determining which properties if any have changed
     /// (e.g. by keeping a local patch object as a cache of last known values.)
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth: usize) {
         //no-op default implementation
     }
 
     /// Second lifecycle method during each render loop, occurs AFTER
     /// properties have been computed, but BEFORE rendering
-    /// Example use-case: perform side-effects to the drawing context.
+    /// Example use-case: perform side-effects to the drawing contexts.
     /// This is how [`Frame`] performs clipping, for example.
     /// Occurs in a pre-order traversal of the render tree.
-    fn handle_will_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_will_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rcs: &mut Vec<R>) {
         //no-op default implementation
     }
 
@@ -271,10 +271,10 @@ pub trait RenderNode<R: 'static + RenderContext>
 
     /// Fourth and final lifecycle method during each render loop, occurs
     /// AFTER all descendents have been rendered AND the current node has been rendered.
-    /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing context
+    /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing contexts
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
-    fn handle_did_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_did_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rcs: &mut Vec<R>) {
         //no-op default implementation
     }
 
@@ -291,6 +291,12 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// A use-case: send a message to native renderers that a `Text` element should be removed
     fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
+    }
+
+    /// Returns the layer type (`Layer::Native` or `Layer::Canvas`) for this RenderNode.
+    /// Default is `Layer::Canvas`, and must be overwritten for native rendering
+    fn get_layer_type(&mut self) -> Layer {
+        Layer::Canvas
     }
 
 }
