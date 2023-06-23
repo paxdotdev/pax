@@ -6,6 +6,7 @@ use std::rc::Rc;
 use serde_derive::{Serialize, Deserialize};
 #[allow(unused_imports)]
 use serde_json;
+use crate::parsing::escape_identifier;
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
@@ -312,7 +313,7 @@ impl TypeDefinition {
 
     pub fn primitive(type_name: &str) -> Self {
         Self {
-            type_id_escaped: type_name.to_string(),
+            type_id_escaped: escape_identifier(type_name.to_string()),
             type_id: type_name.to_string(),
             property_definitions: vec![],
             inner_iterable_type_id: None,
@@ -322,9 +323,10 @@ impl TypeDefinition {
 
     ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
     pub fn builtin_vec_rc_properties_coproduct(inner_iterable_type_id: String) -> Self {
+        let type_id = "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>";
         Self {
-            type_id: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
-            type_id_escaped: "Vec_Rc_PropertiesCoproduct___".to_string(),
+            type_id: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
             property_definitions: vec![],
             inner_iterable_type_id: Some(inner_iterable_type_id),
             import_path: "std::vec::Vec".to_string(),
@@ -332,9 +334,10 @@ impl TypeDefinition {
     }
 
     pub fn builtin_range_isize() -> Self {
+        let type_id = "std::ops::Range<isize>";
         Self {
-            type_id: "std::ops::Range<isize>".to_string(),
-            type_id_escaped: "Range_isize_".to_string(),
+            type_id: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
             property_definitions: vec![],
             inner_iterable_type_id: Some("isize".to_string()),
             import_path: "std::ops::Range".to_string(),
@@ -342,9 +345,10 @@ impl TypeDefinition {
     }
 
     pub fn builtin_rc_properties_coproduct() -> Self {
+        let type_id = "std::rc::Rc<PropertiesCoproduct>";
         Self {
-            type_id: "std::rc::Rc<PropertiesCoproduct>".to_string(),
-            type_id_escaped: "Rc_PropertiesCoproduct__".to_string(),
+            type_id: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
             property_definitions: vec![],
             inner_iterable_type_id: None,
             import_path: "std::rc::Rc".to_string(),

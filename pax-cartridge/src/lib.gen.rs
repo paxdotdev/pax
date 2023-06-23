@@ -75,7 +75,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<u64
         #[allow(non_snake_case)]
         if let PropertiesCoproduct::Stacker(p) = &*(*(*ec.stack_frame).borrow().get_properties()).borrow() {
             let computed_layout_spec = p.computed_layout_spec.get();
-            return TypesCoproduct::Vec_Rc_PropertiesCoproduct___(computed_layout_spec.iter().enumerate().map(|(i,e)|{
+            return TypesCoproduct::stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR(computed_layout_spec.iter().enumerate().map(|(i,e)|{
                 let cloned = Rc::clone(e);
 
                 //NOTE: there should be a way to pull off this re-wrapping without cloning the data structure (below).

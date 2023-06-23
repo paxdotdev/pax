@@ -12,6 +12,7 @@ pub struct StaticPropertyDefinition {
     pub field_name: String,
     pub original_type: String,
     pub pascal_identifier: String,
+    pub is_property_wrapped: bool,
 }
 
 #[derive(Serialize)]

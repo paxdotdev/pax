@@ -9,8 +9,8 @@ use crate::primitives::Path;
 #[derive(Pax)]
 #[custom(Default)]
 pub struct Stroke {
-    pub color: Box<dyn PropertyInstance<Color>>,
-    pub width: Box<dyn PropertyInstance<SizePixels>>,
+    pub color: Property<Color>,
+    pub width: Property<SizePixels>,
 }
 
 impl Default for Stroke {
@@ -42,9 +42,9 @@ pub enum StackerDirection {
 #[derive(Pax)]
 #[custom(Default, Imports)]
 pub struct Font {
-    pub family: Box<dyn pax::api::PropertyInstance<String>>,
-    pub variant: Box<dyn pax::api::PropertyInstance<String>>,
-    pub size: Box<dyn pax::api::PropertyInstance<SizePixels>>,
+    pub family: Property<String>,
+    pub variant: Property<String>,
+    pub size: Property<SizePixels>,
 }
 impl Into<FontPatch> for &Font {
     fn into(self) -> FontPatch {

@@ -91,10 +91,9 @@ fn pax_struct_only_component(input_parsed: DeriveInput, include_imports: bool, i
     TokenStream::from_str(&output).unwrap().into()
 }
 
-/// Determines whether a field is wrapped in Property<...>, returning None if not,
-/// and returning the encapsulated type if so.  This heuristic is used to determine
-/// whether a declared field should be treated as a Pax Property
-fn get_property_wrapped_field(f: &Field) -> Option<Type> {
+/// Returns the type associated with a field, as well as a flag describing whether the property
+/// type is wrapped in Property<T>
+fn get_field_type(f: &Field) -> Option<(Type, bool)> {
     let mut ret = None;
     match &f.ty {
         Type::Path(tp) => {
@@ -108,7 +107,7 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
                                     abga.args.iter().for_each(|abgaa| {
                                         match abgaa {
                                             GenericArgument::Type(gat) => {
-                                                ret = Some(gat.to_owned());
+                                                ret = Some((gat.to_owned(), true));
                                             },
                                             _ => {/* lifetimes and more */}
                                         };
@@ -118,11 +117,16 @@ fn get_property_wrapped_field(f: &Field) -> Option<Type> {
                             }
                         }
                     });
+
+                    if ret.is_none() {
+                        //ret is still None, so we will assume this is a simple type and pass it forward
+                        ret = Some((f.ty.to_owned(), false));
+                    }
                 },
                 _ => {},
             };
         },
-        _ => {}
+        _ => {},
     };
     ret
 }
@@ -221,12 +225,12 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                     let mut ret = vec![];
                     fields.named.iter().for_each(|f| {
                         let field_name = f.ident.as_ref().unwrap();
-                        let field_type = match get_property_wrapped_field(f) {
+                        let field_type = match get_field_type(f) {
                             None => { /* noop */ },
                             Some(ty) => {
-                                let type_name = quote!(#ty).to_string().replace(" ", "");
+                                let type_name = quote!(#(ty.0)).to_string().replace(" ", "");
 
-                                let (scoped_resolvable_types, root_scoped_resolvable_type) = get_scoped_resolvable_types(&ty);
+                                let (scoped_resolvable_types, root_scoped_resolvable_type) = get_scoped_resolvable_types(&ty.0);
 
                                 let pascal_identifier = type_name.split("::").last().unwrap().to_string();
                                 ret.push(
@@ -236,6 +240,7 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                                         scoped_resolvable_types,
                                         root_scoped_resolvable_type,
                                         pascal_identifier,
+                                        is_property_wrapped: ty.1
                                     }
                                 )
                             }
@@ -255,9 +260,9 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                 let variant_name = &variant.ident;
 
                 variant.fields.iter().for_each(|f| {
-                    if let Some(ty) = get_property_wrapped_field(f) {
-                        let original_type = quote!(#ty).to_string().replace(" ", "");
-                        let (scoped_resolvable_types, root_scoped_resolvable_type) = get_scoped_resolvable_types(&ty);
+                    if let Some(ty) = get_field_type(f) {
+                        let original_type = quote!(#(ty.0)).to_string().replace(" ", "");
+                        let (scoped_resolvable_types, root_scoped_resolvable_type) = get_scoped_resolvable_types(&ty.0);
                         let pascal_identifier = original_type.split("::").last().unwrap().to_string();
                         ret.push(
                             StaticPropertyDefinition {
@@ -266,6 +271,7 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                                 scoped_resolvable_types,
                                 root_scoped_resolvable_type,
                                 pascal_identifier,
+                                is_property_wrapped: ty.1,
                             }
                         )
                     }

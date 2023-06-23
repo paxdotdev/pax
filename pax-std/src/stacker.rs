@@ -13,9 +13,9 @@ use crate::types::{StackerDirection, StackerCell};
 #[inlined(
     for (cell_spec, i) in self._cell_specs {
         <Frame
-            transform={Transform2D::translate(cell_spec.x, cell_spec.y)}
-            width={cell_spec.width}
-            height={cell_spec.height}
+            transform={Transform2D::translate(cell_spec.x_px, cell_spec.y_px)}
+            width={cell_spec.width_px}
+            height={cell_spec.height_px}
         >
             slot(i)
         </Frame>

@@ -879,11 +879,11 @@ pub fn escape_identifier(input: String) -> String {
 /// on primitive types
 pub trait Reflectable {
     fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
-        //Default impl for primitives
+        //Default impl for primitives and pax_runtime_api
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
             type_id: type_id.to_string(),
-            type_id_escaped: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
             inner_iterable_type_id: None,
             property_definitions: vec![],
             import_path: type_id.to_string(),
@@ -1008,7 +1008,7 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
         let type_id = Self::get_type_id();
         let td = TypeDefinition {
             type_id: type_id.to_string(),
-            type_id_escaped: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
             inner_iterable_type_id: None,
             property_definitions: vec![],
             import_path: type_id.to_string(),
@@ -1027,17 +1027,44 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
     fn get_self_pascal_identifier() -> String {
         "Option".to_string()
     }
+
+    fn get_type_id() -> String {
+        format!("std::option::Option<{}{}>","{PREFIX}",&T::get_type_id())
+    }
 }
 
 
 impl Reflectable for pax_runtime_api::Size {
 
     fn get_import_path() -> String {
-        "pax_runtime_api::Size".to_string()
+        "pax::api::Size".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
         "Size".to_string()
+    }
+}
+
+impl Reflectable for pax_runtime_api::SizePixels {
+
+    fn get_import_path() -> String {
+        "pax::api::SizePixels".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "SizePixels".to_string()
+    }
+}
+
+
+impl Reflectable for kurbo::Point {
+
+    fn get_import_path() -> String {
+        "kurbo::Point".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "Point".to_string()
     }
 }
 

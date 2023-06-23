@@ -1075,6 +1075,7 @@ dependencies = [
  "futures",
  "include_dir",
  "itertools",
+ "kurbo",
  "lazy_static",
  "pax-message",
  "pax-runtime-api",
