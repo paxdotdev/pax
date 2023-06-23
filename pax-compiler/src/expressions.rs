@@ -251,7 +251,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
                 (range_expression_paxel.to_string(), TypeDefinition::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
-                let inner_iterable_type_id = ctx.resolve_symbol_as_prop_def(symbolic_binding).unwrap().get_inner_iterable_type_definition(ctx.type_table).unwrap().type_id.clone();
+                let inner_iterable_type_id = ctx.resolve_symbol_as_prop_def(symbolic_binding).unwrap().last().unwrap().get_inner_iterable_type_definition(ctx.type_table).unwrap().type_id.clone();
                 (symbolic_binding.to_string(), TypeDefinition::builtin_vec_rc_properties_coproduct(inner_iterable_type_id))
             } else {unreachable!()};
 
@@ -288,6 +288,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             is_binding_repeat_elem: true,
                             is_repeat_source_range,
                             is_repeat_source_iterable,
+                            is_property_wrapped: true,
                         },
                         type_id: "isize".to_string(),
                     };
@@ -307,7 +308,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     let iterable_type = if let Some(_) = &repeat_source_definition.range_expression_paxel {
                         TypeDefinition::primitive("isize")
                     } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
-                        let pd = ctx.resolve_symbol_as_prop_def(symbolic_binding).expect(&format!("Property not found: {}", symbolic_binding));
+                        let pd = ctx.resolve_symbol_as_prop_def(symbolic_binding).expect(&format!("Property not found: {}", symbolic_binding)).last().unwrap().clone();
                         pd.get_inner_iterable_type_definition(ctx.type_table).unwrap().clone()
                     } else {unreachable!()};
 
@@ -319,6 +320,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             is_binding_repeat_i: false,
                             is_repeat_source_range,
                             is_repeat_source_iterable,
+                            is_property_wrapped: true,
                         },
                     };
 
@@ -328,6 +330,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         is_binding_repeat_elem: false,
                         is_repeat_source_range,
                         is_repeat_source_iterable,
+                        is_property_wrapped: true,
                     };
 
                     ctx.scope_stack.push(HashMap::from([
@@ -393,7 +396,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
-                pascalized_return_type: "usize".to_string(),
+                pascalized_return_type: "Numeric".to_string(),
                 invocations,
                 output_statement,
                 input_statement: whitespace_removed_input,
@@ -451,7 +454,9 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         unimplemented!("Built-ins like $bounds are not yet supported")
     } else {
 
-        let nested_prop_def = ctx.resolve_symbol_as_prop_def(&sym).expect(&format!("Symbol not found: {}", &sym));
+        let prop_def_chain = ctx.resolve_symbol_as_prop_def(&sym).unwrap();
+
+        let nested_prop_def = prop_def_chain.last().unwrap();
         let is_nested_numeric = ExpressionSpecInvocation::is_numeric(&nested_prop_def.type_id);
 
         let split_symbols = clean_and_split_symbols(&sym);
@@ -459,12 +464,9 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
         let mut split_symbols = split_symbols.into_iter();
         let root_identifier= split_symbols.next().unwrap().to_string();
-        let root_prop_def = ctx.resolve_symbol_as_prop_def(&root_identifier).unwrap();
-        let tail_symbols : Vec<String> = split_symbols.collect();
+        let root_prop_def = prop_def_chain.first().unwrap();
 
         let properties_coproduct_type = ctx.component_def.type_id_escaped.clone();
-
-        let root_type_def = root_prop_def.get_type_definition(ctx.type_table).clone();
 
         let iterable_type_id_escaped = if root_prop_def.flags.is_binding_repeat_elem {
             escape_identifier(root_prop_def.type_id.clone())
@@ -494,9 +496,19 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         let found_val = found_val.expect(&format!("Property not found {}",sym));
         let property_flags = found_val.flags;
         let property_properties_coproduct_type = &root_prop_def.get_type_definition(ctx.type_table).type_id.split("::").last().unwrap();
-        let nested_symbol_tail_literal = if tail_symbols.len() > 0 {
-            ".".to_string() + &tail_symbols.join(".get().") + ".get().clone()"
-        } else {"".to_string()};
+
+        let mut nested_symbol_tail_literal = "".to_string();
+        prop_def_chain.iter().enumerate().for_each(|(i, elem)|{
+            if i > 0 && i < prop_def_chain.len() {
+                nested_symbol_tail_literal += &if elem.flags.is_property_wrapped {
+                    format!(".{}.get()", elem.name)
+                } else {
+                    format!(".{}", elem.name)
+                };
+            }
+        });
+        if nested_symbol_tail_literal != "" {nested_symbol_tail_literal += ".clone()"}
+
 
         ExpressionSpecInvocation {
             root_identifier,
@@ -587,8 +599,11 @@ impl<'a> ExpressionCompilationContext<'a> {
 
     /// for an input symbol like `i` or `self.num_clicks`
     /// traverse the self-attached `scope_stack`
-    /// and return a copy of the related `PropertyDefinition`, if found
-    pub fn resolve_symbol_as_prop_def(&self, symbol: &str) -> Option<PropertyDefinition> {
+    /// and return a copy of the related `PropertyDefinition`, if found.
+    /// For
+    pub fn resolve_symbol_as_prop_def(&self, symbol: &str) -> Option<Vec<PropertyDefinition>> {
+
+
 
         let split_symbols = clean_and_split_symbols(symbol);
         let mut split_symbols = split_symbols.iter();
@@ -622,13 +637,15 @@ impl<'a> ExpressionCompilationContext<'a> {
         // handle nested symbols like `foo.bar`.
         match root_symbol_pd {
             Some(root_symbol_pd) => {
-                let mut ret = root_symbol_pd;
+                let mut ret = vec![root_symbol_pd];
                 //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
                 while let Some(atomic_symbol) = split_symbols.next() {
-                    let td = ret.get_type_definition(self.type_table);
-                    ret = td.property_definitions.iter().find(|pd|{pd.name == *atomic_symbol})
+                    let td = ret.last().unwrap().get_type_definition(self.type_table);
+                    ret.push(
+                        td.property_definitions.iter().find(|pd|{pd.name == *atomic_symbol})
                         .expect(&format!("Unable to resolve nested symbol `{}` while evaluating `{}`.", atomic_symbol, symbol))
-                        .clone();
+                        .clone()
+                    );
                 }
                 Some(ret)
             }

@@ -11,57 +11,58 @@ use pax_core::{
     InstantiationArgs, PaxEngine, PropertyExpression, RenderNode, RenderNodePtr, RenderNodePtrList,
     RenderTreeContext, SlotInstance, StackFrame,
 };
-use pax_runtime_api::numeric::Numeric;
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use piet_common::RenderContext;
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
 
-use pax_example::pax_reexports::pax_std::types::Color;
-
-use pax_example::pax_reexports::std::vec::Vec;
-
-use pax_example::pax_reexports::pax_std::types::StackerDirection;
-
-use pax_example::pax_reexports::grids::Grids;
-
-use pax_example::pax_reexports::pax_std::primitives::Rectangle;
-
-use pax_example::pax_reexports::pax_std::primitives::Frame;
-
-use pax_example::pax_reexports::Example;
-
-use pax_example::pax_reexports::pax::api::Size;
-
-use pax_example::pax_reexports::pax_std::types::StackerCell;
-
-use pax_example::pax_reexports::usize;
-
-use pax_example::pax_reexports::grids::RectDef;
-
-use pax_example::pax_reexports::camera::Camera;
-
-use pax_example::pax_reexports::f64;
-
-use pax_example::pax_reexports::camera::TypeExample;
-
-use pax_example::pax_reexports::fireworks::Fireworks;
-
 use pax_example::pax_reexports::pax_std::primitives::Group;
 
 use pax_example::pax_reexports::hello_rgb::HelloRGB;
 
+use pax_example::pax_reexports::std::vec::Vec;
+
 use pax_example::pax_reexports::pax_std::types::ColorVariant;
 
-use pax_example::pax_reexports::pax::api::SizePixels;
+use pax_example::pax_reexports::camera::Camera;
+
+use pax_example::pax_reexports::usize;
+
+use pax_example::pax_reexports::pax_std::types::Color;
+
+use pax_example::pax_reexports::pax_std::stacker::Stacker;
+
+use pax_example::pax_reexports::pax::api::Size;
+
+use pax_example::pax_reexports::pax::api::Numeric;
+
+use pax_example::pax_reexports::pax_std::types::StackerDirection;
+
+use pax_example::pax_reexports::pax_std::primitives::Rectangle;
 
 use pax_example::pax_reexports::pax_std::types::Stroke;
 
-use pax_example::pax_reexports::pax_std::primitives::Ellipse;
+use pax_example::pax_reexports::grids::RectDef;
+
+use pax_example::pax_reexports::grids::Grids;
+
+use pax_example::pax_reexports::Example;
+
+use pax_example::pax_reexports::f64;
+
+use pax_example::pax_reexports::pax::api::SizePixels;
+
+use pax_example::pax_reexports::camera::TypeExample;
 
 use pax_example::pax_reexports::std::option::Option;
 
-use pax_example::pax_reexports::pax_std::stacker::Stacker;
+use pax_example::pax_reexports::pax_std::primitives::Ellipse;
+
+use pax_example::pax_reexports::pax_std::types::StackerCell;
+
+use pax_example::pax_reexports::pax_std::primitives::Frame;
+
+use pax_example::pax_reexports::fireworks::Fireworks;
 
 //pull in entire const token stream here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
 
@@ -145,22 +146,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
         }),
     );
 
-    //Color::rgb(100.0,0,0)
-    vtable.insert(
-        1,
-        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            #[allow(unused_parens)]
-            TypesCoproduct::pax_stdCOCOtypesCOCOColor(Color::rgb(
-                (Numeric::from(100.0)),
-                (Numeric::from(0)),
-                (Numeric::from(0)),
-            ))
-        }),
-    );
-
     //Transform2D::translate(0,0)
     vtable.insert(
-        2,
+        1,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             #[allow(unused_parens)]
             TypesCoproduct::Transform2D(Transform2D::translate(
@@ -170,14 +158,14 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
         }),
     );
 
-    //Color::rgb(0,100.0,0)
+    //Color::rgb(100.0,0,0)
     vtable.insert(
-        3,
+        2,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             #[allow(unused_parens)]
             TypesCoproduct::pax_stdCOCOtypesCOCOColor(Color::rgb(
-                (Numeric::from(0)),
                 (Numeric::from(100.0)),
+                (Numeric::from(0)),
                 (Numeric::from(0)),
             ))
         }),
@@ -185,12 +173,25 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
 
     //Transform2D::translate(0,200)
     vtable.insert(
-        4,
+        3,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             #[allow(unused_parens)]
             TypesCoproduct::Transform2D(Transform2D::translate(
                 (Numeric::from(0)),
                 (Numeric::from(200)),
+            ))
+        }),
+    );
+
+    //Color::rgb(0,100.0,0)
+    vtable.insert(
+        4,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::pax_stdCOCOtypesCOCOColor(Color::rgb(
+                (Numeric::from(0)),
+                (Numeric::from(100.0)),
+                (Numeric::from(0)),
             ))
         }),
     );
@@ -245,200 +246,18 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
         }),
     );
 
-    //current_route==0
-    vtable.insert(
-        9,
-        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            let current_route = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }
-                .borrow()
-                .deref()
-                .get_properties();
-                let properties = &*(*properties).borrow();
-
-                if let PropertiesCoproduct::crateCOCOExample(p) = properties {
-                    //binding simple numeric property
-                    Numeric::from(p.current_route.get())
-                } else {
-                    unreachable!()
-                }
-            };
-
-            let current_route = Numeric::from(current_route);
-
-            #[allow(unused_parens)]
-            TypesCoproduct::bool((current_route == Numeric::from(0)))
-        }),
-    );
-
-    //current_route==1
-    vtable.insert(
-        10,
-        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            let current_route = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }
-                .borrow()
-                .deref()
-                .get_properties();
-                let properties = &*(*properties).borrow();
-
-                if let PropertiesCoproduct::crateCOCOExample(p) = properties {
-                    //binding simple numeric property
-                    Numeric::from(p.current_route.get())
-                } else {
-                    unreachable!()
-                }
-            };
-
-            let current_route = Numeric::from(current_route);
-
-            #[allow(unused_parens)]
-            TypesCoproduct::bool((current_route == Numeric::from(1)))
-        }),
-    );
-
-    //current_route==2
-    vtable.insert(
-        11,
-        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            let current_route = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }
-                .borrow()
-                .deref()
-                .get_properties();
-                let properties = &*(*properties).borrow();
-
-                if let PropertiesCoproduct::crateCOCOExample(p) = properties {
-                    //binding simple numeric property
-                    Numeric::from(p.current_route.get())
-                } else {
-                    unreachable!()
-                }
-            };
-
-            let current_route = Numeric::from(current_route);
-
-            #[allow(unused_parens)]
-            TypesCoproduct::bool((current_route == Numeric::from(2)))
-        }),
-    );
-
-    //current_route==3
-    vtable.insert(
-        12,
-        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            let current_route = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }
-                .borrow()
-                .deref()
-                .get_properties();
-                let properties = &*(*properties).borrow();
-
-                if let PropertiesCoproduct::crateCOCOExample(p) = properties {
-                    //binding simple numeric property
-                    Numeric::from(p.current_route.get())
-                } else {
-                    unreachable!()
-                }
-            };
-
-            let current_route = Numeric::from(current_route);
-
-            #[allow(unused_parens)]
-            TypesCoproduct::bool((current_route == Numeric::from(3)))
-        }),
-    );
-
     //0..60
     vtable.insert(
-        13,
+        9,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             #[allow(unused_parens)]
             TypesCoproduct::stdCOCOopsCOCORangeLABRisizeRABR(0..60)
         }),
     );
 
-    //Color::hlc(ticks+i*360.0/30.0,75.0,150.0)
-    vtable.insert(
-        14,
-        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            let i = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }
-                .borrow()
-                .deref()
-                .get_properties();
-                let properties = &*(*properties).borrow();
-
-                //binding repeat elem
-                if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                    //iterable numeric
-
-                    let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {
-                        i
-                    } else {
-                        unreachable!()
-                    };
-                    Numeric::from(unwrapped)
-                } else {
-                    unreachable!()
-                }
-            };
-
-            let i = Numeric::from(i);
-
-            let ticks = {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(1) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }
-                .borrow()
-                .deref()
-                .get_properties();
-                let properties = &*(*properties).borrow();
-
-                if let PropertiesCoproduct::crateCOCOfireworksCOCOFireworks(p) = properties {
-                    //binding simple numeric property
-                    Numeric::from(p.ticks.get())
-                } else {
-                    unreachable!()
-                }
-            };
-
-            let ticks = Numeric::from(ticks);
-
-            #[allow(unused_parens)]
-            TypesCoproduct::pax_stdCOCOtypesCOCOColor(Color::hlc(
-                (ticks + ((i * (Numeric::from(360.0)).into()) / Numeric::from(30.0))),
-                (Numeric::from(75.0)),
-                (Numeric::from(150.0)),
-            ))
-        }),
-    );
-
     //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)*Transform2D::rotate((i+2)*rotation+ticks/1000.0)*Transform2D::scale(0.75+(i*rotation),0.75+(i*rotation))*Transform2D::scale(1-((rotation/5)+i/1000.0),1-((rotation/5)+i/1000.0))
     vtable.insert(
-        15,
+        10,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let i = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -539,9 +358,71 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
         }),
     );
 
+    //Color::hlc(ticks+i*360.0/30.0,75.0,150.0)
+    vtable.insert(
+        11,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            let i = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }
+                .borrow()
+                .deref()
+                .get_properties();
+                let properties = &*(*properties).borrow();
+
+                //binding repeat elem
+                if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
+                    //iterable numeric
+
+                    let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {
+                        i
+                    } else {
+                        unreachable!()
+                    };
+                    Numeric::from(unwrapped)
+                } else {
+                    unreachable!()
+                }
+            };
+
+            let i = Numeric::from(i);
+
+            let ticks = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(1) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }
+                .borrow()
+                .deref()
+                .get_properties();
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::crateCOCOfireworksCOCOFireworks(p) = properties {
+                    //binding simple numeric property
+                    Numeric::from(p.ticks.get())
+                } else {
+                    unreachable!()
+                }
+            };
+
+            let ticks = Numeric::from(ticks);
+
+            #[allow(unused_parens)]
+            TypesCoproduct::pax_stdCOCOtypesCOCOColor(Color::hlc(
+                (ticks + ((i * (Numeric::from(360.0)).into()) / Numeric::from(30.0))),
+                (Numeric::from(75.0)),
+                (Numeric::from(150.0)),
+            ))
+        }),
+    );
+
     //_cell_specs
     vtable.insert(
-        16,
+        12,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let _cell_specs = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -580,7 +461,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
 
     //Transform2D::translate(cell_spec.x_px,cell_spec.y_px)
     vtable.insert(
-        17,
+        13,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let cell_specPERIx_px = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -607,7 +488,6 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 }
             }
             .x_px
-            .get()
             .clone();
 
             let cell_specPERIx_px = Numeric::from(cell_specPERIx_px);
@@ -637,7 +517,6 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 }
             }
             .y_px
-            .get()
             .clone();
 
             let cell_specPERIy_px = Numeric::from(cell_specPERIy_px);
@@ -650,9 +529,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
         }),
     );
 
-    //cell_spec.width_px
+    //(cell_spec.width_px)px
     vtable.insert(
-        18,
+        14,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let cell_specPERIwidth_px = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -679,19 +558,18 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 }
             }
             .width_px
-            .get()
             .clone();
 
             let cell_specPERIwidth_px = Numeric::from(cell_specPERIwidth_px);
 
             #[allow(unused_parens)]
-            TypesCoproduct::Size(cell_specPERIwidth_px)
+            TypesCoproduct::Size(Size::Pixels(cell_specPERIwidth_px.into()))
         }),
     );
 
-    //cell_spec.height_px
+    //(cell_spec.height_px)px
     vtable.insert(
-        19,
+        15,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let cell_specPERIheight_px = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -718,19 +596,18 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 }
             }
             .height_px
-            .get()
             .clone();
 
             let cell_specPERIheight_px = Numeric::from(cell_specPERIheight_px);
 
             #[allow(unused_parens)]
-            TypesCoproduct::Size(cell_specPERIheight_px)
+            TypesCoproduct::Size(Size::Pixels(cell_specPERIheight_px.into()))
         }),
     );
 
     //(i)
     vtable.insert(
-        20,
+        16,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let i = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -754,13 +631,26 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
             let i = Numeric::from(i);
 
             #[allow(unused_parens)]
-            TypesCoproduct::usize(i)
+            TypesCoproduct::Numeric(i)
+        }),
+    );
+
+    //Color::rgb(0.4,0.5,0)
+    vtable.insert(
+        17,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            #[allow(unused_parens)]
+            TypesCoproduct::pax_stdCOCOtypesCOCOColor(Color::rgb(
+                (Numeric::from(0.4)),
+                (Numeric::from(0.5)),
+                (Numeric::from(0)),
+            ))
         }),
     );
 
     //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
     vtable.insert(
-        21,
+        18,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let rotation = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -796,22 +686,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
         }),
     );
 
-    //Color::rgb(0.4,0.5,0)
-    vtable.insert(
-        22,
-        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-            #[allow(unused_parens)]
-            TypesCoproduct::pax_stdCOCOtypesCOCOColor(Color::rgb(
-                (Numeric::from(0.4)),
-                (Numeric::from(0.5)),
-                (Numeric::from(0)),
-            ))
-        }),
-    );
-
     //0..5
     vtable.insert(
-        23,
+        19,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             #[allow(unused_parens)]
             TypesCoproduct::stdCOCOopsCOCORangeLABRisizeRABR(0..5)
@@ -820,7 +697,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
 
     //Color::rgb(1.0/(5.0-i),0.0,0.5)
     vtable.insert(
-        24,
+        20,
         Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
             let i = {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
@@ -856,6 +733,126 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>(
                 (Numeric::from(0.0)),
                 (Numeric::from(0.5)),
             ))
+        }),
+    );
+
+    //current_route==0
+    vtable.insert(
+        21,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            let current_route = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }
+                .borrow()
+                .deref()
+                .get_properties();
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::crateCOCOExample(p) = properties {
+                    //binding simple numeric property
+                    Numeric::from(p.current_route.get())
+                } else {
+                    unreachable!()
+                }
+            };
+
+            let current_route = Numeric::from(current_route);
+
+            #[allow(unused_parens)]
+            TypesCoproduct::bool((current_route == Numeric::from(0)))
+        }),
+    );
+
+    //current_route==1
+    vtable.insert(
+        22,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            let current_route = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }
+                .borrow()
+                .deref()
+                .get_properties();
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::crateCOCOExample(p) = properties {
+                    //binding simple numeric property
+                    Numeric::from(p.current_route.get())
+                } else {
+                    unreachable!()
+                }
+            };
+
+            let current_route = Numeric::from(current_route);
+
+            #[allow(unused_parens)]
+            TypesCoproduct::bool((current_route == Numeric::from(1)))
+        }),
+    );
+
+    //current_route==2
+    vtable.insert(
+        23,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            let current_route = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }
+                .borrow()
+                .deref()
+                .get_properties();
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::crateCOCOExample(p) = properties {
+                    //binding simple numeric property
+                    Numeric::from(p.current_route.get())
+                } else {
+                    unreachable!()
+                }
+            };
+
+            let current_route = Numeric::from(current_route);
+
+            #[allow(unused_parens)]
+            TypesCoproduct::bool((current_route == Numeric::from(2)))
+        }),
+    );
+
+    //current_route==3
+    vtable.insert(
+        24,
+        Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+            let current_route = {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }
+                .borrow()
+                .deref()
+                .get_properties();
+                let properties = &*(*properties).borrow();
+
+                if let PropertiesCoproduct::crateCOCOExample(p) = properties {
+                    //binding simple numeric property
+                    Numeric::from(p.current_route.get())
+                } else {
+                    unreachable!()
+                }
+            };
+
+            let current_route = Numeric::from(current_route);
+
+            #[allow(unused_parens)]
+            TypesCoproduct::bool((current_route == Numeric::from(3)))
         }),
     );
 
@@ -915,7 +912,7 @@ pub fn instantiate_crate_camera_Camera<R: 'static + RenderContext>(
                                     Rectangle {
                                         stroke: Box::new(PropertyLiteral::new(Default::default())),
 
-                                        fill: Box::new(PropertyExpression::new(1)),
+                                        fill: Box::new(PropertyExpression::new(2)),
                                     },
                                 ),
                                 handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
@@ -925,7 +922,7 @@ pub fn instantiate_crate_camera_Camera<R: 'static + RenderContext>(
                                     scroll_handlers: vec![],
                                 }))),
                                 instance_registry: Rc::clone(&instance_registry),
-                                transform: Rc::new(RefCell::new(PropertyExpression::new(2))),
+                                transform: Rc::new(RefCell::new(PropertyExpression::new(1))),
                                 size: Some(Rc::new(RefCell::new([
                                     Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
                                     Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
@@ -946,7 +943,7 @@ pub fn instantiate_crate_camera_Camera<R: 'static + RenderContext>(
                                     Rectangle {
                                         stroke: Box::new(PropertyLiteral::new(Default::default())),
 
-                                        fill: Box::new(PropertyExpression::new(3)),
+                                        fill: Box::new(PropertyExpression::new(4)),
                                     },
                                 ),
                                 handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
@@ -956,7 +953,7 @@ pub fn instantiate_crate_camera_Camera<R: 'static + RenderContext>(
                                     scroll_handlers: vec![],
                                 }))),
                                 instance_registry: Rc::clone(&instance_registry),
-                                transform: Rc::new(RefCell::new(PropertyExpression::new(4))),
+                                transform: Rc::new(RefCell::new(PropertyExpression::new(3))),
                                 size: Some(Rc::new(RefCell::new([
                                     Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
                                     Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),
@@ -1154,343 +1151,6 @@ pub fn instantiate_crate_camera_Camera<R: 'static + RenderContext>(
     ComponentInstance::instantiate(args)
 }
 
-pub fn instantiate_main_component<R: 'static + RenderContext>(
-    instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
-) -> Rc<RefCell<ComponentInstance<R>>> {
-    ComponentInstance::instantiate(InstantiationArgs {
-        properties: PropertiesCoproduct::crateCOCOExample(Example::default()),
-        handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-            click_handlers: vec![],
-            will_render_handlers: vec![],
-            did_mount_handlers: vec![],
-            scroll_handlers: vec![],
-        }))),
-        instance_registry: Rc::clone(&instance_registry),
-        transform: Transform2D::default_wrapped(),
-        size: None,
-        children: None,
-        component_template: Some(Rc::new(RefCell::new(vec![
-            pax_std_primitives::frame::FrameInstance::instantiate(InstantiationArgs {
-                properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOFrame(Frame {}),
-                handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                    click_handlers: vec![|stack_frame, ctx, args| {
-                        let properties = (*stack_frame).borrow().get_properties();
-                        let properties = &mut *properties.as_ref().borrow_mut();
-                        let properties =
-                            if let PropertiesCoproduct::crateCOCOExample(p) = properties {
-                                p
-                            } else {
-                                unreachable!()
-                            };
-                        Example::modulate(properties, ctx, args);
-                    }],
-                    will_render_handlers: vec![],
-                    did_mount_handlers: vec![],
-                    scroll_handlers: vec![],
-                }))),
-                instance_registry: Rc::clone(&instance_registry),
-                transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-                size: Some(Rc::new(RefCell::new([
-                    Box::new(PropertyLiteral::new(Size::Percent(100.into()))),
-                    Box::new(PropertyLiteral::new(Size::Percent(100.into()))),
-                ]))),
-                children: Some(Rc::new(RefCell::new(vec![
-                    ConditionalInstance::instantiate(InstantiationArgs {
-                        properties: PropertiesCoproduct::None,
-                        handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                            click_handlers: vec![],
-                            will_render_handlers: vec![],
-                            did_mount_handlers: vec![],
-                            scroll_handlers: vec![],
-                        }))),
-                        instance_registry: Rc::clone(&instance_registry),
-                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-                        size: Some(Rc::new(RefCell::new([
-                            Box::new(PropertyLiteral::new(Default::default())),
-                            Box::new(PropertyLiteral::new(Default::default())),
-                        ]))),
-                        children: Some(Rc::new(RefCell::new(vec![instantiate_crate_grids_Grids(
-                            Rc::clone(&instance_registry),
-                            InstantiationArgs {
-                                properties: PropertiesCoproduct::crateCOCOgridsCOCOGrids(Grids {
-                                    ticks: Box::new(PropertyLiteral::new(Default::default())),
-
-                                    rects: Box::new(PropertyLiteral::new(Default::default())),
-                                }),
-                                handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                                    click_handlers: vec![],
-                                    will_render_handlers: vec![],
-                                    did_mount_handlers: vec![],
-                                    scroll_handlers: vec![],
-                                }))),
-                                instance_registry: Rc::clone(&instance_registry),
-                                transform: Rc::new(RefCell::new(PropertyLiteral::new(
-                                    Default::default(),
-                                ))),
-                                size: Some(Rc::new(RefCell::new([
-                                    Box::new(PropertyLiteral::new(Default::default())),
-                                    Box::new(PropertyLiteral::new(Default::default())),
-                                ]))),
-                                children: Some(Rc::new(RefCell::new(vec![]))),
-                                component_template: None,
-                                scroller_args: None,
-                                slot_index: None,
-                                repeat_source_expression_vec: None,
-                                repeat_source_expression_range: None,
-                                conditional_boolean_expression: None,
-                                compute_properties_fn: None,
-                            },
-                        )]))),
-                        component_template: None,
-                        scroller_args: None,
-                        slot_index: None,
-                        repeat_source_expression_vec: None,
-                        repeat_source_expression_range: None,
-                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(9))),
-                        compute_properties_fn: None,
-                    }),
-                    ConditionalInstance::instantiate(InstantiationArgs {
-                        properties: PropertiesCoproduct::None,
-                        handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                            click_handlers: vec![],
-                            will_render_handlers: vec![],
-                            did_mount_handlers: vec![],
-                            scroll_handlers: vec![],
-                        }))),
-                        instance_registry: Rc::clone(&instance_registry),
-                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-                        size: Some(Rc::new(RefCell::new([
-                            Box::new(PropertyLiteral::new(Default::default())),
-                            Box::new(PropertyLiteral::new(Default::default())),
-                        ]))),
-                        children: Some(Rc::new(RefCell::new(vec![
-                            instantiate_crate_fireworks_Fireworks(
-                                Rc::clone(&instance_registry),
-                                InstantiationArgs {
-                                    properties:
-                                        PropertiesCoproduct::crateCOCOfireworksCOCOFireworks(
-                                            Fireworks {
-                                                rotation: Box::new(PropertyLiteral::new(
-                                                    Default::default(),
-                                                )),
-
-                                                ticks: Box::new(PropertyLiteral::new(
-                                                    Default::default(),
-                                                )),
-                                            },
-                                        ),
-                                    handler_registry: Some(Rc::new(RefCell::new(
-                                        HandlerRegistry {
-                                            click_handlers: vec![],
-                                            will_render_handlers: vec![],
-                                            did_mount_handlers: vec![],
-                                            scroll_handlers: vec![],
-                                        },
-                                    ))),
-                                    instance_registry: Rc::clone(&instance_registry),
-                                    transform: Rc::new(RefCell::new(PropertyLiteral::new(
-                                        Default::default(),
-                                    ))),
-                                    size: Some(Rc::new(RefCell::new([
-                                        Box::new(PropertyLiteral::new(Default::default())),
-                                        Box::new(PropertyLiteral::new(Default::default())),
-                                    ]))),
-                                    children: Some(Rc::new(RefCell::new(vec![]))),
-                                    component_template: None,
-                                    scroller_args: None,
-                                    slot_index: None,
-                                    repeat_source_expression_vec: None,
-                                    repeat_source_expression_range: None,
-                                    conditional_boolean_expression: None,
-                                    compute_properties_fn: None,
-                                },
-                            ),
-                        ]))),
-                        component_template: None,
-                        scroller_args: None,
-                        slot_index: None,
-                        repeat_source_expression_vec: None,
-                        repeat_source_expression_range: None,
-                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(10))),
-                        compute_properties_fn: None,
-                    }),
-                    ConditionalInstance::instantiate(InstantiationArgs {
-                        properties: PropertiesCoproduct::None,
-                        handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                            click_handlers: vec![],
-                            will_render_handlers: vec![],
-                            did_mount_handlers: vec![],
-                            scroll_handlers: vec![],
-                        }))),
-                        instance_registry: Rc::clone(&instance_registry),
-                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-                        size: Some(Rc::new(RefCell::new([
-                            Box::new(PropertyLiteral::new(Default::default())),
-                            Box::new(PropertyLiteral::new(Default::default())),
-                        ]))),
-                        children: Some(Rc::new(RefCell::new(vec![
-                            instantiate_crate_hello_rgb_HelloRGB(
-                                Rc::clone(&instance_registry),
-                                InstantiationArgs {
-                                    properties: PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB(
-                                        HelloRGB {
-                                            rotation: Box::new(PropertyLiteral::new(
-                                                Default::default(),
-                                            )),
-                                        },
-                                    ),
-                                    handler_registry: Some(Rc::new(RefCell::new(
-                                        HandlerRegistry {
-                                            click_handlers: vec![],
-                                            will_render_handlers: vec![],
-                                            did_mount_handlers: vec![],
-                                            scroll_handlers: vec![],
-                                        },
-                                    ))),
-                                    instance_registry: Rc::clone(&instance_registry),
-                                    transform: Rc::new(RefCell::new(PropertyLiteral::new(
-                                        Default::default(),
-                                    ))),
-                                    size: Some(Rc::new(RefCell::new([
-                                        Box::new(PropertyLiteral::new(Default::default())),
-                                        Box::new(PropertyLiteral::new(Default::default())),
-                                    ]))),
-                                    children: Some(Rc::new(RefCell::new(vec![]))),
-                                    component_template: None,
-                                    scroller_args: None,
-                                    slot_index: None,
-                                    repeat_source_expression_vec: None,
-                                    repeat_source_expression_range: None,
-                                    conditional_boolean_expression: None,
-                                    compute_properties_fn: None,
-                                },
-                            ),
-                        ]))),
-                        component_template: None,
-                        scroller_args: None,
-                        slot_index: None,
-                        repeat_source_expression_vec: None,
-                        repeat_source_expression_range: None,
-                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(11))),
-                        compute_properties_fn: None,
-                    }),
-                    ConditionalInstance::instantiate(InstantiationArgs {
-                        properties: PropertiesCoproduct::None,
-                        handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
-                            click_handlers: vec![],
-                            will_render_handlers: vec![],
-                            did_mount_handlers: vec![],
-                            scroll_handlers: vec![],
-                        }))),
-                        instance_registry: Rc::clone(&instance_registry),
-                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-                        size: Some(Rc::new(RefCell::new([
-                            Box::new(PropertyLiteral::new(Default::default())),
-                            Box::new(PropertyLiteral::new(Default::default())),
-                        ]))),
-                        children: Some(Rc::new(RefCell::new(vec![
-                            instantiate_crate_camera_Camera(
-                                Rc::clone(&instance_registry),
-                                InstantiationArgs {
-                                    properties: PropertiesCoproduct::crateCOCOcameraCOCOCamera(
-                                        Camera {
-                                            ticks: Box::new(PropertyLiteral::new(
-                                                Default::default(),
-                                            )),
-
-                                            zoom: Box::new(
-                                                PropertyLiteral::new(Default::default()),
-                                            ),
-
-                                            pan_x: Box::new(PropertyLiteral::new(
-                                                Default::default(),
-                                            )),
-
-                                            pan_y: Box::new(PropertyLiteral::new(
-                                                Default::default(),
-                                            )),
-
-                                            type_example: Box::new(PropertyLiteral::new(
-                                                Default::default(),
-                                            )),
-                                        },
-                                    ),
-                                    handler_registry: Some(Rc::new(RefCell::new(
-                                        HandlerRegistry {
-                                            click_handlers: vec![],
-                                            will_render_handlers: vec![],
-                                            did_mount_handlers: vec![],
-                                            scroll_handlers: vec![],
-                                        },
-                                    ))),
-                                    instance_registry: Rc::clone(&instance_registry),
-                                    transform: Rc::new(RefCell::new(PropertyLiteral::new(
-                                        Default::default(),
-                                    ))),
-                                    size: Some(Rc::new(RefCell::new([
-                                        Box::new(PropertyLiteral::new(Default::default())),
-                                        Box::new(PropertyLiteral::new(Default::default())),
-                                    ]))),
-                                    children: Some(Rc::new(RefCell::new(vec![]))),
-                                    component_template: None,
-                                    scroller_args: None,
-                                    slot_index: None,
-                                    repeat_source_expression_vec: None,
-                                    repeat_source_expression_range: None,
-                                    conditional_boolean_expression: None,
-                                    compute_properties_fn: None,
-                                },
-                            ),
-                        ]))),
-                        component_template: None,
-                        scroller_args: None,
-                        slot_index: None,
-                        repeat_source_expression_vec: None,
-                        repeat_source_expression_range: None,
-                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(12))),
-                        compute_properties_fn: None,
-                    }),
-                ]))),
-                component_template: None,
-                scroller_args: None,
-                slot_index: None,
-                repeat_source_expression_vec: None,
-                repeat_source_expression_range: None,
-                conditional_boolean_expression: None,
-                compute_properties_fn: None,
-            }),
-        ]))),
-        scroller_args: None,
-        slot_index: None,
-        repeat_source_expression_vec: None,
-        repeat_source_expression_range: None,
-        conditional_boolean_expression: None,
-        compute_properties_fn: Some(Box::new(|properties, rtc| {
-            let properties = &mut *properties.as_ref().borrow_mut();
-            let properties = if let PropertiesCoproduct::crateCOCOExample(p) = properties {
-                p
-            } else {
-                unreachable!()
-            };
-
-            if let Some(new_value) =
-                rtc.compute_eased_value(properties.current_route._get_transition_manager())
-            {
-                properties.current_route.set(new_value);
-            } else if let Some(new_value) =
-                rtc.compute_vtable_value(properties.current_route._get_vtable_id())
-            {
-                let new_value = if let TypesCoproduct::usize(v) = new_value {
-                    v
-                } else {
-                    unreachable!()
-                };
-                properties.current_route.set(new_value);
-            }
-        })),
-    })
-}
-
 pub fn instantiate_crate_fireworks_Fireworks<R: 'static + RenderContext>(
     instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
     mut args: InstantiationArgs<R>,
@@ -1543,7 +1203,7 @@ pub fn instantiate_crate_fireworks_Fireworks<R: 'static + RenderContext>(
                                     Rectangle {
                                         stroke: Box::new(PropertyLiteral::new(Default::default())),
 
-                                        fill: Box::new(PropertyExpression::new(14)),
+                                        fill: Box::new(PropertyExpression::new(11)),
                                     },
                                 ),
                                 handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
@@ -1553,7 +1213,7 @@ pub fn instantiate_crate_fireworks_Fireworks<R: 'static + RenderContext>(
                                     scroll_handlers: vec![],
                                 }))),
                                 instance_registry: Rc::clone(&instance_registry),
-                                transform: Rc::new(RefCell::new(PropertyExpression::new(15))),
+                                transform: Rc::new(RefCell::new(PropertyExpression::new(10))),
                                 size: Some(Rc::new(RefCell::new([
                                     Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),
                                     Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),
@@ -1573,7 +1233,7 @@ pub fn instantiate_crate_fireworks_Fireworks<R: 'static + RenderContext>(
                     scroller_args: None,
                     slot_index: None,
                     repeat_source_expression_vec: None,
-                    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(13))),
+                    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(9))),
                     conditional_boolean_expression: None,
                     compute_properties_fn: None,
                 },
@@ -1674,10 +1334,10 @@ pub fn instantiate_pax_std_stacker_Stacker<R: 'static + RenderContext>(
                         scroll_handlers: vec![],
                     }))),
                     instance_registry: Rc::clone(&instance_registry),
-                    transform: Rc::new(RefCell::new(PropertyExpression::new(17))),
+                    transform: Rc::new(RefCell::new(PropertyExpression::new(13))),
                     size: Some(Rc::new(RefCell::new([
-                        Box::new(PropertyExpression::new(18)),
-                        Box::new(PropertyExpression::new(19)),
+                        Box::new(PropertyExpression::new(14)),
+                        Box::new(PropertyExpression::new(15)),
                     ]))),
                     children: Some(Rc::new(RefCell::new(vec![
                         ConditionalInstance::instantiate(InstantiationArgs {
@@ -1699,7 +1359,7 @@ pub fn instantiate_pax_std_stacker_Stacker<R: 'static + RenderContext>(
                             children: Some(Rc::new(RefCell::new(vec![]))),
                             component_template: None,
                             scroller_args: None,
-                            slot_index: Some(Box::new(PropertyExpression::new(20))),
+                            slot_index: Some(Box::new(PropertyExpression::new(16))),
                             repeat_source_expression_vec: None,
                             repeat_source_expression_range: None,
                             conditional_boolean_expression: None,
@@ -1718,7 +1378,7 @@ pub fn instantiate_pax_std_stacker_Stacker<R: 'static + RenderContext>(
             component_template: None,
             scroller_args: None,
             slot_index: None,
-            repeat_source_expression_vec: Some(Box::new(PropertyExpression::new(16))),
+            repeat_source_expression_vec: Some(Box::new(PropertyExpression::new(12))),
             repeat_source_expression_range: None,
             conditional_boolean_expression: None,
             compute_properties_fn: None,
@@ -1754,7 +1414,7 @@ pub fn instantiate_pax_std_stacker_Stacker<R: 'static + RenderContext>(
             properties.cells.set(new_value);
         } else if let Some(new_value) = rtc.compute_vtable_value(properties.cells._get_vtable_id())
         {
-            let new_value = if let TypesCoproduct::usize(v) = new_value {
+            let new_value = if let TypesCoproduct::paxCOCOapiCOCONumeric(v) = new_value {
                 v
             } else {
                 unreachable!()
@@ -1833,7 +1493,7 @@ pub fn instantiate_crate_hello_rgb_HelloRGB<R: 'static + RenderContext>(
             properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOEllipse(Ellipse {
                 stroke: Box::new(PropertyLiteral::new(Default::default())),
 
-                fill: Box::new(PropertyExpression::new(22)),
+                fill: Box::new(PropertyExpression::new(17)),
             }),
             handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
                 click_handlers: vec![|stack_frame, ctx, args| {
@@ -1864,7 +1524,7 @@ pub fn instantiate_crate_hello_rgb_HelloRGB<R: 'static + RenderContext>(
                 }],
             }))),
             instance_registry: Rc::clone(&instance_registry),
-            transform: Rc::new(RefCell::new(PropertyExpression::new(21))),
+            transform: Rc::new(RefCell::new(PropertyExpression::new(18))),
             size: Some(Rc::new(RefCell::new([
                 Box::new(PropertyLiteral::new(Size::Percent(50.into()))),
                 Box::new(PropertyLiteral::new(Size::Percent(50.into()))),
@@ -1971,7 +1631,7 @@ pub fn instantiate_crate_grids_Grids<R: 'static + RenderContext>(
                                                     Default::default(),
                                                 )),
 
-                                                fill: Box::new(PropertyExpression::new(24)),
+                                                fill: Box::new(PropertyExpression::new(20)),
                                             },
                                         ),
                                     handler_registry: Some(Rc::new(RefCell::new(
@@ -2005,7 +1665,7 @@ pub fn instantiate_crate_grids_Grids<R: 'static + RenderContext>(
                         scroller_args: None,
                         slot_index: None,
                         repeat_source_expression_vec: None,
-                        repeat_source_expression_range: Some(Box::new(PropertyExpression::new(23))),
+                        repeat_source_expression_range: Some(Box::new(PropertyExpression::new(19))),
                         conditional_boolean_expression: None,
                         compute_properties_fn: None,
                     },
@@ -2067,4 +1727,341 @@ pub fn instantiate_crate_grids_Grids<R: 'static + RenderContext>(
     }));
 
     ComponentInstance::instantiate(args)
+}
+
+pub fn instantiate_main_component<R: 'static + RenderContext>(
+    instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
+) -> Rc<RefCell<ComponentInstance<R>>> {
+    ComponentInstance::instantiate(InstantiationArgs {
+        properties: PropertiesCoproduct::crateCOCOExample(Example::default()),
+        handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+            click_handlers: vec![],
+            will_render_handlers: vec![],
+            did_mount_handlers: vec![],
+            scroll_handlers: vec![],
+        }))),
+        instance_registry: Rc::clone(&instance_registry),
+        transform: Transform2D::default_wrapped(),
+        size: None,
+        children: None,
+        component_template: Some(Rc::new(RefCell::new(vec![
+            pax_std_primitives::frame::FrameInstance::instantiate(InstantiationArgs {
+                properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOFrame(Frame {}),
+                handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                    click_handlers: vec![|stack_frame, ctx, args| {
+                        let properties = (*stack_frame).borrow().get_properties();
+                        let properties = &mut *properties.as_ref().borrow_mut();
+                        let properties =
+                            if let PropertiesCoproduct::crateCOCOExample(p) = properties {
+                                p
+                            } else {
+                                unreachable!()
+                            };
+                        Example::modulate(properties, ctx, args);
+                    }],
+                    will_render_handlers: vec![],
+                    did_mount_handlers: vec![],
+                    scroll_handlers: vec![],
+                }))),
+                instance_registry: Rc::clone(&instance_registry),
+                transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+                size: Some(Rc::new(RefCell::new([
+                    Box::new(PropertyLiteral::new(Size::Percent(100.into()))),
+                    Box::new(PropertyLiteral::new(Size::Percent(100.into()))),
+                ]))),
+                children: Some(Rc::new(RefCell::new(vec![
+                    ConditionalInstance::instantiate(InstantiationArgs {
+                        properties: PropertiesCoproduct::None,
+                        handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                            click_handlers: vec![],
+                            will_render_handlers: vec![],
+                            did_mount_handlers: vec![],
+                            scroll_handlers: vec![],
+                        }))),
+                        instance_registry: Rc::clone(&instance_registry),
+                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+                        size: Some(Rc::new(RefCell::new([
+                            Box::new(PropertyLiteral::new(Default::default())),
+                            Box::new(PropertyLiteral::new(Default::default())),
+                        ]))),
+                        children: Some(Rc::new(RefCell::new(vec![instantiate_crate_grids_Grids(
+                            Rc::clone(&instance_registry),
+                            InstantiationArgs {
+                                properties: PropertiesCoproduct::crateCOCOgridsCOCOGrids(Grids {
+                                    ticks: Box::new(PropertyLiteral::new(Default::default())),
+
+                                    rects: Box::new(PropertyLiteral::new(Default::default())),
+                                }),
+                                handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                                    click_handlers: vec![],
+                                    will_render_handlers: vec![],
+                                    did_mount_handlers: vec![],
+                                    scroll_handlers: vec![],
+                                }))),
+                                instance_registry: Rc::clone(&instance_registry),
+                                transform: Rc::new(RefCell::new(PropertyLiteral::new(
+                                    Default::default(),
+                                ))),
+                                size: Some(Rc::new(RefCell::new([
+                                    Box::new(PropertyLiteral::new(Default::default())),
+                                    Box::new(PropertyLiteral::new(Default::default())),
+                                ]))),
+                                children: Some(Rc::new(RefCell::new(vec![]))),
+                                component_template: None,
+                                scroller_args: None,
+                                slot_index: None,
+                                repeat_source_expression_vec: None,
+                                repeat_source_expression_range: None,
+                                conditional_boolean_expression: None,
+                                compute_properties_fn: None,
+                            },
+                        )]))),
+                        component_template: None,
+                        scroller_args: None,
+                        slot_index: None,
+                        repeat_source_expression_vec: None,
+                        repeat_source_expression_range: None,
+                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(21))),
+                        compute_properties_fn: None,
+                    }),
+                    ConditionalInstance::instantiate(InstantiationArgs {
+                        properties: PropertiesCoproduct::None,
+                        handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                            click_handlers: vec![],
+                            will_render_handlers: vec![],
+                            did_mount_handlers: vec![],
+                            scroll_handlers: vec![],
+                        }))),
+                        instance_registry: Rc::clone(&instance_registry),
+                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+                        size: Some(Rc::new(RefCell::new([
+                            Box::new(PropertyLiteral::new(Default::default())),
+                            Box::new(PropertyLiteral::new(Default::default())),
+                        ]))),
+                        children: Some(Rc::new(RefCell::new(vec![
+                            instantiate_crate_fireworks_Fireworks(
+                                Rc::clone(&instance_registry),
+                                InstantiationArgs {
+                                    properties:
+                                        PropertiesCoproduct::crateCOCOfireworksCOCOFireworks(
+                                            Fireworks {
+                                                rotation: Box::new(PropertyLiteral::new(
+                                                    Default::default(),
+                                                )),
+
+                                                ticks: Box::new(PropertyLiteral::new(
+                                                    Default::default(),
+                                                )),
+                                            },
+                                        ),
+                                    handler_registry: Some(Rc::new(RefCell::new(
+                                        HandlerRegistry {
+                                            click_handlers: vec![],
+                                            will_render_handlers: vec![],
+                                            did_mount_handlers: vec![],
+                                            scroll_handlers: vec![],
+                                        },
+                                    ))),
+                                    instance_registry: Rc::clone(&instance_registry),
+                                    transform: Rc::new(RefCell::new(PropertyLiteral::new(
+                                        Default::default(),
+                                    ))),
+                                    size: Some(Rc::new(RefCell::new([
+                                        Box::new(PropertyLiteral::new(Default::default())),
+                                        Box::new(PropertyLiteral::new(Default::default())),
+                                    ]))),
+                                    children: Some(Rc::new(RefCell::new(vec![]))),
+                                    component_template: None,
+                                    scroller_args: None,
+                                    slot_index: None,
+                                    repeat_source_expression_vec: None,
+                                    repeat_source_expression_range: None,
+                                    conditional_boolean_expression: None,
+                                    compute_properties_fn: None,
+                                },
+                            ),
+                        ]))),
+                        component_template: None,
+                        scroller_args: None,
+                        slot_index: None,
+                        repeat_source_expression_vec: None,
+                        repeat_source_expression_range: None,
+                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(22))),
+                        compute_properties_fn: None,
+                    }),
+                    ConditionalInstance::instantiate(InstantiationArgs {
+                        properties: PropertiesCoproduct::None,
+                        handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                            click_handlers: vec![],
+                            will_render_handlers: vec![],
+                            did_mount_handlers: vec![],
+                            scroll_handlers: vec![],
+                        }))),
+                        instance_registry: Rc::clone(&instance_registry),
+                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+                        size: Some(Rc::new(RefCell::new([
+                            Box::new(PropertyLiteral::new(Default::default())),
+                            Box::new(PropertyLiteral::new(Default::default())),
+                        ]))),
+                        children: Some(Rc::new(RefCell::new(vec![
+                            instantiate_crate_hello_rgb_HelloRGB(
+                                Rc::clone(&instance_registry),
+                                InstantiationArgs {
+                                    properties: PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB(
+                                        HelloRGB {
+                                            rotation: Box::new(PropertyLiteral::new(
+                                                Default::default(),
+                                            )),
+                                        },
+                                    ),
+                                    handler_registry: Some(Rc::new(RefCell::new(
+                                        HandlerRegistry {
+                                            click_handlers: vec![],
+                                            will_render_handlers: vec![],
+                                            did_mount_handlers: vec![],
+                                            scroll_handlers: vec![],
+                                        },
+                                    ))),
+                                    instance_registry: Rc::clone(&instance_registry),
+                                    transform: Rc::new(RefCell::new(PropertyLiteral::new(
+                                        Default::default(),
+                                    ))),
+                                    size: Some(Rc::new(RefCell::new([
+                                        Box::new(PropertyLiteral::new(Default::default())),
+                                        Box::new(PropertyLiteral::new(Default::default())),
+                                    ]))),
+                                    children: Some(Rc::new(RefCell::new(vec![]))),
+                                    component_template: None,
+                                    scroller_args: None,
+                                    slot_index: None,
+                                    repeat_source_expression_vec: None,
+                                    repeat_source_expression_range: None,
+                                    conditional_boolean_expression: None,
+                                    compute_properties_fn: None,
+                                },
+                            ),
+                        ]))),
+                        component_template: None,
+                        scroller_args: None,
+                        slot_index: None,
+                        repeat_source_expression_vec: None,
+                        repeat_source_expression_range: None,
+                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(23))),
+                        compute_properties_fn: None,
+                    }),
+                    ConditionalInstance::instantiate(InstantiationArgs {
+                        properties: PropertiesCoproduct::None,
+                        handler_registry: Some(Rc::new(RefCell::new(HandlerRegistry {
+                            click_handlers: vec![],
+                            will_render_handlers: vec![],
+                            did_mount_handlers: vec![],
+                            scroll_handlers: vec![],
+                        }))),
+                        instance_registry: Rc::clone(&instance_registry),
+                        transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+                        size: Some(Rc::new(RefCell::new([
+                            Box::new(PropertyLiteral::new(Default::default())),
+                            Box::new(PropertyLiteral::new(Default::default())),
+                        ]))),
+                        children: Some(Rc::new(RefCell::new(vec![
+                            instantiate_crate_camera_Camera(
+                                Rc::clone(&instance_registry),
+                                InstantiationArgs {
+                                    properties: PropertiesCoproduct::crateCOCOcameraCOCOCamera(
+                                        Camera {
+                                            ticks: Box::new(PropertyLiteral::new(
+                                                Default::default(),
+                                            )),
+
+                                            zoom: Box::new(
+                                                PropertyLiteral::new(Default::default()),
+                                            ),
+
+                                            pan_x: Box::new(PropertyLiteral::new(
+                                                Default::default(),
+                                            )),
+
+                                            pan_y: Box::new(PropertyLiteral::new(
+                                                Default::default(),
+                                            )),
+
+                                            type_example: Box::new(PropertyLiteral::new(
+                                                Default::default(),
+                                            )),
+                                        },
+                                    ),
+                                    handler_registry: Some(Rc::new(RefCell::new(
+                                        HandlerRegistry {
+                                            click_handlers: vec![],
+                                            will_render_handlers: vec![],
+                                            did_mount_handlers: vec![],
+                                            scroll_handlers: vec![],
+                                        },
+                                    ))),
+                                    instance_registry: Rc::clone(&instance_registry),
+                                    transform: Rc::new(RefCell::new(PropertyLiteral::new(
+                                        Default::default(),
+                                    ))),
+                                    size: Some(Rc::new(RefCell::new([
+                                        Box::new(PropertyLiteral::new(Default::default())),
+                                        Box::new(PropertyLiteral::new(Default::default())),
+                                    ]))),
+                                    children: Some(Rc::new(RefCell::new(vec![]))),
+                                    component_template: None,
+                                    scroller_args: None,
+                                    slot_index: None,
+                                    repeat_source_expression_vec: None,
+                                    repeat_source_expression_range: None,
+                                    conditional_boolean_expression: None,
+                                    compute_properties_fn: None,
+                                },
+                            ),
+                        ]))),
+                        component_template: None,
+                        scroller_args: None,
+                        slot_index: None,
+                        repeat_source_expression_vec: None,
+                        repeat_source_expression_range: None,
+                        conditional_boolean_expression: Some(Box::new(PropertyExpression::new(24))),
+                        compute_properties_fn: None,
+                    }),
+                ]))),
+                component_template: None,
+                scroller_args: None,
+                slot_index: None,
+                repeat_source_expression_vec: None,
+                repeat_source_expression_range: None,
+                conditional_boolean_expression: None,
+                compute_properties_fn: None,
+            }),
+        ]))),
+        scroller_args: None,
+        slot_index: None,
+        repeat_source_expression_vec: None,
+        repeat_source_expression_range: None,
+        conditional_boolean_expression: None,
+        compute_properties_fn: Some(Box::new(|properties, rtc| {
+            let properties = &mut *properties.as_ref().borrow_mut();
+            let properties = if let PropertiesCoproduct::crateCOCOExample(p) = properties {
+                p
+            } else {
+                unreachable!()
+            };
+
+            if let Some(new_value) =
+                rtc.compute_eased_value(properties.current_route._get_transition_manager())
+            {
+                properties.current_route.set(new_value);
+            } else if let Some(new_value) =
+                rtc.compute_vtable_value(properties.current_route._get_vtable_id())
+            {
+                let new_value = if let TypesCoproduct::usize(v) = new_value {
+                    v
+                } else {
+                    unreachable!()
+                };
+                properties.current_route.set(new_value);
+            }
+        })),
+    })
 }

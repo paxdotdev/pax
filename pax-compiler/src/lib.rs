@@ -301,6 +301,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
         ("Size2D", "pax_runtime_api::Size2D"),
         ("Size", "pax_runtime_api::Size"),
         ("SizePixels", "pax_runtime_api::SizePixels"),
+        ("Numeric", "pax_runtime_api::Numeric"),
     ];
 
     TYPES_COPRODUCT_BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});

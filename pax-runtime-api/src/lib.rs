@@ -13,7 +13,7 @@ extern crate lazy_static;
 extern crate mut_static;
 
 use mut_static::MutStatic;
-use crate::numeric::Numeric;
+pub use crate::numeric::Numeric;
 
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
@@ -131,6 +131,41 @@ pub struct ArgsScroll {
 pub enum Size {
     Pixels(Numeric),
     Percent(Numeric),
+}
+
+impl Interpolatable for Size {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        match &self {
+            Self::Pixels(sp) => {
+                match other {
+                    Self::Pixels(op) => Self::Pixels(*sp + ((*op-*sp)*Numeric::from(t))),
+                    Self::Percent(op) => Self::Percent(*op),
+                }
+            },
+            Self::Percent(sp) => {
+                match other {
+                    Self::Percent(op) => Self::Percent(*sp + ((*op-*sp)*Numeric::from(t))),
+                    Self::Pixels(op) => Self::Pixels(*op),
+                }
+            }
+        }
+    }
+}
+
+impl<T: Interpolatable> Interpolatable for Option<T> {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        match &self {
+            Self::Some(s) => {
+                match other {
+                    Self::Some(o) => {
+                        Some(s.interpolate(o, t))
+                    },
+                    _ => None,
+                }
+            },
+            Self::None => None,
+        }
+    }
 }
 
 impl Default for Size {

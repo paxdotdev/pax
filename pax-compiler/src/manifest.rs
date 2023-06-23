@@ -230,6 +230,8 @@ pub struct PropertyDefinition {
     pub type_id: String,
 
 
+
+
 }
 
 impl PropertyDefinition {
@@ -269,6 +271,12 @@ pub struct PropertyDefinitionFlags {
     pub is_repeat_source_range: bool,
     /// Is the source being iterated over an iterable, like Vec<T>?
     pub is_repeat_source_iterable: bool,
+
+
+    /// Describes whether this property is a `Property`-wrapped `T` in `Property<T>`
+    /// This distinction affects our ability to dirty-watch a particular property, and
+    /// has implications on codegen
+    pub is_property_wrapped: bool,
 }
 
 /// Describes static metadata surrounding a property, for example

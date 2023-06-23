@@ -17,6 +17,7 @@ pub mod pax_reexports {
     pub use f64;
     pub mod pax{
         pub mod api{
+            pub use pax::api::Numeric;
             pub use pax::api::Size;
             pub use pax::api::SizePixels;
         }

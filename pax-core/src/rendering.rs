@@ -36,7 +36,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub scroller_args: Option<ScrollerArgs>,
 
     /// used by Slot
-    pub slot_index: Option<Box<dyn PropertyInstance<usize>>>,
+    pub slot_index: Option<Box<dyn PropertyInstance<pax_runtime_api::Numeric>>>,
 
     ///used by Repeat — the _vec and _range variants are modal, describing whether the source
     ///is encoded as a Vec<T> or as a Range<...>

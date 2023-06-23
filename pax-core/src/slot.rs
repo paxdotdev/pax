@@ -24,7 +24,7 @@ use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
 pub struct SlotInstance<R: 'static + RenderContext> {
     pub instance_id: u64,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub index: Box<dyn PropertyInstance<usize>>,
+    pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
     cached_computed_children: RenderNodePtrList<R>,
 
 }
@@ -62,7 +62,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
 
         if let Some(index) = rtc.compute_vtable_value(self.index._get_vtable_id()) {
             let new_value = if let TypesCoproduct::usize(v) = index { v } else { unreachable!() };
-            self.index.set(new_value);
+            self.index.set(pax_runtime_api::Numeric::from(new_value));
         }
 
         // The following sort of children-caching is done by "control flow" primitives
@@ -71,7 +71,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
             Some(stack_frame) => {
                 // Grab the adoptee from the current stack_frame at Slot's specified `index`
                 // then make it Slot's own child.
-                match stack_frame.borrow().nth_adoptee(*self.index.get()) {
+                match stack_frame.borrow().nth_adoptee(self.index.get().get_as_int() as usize) {
                     Some(rnp) => Rc::new(RefCell::new(vec![Rc::clone(&rnp)])),
                     None => Rc::new(RefCell::new(vec![])),
                 }

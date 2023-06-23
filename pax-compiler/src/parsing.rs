@@ -1056,6 +1056,17 @@ impl Reflectable for pax_runtime_api::SizePixels {
     }
 }
 
+impl Reflectable for pax_runtime_api::Numeric {
+
+    fn get_import_path() -> String {
+        "pax::api::Numeric".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "Numeric".to_string()
+    }
+}
+
 
 impl Reflectable for kurbo::Point {
 

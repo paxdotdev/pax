@@ -14,8 +14,8 @@ use crate::types::{StackerDirection, StackerCell};
     for (cell_spec, i) in self._cell_specs {
         <Frame
             transform={Transform2D::translate(cell_spec.x_px, cell_spec.y_px)}
-            width={cell_spec.width_px}
-            height={cell_spec.height_px}
+            width={(cell_spec.width_px)px}
+            height={(cell_spec.height_px)px}
         >
             slot(i)
         </Frame>
@@ -27,7 +27,7 @@ use crate::types::{StackerDirection, StackerCell};
 
 )]
 pub struct Stacker {
-    pub cells: Property<usize>,
+    pub cells: Property<Numeric>,
     pub direction: Property<crate::types::StackerDirection>,
     pub _cell_specs: Property<Vec<StackerCell>>,
     pub gutter_width: Property<Size>,
@@ -40,7 +40,7 @@ pub struct Stacker {
 impl Stacker {
     pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
 
-        let cells = *self.cells.get() as f64;
+        let cells = self.cells.get().get_as_float();
         let bounds = ctx.bounds_parent;
         let active_bound = match *self.direction.get() {
             StackerDirection::Horizontal => bounds.0,

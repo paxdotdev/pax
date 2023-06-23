@@ -5,7 +5,6 @@ use std::collections::{HashMap, VecDeque};
 use std::ops::Deref;
 use std::rc::Rc;
 //Prelude: Pax
-use pax_runtime_api::numeric::Numeric;
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_core::{ComponentInstance, RenderNodePtr, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceRegistry, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};

@@ -52,6 +52,8 @@ pub enum PropertiesCoproduct {
 #[repr(u32)]
 pub enum TypesCoproduct {
     
+    Numeric(pax_runtime_api::Numeric),
+    
     Size(pax_runtime_api::Size),
     
     Size2D(pax_runtime_api::Size2D),
@@ -69,6 +71,8 @@ pub enum TypesCoproduct {
     f64(f64),
     
     isize(isize),
+    
+    paxCOCOapiCOCONumeric(pax_example::pax_reexports::pax::api::Numeric),
     
     paxCOCOapiCOCOSize(pax_example::pax_reexports::pax::api::Size),
     
