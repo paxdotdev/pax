@@ -299,9 +299,9 @@ pub fn instantiate_component_stacker<R: 'static + RenderContext>(instance_regist
             properties.cells.set(new_value);
         }
 
-        if let Some(new_value) = rtc.compute_vtable_value(properties.gutter_width._get_vtable_id()) {
+        if let Some(new_value) = rtc.compute_vtable_value(properties.gutter._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_value { v } else { unreachable!() };
-            properties.gutter_width.set(new_value);
+            properties.gutter.set(new_value);
         }
 
         if let Some(new_value) = rtc.compute_vtable_value(properties.overrides_cell_size._get_vtable_id()) {
@@ -353,7 +353,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
                             computed_layout_spec: Default::default(),
                             direction: Default::default(),
                             cells: Box::new(PropertyLiteral::new(10)),
-                            gutter_width: Box::new(PropertyLiteral::new(Size::Pixels(5.0))),
+                            gutter: Box::new(PropertyLiteral::new(Size::Pixels(5.0))),
                             overrides_cell_size: Default::default(),
                             overrides_gutter_size: Default::default(),
                         }),
@@ -370,7 +370,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
                                         computed_layout_spec: Default::default(),
                                         direction: Box::new(PropertyLiteral::new(StackerDirection::Vertical)),
                                         cells: Box::new(PropertyLiteral::new(5)),
-                                        gutter_width: Box::new(PropertyLiteral::new(Size::Pixels(5.0))),
+                                        gutter: Box::new(PropertyLiteral::new(Size::Pixels(5.0))),
                                         overrides_cell_size: Default::default(),
                                         overrides_gutter_size: Default::default(),
                                     }),

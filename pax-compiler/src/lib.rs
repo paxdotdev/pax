@@ -454,7 +454,6 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         let rsd = tnd.control_flow_settings.as_ref().unwrap().repeat_source_definition.as_ref().unwrap();
         let id = rsd.vtable_id.unwrap();
 
-        //FUTURE: extend 
         let rse_vec = if let Some(_) = &rsd.symbolic_binding {
             format!("Some(Box::new(PropertyExpression::new({})))", id)
         } else {"None".into()};

@@ -37,15 +37,4 @@ impl Camera {
         self.zoom.ease_to_later(2.0, 100, EasingCurve::InQuad)
     }
 
-    pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
-        // self.ticks.set((self.ticks.get() + 1) % LOOP_DURATION_FRAMES);
-        // let new_tick = *self.ticks.get();
-        //
-        // if new_tick == 1 {
-        //     self.zoom.ease_to(0.5, 300, EasingCurve::InQuad);
-        // } else if new_tick == 301 {
-        //     self.zoom.ease_to(1.0, 300, EasingCurve::OutQuad);
-        // }
-
-    }
 }

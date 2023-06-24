@@ -30,7 +30,7 @@ pub struct Stacker {
     pub cells: Property<Numeric>,
     pub direction: Property<crate::types::StackerDirection>,
     pub _cell_specs: Property<Vec<StackerCell>>,
-    pub gutter_width: Property<Size>,
+    pub gutter: Property<Size>,
 
     /// For for specifying sizes of each cell.  None-values (or array-index out-of-bounds values)
     /// will fall back to computed, equal-sizing
@@ -47,7 +47,7 @@ impl Stacker {
             StackerDirection::Vertical => bounds.1
         };
 
-        let gutter_calc = match *self.gutter_width.get() {
+        let gutter_calc = match *self.gutter.get() {
              Size::Pixels(px) => px,
              Size::Percent(pct) => Numeric::from(active_bound)* (pct / Numeric::from(100.0)),
         };

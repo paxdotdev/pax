@@ -16,5 +16,4 @@
 
 @events {
     did_mount: handle_did_mount,
-    will_render: handle_will_render,
 }

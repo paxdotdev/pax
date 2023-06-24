@@ -186,8 +186,12 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                         let value = inner.next().unwrap().as_str();
                         format!("Numeric::from({})", value)
                     }
+                    // Rule::string => {
+                    //     //TODO: figure out string concatenation.  Might need to introduce another operator?  Or perhaps a higher-level string type, which supports addition-as-concatenation — like we do with Numeric
+                    //     literal_kind.as_str().to_string() + ".to_string()"
+                    // }
                     _ => {
-                        /* {literal_enum_value | literal_tuple_access | string | literal_tuple } */
+                        /* {literal_enum_value | literal_tuple_access | literal_tuple | string } */
                         literal_kind.as_str().to_string() + ".try_into().unwrap()"
                     }
                 }

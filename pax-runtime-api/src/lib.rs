@@ -62,22 +62,6 @@ impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
 }
 
 pub type Property<T> = Box<dyn PropertyInstance<T>>;
-//
-// pub struct Property<T> {
-//     inner: Box<dyn PropertyInstance<T>>
-// }
-//
-// impl Clone for Property<T> {
-//     fn clone(&self) -> Self {
-//         self.inner.d
-//     }
-// }
-//
-// impl Deref for Property<T> {
-//     fn deref(&self) -> &Self::Target {
-//         todo!()
-//     }
-// }
 
 #[derive(Clone)]
 pub struct RuntimeContext {

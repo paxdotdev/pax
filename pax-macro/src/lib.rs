@@ -650,8 +650,6 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         #default_impl
     };
 
-    // fs::write(format!("/Users/zack/debug/out-{}.txt", &name.to_string()), debug + &output.to_string());
-
     output.into()
 }
 

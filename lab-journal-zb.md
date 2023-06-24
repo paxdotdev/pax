@@ -1101,7 +1101,7 @@ Stacker needs to update its cached computed layout as a function of its ~six pro
 pub computed_layout_spec: Vec<Rc<StackerCell>>,
 pub direction:  Box<dyn pax::api::Property<StackerDirection>>,
 pub cells: Box<dyn pax::api::Property<usize>>,
-pub gutter_width: Box<dyn pax::api::Property<pax::api::Size>>,
+pub gutter: Box<dyn pax::api::Property<pax::api::Size>>,
 pub overrides_cell_size: Option(Vec<(usize, pax::api::Size)>),
 pub overrides_gutter_size: Option(Vec<(usize, pax::api::Size)>),
 
@@ -1196,7 +1196,7 @@ pub fn handle_prerender(&mut self, args: ArgsRender) {
             StackerDirection::Vertical => bounds.1
         };
 
-        let gutter_calc = match *self.gutter_width.get() {
+        let gutter_calc = match *self.gutter.get() {
             Size::Pixel(px) => px,
             Size::Percent(pct) => active_bound * (pct / 100.0),
         };
@@ -2412,8 +2412,8 @@ and called as such:
 ```
 #[pax(
     for i in 0..self.cells {
-        let cell_width = ($bounds.0 - ((cells + 1) * gutter_width)) / cells
-        let cell_height = ($bounds.1 - ((cells + 1) * gutter_width)) / cells
+        let cell_width = ($bounds.0 - ((cells + 1) * gutter)) / cells
+        let cell_height = ($bounds.1 - ((cells + 1) * gutter)) / cells
         <Frame transform={get_transform(i)} size={(cell_width, cell_height)}>
             slot(i)
         </Frame>
