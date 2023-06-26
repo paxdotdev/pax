@@ -31,7 +31,7 @@ pub struct PaxEngineContainer {
     //NOTE: since that has become a single field, this data structure may be be retired and `*mut PaxEngine` could be passed directly.
 }
 
-/// Allocate an instance of the Pax engine, with a specified root component from the loaded `pax_cartridge`.
+/// Allocate an instance of the Pax engine, with a specified root/main component from the loaded `pax_cartridge`.
 #[no_mangle] //Exposed to Swift via paxchassismacos.h
 pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngineContainer {
 
@@ -39,13 +39,13 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     //engine can be passed back to Swift via the C (FFI) bridge
     //This could presumably be cleaned up -- see `pax_dealloc_engine`
     let instance_registry : Rc<RefCell<InstanceRegistry<CoreGraphicsContext<'static>>>> = Rc::new(RefCell::new(InstanceRegistry::new()));
-    let root_component_instance = pax_cartridge::instantiate_root_component(Rc::clone(&instance_registry));
+    let main_component_instance = pax_cartridge::instantiate_main_component(Rc::clone(&instance_registry));
     let expression_table = pax_cartridge::instantiate_expression_table();
 
     let engine : ManuallyDrop<Box<PaxEngine<CoreGraphicsContext<'static>>>> = ManuallyDrop::new(
         Box::new(
            PaxEngine::new(
-               root_component_instance,
+               main_component_instance,
                expression_table,
                pax_runtime_api::PlatformSpecificLogger::MacOS(logger),
                (1.0, 1.0),
@@ -96,17 +96,19 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
     let interrupt = interrupt_wrapped.unwrap();
     match interrupt {
         NativeInterrupt::Click(args) => {
-            let prospective_hit = engine.get_topmost_hydrated_element_beneath_ray((args.x, args.y));
+            let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
             match prospective_hit {
                 Some(topmost_node) => {
                     let args_click = ArgsClick {x: args.x , y: args.y};
                     topmost_node.dispatch_click(args_click);
+
                 },
                 _ => {},
             };
         },
+
         NativeInterrupt::Scroll(args) => {
-            let prospective_hit = engine.get_topmost_hydrated_element_beneath_ray((args.x, args.y));
+            let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
             match prospective_hit {
                 Some(topmost_node) => {
                     let args_scroll = ArgsScroll {delta_x: args.delta_x , delta_y: args.delta_y};

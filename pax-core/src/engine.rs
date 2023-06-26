@@ -1,13 +1,10 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::env::Args;
-use std::f64::EPSILON;
 use std::rc::Rc;
 use std::thread::sleep;
 use std::time::Duration;
 use kurbo::Point;
-
-
 
 use pax_message::{LayerAddPatch, NativeMessage};
 
@@ -18,24 +15,17 @@ use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::NativeMessage::LayerAdd;
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsRender, ArgsScroll, Interpolatable, TransitionManager, Layer, LayerInfo};
-
-pub enum EventMessage {
-    Tick(ArgsRender),
-    Click(ArgsClick),
-    Jab(ArgsJab),
-}
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, Interpolatable, TransitionManager, Layer, LayerInfo, RuntimeContext};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
     pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
     pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct> >,
-    pub root_component: Rc<RefCell<ComponentInstance<R>>>,
+    pub main_component: Rc<RefCell<ComponentInstance<R>>>,
     pub runtime: Rc<RefCell<Runtime<R>>>,
     pub image_map: HashMap<Vec<u64>, (Box<Vec<u8>>, usize, usize)>,
     viewport_size: (f64, f64),
 }
-
 
 pub struct ExpressionVTable<R: 'static + RenderContext> {
     inner_map: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
@@ -49,9 +39,19 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext>
     pub bounds: (f64, f64),
     pub runtime: Rc<RefCell<Runtime<R>>>,
     pub node: RenderNodePtr<R>,
-    pub parent_hydrated_node: Option<Rc<HydratedNode<R>>>,
+    pub parent_repeat_expanded_node: Option<Rc<RepeatExpandedNode<R>>>,
     pub timeline_playhead_position: usize,
     pub inherited_adoptees: Option<RenderNodePtrList<R>>,
+}
+
+
+impl<'a, R: 'static + RenderContext> RenderTreeContext<'a, R> {
+    pub fn distill_userland_node_context(&self) -> RuntimeContext {
+        RuntimeContext {
+            bounds_parent: self.bounds,
+            frames_elapsed: self.engine.frames_elapsed,
+        }
+    }
 }
 
 impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
@@ -62,31 +62,9 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             bounds: self.bounds.clone(),
             runtime: Rc::clone(&self.runtime),
             node: Rc::clone(&self.node),
-            parent_hydrated_node: self.parent_hydrated_node.clone(),
+            parent_repeat_expanded_node: self.parent_repeat_expanded_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
             inherited_adoptees: self.inherited_adoptees.clone(),
-        }
-    }
-}
-
-impl<'a, R: RenderContext> Into<ArgsRender> for RenderTreeContext<'a, R> {
-
-
-    fn into(self) -> ArgsRender {
-        // possible approach to enabling "auto cell count" in `Stacker`, for example:
-        // let adoptee_count = {
-        //     let stack_frame = (*(*self.runtime).borrow().peek_stack_frame().expect("Component required")).borrow();
-        //     if stack_frame.has_adoptees() {
-        //         (*stack_frame.get_adoptees()).borrow().len()
-        //     } else {
-        //         0
-        //     }
-        // };
-
-        ArgsRender {
-            frames_elapsed: self.engine.frames_elapsed,
-            bounds: self.bounds.clone(),
-            // adoptee_count,
         }
     }
 }
@@ -154,41 +132,42 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 
 #[derive(Default)]
 pub struct HandlerRegistry<R: 'static + RenderContext> {
-    pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsClick)>,
-    pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, ArgsRender)>,
-    pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>)>,
-    pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, ArgsScroll)>,
+    pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsClick)>,
+    pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
+    pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
+    pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsScroll)>,
 }
 
 /// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
-/// a `for j in 0..4` would have 12 hydrated nodes representing the 12 virtual Rectangles in the
+/// a `for j in 0..4` would have 12 repeat-expanded nodes representing the 12 virtual Rectangles in the
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
-pub struct HydratedNode<R: 'static + RenderContext> {
+pub struct RepeatExpandedNode<R: 'static + RenderContext> {
     id_chain: Vec<u64>,
-    parent_hydrated_node: Option<Rc<HydratedNode<R>>>,
+    parent_repeat_expanded_node: Option<Rc<RepeatExpandedNode<R>>>,
     instance_node: RenderNodePtr<R>,
     stack_frame: Rc<RefCell<crate::StackFrame<R>>>,
     tab: TransformAndBounds,
+    node_context: RuntimeContext,
 }
 
-impl<R: 'static + RenderContext> HydratedNode<R> {
+impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
     pub fn dispatch_click(&self, args_click: ArgsClick) {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             (*registry).borrow().click_handlers.iter().for_each(|handler|{
-                handler(Rc::clone(&self.stack_frame), args_click.clone());
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_click.clone());
             })
         }
-        if let Some(parent) = &self.parent_hydrated_node {
-            parent.dispatch_click(args_click);
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_click( args_click);
         }
     }
     pub fn dispatch_scroll(&self, args_scroll: ArgsScroll) {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             (*registry).borrow().scroll_handlers.iter().for_each(|handler|{
-                handler(Rc::clone(&self.stack_frame), args_scroll.clone());
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_scroll.clone());
             })
         }
-        if let Some(parent) = &self.parent_hydrated_node {
+        if let Some(parent) = &self.parent_repeat_expanded_node {
             parent.dispatch_scroll(args_scroll);
         }
     }
@@ -202,7 +181,7 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///intended to be cleared at the beginning of each frame and populated
     ///with each node visited.  This enables post-facto operations on nodes with
     ///otherwise ephemeral calculations, e.g. the descendants of `Repeat` instances.
-    hydrated_node_cache: Vec<Rc<HydratedNode<R>>>,
+    repeat_expanded_node_cache: Vec<Rc<RepeatExpandedNode<R>>>,
 
     ///track which elements are currently mounted -- if id is present in set, is mounted
     mounted_set: HashSet<(u64, Vec<u64>)>,
@@ -216,7 +195,7 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         Self {
             mounted_set: HashSet::new(),
             instance_map: HashMap::new(),
-            hydrated_node_cache: vec![],
+            repeat_expanded_node_cache: vec![],
             next_id: 0,
         }
     }
@@ -247,22 +226,20 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.mounted_set.remove(&(id, repeat_indices));
     }
 
-    pub fn reset_hydrated_node_cache(&mut self) {
-        self.hydrated_node_cache = vec![];
+    pub fn reset_repeat_expanded_node_cache(&mut self) {
+        self.repeat_expanded_node_cache = vec![];
     }
 
-    pub fn add_to_hydrated_node_cache(&mut self, hydrated_node: Rc<HydratedNode<R>>) {
+    pub fn add_to_repeat_expanded_node_cache(&mut self, repeat_expanded_node: Rc<RepeatExpandedNode<R>>) {
         //Note: ray-casting requires that these nodes are sorted by z-index
-        self.hydrated_node_cache.push(hydrated_node);
+        self.repeat_expanded_node_cache.push(repeat_expanded_node);
     }
-
 
 }
 
-
 impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn new(
-        root_component_instance: Rc<RefCell<ComponentInstance<R>>>,
+        main_component_instance: Rc<RefCell<ComponentInstance<R>>>,
         expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>)->TypesCoproduct>>,
         logger: pax_runtime_api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
@@ -274,19 +251,19 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             instance_registry,
             expression_table,
             runtime: Rc::new(RefCell::new(Runtime::new())),
-            root_component: root_component_instance,
+            main_component: main_component_instance,
             viewport_size,
             image_map: HashMap::new(),
         }
     }
 
-    fn hydrate_render_tree(&self, rcs: &mut Vec<R>) -> Vec<pax_message::NativeMessage> {
+    fn traverse_render_tree(&self, rcs: &mut Vec<R>) -> Vec<pax_message::NativeMessage> {
         //Broadly:
         // 1. compute properties
         // 2. find lowest node (last child of last node), accumulating transform along the way
         // 3. start rendering, from lowest node on-up
 
-        let cast_component_rc : RenderNodePtr<R> = self.root_component.clone();
+        let cast_component_rc : RenderNodePtr<R> = self.main_component.clone();
 
         let mut rtc = RenderTreeContext {
             engine: &self,
@@ -294,13 +271,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             bounds: self.viewport_size,
             runtime: self.runtime.clone(),
             node: Rc::clone(&cast_component_rc),
-            parent_hydrated_node: None,
+            parent_repeat_expanded_node: None,
             timeline_playhead_position: self.frames_elapsed,
             inherited_adoptees: None,
         };
 
         let mut depth = LayerInfo::new();
-        self.recurse_hydrate_render_tree(&mut rtc, rcs, Rc::clone(&cast_component_rc), &mut depth);
+        self.recurse_traverse_render_tree(&mut rtc, rcs, Rc::clone(&cast_component_rc), &mut depth);
 
         if depth.get_depth() >= rcs.len() {
             let layerAddPatch = LayerAddPatch {
@@ -314,7 +291,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         native_render_queue.into()
     }
 
-    fn recurse_hydrate_render_tree(&self, rtc: &mut RenderTreeContext<R>, rcs: &mut Vec<R>, node: RenderNodePtr<R>, layer_info: &mut LayerInfo)  {
+    fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext<R>, rcs: &mut Vec<R>, node: RenderNodePtr<R>, layer_info: &mut LayerInfo)  {
         //Recurse:
         //  - compute properties for this node
         //  - fire lifecycle events for this node
@@ -354,8 +331,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     match rtc.runtime.borrow_mut().peek_stack_frame() {
                         Some(stack_frame) => {
                             for handler in (*registry).borrow().did_mount_handlers.iter() {
-                                // let args = ArgsRender { bounds: rtc.bounds.clone(), frames_elapsed: rtc.engine.frames_elapsed };
-                                handler(stack_frame.borrow_mut().get_properties());
+                                handler(stack_frame.borrow_mut().get_properties(), rtc.distill_userland_node_context());
                             }
                         },
                         None => {
@@ -407,8 +383,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             match rtc.runtime.borrow_mut().peek_stack_frame() {
                 Some(stack_frame) => {
                     for handler in (*registry).borrow().will_render_handlers.iter() {
-                        let args = ArgsRender { bounds: rtc.bounds.clone(), frames_elapsed: rtc.engine.frames_elapsed };
-                        handler(stack_frame.borrow_mut().get_properties(), args);
+                        handler(stack_frame.borrow_mut().get_properties(), rtc.distill_userland_node_context());
                     }
                 },
                 None => {
@@ -417,10 +392,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             }
         }
 
-        //create the `hydrated_node` for the current node
+        //create the `repeat_expanded_node` for the current node
         let children = node.borrow_mut().get_rendering_children();
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
-        let hydrated_node = Rc::new(HydratedNode {
+        let repeat_expanded_node = Rc::new(RepeatExpandedNode {
             stack_frame: rtc.runtime.borrow_mut().peek_stack_frame().unwrap(),
             tab: TransformAndBounds {
                 bounds: node_size,
@@ -428,15 +403,20 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             },
             id_chain: id_chain.clone(),
             instance_node: Rc::clone(&node),
-            parent_hydrated_node: rtc.parent_hydrated_node.clone(),
+            parent_repeat_expanded_node: rtc.parent_repeat_expanded_node.clone(),
+            node_context: rtc.distill_userland_node_context(),
         });
+
+        //Note: ray-casting requires that the repeat_expanded_node_cache is sorted by z-index,
+        //so the order in which `add_to_repeat_expanded_node_cache` is invoked vs. descendants is important
+        (*rtc.engine.instance_registry).borrow_mut().add_to_repeat_expanded_node_cache(Rc::clone(&repeat_expanded_node));
 
         //keep recursing through children
         children.borrow_mut().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
-            new_rtc.parent_hydrated_node = Some(Rc::clone(&hydrated_node));
-            &self.recurse_hydrate_render_tree(&mut new_rtc, rcs, Rc::clone(child), layer_info );
+            new_rtc.parent_repeat_expanded_node = Some(Rc::clone(&repeat_expanded_node));
+            &self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), layer_info );
             //FUTURE: for dependency management, return computed values from subtree above
         });
 
@@ -461,16 +441,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //lifecycle: did_render
         node.borrow_mut().handle_did_render(rtc, rcs);
 
-        //Note: ray-casting requires that the hydrated_node_cache is sorted by z-index,
-        //so the order in which `add_to_hydrated_node_cache` is invoked vs. descendants is important
-        (*rtc.engine.instance_registry).borrow_mut().add_to_hydrated_node_cache(Rc::clone(&hydrated_node));
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
     /// ray running orthogonally to the view plane, intersecting at
     /// the specified point `ray`.  Areas outside of clipping bounds will
     /// not register a `hit`, nor will elements that suppress input events.
-    pub fn get_topmost_hydrated_element_beneath_ray(&self, ray: (f64, f64)) -> Option<Rc<HydratedNode<R>>> {
+    pub fn get_topmost_element_beneath_ray(&self, ray: (f64, f64)) -> Option<Rc<RepeatExpandedNode<R>>> {
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
@@ -487,8 +464,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //
 
         // reverse nodes to get top-most first (rendered in reverse order)
-        let mut nodes_ordered : Vec<Rc<HydratedNode<R>>> = (*self.instance_registry).borrow()
-            .hydrated_node_cache.iter().rev()
+        let mut nodes_ordered : Vec<Rc<RepeatExpandedNode<R>>> = (*self.instance_registry).borrow()
+            .repeat_expanded_node_cache.iter().rev()
             .map(|rc|{
                 Rc::clone(rc)
             }).collect();
@@ -497,7 +474,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         nodes_ordered.remove(0);
 
         // let ray = Point {x: ray.0,y: ray.1};
-        let mut ret : Option<Rc<HydratedNode<R>>> = None;
+        let mut ret : Option<Rc<RepeatExpandedNode<R>>> = None;
         for node in nodes_ordered {
             // pax_runtime_api::log(&(**node).borrow().get_instance_id().to_string())
 
@@ -509,7 +486,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 //calculation when we find the first matching node
 
                 let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent : Option<Rc<HydratedNode<R>>> = node.parent_hydrated_node.clone();
+                let mut parent : Option<Rc<RepeatExpandedNode<R>>> = node.parent_repeat_expanded_node.clone();
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
@@ -517,7 +494,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                             ancestral_clipping_bounds_are_satisfied = false;
                             break;
                         }
-                        parent = unwrapped_parent.parent_hydrated_node.clone();
+                        parent = unwrapped_parent.parent_repeat_expanded_node.clone();
                     } else {
                         break;
                     }
@@ -539,10 +516,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     }
 
     /// Workhorse method to advance rendering and property calculation by one discrete tick
-    /// Expected to be called up to 60-120 times/second.
+    /// Will be executed synchronously up to 240 times/second.
     pub fn tick(&mut self, rcs: &mut Vec<R>) -> Vec<NativeMessage> {
-        (*self.instance_registry).borrow_mut().reset_hydrated_node_cache();
-        let native_render_queue = self.hydrate_render_tree(rcs);
+        (*self.instance_registry).borrow_mut().reset_repeat_expanded_node_cache();
+        let native_render_queue = self.traverse_render_tree(rcs);
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue
     }

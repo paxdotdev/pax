@@ -7,7 +7,7 @@ use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 use pax_properties_coproduct::PropertiesCoproduct;
 
-use pax_runtime_api::{ArgsCoproduct, Layer, Size, Size2D};
+use pax_runtime_api::{Layer, Size, Size2D};
 
 use crate::{RenderTreeContext, HandlerRegistry, InstanceRegistry};
 
@@ -36,7 +36,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub scroller_args: Option<ScrollerArgs>,
 
     /// used by Slot
-    pub slot_index: Option<Box<dyn PropertyInstance<usize>>>,
+    pub slot_index: Option<Box<dyn PropertyInstance<pax_runtime_api::Numeric>>>,
 
     ///used by Repeat — the _vec and _range variants are modal, describing whether the source
     ///is encoded as a Vec<T> or as a Range<...>
@@ -152,7 +152,7 @@ pub trait RenderNode<R: 'static + RenderContext>
 
     ///Determines whether the provided ray, orthogonal to the view plane,
     ///intersects this rendernode. `tab` must also be passed because these are specific
-    ///to a HydratedNode
+    ///to a RepeatExpandedNode
     fn ray_cast_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
 
         //short-circuit fail for Group and other size-None elements.

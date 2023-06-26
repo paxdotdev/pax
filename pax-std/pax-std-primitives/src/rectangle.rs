@@ -5,7 +5,7 @@ use pax_std::primitives::{Rectangle};
 use pax_std::types::ColorVariant;
 use pax_core::{Color, TabCache, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, ArgsCoproduct, Property};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, Property};
 
 use std::str::FromStr;
 use std::cell::RefCell;
@@ -68,12 +68,12 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
         }
 
         if let Some(stroke_color) = rtc.compute_vtable_value(properties.stroke.get().color._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = stroke_color { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::pax_stdCOCOtypesCOCOColor(v) = stroke_color { v } else { unreachable!() };
             properties.stroke.get_mut().color.set(new_value);
         }
 
         if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = fill { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::pax_stdCOCOtypesCOCOColor(v) = fill { v } else { unreachable!() };
             properties.fill.set(new_value);
         }
 

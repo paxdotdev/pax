@@ -378,7 +378,7 @@ _RIL means Rust Intermediate Language, which is the
             -- or, fully resolve every import when using
         [x] component factories
             [x] `compute_properties_fn` generation
-            [x] `instantiate_root_component` generation, based on `pax_root` declaration
+            [x] `instantiate_main_component` generation, based on `pax_root` declaration
             [x] `properties: PropertiesCoproduct::Stacker(Stacker {...})` generation
             [x] PropertiesLiteral inline embedding vs. PropertiesExpression vtable id embedding
         [x] fully qualified resolution of expression symbols, e.g. `Transform2d`

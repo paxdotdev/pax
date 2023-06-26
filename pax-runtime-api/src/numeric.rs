@@ -1,6 +1,7 @@
 use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
 use std::rc::Rc;
+use crate::Interpolatable;
 
 /// Numeric is a module that wraps numeric literals in Pax
 /// It encapsulates the built-in Rust numeric scalar types and defines behavior across them
@@ -12,7 +13,13 @@ pub enum Numeric {
 
 impl Default for Numeric {
     fn default() -> Self {
-        Numeric::Float(0.0)
+        Self::Integer(0)
+    }
+}
+
+impl Interpolatable for Numeric {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        Self::Float(self.get_as_float() + ((other.get_as_float() - self.get_as_float()) * t))
     }
 }
 
@@ -196,6 +203,13 @@ impl Numeric {
         match self {
             Numeric::Integer(value) => value as f64,
             Numeric::Float(value) => value,
+        }
+    }
+
+    pub fn get_as_int(self) -> isize {
+        match self {
+            Numeric::Integer(value) => value,
+            Numeric::Float(value) => value as isize,
         }
     }
 

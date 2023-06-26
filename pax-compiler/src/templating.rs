@@ -42,10 +42,10 @@ pub struct TemplateArgsCodegenCartridgeLib {
 
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenCartridgeComponentFactory {
-    pub is_root: bool,
-    pub snake_case_component_id: String,
+    pub is_main_component: bool,
+    pub snake_case_type_id: String,
     pub component_properties_struct: String,
-    pub properties: Vec<PropertyDefinition>,
+    pub properties: Vec<(PropertyDefinition, String)>, //PropertyDefinition, TypeIdPascalized
     pub events: HashMap<String,Vec<String>>,
     pub render_nodes_literal: String,
     pub properties_coproduct_variant: String,
@@ -54,7 +54,7 @@ pub struct TemplateArgsCodegenCartridgeComponentFactory {
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub is_primitive: bool,
-    pub snake_case_component_id: String,
+    pub snake_case_type_id: String,
     pub primitive_instance_import_path: Option<String>,
     pub properties_coproduct_variant: String,
     pub component_properties_struct: String,
@@ -66,7 +66,8 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub repeat_source_expression_literal_vec: String,
     pub repeat_source_expression_literal_range: String,
     pub conditional_boolean_expression_literal: String,
-    pub active_root: String,
+    pub pascal_identifier: String,
+    pub type_id_escaped: String,
     pub events: HashMap<String,String>,
 }
 

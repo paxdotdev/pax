@@ -64,10 +64,10 @@ impl PaxChassisWeb {
         let height = canvas.offset_height() as f64 * dpr;
 
         let instance_registry : Rc<RefCell<InstanceRegistry<WebRenderContext>>> = Rc::new(RefCell::new(InstanceRegistry::new()));
-        let root_component_instance = pax_cartridge::instantiate_root_component(Rc::clone(&instance_registry));
+        let main_component_instance = pax_cartridge::instantiate_main_component(Rc::clone(&instance_registry));
         let expression_table = pax_cartridge::instantiate_expression_table();
 
-        let engine = pax_core::PaxEngine::new(root_component_instance, expression_table, pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper), (width / dpr, height / dpr), instance_registry);
+        let engine = pax_core::PaxEngine::new(main_component_instance, expression_table, pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper), (width / dpr, height / dpr), instance_registry);
 
         let engine_container : Rc<RefCell<PaxEngine<WebRenderContext>>> = Rc::new(RefCell::new(engine));
 
@@ -147,7 +147,7 @@ impl PaxChassisWeb {
         let x : NativeInterrupt = serde_json::from_str(&native_interrupt).unwrap();
         match x {
             NativeInterrupt::Click(args) => {
-                let prospective_hit = (*self.engine).borrow().get_topmost_hydrated_element_beneath_ray((args.x, args.y));
+                let prospective_hit = (*self.engine).borrow().get_topmost_element_beneath_ray((args.x, args.y));
                 match prospective_hit {
                     Some(topmost_node) => {
                         let args_click = ArgsClick {x: args.x , y: args.y};
@@ -157,7 +157,7 @@ impl PaxChassisWeb {
                 };
             },
             NativeInterrupt::Scroll(args) => {
-                let prospective_hit = (*self.engine).borrow().get_topmost_hydrated_element_beneath_ray((args.x, args.y));
+                let prospective_hit = (*self.engine).borrow().get_topmost_element_beneath_ray((args.x, args.y));
                 match prospective_hit {
                     Some(topmost_node) => {
                         let args_scroll = ArgsScroll {delta_x: args.delta_x, delta_y: args.delta_y};
