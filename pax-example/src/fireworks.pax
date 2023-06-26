@@ -6,12 +6,10 @@
             * Transform2D::rotate((i + 2) * rotation + ticks / 1000.0)
             * Transform2D::scale(0.75 + (i * rotation), 0.75 + (i * rotation))
             * Transform2D::scale(1 - ((rotation / 5) + i / 1000.0), 1 - ((rotation / 5) + i / 1000.0))
-            * Transform2D::scale(1 + heartbeat, 1 + heartbeat)
         } />
     }
 </Group>
 
 @events {
-    will_render: self.handle_will_render
-    did_mount: self.handle_did_mount
+    will_render: handle_will_render
 }

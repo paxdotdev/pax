@@ -19,7 +19,7 @@ pub enum TypesCoproduct {
     isize(isize),
     usize(usize), //used by Slot for index
 
-    Vec_Rc_PropertiesCoproduct___(Vec<Rc<PropertiesCoproduct>>),
+    stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR(Vec<Rc<PropertiesCoproduct>>),
     String(String),
     Transform2D(pax_runtime_api::Transform2D),
     SizePixels(pax_runtime_api::SizePixels),

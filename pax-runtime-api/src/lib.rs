@@ -5,17 +5,15 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::ffi::CString;
-use std::ops::Mul;
+use std::ops::{Deref, Mul};
 
-pub extern crate pax_macro;
-pub use pax_macro::*;
 
 #[macro_use]
 extern crate lazy_static;
 extern crate mut_static;
 
 use mut_static::MutStatic;
-use crate::numeric::Numeric;
+pub use crate::numeric::Numeric;
 
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
@@ -51,7 +49,6 @@ pub trait PropertyInstance<T: Default + Clone> {
     // ease_to_default: set back to default value via interpolation
 }
 
-
 impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
     fn default() -> Box<dyn PropertyInstance<T>> {
         Box::new(PropertyLiteral::new(Default::default()))
@@ -60,26 +57,26 @@ impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
 
 impl<T: Default + Clone + 'static> Clone for Box<dyn PropertyInstance<T>> {
     fn clone(&self) -> Self {
-        Box::clone(self)
+        Box::new(PropertyLiteral::new(self.deref().get().clone()))
     }
 }
 
-pub enum ArgsCoproduct {
-    Render(ArgsRender),
-    Click(ArgsClick),
-}
-
-pub type Property<T: Interpolatable> = Box<dyn PropertyInstance<T>>;
+pub type Property<T> = Box<dyn PropertyInstance<T>>;
 
 #[derive(Clone)]
-pub struct ArgsRender {
+pub struct RuntimeContext {
     /// The current global engine tick count
     pub frames_elapsed: usize,
-    /// The bounds of this element's container in px
-    pub bounds: (f64, f64),
+    /// The bounds of this element's immediate container (parent) in px
+    pub bounds_parent: (f64, f64),
+    // /// Viewport bounds
+    // pub bounds_viewport: (f64, f64)
     // /// The number of adoptees passed to the current component (used by Stacker for auto cell-count calc; might be extended/adjusted for other use-cases)
     // pub adoptee_count: usize,
+    // /// Current playhead position(s) for current component
+    //pub timeline_playhead_position: usize,
 }
+
 
 /// A Click occurs when the following sequence occurs:
 ///   0. mousedown
@@ -120,11 +117,47 @@ pub enum Size {
     Percent(Numeric),
 }
 
-impl pax_message::reflection::PathQualifiable for Size {
-    fn get_fully_qualified_path(atomic_self_type: &str) -> String {
-        "pax::api::Size".to_string()
+impl Interpolatable for Size {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        match &self {
+            Self::Pixels(sp) => {
+                match other {
+                    Self::Pixels(op) => Self::Pixels(*sp + ((*op-*sp)*Numeric::from(t))),
+                    Self::Percent(op) => Self::Percent(*op),
+                }
+            },
+            Self::Percent(sp) => {
+                match other {
+                    Self::Percent(op) => Self::Percent(*sp + ((*op-*sp)*Numeric::from(t))),
+                    Self::Pixels(op) => Self::Pixels(*op),
+                }
+            }
+        }
     }
 }
+
+impl<T: Interpolatable> Interpolatable for Option<T> {
+    fn interpolate(&self, other: &Self, t: f64) -> Self {
+        match &self {
+            Self::Some(s) => {
+                match other {
+                    Self::Some(o) => {
+                        Some(s.interpolate(o, t))
+                    },
+                    _ => None,
+                }
+            },
+            Self::None => None,
+        }
+    }
+}
+
+impl Default for Size {
+    fn default() -> Self {
+        Self::Pixels(250.0.into())
+    }
+}
+
 
 #[derive(Copy, Clone)]
 pub struct SizePixels(pub Numeric);
@@ -133,7 +166,6 @@ impl Default for SizePixels {
         Self(Numeric::Float(150.0))
     }
 }
-
 impl From<&SizePixels > for f64{
     fn from(value: &SizePixels) -> Self {
         value.0.get_as_float()
@@ -213,13 +245,6 @@ impl Mul for Size {
                 }
             }
         }
-    }
-}
-
-// NOTE: may be worth revisiting if 100% is the most ergonomic default size (remember Dreamweaver)
-impl Default for Size {
-    fn default() -> Self {
-        Self::Percent(Numeric::from(100.0))
     }
 }
 

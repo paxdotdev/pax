@@ -2,34 +2,28 @@ use kurbo::{Point};
 use pax::*;
 use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 use pax::api::numeric::Numeric;
+pub use pax::api::Size;
+use pax_message::{ColorVariantMessage, FontPatch};
+use crate::primitives::Path;
 
-#[allow(unused_imports)]
-#[cfg(feature = "parser")]
-use pax_message::reflection::PathQualifiable;
-
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Default)]
 pub struct Stroke {
-    pub color: Box<dyn PropertyInstance<Color>>,
-    pub width: Box<dyn PropertyInstance<SizePixels>>,
+    pub color: Property<Color>,
+    pub width: Property<SizePixels>,
 }
+
 impl Default for Stroke {
     fn default() -> Self {
         Self {
-            color: Box::new(PropertyLiteral::new(Default::default())),
-            width: Box::new(PropertyLiteral::new(SizePixels(Numeric::from(0.0)))),
+            color: Default::default(),
+            width: Box::new(PropertyLiteral::new(SizePixels(0.0.into()))),
         }
     }
 }
 
-#[derive(Default, Clone)]
-#[pax_type]
-pub struct Text {
-    pub content: Box<dyn PropertyInstance<String>>,
-}
-
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub struct StackerCell {
     pub x_px: f64,
     pub y_px: f64,
@@ -37,27 +31,20 @@ pub struct StackerCell {
     pub height_px: f64,
 }
 
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub enum StackerDirection {
     Vertical,
+    #[default]
     Horizontal,
 }
 
-impl Default for StackerDirection {
-    fn default() -> Self {
-        StackerDirection::Horizontal
-    }
-}
-impl Interpolatable for StackerDirection {}
-
-
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Default, Imports)]
 pub struct Font {
-    pub family: Box<dyn pax::api::PropertyInstance<String>>,
-    pub variant: Box<dyn pax::api::PropertyInstance<String>>,
-    pub size: Box<dyn pax::api::PropertyInstance<SizePixels>>,
+    pub family: Property<String>,
+    pub variant: Property<String>,
+    pub size: Property<SizePixels>,
 }
 impl Into<FontPatch> for &Font {
     fn into(self) -> FontPatch {
@@ -85,10 +72,9 @@ impl Default for Font {
         }
     }
 }
-impl Interpolatable for Font {}
 
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Default, Imports)]
 pub struct Color{
     pub color_variant: ColorVariant,
 }
@@ -122,7 +108,6 @@ impl Color {
         }
     }
 }
-
 
 impl Default for Color {
     fn default() -> Self {
@@ -177,15 +162,9 @@ impl PartialEq<ColorVariantMessage> for Color {
     }
 }
 
-impl Interpolatable for Color {
-    //FUTURE: Colors can be meaningfully interpolated, thus
-    //      we should include interpolation logic here
-    //      (Note that piet::Color offers a `to_rgba` method, probably
-    //      useful to establish a common color space)
-}
 
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Default, Imports)]
 pub enum ColorVariant {
     Hlca([f64; 4]),
     Hlc([f64; 3]),
@@ -193,31 +172,30 @@ pub enum ColorVariant {
     Rgb([f64; 3]),
 }
 
-pub use pax::api::Size;
+impl Default for ColorVariant {
+    fn default() -> Self {
+        Self::Rgb([0.0, 0.0, 1.0])
+    }
+}
 
-use pax_message::{ColorVariantMessage, FontPatch};
-use crate::primitives::Path;
-
-
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub enum PathSegment {
+    #[default]
+    Empty,
     LineSegment(LineSegmentData),
     CurveSegment(CurveSegmentData),
 }
 
-impl Interpolatable for PathSegment {}
-
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub struct LineSegmentData {
     pub start : Point,
     pub end : Point,
 }
 
-
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub struct CurveSegmentData {
     pub start : Point,
     pub handle : Point,

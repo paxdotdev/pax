@@ -24,11 +24,21 @@ pub struct FrameInstance<R: 'static + RenderContext> {
     pub children: RenderNodePtrList<R>,
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
 
     last_patches: HashMap<Vec<u64>, FramePatch>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
+
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
+        match &self.handler_registry {
+            Some(registry) => {
+                Some(Rc::clone(&registry))
+            },
+            _ => {None}
+        }
+    }
 
     fn get_instance_id(&self) -> u64 {
         self.instance_id
@@ -41,11 +51,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         let ret = Rc::new(RefCell::new(
             Self {
                 instance_id,
-                children: args.children.expect("Frame expects primitive_children, even if empty Vec"),
+                children: args.children.unwrap(),   //Frame expects primitive_children, even if empty Vec
                 size: args.size.unwrap(),
                 transform: args.transform,
                 last_patches: HashMap::new(),
-
+                handler_registry: args.handler_registry,
             }
         ));
 

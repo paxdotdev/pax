@@ -17,6 +17,6 @@ pub fn instantiate_component_stacker<R: 'static + RenderContext>(instance_regist
     unreachable!("{}", PLACEHOLDER_ERROR)
 }
 
-pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
+pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     unreachable!("{}", PLACEHOLDER_ERROR)
 }

@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+//Component types
 #[repr(u32)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
@@ -8,14 +9,14 @@ pub enum PropertiesCoproduct {
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     isize(isize),
-    Range_isize_(std::ops::Range<isize>),
+    stdCOCOopsCOCORangeLABRisizeRABR(std::ops::Range<isize>),
 
     {% for properties_coproduct_tuple in properties_coproduct_tuples %}
     {{properties_coproduct_tuple.0}}({{properties_coproduct_tuple.1}}),
     {% endfor %}
 }
 
-//used namely for return types of expressions — may have other purposes
+//Property types
 #[repr(u32)]
 pub enum TypesCoproduct {
     {% for types_coproduct_tuple in types_coproduct_tuples %}

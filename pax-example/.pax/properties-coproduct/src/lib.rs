@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+//Component types
 #[repr(u32)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
@@ -8,28 +9,50 @@ pub enum PropertiesCoproduct {
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     isize(isize),
-    Range_isize_(std::ops::Range<isize>),
+    stdCOCOopsCOCORangeLABRisizeRABR(std::ops::Range<isize>),
 
     
-    Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
+    crateCOCOExample(pax_example::pax_reexports::Example),
     
-    Example(pax_example::pax_reexports::Example),
+    crateCOCOcameraCOCOCamera(pax_example::pax_reexports::camera::Camera),
     
-    Fireworks(pax_example::pax_reexports::fireworks::Fireworks),
+    crateCOCOcameraCOCOTypeExample(pax_example::pax_reexports::camera::TypeExample),
     
-    Group(pax_example::pax_reexports::pax_std::primitives::Group),
+    crateCOCOfireworksCOCOFireworks(pax_example::pax_reexports::fireworks::Fireworks),
     
-    HelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
+    crateCOCOgridsCOCOGrids(pax_example::pax_reexports::grids::Grids),
     
-    Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
+    crateCOCOgridsCOCORectDef(pax_example::pax_reexports::grids::RectDef),
+    
+    crateCOCOhello_rgbCOCOHelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
+    
+    pax_stdCOCOprimitivesCOCOEllipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
+    
+    pax_stdCOCOprimitivesCOCOFrame(pax_example::pax_reexports::pax_std::primitives::Frame),
+    
+    pax_stdCOCOprimitivesCOCOGroup(pax_example::pax_reexports::pax_std::primitives::Group),
+    
+    pax_stdCOCOprimitivesCOCORectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
+    
+    pax_stdCOCOstackerCOCOStacker(pax_example::pax_reexports::pax_std::stacker::Stacker),
+    
+    pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
+    
+    pax_stdCOCOtypesCOCOColorVariant(pax_example::pax_reexports::pax_std::types::ColorVariant),
+    
+    pax_stdCOCOtypesCOCOStackerCell(pax_example::pax_reexports::pax_std::types::StackerCell),
+    
+    pax_stdCOCOtypesCOCOStackerDirection(pax_example::pax_reexports::pax_std::types::StackerDirection),
+    
+    pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
     
 }
 
-//used namely for return types of expressions — may have other purposes
+//Property types
 #[repr(u32)]
 pub enum TypesCoproduct {
     
-    Range_isize_(std::ops::Range<isize>),
+    Numeric(pax_runtime_api::Numeric),
     
     Size(pax_runtime_api::Size),
     
@@ -41,24 +64,38 @@ pub enum TypesCoproduct {
     
     Transform2D(pax_runtime_api::Transform2D),
     
-    VecLABR__f64RABR(Vec<pax_example::pax_reexports::f64>),
-    
-    Vec_Rc_PropertiesCoproduct___(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
-    
-    __f64(pax_example::pax_reexports::f64),
-    
-    __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
-    
-    __pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
-    
-    __usize(pax_example::pax_reexports::usize),
-    
     bool(bool),
+    
+    crateCOCOcameraCOCOTypeExample(pax_example::pax_reexports::camera::TypeExample),
     
     f64(f64),
     
     isize(isize),
     
-    usize(usize),
+    paxCOCOapiCOCONumeric(pax_example::pax_reexports::pax::api::Numeric),
+    
+    paxCOCOapiCOCOSize(pax_example::pax_reexports::pax::api::Size),
+    
+    paxCOCOapiCOCOSizePixels(pax_example::pax_reexports::pax::api::SizePixels),
+    
+    pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
+    
+    pax_stdCOCOtypesCOCOColorVariant(pax_example::pax_reexports::pax_std::types::ColorVariant),
+    
+    pax_stdCOCOtypesCOCOStackerDirection(pax_example::pax_reexports::pax_std::types::StackerDirection),
+    
+    pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
+    
+    stdCOCOopsCOCORangeLABRisizeRABR(std::ops::Range<isize>),
+    
+    stdCOCOvecCOCOVecLABRcrateCOCOgridsCOCORectDefRABR(pax_example::pax_reexports::std::vec::Vec<pax_example::pax_reexports::grids::RectDef>),
+    
+    stdCOCOvecCOCOVecLABRpax_stdCOCOtypesCOCOStackerCellRABR(pax_example::pax_reexports::std::vec::Vec<pax_example::pax_reexports::pax_std::types::StackerCell>),
+    
+    stdCOCOvecCOCOVecLABRstdCOCOoptionCOCOOptionLABRpaxCOCOapiCOCOSizeRABRRABR(pax_example::pax_reexports::std::vec::Vec<pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax::api::Size>>),
+    
+    stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
+    
+    usize(pax_example::pax_reexports::usize),
     
 }

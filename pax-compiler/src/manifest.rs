@@ -1,18 +1,22 @@
 use std::collections::{HashMap};
 use std::cmp::Ordering;
+use std::ops::Deref;
+use std::rc::Rc;
 
 use serde_derive::{Serialize, Deserialize};
 #[allow(unused_imports)]
 use serde_json;
+use crate::parsing::escape_identifier;
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
 pub struct PaxManifest {
     pub components: HashMap<String, ComponentDefinition>,
-    pub root_component_id: String,
+    pub main_component_type_id: String,
     pub expression_specs: Option<HashMap<usize, ExpressionSpec>>,
+    pub type_table: TypeTable,
+    pub import_paths: std::collections::HashSet<String>,
 }
-
 
 impl Eq for ExpressionSpec {}
 
@@ -52,6 +56,13 @@ pub struct ExpressionSpec {
     /// String representation of the original input statement
     pub input_statement: String,
 
+    /// Special-handling for Repeat codegen
+    pub is_repeat_source_iterable_expression: bool,
+
+    /// The PropertiesCoproduct variant (type_id_escaped) of the inner
+    /// type `T` for some iterable repeat source type, e.g. `Vec<T>`
+    pub repeat_source_iterable_type_id_escaped: String,
+
 }
 
 /// The spec of an expression `invocation`, the necessary configuration
@@ -60,12 +71,14 @@ pub struct ExpressionSpec {
 /// to some data on the other side of `i` for the context of a particular expression.  `ExpressionSpecInvocation`
 /// holds the recipe for such an `invocation`, populated as a part of expression compilation.
 #[derive(Serialize, Deserialize, Clone)]
-pub struct  ExpressionSpecInvocation {
-    /// Identifier as authored, for example: `self.some_prop`
-    pub identifier: String,
+pub struct ExpressionSpecInvocation {
+
+    /// Identifier of the top-level symbol (stripped of `this` or `self`) for nested symbols (`foo` for `foo.bar`) or the
+    /// identifier itself for non-nested symbols (`foo` for `foo`)
+    pub root_identifier: String,
 
     /// Identifier escaped so that all operations (like `.` or `[...]`) are
-    /// encoded as a valid single identifier — e.g. `self.foo` => `self__
+    /// encoded as a valid single identifier
     pub escaped_identifier: String,
 
     /// Statically known stack offset for traversing Repeat-based scopes at runtime
@@ -74,23 +87,28 @@ pub struct  ExpressionSpecInvocation {
     /// Type of the containing Properties struct, for unwrapping from PropertiesCoproduct.  For example, `Foo` for `PropertiesCoproduct::Foo` or `RepeatItem` for PropertiesCoproduct::RepeatItem
     pub properties_coproduct_type: String,
 
-    /// For invocations that reference repeat elements, this is the enum identifier within
+    /// For symbolic invocations that refer to repeat elements, this is the enum identifier within
     /// the TypesCoproduct that represents the appropriate `datum_cast` type
-    pub pascalized_iterable_type: Option<String>,
-
-    /// Flag describing whether this invocation should be bound to the `elem` in `(elem, i)`
-    pub is_repeat_elem: bool,
-
-    /// Flag describing whether this invocation should be bound to the `i` in `(elem, i)`
-    pub is_repeat_i: bool,
+    pub iterable_type_id_escaped: String,
 
     /// Flags used for particular corner cases of `Repeat` codegen
-    pub is_numeric_property: bool,
-    pub is_iterable_numeric: bool,
-    pub is_iterable_primitive_nonnumeric: bool,
+    pub is_numeric: bool,
+    pub is_primitive_nonnumeric: bool,
+
+    /// Flags describing attributes of properties
+    pub property_flags: PropertyDefinitionFlags,
+
+    /// Metadata used for nested symbol invocation, like `foo.bar.baz`
+    /// Holds an RIL "tail" string for appending to invocation literal bodies,
+    /// like `.bar.get().baz.get()` for the nested symbol invocation `foo.bar.baz`.
+    pub nested_symbol_tail_literal: String,
+    /// Flag describing whether the nested symbolic invocation, e.g. `foo.bar`, ultimately
+    /// resolves to a numeric type (as opposed to `is_numeric`, which represents the root of a nested type)
+    pub is_nested_numeric: bool,
+
 }
 
-const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
+pub const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
     "u8",
     "u16",
     "u32",
@@ -106,38 +124,35 @@ const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
     "f64",
 ];
 
-const SUPPORTED_NONNUMERIC_PRIMITIVES : [&str; 2] = [
+pub const SUPPORTED_NONNUMERIC_PRIMITIVES : [&str; 2] = [
     "String",
     "bool",
 ];
 
 impl ExpressionSpecInvocation {
-    pub fn is_iterable_numeric(pascalized_iterable_type: &Option<String>) -> bool {
-        if let Some(pit) = &pascalized_iterable_type {
-            SUPPORTED_NUMERIC_PRIMITIVES.contains(&&**pit)
-        } else {
-            false
-        }
+
+    pub fn is_primitive_nonnumeric(property_properties_coproduct_type: &str) -> bool {
+        SUPPORTED_NONNUMERIC_PRIMITIVES.contains(&property_properties_coproduct_type)
     }
 
-    pub fn is_iterable_primitive_nonnumeric(pascalized_iterable_type: &Option<String>) -> bool {
-        if let Some(pit) = &pascalized_iterable_type {
-            SUPPORTED_NONNUMERIC_PRIMITIVES.contains(&&**pit)
-        } else {
-            false
-        }
-    }
-
-    pub fn is_numeric_property(properties_coproduct_type: &str) -> bool {
-        SUPPORTED_NUMERIC_PRIMITIVES.contains(&properties_coproduct_type)
+    pub fn is_numeric(property_properties_coproduct_type: &str) -> bool {
+        SUPPORTED_NUMERIC_PRIMITIVES.contains(&property_properties_coproduct_type)
     }
 }
 
+/// Container for an entire component definition — includes template, settings,
+/// event bindings, property definitions, and compiler + reflection metadata
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ComponentDefinition {
-    pub source_id: String,
-    pub is_root: bool,
+    pub type_id: String,
+    pub type_id_escaped: String,
+    pub is_main_component: bool,
     pub is_primitive: bool,
+
+    /// Flag describing whether this component definition is a "struct-only component", a
+    /// struct decorated with `#[derive(Pax)]` for use as the `T` in `Property<T>`.
+    pub is_struct_only_component: bool,
+
     pub pascal_identifier: String,
     pub module_path: String,
 
@@ -149,18 +164,21 @@ pub struct ComponentDefinition {
     pub template: Option<Vec<TemplateNodeDefinition>>,
     pub settings: Option<Vec<SettingsSelectorBlockDefinition>>,
     pub events: Option<Vec<EventDefinition>>,
-    pub property_definitions: Vec<PropertyDefinition>,
 }
 
 impl ComponentDefinition {
     pub fn get_snake_case_id(&self) -> String {
-        self.source_id.replace("::", "_")
+        self.type_id
+            .replace("::", "_")
+            .replace("/", "_")
+            .replace("\\", "_")
+            .replace(">", "_")
+            .replace("<", "_")
+            .replace(".", "_")
     }
-}
 
-impl ComponentDefinition {
-    pub fn get_property_definition_by_name(&self, name: &str) -> PropertyDefinition {
-        self.property_definitions.iter().find(|pd| { pd.name.eq(name) }).expect(&format!("Property not found with name {}", &name)).clone()
+    pub fn get_property_definitions<'a>(&self, tt: &'a TypeTable) -> &'a Vec<PropertyDefinition> {
+        &tt.get(&self.type_id).unwrap().property_definitions
     }
 }
 
@@ -175,7 +193,7 @@ pub struct TemplateNodeDefinition {
     /// Vec of int IDs representing the child TemplateNodeDefinitions of this TemplateNodeDefinition
     pub child_ids: Vec<usize>,
     /// Reference to the unique string ID for a component, e.g. `primitive::Frame` or `component::Stacker`
-    pub component_id: String,
+    pub type_id: String,
     /// Iff this TND is a control-flow node: parsed control flow attributes (slot/if/for)
     pub control_flow_settings: Option<ControlFlowSettingsDefinition>,
     /// IFF this TND is NOT a control-flow node: parsed key-value store of attribute definitions (like `some_key="some_value"`)
@@ -184,89 +202,170 @@ pub struct TemplateNodeDefinition {
     pub pascal_identifier: String,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct PropertyDefinition {
-    /// String representation of the identifier of a declared Property
-    pub name: String,
-    /// Type as authored, literally.  May be partially namespace-qualified or aliased.
-    pub original_type: String,
-    /// Vec of constituent components of a possibly-compound type, for example `Rc<String>` breaks down into the qualified identifiers {`std::rc::Rc`, `std::string::String`}
-    pub fully_qualified_constituent_types: Vec<String>,
-    /// Store of fully qualified types that may be needed for expression vtable generation
-    pub property_type_info: PropertyType,
+pub type TypeTable = HashMap<String, TypeDefinition>;
+pub fn get_primitive_type_table() -> TypeTable {
+    let mut ret : TypeTable = Default::default();
 
-    ///Flags, used ultimately by ExpressionSpecInvocations, to denote
-    ///whether a property is the `i` or `elem` of a `Repeat`, which allows
-    ///for special-handling the codegen that invokes these values in expressions
-    pub is_repeat_i: bool,
-    pub is_repeat_elem: bool,
+    SUPPORTED_NUMERIC_PRIMITIVES.into_iter().for_each(|snp| {
+        ret.insert(snp.to_string(), TypeDefinition::primitive(snp));
+    });
+    SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter().for_each(|snnp| {
+        ret.insert(snnp.to_string(), TypeDefinition::primitive(snnp));
+    });
+
+    ret
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct PropertyDefinition {
+    /// String representation of the symbolic identifier of a declared Property
+    pub name: String,
+
+    /// Flags, used ultimately by ExpressionSpecInvocations, to denote
+    /// e.g. whether a property is the `i` or `elem` of a `Repeat`, which allows
+    /// for special-handling the RIL that invokes these values
+    pub flags: PropertyDefinitionFlags,
+
+    /// Statically known type_id for this Property's associated TypeDefinition
+    pub type_id: String,
+
+
+
+
+}
+
+impl PropertyDefinition {
+
+    pub fn get_type_definition<'a>(&'a self, tt: &'a TypeTable) -> &TypeDefinition {
+        tt.get(&self.type_id).unwrap()
+    }
+
+    pub fn get_inner_iterable_type_definition<'a>(&'a self, tt: &'a TypeTable) -> Option<&TypeDefinition> {
+        if let Some(ref iiti) = tt.get(&self.type_id).unwrap().inner_iterable_type_id {
+            Some(tt.get(iiti).unwrap())
+        } else {
+            None
+        }
+
+    }
+}
+
+/// These flags describe the aspects of properties that affect RIL codegen.
+/// Properties are divided into modal axes (exactly one value should be true per axis per struct instance)
+/// Codegen considers each element of the cartesian product of these axes
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
+pub struct PropertyDefinitionFlags {
+    // // //
+    // Binding axis
+    //
+    /// Does this property represent the index `i` in `for (elem, i)` ?
+    pub is_binding_repeat_i: bool,
+    /// Does this property represent `elem` in `for (elem, i)` OR `for elem in 0..5` ?
+    pub is_binding_repeat_elem: bool,
+
+
+    // // //
+    // Source axis
+    //
+    /// Is the source being iterated over a Range?
+    pub is_repeat_source_range: bool,
+    /// Is the source being iterated over an iterable, like Vec<T>?
+    pub is_repeat_source_iterable: bool,
+
+
+    /// Describes whether this property is a `Property`-wrapped `T` in `Property<T>`
+    /// This distinction affects our ability to dirty-watch a particular property, and
+    /// has implications on codegen
+    pub is_property_wrapped: bool,
+}
+
+/// Describes static metadata surrounding a property, for example
+/// the string representation of the property's name and a `TypeInfo`
+/// entry for the property's statically discovered type
 impl PropertyDefinition {
     /// Shorthand factory / constructor
     pub fn primitive_with_name(type_name: &str, symbol_name: &str) -> Self {
         PropertyDefinition {
             name: symbol_name.to_string(),
-            original_type: type_name.to_string(),
-            fully_qualified_constituent_types: vec![],
-            property_type_info: PropertyType {
-                fully_qualified_type: type_name.to_string(),
-                pascalized_fully_qualified_type: type_name.to_string(),
-                iterable_type: None,
-            },
-            is_repeat_i: false,
-            is_repeat_elem: false,
+            flags: PropertyDefinitionFlags::default(),
+            type_id: type_name.to_string(),
         }
     }
 }
 
+/// Describes metadata surrounding a property's type, gathered from a combination of static & dynamic analysis
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct PropertyType {
-    /// Same type as `PropertyDefinition#original_type`, but dynamically normalized to be fully qualified, suitable for reexporting.  For example, the original_type `Vec<SomeStruct>` would be fully qualified as `std::vec::Vec<some_crate::SomeStruct>`
-    pub fully_qualified_type: String,
+pub struct
+TypeDefinition {
+
+    /// Program-unique ID for this type
+    pub type_id: String,
 
     /// Same as fully qualified type, but Pascalized to make a suitable enum identifier
-    pub pascalized_fully_qualified_type: String,
+    pub type_id_escaped: String,
 
-    /// If present, the type `T` in a `Property<Vec<T>>` — i.e. that which can be traversed with `for`
-    pub iterable_type: Option<Box<PropertyType>>
+    /// Unlike type_id, contains no generics data.  Simply used for qualifying / importing a type, like `std::vec::Vec`
+    pub import_path: String,
+
+    /// Statically known type_id for this Property's iterable TypeDefinition, that is,
+    /// T for some Property<Vec<T>>
+    pub inner_iterable_type_id: Option<String>,
+
+
+    /// A vec of PropertyType, describing known addressable (sub-)properties of this PropertyType
+    pub property_definitions: Vec<PropertyDefinition>,
 }
 
-impl PropertyType {
-    pub fn primitive(name: &str) -> Self {
+impl TypeDefinition {
+
+
+    pub fn primitive(type_name: &str) -> Self {
         Self {
-            pascalized_fully_qualified_type: name.to_string(),
-            fully_qualified_type: name.to_string(),
-            iterable_type: None,
+            type_id_escaped: escape_identifier(type_name.to_string()),
+            type_id: type_name.to_string(),
+            property_definitions: vec![],
+            inner_iterable_type_id: None,
+            import_path: type_name.to_string(),
         }
     }
 
-    pub fn builtin_vec_rc_properties_coproduct() -> Self {
+    ///Used by Repeat for source expressions, e.g. the `self.some_vec` in `for elem in self.some_vec`
+    pub fn builtin_vec_rc_properties_coproduct(inner_iterable_type_id: String) -> Self {
+        let type_id = "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>";
         Self {
-            fully_qualified_type: "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>".to_string(),
-            pascalized_fully_qualified_type: "Vec_Rc_PropertiesCoproduct___".to_string(),
-            iterable_type: Some(Box::new(Self::builtin_rc_properties_coproduct())),
+            type_id: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
+            property_definitions: vec![],
+            inner_iterable_type_id: Some(inner_iterable_type_id),
+            import_path: "std::vec::Vec".to_string(),
         }
     }
 
     pub fn builtin_range_isize() -> Self {
+        let type_id = "std::ops::Range<isize>";
         Self {
-            fully_qualified_type: "std::ops::Range<isize>".to_string(),
-            pascalized_fully_qualified_type: "Range_isize_".to_string(),
-            iterable_type: Some(Box::new(Self::primitive("isize"))),
+            type_id: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
+            property_definitions: vec![],
+            inner_iterable_type_id: Some("isize".to_string()),
+            import_path: "std::ops::Range".to_string(),
         }
     }
 
     pub fn builtin_rc_properties_coproduct() -> Self {
+        let type_id = "std::rc::Rc<PropertiesCoproduct>";
         Self {
-            fully_qualified_type: "std::rc::Rc<PropertiesCoproduct>".to_string(),
-            pascalized_fully_qualified_type: "Rc_PropertiesCoproduct__".to_string(),
-            iterable_type: None
+            type_id: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
+            property_definitions: vec![],
+            inner_iterable_type_id: None,
+            import_path: "std::rc::Rc".to_string(),
         }
     }
 
 }
-
+/// Container for settings values, storing all possible
+/// variants, populated at parse-time and used at compile-time
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub enum ValueDefinition {
     #[default]
@@ -280,12 +379,19 @@ pub enum ValueDefinition {
     EventBindingTarget(String),
 }
 
+/// Container for holding parsed data describing a Repeat (`for`)
+/// predicate, for example the `(elem, i)` in `for (elem, i) in foo` or
+/// the `elem` in `for elem in foo`
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum ControlFlowRepeatPredicateDefinition {
     ElemId(String),
     ElemIdIndexId(String, String),
 }
 
+
+/// Container for storing parsed control flow information, for
+/// example the string (PAXEL) representations of condition / slot / repeat
+/// expressions and the related vtable ids (for "punching" during expression compilation)
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowSettingsDefinition {
     pub condition_expression_paxel: Option<String>,
@@ -296,18 +402,24 @@ pub struct ControlFlowSettingsDefinition {
     pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>
 }
 
+/// Container describing the possible variants of a Repeat source
+/// — namely a range expression in PAXEL or a symbolic binding
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ControlFlowRepeatSourceDefinition {
     pub range_expression_paxel: Option<String>,
     pub vtable_id: Option<usize>,
     pub symbolic_binding: Option<String>,
 }
+
+/// Container for parsed Settings blocks (inside `@settings`)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct SettingsSelectorBlockDefinition {
     pub selector: String,
     pub value_block: LiteralBlockDefinition,
 }
 
+
+/// Container for a parsed
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LiteralBlockDefinition {
     pub explicit_type_pascal_identifier: Option<String>,
