@@ -5,7 +5,7 @@ use pax_std::primitives::{Path};
 use pax_std::types::{ColorVariant, CurveSegmentData, LineSegmentData, PathSegment};
 use pax_core::{Color, TabCache, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, ArgsCoproduct};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D};
 
 use std::str::FromStr;
 use std::cell::RefCell;
@@ -31,7 +31,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Path);
 
         let mut instance_registry = (*args.instance_registry).borrow_mut();
@@ -61,7 +61,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        let properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.get().width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width { v } else { unreachable!() };
@@ -69,12 +69,12 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
         }
 
         if let Some(stroke_color) = rtc.compute_vtable_value(properties.stroke.get().color._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = stroke_color { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::pax_stdCOCOtypesCOCOColor(v) = stroke_color { v } else { unreachable!() };
             properties.stroke.get_mut().color.set(new_value);
         }
 
         if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = fill { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::pax_stdCOCOtypesCOCOColor(v) = fill { v } else { unreachable!() };
             properties.fill.set(new_value);
         }
 
@@ -94,6 +94,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
 
         for segment in properties.segments.get().iter() {
             match segment{
+                PathSegment::Empty => {/* no-op */},
                 PathSegment::LineSegment(data) => {
                     bez_path.move_to(data.start);
                     bez_path.line_to(data.end);

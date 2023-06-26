@@ -142,7 +142,7 @@ struct PaxView: View {
             )
             var text: AttributedString {
                 var attributedString: AttributedString = try! AttributedString(markdown: textElement.content, options: AttributedString.MarkdownParsingOptions(interpretedSyntax: .inlineOnlyPreservingWhitespace))
-                
+
                 for run in attributedString.runs {
                     if run.link != nil {
                         if let linkStyle = textElement.style_link {
@@ -170,7 +170,7 @@ struct PaxView: View {
                 .transformEffect(transform)
                 .textSelection(.enabled)
 
-            
+
             if !textElement.clipping_ids.isEmpty {
                 textView.mask(getClippingMask(clippingIds: textElement.clipping_ids))
             } else {
@@ -249,7 +249,7 @@ struct PaxView: View {
 
                 //For manual debugger attachment:
                 //do {
-                  //  sleep(30)
+                //    sleep(10)
                 //}
 
                 PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
@@ -301,7 +301,7 @@ struct PaxView: View {
         func handleFrameDelete(patch: AnyDeletePatch) {
             frameElements.remove(id: patch.id_chain)
         }
-        
+
 //        let buffer = try! FlexBufferBuilder.encodeMap { builder in
 //            builder.add("id_chain", patch.id_chain)
 //            builder.addVector("image_data") { imageBuilder in
@@ -313,7 +313,7 @@ struct PaxView: View {
 
         func printAllFilesInBundle() {
             let bundleURL = Bundle.main.bundleURL
-            
+
             do {
                 let resourceURLs = try FileManager.default.contentsOfDirectory(at: bundleURL, includingPropertiesForKeys: nil, options: [])
                 for url in resourceURLs {
@@ -324,7 +324,7 @@ struct PaxView: View {
             }
         }
 
-        
+
         func handleImageLoad(patch: ImageLoadPatch) {
             Task {
                 do {
@@ -354,7 +354,7 @@ struct PaxView: View {
 
                     let colorSpace = CGColorSpaceCreateDeviceRGB()
                     let bitmapInfo = CGImageAlphaInfo.premultipliedLast.rawValue | CGBitmapInfo.byteOrder32Big.rawValue
-                    
+
                     guard let context = CGContext(data: nil, width: width, height: height, bitsPerComponent: bitsPerComponent, bytesPerRow: bytesPerRow, space: colorSpace, bitmapInfo: bitmapInfo) else {
                         throw NSError(domain: "", code: 103, userInfo: [NSLocalizedDescriptionKey : "Could not create CGContext"])
                     }
@@ -366,12 +366,12 @@ struct PaxView: View {
                     }
 
                     let byteBuffer = data.assumingMemoryBound(to: UInt8.self)
-                                        
+
                     let id_chain : FlxbValueVector = FlxbValueVector.init(values: patch.id_chain.map { (number) -> FlxbValue in
                         return number as FlxbValue
                     })
                     let raw_pointer_uint = UInt(bitPattern: byteBuffer)
-                    
+
                     let buffer = try! FlexBufferBuilder.encode(
                         [ "Image": [ "Reference": [
                             "id_chain": id_chain,
@@ -380,7 +380,7 @@ struct PaxView: View {
                             "width": width,
                             "height": height,
                         ] as FlxbValueMap] as FlxbValueMap ] as FlxbValueMap)
-                    
+
                         buffer.data.withUnsafeBytes { ptr in
                             var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
                             withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
@@ -432,7 +432,7 @@ struct PaxView: View {
                 if frameDeleteMessage != nil {
                     handleFrameDelete(patch: AnyDeletePatch(fb: frameDeleteMessage!))
                 }
-                
+
                 let imageLoadMessage = message["ImageLoad"]
                 if imageLoadMessage != nil {
                     handleImageLoad(patch: ImageLoadPatch(fb: imageLoadMessage!))
