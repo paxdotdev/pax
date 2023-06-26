@@ -952,22 +952,22 @@ impl Reflectable for i64 {
 }
 impl Reflectable for u64 {
     fn get_self_pascal_identifier() -> String {
-        "bool".to_string()
+        "u64".to_string()
     }
 }
 impl Reflectable for i32 {
     fn get_self_pascal_identifier() -> String {
-        "bool".to_string()
+        "i32".to_string()
     }
 }
 impl Reflectable for u32 {
     fn get_self_pascal_identifier() -> String {
-        "bool".to_string()
+        "u32".to_string()
     }
 }
 impl Reflectable for i8 {
     fn get_self_pascal_identifier() -> String {
-        "bool".to_string()
+        "i8".to_string()
     }
 }
 impl Reflectable for u8 {
