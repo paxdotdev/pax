@@ -1,10 +1,10 @@
 [package]
 name = "pax-compiler"
-version = "0.0.1"
-authors = ["Zack Brown <zack@pax.rs>"]
+version = "0.5.1"
+authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-homepage = "https://pax.rs/"
+homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Compiler APIs for parsing and building Pax projects into application executables"
 
@@ -18,8 +18,8 @@ cbor = ["serde"]
 
 [dependencies]
 kurbo = "0.9.0"
-pax-message = {version = "0.0.1", path="../pax-message"}
-pax-runtime-api = {version= "0.0.1", path="../pax-runtime-api"}
+pax-message = {version = "0.5.0", path="../pax-message"}
+pax-runtime-api = {version= "0.5.0", path="../pax-runtime-api"}
 pest = "2.6.0"
 pest_derive = "2.6.0"
 itertools = "0.10.5"
