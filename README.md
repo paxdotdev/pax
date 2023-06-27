@@ -93,7 +93,7 @@ Read more in [The Pax Docs](https://docs.pax.dev/)
 
 ## License
 
-© 2023 PaxCorp Inc.  [contact@pax.rs].
+© 2023 PaxCorp Inc.  [contact@pax.dev].
 
 This project is licensed under either of:
 - [MIT license](LICENSE-MIT)
@@ -139,7 +139,7 @@ Use `rustc` 1.65.0 via `rustup`
 
 ### Running Development Environment
 
-First, refer to [the latest project status](https://docs.pax.rs/status-sept-2022.html)
+First, refer to [the latest project status](https://docs.pax.dev/status-sept-2022.html)
 
 Run `pax-example`:
 

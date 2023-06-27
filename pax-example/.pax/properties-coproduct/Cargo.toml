@@ -2,10 +2,10 @@
 name = "pax-properties-coproduct"
 version = "0.0.1"
 
-authors = ["Zack Brown <zack@pax.rs>"]
+authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-homepage = "https://pax.rs/"
+homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Static container for program-variable data structures and polymorphic components"
 

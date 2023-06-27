@@ -1,10 +1,10 @@
 [package]
 name = "pax-macro"
-version = "0.0.1"
-authors = ["Zack Brown <zack@pax.rs>"]
+version = "0.5.1"
+authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
-homepage = "https://pax.rs/"
+homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Macros for Pax, used both for parser codegen and for showing Pax where to attach to Rust code"
 

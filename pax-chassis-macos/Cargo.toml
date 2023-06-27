@@ -1,10 +1,10 @@
 [package]
 name = "pax-chassis-macos"
 edition = "2021"
-version = "0.0.1"
-authors = ["Zack Brown <zack@pax.rs>"]
+version = "0.5.1"
+authors = ["Zack Brown <zack@pax.dev>"]
 license = "MIT OR Apache-2.0"
-homepage = "https://pax.rs/"
+homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Platform-specific chassis allowing Pax cartridges to be executed as native macOS apps"
 
@@ -15,11 +15,11 @@ crate-type = ["staticlib", "cdylib"]
 [dependencies]
 piet = "0.6.0"
 piet-coregraphics = "0.6.0"
-pax-core = { path = "../pax-core", version="0.0.1" }
-pax-cartridge = {path = "../pax-cartridge", version="0.0.1"}
-pax-message = {path = "../pax-message", version="0.0.1"}
-pax-runtime-api = {path = "../pax-runtime-api", version="0.0.1"}
-pax-properties-coproduct = {path = "../pax-example/.pax/properties-coproduct", version="0.0.1"}
+pax-core = { path = "../pax-core", version="0.5.0" }
+pax-cartridge = {path = "../pax-cartridge", version="0.5.0"}
+pax-message = {path = "../pax-message", version="0.5.0"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.5.0"}
+pax-properties-coproduct = {path = "../pax-example/.pax/properties-coproduct", version="0.5.0"}
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 #be cautious about core-graphics' version number --
