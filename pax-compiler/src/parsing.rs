@@ -4,7 +4,7 @@ use std::collections::{HashSet, HashMap};
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
-use crate::manifest::{Unit, PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, Number, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, PropertyType, EventDefinition};
+use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, TypeDefinition, TypeTable, get_primitive_type_table};
 
 use uuid::Uuid;
 
@@ -21,25 +21,6 @@ use pest::{
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
-pub fn assemble_primitive_definition(pascal_identifier: &str, module_path: &str, source_id: &str, property_definitions: &Vec<PropertyDefinition>, primitive_instance_import_path: String) -> ComponentDefinition {
-    let modified_module_path = if module_path.starts_with("parser") {
-        module_path.replacen("parser", "crate", 1)
-    } else {
-        module_path.to_string()
-    };
-    ComponentDefinition {
-        is_primitive: true,
-        primitive_instance_import_path: Some(primitive_instance_import_path),
-        is_root: false,
-        source_id: source_id.to_string(),
-        pascal_identifier: pascal_identifier.to_string(),
-        template: None,
-        settings: None,
-        module_path: modified_module_path,
-        property_definitions: property_definitions.to_vec(),
-        events: None,
-    }
-}
 
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
@@ -71,11 +52,13 @@ pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
     (output, symbolic_ids.take())
 }
 
-fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
+
+/// Removes leading `self.` or `this.`, escapes remaining symbol to be a suitable atomic identifier
+fn convert_symbolic_binding_from_paxel_to_ril(xo_symbol: Pair<Rule>) -> String {
     let mut pairs = xo_symbol.clone().into_inner();
     let maybe_this_or_self = pairs.next().unwrap().as_str();
 
-    if maybe_this_or_self == "this" || maybe_this_or_self == "self" {
+    let self_or_this_removed = if maybe_this_or_self == "this" || maybe_this_or_self == "self" {
         let mut output = "".to_string();
 
         //accumulate remaining identifiers, having skipped `this` or `self` with the original `.next()`
@@ -88,7 +71,9 @@ fn trim_self_or_this_from_symbolic_binding(xo_symbol: Pair<Rule>) -> String {
     } else {
         //remove original binding; no self or this
         xo_symbol.as_str().to_string()
-    }
+    };
+
+    escape_identifier(self_or_this_removed)
 }
 
 /// Workhorse method for compiling Expressions into Rust Intermediate Language (RIL, a string of Rust)
@@ -155,7 +140,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                     },
                     Rule::xo_symbol => {
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        trim_self_or_this_from_symbolic_binding(op0)
+                        convert_symbolic_binding_from_paxel_to_ril(op0)
                     },
                     _ => unimplemented!("")
                 };
@@ -171,7 +156,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                     },
                     Rule::xo_symbol => {
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        trim_self_or_this_from_symbolic_binding(op2)
+                        convert_symbolic_binding_from_paxel_to_ril(op2)
                     },
                     _ => unimplemented!("")
                 };
@@ -201,8 +186,12 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                         let value = inner.next().unwrap().as_str();
                         format!("Numeric::from({})", value)
                     }
+                    // Rule::string => {
+                    //     //TODO: figure out string concatenation.  Might need to introduce another operator?  Or perhaps a higher-level string type, which supports addition-as-concatenation — like we do with Numeric
+                    //     literal_kind.as_str().to_string() + ".to_string()"
+                    // }
                     _ => {
-                        /* {literal_enum_value | literal_tuple_access | string | literal_tuple } */
+                        /* {literal_enum_value | literal_tuple_access | literal_tuple | string } */
                         literal_kind.as_str().to_string() + ".try_into().unwrap()"
                     }
                 }
@@ -246,7 +235,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
             },
             Rule::xo_symbol => {
                 symbolic_ids.borrow_mut().push(primary.as_str().to_string());
-                format!("{}",trim_self_or_this_from_symbolic_binding(primary))
+                format!("{}",convert_symbolic_binding_from_paxel_to_ril(primary))
             },
             Rule::xo_tuple => {
                 let mut tuple = primary.into_inner();
@@ -328,7 +317,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
         TemplateNodeDefinition {
             id: 0,
             child_ids: roots_ids,
-            component_id: "IMPLICIT_ROOT".to_string(),
+            type_id: "IMPLICIT_ROOT".to_string(),
             control_flow_settings: None,
             settings: None,
             pascal_identifier: "<UNREACHABLE>".to_string()
@@ -340,7 +329,7 @@ fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseCo
 
 struct TemplateNodeParseContext {
     pub template_node_definitions: Vec<TemplateNodeDefinition>,
-    pub pascal_identifier_to_component_id_map: HashMap<String, String>,
+    pub pascal_identifier_to_type_id_map: HashMap<String, String>,
     //each frame of the outer vec represents a list of
     //children for a given node;
     //a new frame is added when descending the tree
@@ -349,9 +338,9 @@ struct TemplateNodeParseContext {
     pub uid_gen: MultiPeek<RangeFrom<usize>>,
 }
 
-pub static COMPONENT_ID_IF : &str = "IF";
-pub static COMPONENT_ID_REPEAT : &str = "REPEAT";
-pub static COMPONENT_ID_SLOT : &str = "SLOT";
+pub static TYPE_ID_IF : &str = "IF";
+pub static TYPE_ID_REPEAT : &str = "REPEAT";
+pub static TYPE_ID_SLOT : &str = "SLOT";
 
 fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_tag_pair: Pair<Rule>)  {
     let new_id = ctx.uid_gen.next().unwrap();
@@ -389,7 +378,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
             let mut template_node = TemplateNodeDefinition {
                 id: new_id,
                 control_flow_settings: None,
-                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
+                type_id: ctx.pascal_identifier_to_type_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
@@ -403,7 +392,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
             let mut template_node = TemplateNodeDefinition {
                 id: new_id,
                 control_flow_settings: None,
-                component_id: ctx.pascal_identifier_to_component_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
+                type_id: ctx.pascal_identifier_to_type_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 child_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
@@ -442,7 +431,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             repeat_predicate_definition: None,
                             repeat_source_definition: None
                         }),
-                        component_id: COMPONENT_ID_IF.to_string(),
+                        type_id: TYPE_ID_IF.to_string(),
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
@@ -482,7 +471,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             ControlFlowRepeatSourceDefinition {
                                 range_expression_paxel: None,
                                 vtable_id: None,
-                                symbolic_binding: Some(trim_self_or_this_from_symbolic_binding(inner_source)),
+                                symbolic_binding: Some(convert_symbolic_binding_from_paxel_to_ril(inner_source)),
                             }
                         },
                         _ => {unreachable!()}
@@ -500,7 +489,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     //`for` TemplateNodeDefinition
                     TemplateNodeDefinition {
                         id: new_id.clone(),
-                        component_id: COMPONENT_ID_REPEAT.to_string(),
+                        type_id: TYPE_ID_REPEAT.to_string(),
                         control_flow_settings: Some(cfavd),
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
@@ -520,7 +509,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     }
 
                     TemplateNodeDefinition {
-                        id: new_id.clone(),
+                        id: *&new_id.clone(),
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: None,
                             condition_expression_vtable_id: None,
@@ -529,23 +518,24 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             repeat_predicate_definition: None,
                             repeat_source_definition: None
                         }),
-                        component_id: COMPONENT_ID_SLOT.to_string(),
+                        type_id: TYPE_ID_SLOT.to_string(),
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
                     }
                 },
                 _ => {
-                    unreachable!("Parsing error 883427242: {:?}", any_tag_pair.as_rule());
+                    unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());
                 }
             };
 
             std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node_definition);
         },
         Rule::node_inner_content => {
-            // unimplemented!();
+            //For example:  `<Text>"I am inner content"</Text>`
+            unimplemented!("Inner content not yet supported");
         },
-        _ => {unreachable!("Parsing error 2232444421: {:?}", any_tag_pair.as_rule());}
+        _ => {unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());}
     }
 }
 
@@ -593,24 +583,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
     }
 }
 
-fn handle_number_string(num_string: &str) -> Number {
-    //for now, maybe naively, treat as float IFF there's a `.` in its string representation
-    if num_string.contains(".") {
-        Number::Float(num_string.parse::<f64>().unwrap())
-    } else {
-        Number::Int(num_string.parse::<isize>().unwrap())
-    }
-}
-
-fn handle_unit_string(unit_string: &str) -> Unit {
-    match unit_string {
-        "px" => Unit::Pixels,
-        "%" => Unit::Percent,
-        _ => {unimplemented!("Only px or % are currently supported as units")}
-    }
-}
-
-fn derive_value_definition_from_literal_object_pair(mut literal_object: Pair<Rule>) -> LiteralBlockDefinition {
+fn derive_value_definition_from_literal_object_pair(literal_object: Pair<Rule>) -> LiteralBlockDefinition {
     let mut literal_object_pairs = literal_object.into_inner();
 
     let explicit_type_pascal_identifier = match literal_object_pairs.peek().unwrap().as_rule() {
@@ -659,13 +632,13 @@ fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<Sett
         match top_level_pair.as_rule() {
             Rule::settings_block_declaration => {
 
-                let mut selector_block_definitions: Vec<SettingsSelectorBlockDefinition> = top_level_pair.into_inner().map(|selector_block| {
+                let selector_block_definitions: Vec<SettingsSelectorBlockDefinition> = top_level_pair.into_inner().map(|selector_block| {
                     //selector_block => settings_key_value_pair where v is a ValueDefinition
                     let mut selector_block_pairs = selector_block.into_inner();
                     //first pair is the selector itself
                     let raw_selector = selector_block_pairs.next().unwrap().as_str();
                     let selector: String = raw_selector.chars().filter(|c| !c.is_whitespace()).collect();
-                    let mut literal_object = selector_block_pairs.next().unwrap();
+                    let literal_object = selector_block_pairs.next().unwrap();
 
                     SettingsSelectorBlockDefinition {
                         selector: selector.clone(),
@@ -722,52 +695,58 @@ fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<EventD
     Some(ret)
 }
 
-pub fn create_uuid() -> String {
-    Uuid::new_v4().to_string()
-}
-
 pub struct ParsingContext {
     /// Used to track which files/sources have been visited during parsing,
     /// to prevent duplicate parsing
-    pub visited_source_ids: HashSet<String>,
+    pub visited_type_ids: HashSet<String>,
 
-    pub root_component_id: String,
+    pub main_component_type_id: String,
 
     pub component_definitions: HashMap<String, ComponentDefinition>,
 
     pub template_map: HashMap<String, String>,
 
-    //(SourceID, associated Strings)
-    pub all_property_definitions: HashMap<String, Vec<PropertyDefinition>>,
-
     pub template_node_definitions: Vec<TemplateNodeDefinition>,
+
+    pub type_table: TypeTable,
+
+    pub import_paths: HashSet<String>,
 }
 
 impl Default for ParsingContext {
     fn default() -> Self {
         Self {
-            root_component_id: "".into(),
-            visited_source_ids: HashSet::new(),
+            main_component_type_id: "".into(),
+            visited_type_ids: HashSet::new(),
             component_definitions: HashMap::new(),
             template_map: HashMap::new(),
-            all_property_definitions: HashMap::new(),
+            type_table: get_primitive_type_table(),
             template_node_definitions: vec![],
+            import_paths: HashSet::new(),
         }
     }
 }
 
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
-pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str, pascal_identifier: &str, is_root: bool, template_map: HashMap<String, String>, source_id: &str, module_path: &str) -> (ParsingContext, ComponentDefinition) {
+pub fn assemble_component_definition(
+    mut ctx: ParsingContext,
+    pax: &str,
+    pascal_identifier: &str,
+    is_main_component: bool,
+    template_map: HashMap<String, String>,
+    module_path: &str,
+    self_type_id: &str
+) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next().unwrap(); // get and unwrap the `pax_component_definition` rule
 
-    if is_root {
-        ctx.root_component_id = source_id.to_string();
+    if is_main_component {
+        ctx.main_component_type_id = self_type_id.to_string();
     }
 
     let mut tpc = TemplateNodeParseContext {
-        pascal_identifier_to_component_id_map: template_map,
+        pascal_identifier_to_type_id_map: template_map,
         template_node_definitions: vec![],
         //each frame of the outer vec represents a list of
         //children for a given node; child order matters because of z-index defaults;
@@ -785,23 +764,354 @@ pub fn parse_full_component_definition_string(mut ctx: ParsingContext, pax: &str
         module_path.to_string()
     };
 
-    let property_definitions = ctx.all_property_definitions.get(source_id).unwrap().clone();
-
     //populate template_node_definitions vec, needed for traversing node tree at codegen-time
     ctx.template_node_definitions = tpc.template_node_definitions.clone();
 
     let new_def = ComponentDefinition {
         is_primitive: false,
-        is_root,
+        is_struct_only_component: false,
+        is_main_component,
         primitive_instance_import_path: None,
-        source_id: source_id.into(),
+        type_id: self_type_id.to_string(),
+        type_id_escaped: escape_identifier(self_type_id.to_string()),
         pascal_identifier: pascal_identifier.to_string(),
         template: Some(tpc.template_node_definitions),
         settings: parse_settings_from_component_definition_string(pax),
         events: parse_events_from_component_definition_string(pax),
         module_path: modified_module_path,
-        property_definitions,
     };
 
     (ctx, new_def)
+}
+
+pub fn clean_module_path(module_path: &str) -> String {
+    if module_path.starts_with("parser") {
+        module_path.replacen("parser", "crate", 1)
+    } else {
+        module_path.to_string()
+    }
+}
+
+pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_identifier: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
+
+    let modified_module_path = clean_module_path(module_path);
+
+    let new_def = ComponentDefinition {
+        type_id: self_type_id.to_string(),
+        type_id_escaped: escape_identifier(self_type_id.to_string()),
+        is_main_component: false,
+        is_primitive: false,
+        is_struct_only_component: true,
+        pascal_identifier: pascal_identifier.to_string(),
+        module_path: modified_module_path,
+        primitive_instance_import_path: None,
+        template: None,
+        settings: None,
+        events: None,
+    };
+
+    (ctx, new_def)
+}
+
+pub fn assemble_primitive_definition(
+    pascal_identifier: &str,
+    module_path: &str,
+    primitive_instance_import_path: String,
+    self_type_id: &str
+) -> ComponentDefinition {
+    let modified_module_path = clean_module_path(module_path);
+
+    ComponentDefinition {
+        is_primitive: true,
+        is_struct_only_component: false,
+        primitive_instance_import_path: Some(primitive_instance_import_path),
+        is_main_component: false,
+        type_id: self_type_id.to_string(),
+        type_id_escaped: escape_identifier(self_type_id.to_string()),
+        pascal_identifier: pascal_identifier.to_string(),
+        template: None,
+        settings: None,
+        module_path: modified_module_path,
+        events: None,
+    }
+}
+
+pub fn assemble_type_definition(
+    mut ctx: ParsingContext,
+    property_definitions: Vec<PropertyDefinition>,
+    inner_iterable_type_id: Option<String>,
+    self_type_id: &str,
+    import_path: String,
+) -> (ParsingContext, TypeDefinition) {
+
+    let type_id_escaped = escape_identifier(self_type_id.to_string());
+
+    let new_def = TypeDefinition {
+        type_id: self_type_id.to_string(),
+        type_id_escaped,
+        inner_iterable_type_id,
+        property_definitions,
+        import_path,
+    };
+
+    ctx.type_table.insert(self_type_id.to_string(), new_def.clone());
+
+    (ctx, new_def)
+}
+
+
+pub fn escape_identifier(input: String) -> String {
+    input
+        .replace("(","LPAR")
+        .replace("::","COCO")
+        .replace(")","RPAR")
+        .replace("<","LABR")
+        .replace(">","RABR")
+        .replace(",","COMM")
+        .replace(".","PERI")
+        .replace("[","LSQB")
+        .replace("]","RSQB")
+        .replace("/", "FSLA")
+        .replace("\\", "BSLA")
+        .replace("#", "HASH")
+        .replace("-", "HYPH")
+}
+
+/// This trait is used only to extend primitives like u64
+/// with the parser-time method `parse_to_manifest`.  This
+/// allows the parser binary to codegen calls to `::parse_to_manifest()` even
+/// on primitive types
+pub trait Reflectable {
+    fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+        //Default impl for primitives and pax_runtime_api
+        let type_id = Self::get_type_id();
+        let td = TypeDefinition {
+            type_id: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
+            inner_iterable_type_id: None,
+            property_definitions: vec![],
+            import_path: type_id.to_string(),
+        };
+
+        if ! ctx.type_table.contains_key(&type_id) {
+            ctx.type_table.insert(type_id, td);
+        }
+
+        (ctx, vec![])
+    }
+
+    ///The import path is the fully namespace-qualified path for a type, like `std::vec::Vec`
+    ///This is distinct from type_id ONLY when the type has generics, like Vec, where
+    ///the type_id is distinct across a Vec<Foo> and a Vec<Bar>.  In both cases of Vec,
+    ///the import_path will remain the same.
+    fn get_import_path() -> String {
+        //This default is used by primitives but expected to
+        //be overridden by userland Pax components / primitives
+        Self::get_self_pascal_identifier()
+    }
+
+    fn get_self_pascal_identifier() -> String;
+
+    fn get_type_id() -> String {
+        //This default is used by primitives but expected to
+        //be overridden by userland Pax components / primitives
+        Self::get_import_path()
+    }
+
+    fn get_iterable_type_id() -> Option<String> {
+        //Most types do not have an iterable type (e.g. the T in Vec<T>) —
+        //it is the responsibility of iterable types to override this fn
+        None
+    }
+}
+
+impl Reflectable for usize {
+    fn get_self_pascal_identifier() -> String {
+        "usize".to_string()
+    }
+}
+impl Reflectable for isize {
+    fn get_self_pascal_identifier() -> String {
+        "isize".to_string()
+    }
+}
+impl Reflectable for i128 {
+    fn get_self_pascal_identifier() -> String {
+        "i128".to_string()
+    }
+}
+impl Reflectable for u128 {
+    fn get_self_pascal_identifier() -> String {
+        "u128".to_string()
+    }
+}
+impl Reflectable for i64 {
+    fn get_self_pascal_identifier() -> String {
+        "i64".to_string()
+    }
+}
+impl Reflectable for u64 {
+    fn get_self_pascal_identifier() -> String {
+        "u64".to_string()
+    }
+}
+impl Reflectable for i32 {
+    fn get_self_pascal_identifier() -> String {
+        "i32".to_string()
+    }
+}
+impl Reflectable for u32 {
+    fn get_self_pascal_identifier() -> String {
+        "u32".to_string()
+    }
+}
+impl Reflectable for i8 {
+    fn get_self_pascal_identifier() -> String {
+        "i8".to_string()
+    }
+}
+impl Reflectable for u8 {
+    fn get_self_pascal_identifier() -> String {
+        "u8".to_string()
+    }
+}
+impl Reflectable for f64 {
+    fn get_self_pascal_identifier() -> String {
+        "f64".to_string()
+    }
+}
+impl Reflectable for f32 {
+    fn get_self_pascal_identifier() -> String {
+        "f32".to_string()
+    }
+}
+impl Reflectable for bool {
+    fn get_self_pascal_identifier() -> String {
+        "bool".to_string()
+    }
+}
+impl Reflectable for std::string::String {
+    fn get_import_path() -> String {
+        "std::string::String".to_string()
+    }
+    fn get_self_pascal_identifier() -> String {
+        "String".to_string()
+    }
+}
+impl<T> Reflectable for std::rc::Rc<T> {
+    fn get_import_path() -> String {
+        "std::rc::Rc".to_string()
+    }
+    fn get_self_pascal_identifier() -> String {
+        "Rc".to_string()
+    }
+}
+
+impl<T: Reflectable> Reflectable for std::option::Option<T> {
+    fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+        let type_id = Self::get_type_id();
+        let td = TypeDefinition {
+            type_id: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
+            inner_iterable_type_id: None,
+            property_definitions: vec![],
+            import_path: type_id.to_string(),
+        };
+
+        if ! ctx.type_table.contains_key(&type_id) {
+            ctx.type_table.insert(type_id, td);
+        }
+
+        let (ctx,_) = T::parse_to_manifest(ctx);
+        (ctx, vec![]) //Option itself has no PAXEL-addressable properties
+    }
+    fn get_import_path() -> String {
+        "std::option::Option".to_string()
+    }
+    fn get_self_pascal_identifier() -> String {
+        "Option".to_string()
+    }
+
+    fn get_type_id() -> String {
+        format!("std::option::Option<{}{}>","{PREFIX}",&T::get_type_id())
+    }
+}
+
+
+impl Reflectable for pax_runtime_api::Size {
+
+    fn get_import_path() -> String {
+        "pax::api::Size".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "Size".to_string()
+    }
+}
+
+impl Reflectable for pax_runtime_api::SizePixels {
+
+    fn get_import_path() -> String {
+        "pax::api::SizePixels".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "SizePixels".to_string()
+    }
+}
+
+impl Reflectable for pax_runtime_api::Numeric {
+
+    fn get_import_path() -> String {
+        "pax::api::Numeric".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "Numeric".to_string()
+    }
+}
+
+
+impl Reflectable for kurbo::Point {
+
+    fn get_import_path() -> String {
+        "kurbo::Point".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "Point".to_string()
+    }
+}
+
+impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
+    fn parse_to_manifest(mut ctx: ParsingContext) -> (ParsingContext, Vec<PropertyDefinition>) {
+        let type_id = Self::get_type_id();
+        let td = TypeDefinition {
+            type_id: type_id.to_string(),
+            type_id_escaped: escape_identifier(type_id.to_string()),
+            import_path: Self::get_import_path(),
+            inner_iterable_type_id: Self::get_iterable_type_id(),
+            property_definitions: vec![],
+        };
+
+        if ! ctx.type_table.contains_key(&type_id) {
+            ctx.type_table.insert(type_id, td);
+        }
+
+        /// Also parse iterable type
+        T::parse_to_manifest(ctx)
+    }
+    fn get_import_path() -> String {
+        "std::vec::Vec".to_string()
+    }
+    fn get_self_pascal_identifier() -> String {
+        "Vec".to_string()
+    }
+    fn get_type_id() -> String {
+        //Need to encode generics contents as part of unique id for iterables
+        format!("std::vec::Vec<{}{}>","{PREFIX}",&Self::get_iterable_type_id().unwrap())
+    }
+    fn get_iterable_type_id() -> Option<String> {
+        Some(T::get_type_id())
+    }
 }

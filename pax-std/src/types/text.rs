@@ -1,31 +1,45 @@
 use std::path::PathBuf;
 use pax::api::{Interpolatable, PropertyInstance, PropertyLiteral, Size2D, SizePixels};
 use pax_message::{FontPatch, FontWeightMessage, FontStyleMessage, LocalFontMessage, SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, WebFontMessage, LinkStyleMessage};
-use pax_message::reflection::PathQualifiable;
 use pax::*;
 use pax::api::numeric::Numeric;
 use crate::types::Color;
 
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Default)]
 pub enum Font {
     System(SystemFont),
     Web(WebFont),
     Local(LocalFont),
 }
 
+impl Default for Font {
+    fn default() -> Self {
+        Self::System(SystemFont::default())
+    }
+}
 
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports, Default)]
 pub struct SystemFont {
     pub family: String,
     pub style: FontStyle,
     pub weight: FontWeight,
 }
 
+impl Default for SystemFont {
+    fn default() -> Self {
+        Self {
+            family: "Arial".to_string(),
+            style: FontStyle::Italic,
+            weight: FontWeight::Bold,
+        }
+    }
+}
 
-#[derive(Clone)]
-#[pax_type]
+
+#[derive(Pax)]
+#[custom(Imports)]
 pub struct WebFont {
     pub family: String,
     pub url: String,
@@ -33,8 +47,8 @@ pub struct WebFont {
     pub weight: FontWeight,
 }
 
-#[derive(Clone)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub struct LocalFont {
     pub family: String,
     pub path: String,
@@ -43,8 +57,8 @@ pub struct LocalFont {
 }
 
 
-#[derive(Clone, Default)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub enum FontStyle {
     #[default]
     Normal,
@@ -53,8 +67,8 @@ pub enum FontStyle {
 }
 
 
-#[derive(Clone, Default)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub enum FontWeight {
     Thin,
     ExtraLight,
@@ -68,18 +82,9 @@ pub enum FontWeight {
     Black,
 }
 
-impl Default for SystemFont {
-    fn default() -> Self {
-        Self {
-            family: "Arial".to_string(),
-            style: FontStyle::Italic,
-            weight: FontWeight::Bold,
-        }
-    }
-}
 
-#[derive(Clone, Default)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub enum TextAlignHorizontal {
     #[default]
     Left,
@@ -87,8 +92,8 @@ pub enum TextAlignHorizontal {
     Right,
 }
 
-#[derive(Clone, Default)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub enum TextAlignVertical {
     #[default]
     Top,
@@ -96,8 +101,8 @@ pub enum TextAlignVertical {
     Bottom,
 }
 
-#[derive(Clone, Default)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub struct LinkStyle {
     pub font: Option<Font>,
     pub fill: Color,
@@ -105,8 +110,8 @@ pub struct LinkStyle {
     pub size: SizePixels,
 }
 
-#[derive(Clone, Default)]
-#[pax_type]
+#[derive(Pax)]
+#[custom(Imports)]
 pub struct SizeWrapper {
     pub size: SizePixels,
 }
@@ -118,13 +123,6 @@ impl SizeWrapper {
         }
     }
 }
-
-impl Default for Font {
-    fn default() -> Self {
-        Self::System(SystemFont::default())
-    }
-}
-
 
 impl Into<TextAlignHorizontalMessage> for &TextAlignHorizontal {
     fn into(self) -> TextAlignHorizontalMessage {
@@ -275,10 +273,6 @@ impl PartialEq<FontPatch> for Font {
         }
     }
 }
-
-
-
-impl Interpolatable for Font {}
 
 impl Font {
     pub fn system(family: String, style: FontStyle, weight: FontWeight) -> Self {

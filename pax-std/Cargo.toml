@@ -21,6 +21,7 @@ pax-message = {path = "../pax-message", version="0.0.1"}
 lazy_static = "1.4.0"
 pax-compiler = {path="../pax-compiler", optional = true, version="0.0.1"}
 serde_json = {version="1.0.95", optional = true}
+pax-runtime-api = {version="0.0.1", path="../pax-runtime-api"}
 
 [features]
 parser = ["pax/parser", "dep:pax-compiler", "dep:serde_json"]

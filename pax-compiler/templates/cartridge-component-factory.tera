@@ -1,5 +1,5 @@
-{% if is_root %}
-pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
+{% if is_main_component %}
+pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     ComponentInstance::instantiate( InstantiationArgs{
         properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{ component_properties_struct }}::default() ),
         handler_registry:  Some(Rc::new(RefCell::new(
@@ -7,11 +7,11 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                  click_handlers: vec![
                      {%- if events['click'] -%}
                         {% for handler in events['click'] %}
-                            |stack_frame, args|{
+                            |stack_frame, ctx, args|{
                                 let properties = ((*stack_frame).borrow().get_properties());
                                 let properties = &mut *properties.as_ref().borrow_mut();
-                                let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                {{ component_properties_struct }}::{{handler}}(properties,args);
+                                let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                                {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
                             },
                         {% endfor %}
                      {%- endif -%}
@@ -19,10 +19,10 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                  will_render_handlers: vec![
                     {%- if events['will_render'] -%}
                          {% for handler in events['will_render'] %}
-                             |properties, args|{
+                             |properties, ctx|{
                                  let properties = &mut *properties.as_ref().borrow_mut();
-                                 let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                 {{ component_properties_struct }}::{{handler}}(properties,args);
+                                 let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                                 {{ component_properties_struct }}::{{handler}}(properties,ctx);
                              },
                          {% endfor %}
                     {%- endif -%}
@@ -30,10 +30,10 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                  did_mount_handlers: vec![
                      {%- if events['did_mount'] -%}
                           {% for handler in events['did_mount'] %}
-                              |properties|{
+                              |properties, ctx|{
                                   let properties = &mut *properties.as_ref().borrow_mut();
-                                  let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                  {{ component_properties_struct }}::{{handler}}(properties);
+                                  let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                                  {{ component_properties_struct }}::{{handler}}(properties, ctx);
                               },
                           {% endfor %}
                      {%- endif -%}
@@ -41,11 +41,11 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
                  scroll_handlers: vec![
                      {%- if events['scroll'] -%}
                          {% for handler in events['scroll'] %}
-                             |stack_frame, args|{
+                             |stack_frame, ctx, args|{
                                  let properties = ((*stack_frame).borrow().get_properties());
                                  let properties = &mut *properties.as_ref().borrow_mut();
-                                 let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                                 {{ component_properties_struct }}::{{handler}}(properties,args);
+                                 let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                                 {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
                              },
                          {% endfor %}
                      {%- endif -%}
@@ -67,11 +67,11 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
             let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
 
             {% for prop in properties %}
-            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.name}}._get_transition_manager()) {
-            properties.{{ prop.name }}.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.name }}._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::{{ prop.property_type_info.pascalized_fully_qualified_type }}(v) = new_value { v } else { unreachable!() };
-            properties.{{ prop.name }}.set(new_value);
+            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+            properties.{{ prop.0.name }}.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.0.name }}._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::{{ prop.1 }}(v) = new_value { v } else { unreachable!() };
+            properties.{{ prop.0.name }}.set(new_value);
             }
             {% endfor %}
         })),
@@ -79,18 +79,18 @@ pub fn instantiate_root_component<R: 'static + RenderContext>(instance_registry:
 }
 
 {% else %}
-pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
+pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
     args.component_template = Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}])));
 
     args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
         click_handlers: vec![
          {%- if events['click'] -%}
             {% for handler in events['click'] %}
-                |stack_frame, args|{
+                |stack_frame, ctx, args|{
                     let properties = ((*stack_frame).borrow().get_properties());
                     let properties = &mut *properties.as_ref().borrow_mut();
-                    let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                    {{ component_properties_struct }}::{{handler}}(properties,args);
+                    let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                    {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
                 },
             {% endfor %}
          {%- endif -%}
@@ -98,10 +98,10 @@ pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(ins
         will_render_handlers: vec![
         {%- if events['will_render'] -%}
              {% for handler in events['will_render'] %}
-                 |properties, args|{
+                 |properties, ctx|{
                      let properties = &mut *properties.as_ref().borrow_mut();
-                     let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                     {{ component_properties_struct }}::{{handler}}(properties,args);
+                     let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                     {{ component_properties_struct }}::{{handler}}(properties,ctx);
                  },
              {% endfor %}
         {%- endif -%}
@@ -109,10 +109,10 @@ pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(ins
         did_mount_handlers: vec![
          {%- if events['did_mount'] -%}
               {% for handler in events['did_mount'] %}
-                  |properties|{
+                  |properties, ctx|{
                       let properties = &mut *properties.as_ref().borrow_mut();
-                      let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                      {{ component_properties_struct }}::{{handler}}(properties);
+                      let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                      {{ component_properties_struct }}::{{handler}}(properties,ctx);
                   },
               {% endfor %}
          {%- endif -%}
@@ -120,11 +120,11 @@ pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(ins
         scroll_handlers: vec![
          {%- if events['scroll'] -%}
              {% for handler in events['scroll'] %}
-                 |stack_frame, args|{
+                 |stack_frame, ctx, args|{
                      let properties = ((*stack_frame).borrow().get_properties());
                      let properties = &mut *properties.as_ref().borrow_mut();
-                     let properties = if let PropertiesCoproduct::{{ component_properties_struct }}(p) = properties {p} else {unreachable!()};
-                     {{ component_properties_struct }}::{{handler}}(properties,args);
+                     let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                     {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
                  },
              {% endfor %}
          {%- endif -%}
@@ -136,11 +136,11 @@ pub fn instantiate_{{ snake_case_component_id }}<R: 'static + RenderContext>(ins
         let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
 
         {% for prop in properties %}
-            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.name}}._get_transition_manager()) {
-            properties.{{ prop.name }}.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.name }}._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::{{ prop.property_type_info.pascalized_fully_qualified_type }}(v) = new_value { v } else { unreachable!() };
-            properties.{{ prop.name }}.set(new_value);
+            if let Some(new_value) = rtc.compute_eased_value(properties.{{prop.0.name}}._get_transition_manager()) {
+            properties.{{ prop.0.name }}.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.{{ prop.0.name }}._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::{{ prop.1 }}(v) = new_value { v } else { unreachable!() };
+            properties.{{ prop.0.name }}.set(new_value);
             }
         {% endfor %}
     }));

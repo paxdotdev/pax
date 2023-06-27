@@ -4,7 +4,7 @@ use piet_common::RenderContext;
 use pax_core::{HandlerRegistry, TabCache, InstanceRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, TransformAndBounds};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{Transform2D, Size2D, PropertyInstance, ArgsCoproduct};
+use pax_runtime_api::{Transform2D, Size2D, PropertyInstance};
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.

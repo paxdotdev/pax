@@ -94,7 +94,7 @@ Alphabet of injectables:
         transform: || {}
         direction:
         cells:
-        gutter_width:
+        gutter:
     }
 )
 // We really want language server aid here...
@@ -145,7 +145,7 @@ That is, three total parsers:
                                //To start we could give judicious global real estate to 
                                //orientation.{vertical|horizontal}, toward.{top,right,bottom,left}
         cells: 10,
-        gutter_width: 10px,
+        gutter: 10px,
     }
     
     #rect-0 {
@@ -175,7 +175,7 @@ That is, three total parsers:
                                //To start we could give judicious global real estate to 
                                //orientation.{vertical|horizontal}, toward.{top,right,bottom,left}
         cells: 10,
-        gutter_width: 10px,
+        gutter: 10px,
     }
     
     #rect-0 {

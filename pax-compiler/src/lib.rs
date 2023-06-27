@@ -1,15 +1,17 @@
 extern crate core;
 
 pub mod manifest;
-pub mod reflection;
 pub mod templating;
 pub mod parsing;
 pub mod expressions;
 
 use manifest::PaxManifest;
+use rust_format::{Config, Formatter};
 
 use std::{fs};
+use std::any::Any;
 use std::borrow::Borrow;
+use std::cmp::Ordering;
 use std::str::FromStr;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
@@ -21,171 +23,221 @@ use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Item};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use crate::manifest::{LiteralBlockDefinition, ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition, SettingsSelectorBlockDefinition};
+use crate::manifest::{ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition, TypeTable};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
 /// Returns a sorted and de-duped list of combined_reexports.
 fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
-    //traverse ComponentDefinitions in manifest
-    //gather module_path and PascalIdentifier --
-    //  handle `parser` module_path and any sub-paths
-    //re-expose module_path::PascalIdentifier underneath `pax_reexports`
-    //ensure that this partial.rs file is loaded included under the `pax_app` macro
-    let reexport_components: Vec<String> = manifest.components.iter().map(|cd|{
-        //e.g.: "some::module::path::SomePascalIdentifier"
-        cd.1.module_path.clone() + "::" + &cd.1.pascal_identifier
-    }).collect();
+    let imports = manifest.import_paths.clone().into_iter().sorted().collect();
 
-    let mut reexport_types : Vec<String> = manifest.components.iter().map(|cd|{
-        cd.1.property_definitions.iter().map(|pm|{
-            pm.fully_qualified_constituent_types.clone()
-        }).flatten().collect::<Vec<_>>()
-    }).flatten().collect::<Vec<_>>();
-
-    let mut combined_reexports = reexport_components;
-    combined_reexports.append(&mut reexport_types);
-    combined_reexports.sort();
-
-    let mut file_contents = "pub mod pax_reexports { \n".to_string();
-
-    //Make combined_reexports unique by pouring into a Set and back
-    let set: HashSet<_> = combined_reexports.drain(..).collect();
-    combined_reexports.extend(set.into_iter());
-    combined_reexports.sort();
-
-    file_contents += &bundle_reexports_into_namespace_string(&combined_reexports);
-
-    file_contents += "}";
+    let file_contents = &bundle_reexports_into_namespace_string(&imports);
 
     let path = pax_dir.join(Path::new(REEXPORTS_PARTIAL_RS_PATH));
     fs::write(path, file_contents).unwrap();
 }
 
+struct NamespaceTrieNode {
+    pub node_string: Option<String>,
+    pub children: HashMap<String, NamespaceTrieNode>,
+}
+
+impl PartialEq for NamespaceTrieNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.node_string == other.node_string
+    }
+}
+
+impl Eq for NamespaceTrieNode {}
+
+impl PartialOrd for NamespaceTrieNode {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for NamespaceTrieNode {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (&self.node_string, &other.node_string) {
+            (Some(a), Some(b)) => a.cmp(b),
+            (Some(_), None) => Ordering::Greater,
+            (None, Some(_)) => Ordering::Less,
+            (None, None) => Ordering::Equal,
+        }
+    }
+}
+
+impl NamespaceTrieNode {
+    pub fn insert(&mut self, namespace_string: &str) {
+        let mut segments = namespace_string.split("::");
+        let first_segment = segments.next().unwrap();
+
+        let mut current_node = self;
+        current_node = current_node.get_or_create_child(first_segment);
+
+        for segment in segments {
+            current_node = current_node.get_or_create_child(segment);
+        }
+    }
+
+    pub fn get_or_create_child(&mut self, segment: &str) -> &mut NamespaceTrieNode {
+        self.children
+            .entry(segment.to_string())
+            .or_insert_with(|| NamespaceTrieNode {
+                node_string: Some(if let Some(ns) = self.node_string.as_ref() {
+                    ns.to_string() + "::" + segment
+                } else {
+                    segment.to_string()
+                }),
+                children: HashMap::new(),
+            })
+    }
+
+    pub fn serialize_to_reexports(&self) -> String {
+        "pub mod pax_reexports {\n".to_string() + &self.recurse_serialize_to_reexports(1) + "\n}"
+    }
+
+    pub fn recurse_serialize_to_reexports(&self, indent: usize) -> String {
+
+        let indent_str = "    ".repeat(indent);
+
+        let mut accum : String = "".into();
+
+        self.children.iter().sorted().for_each(|child|{
+            if child.1.node_string.as_ref().unwrap() == "crate" {
+                //handle crate subtrie by skipping the crate NamespaceTrieNode, traversing directly into its children
+                child.1.children.iter().sorted().for_each(|child| {
+                    if child.1.children.len() == 0 {
+                        //leaf node:  write `pub use ...` entry
+                        accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
+                    } else {
+                        //non-leaf node:  write `pub mod ...` block
+                        accum += &format!("{}pub mod {} {{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
+                        accum += &child.1.recurse_serialize_to_reexports(indent + 1);
+                        accum += &format!("{}}}\n", indent_str);
+                    }
+                })
+
+            }else {
+                if child.1.children.len() == 0 {
+                    //leaf node:  write `pub use ...` entry
+                    accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
+                } else {
+                    //non-leaf node:  write `pub mod ...` block
+                    accum += &format!("{}pub mod {}{{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
+                    accum += &child.1.recurse_serialize_to_reexports(indent + 1);
+                    accum += &format!("{}}}\n", indent_str);
+                }
+            };
+        });
+
+        accum
+
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::NamespaceTrieNode;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_serialize_to_reexports() {
+        let input_vec = vec![
+            "crate::Example",
+            "crate::fireworks::Fireworks",
+            "crate::grids::Grids",
+            "crate::grids::RectDef",
+            "crate::hello_rgb::HelloRGB",
+            "f64",
+            "pax_std::primitives::Ellipse",
+            "pax_std::primitives::Group",
+            "pax_std::primitives::Rectangle",
+            "pax_std::types::Color",
+            "pax_std::types::Stroke",
+            "std::vec::Vec",
+            "usize",
+        ];
+
+        let mut root_node = NamespaceTrieNode {
+            node_string: None,
+            children: HashMap::new(),
+        };
+
+        for namespace_string in input_vec {
+            root_node.insert(&namespace_string);
+        }
+
+        let output = root_node.serialize_to_reexports();
+
+        let expected_output = r#"pub mod pax_reexports {
+    pub use crate::Example;
+    pub mod fireworks {
+        pub use crate::fireworks::Fireworks;
+    }
+    pub mod grids {
+        pub use crate::grids::Grids;
+        pub use crate::grids::RectDef;
+    }
+    pub mod hello_rgb {
+        pub use crate::hello_rgb::HelloRGB;
+    }
+    pub use f64;
+    pub mod pax_std{
+        pub mod primitives{
+            pub use pax_std::primitives::Ellipse;
+            pub use pax_std::primitives::Group;
+            pub use pax_std::primitives::Rectangle;
+        }
+        pub mod types{
+            pub use pax_std::types::Color;
+            pub use pax_std::types::Stroke;
+        }
+    }
+    pub mod std{
+        pub mod vec{
+            pub use std::vec::Vec;
+        }
+    }
+    pub use usize;
+
+}"#;
+
+        assert_eq!(output, expected_output);
+    }
+}
+
+
+
 fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
 
-    //0. sort (expected to be passed sorted)
-    //1. keep transient stack of nested namespaces.  For each export string (like pax::api::Size)
-    //   - Split by "::"
-    //   - if no `::`, or `crate::SingleDepth`, export at root of `pax_reexports`, i.e. empty stack
-    //   - if `::`,
-    //      - push onto stack the first n-1 identifiers as namespace
-    //        - when pushing onto stack, write a `pub mod _identifier_ {`
-    //      - when last element is reached, write a `pub use _identifier_;`
-    //      - keep track of previous or next element, pop from stack for each of `n` mismatched prefix tokens
-    //        - when popping from stack, write a `}`
-    //        - empty stack entirely at end of vec
+    let mut root = NamespaceTrieNode {
+        node_string: None,
+        children: Default::default(),
+    };
 
-    //Author's note: if this logic must be refactored significantly, consider building a tree data structure & serializing it, instead
-    //      of doubling down on this sorted/iterator/stack approach.  This ended up fairly arcane and brittle. -zb
-
-    let mut namespace_stack = vec![];
-    let mut output_string = "".to_string();
-
-    //identify namespaceless or prelude-qualified types, e.g. `f64`
-    fn is_reexport_namespaceless(symbols: &Vec<String>) -> bool {
-        symbols.len() == 0
+    for s in sorted_reexports {
+        root.insert(s);
     }
 
-    //identify `crate::RootLevel` reexports, e.g. `crate::Foo` but not `crate::bar::Bar`
-    fn is_reexport_crate_root(symbols: &Vec<String>) -> bool {
-        symbols[0].eq("crate") && symbols.len() == 2
-    }
+    root.serialize_to_reexports()
 
-    fn is_reexport_crate_prefixed(symbols: &Vec<String>) -> bool {
-        symbols[0].eq("crate")
-    }
-
-    fn get_tabs (i: usize) -> String {
-        "\t".repeat(i + 1).to_string()
-    }
-
-    fn pop_and_write_brace(namespace_stack: &mut Vec<String>, output_string: &mut String){
-        namespace_stack.pop();
-        output_string.push_str(&*(get_tabs(namespace_stack.len()) + "}\n"));
-    }
-
-    fn dump_stack(namespace_stack: &mut Vec<String>, output_string: &mut String)  {
-        while namespace_stack.len() > 0 {
-            pop_and_write_brace(namespace_stack, output_string);
-        }
-    }
-
-    sorted_reexports.iter().enumerate().for_each(|(i,pub_use)| {
-
-        let symbols: Vec<String> = pub_use.split("::").map(|s|{s.to_string()}).collect();
-
-        if is_reexport_namespaceless(&symbols) || is_reexport_crate_root(&symbols) {
-            //we can assume we're already at the root of the stack, thanks to the look-ahead stack-popping logic.
-            assert!(namespace_stack.len() == 0);
-            output_string += &*(get_tabs(namespace_stack.len()) + "pub use " + pub_use + ";\n");
-        } else {
-            //push necessary symbols to stack
-            let starting_index = namespace_stack.len();
-            let skip = if symbols[0] == "crate" {1} else {0};
-
-            for k in skip..((symbols.len() - 1) - namespace_stack.len()) {
-                //k represents the offset `k` from `starting_index`, where `k + starting_index`
-                //should be retrieved from `symbols` and pushed to `namespace_stack`
-                let namespace_symbol = symbols.get(k + starting_index).unwrap().clone();
-                output_string += &*(get_tabs(namespace_stack.len()) + "pub mod " + &namespace_symbol + " {\n");
-                namespace_stack.push(namespace_symbol);
-            }
-
-            output_string += &*(get_tabs(namespace_stack.len()) + "pub use " + pub_use + ";\n");
-
-            //look-ahead and pop stack as necessary
-            match sorted_reexports.get(i + 1) {
-                Some(next_reexport) => {
-                    let next_symbols : Vec<String> = next_reexport.split("::").map(|s|{s.to_string()}).collect();
-                    if is_reexport_crate_prefixed(&next_symbols) || is_reexport_namespaceless(&next_symbols) {
-                        dump_stack(&mut namespace_stack, &mut output_string);
-                    } else {
-                        //for the CURRENT first n-1 symbols, check against same position in
-                        //new_symbols.
-                        //for the first mismatched symbol at i, pop k times, where k = (n-1)-i
-
-                        let mut how_many_pops = None;
-                        let n_minus_one = symbols.len() - 1;
-                        symbols.iter().take(symbols.len() - 1).enumerate().for_each(|(i,symbol)|{
-                            if let None = how_many_pops {
-                                if let Some(next_symbol) = next_symbols.get(i) {
-                                    if !next_symbol.eq(symbol) {
-                                        how_many_pops = Some(n_minus_one - i);
-                                    }
-                                } else {
-                                    how_many_pops = Some(n_minus_one - i);
-                                }
-                            }
-                        });
-
-                        if let Some(pops) = how_many_pops {
-                            for _ in skip..pops {
-                                pop_and_write_brace(&mut namespace_stack, &mut output_string);
-                            }
-                        }
-                    }
-                },
-                None => {
-                    //we're at the end of the vec — dump stack and write braces
-                    dump_stack(&mut namespace_stack, &mut output_string);
-                }
-            }
-        }
-    });
-
-    output_string
 }
 
 fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
-    //update property types in-place
-    manifest.components.iter_mut().for_each(|cd| {
-        cd.1.property_definitions.iter_mut().for_each(|pm| {
-            pm.property_type_info.pascalized_fully_qualified_type = pm.property_type_info.pascalized_fully_qualified_type.replace("{PREFIX}", "__");
-            pm.property_type_info.fully_qualified_type = pm.property_type_info.fully_qualified_type.replace("{PREFIX}", &host_crate_info.import_prefix);
+
+    let mut updated_type_table = HashMap::new();
+    manifest.type_table.iter_mut().for_each(|t|{
+        t.1.type_id_escaped = t.1.type_id_escaped.replace("{PREFIX}", "");
+        t.1.type_id = t.1.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
+        t.1.property_definitions.iter_mut().for_each(|pd|{
+            pd.type_id = pd.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
         });
+        updated_type_table.insert(t.0.replace("{PREFIX}", &host_crate_info.import_prefix), t.1.clone());
     });
+    std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
+
 }
 
 
@@ -196,7 +248,6 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
-
 
     clean_dependencies_table_of_relative_paths("pax-properties-coproduct", target_cargo_toml_contents["dependencies"].as_table_mut().unwrap(), host_crate_info);
 
@@ -209,12 +260,11 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
 
-
     //build tuples for PropertiesCoproduct
     let mut properties_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|comp_def| {
         let mod_path = if &comp_def.1.module_path == "crate" {"".to_string()} else { comp_def.1.module_path.replace("crate::", "") + "::"};
         (
-            comp_def.1.pascal_identifier.clone(),
+            comp_def.1.type_id_escaped.clone(),
             format!("{}{}{}", &host_crate_info.import_prefix, &mod_path, &comp_def.1.pascal_identifier)
         )
     }).collect();
@@ -222,15 +272,17 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     properties_coproduct_tuples.extend(set.into_iter());
     properties_coproduct_tuples.sort();
 
-
-
     //build tuples for TypesCoproduct
     // - include all Property types, representing all possible return types for Expressions
     // - include all T such that T is the iterator type for some Property<Vec<T>>
     let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
-        cd.1.property_definitions.iter().map(|pm|{
-            (pm.property_type_info.pascalized_fully_qualified_type.clone(),
-             pm.property_type_info.fully_qualified_type.clone())
+        cd.1.get_property_definitions(&manifest.type_table).iter().map(|pm|{
+            let td = pm.get_type_definition(&manifest.type_table);
+
+            (
+                td.type_id_escaped.clone(),
+                host_crate_info.import_prefix.to_string() + &td.type_id.clone().replace("crate::", "")
+            )
         }).collect::<Vec<_>>()
     }).flatten().collect::<Vec<_>>();
 
@@ -243,17 +295,20 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
         ("isize", "isize"),
         ("usize", "usize"),
         ("String", "String"),
-        ("Vec_Rc_PropertiesCoproduct___", "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>"),
+        ("stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR", "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>"),
         ("Transform2D", "pax_runtime_api::Transform2D"),
-        ("Range_isize_", "std::ops::Range<isize>"),
+        ("stdCOCOopsCOCORangeLABRisizeRABR", "std::ops::Range<isize>"),
         ("Size2D", "pax_runtime_api::Size2D"),
         ("Size", "pax_runtime_api::Size"),
         ("SizePixels", "pax_runtime_api::SizePixels"),
+        ("Numeric", "pax_runtime_api::Numeric"),
     ];
 
     TYPES_COPRODUCT_BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
     types_coproduct_tuples.extend(set.into_iter());
     types_coproduct_tuples.sort();
+
+    types_coproduct_tuples = types_coproduct_tuples.into_iter().unique_by(|elem|{elem.0.to_string()}).collect::<Vec<(String, String)>>();
 
     //press template into String
     let generated_lib_rs = templating::press_template_codegen_properties_coproduct_lib(templating::TemplateArgsCodegenPropertiesCoproductLib {
@@ -284,29 +339,11 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
 
-    //Gather all fully_qualified_constituent_types from manifest; prepend with re-export prefix; make unique
     #[allow(non_snake_case)]
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
-    let mut imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
-        comp_def.property_definitions.iter().map(|prop_def|{
-            prop_def.fully_qualified_constituent_types.iter().map(|fqct|{
-                IMPORT_PREFIX.clone() + fqct
-            }).collect::<Vec<String>>()
-        }).flatten().collect::<Vec<String>>()
-    }).flatten().collect::<Vec<String>>();
-    let unique_imports: HashSet<String> = imports.drain(..).collect();
-    imports.extend(unique_imports.into_iter().sorted());
-
-    //Also add component property structs to the imports list, with same reexports prefix
-    let properties_structs_imports : Vec<String> = manifest.components.values().map(|comp_def: &ComponentDefinition|{
-        let module_path = if comp_def.module_path == "crate" {
-            "".to_string()
-        } else {
-            comp_def.module_path.replace("crate::", "") + "::"
-        };
-        format!("{}{}{}", &IMPORT_PREFIX, &module_path, comp_def.pascal_identifier)
-    }).collect::<Vec<String>>();
-    imports.extend(properties_structs_imports.into_iter().sorted());
+    let imports : Vec<String> = manifest.import_paths.iter().map(|path|{
+        IMPORT_PREFIX.clone() + &path.replace("crate::", "")
+    }).collect();
 
     let consts = vec![];//TODO!
 
@@ -345,7 +382,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     let mut expression_specs : Vec<ExpressionSpec> = manifest.expression_specs.as_ref().unwrap().values().map(|es: &ExpressionSpec|{es.clone()}).collect();
     expression_specs = expression_specs.iter().sorted().cloned().collect();
 
-    let component_factories_literal =  manifest.components.values().into_iter().filter(|cd|{!cd.is_primitive}).map(|cd|{
+    let component_factories_literal =  manifest.components.values().into_iter().filter(|cd|{!cd.is_primitive && !cd.is_struct_only_component}).map(|cd|{
         generate_cartridge_component_factory_literal(manifest, cd)
     }).collect();
 
@@ -357,9 +394,22 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
         component_factories_literal,
     });
 
-    //write String to file
-    fs::write(target_dir.join("src/lib.rs"), generated_lib_rs).unwrap();
 
+    //format output
+    let formatted = {
+        let mut formatter = rust_format::RustFmt::default();
+
+        if let Ok(out) = formatter.format_str(generated_lib_rs.clone()) {
+            out
+        } else {
+            //if formatting fails (e.g. parsing error, common expected case) then
+            //fall back to unformatted generated code
+            generated_lib_rs
+        }
+    };
+
+    //write String to file
+    fs::write(target_dir.join("src/lib.rs"), formatted).unwrap();
 }
 
 
@@ -399,7 +449,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
     //pull inline event binding and store into map
     let events = generate_bound_events(tnd.settings.clone());
-    let args = if tnd.component_id == parsing::COMPONENT_ID_REPEAT {
+    let args = if tnd.type_id == parsing::TYPE_ID_REPEAT {
         // Repeat
         let rsd = tnd.control_flow_settings.as_ref().unwrap().repeat_source_definition.as_ref().unwrap();
         let id = rsd.vtable_id.unwrap();
@@ -414,7 +464,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
-            snake_case_component_id: "UNREACHABLE".into(),
+            snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("RepeatInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
@@ -424,18 +474,19 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             children_literal,
             slot_index_literal: "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
-            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
+            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
             events,
             repeat_source_expression_literal_vec: rse_vec,
             repeat_source_expression_literal_range: rse_range,
         }
-    } else if tnd.component_id == parsing::COMPONENT_ID_IF {
+    } else if tnd.type_id == parsing::TYPE_ID_IF {
         // If
         let id = tnd.control_flow_settings.as_ref().unwrap().condition_expression_vtable_id.unwrap();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
-            snake_case_component_id: "UNREACHABLE".into(),
+            snake_case_type_id: "UNREACHABLE".into(),
             primitive_instance_import_path: Some("ConditionalInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
@@ -447,17 +498,18 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             repeat_source_expression_literal_vec:  "None".to_string(),
             repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
-            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
+            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
             events,
         }
-    } else if tnd.component_id == parsing::COMPONENT_ID_SLOT {
+    } else if tnd.type_id == parsing::TYPE_ID_SLOT {
         // Slot
         let id = tnd.control_flow_settings.as_ref().unwrap().slot_index_expression_vtable_id.unwrap();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
-            snake_case_component_id: "UNREACHABLE".into(),
-            primitive_instance_import_path: Some("ConditionalInstance".into()),
+            snake_case_type_id: "UNREACHABLE".into(),
+            primitive_instance_import_path: Some("SlotInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
             properties: vec![],
@@ -468,13 +520,14 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             repeat_source_expression_literal_vec:  "None".to_string(),
             repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
-            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
+            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
             events,
         }
     } else {
         //Handle anything that's not a built-in
 
-        let component_for_current_node = rngc.components.get(&tnd.component_id).unwrap();
+        let component_for_current_node = rngc.components.get(&tnd.type_id).unwrap();
 
         //Properties:
         //  - for each property on cfcn, there will either be:
@@ -486,7 +539,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //    stage for any `Properties` that are bound to something other than an expression / literal)
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
-        let property_ril_tuples: Vec<(String, String)> = component_for_current_node.property_definitions.iter().map(|pd| {
+        let property_ril_tuples: Vec<(String, String)> = component_for_current_node.get_property_definitions(rngc.type_table).iter().map(|pd| {
             let ril_literal_string = {
                 if let Some(inline_settings) = &tnd.settings {
                     if let Some(matched_setting) = inline_settings.iter().find(|avd| { avd.0 == pd.name }) {
@@ -543,9 +596,9 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //then, on the post-order traversal, press template string and return
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: component_for_current_node.is_primitive,
-            snake_case_component_id: component_for_current_node.get_snake_case_id(),
+            snake_case_type_id: component_for_current_node.get_snake_case_id(),
             primitive_instance_import_path: component_for_current_node.primitive_instance_import_path.clone(),
-            properties_coproduct_variant: component_for_current_node.pascal_identifier.to_string(),
+            properties_coproduct_variant: component_for_current_node.type_id_escaped.to_string(),
             component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
             properties: property_ril_tuples,
             transform_ril: builtins_ril[2].clone(),
@@ -555,7 +608,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             repeat_source_expression_literal_vec: "None".to_string(),
             repeat_source_expression_literal_range:  "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
-            active_root: rngc.active_component_definition.pascal_identifier.to_string(),
+            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
+            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
             events,
         }
     };
@@ -566,6 +620,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
 struct RenderNodesGenerationContext<'a> {
     components: &'a std::collections::HashMap<String, ComponentDefinition>,
     active_component_definition: &'a ComponentDefinition,
+    type_table: &'a TypeTable,
 }
 
 fn generate_events_map(events: Option<Vec<EventDefinition>>) -> HashMap<String, Vec<String>> {
@@ -587,16 +642,19 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
     let rngc = RenderNodesGenerationContext {
         components: &manifest.components,
         active_component_definition: cd,
+        type_table: &manifest.type_table,
     };
 
     let args = TemplateArgsCodegenCartridgeComponentFactory {
-        is_root: cd.is_root,
-        snake_case_component_id: cd.get_snake_case_id(),
+        is_main_component: cd.is_main_component,
+        snake_case_type_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
-        properties: cd.property_definitions.clone(),
+        properties: cd.get_property_definitions(&manifest.type_table).iter().map(|pd|{
+            (pd.clone(),pd.get_type_definition(&manifest.type_table).type_id_escaped.clone())
+        }).collect(),
         events: generate_events_map(cd.events.clone()),
         render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc),
-        properties_coproduct_variant: cd.pascal_identifier.to_string()
+        properties_coproduct_variant: cd.type_id_escaped.to_string()
     };
 
     press_template_codegen_cartridge_component_factory(args)
@@ -696,7 +754,6 @@ fn persistent_extract<S: AsRef<Path>>(dir: &Dir, base_path: S) -> std::io::Resul
     Ok(())
 }
 
-
 /// Simple recursive fs copy function, since std::fs::copy doesn't recurse for us
 fn libdev_chassis_copy(src: &PathBuf, dest: &PathBuf) {
     for entry_wrapped in fs::read_dir(src).unwrap() {
@@ -711,7 +768,6 @@ fn libdev_chassis_copy(src: &PathBuf, dest: &PathBuf) {
         }
     }
 }
-
 
 static CHASSIS_MACOS_LIBDEV: &str = "../pax-chassis-macos";
 static CHASSIS_MACOS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos");
@@ -771,7 +827,6 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
         }
     }
     Ok(())
-
 
 }
 
@@ -872,6 +927,7 @@ pub fn run_parser_binary(path: &str) -> Output {
 
 
 use colored::Colorize;
+use crate::parsing::escape_identifier;
 
 
 /// For the specified file path or current working directory, first compile Pax project,
@@ -882,7 +938,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     #[allow(non_snake_case)]
     let PAX_BADGE = "[Pax]".bold().on_black().white();
 
-    println!("{} 🛠 Building Rust project with cargo...", &PAX_BADGE);
+    println!("{} 🛠 Running `cargo build`...", &PAX_BADGE);
     let pax_dir = get_or_create_pax_directory(&ctx.path);
 
     // Run parser bin from host project with `--features parser`

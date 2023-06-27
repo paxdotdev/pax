@@ -108,7 +108,7 @@ pub fn hue_shift() {
 2022-01-31
 
 How is the generated RIL consumed?
-- Chassis reaches into cartridge and calls a method to get root component instance(s)
+- Chassis reaches into cartridge and calls a method to get root/main component instance(s)
 - Chassis then passes instance to the Engine to start rendering
 
 
@@ -1101,7 +1101,7 @@ Stacker needs to update its cached computed layout as a function of its ~six pro
 pub computed_layout_spec: Vec<Rc<StackerCell>>,
 pub direction:  Box<dyn pax::api::Property<StackerDirection>>,
 pub cells: Box<dyn pax::api::Property<usize>>,
-pub gutter_width: Box<dyn pax::api::Property<pax::api::Size>>,
+pub gutter: Box<dyn pax::api::Property<pax::api::Size>>,
 pub overrides_cell_size: Option(Vec<(usize, pax::api::Size)>),
 pub overrides_gutter_size: Option(Vec<(usize, pax::api::Size)>),
 
@@ -1196,7 +1196,7 @@ pub fn handle_prerender(&mut self, args: ArgsRender) {
             StackerDirection::Vertical => bounds.1
         };
 
-        let gutter_calc = match *self.gutter_width.get() {
+        let gutter_calc = match *self.gutter.get() {
             Size::Pixel(px) => px,
             Size::Percent(pct) => active_bound * (pct / 100.0),
         };
@@ -2120,8 +2120,8 @@ vs. "base" or "instance" or "concrete" nodes
 
 ex.
 `VirtualNode {}`
-`parent_hydrated_node`
-`hydrated_node_cache: HashMap<Vec<u64>, Rc<VirtualNode<R>>>,`
+`parent_repeat_expanded_node`
+`repeat_expanded_node_cache: HashMap<Vec<u64>, Rc<VirtualNode<R>>>,`
 
 Problematically, `virtual` could arguably be applied to both the `raw instance` and any `virtual` nodes
 
@@ -2412,8 +2412,8 @@ and called as such:
 ```
 #[pax(
     for i in 0..self.cells {
-        let cell_width = ($bounds.0 - ((cells + 1) * gutter_width)) / cells
-        let cell_height = ($bounds.1 - ((cells + 1) * gutter_width)) / cells
+        let cell_width = ($bounds.0 - ((cells + 1) * gutter)) / cells
+        let cell_height = ($bounds.1 - ((cells + 1) * gutter)) / cells
         <Frame transform={get_transform(i)} size={(cell_width, cell_height)}>
             slot(i)
         </Frame>
@@ -2480,7 +2480,7 @@ where type annotations are explicit.  Alternatively, all of the `elem` iteration
 is available by array access with `i` — `some_collection[i]`
 - could introduce PropertyVec<T>, which offers a Vec-like API and knows how to reflect and offer "T"
 - might be able to impl a new parser method via traits, populating an Optional field representing `iter`'s `<T>` if present
-  - something like `impl<T> IterableQualifiable for Iter<T> where T: PathQualifiable { fn get_iter_type() -> String {...} }`
+  - something like `impl<T> IterableQualifiable for Iter<T> where T: Reflectable { fn get_iter_type() -> String {...} }`
 - could hard-code support for `Vec`, special-handling pulling the `T` out of `Property<Vec<T>>` or `Property<std::vec::Vec<T>>`, and later extending that support to other built-ins.  
 
 
@@ -2857,3 +2857,149 @@ where
 Update, Apr 12:  Decided to handle `range` and `vec` `PropertyInstance`s separately.
 See `TemplateArgsCodegenCartridgeRenderNodeLiteral` and its fields
 `repeat_source_expression_literal_vec` and `repeat_source_expression_literal_range`
+
+
+
+
+## On nestable properties
+
+Apr-May 2023
+
+#### Use-case: 
+
+Iterating over structs with `for struct_instance in some_vec_of_structs`, then using `elem.some_property` in PAXEL
+
+We need this for `<Stacker />`, roughly: `for cell in self.computed_cells { /* frame & slot */ }`
+
+#### Problem:
+
+We don't yet support nested symbol invocations like `elem.some_property`.  Code-genning RIL for this
+requires knowing the type of the data at hand, both to unwrap intermediate `PropertiesCoproduct` symbols
+(consider `foo.bar.baz`) and to handle the resulting value (e.g. `Numeric`-wrapping)
+
+#### Plan:
+```
+[x] Support chaining in generated RIL, e.g. `foo` and `foo_DOT_bar`:
+    [x] In the Pratt parser, adjust how we encode `foo.bar` (string-sub `foo_DOT_bar`) 
+    [x] Maybe: sort invocations alphabetically, thus guaranteeing `foo` will already exist for `foo_DOT_bar`, 
+        so `foo` can be used inside the invocation RIL for `foo_DOT_bar`
+        [-] Alternate: a symbol trie, to handle `foo` and `foo_bar`, etc.
+[ ] Add necessary `parse_to_manifest` or `parse_to_manifest` generation logic to `pax_type`
+    [x] Add property reflection logic in `pax_type` macro 
+    [x] Add hooks into calling types' `parse_to_manifest` logic during parser binary phase
+    [x] Populate type definitions into manifest (alongside component definitions), punch through to compiler & expressions
+        [x] What if types are EXACTLY empty-template components?  fits with `#[derive(Pax)]` intuition.  Decide which direction is conceptually cleaner.
+    [x] Figure out `Default` with `pax-std` types
+        [x] Implement macro API++ (derive plus attribute flags)
+        [x] `#[custom(...)]` escape hatches
+    [ ] Update iterable_type population logic;
+        codegen calls to `populate_type_definition` for each nested Vec<Vec<T...
+        possibly: hook into Reflectable / Reflectable
+[x] connect `ComponentDefinition` with `TypeDefinition`
+    [x] refactor access / mutation of ComponentDefinition.property_definitions
+    [x] assemble `type_table` with a TypeDefinition for each visited entity
+        [x] pax_type
+        [x] pax_primitive
+        [x] pax_component 
+    [x] conslidate pax_primitive API with pax derive API
+    [x] refactor type_id generation logic, clean, consistent, & DRY
+        [-] look at feasibility of making a dynamic method like parse_to_manifest, part of Reflectable or Reflectable
+        [x] or consolidate with source_id?
+[ ] Update `resolve_symbol` logic to handle nested symbols like `foo.bar.baz` and `elem.some.deeply.nested.thing`.
+    [x] Split by `.`, recurse PropertyDefinition => TypeDefinition.property_definitions => PropertyDefinition => ...
+    [ ] Add RIL generation logic to handle trailing `.foo.bar` — 
+        What does this look like?  If `foo` is a Property<T>, then we opaquely call
+        `.get()`.  Do we also need to unwrap the propertiescoproduct? 
+        - yes: .get() each subsequent property.  gather terminal symbol's TypeDefinition.
+        - do not need to unwrap properties coproduct after the root -- once unwrapped, it "owns"
+          the subsequent chained symbols, in a strongly typed way. 
+[x] Add `property_definitions` to `TypeDefinition`, allowing recursion through
+    nested `TypeDefinition`s, 
+    [x] Refactor: `PropertyDefinition` and `TypeDefinition`; clean-up and consolidate
+    [x] Populate `property_definitions` / types into `type_table` — this may need to happen after the initial full recursion
+        in the parser binary, right before we currently terminate and write to stdout — 
+        recurse the entire tree one more time, populating `known_addressable_properties` with the benefit
+        of the whole manifest in hand.  
+```
+
+
+#### Appendix: early jots, formerly code comments 
+
+```
+//TODO: how to handle nested symbol invocations, like `rect.width`?
+//      rect is an instance of a custom struct; width is property of that struct
+//       - to enable nested Property<T> access, we could create a special case of
+//         invocation, where each of `x.y.z` is resolved independently, sequentially,
+//         by building off of the previous.  Since each of the types for `x` and `y`
+//         are expected to be on the PropertiesCoproduct, this should be pretty
+//         straight-forward.
+//       - alternatively:  is there any reason we can't append + chain symbols directly?
+//         e.g. (some_complicated_invocation).some.simple_chain
+//         Is there anywhere where this falls apart?  What about `foo.bar.baz` where
+//         foo is `pax_type`'d custom struct, with property `bar`, also a `pax_type` struct, and
+//         `baz` a simple property of `bar` (not a `Property<T>`)
+//         In the `bar` case, we want to "invoke" and unwrap `bar`, just like we did
+//         `foo`, and in the `baz` case we want to call at least `.get` implicitly
+//         Can this be formalized?   `foo.`, where foo is not chain-terminal, will always
+//         be `invoked`, and `.baz`, where `.baz` is chain-terminal, will always
+//         be `.get`ted (and not type-unwrapped; this is already done for its PropertiesCoproduct container)
+//       - What about array and tuple access?  E.g. self.some_vec_of_tuples[0].1
+//          should be able to forward / codegen these literally, e.g. (some ... invocation)[0].1
+//       - Do we modify `ExpressionSpecInvocation` to be "multi-symbol-aware"?  In particular,
+//         the rest of the context for the ESI _is_ shared across each of the chained
+//         symbols, which makes it tempting to shim this in there.  Essentially,
+//         the symbols can be a Vec<>.  Here's the part that needs to be duplicated/codegenned
+//
+/*
+
+Template:
+if let PropertiesCoproduct::{{ invocation.properties_coproduct_type }}(p) = properties {
+{% if invocation.is_numeric_property %}
+Numeric::from(p.{{invocation.identifier}}.get())
+{% else %}
+p.{{invocation.identifier}}.get().clone()
+{% endif %}
+} else {
+unreachable!("{{ expression_spec.id }}")
+}
+
+
+//1. handle the (implicit) self case: do nothing
+//2. handle the first identifier:
+//    chain onto (nothing) — necessarily unwrap
+
+
+//We need to know the tuple of (properties_coproduct_type, is_numeric_property, identifier)
+//for each of the chained identifiers.
+//How can we resolve the type of `bar` from `foo.bar.baz`?  (this is needed to get the above tuple)
+//We know the type of `foo` —that's a member of `self`, so we consult the stack + HashMap of string property => PropertyType lookups.
+//In this case, we need to go a bit further.  We can know easily enough that `bar`
+//is a member of the struct in question, and we can get the PropertyType for `bar`.
+//What about `baz`?  `baz` needs to be looked up independently of this HashMap stack
+// (OR, perhaps we could populate PropertyType with its own "hash map" (or list of tuples)
+// of String symbol => PropertyType value.
+
+//implicit self: p
+// foo:
+//note that this may overwrite another invocation for `foo` -- hopefully
+//     that won't be a problem!  but could revisit with some deduping logic
+//     if needed
+let foo = (if let PropertiesCoproduct::Foo(p) = properties {
+p.foo.get().clone()
+} else {
+unreachable!("{{ expression_spec.id }}")
+})
+let foo_bar = (
+if let PropertiesCoproduct::Bar(foo.bar) = properties {
+    p.{{invocation.identifier}}.get().clone()
+} else {
+    unreachable!("{{ expression_spec.id }}")
+}
+)
+
+let foo_bar_baz = (
+
+)
+
+bar:
+

@@ -1,0 +1,19 @@
+
+
+//Camera
+<Frame width=100% height=100% @click=handle_click >
+    <Group transform={
+        Transform2D::scale(zoom, zoom) *
+        Transform2D::translate(pan_x, pan_y)
+    }>
+        <Rectangle width=100px height=100px fill={Color::rgb(100.0, 0, 0)} transform={Transform2D::translate(0,0)} />
+        <Rectangle width=100px height=100px fill={Color::rgb(0, 100.0, 0)} transform={Transform2D::translate(0,200)} />
+        <Rectangle width=100px height=100px fill={Color::rgb(0, 0, 100.0)} transform={Transform2D::translate(200,0)} />
+        <Ellipse width=100px height=100px fill={Color::rgb(0, 50.0, 50.0)} transform={Transform2D::translate(200,200)} />
+    </Group>
+</Frame>
+
+
+@events {
+    did_mount: handle_did_mount,
+}

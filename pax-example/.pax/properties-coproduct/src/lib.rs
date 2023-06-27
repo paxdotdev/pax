@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
+//Component types
 #[repr(u32)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
@@ -8,38 +9,76 @@ pub enum PropertiesCoproduct {
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     isize(isize),
-    Range_isize_(std::ops::Range<isize>),
+    stdCOCOopsCOCORangeLABRisizeRABR(std::ops::Range<isize>),
 
     
-    Ellipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
+    crateCOCOExample(pax_example::pax_reexports::Example),
     
-    Example(pax_example::pax_reexports::Example),
+    crateCOCOcameraCOCOCamera(pax_example::pax_reexports::camera::Camera),
     
-    Fireworks(pax_example::pax_reexports::fireworks::Fireworks),
+    crateCOCOcameraCOCOTypeExample(pax_example::pax_reexports::camera::TypeExample),
     
-    Group(pax_example::pax_reexports::pax_std::primitives::Group),
+    crateCOCOfireworksCOCOFireworks(pax_example::pax_reexports::fireworks::Fireworks),
     
-    HelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
+    crateCOCOgridsCOCOGrids(pax_example::pax_reexports::grids::Grids),
     
-    Image(pax_example::pax_reexports::pax_std::primitives::Image),
+    crateCOCOgridsCOCORectDef(pax_example::pax_reexports::grids::RectDef),
     
-    Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
+    crateCOCOhello_rgbCOCOHelloRGB(pax_example::pax_reexports::hello_rgb::HelloRGB),
     
-    Text(pax_example::pax_reexports::pax_std::primitives::Text),
+    crateCOCOwordsCOCOWords(pax_example::pax_reexports::words::Words),
     
-    Words(pax_example::pax_reexports::words::Words),
+    pax_stdCOCOprimitivesCOCOEllipse(pax_example::pax_reexports::pax_std::primitives::Ellipse),
+    
+    pax_stdCOCOprimitivesCOCOFrame(pax_example::pax_reexports::pax_std::primitives::Frame),
+    
+    pax_stdCOCOprimitivesCOCOGroup(pax_example::pax_reexports::pax_std::primitives::Group),
+    
+    pax_stdCOCOprimitivesCOCOImage(pax_example::pax_reexports::pax_std::primitives::Image),
+    
+    pax_stdCOCOprimitivesCOCORectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
+    
+    pax_stdCOCOprimitivesCOCOText(pax_example::pax_reexports::pax_std::primitives::Text),
+    
+    pax_stdCOCOstackerCOCOStacker(pax_example::pax_reexports::pax_std::stacker::Stacker),
+    
+    pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
+    
+    pax_stdCOCOtypesCOCOColorVariant(pax_example::pax_reexports::pax_std::types::ColorVariant),
+    
+    pax_stdCOCOtypesCOCOStackerCell(pax_example::pax_reexports::pax_std::types::StackerCell),
+    
+    pax_stdCOCOtypesCOCOStackerDirection(pax_example::pax_reexports::pax_std::types::StackerDirection),
+    
+    pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
+    
+    pax_stdCOCOtypesCOCOtextCOCOFont(pax_example::pax_reexports::pax_std::types::text::Font),
+    
+    pax_stdCOCOtypesCOCOtextCOCOFontStyle(pax_example::pax_reexports::pax_std::types::text::FontStyle),
+    
+    pax_stdCOCOtypesCOCOtextCOCOFontWeight(pax_example::pax_reexports::pax_std::types::text::FontWeight),
+    
+    pax_stdCOCOtypesCOCOtextCOCOLinkStyle(pax_example::pax_reexports::pax_std::types::text::LinkStyle),
+    
+    pax_stdCOCOtypesCOCOtextCOCOLocalFont(pax_example::pax_reexports::pax_std::types::text::LocalFont),
+    
+    pax_stdCOCOtypesCOCOtextCOCOSizeWrapper(pax_example::pax_reexports::pax_std::types::text::SizeWrapper),
+    
+    pax_stdCOCOtypesCOCOtextCOCOSystemFont(pax_example::pax_reexports::pax_std::types::text::SystemFont),
+    
+    pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontal(pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal),
+    
+    pax_stdCOCOtypesCOCOtextCOCOTextAlignVertical(pax_example::pax_reexports::pax_std::types::text::TextAlignVertical),
+    
+    pax_stdCOCOtypesCOCOtextCOCOWebFont(pax_example::pax_reexports::pax_std::types::text::WebFont),
     
 }
 
-//used namely for return types of expressions — may have other purposes
+//Property types
 #[repr(u32)]
 pub enum TypesCoproduct {
     
-    OptionLABR__pax_stdCOCOtypesCOCOtextCOCOLinkStyleRABR(Option<pax_example::pax_reexports::pax_std::types::text::LinkStyle>),
-    
-    OptionLABR__pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontalRABR(Option<pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal>),
-    
-    Range_isize_(std::ops::Range<isize>),
+    Numeric(pax_runtime_api::Numeric),
     
     Size(pax_runtime_api::Size),
     
@@ -51,36 +90,64 @@ pub enum TypesCoproduct {
     
     Transform2D(pax_runtime_api::Transform2D),
     
-    Vec_Rc_PropertiesCoproduct___(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
-    
-    __f64(pax_example::pax_reexports::f64),
-    
-    __pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
-    
-    __pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOFont(pax_example::pax_reexports::pax_std::types::text::Font),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOFontStyle(pax_example::pax_reexports::pax_std::types::text::FontStyle),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOFontWeight(pax_example::pax_reexports::pax_std::types::text::FontWeight),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOSizeWrapper(pax_example::pax_reexports::pax_std::types::text::SizeWrapper),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontal(pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal),
-    
-    __pax_stdCOCOtypesCOCOtextCOCOTextAlignVertical(pax_example::pax_reexports::pax_std::types::text::TextAlignVertical),
-    
-    __stdCOCOstringCOCOString(pax_example::pax_reexports::std::string::String),
-    
-    __usize(pax_example::pax_reexports::usize),
-    
     bool(bool),
+    
+    crateCOCOcameraCOCOTypeExample(pax_example::pax_reexports::camera::TypeExample),
     
     f64(f64),
     
     isize(isize),
     
-    usize(usize),
+    paxCOCOapiCOCONumeric(pax_example::pax_reexports::pax::api::Numeric),
+    
+    paxCOCOapiCOCOSize(pax_example::pax_reexports::pax::api::Size),
+    
+    paxCOCOapiCOCOSizePixels(pax_example::pax_reexports::pax::api::SizePixels),
+    
+    pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
+    
+    pax_stdCOCOtypesCOCOColorVariant(pax_example::pax_reexports::pax_std::types::ColorVariant),
+    
+    pax_stdCOCOtypesCOCOStackerDirection(pax_example::pax_reexports::pax_std::types::StackerDirection),
+    
+    pax_stdCOCOtypesCOCOStroke(pax_example::pax_reexports::pax_std::types::Stroke),
+    
+    pax_stdCOCOtypesCOCOtextCOCOFont(pax_example::pax_reexports::pax_std::types::text::Font),
+    
+    pax_stdCOCOtypesCOCOtextCOCOFontStyle(pax_example::pax_reexports::pax_std::types::text::FontStyle),
+    
+    pax_stdCOCOtypesCOCOtextCOCOFontWeight(pax_example::pax_reexports::pax_std::types::text::FontWeight),
+    
+    pax_stdCOCOtypesCOCOtextCOCOLocalFont(pax_example::pax_reexports::pax_std::types::text::LocalFont),
+    
+    pax_stdCOCOtypesCOCOtextCOCOSizeWrapper(pax_example::pax_reexports::pax_std::types::text::SizeWrapper),
+    
+    pax_stdCOCOtypesCOCOtextCOCOSystemFont(pax_example::pax_reexports::pax_std::types::text::SystemFont),
+    
+    pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontal(pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal),
+    
+    pax_stdCOCOtypesCOCOtextCOCOTextAlignVertical(pax_example::pax_reexports::pax_std::types::text::TextAlignVertical),
+    
+    pax_stdCOCOtypesCOCOtextCOCOWebFont(pax_example::pax_reexports::pax_std::types::text::WebFont),
+    
+    stdCOCOopsCOCORangeLABRisizeRABR(std::ops::Range<isize>),
+    
+    stdCOCOoptionCOCOOptionLABRpax_stdCOCOtypesCOCOtextCOCOFontRABR(pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax_std::types::text::Font>),
+    
+    stdCOCOoptionCOCOOptionLABRpax_stdCOCOtypesCOCOtextCOCOLinkStyleRABR(pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax_std::types::text::LinkStyle>),
+    
+    stdCOCOoptionCOCOOptionLABRpax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontalRABR(pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal>),
+    
+    stdCOCOstringCOCOString(pax_example::pax_reexports::std::string::String),
+    
+    stdCOCOvecCOCOVecLABRcrateCOCOgridsCOCORectDefRABR(pax_example::pax_reexports::std::vec::Vec<pax_example::pax_reexports::grids::RectDef>),
+    
+    stdCOCOvecCOCOVecLABRpax_stdCOCOtypesCOCOStackerCellRABR(pax_example::pax_reexports::std::vec::Vec<pax_example::pax_reexports::pax_std::types::StackerCell>),
+    
+    stdCOCOvecCOCOVecLABRstdCOCOoptionCOCOOptionLABRpaxCOCOapiCOCOSizeRABRRABR(pax_example::pax_reexports::std::vec::Vec<pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax::api::Size>>),
+    
+    stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
+    
+    usize(pax_example::pax_reexports::usize),
     
 }
