@@ -1,6 +1,6 @@
 [package]
 name = "pax-example"
-version = "0.5.8"
+version = "0.5.9"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -9,11 +9,11 @@ repository = "https://www.github.com/pax-lang/pax"
 description = "Example and development app for the Pax monorepo and compiler"
 
 [dependencies]
-pax-lang = {path = "../pax-lang", version="0.5.8"}
-pax-std = {path = "../pax-std", version="0.5.8"}
+pax-lang = {path = "../pax-lang", version="0.5.9"}
+pax-std = {path = "../pax-std", version="0.5.9"}
 serde_json = {version = "1.0.95", optional = true}
-pax-compiler = {path="../pax-compiler", optional=true,version = "0.5.8"}
-pax-message = {path = "../pax-message", version="0.5.8"}
+pax-compiler = {path="../pax-compiler", optional=true,version = "0.5.9"}
+pax-message = {path = "../pax-message", version="0.5.9"}
 
 
 [features]
