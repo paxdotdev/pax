@@ -111,3 +111,7 @@ for root in root_packages:
 
             # Mark this package as published
             published.add(elem)
+
+
+# Perform git tag
+# subprocess.run(["git", "tag", "-a", "v" + NEW_VERSION, "-m", "Release v" + NEW_VERSION], check=True)
