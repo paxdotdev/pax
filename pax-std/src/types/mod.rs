@@ -1,10 +1,10 @@
 pub mod text;
 
 use kurbo::{Point};
-use pax::*;
-use pax::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
-use pax::api::numeric::Numeric;
-pub use pax::api::Size;
+use pax_lang::*;
+use pax_lang::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
+use pax_lang::api::numeric::Numeric;
+pub use pax_lang::api::Size;
 use pax_message::{ColorVariantMessage, FontPatch, TextAlignHorizontalMessage, TextAlignVerticalMessage};
 use crate::primitives::Path;
 

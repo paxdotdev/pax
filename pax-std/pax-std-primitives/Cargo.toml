@@ -12,7 +12,7 @@ description = "Primitives crate for Pax's standard library"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pax = {package="pax-lang", path = "../../pax-lang", version="0.0.1"}
+pax-lang = {path = "../../pax-lang", version="0.5.8"}
 pax-core = {path = "../../pax-core", version="0.5.8"}
 pax-std = {path = "../", version="0.5.8"}
 pax-runtime-api = {path = "../../pax-runtime-api", version="0.5.8"}

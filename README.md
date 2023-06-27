@@ -18,7 +18,7 @@ Following is a simple Pax component called `IncrementMe`:
 ```rust
 //File: increment-me.rs
 
-use pax::*;
+use pax_lang::*;
 use pax_std::{Text};
 use pax_std::forms::{Button, ArgsButtonSubmit};
 use pax_std::layout::{Stacker};
@@ -105,7 +105,7 @@ at your option.
 
 ### Environment setup
 
-Use `rustc` 1.65.0 via `rustup`
+Use `rustc` 1.70.0 via `rustup`
 
 
 ### To build .pax => Web

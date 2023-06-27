@@ -1099,11 +1099,11 @@ Decision: port to Size, panic if px value is passed
 Stacker needs to update its cached computed layout as a function of its ~six properties:
 
 pub computed_layout_spec: Vec<Rc<StackerCell>>,
-pub direction:  Box<dyn pax::api::Property<StackerDirection>>,
-pub cells: Box<dyn pax::api::Property<usize>>,
-pub gutter: Box<dyn pax::api::Property<pax::api::Size>>,
-pub overrides_cell_size: Option(Vec<(usize, pax::api::Size)>),
-pub overrides_gutter_size: Option(Vec<(usize, pax::api::Size)>),
+pub direction:  Box<dyn pax_lang::api::Property<StackerDirection>>,
+pub cells: Box<dyn pax_lang::api::Property<usize>>,
+pub gutter: Box<dyn pax_lang::api::Property<pax_lang::api::Size>>,
+pub overrides_cell_size: Option(Vec<(usize, pax_lang::api::Size)>),
+pub overrides_gutter_size: Option(Vec<(usize, pax_lang::api::Size)>),
 
 
 As a single expression? (probably requires functional list operators in PAXEL, like `map`, as well
@@ -1211,7 +1211,7 @@ Is it the API object?  It would be the easiest to author (`impl Stacker { ... }`
 Let's say it's the API object.  Can we also have the Properties available on that API object?
 (This would suggest that the PropertiesObject and the API object are the same thing.
 This would further suggest that RectangleProperties -> Rectangle, and that the user is responsible
-for wrapping properties in Box<pax::api::Property<>> — or that the `pax` macro help in this regard
+for wrapping properties in Box<pax_lang::api::Property<>> — or that the `pax` macro help in this regard
 (perhaps suppressible with an arg to the macro))
 
 So, we can reduce our surface area to:
@@ -1224,7 +1224,7 @@ So, we can reduce our surface area to:
 (cont. 2022-03-07)
 
 SO: when declaring a component instance, say `Root` or `Stacker` —
-1. we're declaring the `Properties + API` object (`Root` and `Stacker`, with a series of `Box<dyn pax::api::Property<some_type>>` properties
+1. we're declaring the `Properties + API` object (`Root` and `Stacker`, with a series of `Box<dyn pax_lang::api::Property<some_type>>` properties
 2. there will be auto-generated Instance impl (or Factory, or boilerplate instantiation code)
     1. On this point — which is best?  Probably generation of Factory/Instance, both for consistency (easing codegen reqs) and for footprint (presumably lower footprint)_
 3.
@@ -2204,7 +2204,7 @@ impl HelloWorld {
     
     #[pax_on(PreMount)]
     pub fn mount(&mut self) {
-        pax::async(do_async_things, self::http_callback);
+        pax_lang::async(do_async_things, self::http_callback);
     }
     
     pub fn http_callback(&mut self, args: ArgsCallback<DataType>) {

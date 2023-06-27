@@ -1,5 +1,5 @@
-use pax::*;
-use pax::api::{EasingCurve, ArgsClick, RuntimeContext};
+use pax_lang::*;
+use pax_lang::api::{EasingCurve, ArgsClick, RuntimeContext};
 use pax_std::primitives::{Text, Rectangle, Group};
 use pax_std::components::{Stacker};
 
@@ -57,7 +57,7 @@ impl Jabberwocky {
     pub fn handle_tick(&mut self, ctx: RuntimeContext) {
         if args.frames_elapsed % 180 == 0 {
             //every 3s
-            pax::log(&format!("pax::log from frame {}", args.frames_elapsed));
+            pax_lang::log(&format!("pax_lang::log from frame {}", args.frames_elapsed));
         }
     }
 

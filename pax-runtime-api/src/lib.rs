@@ -202,7 +202,7 @@ pub fn register_logger(logger: PlatformSpecificLogger) {
 }
 
 /// Log to the appropriate native logging mechanism
-/// Most often called as `pax::log("some message")`
+/// Most often called as `pax_lang::log("some message")`
 pub fn log(msg: &str) {
     let logging_variant = &(LOGGER.borrow().read().expect("Logger isn't registered").0);
     match logging_variant {
