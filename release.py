@@ -32,22 +32,27 @@ PACKAGES = [
     "pax-std/pax-std-primitives"
 ]
 
+# Parse the package name from the Cargo.toml of each package
+PACKAGE_NAMES = {}
+for elem in PACKAGES:
+    with open("{}/Cargo.toml".format(elem), 'r') as file:
+        doc = tomlkit.parse(file.read())
+        PACKAGE_NAMES[doc['package']['name']] = elem
+
 for elem in PACKAGES:
     with open("{}/Cargo.toml".format(elem), 'r') as file:
         doc = tomlkit.parse(file.read())
 
     doc['package']['version'] = NEW_VERSION
 
-    # Get the last part of the path to use as the package name
-    package_name = elem.split('/')[-1]
-
     for dep in doc['dependencies']:
-        if dep == package_name:
-            doc['dependencies'][dep]['version'] = NEW_VERSION
+        if dep in PACKAGE_NAMES:
+            dep_table = doc['dependencies'][dep]
+            if isinstance(dep_table, tomlkit.items.InlineTable):
+                dep_table['version'] = NEW_VERSION
 
     with open("{}/Cargo.toml".format(elem), 'w') as file:
         file.write(tomlkit.dumps(doc))
-
 
 
 # Perform git commit
