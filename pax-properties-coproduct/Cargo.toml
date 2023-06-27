@@ -1,6 +1,6 @@
 [package]
 name = "pax-properties-coproduct"
-version = "0.5.1"
+version = "0.5.2"
 
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"

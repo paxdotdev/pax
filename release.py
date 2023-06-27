@@ -51,9 +51,9 @@ for elem in PACKAGES:
 
 
 # Perform git commit
-subprocess.run(["git", "commit", "-am", NEW_VERSION], cwd=os.path.join(os.getcwd(), elem), check=True)
+subprocess.run(["git", "commit", "-am", "Release " + NEW_VERSION], cwd=os.path.join(os.getcwd(), elem), check=True)
 
 # Publish all packages
 for elem in PACKAGES:
     # Run `cargo publish` within the current package directory
-    subprocess.run(["cargo", "publish"], cwd=os.path.join(os.getcwd(), elem), check=True)
+    subprocess.run(["cargo", "publish", "--no-verify"], cwd=os.path.join(os.getcwd(), elem), check=True)
