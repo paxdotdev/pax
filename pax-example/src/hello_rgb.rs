@@ -1,5 +1,5 @@
-use pax::api::*;
-use pax::*;
+use pax_lang::api::*;
+use pax_lang::*;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 

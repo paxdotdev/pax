@@ -18,8 +18,8 @@ default = ["console_error_panic_hook"]
 piet = "0.6.0"
 piet-web = "0.6.0"
 pax-core = { path = "../pax-core", version="0.5.8" }
-pax-properties-coproduct = {path = "../pax-example/.pax/properties-coproduct", version="0.5.8"}
-pax-cartridge = {path = "../pax-cartridge", version="0.5.8"}
+pax-properties-coproduct = {version="0.5.8"}
+pax-cartridge = {version="0.5.8"}
 pax-runtime-api = {path = "../pax-runtime-api", version="0.5.8"}
 pax-message = {path = "../pax-message", version="0.5.8"}
 

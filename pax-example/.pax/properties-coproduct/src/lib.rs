@@ -98,11 +98,11 @@ pub enum TypesCoproduct {
     
     isize(isize),
     
-    paxCOCOapiCOCONumeric(pax_example::pax_reexports::pax::api::Numeric),
+    pax_langCOCOapiCOCONumeric(pax_example::pax_reexports::pax_lang::api::Numeric),
     
-    paxCOCOapiCOCOSize(pax_example::pax_reexports::pax::api::Size),
+    pax_langCOCOapiCOCOSize(pax_example::pax_reexports::pax_lang::api::Size),
     
-    paxCOCOapiCOCOSizePixels(pax_example::pax_reexports::pax::api::SizePixels),
+    pax_langCOCOapiCOCOSizePixels(pax_example::pax_reexports::pax_lang::api::SizePixels),
     
     pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
@@ -144,7 +144,7 @@ pub enum TypesCoproduct {
     
     stdCOCOvecCOCOVecLABRpax_stdCOCOtypesCOCOStackerCellRABR(pax_example::pax_reexports::std::vec::Vec<pax_example::pax_reexports::pax_std::types::StackerCell>),
     
-    stdCOCOvecCOCOVecLABRstdCOCOoptionCOCOOptionLABRpaxCOCOapiCOCOSizeRABRRABR(pax_example::pax_reexports::std::vec::Vec<pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax::api::Size>>),
+    stdCOCOvecCOCOVecLABRstdCOCOoptionCOCOOptionLABRpax_langCOCOapiCOCOSizeRABRRABR(pax_example::pax_reexports::std::vec::Vec<pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax_lang::api::Size>>),
     
     stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR(std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>),
     

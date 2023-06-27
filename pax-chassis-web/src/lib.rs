@@ -15,7 +15,7 @@ use serde_json;
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
 use pax_runtime_api::{ArgsClick, ArgsScroll};
 
-// Console.log support, piped from `pax::log`
+// Console.log support, piped from `pax_lang::log`
 #[wasm_bindgen]
 extern "C" {
     // Use `js_namespace` here to bind `console.log(..)` instead of just
