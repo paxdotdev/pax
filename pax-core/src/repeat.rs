@@ -65,7 +65,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             //Handle case where the source expression is a Vec<Property<T>>,
             // like `for elem in self.data_list`
             let new_value = if let Some(tc) = rtc.compute_vtable_value(se._get_vtable_id().clone()) {
-                if let TypesCoproduct::Vec_Rc_PropertiesCoproduct___(vec) = tc { vec } else { unreachable!() }
+                if let TypesCoproduct::stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR(vec) = tc { vec } else { unreachable!() }
             } else {
                 se.get().clone()
             };
@@ -81,7 +81,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             //Handle case where the source expression is a Range,
             // like `for i in 0..5`
             let new_value = if let Some(tc) = rtc.compute_vtable_value(se._get_vtable_id().clone()) {
-                if let TypesCoproduct::Range_isize_(vec) = tc { vec } else { unreachable!() }
+                if let TypesCoproduct::stdCOCOopsCOCORangeLABRisizeRABR(vec) = tc { vec } else { unreachable!() }
             } else { unreachable!() };
 
             let is_dirty = !is_initialized || self.cached_old_value_range.as_ref().unwrap() != &new_value;

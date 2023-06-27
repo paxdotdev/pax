@@ -1,9 +1,12 @@
+use std::any::Any;
 use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, PropertyDefinition, SettingsSelectorBlockDefinition};
 use std::collections::HashMap;
-use std::ops::{IndexMut, RangeFrom};
+use std::ops::{Deref, IndexMut, RangeFrom};
+use std::str::Split;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use crate::manifest::PropertyType;
+use crate::manifest::{PropertyDefinitionFlags, TypeDefinition, TypeTable};
+use crate::parsing::escape_identifier;
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 
@@ -13,12 +16,10 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
     let mut new_components = manifest.components.clone();
     let mut uid_track  = 0;
 
-
     new_components.values_mut().for_each(|component_def : &mut ComponentDefinition|{
 
         let mut new_component_def = component_def.clone();
         let read_only_component_def = component_def.clone();
-
 
         if let Some(ref mut template) = new_component_def.template {
 
@@ -28,11 +29,12 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
             let mut ctx = ExpressionCompilationContext {
                 template,
                 active_node_def,
-                scope_stack: vec![component_def.property_definitions.iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
+                scope_stack: vec![component_def.get_property_definitions(&manifest.type_table).iter().map(|pd| {(pd.name.clone(), pd.clone())}).collect()],
                 uid_gen: uid_track..,
                 all_components: manifest.components.clone(),
                 expression_specs: &mut swap_expression_specs,
                 component_def: &read_only_component_def,
+                type_table: &manifest.type_table,
             };
 
             ctx = recurse_compile_expressions(ctx);
@@ -46,7 +48,6 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
     manifest.components = new_components;
     manifest.expression_specs = Some(swap_expression_specs);
 }
-
 
 fn pull_matched_identifiers_from_inline(inline_settings: &Option<Vec<(String, ValueDefinition)>>, s: String) -> Vec<String>{
     let mut ret = Vec::new();
@@ -63,7 +64,7 @@ fn pull_matched_identifiers_from_inline(inline_settings: &Option<Vec<(String, Va
     ret
 }
 
-fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefinition>>, selector: String) -> Option<Vec<(String, ValueDefinition)>> { ;
+fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefinition>>, selector: String) -> Option<Vec<(String, ValueDefinition)>> {
     if let Some(val) = settings {
         let merged_settings : Vec<(String, ValueDefinition)> = val.iter().filter(|block| { block.selector == selector })
             .map(|block| { block.value_block.settings_key_value_pairs.clone()}).flatten().clone().collect();
@@ -72,8 +73,6 @@ fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefini
         None
     }
 }
-
-
 
 fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(String, ValueDefinition)>>, settings_block: &Option<Vec<SettingsSelectorBlockDefinition>>) -> Option<Vec<(String, ValueDefinition)>> {
 
@@ -99,7 +98,6 @@ fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(Strin
         }
     }
 
-
     let mut map = HashMap::new();
 
     // Iterate in reverse order of priority (class, then id, then inline)
@@ -124,8 +122,8 @@ fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(Strin
 fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) -> ExpressionCompilationContext<'a> {
     let incremented = false;
 
-    let mut cloned_settings_block = ctx.component_def.settings.clone();
-    let mut cloned_inline_settings = ctx.active_node_def.settings.clone();
+    let cloned_settings_block = ctx.component_def.settings.clone();
+    let cloned_inline_settings = ctx.active_node_def.settings.clone();
     let mut merged_settings = merge_inline_settings_with_settings_block(&cloned_inline_settings, &cloned_settings_block);
     let mut cloned_control_flow_settings = ctx.active_node_def.control_flow_settings.clone();
 
@@ -136,7 +134,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 ValueDefinition::LiteralValue(_) => {
                     //no need to compile literal values
                 }
-                ValueDefinition::EventBindingTarget(s) => {
+                ValueDefinition::EventBindingTarget(_) => {
                     //event bindings are handled on a separate compiler pass; no-op here
                 }
                 ValueDefinition::Identifier(identifier, manifest_id) => {
@@ -156,11 +154,11 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
                         let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
 
-                        let pascalized_return_type = (&ctx.component_def.property_definitions.iter().find(
+                        let pascalized_return_type = (&ctx.component_def.get_property_definitions(ctx.type_table).iter().find(
                             |property_def| {
                                 property_def.name == inline.0
                             }
-                        ).unwrap().property_type_info.pascalized_fully_qualified_type).clone();
+                        ).unwrap().get_type_definition(ctx.type_table).type_id_escaped).clone();
 
                         ctx.expression_specs.insert(id, ExpressionSpec {
                             id,
@@ -168,6 +166,8 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                             invocations,
                             output_statement,
                             input_statement: identifier.clone(),
+                            is_repeat_source_iterable_expression: false,
+                            repeat_source_iterable_type_id_escaped: "".to_string(),
                         });
                     }
                 }
@@ -177,7 +177,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
                     let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
 
-                    let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.component_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.component_id, &ctx.active_node_def.component_id));
+                    let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.type_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.type_id, &ctx.active_node_def.type_id));
 
                     let builtin_types = HashMap::from([
                         ("transform","Transform2D".to_string()),
@@ -192,11 +192,11 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*inline.0) {
                         type_string.to_string()
                     } else {
-                        (active_node_component.property_definitions.iter().find(|property_def| {
+                        (active_node_component.get_property_definitions(ctx.type_table).iter().find(|property_def| {
                             property_def.name == inline.0
                         }).expect(
                             &format!("Property `{}` not found on component `{}`", &inline.0, &active_node_component.pascal_identifier)
-                        ).property_type_info.pascalized_fully_qualified_type).clone()
+                        ).get_type_definition(ctx.type_table).type_id_escaped).clone()
                     };
 
                     let mut whitespace_removed_input = input.clone();
@@ -208,6 +208,8 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                         invocations,
                         output_statement,
                         input_statement: whitespace_removed_input,
+                        is_repeat_source_iterable_expression: false,
+                        repeat_source_iterable_type_id_escaped: "".to_string(),
                     });
 
                     //Write this id back to the manifest, for downstream use by RIL component tree generator
@@ -220,6 +222,9 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
     }
     else if let Some(ref mut cfa) = cloned_control_flow_settings {
         //Handle attributes for control flow
+        //Our purpose here is broadly twofold:
+        //  1. attach repeat-created symbols / properties to the stack, so they may be resolved in PAXEL
+        //  2. compile & create an expression vtable entry for `source`
 
         // Definitions are stored modally as `Option<T>`s in ControlFlowAttributeValueDefinition,
         // so: iff `repeat_source_definition` is present, then we can assume this is a Repeat element
@@ -229,56 +234,104 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             //  - must be a symbolic identifier, such as `elements` or `self.elements`
             // for i in 0..max_elems
             //  - may use an integer literal or symbolic identifier in either position
-            //  - must use an exclusive (..) range operator
+            //  - must use an exclusive (..) range operator (inclusive could be supported; effort required)
 
             let id = ctx.uid_gen.next().unwrap();
             repeat_source_definition.vtable_id = Some(id);
 
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
+            // todo!("map 'this is a source' into a flag for codegen, so we can rewrap Rc<>s");
+
+            let is_repeat_source_range = repeat_source_definition.range_expression_paxel.is_some();
+            let is_repeat_source_iterable = repeat_source_definition.symbolic_binding.is_some();
+
+
 
             let (paxel, return_type) = if let Some(range_expression_paxel) = &repeat_source_definition.range_expression_paxel {
-                (range_expression_paxel.to_string(), PropertyType::builtin_range_isize())
+                (range_expression_paxel.to_string(), TypeDefinition::builtin_range_isize())
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
-                (symbolic_binding.to_string(), PropertyType::builtin_vec_rc_properties_coproduct())
+                let inner_iterable_type_id = ctx.resolve_symbol_as_prop_def(symbolic_binding).unwrap().last().unwrap().get_inner_iterable_type_definition(ctx.type_table).unwrap().type_id.clone();
+                (symbolic_binding.to_string(), TypeDefinition::builtin_vec_rc_properties_coproduct(inner_iterable_type_id))
             } else {unreachable!()};
+
+
+            let repeat_source_iterable_type_id_escaped = if let Some(iiti) = return_type.inner_iterable_type_id {
+                escape_identifier(iiti.clone())
+            } else {
+                "".to_string()
+            };
+
+            //Though we are compiling this as an arbitrary expression, we must already have validated
+            //with the parser that we are only binding to a simple symbolic id, like `self.foo`.
+            //This is because we are inferring the return type of this expression based on the declared-and-known
+            //type of property `self.foo`
+            let (output_statement, invocations) = compile_paxel_to_ril(&paxel, &ctx);
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL
             match cfa.repeat_predicate_definition.as_ref().unwrap() {
                 ControlFlowRepeatPredicateDefinition::ElemId(elem_id) => {
+
+                    //if repeat_source is a range, elem is bound to the element within the range
+                    //if repeat_source is a symbolic binding,
                     //for i in 0..5
-                    // i describes the element (not the index!), which in this case is a `usize`
+                    // i describes the element (not the index!), which in this case is a `isize`
                     // property definition: called `i`
-                    // property_type:usize (the iterable_type)
+                    // property_type:isize (the iterable_type)
 
                     let property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
-                        original_type: return_type.fully_qualified_type.to_string(),
-                        fully_qualified_constituent_types: vec![],
-                        property_type_info: return_type.clone(),
-                        is_repeat_i: false,
-                        is_repeat_elem: true,
+
+                        flags: PropertyDefinitionFlags {
+                            is_binding_repeat_i: false,
+                            is_binding_repeat_elem: true,
+                            is_repeat_source_range,
+                            is_repeat_source_iterable,
+                            is_property_wrapped: true,
+                        },
+                        type_id: "isize".to_string(),
                     };
 
-                    ctx.scope_stack.push(HashMap::from([
+                    let scope = HashMap::from([
                         //`elem` property (by specified name)
                         (elem_id.clone(),
-                        property_definition)
-                    ]));
+                         property_definition)
+                    ]);
+
+                    ctx.scope_stack.push(scope);
                 },
                 ControlFlowRepeatPredicateDefinition::ElemIdIndexId(elem_id, index_id) => {
+
+                    //if repeat_source is a range, this is simply isize
+                    //if repeat_source is a symbolic binding, then we resolve that symbolic binding and use that resolved type here
+                    let iterable_type = if let Some(_) = &repeat_source_definition.range_expression_paxel {
+                        TypeDefinition::primitive("isize")
+                    } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
+                        let pd = ctx.resolve_symbol_as_prop_def(symbolic_binding).expect(&format!("Property not found: {}", symbolic_binding)).last().unwrap().clone();
+                        pd.get_inner_iterable_type_definition(ctx.type_table).unwrap().clone()
+                    } else {unreachable!()};
+
                     let elem_property_definition = PropertyDefinition {
                         name: format!("{}", elem_id),
-                        original_type: return_type.fully_qualified_type.to_string(),
-                        fully_qualified_constituent_types: vec![],
-                        property_type_info: return_type.clone(),
-                        is_repeat_elem: true,
-                        is_repeat_i: false,
+                        type_id: iterable_type.type_id,
+                        flags: PropertyDefinitionFlags {
+                            is_binding_repeat_elem: true,
+                            is_binding_repeat_i: false,
+                            is_repeat_source_range,
+                            is_repeat_source_iterable,
+                            is_property_wrapped: true,
+                        },
                     };
 
                     let mut i_property_definition = PropertyDefinition::primitive_with_name("usize", index_id);
-                    i_property_definition.is_repeat_i = true;
+                    i_property_definition.flags = PropertyDefinitionFlags {
+                        is_binding_repeat_i: true,
+                        is_binding_repeat_elem: false,
+                        is_repeat_source_range,
+                        is_repeat_source_iterable,
+                        is_property_wrapped: true,
+                    };
 
                     ctx.scope_stack.push(HashMap::from([
                         //`elem` property (by specified name)
@@ -286,17 +339,10 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                          elem_property_definition),
                         //`i` property (by specified name)
                         (index_id.clone(),
-                            i_property_definition
-                         )
+                         i_property_definition),
                     ]));
                 },
             };
-
-            //Though we are compiling this as an arbitrary expression, we must already have validated
-            //that we are only binding to a simple symbolic id, like `self.foo`.  This is because we
-            //are inferring the return type of this expression based on the declared-and-known
-            //type of property `self.foo`
-            let (output_statement, invocations) = compile_paxel_to_ril(&paxel, &ctx);
 
             // The return type for a repeat source expression will either be:
             //   1. isize, for ranges (including ranges with direct symbolic references as either operand, like `self.x..10`)
@@ -305,12 +351,18 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             // we need some way to infer the return type, statically.  This may mean requiring
             // an explicit type declaration by the end-user, or perhaps we can hack something
             // with further compiletime "reflection" magic
+
+            let mut whitespace_removed_input = paxel.clone();
+            whitespace_removed_input.retain(|c| !c.is_whitespace());
+
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
-                pascalized_return_type: return_type.pascalized_fully_qualified_type,
+                pascalized_return_type: return_type.type_id_escaped,
                 invocations,
                 output_statement,
-                input_statement: paxel,
+                input_statement: whitespace_removed_input,
+                is_repeat_source_iterable_expression: is_repeat_source_iterable,
+                repeat_source_iterable_type_id_escaped
             });
 
         } else if let Some(condition_expression_paxel) = &cfa.condition_expression_paxel {
@@ -320,12 +372,17 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
             cfa.condition_expression_vtable_id = Some(id);
 
+            let mut whitespace_removed_input = condition_expression_paxel.clone();
+            whitespace_removed_input.retain(|c| !c.is_whitespace());
+
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
                 pascalized_return_type: "bool".to_string(),
                 invocations,
                 output_statement,
-                input_statement: condition_expression_paxel.clone(),
+                input_statement: whitespace_removed_input,
+                is_repeat_source_iterable_expression: false,
+                repeat_source_iterable_type_id_escaped: "".to_string(),
             });
         } else if let Some(slot_index_expression_paxel) = &cfa.slot_index_expression_paxel {
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
@@ -334,12 +391,17 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
             cfa.slot_index_expression_vtable_id = Some(id);
 
+            let mut whitespace_removed_input = slot_index_expression_paxel.clone();
+            whitespace_removed_input.retain(|c| !c.is_whitespace());
+
             ctx.expression_specs.insert(id, ExpressionSpec {
                 id,
-                pascalized_return_type: "usize".to_string(),
+                pascalized_return_type: "Numeric".to_string(),
                 invocations,
                 output_statement,
-                input_statement: slot_index_expression_paxel.clone(),
+                input_statement: whitespace_removed_input,
+                is_repeat_source_iterable_expression: false,
+                repeat_source_iterable_type_id_escaped: "".to_string(),
             });
         } else {
             unreachable!("encountered invalid control flow definition")
@@ -389,43 +451,37 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
 
     //Handle built-ins, like $container
     if BUILTIN_MAP.contains_key(sym) {
-        ExpressionSpecInvocation {
-            identifier: "TODO".to_string(),
-            escaped_identifier: "TODO".to_string(),
-            stack_offset: 0,
-            properties_coproduct_type: "".to_string(),
-            pascalized_iterable_type: None,
-            is_repeat_elem: false,
-            is_repeat_i: false,
-            is_iterable_primitive_nonnumeric: false,
-            is_iterable_numeric: false,
-            is_numeric_property: false,
-        }
+        unimplemented!("Built-ins like $bounds are not yet supported")
     } else {
-        let identifier = if sym.starts_with("self.") {
-            sym.replacen("self.", "", 1)
-        } else if sym.starts_with("this.") {
-            sym.replacen("this.", "", 1)
+
+        let prop_def_chain = ctx.resolve_symbol_as_prop_def(&sym).unwrap();
+
+        let nested_prop_def = prop_def_chain.last().unwrap();
+        let is_nested_numeric = ExpressionSpecInvocation::is_numeric(&nested_prop_def.type_id);
+
+        let split_symbols = clean_and_split_symbols(&sym);
+        let escaped_identifier = escape_identifier(split_symbols.join("."));
+
+        let mut split_symbols = split_symbols.into_iter();
+        let root_identifier= split_symbols.next().unwrap().to_string();
+        let root_prop_def = prop_def_chain.first().unwrap();
+
+        let properties_coproduct_type = ctx.component_def.type_id_escaped.clone();
+
+        let iterable_type_id_escaped = if root_prop_def.flags.is_binding_repeat_elem {
+            escape_identifier(root_prop_def.type_id.clone())
+        } else if root_prop_def.flags.is_binding_repeat_i {
+            "usize".to_string()
         } else {
-            sym.to_string()
-        };
-
-        let prop_def = ctx.resolve_symbol(&identifier).expect(&format!("Symbol not found: {}", &identifier));
-
-        let properties_coproduct_type = ctx.component_def.pascal_identifier.clone();
-
-        let pascalized_iterable_type = if let Some(x) = &prop_def.property_type_info.iterable_type {
-            Some(x.pascalized_fully_qualified_type.clone())
-        } else {
-            None
+            "".to_string()
         };
 
         let mut found_depth: Option<usize> = None;
         let mut current_depth = 0;
         let mut found_val : Option<PropertyDefinition> = None;
         while let None = found_depth {
-            let map = ctx.scope_stack.get((ctx.scope_stack.len() - 1) - current_depth).expect(&format!("Symbol not found: {}", &identifier));
-            if let Some(val) = map.get(&identifier) {
+            let map = ctx.scope_stack.get((ctx.scope_stack.len() - 1) - current_depth).unwrap();
+            if let Some(val) = map.get(&root_identifier) {
                 found_depth = Some(current_depth);
                 found_val = Some(val.clone());
             } else {
@@ -433,24 +489,38 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             }
         }
 
-        let stack_offset = found_depth.unwrap();
+        let mut stack_offset = found_depth.unwrap();
 
-        let escaped_identifier = crate::reflection::escape_identifier(identifier.clone());
-        let (is_repeat_elem, is_repeat_i) = (found_val.as_ref().unwrap().is_repeat_elem,found_val.as_ref().unwrap().is_repeat_i);
+
+
+        let found_val = found_val.expect(&format!("Property not found {}",sym));
+        let property_flags = found_val.flags;
+        let property_properties_coproduct_type = &root_prop_def.get_type_definition(ctx.type_table).type_id.split("::").last().unwrap();
+
+        let mut nested_symbol_tail_literal = "".to_string();
+        prop_def_chain.iter().enumerate().for_each(|(i, elem)|{
+            if i > 0 && i < prop_def_chain.len() {
+                nested_symbol_tail_literal += &if elem.flags.is_property_wrapped {
+                    format!(".{}.get()", elem.name)
+                } else {
+                    format!(".{}", elem.name)
+                };
+            }
+        });
+        if nested_symbol_tail_literal != "" {nested_symbol_tail_literal += ".clone()"}
+
 
         ExpressionSpecInvocation {
-            identifier,
+            root_identifier,
+            is_numeric: ExpressionSpecInvocation::is_numeric(&property_properties_coproduct_type),
+            is_primitive_nonnumeric: ExpressionSpecInvocation::is_primitive_nonnumeric(&property_properties_coproduct_type),
             escaped_identifier,
             stack_offset,
-            is_numeric_property: ExpressionSpecInvocation::is_numeric_property(&prop_def.property_type_info.fully_qualified_type.split("::").last().unwrap()),
+            iterable_type_id_escaped,
             properties_coproduct_type,
-            is_iterable_primitive_nonnumeric: ExpressionSpecInvocation::is_iterable_primitive_nonnumeric(&pascalized_iterable_type),
-            is_iterable_numeric: ExpressionSpecInvocation::is_iterable_numeric(&pascalized_iterable_type),
-
-            pascalized_iterable_type,
-            is_repeat_elem,
-            is_repeat_i,
-
+            property_flags,
+            nested_symbol_tail_literal,
+            is_nested_numeric,
         }
     }
 }
@@ -464,7 +534,10 @@ fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &ExpressionCompilationContext<'a>)
     //2. for each symbolic id discovered during parsing, resolve that id through scope_stack and populate an ExpressionSpecInvocation
     let invocations = symbolic_ids.iter().map(|sym| {
         resolve_symbol_as_invocation(&sym.trim(), ctx)
-    }).unique_by(|esi|{esi.identifier.clone()}).collect();
+    })
+        .unique_by(|esi|{esi.escaped_identifier.clone()})
+        .sorted_by(|esi0, esi1|{esi0.escaped_identifier.cmp(&esi1.escaped_identifier)})
+        .collect();
 
     //3. return tuple of (RIL string,ExpressionSpecInvocations)
     (output_string, invocations)
@@ -498,6 +571,8 @@ pub struct ExpressionCompilationContext<'a> {
     /// All components, by ID
     pub all_components: HashMap<String, ComponentDefinition>,
 
+    /// Type table, used for looking up property types by string type_ids
+    pub type_table: &'a TypeTable,
 }
 
 lazy_static! {
@@ -508,34 +583,38 @@ lazy_static! {
     ]);
 }
 
+pub fn clean_and_split_symbols(possibly_nested_symbols: &str) -> Vec<String> {
+    let entire_symbol = if possibly_nested_symbols.starts_with("self.") {
+        possibly_nested_symbols.replacen("self.", "", 1)
+    } else if possibly_nested_symbols.starts_with("this.") {
+        possibly_nested_symbols.replacen("this.", "", 1)
+    } else {
+        possibly_nested_symbols.to_string()
+    };
+
+    entire_symbol.split(".").map(|atomic_symbol|{atomic_symbol.to_string()}).collect::<Vec<_>>()
+}
+
 impl<'a> ExpressionCompilationContext<'a> {
 
-    /// for an input symbol like `i` or `num_clicks` (already pruned of `self.` or `this.`)
+    /// for an input symbol like `i` or `self.num_clicks`
     /// traverse the self-attached `scope_stack`
-    /// and return a copy of the related `PropertyDefinition`, if found
-    pub fn resolve_symbol(&self, symbol: &str) -> Option<PropertyDefinition> {
+    /// and return a copy of the related `PropertyDefinition`, if found.
+    /// For
+    pub fn resolve_symbol_as_prop_def(&self, symbol: &str) -> Option<Vec<PropertyDefinition>> {
 
-        //TODO: how to handle nested symbol invocations, like `rect.width`?
-        //      rect is an instance of a custom struct; width is property of that struct
-        //      1. does width need to be a Property<T>?
-        //         If not, we might be able to codegen trailing nested symbols
-        //         directly into Rust — e.g. an Option<String> for a "nested_symbol_tail"
-        //         which gets appended literally to the end of the invocation.
-        //         This would be fairly hacky and would almost certainly
-        //         _not_ allow Property<T> inside nested custom structs
-        //         (which has implications for Expressions inside custom structs)
-        //      2. to enable nested Property<T> access, we could create a special case of
-        //         invocation, where each of `x.y.z` is resolved independently, sequentlly,
-        //         by building off of the previous.  Since each of the types for `x` and `y`
-        //         are expected to be on the PropertiesCoproduct, this should be pretty
-        //         straight-forward.
 
-        //1. resolve through builtin map
-        if BUILTIN_MAP.contains_key(symbol) {
-            None
+
+        let split_symbols = clean_and_split_symbols(symbol);
+        let mut split_symbols = split_symbols.iter();
+
+        let root_symbol = split_symbols.next().unwrap();
+
+        let root_symbol_pd = if BUILTIN_MAP.contains_key(root_symbol.as_str()) {
+            // resolve root symbol through builtin map
+            None //FUTURE: support built-ins
         } else {
-
-            //2. resolve through stack
+            // resolve through scope stack
             let mut found = false;
             let mut exhausted = false;
             let mut iter = self.scope_stack.iter();
@@ -543,7 +622,7 @@ impl<'a> ExpressionCompilationContext<'a> {
             let mut ret: Option<PropertyDefinition> = None;
             while !found && !exhausted {
                 if let Some(frame) = current_frame {
-                    if let Some(pv) = frame.get(symbol) {
+                    if let Some(pv) = frame.get(root_symbol) {
                         ret = Some(pv.clone());
                         found = true;
                     }
@@ -553,6 +632,24 @@ impl<'a> ExpressionCompilationContext<'a> {
                 }
             }
             ret
+        };
+
+        // handle nested symbols like `foo.bar`.
+        match root_symbol_pd {
+            Some(root_symbol_pd) => {
+                let mut ret = vec![root_symbol_pd];
+                //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
+                while let Some(atomic_symbol) = split_symbols.next() {
+                    let td = ret.last().unwrap().get_type_definition(self.type_table);
+                    ret.push(
+                        td.property_definitions.iter().find(|pd|{pd.name == *atomic_symbol})
+                        .expect(&format!("Unable to resolve nested symbol `{}` while evaluating `{}`.", atomic_symbol, symbol))
+                        .clone()
+                    );
+                }
+                Some(ret)
+            }
+            None => None,
         }
     }
 }

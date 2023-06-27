@@ -72,7 +72,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
 
         if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()){
-            let new_value = if let TypesCoproduct::__pax_stdCOCOtypesCOCOColor(v) = fill {v} else { unreachable!() };
+            let new_value = if let TypesCoproduct::pax_stdCOCOtypesCOCOColor(v) = fill {v} else { unreachable!() };
             properties.fill.set(new_value);
         }
 
