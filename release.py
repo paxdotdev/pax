@@ -107,7 +107,7 @@ for root in root_packages:
         # Only publish the package if it has not been published in this run
         if elem not in published:
             # Run `cargo publish` within the current package directory
-            subprocess.run(["cargo", "publish"], cwd=os.path.join(os.getcwd(), elem), check=True)
+            subprocess.run(["cargo", "publish", "--no-verify"], cwd=os.path.join(os.getcwd(), elem), check=True)
 
             # Mark this package as published
             published.add(elem)

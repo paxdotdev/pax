@@ -1,6 +1,6 @@
 [package]
 name = "pax-core"
-version = "0.5.6"
+version = "0.5.7"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -14,9 +14,9 @@ description = "Core shared runtime and rendering engine for Pax"
 piet = "0.6.0"
 piet-common = "0.6.0"
 kurbo = "0.9.0"
-pax-properties-coproduct = {path = "../pax-example/.pax/properties-coproduct", version="0.5.6" }
-pax-runtime-api = {path = "../pax-runtime-api", version="0.5.6"}
-pax-message = {path = "../pax-message", version="0.5.6"}
+pax-properties-coproduct = {path = "../pax-example/.pax/properties-coproduct", version="0.5.7" }
+pax-runtime-api = {path = "../pax-runtime-api", version="0.5.7"}
+pax-message = {path = "../pax-message", version="0.5.7"}
 lazy_static = "1.4.0"
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 
