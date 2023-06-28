@@ -4,8 +4,8 @@ pub mod grids;
 pub mod camera;
 pub mod words;
 
-use pax::*;
-use pax::api::*;
+use pax_lang::*;
+use pax_lang::api::*;
 use pax_std::primitives::{Frame};
 
 use crate::grids::Grids;

@@ -1,5 +1,5 @@
-use pax::api::{ArgsClick, ArgsScroll, EasingCurve, RuntimeContext};
-use pax::*;
+use pax_lang::api::{ArgsClick, ArgsScroll, EasingCurve, RuntimeContext};
+use pax_lang::*;
 use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text};
 
 #[derive(Pax)]

@@ -19,11 +19,11 @@ pub mod pax_reexports {
         pub use crate::words::Words;
     }
     pub use f64;
-    pub mod pax{
+    pub mod pax_lang{
         pub mod api{
-            pub use pax::api::Numeric;
-            pub use pax::api::Size;
-            pub use pax::api::SizePixels;
+            pub use pax_lang::api::Numeric;
+            pub use pax_lang::api::Size;
+            pub use pax_lang::api::SizePixels;
         }
     }
     pub mod pax_std{

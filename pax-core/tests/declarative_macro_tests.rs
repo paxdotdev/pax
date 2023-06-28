@@ -1,7 +1,7 @@
 use pax_core::unsafe_unwrap;
 
 #[derive(Debug, PartialEq)]
-#[repr(u32)]
+#[repr(C)]
 enum Fruit {
     Apple(String),
     Banana(String),

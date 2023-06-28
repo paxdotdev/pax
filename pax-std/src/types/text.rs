@@ -1,8 +1,8 @@
 use std::path::PathBuf;
-use pax::api::{Interpolatable, PropertyInstance, PropertyLiteral, Size2D, SizePixels};
+use pax_lang::api::{Interpolatable, PropertyInstance, PropertyLiteral, Size2D, SizePixels};
 use pax_message::{FontPatch, FontWeightMessage, FontStyleMessage, LocalFontMessage, SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, WebFontMessage, LinkStyleMessage};
-use pax::*;
-use pax::api::numeric::Numeric;
+use pax_lang::*;
+use pax_lang::api::numeric::Numeric;
 use crate::types::Color;
 
 #[derive(Pax)]

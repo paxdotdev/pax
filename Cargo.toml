@@ -12,6 +12,7 @@ members = [
     "pax-runtime-api",
     "pax-cli",
     "pax-std",
+    "pax-std/pax-std-primitives",
 
     # Note: if we want to add `pax-example` to the workspace, we'll need to
     # pursue a work-around like: https://github.com/rust-lang/cargo/issues/5418#issuecomment-384926507

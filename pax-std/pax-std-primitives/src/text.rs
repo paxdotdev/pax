@@ -8,7 +8,7 @@ use pax_core::{ComputableTransform, TabCache, HandlerRegistry, InstantiationArgs
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log, Layer};
-use pax::api::numeric::Numeric;
+use pax_lang::api::numeric::Numeric;
 use pax_std::types::text::{Font, LinkStyle, opt_align_to_message, opt_link_style_to_message, opt_value_eq_opt_msg, SizeWrapper, TextAlignHorizontal, TextAlignVertical};
 
 pub struct TextInstance<R: 'static + RenderContext> {

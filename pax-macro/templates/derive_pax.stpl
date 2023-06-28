@@ -38,7 +38,7 @@
 <% } %>
 
 <% if !is_custom_interpolatable { %>
-    impl pax::api::Interpolatable for <%= pascal_identifier %> {}
+    impl pax_lang::api::Interpolatable for <%= pascal_identifier %> {}
 <% } %>
 
 #[cfg(feature = "parser")]
