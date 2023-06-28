@@ -1041,7 +1041,7 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
 impl Reflectable for pax_runtime_api::Size {
 
     fn get_import_path() -> String {
-        "pax::api::Size".to_string()
+        "pax_lang::api::Size".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
@@ -1052,7 +1052,7 @@ impl Reflectable for pax_runtime_api::Size {
 impl Reflectable for pax_runtime_api::SizePixels {
 
     fn get_import_path() -> String {
-        "pax::api::SizePixels".to_string()
+        "pax_lang::api::SizePixels".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
@@ -1063,7 +1063,7 @@ impl Reflectable for pax_runtime_api::SizePixels {
 impl Reflectable for pax_runtime_api::Numeric {
 
     fn get_import_path() -> String {
-        "pax::api::Numeric".to_string()
+        "pax_lang::api::Numeric".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
