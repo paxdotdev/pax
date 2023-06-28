@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 //Component types
-#[repr(u32)]
+#[repr(C)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
     None,
@@ -17,7 +17,7 @@ pub enum PropertiesCoproduct {
 }
 
 //Property types
-#[repr(u32)]
+#[repr(C)]
 pub enum TypesCoproduct {
     {% for types_coproduct_tuple in types_coproduct_tuples %}
     {{types_coproduct_tuple.0}}({{types_coproduct_tuple.1}}),

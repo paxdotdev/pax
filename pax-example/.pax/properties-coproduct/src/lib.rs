@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 //Component types
-#[repr(u32)]
+#[repr(C)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
     None,
@@ -75,7 +75,7 @@ pub enum PropertiesCoproduct {
 }
 
 //Property types
-#[repr(u32)]
+#[repr(C)]
 pub enum TypesCoproduct {
     
     Numeric(pax_runtime_api::Numeric),
