@@ -247,45 +247,77 @@ class NativeElementPool {
         let leaf = this.textNodes[patch.id_chain];
         console.assert(leaf !== undefined);
 
-        if (patch.font != null) {
-            patch.font.applyFontToDiv(leaf);
-        }
-
+        // Handle depth
         let depth = patch.depth;
-        if(depth != null && depth < layers.native.length) {
-                let parentElement = leaf.parentElement;
-                let newParent = layers.native[depth]
-                if (parentElement != newParent) {
-                    parentElement.removeChild(leaf);
-                    newParent?.appendChild(leaf);
-                }
+        if (depth != null && depth < layers.native.length) {
+            let parentElement = leaf.parentElement;
+            let newParent = layers.native[depth];
+            if (parentElement != newParent) {
+                parentElement.removeChild(leaf);
+                newParent?.appendChild(leaf);
+            }
         }
-
 
         let textChild = leaf.firstChild;
+
+        // Apply TextStyle from patch.style
+        if (patch.style) {
+            const style = patch.style;
+            if (style.font) {
+                style.font.applyFontToDiv(leaf);
+            }
+            if (style.color) {
+                let newValue = "";
+                if(style.color.Rgba != null) {
+                    let p = style.color.Rgba;
+                    newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
+                } else {
+                    let p = style.color.Hsla!;
+                    newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
+                }
+                console.log("new value: "+newValue);
+                textChild.style.color = newValue;
+            }
+            if (style.font_size) {
+                textChild.style.fontSize = style.font_size + "px";
+            }
+            if (style.underline != null) {
+                textChild.style.textDecoration = style.underline ? 'underline' : 'none';
+            }
+            if (style.align_horizontal) {
+                leaf.style.display = "flex";
+                leaf.style.justifyContent = getJustifyContent(style.align_horizontal);
+            }
+            if (style.align_vertical) {
+                leaf.style.alignItems = getAlignItems(style.align_vertical);
+            }
+            if (style.align_multiline) {
+                textChild.style.textAlign = getTextAlign(style.align_multiline);
+            }
+        }
+
+        // Apply the content
         if (patch.content != null) {
             textChild.innerHTML = snarkdown(patch.content);
+
             // Apply the link styles if they exist
-            if (patch.style_link != null) {
+            if (patch.style_link) {
                 let linkStyle = patch.style_link;
                 const links = textChild.querySelectorAll('a');
                 links.forEach((link: HTMLDivElement) => {
                     if (linkStyle.font) {
                         linkStyle.font.applyFontToDiv(link);
                     }
-                    if (linkStyle.fill) {
+                    if (linkStyle.color) {
                         let newValue = "";
-                        if(linkStyle.fill.Rgba != null) {
-                            let p = linkStyle.fill.Rgba;
+                        if(linkStyle.color.Rgba != null) {
+                            let p = linkStyle.color.Rgba;
                             newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
                         } else {
-                            let p = linkStyle.fill.Hsla!;
+                            let p = linkStyle.color.Hsla!;
                             newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
                         }
                         link.style.color = newValue;
-                    }
-                    if (linkStyle.size != null) {
-                        link.style.fontSize = linkStyle.size + "px";
                     }
                     if (linkStyle.underline != null) {
                         link.style.textDecoration = linkStyle.underline ? 'underline' : 'none';
@@ -294,6 +326,7 @@ class NativeElementPool {
             }
         }
 
+        // Handle size_x and size_y
         if (patch.size_x != null) {
             leaf.style.width = patch.size_x + "px";
         }
@@ -301,42 +334,12 @@ class NativeElementPool {
             leaf.style.height = patch.size_y + "px";
         }
 
-        if (patch.size != null) {
-            textChild.style.fontSize = patch.size + "px";
-        }
-
-        if(patch.align_horizontal != null){
-            leaf.style.display = "flex";
-            leaf.style.justifyContent = getJustifyContent(patch.align_horizontal);
-        }
-
-        if(patch.align_vertical != null){
-            leaf.style.alignItems = getAlignItems(patch.align_vertical);
-        }
-
-        if(patch.align_multiline != null){
-            textChild.style.textAlign = getTextAlign(patch.align_multiline);
-        } else if(patch.align_horizontal != null) {
-            textChild.style.textAlign = getTextAlign(patch.align_horizontal);
-        }
-
+        // Handle transform
         if (patch.transform != null) {
             leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
-
-        if (patch.fill != null) {
-            let newValue = "";
-            if(patch.fill.Rgba != null) {
-                let p = patch.fill.Rgba;
-                newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
-            } else {
-                let p = patch.fill.Hsla!;
-                newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
-            }
-            textChild.style.color = newValue;
-        }
-
     }
+
 
 
 
@@ -463,6 +466,29 @@ class ImageLoadPatch {
     }
 }
 
+class TextStyle {
+    public font?: Font;
+    public color?: ColorGroup;
+    public font_size?: number;
+    public underline?: boolean;
+    public align_multiline?: TextAlignHorizontal;
+    public align_horizontal?: TextAlignHorizontal;
+    public align_vertical?: TextAlignVertical;
+
+    constructor(styleMessage: any) {
+        if (styleMessage["font"]) {
+            const font = new Font();
+            font.fromFontPatch(styleMessage["font"]);
+            this.font = font;
+        }
+        this.color = styleMessage["color"];
+        this.font_size = styleMessage["font_size"];
+        this.underline = styleMessage["underline"];
+        this.align_multiline = styleMessage["align_multiline"];
+        this.align_horizontal = styleMessage["align_horizontal"];
+        this.align_vertical = styleMessage["align_vertical"];
+    }
+}
 
 //Type-safe wrappers around JSON representation
 class TextUpdatePatch {
@@ -470,66 +496,39 @@ class TextUpdatePatch {
     public content?: string;
     public size_x?: number;
     public size_y?: number;
-    public size? : number;
     public transform?: number[];
-    public font?: Font;
-    public fill: ColorGroup;
-    public align_multiline: string;
-    public align_horizontal: string;
-    public align_vertical: string;
-    public style_link? : LinkStyle;
-    public depth? : number;
+    public style?: TextStyle;
+    public style_link?: TextStyle;
+    public depth?: number;
 
     constructor(jsonMessage: any) {
-        this.fill = jsonMessage["fill"];
         this.id_chain = jsonMessage["id_chain"];
         this.content = jsonMessage["content"];
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
         this.transform = jsonMessage["transform"];
-        this.align_multiline = jsonMessage["align_multiline"];
-        this.align_horizontal = jsonMessage["align_horizontal"];
-        this.align_vertical = jsonMessage["align_vertical"];
-        this.size = jsonMessage["size"];
         this.depth = jsonMessage["depth"];
 
-        const fontPatch = jsonMessage["font"];
-        if(fontPatch){
-            this.font = new Font();
-            this.font.fromFontPatch(fontPatch);
+        const styleMessage = jsonMessage["style"];
+        if (styleMessage) {
+            this.style = new TextStyle(styleMessage);
         }
 
-        let styleLinkPatch = jsonMessage["style_link"];
-        if (styleLinkPatch) {
-            this.style_link = new LinkStyle();
-            this.style_link.fromFontPatch(jsonMessage["style_link"])
+        const styleLinkMessage = jsonMessage["style_link"];
+        if (styleLinkMessage) {
+            this.style_link = new TextStyle(styleLinkMessage);
         }
     }
 }
+
+
 
 class ColorGroup {
     Hsla?: number[];
     Rgba?: number[];
 }
 
-class LinkStyle {
-    public size? : number;
-    public font?: Font;
-    public fill?: ColorGroup;
-    public underline?: boolean;
 
-    fromFontPatch(linkStylePatch: any){
-        const fontPatch = linkStylePatch["font"];
-        if(fontPatch){
-            this.font = new Font();
-            this.font.fromFontPatch(fontPatch);
-        }
-        this.fill = linkStylePatch["fill"];
-        this.underline = linkStylePatch["underline"];
-        this.size = linkStylePatch["size"];
-    }
-
-}
 class Font {
     public type?: string;
     public family?: string;
@@ -731,6 +730,7 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
             nativePool.textCreate(new AnyCreatePatch(msg));
         }else if (unwrapped_msg["TextUpdate"]){
             let msg = unwrapped_msg["TextUpdate"]
+            console.log(msg);
             nativePool.textUpdate(new TextUpdatePatch(msg));
         }else if (unwrapped_msg["TextDelete"]) {
             let msg = unwrapped_msg["TextDelete"];

@@ -31,7 +31,6 @@ pub mod pax_reexports {
             pub use pax_std::primitives::Ellipse;
             pub use pax_std::primitives::Frame;
             pub use pax_std::primitives::Group;
-            pub use pax_std::primitives::Image;
             pub use pax_std::primitives::Rectangle;
             pub use pax_std::primitives::Text;
         }
@@ -48,12 +47,11 @@ pub mod pax_reexports {
                 pub use pax_std::types::text::Font;
                 pub use pax_std::types::text::FontStyle;
                 pub use pax_std::types::text::FontWeight;
-                pub use pax_std::types::text::LinkStyle;
                 pub use pax_std::types::text::LocalFont;
-                pub use pax_std::types::text::SizeWrapper;
                 pub use pax_std::types::text::SystemFont;
                 pub use pax_std::types::text::TextAlignHorizontal;
                 pub use pax_std::types::text::TextAlignVertical;
+                pub use pax_std::types::text::TextStyle;
                 pub use pax_std::types::text::WebFont;
             }
         }

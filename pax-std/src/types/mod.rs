@@ -131,7 +131,7 @@ impl PartialEq<ColorVariantMessage> for Color {
 }
 
 
-#[derive(Pax)]
+#[derive(Pax, Debug)]
 #[custom(Default, Imports)]
 pub enum ColorVariant {
     Hlca([f64; 4]),
@@ -142,7 +142,7 @@ pub enum ColorVariant {
 
 impl Default for ColorVariant {
     fn default() -> Self {
-        Self::Rgb([0.0, 0.0, 1.0])
+        Self::Rgb([0.0, 1.0, 1.0])
     }
 }
 

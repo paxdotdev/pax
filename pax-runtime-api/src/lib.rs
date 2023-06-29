@@ -117,6 +117,7 @@ pub enum Size {
     Percent(Numeric),
 }
 
+
 impl Interpolatable for Size {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         match &self {
@@ -181,6 +182,19 @@ impl PartialEq<Numeric> for SizePixels {
 impl PartialEq<SizePixels> for Numeric {
     fn eq(&self, other: &SizePixels) -> bool {
         other.0 == *self
+    }
+}
+
+impl From<Size> for SizePixels {
+    fn from(value: Size) -> Self {
+        match value {
+            Size::Pixels(px) => {
+                SizePixels(px)
+            }
+            _=> {
+                panic!("Percentage cannot be converted to Pixel");
+            }
+        }
     }
 }
 
