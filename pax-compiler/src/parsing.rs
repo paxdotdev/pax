@@ -1,6 +1,7 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::{HashSet, HashMap};
+use std::fs;
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
@@ -16,6 +17,7 @@ use pest::iterators::{Pair, Pairs};
 use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
 };
+use pax_runtime_api::log;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -89,9 +91,9 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                     let unit = literal_number_unit.as_str();
 
                     if unit == "px" {
-                        format!("Size::Pixels({}.into())", exp_bod)
+                        format!("Size::Pixels({}.into()).into()", exp_bod)
                     } else if unit == "%" {
-                        format!("Size::Percent({}.into())", exp_bod)
+                        format!("Size::Percent({}.into()).into()", exp_bod)
                     } else {
                         unreachable!()
                     }
@@ -174,9 +176,9 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                         let unit = inner.next().unwrap().as_str();
 
                         if unit == "px" {
-                            format!("Size::Pixels({}.into())", value)
+                            format!("Size::Pixels({}.into()).into()", value)
                         } else if unit == "%" {
-                            format!("Size::Percent({}.into())", value)
+                            format!("Size::Percent({}.into()).into()", value)
                         } else {
                             unreachable!()
                         }
@@ -604,7 +606,8 @@ fn derive_value_definition_from_literal_object_pair(literal_object: Pair<Rule>) 
                     //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
                     let (output_string,  _) = crate::parsing::run_pratt_parser(raw_value.as_str());
                     ValueDefinition::LiteralValue(output_string)},
-                Rule::literal_object => { ValueDefinition::Block(
+                Rule::literal_object => {
+                    ValueDefinition::Block(
                     //Recurse
                     derive_value_definition_from_literal_object_pair(raw_value)
                 )},

@@ -120,15 +120,23 @@ pub struct TextPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub style: Option<TextStyleMessage>,
+    pub style_link: Option<TextStyleMessage>,
+    pub depth: Option<usize>,
+}
+
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct TextStyleMessage {
     pub font: Option<FontPatch>,
-    pub fill: Option<ColorVariantMessage>,
-    pub size: Option<f64>,
-    pub style_link: Option<LinkStyleMessage>,
+    pub font_size: Option<f64>,
+    pub color: Option<ColorVariantMessage>,
+    pub underline: Option<bool>,
     pub align_multiline: Option<TextAlignHorizontalMessage>,
     pub align_vertical: Option<TextAlignVerticalMessage>,
     pub align_horizontal: Option<TextAlignHorizontalMessage>,
-    pub depth: Option<usize>,
 }
+
 
 #[derive(Default, Serialize)]
 #[repr(C)]

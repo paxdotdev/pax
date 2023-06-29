@@ -34,8 +34,6 @@ pub enum PropertiesCoproduct {
     
     pax_stdCOCOprimitivesCOCOGroup(pax_example::pax_reexports::pax_std::primitives::Group),
     
-    pax_stdCOCOprimitivesCOCOImage(pax_example::pax_reexports::pax_std::primitives::Image),
-    
     pax_stdCOCOprimitivesCOCORectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
     pax_stdCOCOprimitivesCOCOText(pax_example::pax_reexports::pax_std::primitives::Text),
@@ -58,17 +56,15 @@ pub enum PropertiesCoproduct {
     
     pax_stdCOCOtypesCOCOtextCOCOFontWeight(pax_example::pax_reexports::pax_std::types::text::FontWeight),
     
-    pax_stdCOCOtypesCOCOtextCOCOLinkStyle(pax_example::pax_reexports::pax_std::types::text::LinkStyle),
-    
     pax_stdCOCOtypesCOCOtextCOCOLocalFont(pax_example::pax_reexports::pax_std::types::text::LocalFont),
-    
-    pax_stdCOCOtypesCOCOtextCOCOSizeWrapper(pax_example::pax_reexports::pax_std::types::text::SizeWrapper),
     
     pax_stdCOCOtypesCOCOtextCOCOSystemFont(pax_example::pax_reexports::pax_std::types::text::SystemFont),
     
     pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontal(pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal),
     
     pax_stdCOCOtypesCOCOtextCOCOTextAlignVertical(pax_example::pax_reexports::pax_std::types::text::TextAlignVertical),
+    
+    pax_stdCOCOtypesCOCOtextCOCOTextStyle(pax_example::pax_reexports::pax_std::types::text::TextStyle),
     
     pax_stdCOCOtypesCOCOtextCOCOWebFont(pax_example::pax_reexports::pax_std::types::text::WebFont),
     
@@ -120,23 +116,19 @@ pub enum TypesCoproduct {
     
     pax_stdCOCOtypesCOCOtextCOCOLocalFont(pax_example::pax_reexports::pax_std::types::text::LocalFont),
     
-    pax_stdCOCOtypesCOCOtextCOCOSizeWrapper(pax_example::pax_reexports::pax_std::types::text::SizeWrapper),
-    
     pax_stdCOCOtypesCOCOtextCOCOSystemFont(pax_example::pax_reexports::pax_std::types::text::SystemFont),
     
     pax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontal(pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal),
     
     pax_stdCOCOtypesCOCOtextCOCOTextAlignVertical(pax_example::pax_reexports::pax_std::types::text::TextAlignVertical),
     
+    pax_stdCOCOtypesCOCOtextCOCOTextStyle(pax_example::pax_reexports::pax_std::types::text::TextStyle),
+    
     pax_stdCOCOtypesCOCOtextCOCOWebFont(pax_example::pax_reexports::pax_std::types::text::WebFont),
     
     stdCOCOopsCOCORangeLABRisizeRABR(std::ops::Range<isize>),
     
-    stdCOCOoptionCOCOOptionLABRpax_stdCOCOtypesCOCOtextCOCOFontRABR(pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax_std::types::text::Font>),
-    
-    stdCOCOoptionCOCOOptionLABRpax_stdCOCOtypesCOCOtextCOCOLinkStyleRABR(pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax_std::types::text::LinkStyle>),
-    
-    stdCOCOoptionCOCOOptionLABRpax_stdCOCOtypesCOCOtextCOCOTextAlignHorizontalRABR(pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal>),
+    stdCOCOoptionCOCOOptionLABRpax_stdCOCOtypesCOCOtextCOCOTextStyleRABR(pax_example::pax_reexports::std::option::Option<pax_example::pax_reexports::pax_std::types::text::TextStyle>),
     
     stdCOCOstringCOCOString(pax_example::pax_reexports::std::string::String),
     

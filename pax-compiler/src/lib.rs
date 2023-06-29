@@ -23,7 +23,7 @@ use include_dir::{Dir, DirEntry, include_dir};
 use toml_edit::{Item};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use crate::manifest::{ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition, TypeTable};
+use crate::manifest::{ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition, TypeTable, LiteralBlockDefinition, TypeDefinition};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
 //relative to pax_dir
@@ -383,7 +383,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     expression_specs = expression_specs.iter().sorted().cloned().collect();
 
     let component_factories_literal =  manifest.components.values().into_iter().filter(|cd|{!cd.is_primitive && !cd.is_struct_only_component}).map(|cd|{
-        generate_cartridge_component_factory_literal(manifest, cd)
+        generate_cartridge_component_factory_literal(manifest, cd, host_crate_info)
     }).collect();
 
     //press template into String
@@ -413,14 +413,14 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
 }
 
 
-fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext) -> String {
+fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext,  host_crate_info: &HostCrateInfo) -> String {
     let nodes = rngc.active_component_definition.template.as_ref().expect("tried to generate render nodes literal for component, but template was undefined");
 
     let implicit_root = nodes[0].borrow();
     let children_literal : Vec<String> = implicit_root.child_ids.iter().map(|child_id|{
     let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
     let active_tnd = &tnd_map[*child_id];
-        recurse_generate_render_nodes_literal(rngc, active_tnd)
+        recurse_generate_render_nodes_literal(rngc, active_tnd,  host_crate_info)
     }).collect();
 
     children_literal.join(",")
@@ -438,11 +438,42 @@ fn generate_bound_events(inline_settings: Option<Vec<(String, ValueDefinition)>>
     ret
 }
 
-fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tnd: &TemplateNodeDefinition) -> String {
+
+fn recurse_literal_block(block: LiteralBlockDefinition, type_definition: &TypeDefinition, host_crate_info: &HostCrateInfo) -> String {
+    let qualified_path =
+        host_crate_info.import_prefix.to_string() + &type_definition.import_path.clone().replace("crate::", "");
+
+    // Buffer to store the string representation of the struct
+    let mut struct_representation = format!("\n{{ let mut ret = {}::default();", qualified_path);
+
+    // Iterating through each (key, value) pair in the settings_key_value_pairs
+    for (key, value_definition) in block.settings_key_value_pairs.iter() {
+        let value_string = match value_definition {
+            ValueDefinition::LiteralValue(value) => format!("ret.{} = Box::new(PropertyLiteral::new({}));", key, value),
+            ValueDefinition::Expression(_, id) |
+            ValueDefinition::Identifier(_, id) => {
+                format!("ret.{} = Box::new(PropertyExpression::new({}));", key, id.expect("Tried to use expression but it wasn't compiled"))
+            },
+            ValueDefinition::Block(inner_block) => format!("ret.{} = Box::new(PropertyLiteral::new({}));", key, recurse_literal_block(inner_block.clone(), type_definition, host_crate_info)),
+            _ => {
+                panic!("Incorrect value bound to inline setting")
+            }
+        };
+
+        struct_representation.push_str(&format!("\n{}", value_string));
+    }
+
+    struct_representation.push_str("\n ret }");
+
+    struct_representation
+}
+
+
+fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tnd: &TemplateNodeDefinition,  host_crate_info: &HostCrateInfo) -> String {
     //first recurse, populating children_literal : Vec<String>
     let children_literal : Vec<String> = tnd.child_ids.iter().map(|child_id|{
         let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
-        recurse_generate_render_nodes_literal(rngc, active_tnd)
+        recurse_generate_render_nodes_literal(rngc, active_tnd,  host_crate_info)
     }).collect();
 
     const DEFAULT_PROPERTY_LITERAL: &str = "PropertyLiteral::new(Default::default())";
@@ -541,8 +572,8 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
         let property_ril_tuples: Vec<(String, String)> = component_for_current_node.get_property_definitions(rngc.type_table).iter().map(|pd| {
             let ril_literal_string = {
-                if let Some(inline_settings) = &tnd.settings {
-                    if let Some(matched_setting) = inline_settings.iter().find(|avd| { avd.0 == pd.name }) {
+                if let Some(merged_settings) = &tnd.settings {
+                    if let Some(matched_setting) = merged_settings.iter().find(|avd| { avd.0 == pd.name }) {
                         match &matched_setting.1 {
                             ValueDefinition::LiteralValue(lv) => {
                                 format!("PropertyLiteral::new({})", lv)
@@ -550,6 +581,9 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
                             ValueDefinition::Expression(_, id) |
                             ValueDefinition::Identifier(_, id) => {
                                 format!("PropertyExpression::new({})", id.expect("Tried to use expression but it wasn't compiled"))
+                            },
+                            ValueDefinition::Block(block) => {
+                                format!("PropertyLiteral::new({})", recurse_literal_block(block.clone(),pd.get_type_definition(&rngc.type_table),  host_crate_info))
                             },
                             _ => {
                                 panic!("Incorrect value bound to inline setting")
@@ -637,7 +671,7 @@ fn generate_events_map(events: Option<Vec<EventDefinition>>) -> HashMap<String, 
 }
 
 
-fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition) -> String {
+fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition,  host_crate_info: &HostCrateInfo) -> String {
 
     let rngc = RenderNodesGenerationContext {
         components: &manifest.components,
@@ -653,7 +687,7 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
             (pd.clone(),pd.get_type_definition(&manifest.type_table).type_id_escaped.clone())
         }).collect(),
         events: generate_events_map(cd.events.clone()),
-        render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc),
+        render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc,  host_crate_info),
         properties_coproduct_variant: cd.type_id_escaped.to_string()
     };
 
