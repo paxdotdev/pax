@@ -1,10 +1,9 @@
 <Text text="Hello" id=text/>
 @settings {
     #text {
-        style: {
+        style: TextStyle {
             font: {Font::system("Times New Roman", FontStyle::Italic, FontWeight::Bold)},
             font_size: 60px
-            color: {Color::rgba(0.0,0.0,0.0,1.0)},
             align_vertical: TextAlignVertical::Bottom,
             align_horizontal: TextAlignHorizontal::Right,
         }

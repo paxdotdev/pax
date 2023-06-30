@@ -142,7 +142,7 @@ pub enum ColorVariant {
 
 impl Default for ColorVariant {
     fn default() -> Self {
-        Self::Rgb([0.0, 1.0, 1.0])
+        Self::Rgb([0.0, 0.0, 1.0])
     }
 }
 
