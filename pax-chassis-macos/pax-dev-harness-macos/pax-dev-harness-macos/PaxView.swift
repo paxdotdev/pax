@@ -146,13 +146,13 @@ struct PaxView: View {
                 for run in attributedString.runs {
                     if run.link != nil {
                         if let linkStyle = textElement.style_link {
-                            attributedString[run.range].font = linkStyle.font.getFont(size: linkStyle.size)
+                            attributedString[run.range].font = linkStyle.font.getFont(size: linkStyle.font_size)
                             if(linkStyle.underline){
                                 attributedString[run.range].underlineStyle = .single
                             } else {
                                 attributedString[run.range].underlineStyle = .none
                             }
-                            attributedString[run.range].foregroundColor = linkStyle.fill
+                            attributedString[run.range].foregroundColor = linkStyle.color
                         }
                     }
                 }
@@ -161,21 +161,20 @@ struct PaxView: View {
             }
             let textView : some View =
                 Text(text)
-                .foregroundColor(textElement.fill)
-                .font(textElement.font_spec.getFont(size: textElement.size))
-                .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.alignment)
+                .foregroundColor(textElement.textStyle.color)
+                .font(textElement.textStyle.font.getFont(size: textElement.textStyle.font_size))
+                .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.textStyle.alignment)
                 .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))
-                .padding(.horizontal, 0)
-                .multilineTextAlignment(textElement.alignmentMultiline)
                 .transformEffect(transform)
                 .textSelection(.enabled)
 
-
-            if !textElement.clipping_ids.isEmpty {
-                textView.mask(getClippingMask(clippingIds: textElement.clipping_ids))
-            } else {
-                textView
-            }
+//
+//            if !textElement.clipping_ids.isEmpty {
+//                textView.mask(getClippingMask(clippingIds: textElement.clipping_ids))
+//            } else {
+//                textView
+//            }
+            textView
         }
 
         var body: some View {
@@ -248,9 +247,9 @@ struct PaxView: View {
                 }
 
                 //For manual debugger attachment:
-                //do {
-                //    sleep(10)
-                //}
+//                do {
+//                    sleep(20)
+//                }
 
                 PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
             } else {

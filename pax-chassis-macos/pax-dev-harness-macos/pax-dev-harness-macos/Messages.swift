@@ -40,61 +40,29 @@ class AnyDeletePatch {
     }
 }
 
-
-/// Represents a native Text element, as received by message patches from Pax core
-class TextElement {
-    var id_chain: [UInt64]
-    var clipping_ids: [[UInt64]]
-    var content: String
-    var transform: [Float]
-    var size_x: Float
-    var size_y: Float
-    var font_spec: PaxFont
-    var fill: Color
+class TextStyle {
+    var font: PaxFont
+    var color: Color
     var alignmentMultiline: TextAlignment
     var alignment: Alignment
-    // New properties
-    var size: CGFloat
-    var style_link: LinkStyle?
+    var font_size: CGFloat
+    var underline: Bool
     
-    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, font: PaxFont, fill: Color, alignmentMultiline: TextAlignment, alignment: Alignment, size: CGFloat) {
-        self.id_chain = id_chain
-        self.clipping_ids = clipping_ids
-        self.content = content
-        self.transform = transform
-        self.size_x = size_x
-        self.size_y = size_y
-        self.font_spec = font
-        self.fill = fill
+    init(font: PaxFont, color: Color, alignmentMultiline: TextAlignment, alignment: Alignment, font_size: CGFloat, underline: Bool) {
+        self.font = font
+        self.color = color
         self.alignmentMultiline = alignmentMultiline
         self.alignment = alignment
-        self.size = size
+        self.font_size = font_size
+        self.underline = underline
     }
     
-    static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
-        TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, font: PaxFont.makeDefault(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading, size: 0.0)
-    }
-    
-    func applyPatch(patch: TextUpdatePatch) {
-        //no-op to ID, as it is primary key
+    func applyPatch(from patch: TextStyleMessage) {
         
-        if patch.content != nil {
-            self.content = patch.content!
-        }
-        if patch.transform != nil {
-            self.transform = patch.transform!
-        }
-        if patch.size_x != nil {
-            self.size_x = patch.size_x!
-        }
-        if patch.size_y != nil {
-            self.size_y = patch.size_y!
-        }
-        
-        self.font_spec.applyPatch(fb: patch.fontBuffer)
+        self.font.applyPatch(fb: patch.font)
 
-        if patch.fill != nil {
-            self.fill = patch.fill!
+        if patch.color != nil {
+            self.color = patch.color!
         }
         
         if patch.align_multiline != nil {
@@ -106,11 +74,72 @@ class TextElement {
             self.alignment = toAlignment(horizontalAlignment: patch.align_horizontal!, verticalAlignment: patch.align_vertical!)
         }
         
-        // Apply new properties
-        if patch.size != nil {
-            self.size = patch.size!
+        if patch.font_size != nil {
+            self.font_size = patch.font_size!
         }
-        self.style_link = patch.style_link
+        
+        if patch.underline != nil {
+            self.underline = patch.underline!
+        }
+    }
+}
+
+class TextElement {
+    var id_chain: [UInt64]
+    var clipping_ids: [[UInt64]]
+    var content: String
+    var transform: [Float]
+    var size_x: Float
+    var size_y: Float
+    var textStyle: TextStyle
+    var depth: UInt?
+    var style_link: TextStyle?
+    
+    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, textStyle: TextStyle, depth: UInt?, style_link: TextStyle?) {
+        self.id_chain = id_chain
+        self.clipping_ids = clipping_ids
+        self.content = content
+        self.transform = transform
+        self.size_x = size_x
+        self.size_y = size_y
+        self.textStyle = textStyle
+        self.depth = depth
+        self.style_link = style_link
+    }
+    
+    static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
+        let defaultTextStyle = TextStyle(font: PaxFont.makeDefault(), color: Color(.black), alignmentMultiline: .leading, alignment: .topLeading, font_size: 5.0, underline: false)
+        return TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, textStyle: defaultTextStyle, depth: nil, style_link: nil)
+    }
+    
+    func applyPatch(patch: TextUpdatePatch) {
+        //no-op to ID, as it is primary key
+        
+        if let content = patch.content {
+            self.content = content
+        }
+        if let transform = patch.transform {
+            self.transform = transform
+        }
+        if let size_x = patch.size_x {
+            self.size_x = size_x
+        }
+        if let size_y = patch.size_y {
+            self.size_y = size_y
+        }
+        if let depth = patch.depth {
+            self.depth = depth
+        }
+        
+        // Apply new TextStyle
+        if let styleBuffer = patch.style {
+            self.textStyle.applyPatch(from: styleBuffer)
+        }
+        
+        // Apply style_link
+        if let styleLinkBuffer = patch.style_link {
+            self.style_link?.applyPatch(from: styleLinkBuffer)
+        }
     }
 }
 
@@ -178,39 +207,23 @@ class ImageLoadPatch {
     }
 }
 
-/// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
-class TextUpdatePatch {
-    var id_chain: [UInt64]
-    var content: String?
-    var transform: [Float]?
-    var size_x: Float?
-    var size_y: Float?
-    var fontBuffer: FlxbReference
-    var fill: Color?
-    var align_multiline: TextAlignHorizontal?
-    var align_vertical: TextAlignVertical?
-    var align_horizontal: TextAlignHorizontal?
-    // New properties
-    var size: CGFloat?
-    var style_link: LinkStyle?
 
-    init(fb: FlxbReference) {
-        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
-            fb.asUInt64!
-        })
-        self.content = fb["content"]?.asString
-        self.transform = fb["transform"]?.asVector?.makeIterator().map({ fb in
-            fb.asFloat!
-        })
-        self.size_x = fb["size_x"]?.asFloat
-        self.size_y = fb["size_y"]?.asFloat
-        self.fontBuffer =  fb["font"]!
+class TextStyleMessage {
+    var font: FlxbReference
+    var color: Color?
+    var font_size: CGFloat?
+    var underline: Bool?
+    var align_multiline: TextAlignHorizontal?
+    var align_horizontal: TextAlignHorizontal?
+    var align_vertical: TextAlignVertical?
+    
+    init(_ buffer: FlxbReference) {
+        self.font =  buffer["font"]!
         
-        if let fillBuffer = fb["fill"], !fillBuffer.isNull {
-            self.fill = extractColorFromBuffer(fillBuffer)
-        }
+        self.font_size = buffer["font_size"]?.asFloat.map { CGFloat($0) }
+        self.underline = buffer["underline"]?.asBool
         
-        if let alignmentValue = fb["align_multiline"]?.asString {
+        if let alignmentValue = buffer["align_multiline"]?.asString {
             switch alignmentValue {
             case "Center":
                 self.align_multiline = .center
@@ -223,20 +236,7 @@ class TextUpdatePatch {
             }
         }
         
-        if let verticalAlignmentValue = fb["align_vertical"]?.asString {
-            switch verticalAlignmentValue {
-            case "Top":
-                self.align_vertical = .top
-            case "Center":
-                self.align_vertical = .center
-            case "Bottom":
-                self.align_vertical = .bottom
-            default:
-                self.align_vertical = nil
-            }
-        }
-        
-        if let alignmentValue = fb["align_horizontal"]?.asString {
+        if let alignmentValue = buffer["align_horizontal"]?.asString {
             switch alignmentValue {
             case "Center":
                 self.align_horizontal = .center
@@ -249,14 +249,137 @@ class TextUpdatePatch {
             }
         }
         
-        self.size = fb["size"]?.asFloat.map { CGFloat($0) }
-        
-        if !fb["style_link"]!.isNull {
-            self.style_link = LinkStyle(fb: fb["style_link"]!)
+        if let verticalAlignmentValue = buffer["align_vertical"]?.asString {
+            switch verticalAlignmentValue {
+            case "Top":
+                self.align_vertical = .top
+            case "Center":
+                self.align_vertical = .center
+            case "Bottom":
+                self.align_vertical = .bottom
+            default:
+                self.align_vertical = nil
+            }
         }
-   
+        
+        if let colorBuffer = buffer["color"], !colorBuffer.isNull {
+            self.color = extractColorFromBuffer(colorBuffer)
+        }
     }
 }
+
+
+class TextUpdatePatch {
+    var id_chain: [UInt64]
+    var content: String?
+    var transform: [Float]?
+    var size_x: Float?
+    var size_y: Float?
+    var depth: UInt?
+    var style: TextStyleMessage?
+    var style_link: TextStyleMessage?
+
+    init(fb: FlxbReference) {
+        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
+            fb.asUInt64!
+        })
+        self.content = fb["content"]?.asString
+        self.transform = fb["transform"]?.asVector?.makeIterator().map({ fb in
+            fb.asFloat!
+        })
+        self.size_x = fb["size_x"]?.asFloat
+        self.size_y = fb["size_y"]?.asFloat
+        self.depth = fb["depth"]?.asUInt
+        
+        if let styleBuffer = fb["style"], !styleBuffer.isNull {
+            self.style = TextStyleMessage(styleBuffer)
+        }
+        
+        if let styleLinkBuffer = fb["style_link"], !styleLinkBuffer.isNull {
+            self.style_link = TextStyleMessage(styleLinkBuffer)
+        }
+    }
+}
+
+///// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
+//class TextUpdatePatch {
+//    var id_chain: [UInt64]
+//    var content: String?
+//    var transform: [Float]?
+//    var size_x: Float?
+//    var size_y: Float?
+//    var fontBuffer: FlxbReference
+//    var fill: Color?
+//    var align_multiline: TextAlignHorizontal?
+//    var align_vertical: TextAlignVertical?
+//    var align_horizontal: TextAlignHorizontal?
+//    // New properties
+//    var size: CGFloat?
+//    var style_link: LinkStyle?
+//
+//    init(fb: FlxbReference) {
+//        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
+//            fb.asUInt64!
+//        })
+//        self.content = fb["content"]?.asString
+//        self.transform = fb["transform"]?.asVector?.makeIterator().map({ fb in
+//            fb.asFloat!
+//        })
+//        self.size_x = fb["size_x"]?.asFloat
+//        self.size_y = fb["size_y"]?.asFloat
+//        self.fontBuffer =  fb["font"]!
+//
+//        if let fillBuffer = fb["fill"], !fillBuffer.isNull {
+//            self.fill = extractColorFromBuffer(fillBuffer)
+//        }
+//
+//        if let alignmentValue = fb["align_multiline"]?.asString {
+//            switch alignmentValue {
+//            case "Center":
+//                self.align_multiline = .center
+//            case "Left":
+//                self.align_multiline = .left
+//            case "Right":
+//                self.align_multiline = .right
+//            default:
+//                self.align_multiline = nil
+//            }
+//        }
+//
+//        if let verticalAlignmentValue = fb["align_vertical"]?.asString {
+//            switch verticalAlignmentValue {
+//            case "Top":
+//                self.align_vertical = .top
+//            case "Center":
+//                self.align_vertical = .center
+//            case "Bottom":
+//                self.align_vertical = .bottom
+//            default:
+//                self.align_vertical = nil
+//            }
+//        }
+//
+//        if let alignmentValue = fb["align_horizontal"]?.asString {
+//            switch alignmentValue {
+//            case "Center":
+//                self.align_horizontal = .center
+//            case "Left":
+//                self.align_horizontal = .left
+//            case "Right":
+//                self.align_horizontal = .right
+//            default:
+//                self.align_horizontal = nil
+//            }
+//        }
+//
+//        self.size = fb["size"]?.asFloat.map { CGFloat($0) }
+//
+//        if !fb["style_link"]!.isNull {
+//            self.style_link = LinkStyle(fb: fb["style_link"]!)
+//        }
+//
+//    }
+//}
 
 
 func extractColorFromBuffer(_ fillBuffer: FlxbReference) -> Color {

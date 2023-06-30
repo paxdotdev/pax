@@ -397,15 +397,15 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
 
     //format output
     let formatted = {
-        let mut formatter = rust_format::RustFmt::default();
-
-        if let Ok(out) = formatter.format_str(generated_lib_rs.clone()) {
-            out
-        } else {
+        // let mut formatter = rust_format::RustFmt::default();
+        //
+        // if let Ok(out) = formatter.format_str(generated_lib_rs.clone()) {
+        //     out
+        // } else {
             //if formatting fails (e.g. parsing error, common expected case) then
             //fall back to unformatted generated code
             generated_lib_rs
-        }
+        //}
     };
 
     //write String to file
