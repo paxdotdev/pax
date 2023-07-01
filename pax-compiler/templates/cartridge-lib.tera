@@ -11,11 +11,6 @@ use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 use piet_common::RenderContext;
 
-// generate imports, pointing to userland cartridge `pub mod pax_reexports`
-{% for import in imports %}
-use {{ import }};
-{% endfor %}
-
 //pull in entire const token stream here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
 {% for const in consts %}
     {{ const }}

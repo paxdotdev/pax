@@ -11,87 +11,6 @@ use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::repeat::{RepeatInstance};
 use piet_common::RenderContext;
 
-// generate imports, pointing to userland cartridge `pub mod pax_reexports`
-
-use pax_example::pax_reexports::pax_std::primitives::Ellipse;
-
-use pax_example::pax_reexports::std::option::Option;
-
-use pax_example::pax_reexports::bool;
-
-use pax_example::pax_reexports::pax_std::types::text::TextAlignHorizontal;
-
-use pax_example::pax_reexports::pax_std::primitives::Group;
-
-use pax_example::pax_reexports::pax_lang::api::Size;
-
-use pax_example::pax_reexports::pax_std::types::StackerCell;
-
-use pax_example::pax_reexports::pax_std::types::Stroke;
-
-use pax_example::pax_reexports::pax_lang::api::Numeric;
-
-use pax_example::pax_reexports::pax_std::types::Color;
-
-use pax_example::pax_reexports::pax_std::types::text::SystemFont;
-
-use pax_example::pax_reexports::pax_std::primitives::Frame;
-
-use pax_example::pax_reexports::pax_std::types::text::WebFont;
-
-use pax_example::pax_reexports::pax_std::stacker::Stacker;
-
-use pax_example::pax_reexports::std::string::String;
-
-use pax_example::pax_reexports::fireworks::Fireworks;
-
-use pax_example::pax_reexports::words::Words;
-
-use pax_example::pax_reexports::pax_std::primitives::Rectangle;
-
-use pax_example::pax_reexports::usize;
-
-use pax_example::pax_reexports::pax_std::types::text::SizeWrapper;
-
-use pax_example::pax_reexports::pax_std::types::ColorVariant;
-
-use pax_example::pax_reexports::pax_std::types::text::LinkStyle;
-
-use pax_example::pax_reexports::grids::RectDef;
-
-use pax_example::pax_reexports::pax_std::types::text::FontStyle;
-
-use pax_example::pax_reexports::pax_std::types::text::TextAlignVertical;
-
-use pax_example::pax_reexports::grids::Grids;
-
-use pax_example::pax_reexports::camera::TypeExample;
-
-use pax_example::pax_reexports::pax_std::primitives::Text;
-
-use pax_example::pax_reexports::std::vec::Vec;
-
-use pax_example::pax_reexports::pax_std::types::text::LocalFont;
-
-use pax_example::pax_reexports::pax_std::primitives::Image;
-
-use pax_example::pax_reexports::f64;
-
-use pax_example::pax_reexports::pax_std::types::text::FontWeight;
-
-use pax_example::pax_reexports::pax_std::types::text::Font;
-
-use pax_example::pax_reexports::camera::Camera;
-
-use pax_example::pax_reexports::pax_std::types::StackerDirection;
-
-use pax_example::pax_reexports::Example;
-
-use pax_example::pax_reexports::pax_lang::api::SizePixels;
-
-use pax_example::pax_reexports::hello_rgb::HelloRGB;
-
-
 //pull in entire const token stream here e.g. `const JABBERWOCKY : &str = r#"’Twas brillig, and the slithy toves `...
 
 
@@ -177,20 +96,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color::rgb(100.0,0,0)
-    vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::pax_stdCOCOtypesCOCOColor(
-            Color::rgb((Numeric::from(100.0)),(Numeric::from(0)),(Numeric::from(0)),)
-        )
-    }));
-    
     //Transform2D::translate(0,0)
-    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(1, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         
@@ -198,6 +105,18 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         #[allow(unused_parens)]
         TypesCoproduct::Transform2D(
             Transform2D::translate((Numeric::from(0)),(Numeric::from(0)),)
+        )
+    }));
+    
+    //Color::rgb(100.0,0,0)
+    vtable.insert(2, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::pax_stdCOCOtypesCOCOColor(
+            Color::rgb((Numeric::from(100.0)),(Numeric::from(0)),(Numeric::from(0)),)
         )
     }));
     
@@ -249,20 +168,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D::translate(200,200)
-    vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::Transform2D(
-            Transform2D::translate((Numeric::from(200)),(Numeric::from(200)),)
-        )
-    }));
-    
     //Color::rgb(0,50.0,50.0)
-    vtable.insert(8, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(7, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         
@@ -273,203 +180,66 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Transform2D::anchor(0%,0%)*Transform2D::align(0%,0%)
-    vtable.insert(9, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    //Transform2D::translate(200,200)
+    vtable.insert(8, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         
 
         #[allow(unused_parens)]
         TypesCoproduct::Transform2D(
-            (Transform2D::anchor((Size::Percent(0 .into())),(Size::Percent(0 .into())),)*(Transform2D::align((Size::Percent(0 .into())),(Size::Percent(0 .into())),)).into())
+            Transform2D::translate((Numeric::from(200)),(Numeric::from(200)),)
         )
     }));
     
-    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)
+    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
+    vtable.insert(9, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let rotation =
+            {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+                
+                    if let PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB(p) = properties {
+                        
+                            //binding simple numeric property
+                            Numeric::from(p.rotation.get())
+                        
+                    } else {unreachable!()}
+                
+            };
+            
+                let rotation = Numeric::from( rotation );
+            
+
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::Transform2D(
+            ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())*(Transform2D::rotate((rotation),)).into())
+        )
+    }));
+    
+    //Color::rgb(0.4,0.5,0)
     vtable.insert(10, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         
 
         #[allow(unused_parens)]
-        TypesCoproduct::Transform2D(
-            (Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())
-        )
-    }));
-    
-    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)
-    vtable.insert(11, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::Transform2D(
-            (Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())
-        )
-    }));
-    
-    //Color::rgba(0.0,0.0,0.0,1.0)
-    vtable.insert(12, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
         TypesCoproduct::pax_stdCOCOtypesCOCOColor(
-            Color::rgba((Numeric::from(0.0)),(Numeric::from(0.0)),(Numeric::from(0.0)),(Numeric::from(1.0)),)
-        )
-    }));
-    
-    //Transform2D::anchor(0%,0%)*Transform2D::align(0%,0%)
-    vtable.insert(13, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::Transform2D(
-            (Transform2D::anchor((Size::Percent(0 .into())),(Size::Percent(0 .into())),)*(Transform2D::align((Size::Percent(0 .into())),(Size::Percent(0 .into())),)).into())
-        )
-    }));
-    
-    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)
-    vtable.insert(14, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::Transform2D(
-            (Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())
-        )
-    }));
-    
-    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)
-    vtable.insert(15, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::Transform2D(
-            (Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())
-        )
-    }));
-    
-    //Color::rgba(0.0,0.0,0.0,1.0)
-    vtable.insert(16, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::pax_stdCOCOtypesCOCOColor(
-            Color::rgba((Numeric::from(0.0)),(Numeric::from(0.0)),(Numeric::from(0.0)),(Numeric::from(1.0)),)
-        )
-    }));
-    
-    //0..10
-    vtable.insert(17, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::stdCOCOopsCOCORangeLABRisizeRABR(
-            0 ..10
-        )
-    }));
-    
-    //Color::rgb(0.5,0.5,1.0/(10.0-i))
-    vtable.insert(18, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-            let i =
-            {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }.borrow().deref().get_properties();
-                let properties = &*(*properties).borrow();
-                
-                    //binding repeat elem
-                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                        
-                            //iterable numeric
-                            
-                            let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {i} else {unreachable!()};
-                            Numeric::from(unwrapped)
-                        
-                    } else {unreachable!()}
-                
-            };
-            
-                let i = Numeric::from( i );
-            
-
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::pax_stdCOCOtypesCOCOColor(
-            Color::rgb((Numeric::from(0.5)),(Numeric::from(0.5)),((Numeric::from(1.0 )/(Numeric::from(10.0 )-i))),)
-        )
-    }));
-    
-    //0..4
-    vtable.insert(19, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::stdCOCOopsCOCORangeLABRisizeRABR(
-            0 ..4
-
-        )
-    }));
-    
-    //Color::rgb(1.0/(5.0-i),0.0,0.5)
-    vtable.insert(20, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-            let i =
-            {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }.borrow().deref().get_properties();
-                let properties = &*(*properties).borrow();
-                
-                    //binding repeat elem
-                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                        
-                            //iterable numeric
-                            
-                            let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {i} else {unreachable!()};
-                            Numeric::from(unwrapped)
-                        
-                    } else {unreachable!()}
-                
-            };
-            
-                let i = Numeric::from( i );
-            
-
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::pax_stdCOCOtypesCOCOColor(
-            Color::rgb(((Numeric::from(1.0 )/(Numeric::from(5.0 )-i))),(Numeric::from(0.0)),(Numeric::from(0.5)),)
+            Color::rgb((Numeric::from(0.4)),(Numeric::from(0.5)),(Numeric::from(0)),)
         )
     }));
     
     //_cell_specs
-    vtable.insert(21, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(11, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let _cell_specs =
             {
@@ -507,45 +277,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //(cell_spec.width_px)px
-    vtable.insert(22, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-            let cell_specPERIwidth_px =
-            {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }.borrow().deref().get_properties();
-                let properties = &*(*properties).borrow();
-                
-                    //binding repeat elem
-                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
-                        
-                            //iterable complex type
-                            if let PropertiesCoproduct::pax_stdCOCOtypesCOCOStackerCell(ict) = elem.deref() {
-                                ict.clone()
-                            } else {unreachable!()}
-                        
-                    } else {unreachable!()}
-                
-            }.width_px.clone();
-            
-                let cell_specPERIwidth_px = Numeric::from( cell_specPERIwidth_px );
-            
-
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::Size(
-            Size::Pixels(cell_specPERIwidth_px.into())
-        )
-    }));
-    
     //(cell_spec.height_px)px
-    vtable.insert(23, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(12, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let cell_specPERIheight_px =
             {
@@ -582,7 +315,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Transform2D::translate(cell_spec.x_px,cell_spec.y_px)
-    vtable.insert(24, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(13, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let cell_specPERIx_px =
             {
@@ -643,8 +376,45 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
+    //(cell_spec.width_px)px
+    vtable.insert(14, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let cell_specPERIwidth_px =
+            {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+                
+                    //binding repeat elem
+                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
+                        
+                            //iterable complex type
+                            if let PropertiesCoproduct::pax_stdCOCOtypesCOCOStackerCell(ict) = elem.deref() {
+                                ict.clone()
+                            } else {unreachable!()}
+                        
+                    } else {unreachable!()}
+                
+            }.width_px.clone();
+            
+                let cell_specPERIwidth_px = Numeric::from( cell_specPERIwidth_px );
+            
+
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::Size(
+            Size::Pixels(cell_specPERIwidth_px.into())
+        )
+    }));
+    
     //(i)
-    vtable.insert(25, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(15, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let i =
             {
@@ -675,54 +445,8 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
-    //Color::rgb(0.4,0.5,0)
-    vtable.insert(26, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::pax_stdCOCOtypesCOCOColor(
-            Color::rgb((Numeric::from(0.4)),(Numeric::from(0.5)),(Numeric::from(0)),)
-        )
-    }));
-    
-    //Transform2D::align(50%,50%)*Transform2D::anchor(50%,50%)*Transform2D::rotate(rotation)
-    vtable.insert(27, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
-        
-            let rotation =
-            {
-                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
-                    Rc::clone(&sf)
-                } else {
-                    Rc::clone(&ec.stack_frame)
-                }.borrow().deref().get_properties();
-                let properties = &*(*properties).borrow();
-                
-                    if let PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB(p) = properties {
-                        
-                            //binding simple numeric property
-                            Numeric::from(p.rotation.get())
-                        
-                    } else {unreachable!()}
-                
-            };
-            
-                let rotation = Numeric::from( rotation );
-            
-
-        
-
-        
-
-        #[allow(unused_parens)]
-        TypesCoproduct::Transform2D(
-            ((Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())*(Transform2D::rotate((rotation),)).into())
-        )
-    }));
-    
     //0..60
-    vtable.insert(28, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(16, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
 
         
@@ -734,7 +458,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Color::hlc(ticks+i*360.0/30.0,75.0,150.0)
-    vtable.insert(29, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(17, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let i =
             {
@@ -793,7 +517,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)*Transform2D::rotate((i+2)*rotation+ticks/1000.0)*Transform2D::scale(0.75+(i*rotation),0.75+(i*rotation))*Transform2D::scale(1-((rotation/5)+i/1000.0),1-((rotation/5)+i/1000.0))
-    vtable.insert(30, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(18, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let i =
             {
@@ -874,7 +598,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //current_route==0
-    vtable.insert(31, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(19, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let current_route =
             {
@@ -908,7 +632,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //current_route==1
-    vtable.insert(32, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(20, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let current_route =
             {
@@ -942,7 +666,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //current_route==2
-    vtable.insert(33, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(21, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let current_route =
             {
@@ -977,7 +701,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //current_route==3
-    vtable.insert(34, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(22, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let current_route =
             {
@@ -1011,7 +735,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
     }));
     
     //current_route==4
-    vtable.insert(35, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+    vtable.insert(23, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         
             let current_route =
             {
@@ -1045,6 +769,213 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         )
     }));
     
+    //Transform2D::anchor(0%,0%)*Transform2D::align(0%,0%)
+    vtable.insert(24, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::Transform2D(
+            (Transform2D::anchor((Size::Percent(0 .into())),(Size::Percent(0 .into())),)*(Transform2D::align((Size::Percent(0 .into())),(Size::Percent(0 .into())),)).into())
+        )
+    }));
+    
+    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)
+    vtable.insert(25, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::Transform2D(
+            (Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())
+        )
+    }));
+    
+    //Color::rgba(0.0,0.0,0.0,1.0)
+    vtable.insert(26, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::pax_stdCOCOtypesCOCOColor(
+            Color::rgba((Numeric::from(0.0)),(Numeric::from(0.0)),(Numeric::from(0.0)),(Numeric::from(1.0)),)
+        )
+    }));
+    
+    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)
+    vtable.insert(27, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::Transform2D(
+            (Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())
+        )
+    }));
+    
+    //Transform2D::anchor(0%,0%)*Transform2D::align(0%,0%)
+    vtable.insert(28, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::Transform2D(
+            (Transform2D::anchor((Size::Percent(0 .into())),(Size::Percent(0 .into())),)*(Transform2D::align((Size::Percent(0 .into())),(Size::Percent(0 .into())),)).into())
+        )
+    }));
+    
+    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)
+    vtable.insert(29, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::Transform2D(
+            (Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())
+        )
+    }));
+    
+    //Color::rgba(0.0,0.0,0.0,1.0)
+    vtable.insert(30, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::pax_stdCOCOtypesCOCOColor(
+            Color::rgba((Numeric::from(0.0)),(Numeric::from(0.0)),(Numeric::from(0.0)),(Numeric::from(1.0)),)
+        )
+    }));
+    
+    //Transform2D::anchor(50%,50%)*Transform2D::align(50%,50%)
+    vtable.insert(31, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::Transform2D(
+            (Transform2D::anchor((Size::Percent(50.into())),(Size::Percent(50.into())),)*(Transform2D::align((Size::Percent(50.into())),(Size::Percent(50.into())),)).into())
+        )
+    }));
+    
+    //StackerDirection::Vertical
+    vtable.insert(32, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::pax_stdCOCOtypesCOCOStackerDirection(
+            StackerDirection :: Vertical .try_into().unwrap()
+        )
+    }));
+    
+    //0..10
+    vtable.insert(33, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::stdCOCOopsCOCORangeLABRisizeRABR(
+            0 ..10
+        )
+    }));
+    
+    //Color::rgb(0.5,0.5,1.0/(10.0-i))
+    vtable.insert(34, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let i =
+            {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+                
+                    //binding repeat elem
+                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
+                        
+                            //iterable numeric
+                            
+                            let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {i} else {unreachable!()};
+                            Numeric::from(unwrapped)
+                        
+                    } else {unreachable!()}
+                
+            };
+            
+                let i = Numeric::from( i );
+            
+
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::pax_stdCOCOtypesCOCOColor(
+            Color::rgb((Numeric::from(0.5)),(Numeric::from(0.5)),((Numeric::from(1.0 )/(Numeric::from(10.0 )-i))),)
+        )
+    }));
+    
+    //0..4
+    vtable.insert(35, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::stdCOCOopsCOCORangeLABRisizeRABR(
+            0 ..4
+
+        )
+    }));
+    
+    //Color::rgb(1.0/(5.0-i),0.0,0.5)
+    vtable.insert(36, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
+        
+            let i =
+            {
+                let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth(0) {
+                    Rc::clone(&sf)
+                } else {
+                    Rc::clone(&ec.stack_frame)
+                }.borrow().deref().get_properties();
+                let properties = &*(*properties).borrow();
+                
+                    //binding repeat elem
+                    if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
+                        
+                            //iterable numeric
+                            
+                            let unwrapped = if let PropertiesCoproduct::isize(i) = **elem {i} else {unreachable!()};
+                            Numeric::from(unwrapped)
+                        
+                    } else {unreachable!()}
+                
+            };
+            
+                let i = Numeric::from( i );
+            
+
+        
+
+        
+
+        #[allow(unused_parens)]
+        TypesCoproduct::pax_stdCOCOtypesCOCOColor(
+            Color::rgb(((Numeric::from(1.0 )/(Numeric::from(5.0 )-i))),(Numeric::from(0.0)),(Numeric::from(0.5)),)
+        )
+    }));
+    
 
     vtable
 }
@@ -1059,7 +990,7 @@ pax_std_primitives::frame::FrameInstance::instantiate(
  InstantiationArgs {
     properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOFrame
     
-        ( Frame {
+        ( pax_example::pax_reexports::pax_std::primitives::Frame {
             
         })
     ,
@@ -1089,7 +1020,7 @@ pax_std_primitives::group::GroupInstance::instantiate(
  InstantiationArgs {
     properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOGroup
     
-        ( Group {
+        ( pax_example::pax_reexports::pax_std::primitives::Group {
             
         })
     ,
@@ -1114,11 +1045,11 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
  InstantiationArgs {
     properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
     
-        ( Rectangle {
+        ( pax_example::pax_reexports::pax_std::primitives::Rectangle {
             
                 stroke: Box::new( PropertyLiteral::new(Default::default()) ),
             
-                fill: Box::new( PropertyExpression::new(1) ),
+                fill: Box::new( PropertyExpression::new(2) ),
             
         })
     ,
@@ -1131,7 +1062,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     }
     ))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(2))),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(1))),
     size: Some(Rc::new(RefCell::new(
         [Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),Box::new(PropertyLiteral::new(Size::Pixels(100.into())))]
     ))),
@@ -1154,7 +1085,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
  InstantiationArgs {
     properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
     
-        ( Rectangle {
+        ( pax_example::pax_reexports::pax_std::primitives::Rectangle {
             
                 stroke: Box::new( PropertyLiteral::new(Default::default()) ),
             
@@ -1194,7 +1125,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
  InstantiationArgs {
     properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
     
-        ( Rectangle {
+        ( pax_example::pax_reexports::pax_std::primitives::Rectangle {
             
                 stroke: Box::new( PropertyLiteral::new(Default::default()) ),
             
@@ -1234,11 +1165,11 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
  InstantiationArgs {
     properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOEllipse
     
-        ( Ellipse {
+        ( pax_example::pax_reexports::pax_std::primitives::Ellipse {
             
                 stroke: Box::new( PropertyLiteral::new(Default::default()) ),
             
-                fill: Box::new( PropertyExpression::new(8) ),
+                fill: Box::new( PropertyExpression::new(7) ),
             
         })
     ,
@@ -1251,7 +1182,7 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
     }
     ))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(7))),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(8))),
     size: Some(Rc::new(RefCell::new(
         [Box::new(PropertyLiteral::new(Size::Pixels(100.into()))),Box::new(PropertyLiteral::new(Size::Pixels(100.into())))]
     ))),
@@ -1297,7 +1228,7 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
                   |properties, ctx|{
                       let properties = &mut *properties.as_ref().borrow_mut();
                       let properties = if let PropertiesCoproduct::crateCOCOcameraCOCOCamera(p) = properties {p} else {unreachable!()};
-                      Camera::handle_did_mount(properties,ctx);
+                      pax_example::pax_reexports::camera::Camera::handle_did_mount(properties,ctx);
                   },
               ],
         scroll_handlers: vec![],
@@ -1352,487 +1283,45 @@ pax_std_primitives::ellipse::EllipseInstance::instantiate(
 
 
     
-pub fn instantiate_crate_words_Words<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
+pub fn instantiate_crate_hello_rgb_HelloRGB<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
     args.component_template = Some(Rc::new(RefCell::new(vec![
 
-pax_std_primitives::group::GroupInstance::instantiate(
+pax_std_primitives::ellipse::EllipseInstance::instantiate(
  InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOGroup
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOEllipse
     
-        ( Group {
+        ( pax_example::pax_reexports::pax_std::primitives::Ellipse {
+            
+                stroke: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                fill: Box::new( PropertyExpression::new(10) ),
             
         })
     ,
     handler_registry:  Some(Rc::new(RefCell::new(
     HandlerRegistry {
-         click_handlers: vec![],
+         click_handlers: vec![|stack_frame, ctx, args|{
+                        let properties = (*stack_frame).borrow().get_properties();
+                        let properties = &mut *properties.as_ref().borrow_mut();
+                        let properties = if let PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB(p) = properties {p} else {unreachable!()};
+                        HelloRGB::handle_click(properties, ctx, args);
+                    },],
          will_render_handlers: vec![],
          did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-            
-
-pax_std_primitives::text::TextInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOText
-    
-        ( Text {
-            
-                text: Box::new( PropertyLiteral::new("Layer".try_into().unwrap()) ),
-            
-                font: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                fill: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                size_font: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                style_link: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_multiline: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_vertical: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_horizontal: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                font_weight: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                font_style: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-            
-
-pax_std_primitives::image::ImageInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOImage
-    
-        ( Image {
-            
-                path: Box::new( PropertyLiteral::new("assets/images/pax-logo.png".try_into().unwrap()) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
+         scroll_handlers: vec![|stack_frame, ctx, args|{
+                         let properties = (*stack_frame).borrow().get_properties();
+                         let properties = &mut *properties.as_ref().borrow_mut();
+                         let properties = if let PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB(p) = properties {p} else {unreachable!()};
+                         HelloRGB::handle_scroll(properties,ctx,args);
+                     },],
     }
     ))),
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new(PropertyExpression::new(9))),
     size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(280.into()))),Box::new(PropertyLiteral::new(Size::Pixels(120.into())))]
+        [Box::new(PropertyLiteral::new(Size::Percent(50.into()))),Box::new(PropertyLiteral::new(Size::Percent(50.into())))]
     ))),
     children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-            
-
-pax_std_primitives::image::ImageInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOImage
-    
-        ( Image {
-            
-                path: Box::new( PropertyLiteral::new("assets/images/jpeg_test.jpg".try_into().unwrap()) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(10))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(500.into()))),Box::new(PropertyLiteral::new(Size::Pixels(500.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-            
-
-pax_std_primitives::text::TextInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOText
-    
-        ( Text {
-            
-                text: Box::new( PropertyLiteral::new("apple".try_into().unwrap()) ),
-            
-                font: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                fill: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                size_font: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                style_link: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_multiline: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_vertical: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_horizontal: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                font_weight: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                font_style: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-            
-
-pax_std_primitives::rectangle::RectangleInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
-    
-        ( Rectangle {
-            
-                stroke: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                fill: Box::new( PropertyExpression::new(12) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(11))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(550.into()))),Box::new(PropertyLiteral::new(Size::Pixels(550.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-            
-
-pax_std_primitives::text::TextInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOText
-    
-        ( Text {
-            
-                text: Box::new( PropertyLiteral::new("carrot".try_into().unwrap()) ),
-            
-                font: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                fill: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                size_font: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                style_link: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_multiline: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_vertical: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_horizontal: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                font_weight: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                font_style: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-            
-
-pax_std_primitives::image::ImageInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOImage
-    
-        ( Image {
-            
-                path: Box::new( PropertyLiteral::new("assets/images/pax-logo.png".try_into().unwrap()) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(13))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(280.into()))),Box::new(PropertyLiteral::new(Size::Pixels(120.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-            
-
-pax_std_primitives::image::ImageInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOImage
-    
-        ( Image {
-            
-                path: Box::new( PropertyLiteral::new("assets/images/jpeg_test.jpg".try_into().unwrap()) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(14))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(500.into()))),Box::new(PropertyLiteral::new(Size::Pixels(500.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-            
-
-pax_std_primitives::text::TextInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOText
-    
-        ( Text {
-            
-                text: Box::new( PropertyLiteral::new("hello world".try_into().unwrap()) ),
-            
-                font: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                fill: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                size_font: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                style_link: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_multiline: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_vertical: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                align_horizontal: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                font_weight: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                font_style: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-            
-
-pax_std_primitives::rectangle::RectangleInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
-    
-        ( Rectangle {
-            
-                stroke: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                fill: Box::new( PropertyExpression::new(16) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(15))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Pixels(550.into()))),Box::new(PropertyLiteral::new(Size::Pixels(550.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
         
     ]))),
     component_template: None,
@@ -1854,280 +1343,14 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
 
     args.compute_properties_fn = Some(Box::new(|properties, rtc|{
         let properties = &mut *properties.as_ref().borrow_mut();
-        let properties = if let PropertiesCoproduct::crateCOCOwordsCOCOWords(p) = properties {p} else {unreachable!()};
+        let properties = if let PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB(p) = properties {p} else {unreachable!()};
 
         
-    }));
-
-    ComponentInstance::instantiate(args)
-}
-
-
-
-
-    
-pub fn instantiate_crate_grids_Grids<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
-    args.component_template = Some(Rc::new(RefCell::new(vec![
-
-instantiate_pax_std_stacker_Stacker( Rc::clone(&instance_registry),
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOstackerCOCOStacker
-    
-        ( Stacker {
-            
-                cells: Box::new( PropertyLiteral::new(Numeric::from(5 )) ),
-            
-                direction: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                _cell_specs: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                gutter: Box::new( PropertyLiteral::new(Size::Pixels(5.into())) ),
-            
-                sizes: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Percent(100.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-            
-
-instantiate_pax_std_stacker_Stacker( Rc::clone(&instance_registry),
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOstackerCOCOStacker
-    
-        ( Stacker {
-            
-                cells: Box::new( PropertyLiteral::new(Numeric::from(10)) ),
-            
-                direction: Box::new( PropertyLiteral::new(StackerDirection ::
-Vertical .try_into().unwrap()) ),
-            
-                _cell_specs: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                gutter: Box::new( PropertyLiteral::new(Size::Pixels(5.into())) ),
-            
-                sizes: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Percent(100.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-            
-
-RepeatInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::None
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-            
-
-pax_std_primitives::rectangle::RectangleInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
-    
-        ( Rectangle {
-            
-                stroke: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                fill: Box::new( PropertyExpression::new(18) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Percent(100.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(17))),
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-            
-
-RepeatInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::None
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-            
-
-pax_std_primitives::rectangle::RectangleInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
-    
-        ( Rectangle {
-            
-                stroke: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                fill: Box::new( PropertyExpression::new(20) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Percent(100.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(19))),
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-,
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-])));
-
-    args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
-        click_handlers: vec![],
-        will_render_handlers: vec![],
-        did_mount_handlers: vec![],
-        scroll_handlers: vec![],
-    })));
-
-    args.compute_properties_fn = Some(Box::new(|properties, rtc|{
-        let properties = &mut *properties.as_ref().borrow_mut();
-        let properties = if let PropertiesCoproduct::crateCOCOgridsCOCOGrids(p) = properties {p} else {unreachable!()};
-
-        
-            if let Some(new_value) = rtc.compute_eased_value(properties.ticks._get_transition_manager()) {
-            properties.ticks.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.ticks._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::usize(v) = new_value { v } else { unreachable!() };
-            properties.ticks.set(new_value);
-            }
-        
-            if let Some(new_value) = rtc.compute_eased_value(properties.rects._get_transition_manager()) {
-            properties.rects.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.rects._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::stdCOCOvecCOCOVecLABRcrateCOCOgridsCOCORectDefRABR(v) = new_value { v } else { unreachable!() };
-            properties.rects.set(new_value);
+            if let Some(new_value) = rtc.compute_eased_value(properties.rotation._get_transition_manager()) {
+            properties.rotation.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.rotation._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::f64(v) = new_value { v } else { unreachable!() };
+            properties.rotation.set(new_value);
             }
         
     }));
@@ -2167,7 +1390,7 @@ pax_std_primitives::frame::FrameInstance::instantiate(
  InstantiationArgs {
     properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOFrame
     
-        ( Frame {
+        ( pax_example::pax_reexports::pax_std::primitives::Frame {
             
         })
     ,
@@ -2180,9 +1403,9 @@ pax_std_primitives::frame::FrameInstance::instantiate(
     }
     ))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(24))),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(13))),
     size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyExpression::new(22)),Box::new(PropertyExpression::new(23))]
+        [Box::new(PropertyExpression::new(14)),Box::new(PropertyExpression::new(12))]
     ))),
     children: Some(Rc::new(RefCell::new(vec![
         
@@ -2210,7 +1433,7 @@ SlotInstance::instantiate(
     ]))),
     component_template: None,
     scroller_args: None,
-    slot_index: Some(Box::new(PropertyExpression::new(25))),
+    slot_index: Some(Box::new(PropertyExpression::new(15))),
     repeat_source_expression_vec: None,
     repeat_source_expression_range: None,
     conditional_boolean_expression: None,
@@ -2233,7 +1456,7 @@ SlotInstance::instantiate(
     component_template: None,
     scroller_args: None,
     slot_index: None,
-    repeat_source_expression_vec: Some(Box::new(PropertyExpression::new(21))),
+    repeat_source_expression_vec: Some(Box::new(PropertyExpression::new(11))),
     repeat_source_expression_range: None,
     conditional_boolean_expression: None,
     compute_properties_fn: None,
@@ -2246,7 +1469,7 @@ SlotInstance::instantiate(
                  |properties, ctx|{
                      let properties = &mut *properties.as_ref().borrow_mut();
                      let properties = if let PropertiesCoproduct::pax_stdCOCOstackerCOCOStacker(p) = properties {p} else {unreachable!()};
-                     Stacker::handle_will_render(properties,ctx);
+                     pax_example::pax_reexports::pax_std::stacker::Stacker::handle_will_render(properties,ctx);
                  },
              ],
         did_mount_handlers: vec![],
@@ -2302,85 +1525,6 @@ SlotInstance::instantiate(
 
 
     
-pub fn instantiate_crate_hello_rgb_HelloRGB<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
-    args.component_template = Some(Rc::new(RefCell::new(vec![
-
-pax_std_primitives::ellipse::EllipseInstance::instantiate(
- InstantiationArgs {
-    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOEllipse
-    
-        ( Ellipse {
-            
-                stroke: Box::new( PropertyLiteral::new(Default::default()) ),
-            
-                fill: Box::new( PropertyExpression::new(26) ),
-            
-        })
-    ,
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-         click_handlers: vec![|stack_frame, ctx, args|{
-                        let properties = (*stack_frame).borrow().get_properties();
-                        let properties = &mut *properties.as_ref().borrow_mut();
-                        let properties = if let PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB(p) = properties {p} else {unreachable!()};
-                        HelloRGB::handle_click(properties, ctx, args);
-                    },],
-         will_render_handlers: vec![],
-         did_mount_handlers: vec![],
-         scroll_handlers: vec![|stack_frame, ctx, args|{
-                         let properties = (*stack_frame).borrow().get_properties();
-                         let properties = &mut *properties.as_ref().borrow_mut();
-                         let properties = if let PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB(p) = properties {p} else {unreachable!()};
-                         HelloRGB::handle_scroll(properties,ctx,args);
-                     },],
-    }
-    ))),
-    instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(27))),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new(PropertyLiteral::new(Size::Percent(50.into()))),Box::new(PropertyLiteral::new(Size::Percent(50.into())))]
-    ))),
-    children: Some(Rc::new(RefCell::new(vec![
-        
-    ]))),
-    component_template: None,
-    scroller_args: None,
-    slot_index: None,
-    repeat_source_expression_vec: None,
-    repeat_source_expression_range: None,
-    conditional_boolean_expression: None,
-    compute_properties_fn: None,
-})
-])));
-
-    args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
-        click_handlers: vec![],
-        will_render_handlers: vec![],
-        did_mount_handlers: vec![],
-        scroll_handlers: vec![],
-    })));
-
-    args.compute_properties_fn = Some(Box::new(|properties, rtc|{
-        let properties = &mut *properties.as_ref().borrow_mut();
-        let properties = if let PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB(p) = properties {p} else {unreachable!()};
-
-        
-            if let Some(new_value) = rtc.compute_eased_value(properties.rotation._get_transition_manager()) {
-            properties.rotation.set(new_value);
-            } else if let Some(new_value) = rtc.compute_vtable_value(properties.rotation._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::f64(v) = new_value { v } else { unreachable!() };
-            properties.rotation.set(new_value);
-            }
-        
-    }));
-
-    ComponentInstance::instantiate(args)
-}
-
-
-
-
-    
 pub fn instantiate_crate_fireworks_Fireworks<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
     args.component_template = Some(Rc::new(RefCell::new(vec![
 
@@ -2388,7 +1532,7 @@ pax_std_primitives::group::GroupInstance::instantiate(
  InstantiationArgs {
     properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOGroup
     
-        ( Group {
+        ( pax_example::pax_reexports::pax_std::primitives::Group {
             
         })
     ,
@@ -2439,11 +1583,11 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
  InstantiationArgs {
     properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
     
-        ( Rectangle {
+        ( pax_example::pax_reexports::pax_std::primitives::Rectangle {
             
                 stroke: Box::new( PropertyLiteral::new(Default::default()) ),
             
-                fill: Box::new( PropertyExpression::new(29) ),
+                fill: Box::new( PropertyExpression::new(17) ),
             
         })
     ,
@@ -2456,7 +1600,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     }
     ))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new(PropertyExpression::new(30))),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(18))),
     size: Some(Rc::new(RefCell::new(
         [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
     ))),
@@ -2478,7 +1622,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     scroller_args: None,
     slot_index: None,
     repeat_source_expression_vec: None,
-    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(28))),
+    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(16))),
     conditional_boolean_expression: None,
     compute_properties_fn: None,
 })
@@ -2501,7 +1645,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
                  |properties, ctx|{
                      let properties = &mut *properties.as_ref().borrow_mut();
                      let properties = if let PropertiesCoproduct::crateCOCOfireworksCOCOFireworks(p) = properties {p} else {unreachable!()};
-                     Fireworks::handle_will_render(properties,ctx);
+                     pax_example::pax_reexports::fireworks::Fireworks::handle_will_render(properties,ctx);
                  },
              ],
         did_mount_handlers: vec![],
@@ -2538,7 +1682,7 @@ pax_std_primitives::rectangle::RectangleInstance::instantiate(
     
 pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     ComponentInstance::instantiate( InstantiationArgs{
-        properties: PropertiesCoproduct::crateCOCOExample( Example::default() ),
+        properties: PropertiesCoproduct::crateCOCOExample( pax_example::pax_reexports::Example::default() ),
         handler_registry:  Some(Rc::new(RefCell::new(
              HandlerRegistry {
                  click_handlers: vec![],
@@ -2557,7 +1701,7 @@ pax_std_primitives::frame::FrameInstance::instantiate(
  InstantiationArgs {
     properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOFrame
     
-        ( Frame {
+        ( pax_example::pax_reexports::pax_std::primitives::Frame {
             
         })
     ,
@@ -2608,7 +1752,7 @@ instantiate_crate_grids_Grids( Rc::clone(&instance_registry),
  InstantiationArgs {
     properties: PropertiesCoproduct::crateCOCOgridsCOCOGrids
     
-        ( Grids {
+        ( pax_example::pax_reexports::grids::Grids {
             
                 ticks: Box::new( PropertyLiteral::new(Default::default()) ),
             
@@ -2648,7 +1792,7 @@ instantiate_crate_grids_Grids( Rc::clone(&instance_registry),
     slot_index: None,
     repeat_source_expression_vec: None,
     repeat_source_expression_range: None,
-    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(31))),
+    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(19))),
     compute_properties_fn: None,
 })
 ,
@@ -2680,7 +1824,7 @@ instantiate_crate_fireworks_Fireworks( Rc::clone(&instance_registry),
  InstantiationArgs {
     properties: PropertiesCoproduct::crateCOCOfireworksCOCOFireworks
     
-        ( Fireworks {
+        ( pax_example::pax_reexports::fireworks::Fireworks {
             
                 rotation: Box::new( PropertyLiteral::new(Default::default()) ),
             
@@ -2720,7 +1864,7 @@ instantiate_crate_fireworks_Fireworks( Rc::clone(&instance_registry),
     slot_index: None,
     repeat_source_expression_vec: None,
     repeat_source_expression_range: None,
-    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(32))),
+    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(20))),
     compute_properties_fn: None,
 })
 ,
@@ -2752,7 +1896,7 @@ instantiate_crate_words_Words( Rc::clone(&instance_registry),
  InstantiationArgs {
     properties: PropertiesCoproduct::crateCOCOwordsCOCOWords
     
-        ( Words {
+        ( pax_example::pax_reexports::words::Words {
             
         })
     ,
@@ -2788,7 +1932,7 @@ instantiate_crate_words_Words( Rc::clone(&instance_registry),
     slot_index: None,
     repeat_source_expression_vec: None,
     repeat_source_expression_range: None,
-    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(33))),
+    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(21))),
     compute_properties_fn: None,
 })
 ,
@@ -2820,7 +1964,7 @@ instantiate_crate_camera_Camera( Rc::clone(&instance_registry),
  InstantiationArgs {
     properties: PropertiesCoproduct::crateCOCOcameraCOCOCamera
     
-        ( Camera {
+        ( pax_example::pax_reexports::camera::Camera {
             
                 ticks: Box::new( PropertyLiteral::new(Default::default()) ),
             
@@ -2866,7 +2010,7 @@ instantiate_crate_camera_Camera( Rc::clone(&instance_registry),
     slot_index: None,
     repeat_source_expression_vec: None,
     repeat_source_expression_range: None,
-    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(34))),
+    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(22))),
     compute_properties_fn: None,
 })
 ,
@@ -2898,7 +2042,7 @@ instantiate_crate_hello_rgb_HelloRGB( Rc::clone(&instance_registry),
  InstantiationArgs {
     properties: PropertiesCoproduct::crateCOCOhello_rgbCOCOHelloRGB
     
-        ( HelloRGB {
+        ( pax_example::pax_reexports::hello_rgb::HelloRGB {
             
                 rotation: Box::new( PropertyLiteral::new(Default::default()) ),
             
@@ -2936,7 +2080,7 @@ instantiate_crate_hello_rgb_HelloRGB( Rc::clone(&instance_registry),
     slot_index: None,
     repeat_source_expression_vec: None,
     repeat_source_expression_range: None,
-    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(35))),
+    conditional_boolean_expression: Some(Box::new(PropertyExpression::new(23))),
     compute_properties_fn: None,
 })
 ,
@@ -2972,6 +2116,792 @@ instantiate_crate_hello_rgb_HelloRGB( Rc::clone(&instance_registry),
     })
 }
 
+
+
+
+
+    
+pub fn instantiate_crate_words_Words<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
+    args.component_template = Some(Rc::new(RefCell::new(vec![
+
+pax_std_primitives::group::GroupInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOGroup
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Group {
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+            
+
+pax_std_primitives::text::TextInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOText
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Text {
+            
+                text: Box::new( PropertyLiteral::new("Layer".try_into().unwrap()) ),
+            
+                font: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                fill: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                size_font: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                style_link: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_multiline: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_vertical: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_horizontal: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                font_weight: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                font_style: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+            
+
+pax_std_primitives::image::ImageInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOImage
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Image {
+            
+                path: Box::new( PropertyLiteral::new("assets/images/pax-logo.png".try_into().unwrap()) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(24))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(280.into()))),Box::new(PropertyLiteral::new(Size::Pixels(120.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+            
+
+pax_std_primitives::image::ImageInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOImage
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Image {
+            
+                path: Box::new( PropertyLiteral::new("assets/images/jpeg_test.jpg".try_into().unwrap()) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(25))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(500.into()))),Box::new(PropertyLiteral::new(Size::Pixels(500.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+            
+
+pax_std_primitives::text::TextInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOText
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Text {
+            
+                text: Box::new( PropertyLiteral::new("apple".try_into().unwrap()) ),
+            
+                font: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                fill: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                size_font: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                style_link: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_multiline: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_vertical: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_horizontal: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                font_weight: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                font_style: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+            
+
+pax_std_primitives::rectangle::RectangleInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Rectangle {
+            
+                stroke: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                fill: Box::new( PropertyExpression::new(26) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(27))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(550.into()))),Box::new(PropertyLiteral::new(Size::Pixels(550.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+            
+
+pax_std_primitives::text::TextInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOText
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Text {
+            
+                text: Box::new( PropertyLiteral::new("carrot".try_into().unwrap()) ),
+            
+                font: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                fill: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                size_font: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                style_link: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_multiline: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_vertical: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_horizontal: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                font_weight: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                font_style: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+            
+
+pax_std_primitives::image::ImageInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOImage
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Image {
+            
+                path: Box::new( PropertyLiteral::new("assets/images/pax-logo.png".try_into().unwrap()) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(28))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(280.into()))),Box::new(PropertyLiteral::new(Size::Pixels(120.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+            
+
+pax_std_primitives::image::ImageInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOImage
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Image {
+            
+                path: Box::new( PropertyLiteral::new("assets/images/jpeg_test.jpg".try_into().unwrap()) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(29))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(500.into()))),Box::new(PropertyLiteral::new(Size::Pixels(500.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+            
+
+pax_std_primitives::text::TextInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCOText
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Text {
+            
+                text: Box::new( PropertyLiteral::new("hello world".try_into().unwrap()) ),
+            
+                font: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                fill: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                size_font: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                style_link: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_multiline: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_vertical: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                align_horizontal: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                font_weight: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                font_style: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(300.into()))),Box::new(PropertyLiteral::new(Size::Pixels(300.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+            
+
+pax_std_primitives::rectangle::RectangleInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Rectangle {
+            
+                stroke: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                fill: Box::new( PropertyExpression::new(30) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyExpression::new(31))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Pixels(550.into()))),Box::new(PropertyLiteral::new(Size::Pixels(550.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+])));
+
+    args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
+        click_handlers: vec![],
+        will_render_handlers: vec![],
+        did_mount_handlers: vec![],
+        scroll_handlers: vec![],
+    })));
+
+    args.compute_properties_fn = Some(Box::new(|properties, rtc|{
+        let properties = &mut *properties.as_ref().borrow_mut();
+        let properties = if let PropertiesCoproduct::crateCOCOwordsCOCOWords(p) = properties {p} else {unreachable!()};
+
+        
+    }));
+
+    ComponentInstance::instantiate(args)
+}
+
+
+
+
+    
+pub fn instantiate_crate_grids_Grids<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
+    args.component_template = Some(Rc::new(RefCell::new(vec![
+
+instantiate_pax_std_stacker_Stacker( Rc::clone(&instance_registry),
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOstackerCOCOStacker
+    
+        ( pax_example::pax_reexports::pax_std::stacker::Stacker {
+            
+                cells: Box::new( PropertyLiteral::new(Numeric::from(5 )) ),
+            
+                direction: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                _cell_specs: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                gutter: Box::new( PropertyLiteral::new(Size::Pixels(5.into())) ),
+            
+                sizes: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Percent(100.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+            
+
+instantiate_pax_std_stacker_Stacker( Rc::clone(&instance_registry),
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOstackerCOCOStacker
+    
+        ( pax_example::pax_reexports::pax_std::stacker::Stacker {
+            
+                cells: Box::new( PropertyLiteral::new(Numeric::from(10)) ),
+            
+                direction: Box::new( PropertyExpression::new(32) ),
+            
+                _cell_specs: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                gutter: Box::new( PropertyLiteral::new(Size::Pixels(5.into())) ),
+            
+                sizes: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Percent(100.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+            
+
+RepeatInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::None
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+            
+
+pax_std_primitives::rectangle::RectangleInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Rectangle {
+            
+                stroke: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                fill: Box::new( PropertyExpression::new(34) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Percent(100.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(33))),
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+            
+
+RepeatInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::None
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Default::default())),Box::new(PropertyLiteral::new(Default::default()))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+            
+
+pax_std_primitives::rectangle::RectangleInstance::instantiate(
+ InstantiationArgs {
+    properties: PropertiesCoproduct::pax_stdCOCOprimitivesCOCORectangle
+    
+        ( pax_example::pax_reexports::pax_std::primitives::Rectangle {
+            
+                stroke: Box::new( PropertyLiteral::new(Default::default()) ),
+            
+                fill: Box::new( PropertyExpression::new(36) ),
+            
+        })
+    ,
+    handler_registry:  Some(Rc::new(RefCell::new(
+    HandlerRegistry {
+         click_handlers: vec![],
+         will_render_handlers: vec![],
+         did_mount_handlers: vec![],
+         scroll_handlers: vec![],
+    }
+    ))),
+    instance_registry: Rc::clone(&instance_registry),
+    transform: Rc::new(RefCell::new(PropertyLiteral::new(Default::default()))),
+    size: Some(Rc::new(RefCell::new(
+        [Box::new(PropertyLiteral::new(Size::Percent(100.into()))),Box::new(PropertyLiteral::new(Size::Percent(100.into())))]
+    ))),
+    children: Some(Rc::new(RefCell::new(vec![
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: Some(Box::new(PropertyExpression::new(35))),
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+,
+        
+    ]))),
+    component_template: None,
+    scroller_args: None,
+    slot_index: None,
+    repeat_source_expression_vec: None,
+    repeat_source_expression_range: None,
+    conditional_boolean_expression: None,
+    compute_properties_fn: None,
+})
+])));
+
+    args.handler_registry = Some(Rc::new(RefCell::new(HandlerRegistry {
+        click_handlers: vec![],
+        will_render_handlers: vec![],
+        did_mount_handlers: vec![],
+        scroll_handlers: vec![],
+    })));
+
+    args.compute_properties_fn = Some(Box::new(|properties, rtc|{
+        let properties = &mut *properties.as_ref().borrow_mut();
+        let properties = if let PropertiesCoproduct::crateCOCOgridsCOCOGrids(p) = properties {p} else {unreachable!()};
+
+        
+            if let Some(new_value) = rtc.compute_eased_value(properties.ticks._get_transition_manager()) {
+            properties.ticks.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.ticks._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::usize(v) = new_value { v } else { unreachable!() };
+            properties.ticks.set(new_value);
+            }
+        
+            if let Some(new_value) = rtc.compute_eased_value(properties.rects._get_transition_manager()) {
+            properties.rects.set(new_value);
+            } else if let Some(new_value) = rtc.compute_vtable_value(properties.rects._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::stdCOCOvecCOCOVecLABRcrateCOCOgridsCOCORectDefRABR(v) = new_value { v } else { unreachable!() };
+            properties.rects.set(new_value);
+            }
+        
+    }));
+
+    ComponentInstance::instantiate(args)
+}
 
 
 

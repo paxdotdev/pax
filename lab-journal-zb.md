@@ -3002,4 +3002,34 @@ let foo_bar_baz = (
 )
 
 bar:
+```
 
+### On fully qualified types wherever types are used
+
+June 2023
+
+Currently, all known types are imported as top-level symbols in the generated cartridge/lib.rs
+E.g. `Stacker` and `StackerDirection` will both be in scope as symbols, as they are both found in the manifest
+
+This enables us to use e.g. `StackerDirection` in both literals and expressions, and to codegen
+that `StackerDirection` symbol directly into RIL (as `StackerDirection`, literally) without having to worry about resolving that symbol
+
+This also comes with drawbacks.  Major one: types must be globally unique within a program.  For example, if you created a struct
+called `Text` in userland, and wanted to use it in Pax, there would be a symbol collision between
+that `Text` struct and `pax_std_primitives::Text`
+
+Two possible solutions:
+ - hacky:   curate a list of "built-in" symbols, like `Size` and `StackerDirection`.  Continue to import all symbols at the
+            root of cartridge-lib, but don't include the built-ins if there would be duplicates.  This continues to suffer from
+            the drawback of "type names must be globally unique," and structs like StackerDirection would only be usable in
+            literal and expressions if they exist in the builtin list
+
+ - correct: resolve both _literal_ symbols and _expression symbols_ during parse_to_manifest.  This is straight-forward enough with literals, but will
+            require an additional pratt-parsing pass for expressions, specifically to replace symbols with their fully qualified counterparts at parse-time (alt: embed a type_id for post-manifest processing)
+            Along the way, perhaps we should refactor the "import prefix" logic to rely on an env var passed to the parser,
+            allowing us to embed fully qualified paths directly into the manifest, instead of 
+            handling them after receiving the manifest from the parser. 
+            Then `fully_qualified_cartridge_import_path` should be available directly on TypeDefinition, without having to hack together the pax_reexports path every time.  
+ 
+For the correct approach, what symbols should we use to look up type_id/import path during Pratt parsing?
+E.g. `StackerDirection`, yes — `StackerDirection::Vertical` no

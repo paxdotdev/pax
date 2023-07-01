@@ -209,6 +209,8 @@ mod tests {
 }
 
 
+pub const IMPORT_PREFIX_PLACEHOLDER : &str = "{PREFIX}";
+
 
 fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
 
@@ -229,12 +231,12 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
 
     let mut updated_type_table = HashMap::new();
     manifest.type_table.iter_mut().for_each(|t|{
-        t.1.type_id_escaped = t.1.type_id_escaped.replace("{PREFIX}", "");
-        t.1.type_id = t.1.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
+        t.1.type_id_escaped = t.1.type_id_escaped.replace(IMPORT_PREFIX_PLACEHOLDER, "");
+        t.1.type_id = t.1.type_id.replace(IMPORT_PREFIX_PLACEHOLDER, &host_crate_info.import_prefix);
         t.1.property_definitions.iter_mut().for_each(|pd|{
-            pd.type_id = pd.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
+            pd.type_id = pd.type_id.replace(IMPORT_PREFIX_PLACEHOLDER, &host_crate_info.import_prefix);
         });
-        updated_type_table.insert(t.0.replace("{PREFIX}", &host_crate_info.import_prefix), t.1.clone());
+        updated_type_table.insert(t.0.replace(IMPORT_PREFIX_PLACEHOLDER, &host_crate_info.import_prefix), t.1.clone());
     });
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
 
@@ -383,7 +385,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     expression_specs = expression_specs.iter().sorted().cloned().collect();
 
     let component_factories_literal =  manifest.components.values().into_iter().filter(|cd|{!cd.is_primitive && !cd.is_struct_only_component}).map(|cd|{
-        generate_cartridge_component_factory_literal(manifest, cd)
+        generate_cartridge_component_factory_literal(manifest, cd, host_crate_info)
     }).collect();
 
     //press template into String
@@ -394,18 +396,17 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
         component_factories_literal,
     });
 
-
     //format output
     let formatted = {
-        let mut formatter = rust_format::RustFmt::default();
-
-        if let Ok(out) = formatter.format_str(generated_lib_rs.clone()) {
-            out
-        } else {
-            //if formatting fails (e.g. parsing error, common expected case) then
-            //fall back to unformatted generated code
+        // let mut formatter = rust_format::RustFmt::default();
+        //
+        // if let Ok(out) = formatter.format_str(generated_lib_rs.clone()) {
+        //     out
+        // } else {
+        //     //if formatting fails (e.g. parsing error, common expected case) then
+        //     //fall back to unformatted generated code
             generated_lib_rs
-        }
+        // }
     };
 
     //write String to file
@@ -439,6 +440,7 @@ fn generate_bound_events(inline_settings: Option<Vec<(String, ValueDefinition)>>
 }
 
 fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tnd: &TemplateNodeDefinition) -> String {
+
     //first recurse, populating children_literal : Vec<String>
     let children_literal : Vec<String> = tnd.child_ids.iter().map(|child_id|{
         let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
@@ -528,6 +530,7 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //Handle anything that's not a built-in
 
         let component_for_current_node = rngc.components.get(&tnd.type_id).unwrap();
+        let component_type = rngc.type_table.get(&tnd.type_id).unwrap();
 
         //Properties:
         //  - for each property on cfcn, there will either be:
@@ -593,13 +596,15 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         }).collect();
 
 
+
+
         //then, on the post-order traversal, press template string and return
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: component_for_current_node.is_primitive,
             snake_case_type_id: component_for_current_node.get_snake_case_id(),
             primitive_instance_import_path: component_for_current_node.primitive_instance_import_path.clone(),
             properties_coproduct_variant: component_for_current_node.type_id_escaped.to_string(),
-            component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
+            component_properties_struct: rngc.host_crate_info.import_prefix.to_string() + &component_type.import_path.replace("crate::", ""),
             properties: property_ril_tuples,
             transform_ril: builtins_ril[2].clone(),
             size_ril: [builtins_ril[0].clone(), builtins_ril[1].clone()],
@@ -621,6 +626,7 @@ struct RenderNodesGenerationContext<'a> {
     components: &'a std::collections::HashMap<String, ComponentDefinition>,
     active_component_definition: &'a ComponentDefinition,
     type_table: &'a TypeTable,
+    host_crate_info: &'a HostCrateInfo,
 }
 
 fn generate_events_map(events: Option<Vec<EventDefinition>>) -> HashMap<String, Vec<String>> {
@@ -637,18 +643,21 @@ fn generate_events_map(events: Option<Vec<EventDefinition>>) -> HashMap<String, 
 }
 
 
-fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition) -> String {
+fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition, host_crate_info: &HostCrateInfo) -> String {
 
     let rngc = RenderNodesGenerationContext {
         components: &manifest.components,
         active_component_definition: cd,
         type_table: &manifest.type_table,
+        host_crate_info,
     };
+
+    let component_type = rngc.type_table.get(&cd.type_id).unwrap();
 
     let args = TemplateArgsCodegenCartridgeComponentFactory {
         is_main_component: cd.is_main_component,
         snake_case_type_id: cd.get_snake_case_id(),
-        component_properties_struct: cd.pascal_identifier.to_string(),
+        component_properties_struct: rngc.host_crate_info.import_prefix.to_string() + &component_type.import_path.to_string().replace("crate::", ""),
         properties: cd.get_property_definitions(&manifest.type_table).iter().map(|pd|{
             (pd.clone(),pd.get_type_definition(&manifest.type_table).type_id_escaped.clone())
         }).collect(),

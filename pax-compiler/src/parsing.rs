@@ -16,6 +16,7 @@ use pest::iterators::{Pair, Pairs};
 use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
 };
+use crate::IMPORT_PREFIX_PLACEHOLDER;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -1033,7 +1034,7 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
     }
 
     fn get_type_id() -> String {
-        format!("std::option::Option<{}{}>","{PREFIX}",&T::get_type_id())
+        format!("std::option::Option<{}{}>",IMPORT_PREFIX_PLACEHOLDER,&T::get_type_id())
     }
 }
 
@@ -1109,7 +1110,7 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     }
     fn get_type_id() -> String {
         //Need to encode generics contents as part of unique id for iterables
-        format!("std::vec::Vec<{}{}>","{PREFIX}",&Self::get_iterable_type_id().unwrap())
+        format!("std::vec::Vec<{}{}>",IMPORT_PREFIX_PLACEHOLDER,&Self::get_iterable_type_id().unwrap())
     }
     fn get_iterable_type_id() -> Option<String> {
         Some(T::get_type_id())
