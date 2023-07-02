@@ -1,8 +1,6 @@
 #[macro_use]
 extern crate serde;
 
-pub mod reflection;
-
 //FUTURE: feature-flag, only for Web builds
 #[allow(unused_imports)]
 use wasm_bindgen::prelude::*;

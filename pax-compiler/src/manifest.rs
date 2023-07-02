@@ -156,6 +156,10 @@ pub struct ComponentDefinition {
     pub pascal_identifier: String,
     pub module_path: String,
 
+    /// Key: a symbol as used in user-land, presumably in scope, such as `StackerDirection`
+    /// Value: a fully qualified counterpart to that symbol, such as `pax_example::pax_reexports::StackerDirection`
+    pub fully_qualified_type_map: HashMap<String, String>,
+
     /// For primitives like Rectangle or Group, a separate import
     /// path is required for the Instance (render context) struct
     /// and the Definition struct.  For primitives, then, we need

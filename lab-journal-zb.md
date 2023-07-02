@@ -3026,6 +3026,7 @@ Two possible solutions:
 
  - correct: resolve both _literal_ symbols and _expression symbols_ during parse_to_manifest.  This is straight-forward enough with literals, but will
             require an additional pratt-parsing pass for expressions, specifically to replace symbols with their fully qualified counterparts at parse-time (alt: embed a type_id for post-manifest processing)
+            Note that this likely requires merging settings blocks
             Along the way, perhaps we should refactor the "import prefix" logic to rely on an env var passed to the parser,
             allowing us to embed fully qualified paths directly into the manifest, instead of 
             handling them after receiving the manifest from the parser. 

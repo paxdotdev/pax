@@ -341,12 +341,6 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
 
-    #[allow(non_snake_case)]
-    let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
-    let imports : Vec<String> = manifest.import_paths.iter().map(|path|{
-        IMPORT_PREFIX.clone() + &path.replace("crate::", "")
-    }).collect();
-
     let consts = vec![];//TODO!
 
     //Traverse component tree starting at root
@@ -390,7 +384,6 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
 
     //press template into String
     let generated_lib_rs = templating::press_template_codegen_cartridge_lib(templating::TemplateArgsCodegenCartridgeLib {
-        imports,
         consts,
         expression_specs,
         component_factories_literal,

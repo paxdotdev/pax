@@ -27,9 +27,6 @@ pub struct TemplateArgsCodegenPropertiesCoproductLib {
 
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenCartridgeLib {
-    /// List of fully qualified import strings, e.g. pax_example::pax_reexports::...
-    pub imports: Vec<String>,
-
     /// List of `const `declarations: full token streams ready to re-write
     pub consts: Vec<String>,
 

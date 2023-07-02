@@ -73,8 +73,6 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
         // Populate `PropertyDefinition`s
         <% for spd in &static_property_definitions { %>
 
-
-
             //Special-handle the root scoped_resolvable_type (the one whose properties
             //must be available as nested symbols in PAXEL, like `foo.bar`).
             let (mut ctx, mut sub_property_definitions) = <%= spd.root_scoped_resolvable_type %>::parse_to_manifest(ctx);

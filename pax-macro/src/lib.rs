@@ -296,7 +296,19 @@ fn pax_full_component(raw_pax: String, input_parsed: DeriveInput, is_main_compon
     let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
     let template_dependencies = parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
-    // std::time::SystemTime::now().elapsed().unwrap().subsec_nanos()
+    let literal_and_expression_dependencies = parsing::parse_literal_and_expression_dependencies(&raw_pax);
+
+
+    //We must 1. find symbols used in literals, and 2. find symbols used in expressions,
+    //           then add those to this list
+    //Along the way, we must also update the symbols (literal & expressions) in-place, either
+    //           to use their fully qualified counterparts, or to inject some ID for substitution later
+    //An alternative to substitution:
+    //  - for each symbol found during the prelim parse
+    //    add "root symbol" _as found_ (such as `StackerDirection`) to a map, which we populate
+    //    dynamically (codegen + derive_pax) as a LUT that lives with the component.  This LUT
+    //    will allow us to substitute symbol chains / types as provided by user with their fully
+    //    qualified counterpart as late as possible (e.g. RIL generation)
 
     // Load reexports.partial.rs if PAX_DIR is set
     let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
