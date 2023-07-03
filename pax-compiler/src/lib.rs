@@ -28,6 +28,29 @@ use crate::templating::{press_template_codegen_cartridge_component_factory, pres
 
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
+
+pub const BUILT_IN_EVENTS: [&str] = [
+    "click",
+    "scroll",
+    "jab",
+    "touch_start",
+    "touch_move",
+    "touch_end",
+    "key_down",
+    "key_up",
+    "key_press",
+    "mouse_down",
+    "mouse_up",
+    "mouse_over",
+    "mouse_out",
+    "double_click",
+    "context_menu",
+    "wheel",
+    "will_render",
+    "did_mount",
+];
+
+
 /// Returns a sorted and de-duped list of combined_reexports.
 fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     let imports = manifest.import_paths.clone().into_iter().sorted().collect();

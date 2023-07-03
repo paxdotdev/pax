@@ -266,13 +266,13 @@ class NativeElementPool {
             if (style.font) {
                 style.font.applyFontToDiv(leaf);
             }
-            if (style.color) {
+            if (style.fill) {
                 let newValue = "";
-                if(style.color.Rgba != null) {
-                    let p = style.color.Rgba;
+                if(style.fill.Rgba != null) {
+                    let p = style.fill.Rgba;
                     newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
                 } else {
-                    let p = style.color.Hsla!;
+                    let p = style.fill.Hsla!;
                     newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
                 }
                 console.log("new value: "+newValue);
@@ -308,13 +308,13 @@ class NativeElementPool {
                     if (linkStyle.font) {
                         linkStyle.font.applyFontToDiv(link);
                     }
-                    if (linkStyle.color) {
+                    if (linkStyle.fill) {
                         let newValue = "";
-                        if(linkStyle.color.Rgba != null) {
-                            let p = linkStyle.color.Rgba;
+                        if(linkStyle.fill.Rgba != null) {
+                            let p = linkStyle.fill.Rgba;
                             newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
                         } else {
-                            let p = linkStyle.color.Hsla!;
+                            let p = linkStyle.fill.Hsla!;
                             newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
                         }
                         link.style.color = newValue;
@@ -468,7 +468,7 @@ class ImageLoadPatch {
 
 class TextStyle {
     public font?: Font;
-    public color?: ColorGroup;
+    public fill?: ColorGroup;
     public font_size?: number;
     public underline?: boolean;
     public align_multiline?: TextAlignHorizontal;
@@ -481,7 +481,7 @@ class TextStyle {
             font.fromFontPatch(styleMessage["font"]);
             this.font = font;
         }
-        this.color = styleMessage["color"];
+        this.fill = styleMessage["fill"];
         this.font_size = styleMessage["font_size"];
         this.underline = styleMessage["underline"];
         this.align_multiline = styleMessage["align_multiline"];

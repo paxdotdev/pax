@@ -42,15 +42,15 @@ class AnyDeletePatch {
 
 class TextStyle {
     var font: PaxFont
-    var color: Color
+    var fill: Color
     var alignmentMultiline: TextAlignment
     var alignment: Alignment
     var font_size: CGFloat
     var underline: Bool
     
-    init(font: PaxFont, color: Color, alignmentMultiline: TextAlignment, alignment: Alignment, font_size: CGFloat, underline: Bool) {
+    init(font: PaxFont, fill: Color, alignmentMultiline: TextAlignment, alignment: Alignment, font_size: CGFloat, underline: Bool) {
         self.font = font
-        self.color = color
+        self.fill = fill
         self.alignmentMultiline = alignmentMultiline
         self.alignment = alignment
         self.font_size = font_size
@@ -61,8 +61,8 @@ class TextStyle {
         
         self.font.applyPatch(fb: patch.font)
 
-        if patch.color != nil {
-            self.color = patch.color!
+        if patch.fill != nil {
+            self.fill = patch.fill!
         }
         
         if patch.align_multiline != nil {
@@ -108,7 +108,7 @@ class TextElement {
     }
     
     static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
-        let defaultTextStyle = TextStyle(font: PaxFont.makeDefault(), color: Color(.black), alignmentMultiline: .leading, alignment: .topLeading, font_size: 5.0, underline: false)
+        let defaultTextStyle = TextStyle(font: PaxFont.makeDefault(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading, font_size: 5.0, underline: false)
         return TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, textStyle: defaultTextStyle, depth: nil, style_link: nil)
     }
     
@@ -210,7 +210,7 @@ class ImageLoadPatch {
 
 class TextStyleMessage {
     var font: FlxbReference
-    var color: Color?
+    var fill: Color?
     var font_size: CGFloat?
     var underline: Bool?
     var align_multiline: TextAlignHorizontal?
@@ -262,8 +262,8 @@ class TextStyleMessage {
             }
         }
         
-        if let colorBuffer = buffer["color"], !colorBuffer.isNull {
-            self.color = extractColorFromBuffer(colorBuffer)
+        if let colorBuffer = buffer["fill"], !colorBuffer.isNull {
+            self.fill = extractColorFromBuffer(colorBuffer)
         }
     }
 }
@@ -401,21 +401,6 @@ func extractColorFromBuffer(_ fillBuffer: FlxbReference) -> Color {
         )
     } else {
         return Color.black
-    }
-}
-
-class LinkStyle {
-    var font: PaxFont
-    var fill: Color
-    var underline: Bool
-    var size: CGFloat
-
-    init(fb: FlxbReference) {
-        self.font = PaxFont.makeDefault()
-        self.font.applyPatch(fb: fb["font"]!)
-        self.fill = extractColorFromBuffer(fb["fill"]!)
-        self.underline = fb["underline"]?.asBool ?? false
-        self.size = CGFloat(fb["size"]?.asFloat ?? 12)
     }
 }
 

@@ -10,7 +10,7 @@ use crate::types::Color;
 pub struct TextStyle {
     pub font: Property<Font>,
     pub font_size: Property<SizePixels>,
-    pub color: Property<Color>,
+    pub fill: Property<Color>,
     pub underline: Property<bool>,
     pub align_multiline: Property<TextAlignHorizontal>,
     pub align_vertical: Property<TextAlignVertical>,
@@ -22,7 +22,7 @@ impl Default for TextStyle {
         Self {
             font: Box::new(PropertyLiteral::new(Font::default())),
             font_size: Box::new(PropertyLiteral::new(SizePixels(Numeric::Float(20.0)))),
-            color: Box::new(PropertyLiteral::new(Color::rgba(Numeric::Float(0.0),
+            fill: Box::new(PropertyLiteral::new(Color::rgba(Numeric::Float(0.0),
                                Numeric::Float(0.0),
                                Numeric::Float(0.0),
                                Numeric::Float(1.0)))),
@@ -39,7 +39,7 @@ impl<'a> Into<TextStyleMessage> for &'a TextStyle {
         TextStyleMessage {
             font: Some(self.font.get().clone().into()),
             font_size: Some(f64::from(&self.font_size.get().clone())),
-            color: Some(Into::<ColorVariantMessage>::into(self.color.get())),
+            fill: Some(Into::<ColorVariantMessage>::into(self.fill.get())),
             underline: Some(self.underline.get().clone()),
             align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(self.align_multiline.get())),
             align_vertical: Some(Into::<TextAlignVerticalMessage>::into(self.align_vertical.get())),
@@ -54,7 +54,7 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 
         let font_size_equal = other.font_size.map_or(false, |size| Numeric::Float(size) == self.font_size.get().clone());
 
-        let color_equal = other.color.as_ref().map_or(false, |color| self.color.get().eq(color));
+        let fill_equal = other.fill.as_ref().map_or(false, |fill| self.fill.get().eq(fill));
 
         let underline_equal = other.underline.map_or(false, |underline| underline == self.underline.get().clone());
 
@@ -66,7 +66,7 @@ impl PartialEq<TextStyleMessage> for TextStyle {
 
         font_equal
             && font_size_equal
-            && color_equal
+            && fill_equal
             && underline_equal
             && align_multiline_equal
             && align_vertical_equal
