@@ -14,44 +14,24 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
     {% endif %},
     handler_registry:  Some(Rc::new(RefCell::new(
     HandlerRegistry {
-         click_handlers: vec![
-             {%- if events['click'] -%}
-                    |stack_frame, ctx, args|{
-                        let properties = (*stack_frame).borrow().get_properties();
-                        let properties = &mut *properties.as_ref().borrow_mut();
-                        let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
-                        {{ pascal_identifier }}::{{events['click']}}(properties, ctx, args);
-                    },
-             {%- endif -%}
-         ],
-         will_render_handlers: vec![
-            {%- if events['will_render'] -%}
-                    |properties, ctx|{
-                        let properties = &mut *properties.as_ref().borrow_mut();
-                        let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
-                        {{ pascal_identifier }}::{{events['will_render']}}(properties, ctx);
-                    }
-             {%- endif -%}
-         ],
-         did_mount_handlers: vec![
-             {%- if events['did_mount'] -%}
-                     |properties, ctx|{
-                         let properties = &mut *properties.as_ref().borrow_mut();
-                         let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
-                         {{ pascal_identifier }}::{{events['did_mount']}}(properties,ctx);
-                     }
-              {%- endif -%}
-          ],
-         scroll_handlers: vec![
-         {%- if events['scroll'] -%}
-                     |stack_frame, ctx, args|{
-                         let properties = (*stack_frame).borrow().get_properties();
-                         let properties = &mut *properties.as_ref().borrow_mut();
-                         let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
-                         {{ pascal_identifier }}::{{events['scroll']}}(properties,ctx,args);
-                     },
-              {%- endif -%}
-          ],
+    {% for key, value in events %}
+    {{key}}_handlers: vec![
+            {%- if key in ['will_render','did_mount']  -%}
+                |properties, ctx|{
+                     let properties = &mut *properties.as_ref().borrow_mut();
+                     let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                     {{ component_properties_struct }}::{{value}}(properties,ctx);
+                 },
+            {% else %}
+            |stack_frame, ctx, args|{
+                    let properties = ((*stack_frame).borrow().get_properties());
+                    let properties = &mut *properties.as_ref().borrow_mut();
+                    let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                    {{ component_properties_struct }}::{{value}}(properties,ctx,args);
+                },
+            {% endif %}
+        ],
+    {% endfor %}
     }
     ))),
     instance_registry: Rc::clone(&instance_registry),

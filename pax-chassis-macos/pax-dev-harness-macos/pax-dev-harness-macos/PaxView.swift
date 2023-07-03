@@ -152,7 +152,7 @@ struct PaxView: View {
                             } else {
                                 attributedString[run.range].underlineStyle = .none
                             }
-                            attributedString[run.range].foregroundColor = linkStyle.color
+                            attributedString[run.range].foregroundColor = linkStyle.fill
                         }
                     }
                 }
@@ -161,7 +161,7 @@ struct PaxView: View {
             }
             let textView : some View =
                 Text(text)
-                .foregroundColor(textElement.textStyle.color)
+                .foregroundColor(textElement.textStyle.fill)
                 .font(textElement.textStyle.font.getFont(size: textElement.textStyle.font_size))
                 .frame(width: CGFloat(textElement.size_x), height: CGFloat(textElement.size_y), alignment: textElement.textStyle.alignment)
                 .position(x: CGFloat(textElement.size_x / 2.0), y: CGFloat(textElement.size_y / 2.0))

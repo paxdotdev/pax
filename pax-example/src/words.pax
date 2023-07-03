@@ -1,11 +1,17 @@
-<Text text="Hello" id=text/>
+<Text text="Welcome to Pax" id=text/>
+<Image path="assets/images/jpeg_test.jpg"
+    width=500px height=500px
+    transform={ Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)} />
+
 @settings {
     #text {
         style: TextStyle {
-            font: {Font::system("Times New Roman", FontStyle::Italic, FontWeight::Bold)},
-            font_size: 60px
+            font: {Font::local("Esenka", "assets/fonts/Esenka.otf", FontStyle::Normal, FontWeight::Normal)},
+            font_size: 60px,
+            fill: {Color::rgba(1.0,0.0,0.0,1.0)}
             align_vertical: TextAlignVertical::Bottom,
             align_horizontal: TextAlignHorizontal::Right,
         }
+        width: 500px,
     }
 }

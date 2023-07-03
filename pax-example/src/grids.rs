@@ -16,26 +16,26 @@ impl Grids {
 
     pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
 
-        self.rects.set(vec![
-            pax_struct!(
-                RectDef {
-                    x: 200,
-                    y: 150,
-                    width: 100,
-                    height: 100,
-                    fill: Color::rgb(1.0.into(), 0.0.into(), 0.0.into()),
-                }
-            ),
-            pax_struct!(
-                RectDef {
-                    x: 500,
-                    y: 300,
-                    width: 250,
-                    height: 350,
-                    fill: Color::rgb(0.0.into(), 1.0.into(), 0.0.into()),
-                }
-            ),
-        ]);
+        // self.rects.set(vec![
+        //     pax_struct!(
+        //         RectDef {
+        //             x: 200,
+        //             y: 150,
+        //             width: 100,
+        //             height: 100,
+        //             fill: Color::rgb(1.0.into(), 0.0.into(), 0.0.into()),
+        //         }
+        //     ),
+        //     pax_struct!(
+        //         RectDef {
+        //             x: 500,
+        //             y: 300,
+        //             width: 250,
+        //             height: 350,
+        //             fill: Color::rgb(0.0.into(), 1.0.into(), 0.0.into()),
+        //         }
+        //     ),
+        // ]);
     }
 
 }

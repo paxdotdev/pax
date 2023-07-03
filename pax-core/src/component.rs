@@ -7,7 +7,7 @@ use piet_common::RenderContext;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime, LifecycleNode, TabCache};
 
-use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance};
+use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, Layer};
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `adoptees` and
@@ -104,6 +104,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         );
     }
 
+    fn get_layer_type(&mut self) -> Layer {
+        Layer::ControlFlow
+    }
 
 }
 

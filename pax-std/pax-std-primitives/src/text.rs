@@ -77,9 +77,9 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             properties.style.get_mut().font_size.set(new_value);
         }
 
-        if let Some(style_color) = rtc.compute_vtable_value(properties.style.get().color._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_color, TypesCoproduct, Color);
-            properties.style.get_mut().color.set(new_value);
+        if let Some(style_fill) = rtc.compute_vtable_value(properties.style.get().fill._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
+            properties.style.get_mut().fill.set(new_value);
         }
 
         if let Some(style_underline) = rtc.compute_vtable_value(properties.style.get().underline._get_vtable_id()) {
@@ -118,9 +118,9 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
                 style_link.font_size.set(new_value);
             }
 
-            if let Some(style_color) = rtc.compute_vtable_value(style_link.color._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_color, TypesCoproduct, Color);
-                style_link.color.set(new_value);
+            if let Some(style_fill) = rtc.compute_vtable_value(style_link.fill._get_vtable_id()) {
+                let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
+                style_link.fill.set(new_value);
             }
 
             if let Some(style_underline) = rtc.compute_vtable_value(style_link.underline._get_vtable_id()) {

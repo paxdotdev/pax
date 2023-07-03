@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use piet_common::RenderContext;
 use crate::{HandlerRegistry, ComponentInstance, TabCache, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
-use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
+use pax_runtime_api::{Layer, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
@@ -79,5 +79,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
+    fn get_layer_type(&mut self) -> Layer {
+        Layer::ControlFlow
+    }
 
 }

@@ -14,10 +14,10 @@ impl HelloRGB {
         log("click-ellipse");
     }
     pub fn handle_scroll(&mut self, ctx: RuntimeContext, args: ArgsScroll) {
-        const ROTATION_COEFFICIENT: f64 = 0.005;
-        let old_t = self.rotation.get();
-        let new_t = old_t + args.delta_y * ROTATION_COEFFICIENT;
-        self.rotation.set(new_t);
+        // const ROTATION_COEFFICIENT: f64 = 0.005;
+        // let old_t = self.rotation.get();
+        // let new_t = old_t + args.delta_y * ROTATION_COEFFICIENT;
+        // self.rotation.set(new_t);
     }
     pub fn handle_global_click(&mut self, ctx: RuntimeContext, args: ArgsClick) {
         log("click-anywhere");
