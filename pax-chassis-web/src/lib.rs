@@ -174,7 +174,7 @@ impl PaxChassisWeb {
                 }
             },
             NativeInterrupt::Scroll(args) => {
-                let prospective_hit = (*self.engine).borrow().get_topmost_element();
+                let prospective_hit = (*self.engine).borrow().get_focused_element();
                 if let Some(topmost_node) = prospective_hit {
                     let args_scroll = ArgsScroll { delta_x: args.delta_x, delta_y: args.delta_y };
                     topmost_node.dispatch_scroll(args_scroll);
@@ -215,7 +215,7 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::KeyDown(args) => {
-                let prospective_hit = (*self.engine).borrow().get_topmost_element();
+                let prospective_hit = (*self.engine).borrow().get_focused_element();
                 if let Some(topmost_node) = prospective_hit {
                     let modifiers = args.modifiers.iter().map(|x|{ModifierKey::from(x)}).collect();
                     let args_key_down = ArgsKeyDown { keyboard: KeyboardEventArgs {
@@ -227,7 +227,7 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::KeyUp(args) => {
-                let prospective_hit = (*self.engine).borrow().get_topmost_element();
+                let prospective_hit = (*self.engine).borrow().get_focused_element();
                 if let Some(topmost_node) = prospective_hit {
                     let modifiers = args.modifiers.iter().map(|x|{ModifierKey::from(x)}).collect();
                     let args_key_up = ArgsKeyUp { keyboard: KeyboardEventArgs {
@@ -239,7 +239,7 @@ impl PaxChassisWeb {
                 }
             }
             NativeInterrupt::KeyPress(args) => {
-                let prospective_hit = (*self.engine).borrow().get_topmost_element();
+                let prospective_hit = (*self.engine).borrow().get_focused_element();
                 if let Some(topmost_node) = prospective_hit {
                     let modifiers = args.modifiers.iter().map(|x|{ModifierKey::from(x)}).collect();
                     let args_key_press = ArgsKeyPress { keyboard: KeyboardEventArgs {

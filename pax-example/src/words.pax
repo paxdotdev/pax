@@ -1,17 +1,36 @@
-<Text text="Welcome to Pax" id=text/>
-<Image path="assets/images/jpeg_test.jpg"
-    width=500px height=500px
-    transform={ Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)} />
-
+<Text text={content} id=text/>
+<Rectangle width=100% height=100% fill={Color::rgb(0.0,0.0,0.0)} />
 @settings {
     #text {
         style: TextStyle {
             font: {Font::local("Esenka", "assets/fonts/Esenka.otf", FontStyle::Normal, FontWeight::Normal)},
             font_size: 60px,
             fill: {Color::rgba(1.0,0.0,0.0,1.0)}
-            align_vertical: TextAlignVertical::Bottom,
-            align_horizontal: TextAlignHorizontal::Right,
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
         }
         width: 500px,
+        transform: {Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%)}
     }
+}
+
+@events {
+    did_mount: handle_did_mount,
+    jab: handle_jab,
+    scroll: handle_scroll,
+    touch_start: handle_touch_start,
+    touch_move: handle_touch_move,
+    touch_end: handle_touch_end,
+    key_down: handle_key_down,
+    key_up: handle_key_up,
+    key_press: handle_key_press,
+    click: handle_click,
+    double_click: handle_double_click,
+    mouse_move: handle_mouse_move,
+    wheel: handle_wheel,
+    mouse_down: handle_mouse_down,
+    mouse_up: handle_mouse_up,
+    mouse_over: handle_mouse_over,
+    mouse_out: handle_mouse_out,
+    context_menu: handle_context_menu,
 }

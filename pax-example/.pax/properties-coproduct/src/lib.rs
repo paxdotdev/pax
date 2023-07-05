@@ -34,8 +34,6 @@ pub enum PropertiesCoproduct {
     
     pax_stdCOCOprimitivesCOCOGroup(pax_example::pax_reexports::pax_std::primitives::Group),
     
-    pax_stdCOCOprimitivesCOCOImage(pax_example::pax_reexports::pax_std::primitives::Image),
-    
     pax_stdCOCOprimitivesCOCORectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle),
     
     pax_stdCOCOprimitivesCOCOText(pax_example::pax_reexports::pax_std::primitives::Text),

@@ -667,17 +667,18 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         layer_info.update_depth(node_type);
         let current_depth = layer_info.get_depth();
 
-        //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
-        //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
-        node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec(), current_depth);
-
+        let last_layer = &rcs.len() -1;
         if let Some(rc) =  rcs.get_mut(current_depth) {
+            //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
+            //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
+            node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec(), current_depth);
             //lifecycle: render
             //this is this node's time to do its own rendering, aside
             //from the rendering of its children. Its children have already been rendered.
             node.borrow_mut().handle_render(rtc, rc);
         } else {
-            node.borrow_mut().handle_render(rtc, rcs.get_mut(0).unwrap());
+            node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec(), last_layer);
+            node.borrow_mut().handle_render(rtc, rcs.get_mut(last_layer).unwrap());
         }
 
         //lifecycle: did_render
@@ -752,15 +753,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         ret
     }
 
-    pub fn get_topmost_element(&self) -> Option<Rc<RepeatExpandedNode<R>>> {
-        let mut nodes_ordered: Vec<Rc<RepeatExpandedNode<R>>> = (*self.instance_registry).borrow()
-            .repeat_expanded_node_cache.iter().rev()
-            .map(|rc| {
-                Rc::clone(rc)
-            }).collect();
-        // remove root element that is moved to top during reversal
-        nodes_ordered.remove(0);
-        nodes_ordered.get(0).cloned()
+    pub fn get_focused_element(&self) -> Option<Rc<RepeatExpandedNode<R>>> {
+        let (x, y) = self.viewport_size;
+        self.get_topmost_element_beneath_ray((x/2.0,y/2.0))
     }
 
 
