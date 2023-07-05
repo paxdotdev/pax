@@ -51,7 +51,7 @@ struct PaxView: View {
             registerFonts()
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
                     //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
-                    let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f} }", dragGesture.location.x, dragGesture.location.y);
+            let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y);
                     let buffer = try! FlexBufferBuilder.fromJSON(json)
 
                     //Send `Click` interrupt

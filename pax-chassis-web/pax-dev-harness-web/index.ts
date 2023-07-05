@@ -87,7 +87,6 @@ function setupEventListeners(chassis: any, layer: any) {
 
     // @ts-ignore
     layer.addEventListener('click', (evt) => {
-        evt.preventDefault();
         let clickEvent = {
             "Click": {
                 "x": evt.clientX,
@@ -104,12 +103,9 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(jabEvent), []);
-        console.log(clickEvent);
-        console.log(jabEvent);
     }, true);
     // @ts-ignore
     layer.addEventListener('dblclick', (evt) => {
-        evt.preventDefault();
         let event = {
             "DoubleClick": {
                 "x": evt.clientX,
@@ -119,11 +115,9 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        console.log(event);
     }, true);
     // @ts-ignore
     layer.addEventListener('mousemove', (evt) => {
-        evt.preventDefault();
         let event = {
             "MouseMove": {
                 "x": evt.clientX,
@@ -136,7 +130,6 @@ function setupEventListeners(chassis: any, layer: any) {
     }, true);
     // @ts-ignore
     layer.addEventListener('wheel', (evt) => {
-        evt.preventDefault();
         let event = {
             "Wheel": {
                 "x": evt.clientX,
@@ -147,7 +140,6 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        console.log(event);
         let scrollEvent = {
             "Scroll": {
                 "delta_x": evt.deltaX,
@@ -155,11 +147,9 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(scrollEvent), []);
-        console.log(scrollEvent);
     }, true);
     // @ts-ignore
     layer.addEventListener('mousedown', (evt) => {
-        evt.preventDefault();
         let event = {
             "MouseDown": {
                 "x": evt.clientX,
@@ -169,11 +159,9 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        console.log(event);
     }, true);
     // @ts-ignore
     layer.addEventListener('mouseup', (evt) => {
-        evt.preventDefault();
         let event = {
             "MouseUp": {
                 "x": evt.clientX,
@@ -183,11 +171,9 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        console.log(event);
     }, true);
     // @ts-ignore
     layer.addEventListener('mouseover', (evt) => {
-        evt.preventDefault();
         let event = {
             "MouseOver": {
                 "x": evt.clientX,
@@ -197,11 +183,9 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        console.log(event);
     }, true);
     // @ts-ignore
     layer.addEventListener('mouseout', (evt) => {
-        evt.preventDefault();
         let event = {
             "MouseOut": {
                 "x": evt.clientX,
@@ -211,7 +195,6 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        console.log(event);
     }, true);
     // @ts-ignore
     layer.addEventListener('contextmenu', (evt) => {
@@ -223,12 +206,10 @@ function setupEventListeners(chassis: any, layer: any) {
                 "modifiers": convertModifiers(evt)
             }
         };
-        console.log(event);
         chassis.interrupt(JSON.stringify(event), []);
     }, true);
     // @ts-ignore
     layer.addEventListener('touchstart', (evt) => {
-        evt.preventDefault();
         let event = {
             "TouchStart": {
                 "touches": getTouchMessages(evt.touches)
@@ -246,12 +227,9 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(jabEvent), []);
-        console.log(event);
-        console.log(jabEvent);
     }, true);
     // @ts-ignore
     layer.addEventListener('touchmove', (evt) => {
-        evt.preventDefault();
         let touches = getTouchMessages(evt.touches);
         let event = {
             "TouchMove": {
@@ -267,11 +245,9 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(scrollEvent), []);
-        console.log(scrollEvent);
     }, true);
     // @ts-ignore
     layer.addEventListener('touchend', (evt) => {
-        evt.preventDefault();
         let event = {
             "TouchEnd": {
                 "touches": getTouchMessages(evt.changedTouches)
@@ -284,7 +260,6 @@ function setupEventListeners(chassis: any, layer: any) {
     }, true);
     // @ts-ignore
     layer.addEventListener('keydown', (evt) => {
-        evt.preventDefault();
         let event = {
             "KeyDown": {
                 "key": evt.key,
@@ -293,11 +268,9 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        console.log(event);
     }, true);
     // @ts-ignore
     layer.addEventListener('keyup', (evt) => {
-        evt.preventDefault();
         let event = {
             "KeyUp": {
                 "key": evt.key,
@@ -306,11 +279,9 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        console.log(event);
     }, true);
     // @ts-ignore
     layer.addEventListener('keypress', (evt) => {
-        evt.preventDefault();
         let event = {
             "KeyPress": {
                 "key": evt.key,
@@ -319,7 +290,6 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        console.log(event);
     }, true);
 }
 
@@ -347,11 +317,6 @@ function initializeLayers(num: number){
         canvas.id = CANVAS_CLASS + "_" + index.toString();
         layers.canvas.push(canvas)
 
-        // Set the position of the canvas to absolute
-        canvas.style.position = 'absolute';
-        canvas.style.top = '0';
-        canvas.style.left = '0';
-
         if(index != 0) {
             // Ignore pointer events on the canvas
             canvas.style.pointerEvents = 'none';
@@ -361,12 +326,8 @@ function initializeLayers(num: number){
         let nativeLayer = document.createElement("div");
         nativeLayer.className = NATIVE_OVERLAY_CLASS;
         nativeLayer.id = NATIVE_OVERLAY_CLASS +"_"+ index.toString();
+        nativeLayer.style.pointerEvents = 'none';
         layers.native.push(nativeLayer)
-
-        // Set the position of the native layer to absolute
-        nativeLayer.style.position = 'absolute';
-        nativeLayer.style.top = '0';
-        nativeLayer.style.left = '0';
 
         //Attach layers to mount
         //FIRST-APPLIED IS LOWEST
@@ -514,7 +475,6 @@ class NativeElementPool {
                     let p = style.fill.Hsla!;
                     newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
                 }
-                console.log("new value: "+newValue);
                 textChild.style.color = newValue;
             }
             if (style.font_size) {
@@ -969,7 +929,6 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
             nativePool.textCreate(new AnyCreatePatch(msg));
         }else if (unwrapped_msg["TextUpdate"]){
             let msg = unwrapped_msg["TextUpdate"]
-            console.log(msg);
             nativePool.textUpdate(new TextUpdatePatch(msg));
         }else if (unwrapped_msg["TextDelete"]) {
             let msg = unwrapped_msg["TextDelete"];

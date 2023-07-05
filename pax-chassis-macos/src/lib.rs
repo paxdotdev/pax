@@ -22,7 +22,7 @@ use pax_cartridge;
 //Note that any types exposed by pax_message must ALSO be added to `paxchassismacos.h`
 //in order to be visible to Swift
 pub use pax_message::*;
-use pax_runtime_api::{ArgsClick, ArgsScroll};
+use pax_runtime_api::{ArgsClick, ArgsScroll, ModifierKey, MouseButton, MouseEventArgs};
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
 #[repr(C)] //Exposed to Swift via paxchassismacos.h
@@ -99,21 +99,25 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
             let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
             match prospective_hit {
                 Some(topmost_node) => {
-                    // let mouseargs = MouseEventArgs::default();
-                    // let args_click = ArgsClick {x: args.x , y: args.y};
-                    // topmost_node.dispatch_click(args_click);
-
+                    let modifiers = args.modifiers.iter().map(|x|{ModifierKey::from(x)}).collect();
+                    let args_click = ArgsClick { mouse: MouseEventArgs {
+                        x: args.x,
+                        y: args.y,
+                        button: MouseButton::from(args.button),
+                        modifiers,
+                    }};
+                    topmost_node.dispatch_click(args_click);
                 },
                 _ => {},
             };
         },
 
         NativeInterrupt::Scroll(args) => {
-            let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
+            let prospective_hit = engine.get_focused_element();
             match prospective_hit {
                 Some(topmost_node) => {
-                    // let args_scroll = ArgsScroll {delta_x: args.delta_x , delta_y: args.delta_y};
-                    // topmost_node.dispatch_scroll(args_scroll);
+                    let args_scroll = ArgsScroll {delta_x: args.delta_x , delta_y: args.delta_y};
+                    topmost_node.dispatch_scroll(args_scroll);
                 },
                 _ => {},
             };

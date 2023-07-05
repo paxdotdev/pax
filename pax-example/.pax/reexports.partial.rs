@@ -31,7 +31,6 @@ pub mod pax_reexports {
             pub use pax_std::primitives::Ellipse;
             pub use pax_std::primitives::Frame;
             pub use pax_std::primitives::Group;
-            pub use pax_std::primitives::Image;
             pub use pax_std::primitives::Rectangle;
             pub use pax_std::primitives::Text;
         }

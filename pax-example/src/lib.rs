@@ -44,6 +44,6 @@ pub struct Example {
 impl Example {
     pub fn modulate(&mut self, ctx: RuntimeContext, args: ArgsClick) {
         let old_route = self.current_route.get();
-        self.current_route.set((old_route + 1) % ROUTE_COUNT);
+        self.current_route.set((old_route+1) % ROUTE_COUNT);
     }
 }

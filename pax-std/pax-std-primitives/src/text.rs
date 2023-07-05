@@ -62,8 +62,8 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
-        if let Some(content) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::String(v) = content { v } else { unreachable!() };
+        if let Some(text) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(text, TypesCoproduct, String);
             properties.text.set(new_value);
         }
 
