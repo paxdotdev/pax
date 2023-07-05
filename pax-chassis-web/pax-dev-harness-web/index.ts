@@ -33,28 +33,7 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     let chassis = wasmMod.PaxChassisWeb.new();
 
     //Handle click events on canvas layer
-    layers.canvas[0].addEventListener('click', (evt) => {
-        let event = {
-            "Click": {
-                "x": evt.x,
-                "y": evt.y,
-            }
-        }
-        chassis.interrupt(JSON.stringify(event), []);
-    }, true);
-
-    //Handle scroll events on canvas layer
-    layers.canvas[0].addEventListener('wheel', (evt) => {
-        let event = {
-            "Scroll": {
-                "x": evt.x,
-                "y": evt.y,
-                "delta_x": evt.deltaX,
-                "delta_y": evt.deltaY,
-            }
-        }
-        chassis.interrupt(JSON.stringify(event), []);
-    }, true);
+    setupEventListeners(chassis,layers.canvas[0]);
 
     addEventListenersToNativeLayers(0, layers.native.length, chassis);
 
@@ -63,31 +42,291 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
 
 }
 
+function convertModifiers(event: MouseEvent | KeyboardEvent) {
+    let modifiers = [];
+    if (event.shiftKey) modifiers.push('Shift');
+    if (event.ctrlKey) modifiers.push('Control');
+    if (event.altKey) modifiers.push('Alt');
+    if (event.metaKey) modifiers.push('Command');
+    return modifiers;
+}
+
+function getMouseButton(event: MouseEvent) {
+    switch (event.button) {
+        case 0: return 'Left';
+        case 1: return 'Middle';
+        case 2: return 'Right';
+        default: return 'Unknown';
+    }
+}
+
+
+
+function setupEventListeners(chassis: any, layer: any) {
+    // Need to make the layer focusable it can receive keyboard events
+    layer.setAttribute('tabindex', '1000');
+    layer.focus();
+
+    let lastPositions = new Map<number, {x: number, y: number}>();
+    // @ts-ignore
+    function getTouchMessages(touchList: TouchList) {
+        return Array.from(touchList).map(touch => {
+            let lastPosition = lastPositions.get(touch.identifier) || { x: touch.clientX, y: touch.clientY };
+            let delta_x = touch.clientX - lastPosition.x;
+            let delta_y = touch.clientY - lastPosition.y;
+            lastPositions.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
+            return {
+                x: touch.clientX,
+                y: touch.clientY,
+                identifier: touch.identifier,
+                delta_x: delta_x,
+                delta_y: delta_y
+            };
+        });
+    }
+
+    // @ts-ignore
+    layer.addEventListener('click', (evt) => {
+        evt.preventDefault();
+        let clickEvent = {
+            "Click": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+                "button": getMouseButton(evt),
+                "modifiers": convertModifiers(evt)
+            }
+        };
+        chassis.interrupt(JSON.stringify(clickEvent), []);
+        let jabEvent = {
+            "Jab": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+            }
+        };
+        chassis.interrupt(JSON.stringify(jabEvent), []);
+        console.log(clickEvent);
+        console.log(jabEvent);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('dblclick', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "DoubleClick": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+                "button": getMouseButton(evt),
+                "modifiers": convertModifiers(evt)
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+        console.log(event);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('mousemove', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "MouseMove": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+                "button": getMouseButton(evt),
+                "modifiers": convertModifiers(evt)
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('wheel', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "Wheel": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+                "delta_x": evt.deltaX,
+                "delta_y": evt.deltaY,
+                "modifiers": convertModifiers(evt)
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+        console.log(event);
+        let scrollEvent = {
+            "Scroll": {
+                "delta_x": evt.deltaX,
+                "delta_y": evt.deltaY,
+            }
+        };
+        chassis.interrupt(JSON.stringify(scrollEvent), []);
+        console.log(scrollEvent);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('mousedown', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "MouseDown": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+                "button": getMouseButton(evt),
+                "modifiers": convertModifiers(evt)
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+        console.log(event);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('mouseup', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "MouseUp": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+                "button": getMouseButton(evt),
+                "modifiers": convertModifiers(evt)
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+        console.log(event);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('mouseover', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "MouseOver": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+                "button": getMouseButton(evt),
+                "modifiers": convertModifiers(evt)
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+        console.log(event);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('mouseout', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "MouseOut": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+                "button": getMouseButton(evt),
+                "modifiers": convertModifiers(evt)
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+        console.log(event);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('contextmenu', (evt) => {
+        let event = {
+            "ContextMenu": {
+                "x": evt.clientX,
+                "y": evt.clientY,
+                "button": getMouseButton(evt),
+                "modifiers": convertModifiers(evt)
+            }
+        };
+        console.log(event);
+        chassis.interrupt(JSON.stringify(event), []);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('touchstart', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "TouchStart": {
+                "touches": getTouchMessages(evt.touches)
+            }
+        };
+        Array.from(evt.changedTouches).forEach(touch => { // @ts-ignore
+            lastPositions.set(touch.identifier, { x: touch.clientX, y: touch.clientY });
+        });
+        chassis.interrupt(JSON.stringify(event), []);
+
+        let jabEvent = {
+            "Jab": {
+                "x": evt.touches[0].clientX,
+                "y": evt.touches[0].clientY,
+            }
+        };
+        chassis.interrupt(JSON.stringify(jabEvent), []);
+        console.log(event);
+        console.log(jabEvent);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('touchmove', (evt) => {
+        evt.preventDefault();
+        let touches = getTouchMessages(evt.touches);
+        let event = {
+            "TouchMove": {
+                "touches": touches
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+
+        let scrollEvent = {
+            "Scroll": {
+                "delta_x": touches[0].delta_x,
+                "delta_y": touches[0].delta_y,
+            }
+        };
+        chassis.interrupt(JSON.stringify(scrollEvent), []);
+        console.log(scrollEvent);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('touchend', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "TouchEnd": {
+                "touches": getTouchMessages(evt.changedTouches)
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+        Array.from(evt.changedTouches).forEach(touch => { // @ts-ignore
+            lastPositions.delete(touch.identifier);
+        });
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('keydown', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "KeyDown": {
+                "key": evt.key,
+                "modifiers": convertModifiers(evt),
+                "is_repeat": evt.repeat
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+        console.log(event);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('keyup', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "KeyUp": {
+                "key": evt.key,
+                "modifiers": convertModifiers(evt),
+                "is_repeat": evt.repeat
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+        console.log(event);
+    }, true);
+    // @ts-ignore
+    layer.addEventListener('keypress', (evt) => {
+        evt.preventDefault();
+        let event = {
+            "KeyPress": {
+                "key": evt.key,
+                "modifiers": convertModifiers(evt),
+                "is_repeat": evt.repeat
+            }
+        };
+        chassis.interrupt(JSON.stringify(event), []);
+        console.log(event);
+    }, true);
+}
+
+
 function addEventListenersToNativeLayers(starting_index: number, count: number, chassis: PaxChassisWeb){
     for (let i = starting_index; i < starting_index+count; i++) {
-        //Handle click events on native layer
-        layers.native[i].addEventListener('click', (evt) => {
-            let event = {
-                "Click": {
-                    "x": evt.screenX,
-                    "y": evt.screenY,
-                }
-            }
-            chassis.interrupt(JSON.stringify(event), []);
-        }, true);
-
-        //Handle scroll events on native layer
-        layers.native[i].addEventListener('wheel', (evt) => {
-            let event = {
-                "Scroll": {
-                    "x": evt.screenX,
-                    "y": evt.screenY,
-                    "delta_x": evt.deltaX,
-                    "delta_y": evt.deltaY,
-                }
-            }
-            chassis.interrupt(JSON.stringify(event), []);
-        }, true);
+        setupEventListeners(chassis,layers.native[i]);
     }
 }
 

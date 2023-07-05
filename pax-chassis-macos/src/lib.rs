@@ -99,8 +99,9 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
             let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
             match prospective_hit {
                 Some(topmost_node) => {
-                    let args_click = ArgsClick {x: args.x , y: args.y};
-                    topmost_node.dispatch_click(args_click);
+                    // let mouseargs = MouseEventArgs::default();
+                    // let args_click = ArgsClick {x: args.x , y: args.y};
+                    // topmost_node.dispatch_click(args_click);
 
                 },
                 _ => {},
@@ -111,8 +112,8 @@ pub extern "C" fn pax_interrupt(engine_container: *mut PaxEngineContainer, buffe
             let prospective_hit = engine.get_topmost_element_beneath_ray((args.x, args.y));
             match prospective_hit {
                 Some(topmost_node) => {
-                    let args_scroll = ArgsScroll {delta_x: args.delta_x , delta_y: args.delta_y};
-                    topmost_node.dispatch_scroll(args_scroll);
+                    // let args_scroll = ArgsScroll {delta_x: args.delta_x , delta_y: args.delta_y};
+                    // topmost_node.dispatch_scroll(args_scroll);
                 },
                 _ => {},
             };

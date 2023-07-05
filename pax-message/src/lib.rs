@@ -46,7 +46,7 @@ pub enum NativeInterrupt {
     MouseOver(MouseOverInterruptArgs),
     MouseOut(MouseOutInterruptArgs),
     ContextMenu(ContextMenuInterruptArgs),
-    ImageLoad(ImageLoadInterruptArgs),
+    Image(ImageLoadInterruptArgs),
     AddedLayer(AddedLayerArgs),
 }
 
@@ -60,8 +60,6 @@ pub struct JabInterruptArgs {
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct ScrollInterruptArgs {
-    pub x: f64,
-    pub y: f64,
     pub delta_x: f64,
     pub delta_y: f64,
 }
@@ -159,12 +157,15 @@ pub struct DoubleClickInterruptArgs {
 pub struct MouseMoveInterruptArgs {
     pub x: f64,
     pub y: f64,
+    pub button: MouseButtonMessage,
     pub modifiers: Vec<ModifierKeyMessage>,
 }
 
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct WheelInterruptArgs {
+    pub x: f64,
+    pub y: f64,
     pub delta_x: f64,
     pub delta_y: f64,
     pub modifiers: Vec<ModifierKeyMessage>,
@@ -193,6 +194,7 @@ pub struct MouseUpInterruptArgs {
 pub struct MouseOverInterruptArgs {
     pub x: f64,
     pub y: f64,
+    pub button: MouseButtonMessage,
     pub modifiers: Vec<ModifierKeyMessage>,
 }
 
@@ -201,6 +203,7 @@ pub struct MouseOverInterruptArgs {
 pub struct MouseOutInterruptArgs {
     pub x: f64,
     pub y: f64,
+    pub button: MouseButtonMessage,
     pub modifiers: Vec<ModifierKeyMessage>,
 }
 
@@ -209,6 +212,7 @@ pub struct MouseOutInterruptArgs {
 pub struct ContextMenuInterruptArgs {
     pub x: f64,
     pub y: f64,
+    pub button: MouseButtonMessage,
     pub modifiers: Vec<ModifierKeyMessage>,
 }
 

@@ -3,7 +3,8 @@
 {{ primitive_instance_import_path }}::instantiate(
 {% else %}
 instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
-{% endif %} InstantiationArgs {
+{% endif %}
+ InstantiationArgs {
     properties: PropertiesCoproduct::{{ properties_coproduct_variant }}
     {% if properties_coproduct_variant != "None" %}
         ( {{component_properties_struct}} {
@@ -12,28 +13,28 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
             {% endfor %}
         })
     {% endif %},
-    handler_registry:  Some(Rc::new(RefCell::new(
-    HandlerRegistry {
-    {% for key, value in events %}
-    {{key}}_handlers: vec![
-            {%- if key in ['will_render','did_mount']  -%}
-                |properties, ctx|{
-                     let properties = &mut *properties.as_ref().borrow_mut();
-                     let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-                     {{ component_properties_struct }}::{{value}}(properties,ctx);
-                 },
-            {% else %}
+    handler_registry:  Some(Rc::new(RefCell::new({
+ let mut handler_registry = HandlerRegistry::default();
+{% for key, value in events %}
+    handler_registry.{{key}}_handlers = vec![
+        {%- if key in ['will_render','did_mount'] -%}
+            |properties, ctx|{
+               let properties = &mut *properties.as_ref().borrow_mut();
+               let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
+               {{ pascal_identifier }}::{{value}}(properties, ctx);
+            },
+        {% else %}
             |stack_frame, ctx, args|{
-                    let properties = ((*stack_frame).borrow().get_properties());
-                    let properties = &mut *properties.as_ref().borrow_mut();
-                    let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-                    {{ component_properties_struct }}::{{value}}(properties,ctx,args);
-                },
-            {% endif %}
-        ],
-    {% endfor %}
-    }
-    ))),
+                let properties = (*stack_frame).borrow().get_properties();
+                let properties = &mut *properties.as_ref().borrow_mut();
+                let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};
+                {{ pascal_identifier }}::{{value}}(properties, ctx, args);
+            },
+        {% endif %}
+    ];
+{% endfor %}
+ handler_registry}
+  ))),
     instance_registry: Rc::clone(&instance_registry),
     transform: Rc::new(RefCell::new({{ transform_ril }})),
     size: Some(Rc::new(RefCell::new(

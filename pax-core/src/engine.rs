@@ -15,7 +15,7 @@ use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::NativeMessage::LayerAdd;
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, ArgsTouchStart, ArgsTouchMove, ArgsTouchEnd, ArgsKeyDown, ArgsKeyUp, ArgsKeyPress, ArgsMouseDown, ArgsMouseUp, ArgsMouseOver, ArgsMouseOut, ArgsDoubleClick, ArgsContextMenu, ArgsWheel ,Interpolatable, TransitionManager, Layer, LayerInfo, RuntimeContext};
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, ArgsTouchStart, ArgsTouchMove, ArgsTouchEnd, ArgsKeyDown, ArgsKeyUp, ArgsKeyPress, ArgsMouseDown, ArgsMouseUp, ArgsMouseOver, ArgsMouseOut, ArgsDoubleClick, ArgsContextMenu, ArgsWheel, Interpolatable, TransitionManager, Layer, LayerInfo, RuntimeContext, ArgsMouseMove};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -130,7 +130,6 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     }
 }
 
-#[derive(Default)]
 pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsScroll)>,
     pub jab_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsJab)>,
@@ -143,6 +142,7 @@ pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsClick)>,
     pub mouse_down_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseDown)>,
     pub mouse_up_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseUp)>,
+    pub mouse_move_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseMove)>,
     pub mouse_over_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseOver)>,
     pub mouse_out_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseOut)>,
     pub double_click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsDoubleClick)>,
@@ -150,6 +150,33 @@ pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub wheel_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsWheel)>,
     pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
     pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
+}
+
+
+impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
+    fn default() -> Self {
+        HandlerRegistry {
+            scroll_handlers: Vec::new(),
+            jab_handlers: Vec::new(),
+            touch_start_handlers: Vec::new(),
+            touch_move_handlers: Vec::new(),
+            touch_end_handlers: Vec::new(),
+            key_down_handlers: Vec::new(),
+            key_up_handlers: Vec::new(),
+            key_press_handlers: Vec::new(),
+            click_handlers: Vec::new(),
+            mouse_down_handlers: Vec::new(),
+            mouse_up_handlers: Vec::new(),
+            mouse_move_handlers: Vec::new(),
+            mouse_over_handlers: Vec::new(),
+            mouse_out_handlers: Vec::new(),
+            double_click_handlers: Vec::new(),
+            context_menu_handlers: Vec::new(),
+            wheel_handlers: Vec::new(),
+            will_render_handlers: Vec::new(),
+            did_mount_handlers: Vec::new(),
+        }
+    }
 }
 
 /// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
@@ -305,6 +332,19 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
 
         if let Some(parent) = &self.parent_repeat_expanded_node {
             parent.dispatch_mouse_up(args_mouse_up);
+        }
+    }
+
+    pub fn dispatch_mouse_move(&self, args_mouse_move: ArgsMouseMove) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().mouse_move_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_move.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_mouse_move(args_mouse_move);
         }
     }
 
@@ -711,6 +751,18 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         ret
     }
+
+    pub fn get_topmost_element(&self) -> Option<Rc<RepeatExpandedNode<R>>> {
+        let mut nodes_ordered: Vec<Rc<RepeatExpandedNode<R>>> = (*self.instance_registry).borrow()
+            .repeat_expanded_node_cache.iter().rev()
+            .map(|rc| {
+                Rc::clone(rc)
+            }).collect();
+        // remove root element that is moved to top during reversal
+        nodes_ordered.remove(0);
+        nodes_ordered.get(0).cloned()
+    }
+
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {

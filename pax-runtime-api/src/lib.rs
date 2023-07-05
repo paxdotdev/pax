@@ -13,6 +13,7 @@ extern crate lazy_static;
 extern crate mut_static;
 
 use mut_static::MutStatic;
+use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 pub use crate::numeric::Numeric;
 
 pub struct TransitionQueueEntry<T> {
@@ -111,6 +112,18 @@ pub struct Touch {
     pub delta_y: f64,
 }
 
+impl From<&TouchMessage> for Touch {
+    fn from(value: &TouchMessage) -> Self {
+        Touch {
+            x: value.x,
+            y: value.y,
+            identifier: value.identifier,
+            delta_x: value.delta_x,
+            delta_y: value.delta_x,
+        }
+    }
+}
+
 /// A TouchStart occurs when the user touches an element.
 /// The contained `touches` represent a list of touch points.
 #[derive(Clone)]
@@ -180,12 +193,34 @@ pub enum MouseButton {
     Unknown,
 }
 
+impl From<MouseButtonMessage> for MouseButton {
+    fn from(value: MouseButtonMessage) -> Self {
+        match value {
+            MouseButtonMessage::Left => {MouseButton::Left}
+            MouseButtonMessage::Right => {MouseButton::Right}
+            MouseButtonMessage::Middle => {MouseButton::Middle}
+            MouseButtonMessage::Unknown => {MouseButton::Unknown}
+        }
+    }
+}
+
 #[derive(Clone)]
 pub enum ModifierKey {
     Shift,
     Control,
     Alt,
     Command,
+}
+
+impl From<&ModifierKeyMessage> for ModifierKey {
+    fn from(value: &ModifierKeyMessage) -> Self {
+        match value {
+            ModifierKeyMessage::Shift => {ModifierKey::Shift}
+            ModifierKeyMessage::Control => {ModifierKey::Control}
+            ModifierKeyMessage::Alt => {ModifierKey::Alt}
+            ModifierKeyMessage::Command => {ModifierKey::Command}
+        }
+    }
 }
 
 /// User clicks a mouse button over an element.
@@ -209,6 +244,8 @@ pub struct ArgsMouseMove {
 /// User scrolls the mouse wheel over an element.
 #[derive(Clone)]
 pub struct ArgsWheel {
+    pub x: f64,
+    pub y: f64,
     pub delta_x: f64,
     pub delta_y: f64,
     pub modifiers: Vec<ModifierKey>,
