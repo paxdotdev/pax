@@ -1,8 +1,8 @@
-use kurbo::{BezPath};
-use piet::{RenderContext};
+use kurbo::{BezPath, RoundedRect, Shape};
+use piet::{LinearGradient, RadialGradient, RenderContext};
 
 use pax_std::primitives::{Rectangle};
-use pax_std::types::ColorVariant;
+use pax_std::types::{ColorVariant, Fill, RectangleCornerRadii};
 use pax_core::{Color, TabCache, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, Property};
@@ -73,7 +73,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
         }
 
         if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::pax_stdCOCOtypesCOCOColor(v) = fill { v } else { unreachable!() };
+            let new_value = unsafe_unwrap!(fill, TypesCoproduct, Fill);
             properties.fill.set(new_value);
         }
 
@@ -82,6 +82,31 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
             size[0].set(new_value);
+        }
+
+        if let Some(top_right) = rtc.compute_vtable_value(properties.corner_radii.get().top_right._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(top_right, TypesCoproduct, f64);
+            properties.corner_radii.get_mut().top_right.set(new_value);
+        }
+
+        if let Some(top_left) = rtc.compute_vtable_value(properties.corner_radii.get().top_left._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(top_left, TypesCoproduct, f64);
+            properties.corner_radii.get_mut().top_left.set(new_value);
+        }
+
+        if let Some(bottom_right) = rtc.compute_vtable_value(properties.corner_radii.get().bottom_right._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(bottom_right, TypesCoproduct, f64);
+            properties.corner_radii.get_mut().bottom_right.set(new_value);
+        }
+
+        if let Some(bottom_left) = rtc.compute_vtable_value(properties.corner_radii.get().bottom_left._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(bottom_left, TypesCoproduct, f64);
+            properties.corner_radii.get_mut().bottom_left.set(new_value);
+        }
+
+        if let Some(corner_radii) = rtc.compute_vtable_value(properties.corner_radii._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(corner_radii, TypesCoproduct, RectangleCornerRadii);
+            properties.corner_radii.set(new_value);
         }
 
         if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
@@ -104,35 +129,33 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 
         let properties = (*self.properties).borrow();
 
-        let properties_color = properties.fill.get();
-        let color = match properties_color.color_variant {
-            ColorVariant::Hlca(slice) => {
-                Color::hlca(slice[0], slice[1], slice[2], slice[3])
-            },
-            ColorVariant::Hlc(slice) => {
-                Color::hlc(slice[0], slice[1], slice[2])
-            },
-            ColorVariant::Rgba(slice) => {
-                Color::rgba(slice[0], slice[1], slice[2], slice[3])
-            },
-            ColorVariant::Rgb(slice) => {
-                Color::rgb(slice[0], slice[1], slice[2])
-            }
-        };
 
-        let mut bez_path = BezPath::new();
-        bez_path.move_to((0.0, 0.0));
-        bez_path.line_to((width , 0.0));
-        bez_path.line_to((width , height ));
-        bez_path.line_to((0.0, height));
-        bez_path.line_to((0.0,0.0));
-        bez_path.close_path();
+
+        let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
+
+        let mut bez_path = rect.to_path(0.1);
 
         let transformed_bez_path = transform * bez_path;
         let duplicate_transformed_bez_path = transformed_bez_path.clone();
 
-        let color = properties.fill.get().to_piet_color();
-        rc.fill(transformed_bez_path, &color);
+        match properties.fill.get() {
+            Fill::Solid(color) => {
+                rc.fill(transformed_bez_path, &color.to_piet_color());
+            }
+            Fill::LinearGradient(linear) => {
+                let linear_gradient = LinearGradient::new(Fill::toUnitPoint(linear.start,(width, height)),
+                                    Fill::toUnitPoint(linear.end, (width, height)),
+                                        Fill::toGradientStops(linear.stops.clone()));
+                rc.fill(transformed_bez_path, &linear_gradient)
+            }
+            Fill::RadialGradient(radial) => {
+                let origin = Fill::toUnitPoint(radial.origin, (width, height));
+                let center = Fill::toUnitPoint(radial.center, (width, height));
+                let gradient_stops = Fill::toGradientStops(radial.stops.clone());
+                let radial_gradient = RadialGradient::new(radial.radius, gradient_stops).with_center(center).with_origin(origin);
+                rc.fill(transformed_bez_path, &radial_gradient);
+            }
+        }
 
         //hack to address "phantom stroke" bug on Web
         let width : f64 = *&properties.stroke.get().width.get().into();

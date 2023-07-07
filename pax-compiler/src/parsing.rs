@@ -250,7 +250,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
             Rule::expression_body => {
                 recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser.clone(), Rc::clone(&symbolic_ids))
             },
-            _ => unreachable!(),
+            _ => unreachable!("{}hello",primary.as_str()),
         })
         .map_prefix(|op, rhs| match op.as_rule() {
             Rule::xo_neg => format!("(-{})", rhs),
