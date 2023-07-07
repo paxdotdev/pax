@@ -44,6 +44,14 @@ pub enum PropertiesCoproduct {
     
     pax_stdCOCOtypesCOCOColorVariant(pax_example::pax_reexports::pax_std::types::ColorVariant),
     
+    pax_stdCOCOtypesCOCOFill(pax_example::pax_reexports::pax_std::types::Fill),
+    
+    pax_stdCOCOtypesCOCOLinearGradient(pax_example::pax_reexports::pax_std::types::LinearGradient),
+    
+    pax_stdCOCOtypesCOCORadialGradient(pax_example::pax_reexports::pax_std::types::RadialGradient),
+    
+    pax_stdCOCOtypesCOCORectangleCornerRadii(pax_example::pax_reexports::pax_std::types::RectangleCornerRadii),
+    
     pax_stdCOCOtypesCOCOStackerCell(pax_example::pax_reexports::pax_std::types::StackerCell),
     
     pax_stdCOCOtypesCOCOStackerDirection(pax_example::pax_reexports::pax_std::types::StackerDirection),
@@ -103,6 +111,14 @@ pub enum TypesCoproduct {
     pax_stdCOCOtypesCOCOColor(pax_example::pax_reexports::pax_std::types::Color),
     
     pax_stdCOCOtypesCOCOColorVariant(pax_example::pax_reexports::pax_std::types::ColorVariant),
+    
+    pax_stdCOCOtypesCOCOFill(pax_example::pax_reexports::pax_std::types::Fill),
+    
+    pax_stdCOCOtypesCOCOLinearGradient(pax_example::pax_reexports::pax_std::types::LinearGradient),
+    
+    pax_stdCOCOtypesCOCORadialGradient(pax_example::pax_reexports::pax_std::types::RadialGradient),
+    
+    pax_stdCOCOtypesCOCORectangleCornerRadii(pax_example::pax_reexports::pax_std::types::RectangleCornerRadii),
     
     pax_stdCOCOtypesCOCOStackerDirection(pax_example::pax_reexports::pax_std::types::StackerDirection),
     

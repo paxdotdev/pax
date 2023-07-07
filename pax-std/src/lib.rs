@@ -30,7 +30,8 @@ pub mod primitives {
     #[primitive("pax_std_primitives::rectangle::RectangleInstance")]
     pub struct Rectangle {
         pub stroke: pax_lang::Property<crate::types::Stroke>,
-        pub fill: pax_lang::Property<crate::types::Color>,
+        pub fill: pax_lang::Property<crate::types::Fill>,
+        pub corner_radii: pax_lang::Property<crate::types::RectangleCornerRadii>
     }
 
     #[derive(Pax)]

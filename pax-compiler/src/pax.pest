@@ -159,7 +159,7 @@ num_clicks % 2 == 0
 //`xo` is short for both "expression operator" and "expression operand", collectively all symbols
 //that can be expressed inside expressions
 
-xo_primary = _{ expression_grouped | xo_function_call | xo_object | xo_range | xo_literal | xo_tuple | xo_symbol }
+xo_primary = _{ expression_grouped | xo_function_call | xo_object | xo_range | xo_tuple | xo_literal  | xo_symbol }
 
 xo_prefix = _{xo_neg | xo_bool_not}
     xo_neg = {"-"}
