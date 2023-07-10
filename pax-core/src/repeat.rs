@@ -152,7 +152,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
     fn get_layer_type(&mut self) -> Layer {
-        Layer::ControlFlow
+        Layer::DontCare
     }
 
 }

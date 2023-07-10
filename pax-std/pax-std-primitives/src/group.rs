@@ -4,7 +4,7 @@ use piet_common::RenderContext;
 use pax_core::{HandlerRegistry, TabCache, InstanceRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, TransformAndBounds};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{Transform2D, Size2D, PropertyInstance};
+use pax_runtime_api::{Transform2D, Size2D, PropertyInstance, Layer};
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
@@ -57,6 +57,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
     /// Events can still be propagated to a group.
     fn ray_cast_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
         false
+    }
+
+    fn get_layer_type(&mut self) -> Layer {
+        Layer::DontCare
     }
 
     fn get_size(&self) -> Option<Size2D> { None }
