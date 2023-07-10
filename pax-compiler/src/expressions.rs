@@ -2,10 +2,11 @@ use std::any::Any;
 use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, PropertyDefinition, SettingsSelectorBlockDefinition};
 use std::collections::HashMap;
 use std::ops::{Deref, IndexMut, RangeFrom};
+use std::slice::IterMut;
 use std::str::Split;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use crate::manifest::{PropertyDefinitionFlags, TypeDefinition, TypeTable};
+use crate::manifest::{LiteralBlockDefinition, PropertyDefinitionFlags, TypeDefinition, TypeTable};
 use crate::parsing::escape_identifier;
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
@@ -119,6 +120,105 @@ fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(Strin
     if merged.len() > 0 {Some(merged)} else{None}
 }
 
+fn recurse_compile_literal_block<'a>(settings_pairs: IterMut<(String, ValueDefinition)>, mut ctx: &mut ExpressionCompilationContext, current_property_definitions: Vec<PropertyDefinition>, type_id: String){
+    settings_pairs.for_each(|pair| {
+        match &mut pair.1 {
+            ValueDefinition::LiteralValue(_) => {
+                //no need to compile literal values
+            },
+            ValueDefinition::EventBindingTarget(_) => {
+                //event bindings are handled on a separate compiler pass; no-op here
+            },
+            ValueDefinition::Block(block) => {
+                let type_def = (current_property_definitions.iter().find(|property_def| {
+                    property_def.name == pair.0
+                })).expect(
+                    &format!("Property `{}` not found on `{}`", &pair.0, type_id)
+                ).get_type_definition(ctx.type_table);
+                recurse_compile_literal_block(block.settings_key_value_pairs.iter_mut(), ctx, type_def.property_definitions.clone(), type_def.type_id_escaped.clone());
+            },
+            ValueDefinition::Expression(input, manifest_id) => {
+                // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
+                let id = ctx.uid_gen.next().unwrap();
+
+                let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
+
+                let builtin_types = HashMap::from([
+                    ("transform","Transform2D".to_string()),
+                    ("size","Size2D".to_string()),
+                    ("width","Size".to_string()),
+                    ("height","Size".to_string()),
+                    // ("x","Size".to_string()),
+                    // ("y","Size".to_string()),
+
+                ]);
+
+                let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*pair.0) {
+                    type_string.to_string()
+                } else {
+                        (current_property_definitions.iter().find(|property_def| {
+                            property_def.name == pair.0
+                        }).expect(
+                            &format!("Property `{}` not found on component `{}`", &pair.0, type_id)
+                        ).get_type_definition(ctx.type_table).type_id_escaped).clone()
+                };
+
+                let mut whitespace_removed_input = input.clone();
+                whitespace_removed_input.retain(|c| !c.is_whitespace());
+
+                ctx.expression_specs.insert(id, ExpressionSpec {
+                    id,
+                    pascalized_return_type,
+                    invocations,
+                    output_statement,
+                    input_statement: whitespace_removed_input,
+                    is_repeat_source_iterable_expression: false,
+                    repeat_source_iterable_type_id_escaped: "".to_string(),
+                });
+
+                //Write this id back to the manifest, for downstream use by RIL component tree generator
+                let mut manifest_id_insert = Some(id);
+                std::mem::swap(manifest_id, &mut manifest_id_insert);
+            },
+            ValueDefinition::Identifier(identifier, manifest_id) => {
+                // e.g. the self.active_color in `bg_color=self.active_color`
+
+                if pair.0 == "id" || pair.0 == "class" {
+                    //No-op -- special-case `id=some_identifier` and `class=some_identifier` — we DON'T want to compile an expression {some_identifier},
+                    //so we skip the case where `id` is the key
+                } else {
+                    let id = ctx.uid_gen.next().unwrap();
+
+                    //Write this id back to the manifest, for downstream use by RIL component tree generator
+                    let mut manifest_id_insert: Option<usize> = Some(id);
+                    std::mem::swap(manifest_id, &mut manifest_id_insert);
+
+                    //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
+                    //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
+                    let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
+
+                    let pascalized_return_type = (&ctx.component_def.get_property_definitions(ctx.type_table).iter().find(
+                        |property_def| {
+                            property_def.name == pair.0
+                        }
+                    ).unwrap().get_type_definition(ctx.type_table).type_id_escaped).clone();
+
+                    ctx.expression_specs.insert(id, ExpressionSpec {
+                        id,
+                        pascalized_return_type,
+                        invocations,
+                        output_statement,
+                        input_statement: identifier.clone(),
+                        is_repeat_source_iterable_expression: false,
+                        repeat_source_iterable_type_id_escaped: "".to_string(),
+                    });
+                }
+            },
+            _ => {unreachable!()},
+        }
+    })
+}
+
 fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) -> ExpressionCompilationContext<'a> {
     let incremented = false;
 
@@ -128,99 +228,22 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
     let mut cloned_control_flow_settings = ctx.active_node_def.control_flow_settings.clone();
 
     if let Some(ref mut inline_settings) = merged_settings {
-        //Handle standard key/value declarations (non-control-flow)
-        inline_settings.iter_mut().for_each(|inline| {
-            match &mut inline.1 {
-                ValueDefinition::LiteralValue(_) => {
-                    //no need to compile literal values
-                }
-                ValueDefinition::EventBindingTarget(_) => {
-                    //event bindings are handled on a separate compiler pass; no-op here
-                }
-                ValueDefinition::Identifier(identifier, manifest_id) => {
-                    // e.g. the self.active_color in `bg_color=self.active_color`
+        // Handle standard key/value declarations (non-control-flow)
+        let type_id = ctx.active_node_def.type_id.clone();
+        let pascal_identifier;
+        let property_def;
 
-                    if inline.0 == "id" || inline.0 == "class" {
-                        //No-op -- special-case `id=some_identifier` and `class=some_identifier` — we DON'T want to compile an expression {some_identifier},
-                        //so we skip the case where `id` is the key
-                    } else {
-                        let id = ctx.uid_gen.next().unwrap();
+        // Scope created to limit the borrow of ctx
+        {
+            let active_node_component = ctx.all_components.get(&type_id)
+                .expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &type_id, &type_id));
 
-                        //Write this id back to the manifest, for downstream use by RIL component tree generator
-                        let mut manifest_id_insert: Option<usize> = Some(id);
-                        std::mem::swap(manifest_id, &mut manifest_id_insert);
+            pascal_identifier = active_node_component.pascal_identifier.clone();
+            property_def = active_node_component.get_property_definitions(&mut ctx.type_table);
+        }
 
-                        //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
-                        //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
-                        let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
-
-                        let pascalized_return_type = (&ctx.component_def.get_property_definitions(ctx.type_table).iter().find(
-                            |property_def| {
-                                property_def.name == inline.0
-                            }
-                        ).unwrap().get_type_definition(ctx.type_table).type_id_escaped).clone();
-
-                        ctx.expression_specs.insert(id, ExpressionSpec {
-                            id,
-                            pascalized_return_type,
-                            invocations,
-                            output_statement,
-                            input_statement: identifier.clone(),
-                            is_repeat_source_iterable_expression: false,
-                            repeat_source_iterable_type_id_escaped: "".to_string(),
-                        });
-                    }
-                }
-                ValueDefinition::Expression(input, manifest_id) => {
-                    // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
-                    let id = ctx.uid_gen.next().unwrap();
-
-                    let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
-
-                    let active_node_component = (&ctx.all_components.get(&ctx.active_node_def.type_id)).expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &ctx.active_node_def.type_id, &ctx.active_node_def.type_id));
-
-                    let builtin_types = HashMap::from([
-                        ("transform","Transform2D".to_string()),
-                        ("size","Size2D".to_string()),
-                        ("width","Size".to_string()),
-                        ("height","Size".to_string()),
-                        // ("x","Size".to_string()),
-                        // ("y","Size".to_string()),
-
-                    ]);
-
-                    let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*inline.0) {
-                        type_string.to_string()
-                    } else {
-                        (active_node_component.get_property_definitions(ctx.type_table).iter().find(|property_def| {
-                            property_def.name == inline.0
-                        }).expect(
-                            &format!("Property `{}` not found on component `{}`", &inline.0, &active_node_component.pascal_identifier)
-                        ).get_type_definition(ctx.type_table).type_id_escaped).clone()
-                    };
-
-                    let mut whitespace_removed_input = input.clone();
-                    whitespace_removed_input.retain(|c| !c.is_whitespace());
-
-                    ctx.expression_specs.insert(id, ExpressionSpec {
-                        id,
-                        pascalized_return_type,
-                        invocations,
-                        output_statement,
-                        input_statement: whitespace_removed_input,
-                        is_repeat_source_iterable_expression: false,
-                        repeat_source_iterable_type_id_escaped: "".to_string(),
-                    });
-
-                    //Write this id back to the manifest, for downstream use by RIL component tree generator
-                    let mut manifest_id_insert = Some(id);
-                    std::mem::swap(manifest_id, &mut manifest_id_insert);
-                },
-                _ => {unreachable!()},
-            }
-        });
-    }
-    else if let Some(ref mut cfa) = cloned_control_flow_settings {
+        recurse_compile_literal_block(inline_settings.iter_mut(), &mut ctx, property_def.clone(), pascal_identifier);
+    } else if let Some(ref mut cfa) = cloned_control_flow_settings {
         //Handle attributes for control flow
         //Our purpose here is broadly twofold:
         //  1. attach repeat-created symbols / properties to the stack, so they may be resolved in PAXEL

@@ -1,6 +1,7 @@
 pub mod text;
 
-use kurbo::{Point};
+use kurbo::{Point, RoundedRectRadii};
+use piet::{GradientStop, GradientStops, UnitPoint};
 use pax_lang::*;
 use pax_lang::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 use pax_lang::api::numeric::Numeric;
@@ -40,6 +41,76 @@ pub enum StackerDirection {
     #[default]
     Horizontal,
 }
+
+
+#[derive(Pax)]
+#[custom(Default, Imports)]
+pub enum Fill {
+    Solid(Color),
+    LinearGradient(LinearGradient),
+    RadialGradient(RadialGradient)
+}
+
+#[derive(Pax)]
+#[custom(Default, Imports)]
+pub struct LinearGradient {
+    pub start: (Size,Size),
+    pub end: (Size, Size),
+    pub stops: (Color,Color),
+}
+
+#[derive(Pax)]
+#[custom(Default, Imports)]
+pub struct RadialGradient {
+    pub center: (Size,Size),
+    pub origin: (Size,Size),
+    pub radius: f64,
+    pub stops: (Color,Color),
+}
+
+impl Default for Fill {
+    fn default() -> Self {
+        Self::Solid(Color::default())
+    }
+}
+
+impl Fill {
+    pub fn toUnitPoint((x,y): (Size,Size), (width,height) : (f64,f64)) -> UnitPoint {
+        let normalizedX = match x {
+            Size::Pixels(val) => {
+                val.get_as_float()/width
+            }
+            Size::Percent(val) => {
+                val.get_as_float()/100.0
+            }
+        };
+
+        let normalizedY = match y {
+            Size::Pixels(val) => {
+                val.get_as_float()/height
+            }
+            Size::Percent(val) => {
+                val.get_as_float()/100.0
+            }
+        };
+        UnitPoint::new(normalizedX, normalizedY)
+    }
+
+    pub fn toGradientStops((color_a, color_b) : (Color,Color)) -> Vec<GradientStop> {
+        let stops = (color_a.to_piet_color(), color_b.to_piet_color());
+        stops.to_vec()
+    }
+
+    pub fn linearGradient(start: (Size, Size), end: (Size, Size), stops: (Color, Color)) -> Fill {
+        Fill::LinearGradient(LinearGradient{
+            start,
+            end,
+            stops,
+        })
+    }
+
+}
+
 
 #[derive(Pax)]
 #[custom(Default, Imports)]
@@ -131,7 +202,7 @@ impl PartialEq<ColorVariantMessage> for Color {
 }
 
 
-#[derive(Pax)]
+#[derive(Pax, Debug)]
 #[custom(Default, Imports)]
 pub enum ColorVariant {
     Hlca([f64; 4]),
@@ -195,5 +266,31 @@ impl Path {
 
         path.push(PathSegment::CurveSegment(curve_seg_data));
         path
+    }
+}
+
+#[derive(Pax)]
+#[custom(Imports)]
+pub struct RectangleCornerRadii {
+    pub top_left: Property<f64>,
+    pub top_right:  Property<f64>,
+    pub bottom_right:  Property<f64>,
+    pub bottom_left:  Property<f64>,
+}
+
+impl Into<RoundedRectRadii> for &RectangleCornerRadii {
+    fn into(self) -> RoundedRectRadii {
+        RoundedRectRadii::new(self.top_left.get().clone(), self.top_right.get().clone(), self.bottom_right.get().clone(), self.bottom_left.get().clone())
+    }
+}
+
+impl RectangleCornerRadii {
+    pub fn radii(top_left: Numeric, top_right: Numeric, bottom_right: Numeric, bottom_left: Numeric) -> Self{
+        RectangleCornerRadii {
+            top_left: Box::new(PropertyLiteral::new(top_left.get_as_float())),
+            top_right: Box::new(PropertyLiteral::new(top_right.get_as_float())),
+            bottom_right: Box::new(PropertyLiteral::new(bottom_right.get_as_float())),
+            bottom_left: Box::new(PropertyLiteral::new(bottom_left.get_as_float())),
+        }
     }
 }

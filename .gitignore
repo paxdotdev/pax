@@ -3,8 +3,8 @@ target/
 vendor/
 
 pax-chassis-macos/pax-dev-harness-macos/build
-pax-example/.pax/chassis/
 pax-example/build
+pax-example/.pax/
 
 **/*.rs.bk
 Cargo.lock

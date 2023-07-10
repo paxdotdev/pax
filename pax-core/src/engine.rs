@@ -15,7 +15,7 @@ use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::NativeMessage::LayerAdd;
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, Interpolatable, TransitionManager, Layer, LayerInfo, RuntimeContext};
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, ArgsTouchStart, ArgsTouchMove, ArgsTouchEnd, ArgsKeyDown, ArgsKeyUp, ArgsKeyPress, ArgsMouseDown, ArgsMouseUp, ArgsMouseOver, ArgsMouseOut, ArgsDoubleClick, ArgsContextMenu, ArgsWheel, Interpolatable, TransitionManager, Layer, LayerInfo, RuntimeContext, ArgsMouseMove};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -130,12 +130,53 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     }
 }
 
-#[derive(Default)]
 pub struct HandlerRegistry<R: 'static + RenderContext> {
+    pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsScroll)>,
+    pub jab_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsJab)>,
+    pub touch_start_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsTouchStart)>,
+    pub touch_move_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsTouchMove)>,
+    pub touch_end_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsTouchEnd)>,
+    pub key_down_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsKeyDown)>,
+    pub key_up_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsKeyUp)>,
+    pub key_press_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsKeyPress)>,
     pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsClick)>,
+    pub mouse_down_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseDown)>,
+    pub mouse_up_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseUp)>,
+    pub mouse_move_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseMove)>,
+    pub mouse_over_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseOver)>,
+    pub mouse_out_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseOut)>,
+    pub double_click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsDoubleClick)>,
+    pub context_menu_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsContextMenu)>,
+    pub wheel_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsWheel)>,
     pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
     pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
-    pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsScroll)>,
+}
+
+
+impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
+    fn default() -> Self {
+        HandlerRegistry {
+            scroll_handlers: Vec::new(),
+            jab_handlers: Vec::new(),
+            touch_start_handlers: Vec::new(),
+            touch_move_handlers: Vec::new(),
+            touch_end_handlers: Vec::new(),
+            key_down_handlers: Vec::new(),
+            key_up_handlers: Vec::new(),
+            key_press_handlers: Vec::new(),
+            click_handlers: Vec::new(),
+            mouse_down_handlers: Vec::new(),
+            mouse_up_handlers: Vec::new(),
+            mouse_move_handlers: Vec::new(),
+            mouse_over_handlers: Vec::new(),
+            mouse_out_handlers: Vec::new(),
+            double_click_handlers: Vec::new(),
+            context_menu_handlers: Vec::new(),
+            wheel_handlers: Vec::new(),
+            will_render_handlers: Vec::new(),
+            did_mount_handlers: Vec::new(),
+        }
+    }
 }
 
 /// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
@@ -151,27 +192,229 @@ pub struct RepeatExpandedNode<R: 'static + RenderContext> {
 }
 
 impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
-    pub fn dispatch_click(&self, args_click: ArgsClick) {
-        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            (*registry).borrow().click_handlers.iter().for_each(|handler|{
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_click.clone());
-            })
-        }
-        if let Some(parent) = &self.parent_repeat_expanded_node {
-            parent.dispatch_click( args_click);
-        }
-    }
     pub fn dispatch_scroll(&self, args_scroll: ArgsScroll) {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
-            (*registry).borrow().scroll_handlers.iter().for_each(|handler|{
+            let handlers = &(*registry).borrow().scroll_handlers;
+            handlers.iter().for_each(|handler| {
                 handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_scroll.clone());
-            })
+            });
         }
+
         if let Some(parent) = &self.parent_repeat_expanded_node {
             parent.dispatch_scroll(args_scroll);
         }
     }
+
+    pub fn dispatch_jab(&self, args_jab: ArgsJab) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().jab_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_jab.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_jab(args_jab);
+        }
+    }
+
+    pub fn dispatch_touch_start(&self, args_touch_start: ArgsTouchStart) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().touch_start_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_touch_start.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_touch_start(args_touch_start);
+        }
+    }
+
+    pub fn dispatch_touch_move(&self, args_touch_move: ArgsTouchMove) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().touch_move_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_touch_move.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_touch_move(args_touch_move);
+        }
+    }
+
+    pub fn dispatch_touch_end(&self, args_touch_end: ArgsTouchEnd) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().touch_end_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_touch_end.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_touch_end(args_touch_end);
+        }
+    }
+
+    pub fn dispatch_key_down(&self, args_key_down: ArgsKeyDown) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().key_down_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_key_down.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_key_down(args_key_down);
+        }
+    }
+
+    pub fn dispatch_key_up(&self, args_key_up: ArgsKeyUp) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().key_up_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_key_up.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_key_up(args_key_up);
+        }
+    }
+
+    pub fn dispatch_key_press(&self, args_key_press: ArgsKeyPress) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().key_press_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_key_press.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_key_press(args_key_press);
+        }
+    }
+
+    pub fn dispatch_click(&self, args_click: ArgsClick) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().click_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_click.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_click(args_click);
+        }
+    }
+
+    pub fn dispatch_mouse_down(&self, args_mouse_down: ArgsMouseDown) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().mouse_down_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_down.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_mouse_down(args_mouse_down);
+        }
+    }
+
+    pub fn dispatch_mouse_up(&self, args_mouse_up: ArgsMouseUp) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().mouse_up_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_up.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_mouse_up(args_mouse_up);
+        }
+    }
+
+    pub fn dispatch_mouse_move(&self, args_mouse_move: ArgsMouseMove) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().mouse_move_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_move.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_mouse_move(args_mouse_move);
+        }
+    }
+
+    pub fn dispatch_mouse_over(&self, args_mouse_over: ArgsMouseOver) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().mouse_over_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_over.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_mouse_over(args_mouse_over);
+        }
+    }
+
+    pub fn dispatch_mouse_out(&self, args_mouse_out: ArgsMouseOut) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().mouse_out_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_out.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_mouse_out(args_mouse_out);
+        }
+    }
+
+    pub fn dispatch_double_click(&self, args_double_click: ArgsDoubleClick) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().double_click_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_double_click.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_double_click(args_double_click);
+        }
+    }
+
+    pub fn dispatch_context_menu(&self, args_context_menu: ArgsContextMenu) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().context_menu_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_context_menu.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_context_menu(args_context_menu);
+        }
+    }
+
+    pub fn dispatch_wheel(&self, args_wheel: ArgsWheel) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().wheel_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_wheel.clone());
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent.dispatch_wheel(args_wheel);
+        }
+    }
 }
+
+
 
 pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///look up RenderNodePtr by id
@@ -424,18 +667,18 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         layer_info.update_depth(node_type);
         let current_depth = layer_info.get_depth();
 
-
-        let mut opt_rc = rcs.get_mut(current_depth);
-
-        if let Some(rc) = opt_rc {
+        let last_layer = &rcs.len() -1;
+        if let Some(rc) =  rcs.get_mut(current_depth) {
             //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
             //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
             node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec(), current_depth);
-
             //lifecycle: render
             //this is this node's time to do its own rendering, aside
             //from the rendering of its children. Its children have already been rendered.
             node.borrow_mut().handle_render(rtc, rc);
+        } else {
+            node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec(), last_layer);
+            node.borrow_mut().handle_render(rtc, rcs.get_mut(last_layer).unwrap());
         }
 
         //lifecycle: did_render
@@ -509,6 +752,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         ret
     }
+
+    pub fn get_focused_element(&self) -> Option<Rc<RepeatExpandedNode<R>>> {
+        let (x, y) = self.viewport_size;
+        self.get_topmost_element_beneath_ray((x/2.0,y/2.0))
+    }
+
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {

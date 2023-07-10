@@ -1,31 +1,41 @@
-<Group>
-<Text text="Layer" width=300px height=300px/>
-<Image path="assets/images/pax-logo.png" id=logo />
-<Image path="assets/images/jpeg_test.jpg" id=card />
-<Text text="apple" width=300px height=300px />
-<Rectangle id=background />
-<Text text="carrot" width=300px height=300px/>
-<Image path="assets/images/pax-logo.png" id=logo />
-<Image path="assets/images/jpeg_test.jpg" id=card />
-<Text text="hello world" width=300px height=300px />
-<Rectangle id=background />
-</Group>
-
+<Text text={content} id=text/>
+<Rectangle width=100% height=100%
+fill={Fill::linearGradient(
+    (0%, 50%),
+    (100%, 50%),
+    (Color::rgba(0.0,0.0,0.0,1.0), Color::rgba(1.0,0.0,0.0,1.0)))}
+  />
 @settings {
-    #logo {
-        height: 120px,
-        width: 280px,
-        transform: {Transform2D::anchor(0%, 0%) * Transform2D::align(0%, 0%)},
-    }
-    #card {
-        height: 500px,
+    #text {
+        style: TextStyle {
+            font: {Font::local("Esenka", "assets/fonts/Esenka.otf", FontStyle::Normal, FontWeight::Normal)},
+            font_size: 60px,
+            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
+            align_vertical: TextAlignVertical::Center,
+            align_horizontal: TextAlignHorizontal::Center,
+        }
         width: 500px,
-        transform: {Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)},
+        transform: {Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%)}
     }
-    #background {
-        fill: {Color::rgba(0.0, 0.0, 0.0, 1.0)},
-        height: 550px,
-        width: 550px,
-        transform: {Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)},
-    }
+}
+
+@events {
+    did_mount: handle_did_mount,
+    jab: handle_jab,
+    scroll: handle_scroll,
+    touch_start: handle_touch_start,
+    touch_move: handle_touch_move,
+    touch_end: handle_touch_end,
+    key_down: handle_key_down,
+    key_up: handle_key_up,
+    key_press: handle_key_press,
+    click: handle_click,
+    double_click: handle_double_click,
+    mouse_move: handle_mouse_move,
+    wheel: handle_wheel,
+    mouse_down: handle_mouse_down,
+    mouse_up: handle_mouse_up,
+    mouse_over: handle_mouse_over,
+    mouse_out: handle_mouse_out,
+    context_menu: handle_context_menu,
 }

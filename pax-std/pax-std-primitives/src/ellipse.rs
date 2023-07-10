@@ -130,7 +130,12 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
 
         let color = properties.fill.get().to_piet_color();
         rc.fill(transformed_bez_path, &color);
-        rc.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), *&properties.stroke.get().width.get().into());
+
+        //hack to address "phantom stroke" bug on Web
+        let width : f64 = *&properties.stroke.get().width.get().into();
+        if width > f64::EPSILON {
+            rc.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), width);
+        }
 
     }
 }

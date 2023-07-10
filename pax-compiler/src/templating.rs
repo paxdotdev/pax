@@ -11,7 +11,6 @@ use crate::manifest::{ExpressionSpec, PropertyDefinition};
 
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
-
 #[derive(Serialize)]
 pub struct TemplateArgsCodegenPropertiesCoproductLib {
     //e.g. `Rectangle(pax_example::pax_reexports::pax_std::primitives::Rectangle)`
@@ -98,6 +97,3 @@ pub fn press_template_codegen_cartridge_render_node_literal(args: TemplateArgsCo
     let template = TEMPLATE_DIR.get_file("cartridge-render-node-literal.tera").unwrap().contents_utf8().unwrap();
     Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
-
-
-

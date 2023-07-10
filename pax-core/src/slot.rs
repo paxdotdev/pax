@@ -7,7 +7,7 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet_common::RenderContext;
 
 use crate::{InstantiationArgs, TabCache, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext, HandlerRegistry};
-use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
+use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, Layer};
 
 
 
@@ -78,5 +78,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
             },
             None => {Rc::new(RefCell::new(vec![]))}
         }
+    }
+
+    fn get_layer_type(&mut self) -> Layer {
+        Layer::DontCare
     }
 }

@@ -28,8 +28,7 @@ impl Camera {
     }
 
     pub fn handle_click(&mut self, ctx: RuntimeContext, args: ArgsClick) {
-        // let delta_pan = (args.x, args.y) - (1.0, 1.0);
-        let delta_pan = (args.x - self.pan_x.get(), args.y - self.pan_y.get());
+        let delta_pan = (args.mouse.x - self.pan_x.get(), args.mouse.y - self.pan_y.get());
         self.pan_x.ease_to(self.pan_x.get() + delta_pan.0, 200, EasingCurve::Linear);
         self.pan_y.ease_to(self.pan_y.get() + delta_pan.1, 200, EasingCurve::Linear);
 

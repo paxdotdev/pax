@@ -6,10 +6,12 @@ use piet::{RenderContext};
 use pax_std::primitives::{Text};
 use pax_core::{ComputableTransform, TabCache, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log, Layer};
+use pax_message::{AnyCreatePatch, TextPatch, TextStyleMessage};
+use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log, Layer, SizePixels};
 use pax_lang::api::numeric::Numeric;
-use pax_std::types::text::{Font, LinkStyle, opt_align_to_message, opt_link_style_to_message, opt_value_eq_opt_msg, SizeWrapper, TextAlignHorizontal, TextAlignVertical};
+use pax_std::types::text::{Font, TextStyle, TextAlignHorizontal, TextAlignVertical};
+use std::fs;
+use pax_std::types::Color;
 
 pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
@@ -45,7 +47,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             size: args.size.expect("Text requires a size"),
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
-
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -61,44 +62,86 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
-        if let Some(content) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::String(v) = content { v } else { unreachable!() };
+        if let Some(text) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(text, TypesCoproduct, String);
             properties.text.set(new_value);
         }
 
-        if let Some(font) = rtc.compute_vtable_value(properties.font._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(font, TypesCoproduct, Font);
-            properties.font.set(new_value);
+        if let Some(style_font) = rtc.compute_vtable_value(properties.style.get().font._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
+            properties.style.get_mut().font.set(new_value);
         }
 
-        if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()){
-            let new_value = if let TypesCoproduct::pax_stdCOCOtypesCOCOColor(v) = fill {v} else { unreachable!() };
-            properties.fill.set(new_value);
+        if let Some(style_font_size) = rtc.compute_vtable_value(properties.style.get().font_size._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_font_size, TypesCoproduct, SizePixels);
+            properties.style.get_mut().font_size.set(new_value);
         }
 
-        if let Some(size) = rtc.compute_vtable_value(properties.size_font._get_vtable_id()){
-            let new_value = unsafe_unwrap!(size, TypesCoproduct, SizeWrapper);
-            properties.size_font.set(new_value);
+        if let Some(style_fill) = rtc.compute_vtable_value(properties.style.get().fill._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
+            properties.style.get_mut().fill.set(new_value);
         }
 
-        if let Some(link_style) = rtc.compute_vtable_value(properties.style_link._get_vtable_id()){
-            let new_value = unsafe_unwrap!(link_style, TypesCoproduct, Option<LinkStyle>);
+        if let Some(style_underline) = rtc.compute_vtable_value(properties.style.get().underline._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_underline, TypesCoproduct, bool);
+            properties.style.get_mut().underline.set(new_value);
+        }
+
+        if let Some(style_align_multiline) = rtc.compute_vtable_value(properties.style.get().align_multiline._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_align_multiline, TypesCoproduct, TextAlignHorizontal);
+            properties.style.get_mut().align_multiline.set(new_value);
+        }
+
+        if let Some(style_align_vertical) = rtc.compute_vtable_value(properties.style.get().align_vertical._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_align_vertical, TypesCoproduct, TextAlignVertical);
+            properties.style.get_mut().align_vertical.set(new_value);
+        }
+
+        if let Some(style_align_horizontal) = rtc.compute_vtable_value(properties.style.get().align_horizontal._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_align_horizontal, TypesCoproduct, TextAlignHorizontal);
+            properties.style.get_mut().align_horizontal.set(new_value);
+        }
+
+        if let Some(style_link) = rtc.compute_vtable_value(properties.style_link._get_vtable_id()){
+            let new_value = unsafe_unwrap!(style_link, TypesCoproduct, Option<TextStyle>);
             properties.style_link.set(new_value);
         }
 
-        if let Some(align_multiline) = rtc.compute_vtable_value(properties.align_multiline._get_vtable_id()){
-            let new_value = unsafe_unwrap!(align_multiline, TypesCoproduct, Option<TextAlignHorizontal>);
-            properties.align_multiline.set(new_value);
-        }
+        if let Some(style_link) = properties.style_link.get_mut() {
+            if let Some(style_font) = rtc.compute_vtable_value(style_link.font._get_vtable_id()) {
+                let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
+                style_link.font.set(new_value);
+            }
 
-        if let Some(align_vertical) = rtc.compute_vtable_value(properties.align_vertical._get_vtable_id()){
-            let new_value = unsafe_unwrap!(align_vertical, TypesCoproduct, TextAlignVertical);
-            properties.align_vertical.set(new_value);
-        }
+            if let Some(style_font_size) = rtc.compute_vtable_value(style_link.font_size._get_vtable_id()) {
+                let new_value = unsafe_unwrap!(style_font_size, TypesCoproduct, SizePixels);
+                style_link.font_size.set(new_value);
+            }
 
-        if let Some(align_horizontal) = rtc.compute_vtable_value(properties.align_horizontal._get_vtable_id()){
-            let new_value = unsafe_unwrap!(align_horizontal, TypesCoproduct, TextAlignHorizontal);
-            properties.align_horizontal.set(new_value);
+            if let Some(style_fill) = rtc.compute_vtable_value(style_link.fill._get_vtable_id()) {
+                let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
+                style_link.fill.set(new_value);
+            }
+
+            if let Some(style_underline) = rtc.compute_vtable_value(style_link.underline._get_vtable_id()) {
+                let new_value = unsafe_unwrap!(style_underline, TypesCoproduct, bool);
+                style_link.underline.set(new_value);
+            }
+
+            if let Some(style_align_multiline) = rtc.compute_vtable_value(style_link.align_multiline._get_vtable_id()) {
+                let new_value = unsafe_unwrap!(style_align_multiline, TypesCoproduct, TextAlignHorizontal);
+                style_link.align_multiline.set(new_value);
+            }
+
+            if let Some(style_align_vertical) = rtc.compute_vtable_value(style_link.align_vertical._get_vtable_id()) {
+                let new_value = unsafe_unwrap!(style_align_vertical, TypesCoproduct, TextAlignVertical);
+                style_link.align_vertical.set(new_value);
+            }
+
+            if let Some(style_align_horizontal) = rtc.compute_vtable_value(style_link.align_horizontal._get_vtable_id()) {
+                let new_value = unsafe_unwrap!(style_align_horizontal, TypesCoproduct, TextAlignHorizontal);
+                style_link.align_horizontal.set(new_value);
+            }
         }
 
         let mut size = &mut *self.size.as_ref().borrow_mut();
@@ -121,7 +164,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
             transform.set(new_value);
         }
-
     }
 
     fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth: usize) {
@@ -163,85 +205,45 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             has_any_updates = true;
         }
 
-        let font = properties.font.get();
-        let is_new_font = match &last_patch.font {
-            Some(cached_font) => !font.eq(cached_font),
-            None => true,
+        let val = properties.style.get();
+        let is_new_val = match &last_patch.style {
+            Some(cached_value) => { !val.eq(cached_value) },
+            None => { true }
         };
-        if is_new_font {
-            new_message.font = Some(font.clone().into());
-            last_patch.font = Some(font.clone().into());
-            has_any_updates = true;
-        }
-
-        let val = properties.fill.get();
-        let is_new_value = match &last_patch.fill {
-            Some(cached_value) => !val.eq(cached_value),
-            None => true,
-        };
-        if is_new_value {
-            new_message.fill = Some(val.into());
-            last_patch.fill = Some(val.into());
-            has_any_updates = true;
-        }
-
-        let val = properties.size_font.get();
-        let is_new_value = match &last_patch.size {
-            Some(cached_value) => !val.size.0.get_as_float().eq(cached_value),
-            None => true,
-        };
-        if is_new_value {
-            new_message.size = Some(val.size.0.get_as_float().clone());
-            last_patch.size = Some(val.size.0.get_as_float().clone());
-            has_any_updates = true;
-        }
-
-
-        let val = properties.align_multiline.get();
-        let is_new_value = !opt_value_eq_opt_msg(&val, &last_patch.align_multiline);
 
         if is_new_value {
-            new_message.align_multiline = opt_align_to_message(val);
-            last_patch.align_multiline = opt_align_to_message(val);
+            new_message.style = Some(val.into());
+            last_patch.style = Some(val.into());
             has_any_updates = true;
         }
-
-        let val = properties.align_vertical.get();
-        let is_new_value = match &last_patch.align_vertical {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            },
-        };
-        if is_new_value {
-            new_message.align_vertical = Some(val.into());
-            last_patch.align_vertical = Some(val.into());
-            has_any_updates = true;
-        }
-
-        let val = properties.align_horizontal.get();
-        let is_new_value = match &last_patch.align_horizontal {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            },
-        };
-        if is_new_value {
-            new_message.align_horizontal = Some(val.into());
-            last_patch.align_horizontal = Some(val.into());
-            has_any_updates = true;
-        }
-
 
         let val = properties.style_link.get();
-        let is_new_value = !opt_value_eq_opt_msg(&val, &last_patch.style_link);
+        let is_new_val = match &last_patch.style_link {
+            Some(cached_value) => {
+                match val {
+                    Some(link_style) => { !link_style.eq(cached_value) },
+                    None => { true }
+                }
+            },
+            None => {
+                match val {
+                    Some(_) => { true },
+                    None => { false },
+                }
+            }
+        };
+
         if is_new_value {
-            new_message.style_link = opt_link_style_to_message(&val);
-            last_patch.style_link = opt_link_style_to_message(&val);
+            new_message.style_link = if let Some(link_style) = val {
+                Some(link_style.into())
+            } else {
+                None
+            };
+            last_patch.style_link = if let Some(link_style) = val {
+                Some(link_style.into())
+            } else {
+                None
+            };
             has_any_updates = true;
         }
 
