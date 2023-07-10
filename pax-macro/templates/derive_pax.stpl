@@ -98,7 +98,7 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
 
         match &ctx.visited_type_ids.get(&self_type_id as &str) {
             None => {
-                //First time visiting this file/source
+                //First time visiting this type
 
                 <% if args_full_component.as_ref().is_some() { %>
                     <% for dep in args_full_component.as_ref().unwrap().template_dependencies.clone() { %>
@@ -156,6 +156,9 @@ impl pax_compiler::parsing::Reflectable for <%= pascal_identifier %> {
                         &self_type_id,
                     );
                 <% } %>
+
+
+                //Given our comp_def,
 
                 ctx.component_definitions
                     .insert(self_type_id.clone(), comp_def);

@@ -184,6 +184,8 @@ impl ComponentDefinition {
     pub fn get_property_definitions<'a>(&self, tt: &'a TypeTable) -> &'a Vec<PropertyDefinition> {
         &tt.get(&self.type_id).unwrap().property_definitions
     }
+
+
 }
 
 /// Represents an entry within a component template, e.g. a <Rectangle> declaration inside a template
@@ -192,7 +194,7 @@ impl ComponentDefinition {
 /// A compile-time `TemplateNodeDefinition` corresponds to a single runtime `RenderNode` instance.
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct TemplateNodeDefinition {
-    /// Component-unique int ID.  Conventionally, id 0 will be the root node for a component's template
+    /// Component-unique int ID for this TemplateNodeDefinition.  Conventionally, id 0 will be the root node for a component's template
     pub id: usize,
     /// Vec of int IDs representing the child TemplateNodeDefinitions of this TemplateNodeDefinition
     pub child_ids: Vec<usize>,

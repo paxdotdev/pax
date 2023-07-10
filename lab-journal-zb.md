@@ -3033,4 +3033,37 @@ Two possible solutions:
             Then `fully_qualified_cartridge_import_path` should be available directly on TypeDefinition, without having to hack together the pax_reexports path every time.  
  
 For the correct approach, what symbols should we use to look up type_id/import path during Pratt parsing?
-E.g. `StackerDirection`, yes — `StackerDirection::Vertical` no
+E.g. `StackerDirection`, yes — `StackerDirection::Vertical` ... probably also yes, but note that the latter is a value (instance)
+
+This brings up another wrinkle — if the user specifies a value like `None`, which is in scope by import
+e.g. `import std::option::Option::*`, how can we reflect on that value?
+
+A possibility:  when dealing with `literal values`, we can create an instance given the specified value,
+then call a (new) codegenned method `get_instance_import_path(&self)`.  The logic inside `get_instance_import_path`
+could be the same as `get_import_path()`, but available on an instance. For example:
+
+```
+//the user has specified a value like None for a literal or expression
+let foo = None; //this is codegenned; TBD: where & when?
+let import_path = foo.get_instance_import_path();
+```
+
+Are there cases beyond enums where we may need to perform this instantiation trick?  An imported
+function could be tricky, e.g. `import Foo::bar` and then we are given a symbolic invocation `bar()`
+
+We should also consider the case of "helper" methods that may be called from PAXEL, like `Self::foo()`.  The
+"invocation" for that function symbol would need intelligence into the fully qualified path for Self / self
+(or an implicit Self / self, e.g. `foo()` instead of `Self::foo()` or `Self::foo(&self_instance)`)
+
+Here's another wildcard possibility:  instead of fully qualifying each import path, what if
+we continue with "global imports" in the cartridge lib, but alias duplicated type names?  E.g. if there are
+two Texts, we could opaquely convert the duplicate to `Text2` in RIL.  This still requires performing
+surgery on PAXEL literals / structs, so maybe this isn't much of a shortcut vs. fully qualifying types
+
+One simplifier: we can choose not to support bare-symbol imported enums & functions, beyond
+Rust prelude symbols like Option::* and Result::*.  E.g. `StackerDirection::Vertical` would require
+the `StackerDirection::` qualification, and `Vertical` would not be supported on its own.
+
+
+
+
