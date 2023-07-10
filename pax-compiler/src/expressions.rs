@@ -477,7 +477,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         unimplemented!("Built-ins like $bounds are not yet supported")
     } else {
 
-        let prop_def_chain = ctx.resolve_symbol_as_prop_def(&sym).unwrap();
+        let prop_def_chain = ctx.resolve_symbol_as_prop_def(&sym).expect(&format!("symbol not found: {}", &sym));
 
         let nested_prop_def = prop_def_chain.last().unwrap();
         let is_nested_numeric = ExpressionSpecInvocation::is_numeric(&nested_prop_def.type_id);

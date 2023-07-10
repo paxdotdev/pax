@@ -1,7 +1,7 @@
 pub mod text;
 
 use kurbo::{Point, RoundedRectRadii};
-use piet::{GradientStop, GradientStops, UnitPoint};
+use piet::{UnitPoint, GradientStops};
 use pax_lang::*;
 use pax_lang::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 use pax_lang::api::numeric::Numeric;
@@ -62,10 +62,16 @@ pub struct LinearGradient {
 #[derive(Pax)]
 #[custom(Default, Imports)]
 pub struct RadialGradient {
-    pub center: (Size,Size),
-    pub origin: (Size,Size),
+    pub end: (Size, Size),
+    pub start: (Size, Size),
     pub radius: f64,
     pub stops: (Color,Color),
+}
+
+//TODO: use these instead of tuples
+pub struct GradientStop {
+    position: Size,
+    color: Color,
 }
 
 impl Default for Fill {
@@ -75,7 +81,7 @@ impl Default for Fill {
 }
 
 impl Fill {
-    pub fn toUnitPoint((x,y): (Size,Size), (width,height) : (f64,f64)) -> UnitPoint {
+    pub fn to_unit_point((x,y): (Size,Size), (width,height) : (f64,f64)) -> UnitPoint {
         let normalizedX = match x {
             Size::Pixels(val) => {
                 val.get_as_float()/width
@@ -96,7 +102,7 @@ impl Fill {
         UnitPoint::new(normalizedX, normalizedY)
     }
 
-    pub fn toGradientStops((color_a, color_b) : (Color,Color)) -> Vec<GradientStop> {
+    pub fn to_piet_gradient_stops((color_a, color_b) : (Color, Color)) -> Vec<piet::GradientStop> {
         let stops = (color_a.to_piet_color(), color_b.to_piet_color());
         stops.to_vec()
     }
@@ -108,6 +114,7 @@ impl Fill {
             stops,
         })
     }
+
 
 }
 

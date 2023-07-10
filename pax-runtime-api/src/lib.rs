@@ -327,7 +327,7 @@ impl<T: Interpolatable> Interpolatable for Option<T> {
 
 impl Default for Size {
     fn default() -> Self {
-        Self::Pixels(250.0.into())
+        Self::Percent(100.0.into())
     }
 }
 
