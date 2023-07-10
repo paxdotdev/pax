@@ -2923,83 +2923,14 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
 ```
 
 
-#### Appendix: early jots, formerly code comments 
 
-```
-//TODO: how to handle nested symbol invocations, like `rect.width`?
-//      rect is an instance of a custom struct; width is property of that struct
-//       - to enable nested Property<T> access, we could create a special case of
-//         invocation, where each of `x.y.z` is resolved independently, sequentially,
-//         by building off of the previous.  Since each of the types for `x` and `y`
-//         are expected to be on the PropertiesCoproduct, this should be pretty
-//         straight-forward.
-//       - alternatively:  is there any reason we can't append + chain symbols directly?
-//         e.g. (some_complicated_invocation).some.simple_chain
-//         Is there anywhere where this falls apart?  What about `foo.bar.baz` where
-//         foo is `pax_type`'d custom struct, with property `bar`, also a `pax_type` struct, and
-//         `baz` a simple property of `bar` (not a `Property<T>`)
-//         In the `bar` case, we want to "invoke" and unwrap `bar`, just like we did
-//         `foo`, and in the `baz` case we want to call at least `.get` implicitly
-//         Can this be formalized?   `foo.`, where foo is not chain-terminal, will always
-//         be `invoked`, and `.baz`, where `.baz` is chain-terminal, will always
-//         be `.get`ted (and not type-unwrapped; this is already done for its PropertiesCoproduct container)
-//       - What about array and tuple access?  E.g. self.some_vec_of_tuples[0].1
-//          should be able to forward / codegen these literally, e.g. (some ... invocation)[0].1
-//       - Do we modify `ExpressionSpecInvocation` to be "multi-symbol-aware"?  In particular,
-//         the rest of the context for the ESI _is_ shared across each of the chained
-//         symbols, which makes it tempting to shim this in there.  Essentially,
-//         the symbols can be a Vec<>.  Here's the part that needs to be duplicated/codegenned
-//
-/*
+### Notes from creating a website
+Jul 2023
 
-Template:
-if let PropertiesCoproduct::{{ invocation.properties_coproduct_type }}(p) = properties {
-{% if invocation.is_numeric_property %}
-Numeric::from(p.{{invocation.identifier}}.get())
-{% else %}
-p.{{invocation.identifier}}.get().clone()
-{% endif %}
-} else {
-unreachable!("{{ expression_spec.id }}")
-}
-
-
-//1. handle the (implicit) self case: do nothing
-//2. handle the first identifier:
-//    chain onto (nothing) — necessarily unwrap
-
-
-//We need to know the tuple of (properties_coproduct_type, is_numeric_property, identifier)
-//for each of the chained identifiers.
-//How can we resolve the type of `bar` from `foo.bar.baz`?  (this is needed to get the above tuple)
-//We know the type of `foo` —that's a member of `self`, so we consult the stack + HashMap of string property => PropertyType lookups.
-//In this case, we need to go a bit further.  We can know easily enough that `bar`
-//is a member of the struct in question, and we can get the PropertyType for `bar`.
-//What about `baz`?  `baz` needs to be looked up independently of this HashMap stack
-// (OR, perhaps we could populate PropertyType with its own "hash map" (or list of tuples)
-// of String symbol => PropertyType value.
-
-//implicit self: p
-// foo:
-//note that this may overwrite another invocation for `foo` -- hopefully
-//     that won't be a problem!  but could revisit with some deduping logic
-//     if needed
-let foo = (if let PropertiesCoproduct::Foo(p) = properties {
-p.foo.get().clone()
-} else {
-unreachable!("{{ expression_spec.id }}")
-})
-let foo_bar = (
-if let PropertiesCoproduct::Bar(foo.bar) = properties {
-    p.{{invocation.identifier}}.get().clone()
-} else {
-    unreachable!("{{ expression_spec.id }}")
-}
-)
-
-let foo_bar_baz = (
-
-)
-
-bar:
-
+* Should this start as an example in pax-example?  (easiest to get running, can peel out later)
+    * Could also start in www.pax.dev, the submodule, as a pure userland example.  Might require setting up the CLI / generator
+    * Decided to start as a component inside pax-example, with plan to split out into a separate project
+* It would be nice to reorganize the pax_std entities — maybe most core items in the top level, breaking out into dirs for specific
+* Stumbled a bit over the linearGradient API, inherits same challenges & tech debt as Color API, addressable with general color API refactor
+* Writing nested literals, e.g. the Vec<Panel> in pax-example/lib.rs, in Rust is clumsy.  Maybe we could create a `paxel!()` macro, which handles e.g. Numeric and % => Size::Percent?
+* Found myself wanting Groups to be sized for layout (ended up using Frames instead, despite knowledge of clipping penalty / overhead).  Revisit the constraint / decision for Groups to be None-sized

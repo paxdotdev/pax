@@ -1,16 +1,4 @@
 
-//Prelude: Rust
-use std::cell::RefCell;
-use std::collections::{HashMap, VecDeque};
-use std::ops::Deref;
-use std::rc::Rc;
-//Prelude: Pax
-use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size2D, Transform2D};
-use pax_core::{ComponentInstance, RenderNodePtr, PropertyExpression, RenderNodePtrList, RenderTreeContext, ExpressionContext, PaxEngine, RenderNode, InstanceRegistry, HandlerRegistry, InstantiationArgs, ConditionalInstance, SlotInstance, StackFrame};
-use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::repeat::{RepeatInstance};
-use piet_common::RenderContext;
-
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
 {% for import in imports %}
 use {{ import }};

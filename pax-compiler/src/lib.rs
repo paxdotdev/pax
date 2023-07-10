@@ -341,11 +341,57 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
 
+
+    const IMPORTS_BUILTINS : [&str; 29] = [
+        "std::cell::RefCell",
+        "std::collections::HashMap",
+        "std::collections::VecDeque",
+        "std::ops::Deref",
+        "std::rc::Rc",
+        "pax_runtime_api::PropertyInstance",
+        "pax_runtime_api::PropertyLiteral",
+        "pax_runtime_api::Size2D",
+        "pax_runtime_api::Size",
+        "pax_runtime_api::Transform2D",
+        "pax_runtime_api::Numeric",
+        "pax_core::ComponentInstance",
+        "pax_core::RenderNodePtr",
+        "pax_core::PropertyExpression",
+        "pax_core::RenderNodePtrList",
+        "pax_core::RenderTreeContext",
+        "pax_core::ExpressionContext",
+        "pax_core::PaxEngine",
+        "pax_core::RenderNode",
+        "pax_core::InstanceRegistry",
+        "pax_core::HandlerRegistry",
+        "pax_core::InstantiationArgs",
+        "pax_core::ConditionalInstance",
+        "pax_core::SlotInstance",
+        "pax_core::StackFrame",
+        "pax_core::pax_properties_coproduct::PropertiesCoproduct",
+        "pax_core::pax_properties_coproduct::TypesCoproduct",
+        "pax_core::repeat::RepeatInstance",
+        "piet_common::RenderContext",
+    ];
+
+
+    let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
+
     #[allow(non_snake_case)]
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
-    let imports : Vec<String> = manifest.import_paths.iter().map(|path|{
-        IMPORT_PREFIX.clone() + &path.replace("crate::", "")
+
+
+    let mut imports : Vec<String> = manifest.import_paths.iter().map(|path|{
+        if ! imports_builtins_set.contains(&**path) {
+            IMPORT_PREFIX.clone() + &path.replace("crate::", "")
+        } else {
+            "".to_string()
+        }
     }).collect();
+
+    imports.append(&mut IMPORTS_BUILTINS.into_iter().map(|ib|{
+        ib.to_string()
+    }).collect::<Vec<String>>());
 
     let consts = vec![];//TODO!
 

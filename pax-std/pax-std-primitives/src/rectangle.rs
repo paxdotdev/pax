@@ -143,15 +143,15 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
                 rc.fill(transformed_bez_path, &color.to_piet_color());
             }
             Fill::LinearGradient(linear) => {
-                let linear_gradient = LinearGradient::new(Fill::toUnitPoint(linear.start,(width, height)),
-                                    Fill::toUnitPoint(linear.end, (width, height)),
-                                        Fill::toGradientStops(linear.stops.clone()));
+                let linear_gradient = LinearGradient::new(Fill::to_unit_point(linear.start,(width, height)),
+                                    Fill::to_unit_point(linear.end, (width, height)),
+                                        Fill::to_piet_gradient_stops(linear.stops.clone()));
                 rc.fill(transformed_bez_path, &linear_gradient)
             }
             Fill::RadialGradient(radial) => {
-                let origin = Fill::toUnitPoint(radial.origin, (width, height));
-                let center = Fill::toUnitPoint(radial.center, (width, height));
-                let gradient_stops = Fill::toGradientStops(radial.stops.clone());
+                let origin = Fill::to_unit_point(radial.start, (width, height));
+                let center = Fill::to_unit_point(radial.end, (width, height));
+                let gradient_stops = Fill::to_piet_gradient_stops(radial.stops.clone());
                 let radial_gradient = RadialGradient::new(radial.radius, gradient_stops).with_center(center).with_origin(origin);
                 rc.fill(transformed_bez_path, &radial_gradient);
             }

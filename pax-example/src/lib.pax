@@ -1,0 +1,34 @@
+<Frame width=100% height=100% @scroll=handle_container_scroll  >
+    // Nav fixed overlay
+    <Frame width=750px height=75px transform={
+       Transform2D::anchor(50%, 0%) *
+       Transform2D::align(50%, 0%) *
+       Transform2D::translate(0.0, 25.0)
+    }>
+        <Image path="pax-logo-light.png" width=150px height=50px transform={Transform2D::translate(12.0, 12.0)}  />
+        <Rectangle
+            fill={
+                Fill::Solid(Color::rgb(0.0, 0.0, 0.0))
+            }
+
+            corner_radii={
+                RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)
+            }
+         />
+    </Frame>
+
+    // Scrolling content pane
+    <Frame width=100% height=5000px transform={Transform2D::translate(0, self.scroll_position)}>
+        for (panel, i) in self.panels {
+            <Rectangle width=100% height=1000px
+                fill={panel.fill}
+                transform={Transform2D::translate(0.0, i * 1000.0)}
+            />
+        }
+    </Frame>
+</Frame>
+
+
+@events {
+    did_mount: handle_did_mount
+}
