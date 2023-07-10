@@ -780,11 +780,16 @@ impl LayerInfo {
         self.layer.clone()
     }
     pub fn update_depth(&mut self, layer: Layer) {
-        if self.layer != layer {
-            if layer == Layer::Canvas {
-                self.depth += 1;
+        match layer {
+            Layer::ControlFlow => {}
+            _ => {
+                if self.layer != layer {
+                    if layer == Layer::Canvas {
+                        self.depth += 1;
+                    }
+                    self.layer = layer.clone();
+                }
             }
-            self.layer = layer.clone();
         }
     }
 }
