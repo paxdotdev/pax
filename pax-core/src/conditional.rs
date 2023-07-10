@@ -80,7 +80,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn get_layer_type(&mut self) -> Layer {
-        Layer::ControlFlow
+        Layer::DontCare
     }
 
 }

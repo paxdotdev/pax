@@ -81,6 +81,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
     }
 
     fn get_layer_type(&mut self) -> Layer {
-        Layer::ControlFlow
+        Layer::DontCare
     }
 }

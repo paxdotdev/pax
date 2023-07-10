@@ -9,7 +9,7 @@ use piet::RenderContext;
 
 use pax_core::{RenderNode, TabCache, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
 use pax_core::pax_properties_coproduct::TypesCoproduct;
-use pax_runtime_api::{Transform2D, Size, PropertyInstance, PropertyLiteral, Size2D};
+use pax_runtime_api::{Transform2D, Size, PropertyInstance, PropertyLiteral, Size2D, Layer};
 use pax_message::{AnyCreatePatch, FramePatch};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
@@ -30,6 +30,7 @@ pub struct FrameInstance<R: 'static + RenderContext> {
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
+
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
@@ -66,6 +67,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     fn is_clipping(&self) -> bool {
         true
     }
+
+    fn get_layer_type(&mut self) -> Layer {
+        Layer::DontCare
+    }
+
 
     fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth: usize) {
 

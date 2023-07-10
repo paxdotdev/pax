@@ -756,7 +756,7 @@ pub struct Timeline {
 pub enum Layer {
     Native,
     Canvas,
-    ControlFlow
+    DontCare
 }
 
 pub struct LayerInfo {
@@ -781,7 +781,7 @@ impl LayerInfo {
     }
     pub fn update_depth(&mut self, layer: Layer) {
         match layer {
-            Layer::ControlFlow => {}
+            Layer::DontCare => {}
             _ => {
                 if self.layer != layer {
                     if layer == Layer::Canvas {
