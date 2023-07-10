@@ -1,12 +1,84 @@
 use std::path::PathBuf;
-use pax_lang::api::{Interpolatable, PropertyInstance, PropertyLiteral, Size2D, SizePixels};
-use pax_message::{FontPatch, FontWeightMessage, FontStyleMessage, LocalFontMessage, SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, WebFontMessage, LinkStyleMessage};
+use pax_lang::api::{Interpolatable, PropertyInstance, PropertyLiteral, SizePixels, Numeric, Property};
+use pax_message::{FontPatch, FontWeightMessage, FontStyleMessage, LocalFontMessage, SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, WebFontMessage, LinkStyleMessage, TextStyleMessage, ColorVariantMessage};
 use pax_lang::*;
-use pax_lang::api::numeric::Numeric;
 use crate::types::Color;
+
 
 #[derive(Pax)]
 #[custom(Default)]
+pub struct TextStyle {
+    pub font: Property<Font>,
+    pub font_size: Property<SizePixels>,
+    pub fill: Property<Color>,
+    pub underline: Property<bool>,
+    pub align_multiline: Property<TextAlignHorizontal>,
+    pub align_vertical: Property<TextAlignVertical>,
+    pub align_horizontal: Property<TextAlignHorizontal>,
+}
+
+impl Default for TextStyle {
+    fn default() -> Self {
+        Self {
+            font: Box::new(PropertyLiteral::new(Font::default())),
+            font_size: Box::new(PropertyLiteral::new(SizePixels(Numeric::Float(20.0)))),
+            fill: Box::new(PropertyLiteral::new(Color::rgba(Numeric::Float(0.0),
+                               Numeric::Float(0.0),
+                               Numeric::Float(0.0),
+                               Numeric::Float(1.0)))),
+            underline: Box::new(PropertyLiteral::new(false)),
+            align_multiline: Box::new(PropertyLiteral::new(TextAlignHorizontal::Left)),
+            align_vertical: Box::new(PropertyLiteral::new(TextAlignVertical::Top)),
+            align_horizontal: Box::new(PropertyLiteral::new(TextAlignHorizontal::Left)),
+        }
+    }
+}
+
+impl<'a> Into<TextStyleMessage> for &'a TextStyle {
+    fn into(self) -> TextStyleMessage {
+        TextStyleMessage {
+            font: Some(self.font.get().clone().into()),
+            font_size: Some(f64::from(&self.font_size.get().clone())),
+            fill: Some(Into::<ColorVariantMessage>::into(self.fill.get())),
+            underline: Some(self.underline.get().clone()),
+            align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(self.align_multiline.get())),
+            align_vertical: Some(Into::<TextAlignVerticalMessage>::into(self.align_vertical.get())),
+            align_horizontal: Some(Into::<TextAlignHorizontalMessage>::into(self.align_horizontal.get())),
+        }
+    }
+}
+
+impl PartialEq<TextStyleMessage> for TextStyle {
+    fn eq(&self, other: &TextStyleMessage) -> bool {
+        let font_equal = other.font.as_ref().map_or(false, |font| self.font.get().eq(font));
+
+        let font_size_equal = other.font_size.map_or(false, |size| Numeric::Float(size) == self.font_size.get().clone());
+
+        let fill_equal = other.fill.as_ref().map_or(false, |fill| self.fill.get().eq(fill));
+
+        let underline_equal = other.underline.map_or(false, |underline| underline == self.underline.get().clone());
+
+        let align_multiline_equal = other.align_multiline.as_ref().map_or(false, |align_multiline| self.align_multiline.get().eq(align_multiline));
+
+        let align_vertical_equal = other.align_vertical.as_ref().map_or(false, |align_vertical| self.align_vertical.get().eq(align_vertical));
+
+        let align_horizontal_equal = other.align_horizontal.as_ref().map_or(false, |align_horizontal| self.align_horizontal.get().eq(align_horizontal));
+
+        font_equal
+            && font_size_equal
+            && fill_equal
+            && underline_equal
+            && align_multiline_equal
+            && align_vertical_equal
+            && align_horizontal_equal
+    }
+}
+
+
+
+
+#[derive(Pax)]
+#[custom(Default, Imports)]
 pub enum Font {
     System(SystemFont),
     Web(WebFont),
@@ -101,29 +173,6 @@ pub enum TextAlignVertical {
     Bottom,
 }
 
-#[derive(Pax)]
-#[custom(Imports)]
-pub struct LinkStyle {
-    pub font: Option<Font>,
-    pub fill: Color,
-    pub underline: bool,
-    pub size: SizePixels,
-}
-
-#[derive(Pax)]
-#[custom(Imports)]
-pub struct SizeWrapper {
-    pub size: SizePixels,
-}
-
-impl SizeWrapper {
-    pub fn set(x: Numeric) -> Self{
-        Self {
-            size: SizePixels(x)
-        }
-    }
-}
-
 impl Into<TextAlignHorizontalMessage> for &TextAlignHorizontal {
     fn into(self) -> TextAlignHorizontalMessage {
         match self {
@@ -155,10 +204,6 @@ pub fn opt_align_to_message(opt_alignment: &Option<TextAlignHorizontal>) -> Opti
     })
 }
 
-pub fn opt_link_style_to_message(opt_link_style: &Option<LinkStyle>) -> Option<LinkStyleMessage> {
-    opt_link_style.as_ref().map(|link_style| link_style.clone().into())
-}
-
 pub fn opt_value_eq_opt_msg<T, U>(opt_value: &Option<T>, opt_value_msg: &Option<U>) -> bool
     where
         T: PartialEq<U>,
@@ -167,12 +212,6 @@ pub fn opt_value_eq_opt_msg<T, U>(opt_value: &Option<T>, opt_value_msg: &Option<
         (Some(value), Some(value_msg)) => value.eq(value_msg),
         (None, None) => true,
         _ => false,
-    }
-}
-
-impl PartialEq<f64> for SizeWrapper {
-    fn eq(&self, other: &f64) -> bool {
-        self.size == Numeric::from(other.clone())
     }
 }
 
@@ -348,40 +387,5 @@ impl From<FontWeight> for FontWeightMessage {
             FontWeight::ExtraBold => FontWeightMessage::ExtraBold,
             FontWeight::Black => FontWeightMessage::Black,
         }
-    }
-}
-
-impl PartialEq<LinkStyleMessage> for LinkStyle {
-    fn eq(&self, other: &LinkStyleMessage) -> bool {
-        other.font.as_ref().map_or(false, |font| self.font.as_ref().map_or(false, |s_font| s_font.eq(font)))
-            && other.fill.as_ref().map_or(false, |fill| self.fill.eq(fill))
-            && other.underline.as_ref().map_or(false, |underline| *underline == self.underline)
-            && other.size.as_ref().map_or(false, |size| self.size.eq(&Numeric::Float(*size)))
-    }
-}
-
-impl From<LinkStyle> for LinkStyleMessage {
-    fn from(ls: LinkStyle) -> Self {
-        LinkStyleMessage {
-            font: ls.font.map(|f| f.into()),
-            fill: Some((&ls.fill).into()),
-            underline: Some(ls.underline),
-            size: Some(ls.size.0.get_as_float()),
-        }
-    }
-}
-
-impl LinkStyle {
-    pub fn new(font: Option<Font>, fill: Color, underline: bool, size: SizePixels) -> Self {
-        Self { font, fill, underline, size }
-    }
-
-    pub fn arbitrary() -> Option<Self> {
-        Some(Self {
-            font: Some(Font::system("Arial".to_string(), FontStyle::Normal, FontWeight::Bold)),
-            fill: Color::rgba(0.0.into(), 0.0.into(), 1.0.into(), 1.0.into()),
-            underline: true,
-            size: SizePixels(Numeric::Float(48.0)),
-        })
     }
 }

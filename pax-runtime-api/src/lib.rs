@@ -13,6 +13,7 @@ extern crate lazy_static;
 extern crate mut_static;
 
 use mut_static::MutStatic;
+use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
 pub use crate::numeric::Numeric;
 
 pub struct TransitionQueueEntry<T> {
@@ -77,17 +78,7 @@ pub struct RuntimeContext {
     //pub timeline_playhead_position: usize,
 }
 
-
-/// A Click occurs when the following sequence occurs:
-///   0. mousedown
-///   1. mouseup, must occur within the bounding box of the linked element
-/// The contained `x` and `y` describe the coordinates relative to the linked element's bounding box
-/// where the mousedown occurred.
-#[derive(Clone)]
-pub struct ArgsClick {
-    pub x: f64,
-    pub y: f64,
-}
+// Unified events
 
 /// A Jab describes either a "click" (mousedown followed by mouseup), OR a
 /// "tap" with one finger (singular fingerdown event).
@@ -100,6 +91,7 @@ pub struct ArgsJab {
 }
 
 /// Scroll occurs when a frame is translated vertically or horizontally
+/// Can be both by touch, mouse or keyboard
 /// The contained `delta_x` and `delta_y` describe the horizontal and vertical translation of
 /// the frame
 #[derive(Clone)]
@@ -107,6 +99,187 @@ pub struct ArgsScroll {
     pub delta_x: f64,
     pub delta_y: f64,
 }
+
+// Touch Events
+
+/// Represents a single touch point.
+#[derive(Clone)]
+pub struct Touch {
+    pub x: f64,
+    pub y: f64,
+    pub identifier: i64,
+    pub delta_x: f64,
+    pub delta_y: f64,
+}
+
+impl From<&TouchMessage> for Touch {
+    fn from(value: &TouchMessage) -> Self {
+        Touch {
+            x: value.x,
+            y: value.y,
+            identifier: value.identifier,
+            delta_x: value.delta_x,
+            delta_y: value.delta_x,
+        }
+    }
+}
+
+/// A TouchStart occurs when the user touches an element.
+/// The contained `touches` represent a list of touch points.
+#[derive(Clone)]
+pub struct ArgsTouchStart {
+    pub touches: Vec<Touch>,
+}
+
+/// A TouchMove occurs when the user moves while touching an element.
+/// The contained `touches` represent a list of touch points.
+#[derive(Clone)]
+pub struct ArgsTouchMove {
+    pub touches: Vec<Touch>,
+}
+
+/// A TouchEnd occurs when the user stops touching an element.
+/// The contained `touches` represent a list of touch points.
+#[derive(Clone)]
+pub struct ArgsTouchEnd {
+    pub touches: Vec<Touch>,
+}
+
+
+// Keyboard Events
+
+/// Common properties in keyboard events.
+#[derive(Clone)]
+pub struct KeyboardEventArgs {
+    pub key: String,
+    pub modifiers: Vec<ModifierKey>,
+    pub is_repeat: bool,
+}
+
+/// User is pressing a key.
+#[derive(Clone)]
+pub struct ArgsKeyDown {
+    pub keyboard: KeyboardEventArgs,
+}
+
+/// User has released a key.
+#[derive(Clone)]
+pub struct ArgsKeyUp {
+    pub keyboard: KeyboardEventArgs,
+}
+
+/// User presses a key that displays a character (alphanumeric or symbol).
+#[derive(Clone)]
+pub struct ArgsKeyPress {
+    pub keyboard: KeyboardEventArgs,
+}
+
+// Mouse Events
+
+/// Common properties in mouse events.
+#[derive(Clone)]
+pub struct MouseEventArgs {
+    pub x: f64,
+    pub y: f64,
+    pub button: MouseButton,
+    pub modifiers: Vec<ModifierKey>,
+}
+
+#[derive(Clone)]
+pub enum MouseButton {
+    Left,
+    Right,
+    Middle,
+    Unknown,
+}
+
+impl From<MouseButtonMessage> for MouseButton {
+    fn from(value: MouseButtonMessage) -> Self {
+        match value {
+            MouseButtonMessage::Left => {MouseButton::Left}
+            MouseButtonMessage::Right => {MouseButton::Right}
+            MouseButtonMessage::Middle => {MouseButton::Middle}
+            MouseButtonMessage::Unknown => {MouseButton::Unknown}
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum ModifierKey {
+    Shift,
+    Control,
+    Alt,
+    Command,
+}
+
+impl From<&ModifierKeyMessage> for ModifierKey {
+    fn from(value: &ModifierKeyMessage) -> Self {
+        match value {
+            ModifierKeyMessage::Shift => {ModifierKey::Shift}
+            ModifierKeyMessage::Control => {ModifierKey::Control}
+            ModifierKeyMessage::Alt => {ModifierKey::Alt}
+            ModifierKeyMessage::Command => {ModifierKey::Command}
+        }
+    }
+}
+
+/// User clicks a mouse button over an element.
+#[derive(Clone)]
+pub struct ArgsClick {
+    pub mouse: MouseEventArgs,
+}
+
+/// User double-clicks a mouse button over an element.
+#[derive(Clone)]
+pub struct ArgsDoubleClick {
+    pub mouse: MouseEventArgs,
+}
+
+/// User moves the mouse while it is over an element.
+#[derive(Clone)]
+pub struct ArgsMouseMove {
+    pub mouse: MouseEventArgs,
+}
+
+/// User scrolls the mouse wheel over an element.
+#[derive(Clone)]
+pub struct ArgsWheel {
+    pub x: f64,
+    pub y: f64,
+    pub delta_x: f64,
+    pub delta_y: f64,
+    pub modifiers: Vec<ModifierKey>,
+}
+/// User presses a mouse button over an element.
+#[derive(Clone)]
+pub struct ArgsMouseDown {
+    pub mouse: MouseEventArgs,
+}
+
+/// User releases a mouse button over an element.
+#[derive(Clone)]
+pub struct ArgsMouseUp {
+    pub mouse: MouseEventArgs,
+}
+
+/// User moves the mouse onto an element.
+#[derive(Clone)]
+pub struct ArgsMouseOver {
+    pub mouse: MouseEventArgs,
+}
+
+/// User moves the mouse away from an element.
+#[derive(Clone)]
+pub struct ArgsMouseOut {
+    pub mouse: MouseEventArgs,
+}
+
+/// User right-clicks an element to open the context menu.
+#[derive(Clone)]
+pub struct ArgsContextMenu {
+    pub mouse: MouseEventArgs,
+}
+
 
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
@@ -155,6 +328,15 @@ impl<T: Interpolatable> Interpolatable for Option<T> {
 impl Default for Size {
     fn default() -> Self {
         Self::Pixels(250.0.into())
+    }
+}
+
+impl From<Size> for SizePixels {
+    fn from(value: Size) -> Self {
+        match value {
+            Size::Pixels(x) => {SizePixels(x)}
+            _ => {panic!("Non pixel Size cannot be coerced into SizePixels");}
+        }
     }
 }
 
@@ -573,7 +755,8 @@ pub struct Timeline {
 #[derive(Clone, PartialEq)]
 pub enum Layer {
     Native,
-    Canvas
+    Canvas,
+    DontCare
 }
 
 pub struct LayerInfo {
@@ -597,11 +780,17 @@ impl LayerInfo {
         self.layer.clone()
     }
     pub fn update_depth(&mut self, layer: Layer) {
-        if self.layer != layer {
-            if layer == Layer::Canvas {
-                self.depth += 1;
+        match layer {
+            Layer::DontCare => {}
+            _ => {
+                if self.layer != layer {
+                    if layer == Layer::Canvas {
+                        self.depth += 1;
+                    }
+                    self.layer = layer.clone();
+                }
             }
-            self.layer = layer.clone();
         }
     }
 }
+

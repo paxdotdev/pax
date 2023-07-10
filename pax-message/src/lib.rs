@@ -25,16 +25,196 @@ pub enum NativeMessage {
     //FUTURE: native form controls
 }
 
+
 #[derive(Deserialize)]
 #[repr(C)]
 pub enum NativeInterrupt {
-    Click(ClickInterruptArgs),
+    Jab(JabInterruptArgs),
     Scroll(ScrollInterruptArgs),
+    TouchStart(TouchStartInterruptArgs),
+    TouchMove(TouchMoveInterruptArgs),
+    TouchEnd(TouchEndInterruptArgs),
+    KeyDown(KeyDownInterruptArgs),
+    KeyUp(KeyUpInterruptArgs),
+    KeyPress(KeyPressInterruptArgs),
+    Click(ClickInterruptArgs),
+    DoubleClick(DoubleClickInterruptArgs),
+    MouseMove(MouseMoveInterruptArgs),
+    Wheel(WheelInterruptArgs),
+    MouseDown(MouseDownInterruptArgs),
+    MouseUp(MouseUpInterruptArgs),
+    MouseOver(MouseOverInterruptArgs),
+    MouseOut(MouseOutInterruptArgs),
+    ContextMenu(ContextMenuInterruptArgs),
     Image(ImageLoadInterruptArgs),
     AddedLayer(AddedLayerArgs),
 }
 
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct JabInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+}
 
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct ScrollInterruptArgs {
+    pub delta_x: f64,
+    pub delta_y: f64,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct TouchMessage {
+    pub x: f64,
+    pub y: f64,
+    pub identifier: i64,
+    pub delta_x: f64,
+    pub delta_y: f64,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct TouchStartInterruptArgs {
+    pub touches: Vec<TouchMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct TouchMoveInterruptArgs {
+    pub touches: Vec<TouchMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct TouchEndInterruptArgs {
+    pub touches: Vec<TouchMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub enum MouseButtonMessage {
+    Left,
+    Right,
+    Middle,
+    Unknown,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub enum ModifierKeyMessage {
+    Shift,
+    Control,
+    Alt,
+    Command,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct KeyDownInterruptArgs {
+    pub key: String,
+    pub modifiers: Vec<ModifierKeyMessage>,
+    pub is_repeat: bool,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct KeyUpInterruptArgs {
+    pub key: String,
+    pub modifiers: Vec<ModifierKeyMessage>,
+    pub is_repeat: bool,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct KeyPressInterruptArgs {
+    pub key: String,
+    pub modifiers: Vec<ModifierKeyMessage>,
+    pub is_repeat: bool,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct ClickInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub button: MouseButtonMessage,
+    pub modifiers: Vec<ModifierKeyMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct DoubleClickInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub button: MouseButtonMessage,
+    pub modifiers: Vec<ModifierKeyMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct MouseMoveInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub button: MouseButtonMessage,
+    pub modifiers: Vec<ModifierKeyMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct WheelInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub delta_x: f64,
+    pub delta_y: f64,
+    pub modifiers: Vec<ModifierKeyMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct MouseDownInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub button: MouseButtonMessage,
+    pub modifiers: Vec<ModifierKeyMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct MouseUpInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub button: MouseButtonMessage,
+    pub modifiers: Vec<ModifierKeyMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct MouseOverInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub button: MouseButtonMessage,
+    pub modifiers: Vec<ModifierKeyMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct MouseOutInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub button: MouseButtonMessage,
+    pub modifiers: Vec<ModifierKeyMessage>,
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct ContextMenuInterruptArgs {
+    pub x: f64,
+    pub y: f64,
+    pub button: MouseButtonMessage,
+    pub modifiers: Vec<ModifierKeyMessage>,
+}
 
 #[derive(Deserialize)]
 #[repr(C)]
@@ -79,24 +259,6 @@ pub struct MessageQueue {
 
 #[derive(Deserialize)]
 #[repr(C)]
-pub struct ClickInterruptArgs {
-    pub x: f64,
-    pub y: f64,
-
-    //FUTURE: right/middle/left click
-}
-
-#[derive(Deserialize)]
-#[repr(C)]
-pub struct ScrollInterruptArgs {
-    pub x: f64,
-    pub y: f64,
-    pub delta_x: f64,
-    pub delta_y: f64,
-}
-
-#[derive(Deserialize)]
-#[repr(C)]
 pub struct AddedLayerArgs {
     pub num_layers_added: u32,
 }
@@ -120,15 +282,23 @@ pub struct TextPatch {
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
+    pub style: Option<TextStyleMessage>,
+    pub style_link: Option<TextStyleMessage>,
+    pub depth: Option<usize>,
+}
+
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct TextStyleMessage {
     pub font: Option<FontPatch>,
+    pub font_size: Option<f64>,
     pub fill: Option<ColorVariantMessage>,
-    pub size: Option<f64>,
-    pub style_link: Option<LinkStyleMessage>,
+    pub underline: Option<bool>,
     pub align_multiline: Option<TextAlignHorizontalMessage>,
     pub align_vertical: Option<TextAlignVerticalMessage>,
     pub align_horizontal: Option<TextAlignHorizontalMessage>,
-    pub depth: Option<usize>,
 }
+
 
 #[derive(Default, Serialize)]
 #[repr(C)]

@@ -14,7 +14,7 @@ pub mod primitives {
     use pax_lang::api::SizePixels;
 
     use crate::types::PathSegment;
-    use crate::types::text::{LinkStyle, SizeWrapper};
+    use crate::types::text::{TextStyle};
 
     #[derive(Pax)]
     #[primitive("pax_std_primitives::frame::FrameInstance")]
@@ -30,7 +30,8 @@ pub mod primitives {
     #[primitive("pax_std_primitives::rectangle::RectangleInstance")]
     pub struct Rectangle {
         pub stroke: pax_lang::Property<crate::types::Stroke>,
-        pub fill: pax_lang::Property<crate::types::Color>,
+        pub fill: pax_lang::Property<crate::types::Fill>,
+        pub corner_radii: pax_lang::Property<crate::types::RectangleCornerRadii>
     }
 
     #[derive(Pax)]
@@ -55,17 +56,8 @@ pub mod primitives {
     #[primitive("pax_std_primitives::text::TextInstance")]
     pub struct Text {
         pub text: pax_lang::Property<String>,
-        pub font: pax_lang::Property<crate::types::text::Font>,
-        pub fill: pax_lang::Property<crate::types::Color>,
-        // stop-gap fix SizePixel since built-in
-        pub size_font: pax_lang::Property<SizeWrapper>,
-        pub style_link: pax_lang::Property<Option<LinkStyle>>,
-        pub align_multiline: pax_lang::Property<Option<crate::types::text::TextAlignHorizontal>>,
-        pub align_vertical: pax_lang::Property<crate::types::text::TextAlignVertical>,
-        pub align_horizontal: pax_lang::Property<crate::types::text::TextAlignHorizontal>,
-        // stop-gap fix add required types as properties
-        pub font_weight : pax_lang::Property<crate::types::text::FontWeight>,
-        pub font_style : pax_lang::Property<crate::types::text::FontStyle>,
+        pub style: pax_lang::Property<TextStyle>,
+        pub style_link: pax_lang::Property<Option<TextStyle>>,
     }
 
     #[derive(Pax)]
@@ -74,4 +66,5 @@ pub mod primitives {
     pub struct Image {
         pub path: pax_lang::Property<String>,
     }
+
 }

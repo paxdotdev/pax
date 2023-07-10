@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <title>Pax Web</title>
         <style>
-            html, body, #mount, canvas, #native-overlay, #clipping-container {
+            html, body, #mount, canvas, .native-overlay, #clipping-container {
                 margin: 0;
                 padding: 0;
                 width: 100%;
@@ -16,7 +16,7 @@
                 position: relative;
             }
 
-            #canvas {
+            .canvas {
                 position: absolute;
                 top: 0;
                 left: 0;
@@ -28,10 +28,14 @@
                 left: 0;
             }
 
-            #native-overlay {
+            .native-overlay {
                 position: absolute;
                 top: 0;
                 left: 0;
+            }
+
+            .native-overlay:focus {
+                outline: none;
             }
 
             .native-clipping {
@@ -42,7 +46,8 @@
                 white-space: pre-wrap;
                 text-overflow: ellipsis;
                 overflow: hidden;
-                transform-origin: top left;  
+                transform-origin: top left;
+                pointer-events: auto;
             }
 
         </style>
