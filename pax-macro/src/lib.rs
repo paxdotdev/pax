@@ -11,6 +11,7 @@ use std::fs::File;
 use std::convert::TryFrom;
 use std::path::Path;
 use litrs::StringLit;
+use quote::format_ident;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
@@ -483,50 +484,52 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
         Data::Enum(data_enum) => {
-            let variants = data_enum.variants.iter().map(|v| {
+            let mut variant_match_arms = Vec::new();
+            for v in data_enum.variants.iter() {
                 let variant_ident = &v.ident;
                 match &v.fields {
                     Fields::Named(fields) => {
                         let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
-                        quote! {
-                            #name::#variant_ident { #(ref #field_names, )* } => {
-                                #name::#variant_ident {
-                                    #( #field_names : #field_names.clone(), )*
-                                }
-                            }
-                        }
+                        let other_field_names: Vec<_> = field_names.iter()
+                            .map(|f| format_ident!("other_{}", f.as_ref().unwrap()))
+                            .collect();
+                        variant_match_arms.push(quote! {
+                    ( #name::#variant_ident { #(ref #field_names, )* },
+                    #name::#variant_ident { #(ref #other_field_names, )* } ) => {
+                        #( #field_names == #other_field_names )&&*
+                    }
+                });
                     }
                     Fields::Unnamed(fields) => {
-                        let indices: Vec<_> = (0..fields.unnamed.len()).map(|i| {
-                            let name = format!("_{}", i);
-                            Ident::new(&name, proc_macro2::Span::call_site())
-                        }).collect();
-                        quote! {
-                            #name::#variant_ident ( #(ref #indices, )* ) => {
-                                #name::#variant_ident (
-                                    #( #indices.clone(), )*
-                                )
-                            }
-                        }
+                        let indices: Vec<_> = (0..fields.unnamed.len()).map(syn::Index::from).collect();
+                        variant_match_arms.push(quote! {
+                    #name::#variant_ident ( #(ref #indices, )* ) => {
+                        #( self.#indices == other.#indices )&&*
+                    }
+                });
                     }
                     Fields::Unit => {
-                        quote! {
-                            #name::#variant_ident => #name::#variant_ident,
-                        }
-                    }
-                }
-            });
-
-            quote! {
-                impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                    fn clone(&self) -> Self {
-                        match self {
-                            #( #variants )*
-                        }
+                        variant_match_arms.push(quote! {
+                    #name::#variant_ident => true,
+                });
                     }
                 }
             }
+
+            quote! {
+        impl #impl_generics ::core::cmp::PartialEq for #name #ty_generics #where_clause {
+            fn eq(&self, other: &Self) -> bool {
+                match (self, other) {
+                    #( #variant_match_arms, )*
+                    _ => false,
+                }
+            }
         }
+    }
+        }
+
+
+
         Data::Union(_) => {
             panic!("`Pax` derive macro does not support unions.");
         }
@@ -593,6 +596,137 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     };
 
+    //Implement Eq
+    let eq_impl = match &input.data {
+        Data::Struct(data_struct) => {
+            match &data_struct.fields {
+                Fields::Named(fields) => {
+                    let field_names = fields.named.iter().map(|f| &f.ident);
+                    quote! {
+                    impl #impl_generics ::core::cmp::Eq for #name #ty_generics #where_clause {}
+                }
+                }
+                Fields::Unnamed(_fields) => {
+                    quote! {
+                    impl #impl_generics ::core::cmp::Eq for #name #ty_generics #where_clause {}
+                }
+                }
+                Fields::Unit => {
+                    quote! {
+                    impl #impl_generics ::core::cmp::Eq for #name #ty_generics #where_clause {}
+                }
+                }
+            }
+        }
+        Data::Enum(_data_enum) => {
+            quote! {
+                impl #impl_generics ::core::cmp::Eq for #name #ty_generics #where_clause {}
+            }
+        }
+        Data::Union(_) => {
+            panic!("`Pax` derive macro does not support unions.");
+        }
+    };
+
+    let partial_eq_impl = match &input.data {
+        Data::Struct(data_struct) => {
+            match &data_struct.fields {
+                Fields::Named(fields) => {
+                    let field_names = fields.named.iter().map(|f| &f.ident);
+                    quote! {
+                        impl #impl_generics ::core::cmp::PartialEq for #name #ty_generics #where_clause {
+                            fn eq(&self, other: &Self) -> bool {
+                                #( self.#field_names == other.#field_names )&&*
+                            }
+                        }
+                    }
+                }
+                Fields::Unnamed(fields) => {
+                    let indices = (0..fields.unnamed.len()).map(syn::Index::from);
+                    quote! {
+                        impl #impl_generics ::core::cmp::PartialEq for #name #ty_generics #where_clause {
+                            fn eq(&self, other: &Self) -> bool {
+                                #( self.#indices == other.#indices )&&*
+                            }
+                        }
+                    }
+                }
+                Fields::Unit => {
+                    quote! {
+                        impl #impl_generics ::core::cmp::PartialEq for #name #ty_generics #where_clause {
+                            fn eq(&self, _other: &Self) -> bool {
+                                true
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        Data::Enum(data_enum) => {
+            let mut variant_match_arms = Vec::new();
+            for v in data_enum.variants.iter() {
+                let variant_ident = &v.ident;
+                match &v.fields {
+                    Fields::Named(fields) => {
+                        let field_names: Vec<_> = fields.named.iter().map(|f| &f.ident).collect();
+                        let other_field_names: Vec<_> = field_names.iter()
+                            .map(|f| format_ident!("other_{}", f.as_ref().unwrap()))
+                            .collect();
+                        variant_match_arms.push(quote! {
+                    ( #name::#variant_ident { #(ref #field_names, )* },
+                    #name::#variant_ident { #(ref #other_field_names, )* } ) => {
+                        #( #field_names == #other_field_names )&&*
+                    }
+                });
+                    }
+                    Fields::Unnamed(fields) => {
+                        let len = fields.unnamed.len();
+                        let arm = match len {
+                            1 => quote! {
+            (#name::#variant_ident(ref self_0), #name::#variant_ident(ref other_0)) => {
+                self_0 == other_0
+            }
+        },
+                            2 => quote! {
+            (#name::#variant_ident(ref self_0, ref self_1), #name::#variant_ident(ref other_0, ref other_1)) => {
+                self_0 == other_0 && self_1 == other_1
+            }
+        },
+                            3 => quote! {
+            (#name::#variant_ident(ref self_0, ref self_1, ref self_2), #name::#variant_ident(ref other_0, ref other_1, ref other_2)) => {
+                self_0 == other_0 && self_1 == other_1 && self_2 == other_2
+            }
+        },
+                            _ => quote! { _ => false },
+                        };
+                        variant_match_arms.push(arm);
+                    }
+                    Fields::Unit => {
+                        variant_match_arms.push(quote! {
+                    ( #name::#variant_ident, #name::#variant_ident ) => true,
+                });
+                    }
+                }
+            }
+
+            quote! {
+        impl #impl_generics ::core::cmp::PartialEq for #name #ty_generics #where_clause {
+            fn eq(&self, other: &Self) -> bool {
+                match (self, other) {
+                    #( #variant_match_arms, )*
+                    _ => false,
+                }
+            }
+        }
+    }
+        }
+
+
+        Data::Union(_) => {
+            panic!("`Pax` derive macro does not support unions.");
+        }
+    };
+
     let mut include_imports = true;
     let mut is_custom_interpolatable = false;
 
@@ -648,6 +782,8 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         #appended_tokens
         #clone_impl
         #default_impl
+        #eq_impl
+        #partial_eq_impl
     };
 
     output.into()

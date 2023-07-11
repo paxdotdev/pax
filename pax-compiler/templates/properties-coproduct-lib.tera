@@ -3,6 +3,7 @@ use std::rc::Rc;
 
 //Component types
 #[repr(C)]
+#[derive(Eq, PartialEq)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
     None,

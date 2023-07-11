@@ -73,7 +73,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             //Vec: piecewise eq check, assume (or enforce) Vec<T: Eq>
             let is_dirty = !is_initialized || new_value.len() != self.cached_old_value_vec.as_ref().unwrap().len() || //short-circuit len check
                 new_value.iter().enumerate().any(|(i,e)|{
-                    !Rc::ptr_eq(e, self.cached_old_value_vec.as_ref().unwrap().get(i).unwrap())
+                    !Rc::eq(e, self.cached_old_value_vec.as_ref().unwrap().get(i).unwrap())
                 });
             self.cached_old_value_vec = Some(new_value.clone());
             (is_dirty, new_value)
