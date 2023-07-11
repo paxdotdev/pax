@@ -70,11 +70,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 se.get().clone()
             };
 
-            //Vec: piecewise eq check, assume (or enforce) Vec<T: Eq>
-            let is_dirty = !is_initialized || new_value.len() != self.cached_old_value_vec.as_ref().unwrap().len() || //short-circuit len check
-                new_value.iter().enumerate().any(|(i,e)|{
-                    !Rc::ptr_eq(e, self.cached_old_value_vec.as_ref().unwrap().get(i).unwrap())
-                });
+            let is_dirty = true; // hard-coded true until we have a proper dirty-watching DAG
             self.cached_old_value_vec = Some(new_value.clone());
             (is_dirty, new_value)
         } else if let Some(se) = &self.source_expression_range {
@@ -84,7 +80,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 if let TypesCoproduct::stdCOCOopsCOCORangeLABRisizeRABR(vec) = tc { vec } else { unreachable!() }
             } else { unreachable!() };
 
-            let is_dirty = !is_initialized || self.cached_old_value_range.as_ref().unwrap() != &new_value;
+            let is_dirty = true; // hard-coded true until we have a proper dirty-watching DAG
             self.cached_old_value_range = Some(new_value.clone());
             let normalized_vec_of_props = new_value.into_iter().enumerate().map(|(i, elem)|{Rc::new(PropertiesCoproduct::isize(elem))}).collect();
             (is_dirty, normalized_vec_of_props)
@@ -99,12 +95,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             };
 
             //unmount all old virtual_children, permanently (NOTE: this can be much-optimized)
-            (*(*self.virtual_children).borrow_mut()).iter_mut().for_each(|vc| {
-                (*(*(*vc).borrow_mut())).borrow_mut().unmount_recursive(rtc, true);
+            (*self.virtual_children).borrow_mut().iter().for_each(|child| {
+                (*(*child)).borrow_mut().unmount_recursive(rtc, true);
             });
 
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
-
 
             //reset children:
             //wrap source_expression into `RepeatItems`, which attach
@@ -129,12 +124,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                         }
                     ));
 
-
                     instance_registry.register(instance_id, Rc::clone(&render_node));
+                    instance_registry.mark_mounted(instance_id, rtc.get_id_chain(instance_id));
 
                     render_node
                 }).collect()
             ));
+
         }
 
 

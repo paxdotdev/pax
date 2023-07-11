@@ -2925,7 +2925,8 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
 
 
 ### Notes from creating a website
-Jul 2023
+
+#### Jul 10 2023
 
 * Should this start as an example in pax-example?  (easiest to get running, can peel out later)
     * Could also start in www.pax.dev, the submodule, as a pure userland example.  Might require setting up the CLI / generator
@@ -2934,3 +2935,67 @@ Jul 2023
 * Stumbled a bit over the linearGradient API, inherits same challenges & tech debt as Color API, addressable with general color API refactor
 * Writing nested literals, e.g. the Vec<Panel> in pax-example/lib.rs, in Rust is clumsy.  Maybe we could create a `paxel!()` macro, which handles e.g. Numeric and % => Size::Percent?
 * Found myself wanting Groups to be sized for layout (ended up using Frames instead, despite knowledge of clipping penalty / overhead).  Revisit the constraint / decision for Groups to be None-sized
+
+
+#### Jul 11
+Notes from Warfa:
+1) The image issue was that path under-specified
+
+Ok
+
+2) I had to remove the option from style_link cause couldn't wrap nested struct in an option easily
+
+Probably the same issue as "cannot yet use enum literals in PAXEL."  (so cannot use Some(...))
+
+3) when I added stacker to lib, ran into the same import issue with built-ins for Numeric/Size and the re-exports of them by stacker. Solved this by removing Numeric & Size from the built-ins. But a real solution would be to add proper dedupe logic. Wasn't immediately obvious if we should just use type name to dedupe.
+
+Probably due to different apparent import paths for the aliased pax_lang::... import vs. the pax_runtime_api::... import, both pointing to the same struct
+Using the `import_path` discovered dynamically in our hard-coded list, instead of using `pax_runtime_api::Numeric` in the hard-coded list, for example, is probably a suitable approach
+
+4) Hit a bug when using the stacker horizontally with text. Realized I had somehow lost absolute positioning on the native layer. Fixed it and finished navbar
+
+Ok
+
+5) Converted for loop to a stacker for the panels.
+
+Ok
+
+6) I hit a bug where we constantly sending text updates patches. Not sure what the issue is yet but you can see it in console.log
+
+Two separate issues:
+ - 1. in the absence of a proper DAG for dirty-watching, Repeat destroys and creates its child elements each frame (expected behavior, if unideal)
+ - 2. apparently there's a bug hampering proper deletion / creation in some cases.
+
+First approach, ultimately shelved: set up a proper equality check in Repeat before churning elements, as the existing Rc::ptr_eq was not working.  This required deriving `Eq` and `PartialEq` for every pax type, which was a rabbit hole.  Discarded this approach fairly quickly, hard-coding a "dirty = true" on each tick in Repeat until we have the dirty-DAG 
+
+Observations: id_chains seem malformed, e.g. several `[0]`s and several cases where multiple levels of chaining are expected but not presented (e.g. just `[11]`, not `[1, 11]` or similar.)
+    Seems plausible that this is some sort of off-by-one error when constructing the ID chain, e.g. missing a level of recursion, or otherwise faulty logic somewhere in the very old `instance_registry` logic. 
+Approach: get bug into a state reproducible on macos, so that a debugger can be attached
+Hypothesis: this is a different manifestation of the same bug already observed on macOS:
+    "0.5.0 bug: repeated native elements aren't destroyed"
+Thus, will chase down "repeated native elements aren't destroyed" with a debugger and see if that fixes (or if I can otherwise thus gain insights into) the deletion bug observed on web
+
+Observations:
+ - InstanceRegistry#register, #deregister, and #instance_map might all be dead code, as nothing ever reads them.
+ - If the above is true, it seems the mechanism used by Repeat to unmount elements is a no-op.  
+   This handily explains some (all?) of the broken behavior we are seeing: Repeat is incorrectly / partially destroying elements.
+    Either we need to update the 'hydrated node expansion' logic in the engine core to be aware of the
+    adjustments made by Repeat, or we need to update Repeat's (and Conditional's?) deletion logic to be more mindful
+   - Note: Conditional doesn't use this mechanism at all; it uses a "double buffer" approach, with one empty children buffer and one many-children buffer.
+ - Further investigation: instance_registry#instance_map seems to be used as an Rc safety-net, 
+    ensuring the count of the Rc will always be at least 1.  Removing from instance_registry
+    allows the Rc to be cleaned up, "garbage collected," so its use is valid in this context.
+
+Perhaps: we need to _mark for removal_ at the _end of the frame_ (or even the beginning of next frame), instead
+         of deleting on the spot. This may be necessary to allow full clean-up throughout the tick lifecycle!
+
+
+Findings in progress:
+ - Repeat + element deletion simply isn't implemented;
+   - Repeat's element deletion system is similar to Conditional's, with the key
+        difference that conditional keeps track of a static subtree of rendernodes for each
+        branch true/false, simply routing rendering into the correct subtree based on the conditional expression
+        Repeat, on the other hand, destroys and createes new elements to map to underlying data.
+        Specifically, the vestigial InstanceRegistry logic surrounding mounting was not updated to be 
+        aware of id_chains. 
+ 

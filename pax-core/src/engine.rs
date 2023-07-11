@@ -419,6 +419,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
 pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///look up RenderNodePtr by id
     instance_map: HashMap<u64, RenderNodePtr<R>>,
+    marked_for_deletion_set: Vec<u64>,
 
     ///a cache of "actual elements" visited by rendertree traversal,
     ///intended to be cleared at the beginning of each frame and populated
@@ -436,12 +437,14 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
 impl<R: 'static + RenderContext> InstanceRegistry<R> {
     pub fn new() -> Self {
         Self {
+            marked_for_deletion_set: vec![],
             mounted_set: HashSet::new(),
             instance_map: HashMap::new(),
             repeat_expanded_node_cache: vec![],
             next_id: 0,
         }
     }
+
 
     pub fn mint_id(&mut self) -> u64 {
         let new_id = self.next_id;
@@ -453,8 +456,15 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.instance_map.insert(instance_id, node);
     }
 
-    pub fn deregister(&mut self, instance_id: u64) {
-        self.instance_map.remove(&instance_id);
+    pub fn mark_for_deletion(&mut self, id_chain: Vec<u64>) {
+        self.marked_for_deletion_set.push(instance_id);
+    }
+
+    pub fn drop_marked_nodes(&mut self) {
+        self.marked_for_deletion_set.iter().for_each(|instance_id| {
+            self.instance_map.remove(instance_id).expect("tried to remove a node that was already removed");
+        });
+        self.marked_for_deletion_set = vec![];
     }
 
     pub fn mark_mounted(&mut self, id: u64, repeat_indices: Vec<u64>) {
@@ -519,6 +529,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             inherited_adoptees: None,
         };
 
+        //drop the Rcs for nodes that were marked for deletion last frame, allowing
+        //them to be garbage-collected.  This must happen at the beginning of the frame
+        //to allow full clean-up through the lifecycle of the previous frame
+        &self.instance_registry.borrow_mut().drop_marked_nodes();
+
+
         let mut depth = LayerInfo::new();
         self.recurse_traverse_render_tree(&mut rtc, rcs, Rc::clone(&cast_component_rc), &mut depth);
 
@@ -542,6 +558,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - done with this frame
+
+
 
         //populate a pointer to this (current) `RenderNode` onto `rtc`
         rtc.node = Rc::clone(&node);
