@@ -103,11 +103,11 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
 
         if let Some(style_link) = rtc.compute_vtable_value(properties.style_link._get_vtable_id()){
-            let new_value = unsafe_unwrap!(style_link, TypesCoproduct, Option<TextStyle>);
+            let new_value = unsafe_unwrap!(style_link, TypesCoproduct, TextStyle);
             properties.style_link.set(new_value);
         }
 
-        if let Some(style_link) = properties.style_link.get_mut() {
+        if let style_link = properties.style_link.get_mut() {
             if let Some(style_font) = rtc.compute_vtable_value(style_link.font._get_vtable_id()) {
                 let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
                 style_link.font.set(new_value);
@@ -219,31 +219,13 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
         let val = properties.style_link.get();
         let is_new_val = match &last_patch.style_link {
-            Some(cached_value) => {
-                match val {
-                    Some(link_style) => { !link_style.eq(cached_value) },
-                    None => { true }
-                }
-            },
-            None => {
-                match val {
-                    Some(_) => { true },
-                    None => { false },
-                }
-            }
+            Some(cached_value) => { !val.eq(cached_value) },
+            None => { true }
         };
 
         if is_new_value {
-            new_message.style_link = if let Some(link_style) = val {
-                Some(link_style.into())
-            } else {
-                None
-            };
-            last_patch.style_link = if let Some(link_style) = val {
-                Some(link_style.into())
-            } else {
-                None
-            };
+            new_message.style_link = Some(val.into());
+            last_patch.style_link = Some(val.into());
             has_any_updates = true;
         }
 

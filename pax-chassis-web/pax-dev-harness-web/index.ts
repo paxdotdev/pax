@@ -505,6 +505,7 @@ class NativeElementPool {
                 const links = textChild.querySelectorAll('a');
                 links.forEach((link: HTMLDivElement) => {
                     if (linkStyle.font) {
+                        console.log(linkStyle.font);
                         linkStyle.font.applyFontToDiv(link);
                     }
                     if (linkStyle.fill) {
@@ -517,6 +518,17 @@ class NativeElementPool {
                             newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
                         }
                         link.style.color = newValue;
+                    }
+
+                    if (linkStyle.align_horizontal) {
+                        leaf.style.display = "flex";
+                        leaf.style.justifyContent = getJustifyContent(linkStyle.align_horizontal);
+                    }
+                    if (linkStyle.align_vertical) {
+                        leaf.style.alignItems = getAlignItems(linkStyle.align_vertical);
+                    }
+                    if (linkStyle.align_multiline) {
+                        textChild.style.textAlign = getTextAlign(linkStyle.align_multiline);
                     }
                     if (linkStyle.underline != null) {
                         link.style.textDecoration = linkStyle.underline ? 'underline' : 'none';
@@ -543,15 +555,15 @@ class NativeElementPool {
 
 
     textDelete(id_chain: number[]) {
-
         // @ts-ignore
         let oldNode = this.textNodes[id_chain];
         console.assert(oldNode !== undefined);
-        // @ts-ignore
-        delete this.textNodes[id_chain];
-
-        let parent = oldNode.parentElement;
-        parent.removeChild(oldNode);
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent.removeChild(oldNode);
+            // @ts-ignore
+            delete this.textNodes[id_chain];
+        }
     }
 
     frameCreate(patch: AnyCreatePatch) {
@@ -764,8 +776,10 @@ class Font {
     mapFontStyle(fontStyle: FontStyle) {
         switch (fontStyle) {
             case FontStyle.Normal:
+                console.log("setting normal");
                 return 'normal';
             case FontStyle.Italic:
+                console.log("setting italic");
                 return 'italic';
             case FontStyle.Oblique:
                 return 'oblique';
@@ -840,13 +854,13 @@ class Font {
 
 
     applyFontToDiv(div: HTMLDivElement) {
-        if (this.family) {
+        if (this.family != undefined) {
             div.style.fontFamily = this.family;
         }
-        if (this.style) {
+        if (this.style != undefined) {
             div.style.fontStyle = this.mapFontStyle(this.style);
         }
-        if (this.weight) {
+        if (this.weight != undefined) {
             div.style.fontWeight = String(this.mapFontWeight(this.weight));
         }
     }
@@ -929,6 +943,7 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
             nativePool.textCreate(new AnyCreatePatch(msg));
         }else if (unwrapped_msg["TextUpdate"]){
             let msg = unwrapped_msg["TextUpdate"]
+            console.log(msg);
             nativePool.textUpdate(new TextUpdatePatch(msg));
         }else if (unwrapped_msg["TextDelete"]) {
             let msg = unwrapped_msg["TextDelete"];

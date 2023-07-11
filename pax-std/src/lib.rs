@@ -57,7 +57,7 @@ pub mod primitives {
     pub struct Text {
         pub text: pax_lang::Property<String>,
         pub style: pax_lang::Property<TextStyle>,
-        pub style_link: pax_lang::Property<Option<TextStyle>>,
+        pub style_link: pax_lang::Property<TextStyle>,
     }
 
     #[derive(Pax)]
