@@ -2,10 +2,16 @@
 <Stacker cells=5 width=100% height=100% gutter=5px>
     <Stacker cells=10 height=100% width=100% direction=StackerDirection::Vertical gutter=5px >
         for i in 0..10 {
-            <Rectangle width=100% height=100% fill={Fill::Solid(Color::rgb(0.5, 0.5, 1.0 / (10.0-i)))} />
+            <Group>
+                <Text text="hello" />
+                <Rectangle width=100% height=100% fill={Fill::Solid(Color::rgb(0.5, 0.5, 1.0 / (10.0-i)))} />
+            </Group>
         }
     </Stacker>
     for i in 0..4 {
-        <Rectangle width=100% height=100% fill={Fill::Solid(Color::rgb(1.0 / (5.0-i), 0.0, 0.5))} />
+        <Group>
+            <Text text="hello" />
+            <Rectangle width=100% height=100% fill={Fill::Solid(Color::rgb(1.0 / (5.0-i), 0.0, 0.5))} />
+        </Group>
     }
 </Stacker>

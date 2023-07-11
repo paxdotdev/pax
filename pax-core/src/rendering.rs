@@ -125,9 +125,11 @@ pub trait RenderNode<R: 'static + RenderContext>
 
             self.handle_will_unmount(rtc);
 
+            let id_chain = rtc.get_id_chain(self.get_instance_id());
+
             if permanent {
                 //cleans up memory, otherwise leads to runaway allocations in instance_registry
-                instance_registry.deregister(self.get_instance_id());
+                instance_registry.mark_for_deletion(self.get_instance_id());
             }
         }
 
