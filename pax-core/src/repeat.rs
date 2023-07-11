@@ -125,7 +125,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                     ));
 
                     instance_registry.register(instance_id, Rc::clone(&render_node));
-                    instance_registry.mark_mounted(instance_id, rtc.get_id_chain(instance_id));
+                    instance_registry.mark_mounted(rtc.get_id_chain(instance_id));
+
+                    // (&*render_node).borrow_mut().mount_recursive(rtc);
 
                     render_node
                 }).collect()

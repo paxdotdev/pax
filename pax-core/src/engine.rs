@@ -419,16 +419,15 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
 pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///look up RenderNodePtr by id
     instance_map: HashMap<u64, RenderNodePtr<R>>,
-    marked_for_deletion_set: Vec<u64>,
 
-    ///a cache of "actual elements" visited by rendertree traversal,
+    ///a cache of repeat-expanded elements visited by rendertree traversal,
     ///intended to be cleared at the beginning of each frame and populated
     ///with each node visited.  This enables post-facto operations on nodes with
     ///otherwise ephemeral calculations, e.g. the descendants of `Repeat` instances.
     repeat_expanded_node_cache: Vec<Rc<RepeatExpandedNode<R>>>,
 
-    ///track which elements are currently mounted -- if id is present in set, is mounted
-    mounted_set: HashSet<(u64, Vec<u64>)>,
+    ///track which repeat-expanded elements are currently mounted -- if id is present in set, is mounted
+    mounted_set: HashSet<Vec<u64>>,
 
     ///register holding the next value to mint as an id
     next_id: u64,
@@ -437,14 +436,12 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
 impl<R: 'static + RenderContext> InstanceRegistry<R> {
     pub fn new() -> Self {
         Self {
-            marked_for_deletion_set: vec![],
             mounted_set: HashSet::new(),
             instance_map: HashMap::new(),
             repeat_expanded_node_cache: vec![],
             next_id: 0,
         }
     }
-
 
     pub fn mint_id(&mut self) -> u64 {
         let new_id = self.next_id;
@@ -456,27 +453,20 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.instance_map.insert(instance_id, node);
     }
 
-    pub fn mark_for_deletion(&mut self, id_chain: Vec<u64>) {
-        self.marked_for_deletion_set.push(instance_id);
+    pub fn deregister(&mut self, instance_id: u64) {
+        self.instance_map.remove(&instance_id);
     }
 
-    pub fn drop_marked_nodes(&mut self) {
-        self.marked_for_deletion_set.iter().for_each(|instance_id| {
-            self.instance_map.remove(instance_id).expect("tried to remove a node that was already removed");
-        });
-        self.marked_for_deletion_set = vec![];
+    pub fn mark_mounted(&mut self, id_chain: Vec<u64>) {
+        self.mounted_set.insert(id_chain);
     }
 
-    pub fn mark_mounted(&mut self, id: u64, repeat_indices: Vec<u64>) {
-        self.mounted_set.insert((id, repeat_indices));
+    pub fn is_mounted(&self, id_chain: &Vec<u64>) -> bool {
+        self.mounted_set.contains(id_chain)
     }
 
-    pub fn is_mounted(&self, id: u64, repeat_indices: Vec<u64>) -> bool {
-        self.mounted_set.contains(&(id, repeat_indices))
-    }
-
-    pub fn mark_unmounted(&mut self, id: u64, repeat_indices: Vec<u64>) {
-        self.mounted_set.remove(&(id, repeat_indices));
+    pub fn mark_unmounted(&mut self, id_chain: &Vec<u64>) {
+        self.mounted_set.remove(id_chain);
     }
 
     pub fn reset_repeat_expanded_node_cache(&mut self) {
@@ -529,12 +519,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             inherited_adoptees: None,
         };
 
-        //drop the Rcs for nodes that were marked for deletion last frame, allowing
-        //them to be garbage-collected.  This must happen at the beginning of the frame
-        //to allow full clean-up through the lifecycle of the previous frame
-        &self.instance_registry.borrow_mut().drop_marked_nodes();
-
-
         let mut depth = LayerInfo::new();
         self.recurse_traverse_render_tree(&mut rtc, rcs, Rc::clone(&cast_component_rc), &mut depth);
 
@@ -579,8 +563,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
 
             //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
-            let repeat_indices = (*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack();
-            if !instance_registry.is_mounted(id, repeat_indices.clone()) {
+            let mut repeat_indices = (*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack();
+            let id_chain = {let mut i = vec![id]; i.append(&mut repeat_indices); i};
+            if !instance_registry.is_mounted(&id_chain) {
                 //Fire primitive-level did_mount lifecycle method
                 node.borrow_mut().handle_did_mount(rtc);
 
@@ -600,7 +585,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                         },
                     }
                 }
-                instance_registry.mark_mounted(id, repeat_indices.clone());
+                instance_registry.mark_mounted(id_chain);
             }
         }
 

@@ -2996,6 +2996,6 @@ Findings in progress:
         difference that conditional keeps track of a static subtree of rendernodes for each
         branch true/false, simply routing rendering into the correct subtree based on the conditional expression
         Repeat, on the other hand, destroys and createes new elements to map to underlying data.
-        Specifically, the vestigial InstanceRegistry logic surrounding mounting was not updated to be 
+   - Specifically, the vestigial InstanceRegistry logic surrounding mounting was not updated to be 
         aware of id_chains. 
  
