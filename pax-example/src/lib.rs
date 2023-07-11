@@ -1,19 +1,10 @@
-pub mod hello_rgb;
-pub mod fireworks;
-pub mod grids;
-pub mod camera;
-pub mod words;
 
 use pax_lang::*;
 use pax_lang::api::*;
 use pax_std::primitives::{Frame, Group, Rectangle, Text, Image};
-use pax_std::types::{Color, Fill, LinearGradient};
+use pax_std::types::{Color, Fill, LinearGradient, StackerDirection};
+use pax_std::components::{Stacker};
 
-use crate::grids::Grids;
-use crate::hello_rgb::HelloRGB;
-use crate::fireworks::Fireworks;
-use crate::camera::Camera;
-use crate::words::Words;
 
 const ROUTE_COUNT : usize = 5;
 
@@ -54,69 +45,69 @@ impl Example {
     }
 
     pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
-        self.panels.set(vec![
-            Panel{
-                fill: Fill::LinearGradient(
-                    LinearGradient {
-                        start: (Size::Percent(0.0.into()),Size::Percent(0.0.into())),
-                        end: (Size::Percent(100.0.into()),Size::Percent(100.0.into())),
-                        stops: (
-                            Color::rgb(Numeric::from(1.0), Numeric::from(1.0), Numeric::from(0.0)),
-                            Color::rgb(Numeric::from(1.0), Numeric::from(0.0), Numeric::from(1.0))
-                        ),
-                    }
-                )
-            },
-            Panel{
-                fill: Fill::LinearGradient(
-                    LinearGradient {
-                        start: (Size::Percent(0.0.into()),Size::Percent(0.0.into())),
-                        end: (Size::Percent(100.0.into()),Size::Percent(100.0.into())),
-                        stops: (
-                            Color::rgb(Numeric::from(0.0), Numeric::from(1.0), Numeric::from(1.0)),
-                            Color::rgb(Numeric::from(0.0), Numeric::from(1.0), Numeric::from(0.0))
-                        ),
-                    }
-                )
-            },
-            Panel{
-                fill: Fill::LinearGradient(
-                    LinearGradient {
-                        start: (Size::Percent(0.0.into()),Size::Percent(0.0.into())),
-                        end: (Size::Percent(100.0.into()),Size::Percent(100.0.into())),
-                        stops: (
-                            Color::rgb(Numeric::from(1.0), Numeric::from(0.0), Numeric::from(0.0)),
-                            Color::rgb(Numeric::from(0.0), Numeric::from(1.0), Numeric::from(1.0))
-                        ),
-                    }
-                )
-            },
-            Panel{
-                fill: Fill::LinearGradient(
-                    LinearGradient {
-                        start: (Size::Percent(0.0.into()),Size::Percent(0.0.into())),
-                        end: (Size::Percent(100.0.into()),Size::Percent(100.0.into())),
-                        stops: (
-                            Color::rgb(Numeric::from(1.0), Numeric::from(0.0), Numeric::from(1.0)),
-                            Color::rgb(Numeric::from(0.0), Numeric::from(1.0), Numeric::from(0.0))
-                        ),
-                    }
-                )
-            },
-            Panel{
-                fill: Fill::LinearGradient(
-                    LinearGradient {
-                        start: (Size::Percent(0.0.into()),Size::Percent(0.0.into())),
-                        end: (Size::Percent(100.0.into()),Size::Percent(100.0.into())),
-                        stops: (
-                            Color::rgb(Numeric::from(0.0), Numeric::from(0.0), Numeric::from(1.0)),
-                            Color::rgb(Numeric::from(1.0), Numeric::from(1.0), Numeric::from(0.0))
-                        ),
-                    }
-                )
-            },
-        ])
-    }
+    //     self.panels.set(vec![
+    //         Panel{
+    //             fill: Fill::LinearGradient(
+    //                 LinearGradient {
+    //                     start: (Size::Percent(0.0.into()),Size::Percent(0.0.into())),
+    //                     end: (Size::Percent(100.0.into()),Size::Percent(100.0.into())),
+    //                     stops: (
+    //                         Color::rgb(Numeric::from(1.0), Numeric::from(1.0), Numeric::from(0.0)),
+    //                         Color::rgb(Numeric::from(1.0), Numeric::from(0.0), Numeric::from(1.0))
+    //                     ),
+    //                 }
+    //             )
+    //         },
+    //         Panel{
+    //             fill: Fill::LinearGradient(
+    //                 LinearGradient {
+    //                     start: (Size::Percent(0.0.into()),Size::Percent(0.0.into())),
+    //                     end: (Size::Percent(100.0.into()),Size::Percent(100.0.into())),
+    //                     stops: (
+    //                         Color::rgb(Numeric::from(0.0), Numeric::from(1.0), Numeric::from(1.0)),
+    //                         Color::rgb(Numeric::from(0.0), Numeric::from(1.0), Numeric::from(0.0))
+    //                     ),
+    //                 }
+    //             )
+    //         },
+    //         Panel{
+    //             fill: Fill::LinearGradient(
+    //                 LinearGradient {
+    //                     start: (Size::Percent(0.0.into()),Size::Percent(0.0.into())),
+    //                     end: (Size::Percent(100.0.into()),Size::Percent(100.0.into())),
+    //                     stops: (
+    //                         Color::rgb(Numeric::from(1.0), Numeric::from(0.0), Numeric::from(0.0)),
+    //                         Color::rgb(Numeric::from(0.0), Numeric::from(1.0), Numeric::from(1.0))
+    //                     ),
+    //                 }
+    //             )
+    //         },
+    //         Panel{
+    //             fill: Fill::LinearGradient(
+    //                 LinearGradient {
+    //                     start: (Size::Percent(0.0.into()),Size::Percent(0.0.into())),
+    //                     end: (Size::Percent(100.0.into()),Size::Percent(100.0.into())),
+    //                     stops: (
+    //                         Color::rgb(Numeric::from(1.0), Numeric::from(0.0), Numeric::from(1.0)),
+    //                         Color::rgb(Numeric::from(0.0), Numeric::from(1.0), Numeric::from(0.0))
+    //                     ),
+    //                 }
+    //             )
+    //         },
+    //         Panel{
+    //             fill: Fill::LinearGradient(
+    //                 LinearGradient {
+    //                     start: (Size::Percent(0.0.into()),Size::Percent(0.0.into())),
+    //                     end: (Size::Percent(100.0.into()),Size::Percent(100.0.into())),
+    //                     stops: (
+    //                         Color::rgb(Numeric::from(0.0), Numeric::from(0.0), Numeric::from(1.0)),
+    //                         Color::rgb(Numeric::from(1.0), Numeric::from(1.0), Numeric::from(0.0))
+    //                     ),
+    //                 }
+    //             )
+    //         },
+    //     ])
+     }
 }
 
 #[derive(Pax)]

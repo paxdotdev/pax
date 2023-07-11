@@ -342,7 +342,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
 
 
-    const IMPORTS_BUILTINS : [&str; 29] = [
+    const IMPORTS_BUILTINS : [&str; 27] = [
         "std::cell::RefCell",
         "std::collections::HashMap",
         "std::collections::VecDeque",
@@ -351,9 +351,7 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
         "pax_runtime_api::PropertyInstance",
         "pax_runtime_api::PropertyLiteral",
         "pax_runtime_api::Size2D",
-        "pax_runtime_api::Size",
         "pax_runtime_api::Transform2D",
-        "pax_runtime_api::Numeric",
         "pax_core::ComponentInstance",
         "pax_core::RenderNodePtr",
         "pax_core::PropertyExpression",

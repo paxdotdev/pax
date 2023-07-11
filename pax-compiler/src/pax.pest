@@ -100,13 +100,15 @@ events_value = { literal_function | function_list }
 literal_function = { "self."? ~ identifier ~ ","? }
 function_list = {"[" ~ literal_function* ~ "]"}
 
-literal_value = { literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | string }
+literal_value = { literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
 literal_number_with_unit = { literal_number ~ literal_number_unit }
 literal_number = {literal_number_float | literal_number_integer}
 literal_number_integer = {(!(".") ~ ASCII_DIGIT)+ }
 literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
 literal_number_unit = {("%" | "px")}
 literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
+literal_boolean = {("true" | "false")}
+
 
 //Enums like Orientation::Vertical or Color::Rgba(100%, 100%, 0, 0)
 //Note that this is parsed separately from expression enums, `xo_enum*`
