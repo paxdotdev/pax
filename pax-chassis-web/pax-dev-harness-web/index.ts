@@ -559,7 +559,20 @@ class NativeElementPool {
         //console.assert(oldNode !== undefined);
         if (oldNode){
             let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+
+            //Two-fold hack here.
+            //1. using requestAnimationFrame to remove the child allows us to
+            //   show nodes for at least one frame, when e.g. in Repeat they would otherwise be churned
+            //   before they can render.
+            //2. a problem that arises from above: the old elements that haven't been removed yet will interfere
+            //   with input events for the new elements.  Thus the second fold of the hack: mark pointerEvents => none on
+            //   the old element so it will "get out of the way."
+            //Note that neither hack should be necessary in the presences of a dirty-watching DAG, such that Repeat
+            //doesn't need to churn elements every tick.  This comes with a significant perf. penalty.
+            oldNode.style.pointerEvents = "none";
+            requestAnimationFrame(() => {
+                parent.removeChild(oldNode);
+            })
             // @ts-ignore
             delete this.textNodes[id_chain];
         }

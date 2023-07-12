@@ -428,6 +428,8 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
 
     ///track which repeat-expanded elements are currently mounted -- if id is present in set, is mounted
     mounted_set: HashSet<Vec<u64>>,
+    ///tracks whichs instance nodes are marked for unmounting, to be done at the correct point in the render tree lifecycle
+    marked_for_unmount_set: HashSet<u64>,
 
     ///register holding the next value to mint as an id
     next_id: u64,
@@ -437,6 +439,7 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
     pub fn new() -> Self {
         Self {
             mounted_set: HashSet::new(),
+            marked_for_unmount_set: HashSet::new(),
             instance_map: HashMap::new(),
             repeat_expanded_node_cache: vec![],
             next_id: 0,
@@ -465,8 +468,8 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.mounted_set.contains(id_chain)
     }
 
-    pub fn mark_unmounted(&mut self, id_chain: &Vec<u64>) {
-        self.mounted_set.remove(id_chain);
+    pub fn mark_for_unmount(&mut self, instance_id: u64) {
+        self.marked_for_unmount_set.insert(instance_id);
     }
 
     pub fn reset_repeat_expanded_node_cache(&mut self) {
@@ -520,7 +523,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         };
 
         let mut depth = LayerInfo::new();
-        self.recurse_traverse_render_tree(&mut rtc, rcs, Rc::clone(&cast_component_rc), &mut depth);
+        self.recurse_traverse_render_tree(&mut rtc, rcs, Rc::clone(&cast_component_rc), &mut depth, false);
+        //reset the marked_for_unmount set
+        self.instance_registry.borrow_mut().marked_for_unmount_set = HashSet::new();
 
         if depth.get_depth() >= rcs.len() {
             let layerAddPatch = LayerAddPatch {
@@ -534,20 +539,17 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         native_render_queue.into()
     }
 
-    fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext<R>, rcs: &mut Vec<R>, node: RenderNodePtr<R>, layer_info: &mut LayerInfo)  {
+    fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext<R>, rcs: &mut Vec<R>, node: RenderNodePtr<R>, layer_info: &mut LayerInfo, marked_for_unmount: bool)  {
         //Recurse:
         //  - compute properties for this node
         //  - fire lifecycle events for this node
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
-        //  - done with this frame
-
-
+        //  - manage unmounting, if marked
 
         //populate a pointer to this (current) `RenderNode` onto `rtc`
         rtc.node = Rc::clone(&node);
-
 
         //lifecycle: compute_properties happens before rendering
         node.borrow_mut().compute_properties(rtc);
@@ -657,14 +659,24 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //so the order in which `add_to_repeat_expanded_node_cache` is invoked vs. descendants is important
         (*rtc.engine.instance_registry).borrow_mut().add_to_repeat_expanded_node_cache(Rc::clone(&repeat_expanded_node));
 
+
+        let instance_id = node.borrow().get_instance_id();
+
+        //Determine if this node is marked for unmounting — either this has been passed as a flag from an ancestor that
+        //was marked for deletion, or this instance_node is present in the InstanceRegistry's "marked for unmount" set.
+        let marked_for_unmount = marked_for_unmount || self.instance_registry.borrow().marked_for_unmount_set.contains(&instance_id);
+
+
         //keep recursing through children
         children.borrow_mut().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
             new_rtc.parent_repeat_expanded_node = Some(Rc::clone(&repeat_expanded_node));
-            &self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), layer_info );
+            &self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), layer_info, marked_for_unmount );
             //FUTURE: for dependency management, return computed values from subtree above
         });
+
+
 
         let node_type = node.borrow_mut().get_layer_type();
         layer_info.update_depth(node_type);
@@ -682,6 +694,16 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         } else {
             node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec(), last_layer);
             node.borrow_mut().handle_render(rtc, rcs.get_mut(last_layer).unwrap());
+        }
+
+
+        //Handle node unmounting
+        if marked_for_unmount {
+
+            //lifecycle: will_unmount
+            node.borrow_mut().handle_will_unmount(rtc);
+            let id_chain = rtc.get_id_chain(instance_id);
+            self.instance_registry.borrow_mut().mounted_set.remove(&id_chain);//, "Tried to unmount a node, but it was not mounted");
         }
 
         //lifecycle: did_render

@@ -21,7 +21,8 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub source_expression_vec: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
     pub source_expression_range: Option<Box<dyn PropertyInstance<std::ops::Range<isize>>>>,
-    pub virtual_children: RenderNodePtrList<R>,
+    pub active_children: RenderNodePtrList<R>,
+    pub next_frame_children: Option<RenderNodePtrList<R>>,
     /// Used for hacked dirty-checking, in the absence of our centralized dirty-checker
     cached_old_value_vec: Option<Vec<Rc<PropertiesCoproduct>>>,
     cached_old_value_range: Option<std::ops::Range<isize>>,
@@ -46,7 +47,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             transform: args.transform,
             source_expression_vec: args.repeat_source_expression_vec,
             source_expression_range: args.repeat_source_expression_range,
-            virtual_children: Rc::new(RefCell::new(vec![])),
+            active_children: Rc::new(RefCell::new(vec![])),
+            next_frame_children: None,
             cached_old_value_vec: None,
             cached_old_value_range: None,
         }));
@@ -57,9 +59,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
-        let is_initialized =
-            (if let Some(_) = self.cached_old_value_vec {true} else {false})
-            || (if let Some(_) = self.cached_old_value_range {true} else {false});
+        if self.next_frame_children.is_some() {
+            self.active_children = Rc::clone(self.next_frame_children.as_ref().unwrap());
+            self.next_frame_children = None;
+        }
 
         let (is_dirty, normalized_vec_of_props) = if let Some(se) = &self.source_expression_vec {
             //Handle case where the source expression is a Vec<Property<T>>,
@@ -70,7 +73,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 se.get().clone()
             };
 
-            let is_dirty = true; // hard-coded true until we have a proper dirty-watching DAG
+            //Major hack: will only consider a new vec dirty if its cardinality changes.
+            // let is_dirty = {
+            //     if self.cached_old_value_vec.is_none() {
+            //         true
+            //     } else {
+            //         self.cached_old_value_vec.as_ref().unwrap().len() != new_value.len()
+            //     }
+            // };
+            let is_dirty = true;
             self.cached_old_value_vec = Some(new_value.clone());
             (is_dirty, new_value)
         } else if let Some(se) = &self.source_expression_range {
@@ -80,7 +91,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 if let TypesCoproduct::stdCOCOopsCOCORangeLABRisizeRABR(vec) = tc { vec } else { unreachable!() }
             } else { unreachable!() };
 
-            let is_dirty = true; // hard-coded true until we have a proper dirty-watching DAG
+            //Major hack: will only consider a new vec dirty if its cardinality changes.
+            // let is_dirty = {
+            //     if self.cached_old_value_range.is_none() {
+            //         true
+            //     } else {
+            //         self.cached_old_value_range.as_ref().unwrap().len() != new_value.len()
+            //     }
+            // };
+            let is_dirty = true;
             self.cached_old_value_range = Some(new_value.clone());
             let normalized_vec_of_props = new_value.into_iter().enumerate().map(|(i, elem)|{Rc::new(PropertiesCoproduct::isize(elem))}).collect();
             (is_dirty, normalized_vec_of_props)
@@ -94,17 +113,18 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 None => {Rc::new(RefCell::new(vec![]))},
             };
 
-            //unmount all old virtual_children, permanently (NOTE: this can be much-optimized)
-            (*self.virtual_children).borrow_mut().iter().for_each(|child| {
-                (*(*child)).borrow_mut().unmount_recursive(rtc, true);
-            });
-
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
+
+            (*self.active_children).borrow_mut().iter().for_each(|child| {
+                let instance_id = (*(*child)).borrow_mut().get_instance_id();
+                instance_registry.deregister(instance_id);
+                instance_registry.mark_for_unmount(instance_id);
+            });
 
             //reset children:
             //wrap source_expression into `RepeatItems`, which attach
             //the necessary data as stack frame context
-            self.virtual_children = Rc::new(RefCell::new(
+            self.next_frame_children = Some(Rc::new(RefCell::new(
                 normalized_vec_of_props.iter().enumerate().map(|(i, datum)| {
                     let instance_id = instance_registry.mint_id();
 
@@ -131,7 +151,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
                     render_node
                 }).collect()
-            ));
+            )));
 
         }
 
@@ -140,11 +160,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         // pax_runtime_api::log(&format!("finished computing repeat properties, virt len: {}", (*self.virtual_children).borrow().len()));
     }
 
+
     fn should_flatten(&self) -> bool {
         true
     }
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
-        Rc::clone(&self.virtual_children)
+        Rc::clone(&self.active_children)
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
@@ -152,7 +173,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
     }
-
 }
 
 

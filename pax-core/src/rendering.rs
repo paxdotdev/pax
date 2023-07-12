@@ -111,66 +111,6 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
-
-    // fn mount_recursive(&mut self, rtc: &mut RenderTreeContext<R>) {
-    //     {
-    //         let id = self.get_instance_id();
-    //         let mut repeat_indices = (&(*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack()).clone();
-    //         let id_chain = {let mut i = vec![id]; i.append(&mut repeat_indices); i};
-    //         let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
-    //         if !instance_registry.is_mounted(&id_chain) {
-    //             instance_registry.mark_mounted(id_chain);
-    //         }
-    //     }
-    //
-    //     self.handle_did_mount(rtc);
-    //
-    //     for child in (*self.get_rendering_children()).borrow().iter() {
-    //         (*(*child)).borrow_mut().mount_recursive(rtc);
-    //     }
-    // }
-
-
-    /// For this element and its subtree of rendering elements, mark as unmounted in InstanceRegistry
-    /// If `permanent` is passed (namely, if this is not a "transient" unmount such as for `Conditional`), then
-    /// the instance is permanently removed from the instance_registry
-    fn unmount_recursive(&mut self, rtc: &mut RenderTreeContext<R>, permanent: bool) {
-        {
-            let id = self.get_instance_id();
-            let mut repeat_indices = (*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack();
-            let id_chain = {let mut i = vec![id]; i.append(&mut repeat_indices); i};
-            let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
-            if instance_registry.is_mounted(&id_chain) {
-                instance_registry.mark_unmounted(&id_chain);
-            }
-
-            self.handle_will_unmount(rtc);
-
-            if permanent {
-                //cleans up memory, otherwise leads to runaway allocations in instance_registry
-                instance_registry.deregister(self.get_instance_id());
-            }
-        }
-
-        for child in (*self.get_rendering_children()).borrow().iter() {
-            (*(*child)).borrow_mut().unmount_recursive(rtc, permanent);
-        }
-    }
-
-    // /// Recursively collects all nodes from subtree into a single
-    // /// list, **exclusive of the current node.** (This is due to Rc<RefCell<>>/ownership constraints)
-    // /// This list is ordered descending by z-index and is appropriate at least for 2D raycasting.
-    // fn get_rendering_subtree_flattened(&self) -> RenderNodePtrList<R> {
-    //
-    //     //push each child to the front of the running list, bottom-first
-    //     //(so that top-most elements are always at the front)
-    //
-    //     let children = self.get_rendering_children();
-    //     let ret = recurse_get_rendering_subtree_flattened(children);
-    //
-    //     Rc::new(RefCell::new(ret))
-    // }
-
     ///Determines whether the provided ray, orthogonal to the view plane,
     ///intersects this rendernode. `tab` must also be passed because these are specific
     ///to a RepeatExpandedNode
