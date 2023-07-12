@@ -13,11 +13,12 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 /// with the `if` syntax in templates.
 pub struct ConditionalInstance<R: 'static + RenderContext> {
     pub instance_id: u64,
-    pub primitive_children: RenderNodePtrList<R>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub boolean_expression: Box<dyn PropertyInstance<bool>>,
-    pub empty_children: RenderNodePtrList<R>,
 
+    pub boolean_expression: Box<dyn PropertyInstance<bool>>,
+    pub true_branch_children: RenderNodePtrList<R>,
+    pub false_branch_children: RenderNodePtrList<R>,
+
+    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
@@ -31,13 +32,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
-            primitive_children: match args.children {
+            true_branch_children: match args.children {
                 None => {Rc::new(RefCell::new(vec![]))}
                 Some(children) => children
             },
             transform: args.transform,
             boolean_expression: args.conditional_boolean_expression.expect("Conditional requires boolean_expression"),
-            empty_children: Rc::new(RefCell::new(vec![])),
+            false_branch_children: Rc::new(RefCell::new(vec![])),
 
         }));
 
@@ -50,14 +51,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
             let old_value = *self.boolean_expression.get();
             let new_value = if let TypesCoproduct::bool(v) = boolean_expression { v } else { unreachable!() };
 
+            let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
             if old_value && !new_value {
-                //mark subtree as `unmounted` -- this will trigger the dismount lifecycle event in the main render loop
-                //Note that it's not required to set_mounted(... true) because the main render loop will automatically
-                //flip that bit if a node is rendered.  In other words: it's important that Conditional not continue
-                //to return unmounted children in `get_rendering_children`, otherwise they will automatically be `mounted` again.
-                (*self.primitive_children).borrow_mut().iter().for_each(|child| {
-                    (*(*child)).borrow_mut().unmount_recursive(rtc, false);
-                })
+                (*self.true_branch_children).borrow_mut().iter().for_each(|child| {
+                    let instance_id = (*(*child)).borrow_mut().get_instance_id();
+                    instance_registry.deregister(instance_id);
+                    instance_registry.mark_for_unmount(instance_id);
+                });
             }
 
             self.boolean_expression.set(new_value);
@@ -69,9 +69,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
     }
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         if *self.boolean_expression.get() {
-            Rc::clone(&self.primitive_children)
+            Rc::clone(&self.true_branch_children)
         } else {
-            Rc::clone(&self.empty_children)
+            Rc::clone(&self.false_branch_children)
         }
 
     }

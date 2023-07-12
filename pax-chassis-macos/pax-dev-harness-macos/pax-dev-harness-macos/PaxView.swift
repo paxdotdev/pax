@@ -218,11 +218,26 @@ struct PaxView: View {
             createDisplayLink()
         }
 
+        private var requestAnimationFrameQueue: [() -> Void] = []
+
+        private func processRequestAnimationFrameQueue() {
+            // Execute and remove each closure in the array
+            while !requestAnimationFrameQueue.isEmpty {
+                let closure = requestAnimationFrameQueue.removeFirst()
+                closure()
+            }
+        }
+
+        func requestAnimationFrame(_ closure: @escaping () -> Void) {
+            requestAnimationFrameQueue.append(closure)
+        }
+
         private func createDisplayLink() {
             CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
             CVDisplayLinkSetOutputHandler(displayLink!) { [weak self] (_, _, _, _, _) -> CVReturn in
                 DispatchQueue.main.async {
                     self?.setNeedsDisplay(self?.bounds ?? NSRect.zero)
+                    self?.processRequestAnimationFrameQueue()
                 }
                 return kCVReturnSuccess
             }
@@ -285,7 +300,9 @@ struct PaxView: View {
         }
 
         func handleTextDelete(patch: AnyDeletePatch) {
-            textElements.remove(id: patch.id_chain)
+            self.requestAnimationFrame { [weak self] in
+                self?.textElements.remove(id: patch.id_chain)
+            }
         }
 
         func handleFrameCreate(patch: AnyCreatePatch) {

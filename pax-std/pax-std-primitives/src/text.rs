@@ -300,12 +300,12 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     }
 
     fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        // unplugged in desperation, search codebase for "unplugged in desperation"
         self.last_patches.clear();
         let id_chain = _rtc.get_id_chain(self.instance_id);
         (*_rtc.engine.runtime).borrow_mut().enqueue_native_message(
             pax_message::NativeMessage::TextDelete(id_chain)
         );
+
     }
 
     fn get_layer_type(&mut self) -> Layer {

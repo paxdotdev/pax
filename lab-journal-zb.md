@@ -2999,3 +2999,60 @@ Findings in progress:
    - Specifically, the vestigial InstanceRegistry logic surrounding mounting was not updated to be 
         aware of id_chains. 
  
+
+#### Jul 12 2023
+
+
+Notes from Warfa:
+1) Removed the print lines and made the text delete a no-op for undefined id chains. This rendered the repeat bug pretty much invisible for the site. Probably worth pushing that work until after we finish the site unless it's something that is close.
+    Agree it's not on critical path for initial site.  Almost there, time-boxing to 90 minutes today.
+2) One behavior that wasn't super intuitive was that stacker didn't respect the width and height it was set with. I initially didn't plan on wrapping each stacker with another frame until I noticed this. lmk if this is as expected
+   (Likely Group sizing, TODO: validate)
+3) The sizes property on stacker seems to break when I set it. I couldn't figure out if that was because I was creating the vec in the wrong way or some broken functionality. That is a blocker to make the text look decent on the website so worth looking into.
+   (Possibly Group sizing)
+4) Writing the markdown list was pretty annoying using a string in the ide. It defaults to adding tab formatting. went on a bit of a wild goose chase for this until I realized it was these tabs that were creating the unintended markdown side effects.
+   let me know if you have any questions. Will be online for next hour or so.
+   
+One solution could be to support Rust-style `r#####"`... for string literals, but this is a bit ugly.
+    
+Another option is to lean into XML and to define the Text API a bit further.  An idea:
+
+```jsx
+<Text>
+    <Markdown>
+        //We special-handle tabs here, removing the same number of spaces from each line
+        Hello — I don't need to use double-quotes around this, because `Markdown` can handle the raw character contents
+        
+        This feels a lot like writing a `<div>Hello ...</div>` in HTML
+    </Markdown>
+</Text>
+
+
+<Text>
+    Just plain' ol unicode text here; we can give it the same tab removal treatment
+    ... and maybe even support literal new-lines by default? i.e. no need to `\n`
+    
+    We could introduce another wrapper like `Markdown`, maybe `Literal`, which requires e.g.
+    explicit newline characters, more like we would expect a string literal to behave in a programming language
+</Text>
+```
+
+
+
+#### 90-minute timebox
+
+Problem:  each time Repeat creates a new ComponentInstance, it mints it a new instance_id.
+Immediately at this time, it unmounts the previous instance & its subtree.  All of this is OK.
+
+The bug!!  When we `unmount_recursive`, we do it all with the same `rtc`, which doesn't respect the 
+per-node context required to generate id_chain, which is why we're passing mal-formed id_chains.
+
+Solution:  mark_for_unmount as a method on InstanceRegistry, handle that unmounting during render tree traversal, just like `mounting`.
+
+Note that unmounting happens at the `Instance Node` level, passing a flag to all descendents that they should unmount
+
+
+Update at end of 90 minutes: nearly there!  only problem now is the `___Create` and `___Delete` messages are sent on the same frame.
+As a result, text never renders; it churns too fast on both macos and web.
+1. proper dirty-watching DAG would fix this, or 2. some sort of hack to ensure created elements sustain for at least one frame.
+
