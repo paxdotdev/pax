@@ -505,7 +505,6 @@ class NativeElementPool {
                 const links = textChild.querySelectorAll('a');
                 links.forEach((link: HTMLDivElement) => {
                     if (linkStyle.font) {
-                        console.log(linkStyle.font);
                         linkStyle.font.applyFontToDiv(link);
                     }
                     if (linkStyle.fill) {
@@ -557,7 +556,7 @@ class NativeElementPool {
     textDelete(id_chain: number[]) {
         // @ts-ignore
         let oldNode = this.textNodes[id_chain];
-        console.assert(oldNode !== undefined);
+        //console.assert(oldNode !== undefined);
         if (oldNode){
             let parent = oldNode.parentElement;
             parent.removeChild(oldNode);
@@ -776,10 +775,8 @@ class Font {
     mapFontStyle(fontStyle: FontStyle) {
         switch (fontStyle) {
             case FontStyle.Normal:
-                console.log("setting normal");
                 return 'normal';
             case FontStyle.Italic:
-                console.log("setting italic");
                 return 'italic';
             case FontStyle.Oblique:
                 return 'oblique';
@@ -943,7 +940,6 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
             nativePool.textCreate(new AnyCreatePatch(msg));
         }else if (unwrapped_msg["TextUpdate"]){
             let msg = unwrapped_msg["TextUpdate"]
-            console.log(msg);
             nativePool.textUpdate(new TextUpdatePatch(msg));
         }else if (unwrapped_msg["TextDelete"]) {
             let msg = unwrapped_msg["TextDelete"];
