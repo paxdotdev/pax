@@ -300,9 +300,9 @@ struct PaxView: View {
         }
 
         func handleTextDelete(patch: AnyDeletePatch) {
-            self.requestAnimationFrame { [weak self] in
-                self?.textElements.remove(id: patch.id_chain)
-            }
+//            self.requestAnimationFrame { [weak self] in
+            self.textElements.remove(id: patch.id_chain)
+//            }
         }
 
         func handleFrameCreate(patch: AnyCreatePatch) {
