@@ -2924,9 +2924,9 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
 
 
 
-### Notes from creating a website
+## Notes from creating a website
 
-#### Jul 10 2023
+### Jul 10 2023
 
 * Should this start as an example in pax-example?  (easiest to get running, can peel out later)
     * Could also start in www.pax.dev, the submodule, as a pure userland example.  Might require setting up the CLI / generator
@@ -2937,7 +2937,7 @@ requires knowing the type of the data at hand, both to unwrap intermediate `Prop
 * Found myself wanting Groups to be sized for layout (ended up using Frames instead, despite knowledge of clipping penalty / overhead).  Revisit the constraint / decision for Groups to be None-sized
 
 
-#### Jul 11
+### Jul 11
 Notes from Warfa:
 1) The image issue was that path under-specified
 
@@ -3000,19 +3000,24 @@ Findings in progress:
         aware of id_chains. 
  
 
-#### Jul 12 2023
+### Jul 12 2023
 
 
 Notes from Warfa:
 1) Removed the print lines and made the text delete a no-op for undefined id chains. This rendered the repeat bug pretty much invisible for the site. Probably worth pushing that work until after we finish the site unless it's something that is close.
-    Agree it's not on critical path for initial site.  Almost there, time-boxing to 90 minutes today.
+    Agree it's not on critical path for initial site.  Almost there, time-boxing to 90 minutes today. [Update: took longer than 90 minutes but took a step forward, and got text on Web to a stable, non-churning place.]
 2) One behavior that wasn't super intuitive was that stacker didn't respect the width and height it was set with. I initially didn't plan on wrapping each stacker with another frame until I noticed this. lmk if this is as expected
-   (Likely Group sizing, TODO: validate)
+   Very likely, you are expecting `<Group width=something />` to do something.  This is a reasonable expectation, but 
+   in fact Group does not support sizing (will silently refuse to accept sizes.)  The reason for this:  Group sits at the intersection of 
+    a design tool concept (Group, which has no size of its own; it simply has the super-bounding-box of its contained elements) and a sort of "Group as `div`" as 
+   we would use in HTML.  
+    The "correct" way to have sized containers for now is to use a Frame, which allows fixed sizing.  We might introduce a "clip : bool" property on Frame
+    if we double-down on Frame being the blessed way to have a sized Group, so that we can use them freely without incurring clipping perf penalties.  
+    We can also revisit the question of whether a Group should support sizing, but this would require some new thinking backwards from the design tool and possibly some refactoring around how we handle "None-sizing".
 3) The sizes property on stacker seems to break when I set it. I couldn't figure out if that was because I was creating the vec in the wrong way or some broken functionality. That is a blocker to make the text look decent on the website so worth looking into.
-   (Possibly Group sizing)
+   Very likely the same as above — if you are expecting a Stacker inside a Group to respect the size you set on that Group,
+    your expectations will be broken.  Try changing the Group to a Frame and see if things work as you expect.
 4) Writing the markdown list was pretty annoying using a string in the ide. It defaults to adding tab formatting. went on a bit of a wild goose chase for this until I realized it was these tabs that were creating the unintended markdown side effects.
-   let me know if you have any questions. Will be online for next hour or so.
-   
 One solution could be to support Rust-style `r#####"`... for string literals, but this is a bit ugly.
     
 Another option is to lean into XML and to define the Text API a bit further.  An idea:
@@ -3037,11 +3042,12 @@ Another option is to lean into XML and to define the Text API a bit further.  An
 </Text>
 ```
 
+Finally, with a light but slightly hacky touch, we could special-case multi-line strings as they exist today `<Text text="multiline string beginning here...">`, to remove matched leading space from all lines
 
 
-#### 90-minute timebox
+#### 90-minute timebox into "proper repeat unmounting"
 
-Problem:  each time Repeat creates a new ComponentInstance, it mints it a new instance_id.
+Each time Repeat creates a new ComponentInstance, it mints it a new instance_id.
 Immediately at this time, it unmounts the previous instance & its subtree.  All of this is OK.
 
 The bug!!  When we `unmount_recursive`, we do it all with the same `rtc`, which doesn't respect the 
@@ -3051,8 +3057,26 @@ Solution:  mark_for_unmount as a method on InstanceRegistry, handle that unmount
 
 Note that unmounting happens at the `Instance Node` level, passing a flag to all descendents that they should unmount
 
-
 Update at end of 90 minutes: nearly there!  only problem now is the `___Create` and `___Delete` messages are sent on the same frame.
 As a result, text never renders; it churns too fast on both macos and web.
 1. proper dirty-watching DAG would fix this, or 2. some sort of hack to ensure created elements sustain for at least one frame.
+OR 3. a hacked dirty-watching mechanism (which is the approach I ended up taking)
 
+Note: also pursued #2 for Web, with a requestAnimationFrame hack for removing text nodes.  It's worth either:
+ - pulling the same rAF logic into other native node cleanup, or
+ - removing the rAF (and hacked macOS rAF) logic once we have dirty-DAG
+
+Further note: hacked the "cardinality check" dirty checking into place for Repeat — now Repeat elements will 
+only update if the length of its source vector changes.  
+Trade-off:  `self.some_vec.set(new_vec_of_same_length_as_old)` will not update as expected!  This is an ugly bug that can go away with proper dirty-checking (dirty DAG).
+
+#### Sign-off notes:
+
+ - Responsiveness: did some tire-kicking; seems to port pretty well out of the box to in-Chrome responsive screen simulators.  Probably need to 
+    figure out how to make the nav bar dynamically sized, though, pending a sanity check on a real phone.
+ - Weird breaking on Web, opened in Safari on iPhone via iOS simulator.  Seems to be partially crashing, semi-consistently throwing the error that I've been seeing spuriously via the Webpack error overlay screen.
+   - See https://docs.google.com/document/d/10JpV5qivbT8o2y2oPL2Z403WPKvgeAULhFFjE19YJeM/edit
+   - Fortunately, the page seems to work as expected on macOS Safari
+ - Content: needs another pass, already WIP over here.  Broadly, I'm feeling this messaging needs to lean
+    a bit more "sell the dream" than "sell the utility" at this point.  This probably comes to bear as an alternative to, or a wordier addendum to, the "table stakes" section.
+ 

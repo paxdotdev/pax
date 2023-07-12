@@ -1,24 +1,24 @@
 <Frame width=100% height=100% @scroll=handle_container_scroll  >
     // Nav fixed overlay
-    <Frame width=750px height=75px transform={
+    <Frame width=1150px height=75px transform={
        Transform2D::anchor(50%, 0%) *
        Transform2D::align(50%, 0%) *
        Transform2D::translate(0.0, 25.0)
     }>
-     <Stacker cells=5 height=100% width=100% direction=StackerDirection::Horizontal gutter=8px transform={Transform2D::translate(12.0, 12.0)}>
-        <Image path="assets/images/pax-logo-light.png" width=140px height=50px/>
-        <Text text="<a href='https://docs.pax.rs' target='_blank'>Docs</a>" class=link />
-        <Text text="<a href='https://www.github.com/pax-lang/pax' target='_blank'>Github</a>" class=link />
-        <Text text="<a href='https://discord.gg/Eq8KWAUc6b' target='_blank'>Discord</a>" class=link />
-        <Text text="<a href='https://developing.pax.rs' target='_blank'>Blog</a>" class=link />
-     </Stacker>
+         <Stacker cells=5 height=75px width=100% direction=StackerDirection::Horizontal gutter=8px>
+            <Image path="assets/images/pax-logo-light.png" width=125px height=42px transform={Transform2D::align(0%, 50%) * Transform2D::anchor(0%, 50%) * Transform2D::translate(20, 0)}/>
+            <Text text="<a href='https://docs.pax.rs' target='_blank'>Docs</a>" class=link />
+            <Text text="<a href='https://www.github.com/pax-lang/pax' target='_blank'>Github</a>" class=link />
+            <Text text="<a href='https://discord.gg/Eq8KWAUc6b' target='_blank'>Discord</a>" class=link />
+            <Text text="<a href='https://developing.pax.rs' target='_blank'>Blog</a>" class=link />
+         </Stacker>
         <Rectangle
             fill={
                 Fill::Solid(Color::rgb(0.0, 0.0, 0.0))
             }
 
             corner_radii={
-                RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)
+                RectangleCornerRadii::radii(50.0,50.0,50.0,50.0)
             }
          />
     </Frame>
@@ -121,6 +121,7 @@
         }
         width: 80px,
         height: 50px,
+        transform: {Transform2D::align(0%, 50%) * Transform2D::anchor(0%, 50%)}
     }
     #f1 {
         width: 600px,
