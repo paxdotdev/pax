@@ -247,10 +247,20 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 let exp1 = recurse_pratt_parse_to_string( exp1.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
                 format!("({},{})", exp0, exp1)
             },
+            Rule::xo_list => {
+                let mut list = primary.into_inner();
+                let mut vec = Vec::new();
+
+                while let Some(item) = list.next() {
+                    let item_str = recurse_pratt_parse_to_string(item.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
+                    vec.push(item_str);
+                }
+                format!("vec![{}]", vec.join(","))
+            },
             Rule::expression_body => {
                 recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser.clone(), Rc::clone(&symbolic_ids))
             },
-            _ => unreachable!("{}hello",primary.as_str()),
+            _ => unreachable!("{}",primary.as_str()),
         })
         .map_prefix(|op, rhs| match op.as_rule() {
             Rule::xo_neg => format!("(-{})", rhs),

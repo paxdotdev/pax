@@ -26,7 +26,7 @@
     // Scrolling content pane
     <Frame width=100% height=5000px transform={Transform2D::translate(0, self.scroll_position)}>
         <Stacker cells=5 height=100% width=100% direction=StackerDirection::Vertical gutter=0px>
-        <Group width=100% height=1000px >
+        <Group>
             <Frame id=f1>
             <Stacker cells=2 direction=StackerDirection::Vertical gutter=20px >
                 <Text text="Pax is a user interface engine for native apps & websites" class=h1 />
@@ -40,9 +40,9 @@
                     (Color::rgb(1.0,1.0,0.0), Color::rgb(1.0,0.0,1.0)))}
             />
         </Group>
-        <Group width=100% height=1000px >
+        <Group>
             <Frame id=f2>
-            <Stacker cells=2 direction=StackerDirection::Vertical gutter=20px >
+            <Stacker cells=2 direction=StackerDirection::Vertical gutter=20px sizes={[Option::Some(20%), Option::None]}>
                 <Text text="Build creatively" class=h1/>
                 <Text text="Pax renders in the same coordinate space as a tool like Photoshop or Figma, with the addition of responsive positioning & sizing, as well as a fine-grained animation engine. Create and compose custom components into apps. Write application logic in Rust, while describing content & style in Pax’s declarative UI language." class=p2 />
             </Stacker>
@@ -54,12 +54,12 @@
                     (Color::rgb(0.0,1.0,1.0), Color::rgb(0.0,1.0,0.0)))}
         />
         </Group>
-        <Group width=100% height=1000px >
+        <Group>
         <Frame id=f2>
         <Stacker cells=3 direction=StackerDirection::Vertical gutter=10px >
             <Text text="Create collaboratively" class=h1/>
             <Text text="Pax’s declarative language is [grammatically constrained] to be readable & writable by visual tooling. Our team is building a collaborative visual designer for Pax so anyone on your team can contribute to codebases" class=p2 />
-            <Text text="[Sign up for updates](https://developing.pax.rs)" id=l1 />
+            <Text text="[Sign up for updates](https://developing.pax.rs)" id=l2 />
         </Stacker>
         </Frame>
         <Rectangle width=100% height=1000px
@@ -69,9 +69,9 @@
                     (Color::rgb(1.0,0.0,0.0), Color::rgb(0.0,1.0,1.0)))}
         />
         </Group>
-         <Group width=100% height=1000px >
+         <Group>
             <Frame id=f2>
-                <Stacker cells=2 direction=StackerDirection::Vertical gutter=10px >
+                <Stacker cells=2 direction=StackerDirection::Vertical gutter=10px sizes={[Option::Some(20%), Option::None]} >
                     <Text text="Fast & lightweight" class=h1/>
                     <Text text="Built in Rust and C with native-language bindings (e.g. Swift & TypeScript), Pax is fast. Animations render at up to 240 frames per second. Footprints are tiny: <100KB for WebAssembly and <500KB for native builds." class=p2 />
                 </Stacker>
@@ -83,7 +83,7 @@
                 (Color::rgb(1.0,0.0,1.0), Color::rgb(0.0,1.0,0.0)))}
             />
         </Group>
-        <Group width=100% height=1000px >
+        <Group >
             <Frame id=f2>
                 <Stacker cells=3 direction=StackerDirection::Vertical gutter=10px >
                     <Text text="Open source" class=h1/>
@@ -162,6 +162,18 @@
             font_size: 36px,
             fill: {Color::rgba(0.0,0.0,0.0,1.0)}
             align_vertical: TextAlignVertical::Top,
+            align_horizontal: TextAlignHorizontal::Center,
+            align_multiline: TextAlignHorizontal::Center,
+            underline: true,
+        }
+    }
+    #l2 {
+        width: 100%
+        style_link: {
+            font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
+            font_size: 36px,
+            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
+            align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Center,
             align_multiline: TextAlignHorizontal::Center,
             underline: true,
