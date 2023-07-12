@@ -161,7 +161,7 @@ num_clicks % 2 == 0
 //`xo` is short for both "expression operator" and "expression operand", collectively all symbols
 //that can be expressed inside expressions
 
-xo_primary = _{ expression_grouped | xo_function_call | xo_object | xo_range | xo_tuple | xo_literal  | xo_symbol }
+xo_primary = _{ expression_grouped | xo_function_call | xo_object | xo_range | xo_tuple | xo_list | xo_literal  | xo_symbol }
 
 xo_prefix = _{xo_neg | xo_bool_not}
     xo_neg = {"-"}
@@ -215,6 +215,7 @@ xo_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
 
 xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~ "]") )* }
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
+xo_list = { "[" ~ (expression_body ~ ("," ~ expression_body)*)? ~ "]" }
 
 xo_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
 xo_function_args_list = {(expression_body ~ ("," ~ expression_body)*)?}
