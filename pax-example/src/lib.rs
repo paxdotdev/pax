@@ -33,6 +33,7 @@ const ROUTE_COUNT : usize = 5;
 pub struct Example {
     pub scroll_position: Property<f64>,
     pub panels: Property<Vec<Panel>>,
+    pub sizes: Property<Vec<Option<Size>>>,
 }
 
 impl Example {
@@ -45,6 +46,10 @@ impl Example {
     }
 
     pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
+        self.sizes.set(vec![
+            Some(Size::Percent(70.0.into())),
+            None
+        ]);
     //     self.panels.set(vec![
     //         Panel{
     //             fill: Fill::LinearGradient(
