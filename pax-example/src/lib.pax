@@ -25,7 +25,7 @@
 
     // Scrolling content pane
     <Frame width=100% height=5000px transform={Transform2D::translate(0, self.scroll_position)}>
-        <Stacker cells=5 height=100% width=100% direction=StackerDirection::Vertical gutter=0px>
+        <Stacker cells=5 direction=StackerDirection::Vertical gutter=0px>
         <Group>
             <Frame id=f1>
             <Stacker cells=2 direction=StackerDirection::Vertical gutter=20px >
@@ -37,7 +37,7 @@
                 fill={Fill::linearGradient(
                     (0%, 0%),
                     (100%, 100%),
-                    (Color::rgb(1.0,1.0,0.0), Color::rgb(1.0,0.0,1.0)))}
+                    [GradientStop::get(Color::rgb(1.0,1.0,0.0), 0%), GradientStop::get(Color::rgb(1.0,0.0,1.0), 100%)])}
             />
         </Group>
         <Group>
@@ -51,7 +51,7 @@
                 fill={Fill::linearGradient(
                     (0%, 0%),
                     (100%, 100%),
-                    (Color::rgb(0.0,1.0,1.0), Color::rgb(0.0,1.0,0.0)))}
+                    [GradientStop::get(Color::rgb(0.0,1.0,1.0), 0%), GradientStop::get(Color::rgb(0.0,1.0,0.0), 100%)])}
         />
         </Group>
         <Group>
@@ -66,7 +66,7 @@
                 fill={Fill::linearGradient(
                     (0%, 0%),
                     (100%, 100%),
-                    (Color::rgb(1.0,0.0,0.0), Color::rgb(0.0,1.0,1.0)))}
+                    [GradientStop::get(Color::rgb(1.0,0.0,0.0), 0%), GradientStop::get(Color::rgb(0.0,1.0,1.0), 100%)])}
         />
         </Group>
          <Group>
@@ -80,7 +80,7 @@
                 fill={Fill::linearGradient(
                 (0%, 0%),
                 (100%, 100%),
-                (Color::rgb(1.0,0.0,1.0), Color::rgb(0.0,1.0,0.0)))}
+                [GradientStop::get(Color::rgb(1.0,0.0,1.0), 0%), GradientStop::get(Color::rgb(0.0,1.0,0.0), 100%)])}
             />
         </Group>
         <Group >
@@ -97,7 +97,7 @@
                 fill={Fill::linearGradient(
                 (0%, 0%),
                 (100%, 100%),
-                (Color::rgb(0.0,0.0,1.0), Color::rgb(1.0,1.0,0.0)))}
+                [GradientStop::get(Color::rgb(0.0,0.0,1.0), 0%), GradientStop::get(Color::rgb(1.0,1.0,0.0), 100%)])}
             />
         </Group>
         </Stacker>

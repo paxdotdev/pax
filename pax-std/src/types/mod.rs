@@ -56,7 +56,7 @@ pub enum Fill {
 pub struct LinearGradient {
     pub start: (Size,Size),
     pub end: (Size, Size),
-    pub stops: (Color,Color),
+    pub stops: Vec<GradientStop>,
 }
 
 #[derive(Pax)]
@@ -65,14 +65,25 @@ pub struct RadialGradient {
     pub end: (Size, Size),
     pub start: (Size, Size),
     pub radius: f64,
-    pub stops: (Color,Color),
+    pub stops: Vec<GradientStop>,
 }
 
-//TODO: use these instead of tuples
+#[derive(Pax)]
+#[custom(Imports)]
 pub struct GradientStop {
     position: Size,
     color: Color,
 }
+
+impl GradientStop {
+    pub fn get(color: Color, position: Size) -> GradientStop{
+        GradientStop {
+            position,
+            color,
+        }
+    }
+}
+
 
 impl Default for Fill {
     fn default() -> Self {
@@ -102,12 +113,23 @@ impl Fill {
         UnitPoint::new(normalizedX, normalizedY)
     }
 
-    pub fn to_piet_gradient_stops((color_a, color_b) : (Color, Color)) -> Vec<piet::GradientStop> {
-        let stops = (color_a.to_piet_color(), color_b.to_piet_color());
-        stops.to_vec()
+    pub fn to_piet_gradient_stops(stops : Vec<GradientStop>) -> Vec<piet::GradientStop> {
+        let mut ret = Vec::new();
+        for gradient_stop in stops {
+            match gradient_stop.position {
+                Size::Pixels(_) => { unreachable!("Gradient stops must be specified in percentages");}
+                Size::Percent(p) => {
+                    ret.push(piet::GradientStop {
+                        pos: (p.get_as_float()/100.0) as f32,
+                        color: gradient_stop.color.to_piet_color(),
+                    });
+                }
+            }
+        }
+        ret
     }
 
-    pub fn linearGradient(start: (Size, Size), end: (Size, Size), stops: (Color, Color)) -> Fill {
+    pub fn linearGradient(start: (Size, Size), end: (Size, Size), stops: Vec<GradientStop>) -> Fill {
         Fill::LinearGradient(LinearGradient{
             start,
             end,
