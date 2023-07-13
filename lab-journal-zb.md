@@ -3079,4 +3079,9 @@ Trade-off:  `self.some_vec.set(new_vec_of_same_length_as_old)` will not update a
    - Fortunately, the page seems to work as expected on macOS Safari
  - Content: needs another pass, already WIP over here.  Broadly, I'm feeling this messaging needs to lean
     a bit more "sell the dream" than "sell the utility" at this point.  This probably comes to bear as an alternative to, or a wordier addendum to, the "table stakes" section.
+
+
+### Jul 13 2023
+
  
+Viewport culling should majorly improve perf

@@ -11,7 +11,7 @@ use std::cell::RefCell;
 use std::collections::HashSet;
 
 #[derive(Parser)]
-#[grammar = "../../pax-compiler/src/pax.pest"]
+#[grammar = "pax.pest"]
 pub struct PaxMacroParser;
 
 
