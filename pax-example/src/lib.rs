@@ -45,6 +45,31 @@ impl Example {
         self.scroll_position.set(scroll_position);
     }
 
+    pub fn handle_container_key_down(&mut self, ctx: RuntimeContext, args: ArgsKeyDown) {
+        let mut scroll_position = *self.scroll_position.get();
+        if args.keyboard.key == "ArrowDown".to_string() || args.keyboard.key == "Down".to_string() {
+            scroll_position = scroll_position - 20.0;
+            scroll_position = scroll_position.min(0.0);
+            scroll_position = scroll_position.max(-4000.0);
+        }
+        if args.keyboard.key == "ArrowUp".to_string() || args.keyboard.key == "Up".to_string() {
+            scroll_position = scroll_position + 20.0;
+            scroll_position = scroll_position.min(0.0);
+            scroll_position = scroll_position.max(-4000.0);
+        }
+        if args.keyboard.key == "ArrowLeft".to_string() || args.keyboard.key == "Left".to_string() {
+            scroll_position = scroll_position + 1000.0;
+            scroll_position = scroll_position.min(0.0);
+            scroll_position = scroll_position.max(-4000.0);
+        }
+        if args.keyboard.key == "ArrowRight".to_string() || args.keyboard.key == "Right".to_string() {
+            scroll_position = scroll_position - 1000.0;
+            scroll_position = scroll_position.min(0.0);
+            scroll_position = scroll_position.max(-4000.0);
+        }
+        self.scroll_position.set(scroll_position);
+    }
+
     pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
         self.sizes.set(vec![
             Some(Size::Percent(70.0.into())),
