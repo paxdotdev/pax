@@ -26,6 +26,7 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     /// Used for hacked dirty-checking, in the absence of our centralized dirty-checker
     cached_old_value_vec: Option<Vec<Rc<PropertiesCoproduct>>>,
     cached_old_value_range: Option<std::ops::Range<isize>>,
+    cached_old_bounds: (f64, f64),
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
@@ -51,6 +52,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             next_frame_children: None,
             cached_old_value_vec: None,
             cached_old_value_range: None,
+            cached_old_bounds: (0.0, 0.0),
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -58,6 +60,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+
+
 
         if self.next_frame_children.is_some() {
             self.active_children = Rc::clone(self.next_frame_children.as_ref().unwrap());
@@ -76,6 +80,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             //let is_dirty = true;
             //Major hack: will only consider a new vec dirty if its cardinality changes.
             let is_dirty = {
+                rtc.bounds != self.cached_old_bounds ||
                 if self.cached_old_value_vec.is_none() {
                     true
                 } else {
@@ -94,12 +99,14 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             //let is_dirty = true;
             //Major hack: will only consider a new vec dirty if its cardinality changes.
             let is_dirty = {
+                rtc.bounds != self.cached_old_bounds ||
                 if self.cached_old_value_range.is_none() {
                     true
                 } else {
                     self.cached_old_value_range.as_ref().unwrap().len() != new_value.len()
                 }
             };
+            self.cached_old_bounds = rtc.bounds.clone();
             self.cached_old_value_range = Some(new_value.clone());
             let normalized_vec_of_props = new_value.into_iter().enumerate().map(|(i, elem)|{Rc::new(PropertiesCoproduct::isize(elem))}).collect();
             (is_dirty, normalized_vec_of_props)
