@@ -7,7 +7,7 @@ use std::ops::Deref;
 
 use piet_common::RenderContext;
 use crate::{ComponentInstance, TabCache, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs, HandlerRegistry};
-use pax_runtime_api::{Layer, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
+use pax_runtime_api::{Layer, log, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 /// A special "control-flow" primitive associated with the `for` statement.
@@ -87,6 +87,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                     self.cached_old_value_vec.as_ref().unwrap().len() != new_value.len()
                 }
             };
+            self.cached_old_bounds = rtc.bounds.clone();
             self.cached_old_value_vec = Some(new_value.clone());
             (is_dirty, new_value)
         } else if let Some(se) = &self.source_expression_range {
