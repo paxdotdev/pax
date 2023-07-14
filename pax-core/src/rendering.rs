@@ -139,6 +139,7 @@ impl TransformAndBounds {
         [top_left, top_right, bottom_right, bottom_left]
     }
 
+    //Applies the separating axis theorem to determine whether two `TransformAndBounds` intersect.
     pub fn intersects(&self, other: &Self) -> bool {
         let corners_self = self.corners();
         let corners_other = other.corners();
@@ -151,6 +152,7 @@ impl TransformAndBounds {
 
             if self_projections.iter().cloned().max_by(|a,b|{a.partial_cmp(b).unwrap()}).unwrap() < other_projections.iter().cloned().min_by(|a,b|{a.partial_cmp(b).unwrap()}).unwrap() ||
                 other_projections.iter().cloned().max_by(|a,b|{a.partial_cmp(b).unwrap()}).unwrap() < self_projections.iter().cloned().min_by(|a,b|{a.partial_cmp(b).unwrap()}).unwrap() {
+                // By the separating axis theorem, non-overlap of projections on _any one_ of the axis-normals proves that these polygons do not intersect.
                 return false;
             }
         }
