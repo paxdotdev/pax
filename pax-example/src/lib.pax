@@ -31,8 +31,7 @@
         <Sidebar>
             <Group>
             <Frame id=f1>
-                <Stacker cells=3 direction=StackerDirection::Vertical gutter=20px sizes={[Option::None, Option::Some(70%), Option::None]} >
-                    <Group />
+                <Stacker cells=2 direction=StackerDirection::Vertical gutter=20px sizes={[Option::Some(70%), Option::None]} >
                     <Text text="Pax is a user interface engine \n for native apps & websites" class=h1 />
                     <Text text="[Docs](https://docs.pax.rs) | [GitHub](https://www.github.com/pax-lang/pax) | [Get Started](https://www.github.com/pax-lang/pax)" id=l1 />
                 </Stacker>
