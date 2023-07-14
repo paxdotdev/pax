@@ -562,7 +562,9 @@ class NativeElementPool {
 
 
             oldNode.style.pointerEvents = "none";
-            parent.removeChild(oldNode);
+            requestAnimationFrame(() => {
+                parent.removeChild(oldNode);
+            })
             // @ts-ignore
             delete this.textNodes[id_chain];
         }
