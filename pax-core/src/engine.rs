@@ -538,7 +538,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
 
         // here I have depth, compare with rcs length and if rcs less than depth add native message to chassis to increase layers for next tick
-        let native_render_queue = (*self.runtime).borrow_mut().swap_native_message_queue();
+        let native_render_queue = (*self.runtime).borrow_mut().take_native_message_queue();
         native_render_queue.into()
     }
 
