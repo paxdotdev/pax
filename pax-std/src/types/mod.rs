@@ -42,6 +42,14 @@ pub enum StackerDirection {
     Horizontal,
 }
 
+#[derive(Pax)]
+#[custom(Imports)]
+pub enum SidebarDirection {
+    Left,
+    #[default]
+    Right,
+}
+
 
 #[derive(Pax)]
 #[custom(Default, Imports)]
