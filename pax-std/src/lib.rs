@@ -3,9 +3,11 @@ extern crate lazy_static;
 
 pub mod types;
 pub mod stacker;
+pub mod sidebar;
 
 pub mod components {
     pub use super::stacker::*;
+    pub use super::sidebar::*;
 }
 
 pub mod primitives {
