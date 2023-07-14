@@ -24,7 +24,7 @@ pub struct PaxEngine<R: 'static + RenderContext> {
     pub main_component: Rc<RefCell<ComponentInstance<R>>>,
     pub runtime: Rc<RefCell<Runtime<R>>>,
     pub image_map: HashMap<Vec<u64>, (Box<Vec<u8>>, usize, usize)>,
-    viewport_size: (f64, f64),
+    viewport_tab: TransformAndBounds,
 }
 
 pub struct ExpressionVTable<R: 'static + RenderContext> {
@@ -498,7 +498,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             expression_table,
             runtime: Rc::new(RefCell::new(Runtime::new())),
             main_component: main_component_instance,
-            viewport_size,
+            viewport_tab: TransformAndBounds {
+                transform: Affine::default(),
+                bounds: viewport_size,
+            },
             image_map: HashMap::new(),
         }
     }
@@ -514,7 +517,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let mut rtc = RenderTreeContext {
             engine: &self,
             transform: Affine::default(),
-            bounds: self.viewport_size,
+            bounds: self.viewport_tab.bounds,
             runtime: self.runtime.clone(),
             node: Rc::clone(&cast_component_rc),
             parent_repeat_expanded_node: None,
@@ -643,12 +646,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //create the `repeat_expanded_node` for the current node
         let children = node.borrow_mut().get_rendering_children();
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
+        let repeat_expanded_node_tab = TransformAndBounds {
+            bounds: node_size,
+            transform: new_accumulated_transform.clone(),
+        };
         let repeat_expanded_node = Rc::new(RepeatExpandedNode {
             stack_frame: rtc.runtime.borrow_mut().peek_stack_frame().unwrap(),
-            tab: TransformAndBounds {
-                bounds: node_size,
-                transform: new_accumulated_transform.clone(),
-            },
+            tab: repeat_expanded_node_tab.clone(),
             id_chain: id_chain.clone(),
             instance_node: Rc::clone(&node),
             parent_repeat_expanded_node: rtc.parent_repeat_expanded_node.clone(),
@@ -682,6 +686,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         layer_info.update_depth(node_type);
         let current_depth = layer_info.get_depth();
 
+
+
+        let is_viewport_culled = !repeat_expanded_node_tab.intersects(&self.viewport_tab);
+
         let last_layer = &rcs.len() -1;
         if let Some(rc) =  rcs.get_mut(current_depth) {
             //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
@@ -690,10 +698,14 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             //lifecycle: render
             //this is this node's time to do its own rendering, aside
             //from the rendering of its children. Its children have already been rendered.
-            node.borrow_mut().handle_render(rtc, rc);
+            if !is_viewport_culled {
+                node.borrow_mut().handle_render(rtc, rc);
+            }
         } else {
             node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec(), last_layer);
-            node.borrow_mut().handle_render(rtc, rcs.get_mut(last_layer).unwrap());
+            if !is_viewport_culled {
+                node.borrow_mut().handle_render(rtc, rcs.get_mut(last_layer).unwrap());
+            }
         }
 
 
@@ -779,14 +791,14 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     }
 
     pub fn get_focused_element(&self) -> Option<Rc<RepeatExpandedNode<R>>> {
-        let (x, y) = self.viewport_size;
+        let (x, y) = self.viewport_tab.bounds;
         self.get_topmost_element_beneath_ray((x/2.0,y/2.0))
     }
 
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
-        self.viewport_size = new_viewport_size;
+        self.viewport_tab.bounds = new_viewport_size;
     }
 
     /// Workhorse method to advance rendering and property calculation by one discrete tick

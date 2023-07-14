@@ -1,8 +1,9 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
+use std::ops::Mul;
 use std::rc::Rc;
 
-use kurbo::{Affine, Point};
+use kurbo::{Affine, Point, Vec2};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 use pax_properties_coproduct::PropertiesCoproduct;
@@ -68,11 +69,94 @@ fn recurse_get_rendering_subtree_flattened<R: 'static + RenderContext>(children:
     ret
 }
 
+
+
+#[derive(Copy, Clone)]
+pub struct Point2D {
+    x: f64,
+    y: f64,
+}
+
+impl Point2D {
+    fn subtract(self, other: Point2D) -> Self {
+        Self {
+            x: self.x - other.x,
+            y: self.y - other.y,
+        }
+    }
+
+    fn dot(self, other: Point2D) -> f64 {
+        self.x * other.x + self.y * other.y
+    }
+
+    fn normal(self) -> Self {
+        Self {
+            x: -self.y,
+            y: self.x,
+        }
+    }
+
+    fn project_onto(self, axis: Point2D) -> f64 {
+        let dot_product = self.dot(axis);
+        dot_product / (axis.x.powi(2) + axis.y.powi(2))
+    }
+}
+
+
+impl Mul<Point2D> for Affine {
+    type Output = Point2D;
+
+    #[inline]
+    fn mul(self, other: Point2D) -> Point2D {
+        let coeffs = self.as_coeffs();
+        Point2D {
+            x: coeffs[0] * other.x + coeffs[2] * other.y + coeffs[4],
+            y: coeffs[1] * other.x + coeffs[3] * other.y + coeffs[5],
+        }
+    }
+}
+
+
+
 /// Stores the computed transform and the pre-transform bounding box (where the
 /// other corner is the origin).  Useful for ray-casting, along with
+#[derive(Clone)]
 pub struct TransformAndBounds {
     pub transform: Affine,
     pub bounds: (f64, f64),
+}
+
+impl TransformAndBounds {
+    pub fn corners(&self) -> [Point2D; 4] {
+        let width = self.bounds.0;
+        let height = self.bounds.1;
+
+        let top_left = self.transform * Point2D { x: 0.0, y: 0.0 };
+        let top_right = self.transform * Point2D { x: width, y: 0.0 };
+        let bottom_left = self.transform * Point2D { x: 0.0, y: height };
+        let bottom_right = self.transform * Point2D { x: width, y: height };
+
+        [top_left, top_right, bottom_right, bottom_left]
+    }
+
+    pub fn intersects(&self, other: &Self) -> bool {
+        let corners_self = self.corners();
+        let corners_other = other.corners();
+
+        for i in 0..4 {
+            let axis = corners_self[i].subtract(corners_self[(i + 1) % 4]).normal();
+
+            let self_projections: Vec<_> = corners_self.iter().map(|&p| p.project_onto(axis)).collect();
+            let other_projections: Vec<_> = corners_other.iter().map(|&p| p.project_onto(axis)).collect();
+
+            if self_projections.iter().cloned().max_by(|a,b|{a.partial_cmp(b).unwrap()}).unwrap() < other_projections.iter().cloned().min_by(|a,b|{a.partial_cmp(b).unwrap()}).unwrap() ||
+                other_projections.iter().cloned().max_by(|a,b|{a.partial_cmp(b).unwrap()}).unwrap() < self_projections.iter().cloned().min_by(|a,b|{a.partial_cmp(b).unwrap()}).unwrap() {
+                return false;
+            }
+        }
+
+        true
+    }
 }
 
 /// "Transform And Bounds" — a helper struct for storing necessary data for event propagation and ray casting
