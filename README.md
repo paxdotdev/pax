@@ -115,13 +115,13 @@ Use `rustc` 1.70.0 via `rustup`
     curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh 
    ```
 
-- Install `node` v14 LTS, recommended via [`nvm`](https://github.com/nvm-sh/nvm#installing-and-updating)
+- Install `node` v20 LTS, recommended via [`nvm`](https://github.com/nvm-sh/nvm#installing-and-updating)
   ```shell
   # First install nvm
   curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
   # After restarting terminal:
-  nvm install 14
-  nvm use 14 --default
+  nvm install 20
+  nvm use 20 --default
   ```
 
 - Install `yarn`:
