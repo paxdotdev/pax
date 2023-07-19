@@ -3,7 +3,7 @@ use piet::{LinearGradient, RadialGradient, RenderContext};
 
 use pax_std::primitives::{Rectangle};
 use pax_std::types::{ColorVariant, Fill, RectangleCornerRadii};
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, safe_unwrap, generate_property_access};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, Property};
 
@@ -17,10 +17,12 @@ use std::rc::Rc;
 pub struct RectangleInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u64,
-    pub properties: Rc<RefCell<Rectangle>>,
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+
+    properties_raw: PropertiesCoproduct,
 }
+generate_property_access!(RectangleInstance, Rectangle);
 
 impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 
@@ -33,13 +35,13 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
     }
 
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Rectangle);
+
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(RectangleInstance {
             instance_id,
             transform: args.transform,
-            properties: Rc::new(RefCell::new(properties)),
+            properties_raw: args.properties,
             size: args.size.expect("Rectangle requires a size"),
             handler_registry: args.handler_registry,
 
@@ -60,65 +62,71 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        {
+            let mut size = &mut *self.size.as_ref().borrow_mut();
 
-        if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.get().width._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width { v } else { unreachable!() };
-            properties.stroke.get_mut().width.set(new_value);
+            if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+                size[0].set(new_value);
+            }
+            if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
+                size[1].set(new_value);
+            }
+        }
+        {
+            let mut transform = &mut *self.transform.as_ref().borrow_mut();
+            if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
+                transform.set(new_value);
+            }
+        }
+        {
+            let mut properties = self.get_properties_mut();
+
+            if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.get().width._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width { v } else { unreachable!() };
+                properties.stroke.get_mut().width.set(new_value);
+            }
+
+            if let Some(stroke_color) = rtc.compute_vtable_value(properties.stroke.get().color._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::pax_stdCOCOtypesCOCOColor(v) = stroke_color { v } else { unreachable!() };
+                properties.stroke.get_mut().color.set(new_value);
+            }
+
+            if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()) {
+                let new_value = safe_unwrap!(fill, pax_stdCOCOtypesCOCOFill);
+                properties.fill.set(new_value);
+            }
+
+            if let Some(top_right) = rtc.compute_vtable_value(properties.corner_radii.get().top_right._get_vtable_id()) {
+                let new_value = safe_unwrap!(top_right, f64);
+                properties.corner_radii.get_mut().top_right.set(new_value);
+            }
+
+            if let Some(top_left) = rtc.compute_vtable_value(properties.corner_radii.get().top_left._get_vtable_id()) {
+                let new_value = safe_unwrap!(top_left, f64);
+                properties.corner_radii.get_mut().top_left.set(new_value);
+            }
+
+            if let Some(bottom_right) = rtc.compute_vtable_value(properties.corner_radii.get().bottom_right._get_vtable_id()) {
+                let new_value = safe_unwrap!(bottom_right, f64);
+                properties.corner_radii.get_mut().bottom_right.set(new_value);
+            }
+
+            if let Some(bottom_left) = rtc.compute_vtable_value(properties.corner_radii.get().bottom_left._get_vtable_id()) {
+                let new_value = safe_unwrap!(bottom_left, f64);
+                properties.corner_radii.get_mut().bottom_left.set(new_value);
+            }
+
+            if let Some(corner_radii) = rtc.compute_vtable_value(properties.corner_radii._get_vtable_id()) {
+                let new_value = safe_unwrap!(corner_radii, pax_stdCOCOtypesCOCORectangleCornerRadii);
+                properties.corner_radii.set(new_value);
+            }
+
+
         }
 
-        if let Some(stroke_color) = rtc.compute_vtable_value(properties.stroke.get().color._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::pax_stdCOCOtypesCOCOColor(v) = stroke_color { v } else { unreachable!() };
-            properties.stroke.get_mut().color.set(new_value);
-        }
-
-        if let Some(fill) = rtc.compute_vtable_value(properties.fill._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(fill, TypesCoproduct, Fill);
-            properties.fill.set(new_value);
-        }
-
-        let mut size = &mut *self.size.as_ref().borrow_mut();
-
-        if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
-            size[0].set(new_value);
-        }
-
-        if let Some(top_right) = rtc.compute_vtable_value(properties.corner_radii.get().top_right._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(top_right, TypesCoproduct, f64);
-            properties.corner_radii.get_mut().top_right.set(new_value);
-        }
-
-        if let Some(top_left) = rtc.compute_vtable_value(properties.corner_radii.get().top_left._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(top_left, TypesCoproduct, f64);
-            properties.corner_radii.get_mut().top_left.set(new_value);
-        }
-
-        if let Some(bottom_right) = rtc.compute_vtable_value(properties.corner_radii.get().bottom_right._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(bottom_right, TypesCoproduct, f64);
-            properties.corner_radii.get_mut().bottom_right.set(new_value);
-        }
-
-        if let Some(bottom_left) = rtc.compute_vtable_value(properties.corner_radii.get().bottom_left._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(bottom_left, TypesCoproduct, f64);
-            properties.corner_radii.get_mut().bottom_left.set(new_value);
-        }
-
-        if let Some(corner_radii) = rtc.compute_vtable_value(properties.corner_radii._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(corner_radii, TypesCoproduct, RectangleCornerRadii);
-            properties.corner_radii.set(new_value);
-        }
-
-        if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
-            size[1].set(new_value);
-        }
-
-        let mut transform = &mut *self.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
-            transform.set(new_value);
-        }
     }
 
     fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
@@ -127,9 +135,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 
-        let properties = (*self.properties).borrow();
-
-
+        let properties = self.get_properties();
 
         let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
 

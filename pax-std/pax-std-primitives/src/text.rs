@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::collections::HashMap;
 use piet::{RenderContext};
 use pax_std::primitives::{Text};
-use pax_core::{ComputableTransform, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, unsafe_unwrap};
+use pax_core::{ComputableTransform, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, safe_unwrap, generate_property_access};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch, TextStyleMessage};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log, Layer, SizePixels};
@@ -16,8 +16,6 @@ use pax_std::types::Color;
 pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u64,
-    pub properties: Rc<RefCell<Text>>,
-
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 
@@ -26,7 +24,9 @@ pub struct TextInstance<R: 'static + RenderContext> {
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
     //      shares this last_patches cache
     last_patches: HashMap<Vec<u64>, pax_message::TextPatch>,
+    properties_raw: PropertiesCoproduct,
 }
+generate_property_access!(TextInstance, Text);
 
 impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
@@ -36,14 +36,12 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
 
-        let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Text);
-
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(TextInstance {
             instance_id,
             transform: args.transform,
-            properties: Rc::new(RefCell::new(properties)),
+            properties_raw: args.properties,
             size: args.size.expect("Text requires a size"),
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
@@ -60,86 +58,86 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = self.get_properties_mut();
 
         if let Some(text) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(text, TypesCoproduct, String);
+            let new_value = safe_unwrap!(text, stdCOCOstringCOCOString);
             properties.text.set(new_value);
         }
 
         if let Some(style_font) = rtc.compute_vtable_value(properties.style.get().font._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
+            let new_value = safe_unwrap!(style_font, pax_stdCOCOtypesCOCOtextCOCOFont);
             properties.style.get_mut().font.set(new_value);
         }
 
         if let Some(style_font_size) = rtc.compute_vtable_value(properties.style.get().font_size._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_font_size, TypesCoproduct, SizePixels);
+            let new_value = safe_unwrap!(style_font_size, SizePixels);
             properties.style.get_mut().font_size.set(new_value);
         }
 
         if let Some(style_fill) = rtc.compute_vtable_value(properties.style.get().fill._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
+            let new_value = safe_unwrap!(style_fill, Color);
             properties.style.get_mut().fill.set(new_value);
         }
 
         if let Some(style_underline) = rtc.compute_vtable_value(properties.style.get().underline._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_underline, TypesCoproduct, bool);
+            let new_value = safe_unwrap!(style_underline, bool);
             properties.style.get_mut().underline.set(new_value);
         }
 
         if let Some(style_align_multiline) = rtc.compute_vtable_value(properties.style.get().align_multiline._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_align_multiline, TypesCoproduct, TextAlignHorizontal);
+            let new_value = safe_unwrap!(style_align_multiline, pax_stdCOCOtypeCOCOtextCOCOTextAlignHorizontal);
             properties.style.get_mut().align_multiline.set(new_value);
         }
 
         if let Some(style_align_vertical) = rtc.compute_vtable_value(properties.style.get().align_vertical._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_align_vertical, TypesCoproduct, TextAlignVertical);
+            let new_value = safe_unwrap!(style_align_vertical, pax_stdCOCOtypeCOCOtextCOCOTextAlignVertical);
             properties.style.get_mut().align_vertical.set(new_value);
         }
 
         if let Some(style_align_horizontal) = rtc.compute_vtable_value(properties.style.get().align_horizontal._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(style_align_horizontal, TypesCoproduct, TextAlignHorizontal);
+            let new_value = safe_unwrap!(style_align_horizontal, pax_stdCOCOtypeCOCOtextCOCOTextAlignHorizontal);
             properties.style.get_mut().align_horizontal.set(new_value);
         }
 
         if let Some(style_link) = rtc.compute_vtable_value(properties.style_link._get_vtable_id()){
-            let new_value = unsafe_unwrap!(style_link, TypesCoproduct, TextStyle);
+            let new_value = safe_unwrap!(style_link, pax_stdCOCOtypeCOCOtextCOCOTextStyle);
             properties.style_link.set(new_value);
         }
 
         if let style_link = properties.style_link.get_mut() {
             if let Some(style_font) = rtc.compute_vtable_value(style_link.font._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
+                let new_value = safe_unwrap!(style_font, pax_stdCOCOtypeCOCOtextCOCOFont);
                 style_link.font.set(new_value);
             }
 
             if let Some(style_font_size) = rtc.compute_vtable_value(style_link.font_size._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_font_size, TypesCoproduct, SizePixels);
+                let new_value = safe_unwrap!(style_font_size, SizePixels);
                 style_link.font_size.set(new_value);
             }
 
             if let Some(style_fill) = rtc.compute_vtable_value(style_link.fill._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
+                let new_value = safe_unwrap!(style_fill, Color);
                 style_link.fill.set(new_value);
             }
 
             if let Some(style_underline) = rtc.compute_vtable_value(style_link.underline._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_underline, TypesCoproduct, bool);
+                let new_value = safe_unwrap!(style_underline, bool);
                 style_link.underline.set(new_value);
             }
 
             if let Some(style_align_multiline) = rtc.compute_vtable_value(style_link.align_multiline._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_align_multiline, TypesCoproduct, TextAlignHorizontal);
+                let new_value = safe_unwrap!(style_align_multiline, pax_stdCOCOtypeCOCOtextCOCOTextAlignHorizontal);
                 style_link.align_multiline.set(new_value);
             }
 
             if let Some(style_align_vertical) = rtc.compute_vtable_value(style_link.align_vertical._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_align_vertical, TypesCoproduct, TextAlignVertical);
+                let new_value = safe_unwrap!(style_align_vertical, pax_stdCOCOtypeCOCOtextCOCOTextAlignVertical);
                 style_link.align_vertical.set(new_value);
             }
 
             if let Some(style_align_horizontal) = rtc.compute_vtable_value(style_link.align_horizontal._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_align_horizontal, TypesCoproduct, TextAlignHorizontal);
+                let new_value = safe_unwrap!(style_align_horizontal, pax_stdCOCOtypeCOCOtextCOCOTextAlignHorizontal);
                 style_link.align_horizontal.set(new_value);
             }
         }
@@ -177,7 +175,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
-        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = self.get_properties_mut();
 
         let val = depth;
         let is_new_value = match &last_patch.depth {

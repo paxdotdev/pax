@@ -3,7 +3,7 @@ use piet::{ImageFormat, InterpolationMode, RenderContext, Image as PietImage, Er
 use std::collections::HashMap;
 use pax_std::primitives::{Image};
 use pax_std::types::ColorVariant;
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, safe_unwrap, generate_property_access};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, log};
 
@@ -16,12 +16,14 @@ use pax_message::ImagePatch;
 pub struct ImageInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u64,
-    pub properties: Rc<RefCell<Image>>,
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     last_patches: HashMap<Vec<u64>, pax_message::ImagePatch>,
     pub image: Option<<R as RenderContext>::Image>,
+
+    properties_raw: PropertiesCoproduct,
 }
+generate_property_access!(ImageInstance, Image);
 
 impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
 
@@ -34,13 +36,13 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
     }
 
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Image);
+
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(ImageInstance {
             instance_id,
             transform: args.transform,
-            properties: Rc::new(RefCell::new(properties)),
+            properties_raw: args.properties,
             size: args.size.expect("Image requires a size"),
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
@@ -62,7 +64,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = self.get_properties_mut();
 
         if let Some(path) = rtc.compute_vtable_value(properties.path._get_vtable_id()) {
             let new_value = if let TypesCoproduct::String(v) = path { v } else { unreachable!() };
@@ -101,7 +103,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
         let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
-        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = self.get_properties_mut();
         let val = properties.path.get();
         let is_new_value = match &last_patch.path {
             Some(cached_value) => !val.eq(cached_value),
@@ -124,7 +126,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
         let width =  bounding_dimens.0;
         let height =  bounding_dimens.1;
 
-        let properties = (*self.properties).borrow();
+        let properties = self.get_properties();
         let id_chain = rtc.get_id_chain(self.instance_id);
         if rtc.engine.image_map.contains_key(&id_chain) {
             let bounds = kurbo::Rect::new(0.0,0.0, width, height);

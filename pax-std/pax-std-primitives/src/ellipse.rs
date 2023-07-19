@@ -3,7 +3,7 @@ use piet::{RenderContext};
 
 use pax_std::primitives::{Ellipse};
 use pax_std::types::ColorVariant;
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap, unsafe_cleanup};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, safe_unwrap, generate_property_access};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D};
 
@@ -17,11 +17,13 @@ use std::rc::Rc;
 pub struct EllipseInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u64,
-    pub properties: Rc<RefCell<Ellipse>>,
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    cleanup_ptr: *mut PropertiesCoproduct,
+
+    properties_raw: PropertiesCoproduct,
 }
+generate_property_access!(EllipseInstance, Ellipse);
+
 
 impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
 
@@ -34,16 +36,15 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
     }
 
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        let (properties, ptr) = unsafe_unwrap!(args.properties, PropertiesCoproduct, Ellipse);
+
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(EllipseInstance {
             instance_id,
             transform: args.transform,
-            properties: Rc::new(RefCell::new(properties)),
             size: args.size.expect("Ellipse requires a size"),
             handler_registry: args.handler_registry,
-            cleanup_ptr: ptr
+            properties_raw: args.properties,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -61,7 +62,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = &mut *self.get_properties_mut();
 
         if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.get().width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width { v } else { unreachable!() };
@@ -103,7 +104,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
 
-        let properties = (*self.properties).borrow();
+        let properties = self.get_properties();
 
         let properties_color = properties.fill.get();
         let color = match properties_color.color_variant {
@@ -140,7 +141,4 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
 
     }
 
-    fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        unsafe_cleanup!(self.cleanup_ptr);
-    }
 }

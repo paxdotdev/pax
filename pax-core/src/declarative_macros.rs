@@ -1,36 +1,61 @@
-/// Extracts the target value from an enum using raw memory access.
-///
-/// Parameters:
-/// - `$source_enum`: The enum instance to extract the target value from.
-/// - `$enum_type`: The type of the enum.
-/// - `$target_type`: The type of the target value to extract.
+/// Used to manage boilerplate surrounding feature-gated access of TypesCoproduct variant structs.
+/// Usage: let rect = safe_unwrap!(val, pax_stdCOCOprimitivesCOCORectangle);
 #[macro_export]
-macro_rules! unsafe_unwrap {
-    ($source_enum:expr, $enum_type:ty, $target_type:ty) => {{
-        fn unwrap_impl<T, U>(source_enum: T) -> (U, *mut T) {
-            let size_of_enum = std::mem::size_of::<T>();
-            let size_of_target = std::mem::size_of::<U>();
-            let align_of_enum = std::mem::align_of::<T>();
-
-            assert!(size_of_target <= size_of_enum, "The size_of target_type must be less than or equal to the size_of enum_type.");
-
-            let boxed_enum = Box::new(source_enum);
-            let enum_ptr = Box::into_raw(boxed_enum);
-            let ptr_to_text = unsafe { ((enum_ptr as *const u8).add(align_of_enum) as *const U) };
-            let target_copy = unsafe { ptr_to_text.read() };
-
-            (target_copy, enum_ptr)
+macro_rules! safe_unwrap {
+    ($value:expr, $discriminant:tt) => {
+        {
+            #[cfg(feature = "cartridge-inserted")]
+            {
+                match $value {
+                    TypesCoproduct::$discriminant(val) => val,
+                    _ => unreachable!(),
+                }
+            }
+            #[cfg(not(feature = "cartridge-inserted"))]
+            {
+                unreachable!("Cannot run program without cartridge inserted.")
+            }
         }
-        unwrap_impl::<$enum_type, $target_type>($source_enum)
-    }};
+    };
 }
 
+/// Used to manage boilerplate around feature-gated property access for primitives.  This approach supersedes `unsafe_unwrap`, solving
+/// the same problems unsafe_unwrap solved, without the (realized) hazards of memory leaks and crashes.
+/// Usage: 1. assumes the presence of a property on self called `properties_raw`
+///        2. alongside a struct definition for EllipseInstance, call `generate_property_access!(EllipseInstance, Ellipse);`
+///        3. ensure, for any runtime build, that the feature `cartridge-inserted` is enabled.
 #[macro_export]
-macro_rules! unsafe_cleanup {
-    ($raw_ptr:expr, $type:ty) => {{
-        unsafe {
-            let _boxed = Box::from_raw($raw_ptr as *mut $type);
-            // The Box is immediately dropped here, deallocating the memory.
+macro_rules! generate_property_access {
+    ($struct_name:ident, $property_type:ident) => {
+        impl<R: 'static + RenderContext> $struct_name<R> {
+            fn get_properties_mut(&mut self) -> &mut $property_type {
+                #[cfg(feature = "cartridge-inserted")]
+                {
+                    match &mut self.properties_raw {
+                        PropertiesCoproduct::$property_type(properties) => properties,
+                        _ => unreachable!(),
+                    }
+                }
+                #[cfg(not(feature = "cartridge-inserted"))]
+                {
+                    unreachable!("Cartridge not inserted.")
+                }
+            }
+
+            fn get_properties(&self) -> &$property_type {
+                #[cfg(feature = "cartridge-inserted")]
+                {
+                    match &self.properties_raw {
+                        PropertiesCoproduct::$property_type(properties) => properties,
+                        _ => unreachable!(),
+                    }
+                }
+                #[cfg(not(feature = "cartridge-inserted"))]
+                {
+                    unreachable!("Cartridge not inserted.")
+                }
+            }
         }
-    }};
+    };
 }
+

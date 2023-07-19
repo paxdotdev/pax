@@ -22,4 +22,4 @@ wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 
 
 [features]
-designtime = []
+cartridge-inserted = []

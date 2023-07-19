@@ -13,6 +13,7 @@ crate-type = ["cdylib"]
 
 [features]
 default = ["console_error_panic_hook"]
+cartridge-inserted = []
 
 [dependencies]
 piet = "0.6.0"

@@ -3,7 +3,7 @@ use piet::{RenderContext};
 
 use pax_std::primitives::{Path};
 use pax_std::types::{ColorVariant, CurveSegmentData, LineSegmentData, PathSegment};
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, safe_unwrap, generate_property_access};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D};
 
@@ -17,9 +17,11 @@ use pax_std::types::PathSegment::LineSegment;
 pub struct PathInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u64,
-    pub properties: Rc<RefCell<Path>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+
+    properties_raw: PropertiesCoproduct,
 }
+generate_property_access!(PathInstance, Path);
 
 impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
 
@@ -32,13 +34,13 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Path);
+
 
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(PathInstance {
             instance_id,
-            properties: Rc::new(RefCell::new(properties)),
+            properties_raw: args.properties,
             handler_registry: args.handler_registry,
             transform: args.transform,
         }));
@@ -61,7 +63,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let properties = &mut *self.properties.as_ref().borrow_mut();
+        let properties = self.get_properties_mut();
 
         if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.get().width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width { v } else { unreachable!() };
@@ -80,7 +82,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
 
 
         if let Some(segments) = rtc.compute_vtable_value(properties.segments._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(segments, TypesCoproduct, Vec<PathSegment>);
+            let new_value = safe_unwrap!(segments, pax_stdCOCOtypesCOCOPathSegment);
             properties.segments.set(new_value);
         }
 
@@ -88,7 +90,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
     fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let transform = rtc.transform;
 
-        let properties = (*self.properties).borrow();
+        let properties = self.get_properties();
 
         let mut bez_path = BezPath::new();
 
