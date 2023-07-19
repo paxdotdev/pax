@@ -6,7 +6,7 @@ use std::collections::HashMap;
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, TabCache, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext, HandlerRegistry};
+use crate::{InstantiationArgs, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext, HandlerRegistry};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, Layer};
 
 
