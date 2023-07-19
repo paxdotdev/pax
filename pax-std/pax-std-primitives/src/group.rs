@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use piet_common::RenderContext;
-use pax_core::{HandlerRegistry, TabCache, InstanceRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, TransformAndBounds};
+use pax_core::{HandlerRegistry, InstanceRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, TransformAndBounds};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{Transform2D, Size2D, PropertyInstance, Layer};
