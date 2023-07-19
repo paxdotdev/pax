@@ -682,13 +682,17 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
 
 
-        let node_type = node.borrow_mut().get_layer_type();
-        layer_info.update_depth(node_type);
-        let current_depth = layer_info.get_depth();
+
 
 
 
         let is_viewport_culled = !repeat_expanded_node_tab.intersects(&self.viewport_tab);
+
+        let node_type = node.borrow_mut().get_layer_type();
+        if !is_viewport_culled {
+            layer_info.update_depth(node_type);
+        }
+        let current_depth = layer_info.get_depth();
 
         let last_layer = &rcs.len() -1;
         if let Some(rc) =  rcs.get_mut(current_depth) {
