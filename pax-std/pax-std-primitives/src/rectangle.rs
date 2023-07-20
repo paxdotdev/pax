@@ -22,7 +22,7 @@ pub struct RectangleInstance<R: 'static + RenderContext> {
 
     properties_raw: PropertiesCoproduct,
 }
-generate_property_access!(RectangleInstance, Rectangle);
+generate_property_access!(RectangleInstance, Rectangle, pax_stdCOCOprimitivesCOCORectangle);
 
 impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 

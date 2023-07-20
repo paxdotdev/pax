@@ -23,7 +23,7 @@ pub struct ImageInstance<R: 'static + RenderContext> {
 
     properties_raw: PropertiesCoproduct,
 }
-generate_property_access!(ImageInstance, Image);
+generate_property_access!(ImageInstance, Image, pax_stdCOCOprimitivesCOCOImage);
 
 impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
 

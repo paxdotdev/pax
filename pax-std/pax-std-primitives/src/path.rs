@@ -21,7 +21,7 @@ pub struct PathInstance<R: 'static + RenderContext> {
 
     properties_raw: PropertiesCoproduct,
 }
-generate_property_access!(PathInstance, Path);
+generate_property_access!(PathInstance, Path, pax_stdCOCOprimitivesCOCOPath);
 
 impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
 

@@ -26,7 +26,7 @@ pub struct TextInstance<R: 'static + RenderContext> {
     last_patches: HashMap<Vec<u64>, pax_message::TextPatch>,
     properties_raw: PropertiesCoproduct,
 }
-generate_property_access!(TextInstance, Text);
+generate_property_access!(TextInstance, Text, pax_stdCOCOprimitivesCOCOText);
 
 impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 

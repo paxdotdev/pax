@@ -22,7 +22,7 @@ pub struct EllipseInstance<R: 'static + RenderContext> {
 
     properties_raw: PropertiesCoproduct,
 }
-generate_property_access!(EllipseInstance, Ellipse);
+generate_property_access!(EllipseInstance, Ellipse, pax_stdCOCOprimitivesCOCOEllipse);
 
 
 impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {

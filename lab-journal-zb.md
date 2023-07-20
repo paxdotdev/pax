@@ -3085,3 +3085,28 @@ Trade-off:  `self.some_vec.set(new_vec_of_same_length_as_old)` will not update a
 
  
 Viewport culling should majorly improve perf
+
+
+
+### Jul 20 2023
+
+Tangling again with cargo, patch, and now features.
+
+We've arrived at a familiar problem, that `error[E0599]: no variant or associated item named `pax_stdCOCOprimitivesCOCOEllipse``
+in the case where `Ellipse` wasn't crawled by the compiler, and thus a single
+monolithic feature will be insufficient to gate all of the "forbidden code," because
+some variants will be forbidden and some not, but all will be compiled.
+
+Either we expose a separate feature for each of these...
+
+Or we go back to an unsafe_unwrap approach, but where we take care of where 
+we are storing the raw value in memory.  Last investigation of this approach wasn't very
+fruitful, but fruit may be borne with further digging.
+
+One more option... is to hard-code all of the std types into the PropertiesCoproduct as built-ins.
+This would be a local dead-end as it relates to enabling user-land pure primitives (i.e. because
+we are special-casing pax-std-primitives in this case, pre-defining PropertiesCoproduct variants
+so that we may refer to them ahead of time.)
+
+
+Maybe we can try unsafe_unwrap again — perhaps there's some fancy footwork we can do surrounding 

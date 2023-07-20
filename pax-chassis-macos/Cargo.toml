@@ -29,6 +29,5 @@ core-graphics = "0.22.3"
 serde = "1.0.159"
 flexbuffers = "2.0.0"
 
-
 [features]
 cartridge-inserted = ["pax-cartridge/cartridge-inserted"]

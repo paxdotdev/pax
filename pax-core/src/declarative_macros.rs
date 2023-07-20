@@ -26,13 +26,13 @@ macro_rules! safe_unwrap {
 ///        3. ensure, for any runtime build, that the feature `cartridge-inserted` is enabled.
 #[macro_export]
 macro_rules! generate_property_access {
-    ($struct_name:ident, $property_type:ident) => {
+    ($struct_name:ident, $property_type:ident, $discriminant:tt) => {
         impl<R: 'static + RenderContext> $struct_name<R> {
             fn get_properties_mut(&mut self) -> &mut $property_type {
                 #[cfg(feature = "cartridge-inserted")]
                 {
                     match &mut self.properties_raw {
-                        PropertiesCoproduct::$property_type(properties) => properties,
+                        PropertiesCoproduct::$discriminant(properties) => properties,
                         _ => unreachable!(),
                     }
                 }
@@ -46,7 +46,7 @@ macro_rules! generate_property_access {
                 #[cfg(feature = "cartridge-inserted")]
                 {
                     match &self.properties_raw {
-                        PropertiesCoproduct::$property_type(properties) => properties,
+                        PropertiesCoproduct::$discriminant(properties) => properties,
                         _ => unreachable!(),
                     }
                 }
