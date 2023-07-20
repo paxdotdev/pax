@@ -1,6 +1,6 @@
 [package]
 name = "pax-properties-coproduct"
-version = "0.6.0"
+version = "0.6.1-dev"
 
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
@@ -13,7 +13,7 @@ description = "Static container for program-variable data structures and polymor
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pax-runtime-api = {path = "../pax-runtime-api", version="0.6.0"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.6.1-dev"}
 
 #
 #[patch.crates-io]
