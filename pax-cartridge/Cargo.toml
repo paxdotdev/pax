@@ -16,6 +16,9 @@ pax-core = {path = "../pax-core", version = "0.6.0"}
 pax-runtime-api = {path = "../pax-runtime-api", version = "0.6.0"}
 pax-properties-coproduct = {version="0.6.0"}
 
-
 pax-std-primitives = {path = "../pax-std/pax-std-primitives", version = "0.6.0"}
+
+
+[features]
+cartridge-inserted = ["pax-std-primitives/cartridge-inserted"]
 

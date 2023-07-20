@@ -19,7 +19,3 @@ pax-runtime-api = {path = "../pax-runtime-api", version="0.6.0"}
 pax-message = {path = "../pax-message", version="0.6.0"}
 lazy_static = "1.4.0"
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
-
-
-[features]
-cartridge-inserted = []

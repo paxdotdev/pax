@@ -964,6 +964,17 @@ dependencies = [
 [[package]]
 name = "pax-cartridge"
 version = "0.6.0"
+dependencies = [
+ "pax-core 0.6.0",
+ "pax-properties-coproduct",
+ "pax-runtime-api 0.6.0",
+ "pax-std-primitives 0.6.0",
+ "piet-common",
+]
+
+[[package]]
+name = "pax-cartridge"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "947bb7304fc0259458e0743745d762fe0eaa9aaafc3aa0362e67ab69aa0b214e"
 dependencies = [
@@ -982,7 +993,7 @@ dependencies = [
  "flexbuffers",
  "lazy_static",
  "mut_static",
- "pax-cartridge",
+ "pax-cartridge 0.6.0",
  "pax-core 0.6.0",
  "pax-message 0.6.0",
  "pax-properties-coproduct",
@@ -998,7 +1009,7 @@ version = "0.6.0"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
- "pax-cartridge",
+ "pax-cartridge 0.6.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "pax-core 0.6.0",
  "pax-message 0.6.0",
  "pax-properties-coproduct",

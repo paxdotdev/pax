@@ -59,3 +59,28 @@ macro_rules! generate_property_access {
     };
 }
 
+
+#[macro_export]
+macro_rules! compute_properties_transform {
+    () => {
+        {
+            let latest_transform = transform_coeffs;
+            let is_new_transform = match &last_patch.transform {
+                Some(cached_transform) => {
+                    latest_transform.iter().enumerate().any(|(i,elem)|{
+                        *elem != cached_transform[i]
+                    })
+                },
+                None => {
+                    true
+                },
+            };
+            if is_new_transform {
+                new_message.transform = Some(latest_transform.clone());
+                last_patch.transform = Some(latest_transform.clone());
+                has_any_updates = true;
+            }
+        }
+    }
+}
+

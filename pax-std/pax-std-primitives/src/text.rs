@@ -166,114 +166,114 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
     fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth: usize) {
         let mut new_message: TextPatch = Default::default();
-        new_message.id_chain = rtc.get_id_chain(self.instance_id);
-        if !self.last_patches.contains_key(&new_message.id_chain) {
-            let mut patch = TextPatch::default();
-            patch.id_chain = new_message.id_chain.clone();
-            self.last_patches.insert(new_message.id_chain.clone(), patch);
-        }
-        let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
+        new_message.id_chain = rtc.get_id_chain(self.instance_id);
+        {
 
-        let mut properties = self.get_properties_mut();
-
-        let val = depth;
-        let is_new_value = match &last_patch.depth {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
+            if !self.last_patches.contains_key(&new_message.id_chain) {
+                let mut patch = TextPatch::default();
+                patch.id_chain = new_message.id_chain.clone();
+                self.last_patches.insert(new_message.id_chain.clone(), patch);
             }
-        };
-        if is_new_value {
-            new_message.depth = Some(val);
-            last_patch.depth = Some(val);
-            has_any_updates = true;
+            let mut properties = &self.get_properties();
+            let last_patch = &self.last_patches.get(&new_message.id_chain).unwrap();
+
+
+
+            let val = depth;
+            let is_new_value = match &last_patch.depth {
+                Some(cached_value) => {
+                    !val.eq(cached_value)
+                },
+                None => {
+                    true
+                }
+            };
+            if is_new_value {
+                new_message.depth = Some(val);
+                has_any_updates = true;
+            }
+
+            let val = properties.text.get();
+            let is_new_value = match &last_patch.content {
+                Some(cached_value) => !val.eq(cached_value),
+                None => true,
+            };
+            if is_new_value {
+                new_message.content = Some(val.clone());
+                has_any_updates = true;
+            }
+
+            let val = properties.style.get();
+            let is_new_val = match &last_patch.style {
+                Some(cached_value) => { !val.eq(cached_value) },
+                None => { true }
+            };
+
+            if is_new_value {
+                new_message.style = Some(val.into());
+                has_any_updates = true;
+            }
+
+            let val = properties.style_link.get();
+            let is_new_val = match &last_patch.style_link {
+                Some(cached_value) => { !val.eq(cached_value) },
+                None => { true }
+            };
+
+            if is_new_value {
+                new_message.style_link = Some(val.into());
+                has_any_updates = true;
+            }
+
+            let val = computed_size.0;
+            let is_new_value = match &last_patch.size_x {
+                Some(cached_value) => {
+                    !val.eq(cached_value)
+                },
+                None => {
+                    true
+                },
+            };
+            if is_new_value {
+                new_message.size_x = Some(val.clone());
+                has_any_updates = true;
+            }
+
+            let val = computed_size.1;
+            let is_new_value = match &last_patch.size_y {
+                Some(cached_value) => {
+                    !val.eq(cached_value)
+                },
+                None => {
+                    true
+                },
+            };
+            if is_new_value {
+                new_message.size_y = Some(val.clone());
+                has_any_updates = true;
+            }
+
+            let latest_transform = transform_coeffs;
+            let is_new_transform = match &last_patch.transform {
+                Some(cached_transform) => {
+                    latest_transform.iter().enumerate().any(|(i, elem)| {
+                        *elem != cached_transform[i]
+                    })
+                },
+                None => {
+                    true
+                },
+            };
+            if is_new_transform {
+                new_message.transform = Some(latest_transform.clone());
+                has_any_updates = true;
+            }
         }
 
-        let val = properties.text.get();
-        let is_new_value = match &last_patch.content {
-            Some(cached_value) => !val.eq(cached_value),
-            None => true,
-        };
-        if is_new_value {
-            new_message.content = Some(val.clone());
-            last_patch.content = Some(val.clone());
-            has_any_updates = true;
-        }
-
-        let val = properties.style.get();
-        let is_new_val = match &last_patch.style {
-            Some(cached_value) => { !val.eq(cached_value) },
-            None => { true }
-        };
-
-        if is_new_value {
-            new_message.style = Some(val.into());
-            last_patch.style = Some(val.into());
-            has_any_updates = true;
-        }
-
-        let val = properties.style_link.get();
-        let is_new_val = match &last_patch.style_link {
-            Some(cached_value) => { !val.eq(cached_value) },
-            None => { true }
-        };
-
-        if is_new_value {
-            new_message.style_link = Some(val.into());
-            last_patch.style_link = Some(val.into());
-            has_any_updates = true;
-        }
-
-        let val = computed_size.0;
-        let is_new_value = match &last_patch.size_x {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            },
-        };
-        if is_new_value {
-            new_message.size_x = Some(val.clone());
-            last_patch.size_x = Some(val.clone());
-            has_any_updates = true;
-        }
-
-        let val = computed_size.1;
-        let is_new_value = match &last_patch.size_y {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            },
-        };
-        if is_new_value {
-            new_message.size_y = Some(val.clone());
-            last_patch.size_y = Some(val.clone());
-            has_any_updates = true;
-        }
-
-        let latest_transform = transform_coeffs;
-        let is_new_transform = match &last_patch.transform {
-            Some(cached_transform) => {
-                latest_transform.iter().enumerate().any(|(i,elem)|{
-                    *elem != cached_transform[i]
-                })
-            },
-            None => {
-                true
-            },
-        };
-        if is_new_transform {
-            new_message.transform = Some(latest_transform.clone());
-            last_patch.transform = Some(latest_transform.clone());
-            has_any_updates = true;
-        }
-
+        //Make a copy of our new message to cache as last_patches
+        let mut new_last_patches = new_message.clone();
+        std::mem::swap(self.last_patches.get_mut(&new_message.id_chain).unwrap(), &mut new_last_patches);
 
         if has_any_updates {
             (*rtc.engine.runtime).borrow_mut().enqueue_native_message(pax_message::NativeMessage::TextUpdate(new_message));

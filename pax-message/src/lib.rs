@@ -274,7 +274,7 @@ pub struct FramePatch {
 }
 
 
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct TextPatch {
     pub id_chain: Vec<u64>,
@@ -287,7 +287,7 @@ pub struct TextPatch {
     pub depth: Option<usize>,
 }
 
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct TextStyleMessage {
     pub font: Option<FontPatch>,
@@ -300,14 +300,14 @@ pub struct TextStyleMessage {
 }
 
 
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub struct ImagePatch {
     pub id_chain: Vec<u64>,
     pub path: Option<String>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[repr(C)]
 pub enum ColorVariantMessage {
     Hlca([f64; 4]),
@@ -322,7 +322,7 @@ impl Default for ColorVariantMessage {
     }
 }
 
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub enum TextAlignHorizontalMessage {
     #[default]
@@ -331,7 +331,7 @@ pub enum TextAlignHorizontalMessage {
     Right,
 }
 
-#[derive(Default, Serialize)]
+#[derive(Default, Serialize, Clone)]
 #[repr(C)]
 pub enum TextAlignVerticalMessage {
     #[default]
@@ -341,7 +341,7 @@ pub enum TextAlignVerticalMessage {
 }
 
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[repr(C)]
 pub struct LinkStyleMessage {
     pub font: Option<FontPatch>,
@@ -382,7 +382,7 @@ pub struct AnyCreatePatch {
 //     pub set_decoration: Option<String>,
 // }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[repr(C)]
 pub enum FontPatch {
     System(SystemFontMessage),
@@ -397,7 +397,7 @@ impl Default for FontPatch {
 }
 
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[repr(C)]
 pub struct SystemFontMessage {
     pub family: Option<String>,
@@ -417,7 +417,7 @@ impl Default for SystemFontMessage {
 
 
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[repr(C)]
 pub struct WebFontMessage {
     pub family: Option<String>,
@@ -426,7 +426,7 @@ pub struct WebFontMessage {
     pub weight: Option<FontWeightMessage>,
 }
 
-#[derive(Serialize)]
+#[derive(Serialize, Clone)]
 #[repr(C)]
 pub struct LocalFontMessage {
     pub family: Option<String>,

@@ -16,7 +16,7 @@ crate-type = ["staticlib", "cdylib"]
 piet = "0.6.0"
 piet-coregraphics = "0.6.0"
 pax-core = { path = "../pax-core", version="0.6.0" }
-pax-cartridge = {version="0.6.0"}
+pax-cartridge = { version="0.6.0" }
 pax-message = {path = "../pax-message", version="0.6.0"}
 pax-runtime-api = {path = "../pax-runtime-api", version="0.6.0"}
 pax-properties-coproduct = {version="0.6.0"}
@@ -31,4 +31,4 @@ flexbuffers = "2.0.0"
 
 
 [features]
-cartridge-inserted = []
+cartridge-inserted = ["pax-cartridge/cartridge-inserted"]

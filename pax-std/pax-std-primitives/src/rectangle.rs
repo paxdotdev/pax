@@ -3,7 +3,7 @@ use piet::{LinearGradient, RadialGradient, RenderContext};
 
 use pax_std::primitives::{Rectangle};
 use pax_std::types::{ColorVariant, Fill, RectangleCornerRadii};
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, safe_unwrap, generate_property_access};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, safe_unwrap, generate_property_access, compute_properties_transform};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, Property};
 

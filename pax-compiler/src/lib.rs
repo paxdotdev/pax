@@ -1146,6 +1146,8 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
             Command::new("cargo")
                 .current_dir(&chassis_path)
                 .arg("build")
+                .arg("--features")
+                .arg("cartridge-inserted")
                 .arg("--color")
                 .arg("always")
                 .env("PAX_DIR", &pax_dir)
@@ -1158,6 +1160,8 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
             Command::new("wasm-pack")
                 .current_dir(&chassis_path)
                 .arg("build")
+                .arg("--features")
+                .arg("cartridge-inserted")
                 .arg("--release")
                 .arg("-d")
                 .arg(pax_dir.join("chassis").join("Web").join("pax-dev-harness-web").join("dist").to_str().unwrap()) //--release -d pax-dev-harness-web/dist
