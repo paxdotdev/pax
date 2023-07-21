@@ -963,30 +963,30 @@ dependencies = [
 
 [[package]]
 name = "pax-cartridge"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ca8418d25728dbbe7eb2ef80daeb22a3c74d19e17a8d23830541a09a09b1b6c3"
+checksum = "5ca14dbb5d0a55cded956835dae317f8b9e45db0de87f34b72abf6fa41c8d4c7"
 dependencies = [
- "pax-core 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-core 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "pax-properties-coproduct",
- "pax-runtime-api 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "pax-std-primitives 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-runtime-api 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-std-primitives 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "piet-common",
 ]
 
 [[package]]
 name = "pax-chassis-macos"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "core-graphics",
  "flexbuffers",
  "lazy_static",
  "mut_static",
  "pax-cartridge",
- "pax-core 0.6.7",
- "pax-message 0.6.7",
+ "pax-core 0.6.8",
+ "pax-message 0.6.8",
  "pax-properties-coproduct",
- "pax-runtime-api 0.6.7",
+ "pax-runtime-api 0.6.8",
  "piet",
  "piet-coregraphics",
  "serde",
@@ -994,15 +994,15 @@ dependencies = [
 
 [[package]]
 name = "pax-chassis-web"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
  "pax-cartridge",
- "pax-core 0.6.7",
- "pax-message 0.6.7",
+ "pax-core 0.6.8",
+ "pax-message 0.6.8",
  "pax-properties-coproduct",
- "pax-runtime-api 0.6.7",
+ "pax-runtime-api 0.6.8",
  "piet",
  "piet-web",
  "serde",
@@ -1013,7 +1013,7 @@ dependencies = [
 
 [[package]]
 name = "pax-cli"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "clap",
  "pax-compiler",
@@ -1021,7 +1021,7 @@ dependencies = [
 
 [[package]]
 name = "pax-compiler"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "colored",
  "console_error_panic_hook",
@@ -1030,8 +1030,8 @@ dependencies = [
  "itertools",
  "kurbo",
  "lazy_static",
- "pax-message 0.6.7",
- "pax-runtime-api 0.6.7",
+ "pax-message 0.6.8",
+ "pax-runtime-api 0.6.8",
  "pest",
  "pest_derive",
  "portpicker",
@@ -1049,13 +1049,13 @@ dependencies = [
 
 [[package]]
 name = "pax-core"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "kurbo",
  "lazy_static",
- "pax-message 0.6.7",
+ "pax-message 0.6.8",
  "pax-properties-coproduct",
- "pax-runtime-api 0.6.7",
+ "pax-runtime-api 0.6.8",
  "piet",
  "piet-common",
  "wasm-bindgen",
@@ -1063,15 +1063,15 @@ dependencies = [
 
 [[package]]
 name = "pax-core"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "712c7febf9c4537ba6050dc02711d6b8d4058f0e93fab2a7667eca1eb4ba2a33"
+checksum = "53b101515324edb8267bdcbf4090e998608379b587d89bfad0c30bde3f84c1b2"
 dependencies = [
  "kurbo",
  "lazy_static",
- "pax-message 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-message 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "pax-properties-coproduct",
- "pax-runtime-api 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-runtime-api 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "piet",
  "piet-common",
  "wasm-bindgen",
@@ -1079,28 +1079,28 @@ dependencies = [
 
 [[package]]
 name = "pax-lang"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "pax-compiler",
- "pax-macro 0.6.7",
- "pax-message 0.6.7",
- "pax-runtime-api 0.6.7",
+ "pax-macro 0.6.8",
+ "pax-message 0.6.8",
+ "pax-runtime-api 0.6.8",
 ]
 
 [[package]]
 name = "pax-lang"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7073d1fd1539b7b7bc94992f70c95b068e78bc1ad96e80ae2f4829ee4f225195"
+checksum = "db1fcec4e347d219ce967390f9f2d2a0b42910d74c82e403cbde136e302414af"
 dependencies = [
- "pax-macro 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "pax-message 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "pax-runtime-api 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-macro 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-message 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-runtime-api 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "pax-macro"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "litrs",
  "pest",
@@ -1116,9 +1116,9 @@ dependencies = [
 
 [[package]]
 name = "pax-macro"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bdd466358c56452f3f49a3e2fbadd30dff6bec05b08b8f087a7a3dbec05cbb7f"
+checksum = "bbaa9920cdcfbc824963ef6e67cd54b7206c582cf54fd14424736cf40446a6f2"
 dependencies = [
  "litrs",
  "pest",
@@ -1134,7 +1134,7 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "serde",
  "serde_json",
@@ -1143,9 +1143,9 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f237852a0daeee59dac92ad4878a0bc9ad0e6742d2c97711811594617c929b54"
+checksum = "172332cdfafc72c1c2a80e26dda9a11b7a0e8717d0cfa62d3593e2ce2ddf360b"
 dependencies = [
  "serde",
  "serde_json",
@@ -1154,91 +1154,91 @@ dependencies = [
 
 [[package]]
 name = "pax-properties-coproduct"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0404ae625519b342a484c48ffa7aa0532a95a63bc9f36e594e8f27c2688366b6"
+checksum = "85f8c8900aeca9e532995a010affe9bd9725e26cc174ca0c64035a2abe42637d"
 dependencies = [
- "pax-runtime-api 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-runtime-api 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "kurbo",
  "lazy_static",
  "mut_static",
- "pax-message 0.6.7",
+ "pax-message 0.6.8",
  "uuid",
 ]
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c21f84c606a1e903df90afbfdc6d9f0c8ff3ed5fbd8cf1ca5a22fc8853b60b02"
+checksum = "5b65a6c1e39bbccb928e14370102ca078e5654f0adeaddfc2e6fa3aacd74692d"
 dependencies = [
  "kurbo",
  "lazy_static",
  "mut_static",
- "pax-message 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-message 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "uuid",
 ]
 
 [[package]]
 name = "pax-std"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "kurbo",
  "lazy_static",
  "pax-compiler",
- "pax-lang 0.6.7",
- "pax-message 0.6.7",
- "pax-runtime-api 0.6.7",
+ "pax-lang 0.6.8",
+ "pax-message 0.6.8",
+ "pax-runtime-api 0.6.8",
  "piet",
  "serde_json",
 ]
 
 [[package]]
 name = "pax-std"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ee65da3b7ba4d9f93b7f8c57dcbf68d9055e475e695791a100c432e3c59627d"
+checksum = "f8199c8b7e6d9a80e9c542c2968fb2f5a311c752f45c83a2a7da2857d4aa7b97"
 dependencies = [
  "kurbo",
  "lazy_static",
- "pax-lang 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "pax-message 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "pax-runtime-api 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-lang 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-message 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-runtime-api 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "piet",
 ]
 
 [[package]]
 name = "pax-std-primitives"
-version = "0.6.7"
+version = "0.6.8"
 dependencies = [
  "kurbo",
- "pax-core 0.6.7",
- "pax-lang 0.6.7",
- "pax-message 0.6.7",
- "pax-runtime-api 0.6.7",
- "pax-std 0.6.7",
+ "pax-core 0.6.8",
+ "pax-lang 0.6.8",
+ "pax-message 0.6.8",
+ "pax-runtime-api 0.6.8",
+ "pax-std 0.6.8",
  "piet",
  "piet-common",
 ]
 
 [[package]]
 name = "pax-std-primitives"
-version = "0.6.7"
+version = "0.6.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e77b96de53f4a55ac950ff21ad1e33967d165bdece01c77eb37f1769db1c5f14"
+checksum = "38ae26b8fdab3bd1b1fd8d2900b5cdd699f6fca26ff39eb660981d0402178044"
 dependencies = [
  "kurbo",
- "pax-core 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "pax-lang 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "pax-message 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "pax-runtime-api 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
- "pax-std 0.6.7 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-core 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-lang 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-message 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-runtime-api 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
+ "pax-std 0.6.8 (registry+https://github.com/rust-lang/crates.io-index)",
  "piet",
  "piet-common",
 ]
