@@ -161,26 +161,6 @@ impl TransformAndBounds {
     }
 }
 
-/// "Transform And Bounds" — a helper struct for storing necessary data for event propagation and ray casting
-pub struct TabCache<R: 'static + RenderContext> {
-    pub tabs: HashMap<Vec<u64>, TransformAndBounds>,
-    pub parents: HashMap<Vec<u64>, Option<RenderNodePtr<R>>>,
-}
-
-impl<R: 'static + RenderContext> TabCache<R> {
-    pub fn new() -> Self {
-        Self {
-            tabs: HashMap::new(),
-            parents: HashMap::new(),
-        }
-    }
-
-    pub fn clear(&mut self) {
-        self.tabs = HashMap::new();
-        self.parents = HashMap::new();
-    }
-}
-
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
 /// T: a member of PropertiesCoproduct, representing the type of the set of properites

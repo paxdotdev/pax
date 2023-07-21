@@ -362,11 +362,13 @@ impl PaxChassisWeb {
                     topmost_node.dispatch_context_menu(args_context_menu);
                 }
             }
-        }
+        };
+
     }
 
     pub fn tick(&mut self) -> String {
         let message_queue = self.engine.borrow_mut().tick(&mut self.drawing_contexts);
+
         //Note that this approach likely carries some CPU overhead, but may be suitable.
         //See zb lab journal `On robust message-passing to web` May 11 2022
         serde_json::to_string(&message_queue).unwrap()

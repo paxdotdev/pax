@@ -3,7 +3,7 @@ use piet::{RenderContext};
 
 use pax_std::primitives::{Ellipse};
 use pax_std::types::ColorVariant;
-use pax_core::{Color, TabCache, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D};
 
@@ -42,7 +42,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
             properties: Rc::new(RefCell::new(properties)),
             size: args.size.expect("Ellipse requires a size"),
             handler_registry: args.handler_registry,
-
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
