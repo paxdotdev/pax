@@ -7,6 +7,7 @@ pub enum PropertiesCoproduct {
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     usize(usize),//used by Repeat + numeric ranges, e.g. `for i in 0..5`
+    isize(isize),//used by Repeat + numeric ranges, e.g. `for i in 0..5`
 
     //generated
 }
@@ -24,6 +25,7 @@ pub enum TypesCoproduct {
     Transform2D(pax_runtime_api::Transform2D),
     SizePixels(pax_runtime_api::SizePixels),
     Size(pax_runtime_api::Size),
+    Numeric(pax_runtime_api::Numeric),
     //generated / userland
 }
 
