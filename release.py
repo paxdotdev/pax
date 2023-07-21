@@ -93,6 +93,9 @@ for root in root_packages:
         with open("{}/Cargo.toml".format(elem), 'w') as file:
             file.write(tomlkit.dumps(doc))
 
+# Run cargo build, to update Cargo.lock
+subprocess.run(["cargo", "build"])
+
 # Perform git commit
 subprocess.run(["git", "commit", "-am", "Release " + NEW_VERSION], check=True)
 
