@@ -1,6 +1,6 @@
 [package]
 name = "pax-lang"
-version = "0.6.6"
+version = "0.6.7"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -11,10 +11,10 @@ description = "Root import entry-point for using Pax in a Rust program"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-pax-macro = {path="../pax-macro", version="0.6.6"}
-pax-message = {path="../pax-message", version="0.6.6"}
-pax-runtime-api = {path="../pax-runtime-api", version="0.6.6"}
-pax-compiler = {path="../pax-compiler", optional=true, version="0.6.6"}
+pax-macro = {path="../pax-macro", version="0.6.7"}
+pax-message = {path="../pax-message", version="0.6.7"}
+pax-runtime-api = {path="../pax-runtime-api", version="0.6.7"}
+pax-compiler = {path="../pax-compiler", optional=true, version="0.6.7"}
 
 [features]
 parser = ["dep:pax-compiler"]

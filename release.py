@@ -116,8 +116,8 @@ for root in root_packages:
 # Build for macos in order to update Cargo.lock
 subprocess.run(['cargo', 'build'])
 
-# Perform amend git commit, to include updates to Cargo.lock
-subprocess.run(["git", "commit", "-a", "--fixup", "HEAD"], check=True)
+# Fixup git commit, to include updates to Cargo.lock
+subprocess.run(["git", "commit", "-a", "--fixup=HEAD"], check=True)
 
 # Perform git tag
 # subprocess.run(["git", "tag", "-a", "v" + NEW_VERSION, "-m", "Release v" + NEW_VERSION], check=True)
