@@ -15,7 +15,10 @@ const CLIP_PREFIX = "clip"
 
 const registeredFontFaces = new Set<string>();
 
+
 let layers: { "native": HTMLDivElement[], "canvas": HTMLCanvasElement[] } = { "native": [], "canvas": [] };
+
+let is_mobile_device = false;
 
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
@@ -27,6 +30,9 @@ let layers: { "native": HTMLDivElement[], "canvas": HTMLCanvasElement[] } = { "n
 //This ID mechanism will also likely knock out most of the work for DOM element pooling/recycling
 
 function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
+
+    is_mobile_device = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+
 
     initializeLayers(1);
     //Initialize chassis & engine
@@ -637,7 +643,6 @@ class NativeElementPool {
     async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
 
         let path = patch.path;
-        let id_chain = patch.id_chain;
         let image_data = await readImageToByteBuffer(path);
         let message = {
             "Image": {
@@ -657,18 +662,15 @@ async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8
     const response = await fetch(imagePath);
     const blob = await response.blob();
     const img = await createImageBitmap(blob);
-    const canvas = new OffscreenCanvas(img.width, img.height);
+    const canvas = new OffscreenCanvas(img.width+1000, img.height);
     const ctx = canvas.getContext('2d');
-
+    console.log("Image Loading");
     // @ts-ignore
     ctx.drawImage(img, 0, 0, img.width, img.height);
     // @ts-ignore
     const imageData = ctx.getImageData(0, 0, img.width, img.height);
     let pixels = imageData.data;
-
-    const width = img.width;
-    const height = img.height;
-    return { pixels, width, height };
+    return { pixels, width: img.width, height: img.height };
 }
 
 class ImageLoadPatch {
@@ -965,8 +967,12 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
             let msg = unwrapped_msg["LayerAdd"];
             let layersToAdd = msg["num_layers_to_add"];
             let old_length = layers.native.length;
-            initializeLayers(layersToAdd);
-            addEventListenersToNativeLayers(old_length, layersToAdd, chassis);
+            if (!is_mobile_device || (old_length+layersToAdd) < 5) {
+                initializeLayers(layersToAdd);
+                addEventListenersToNativeLayers(old_length, layersToAdd, chassis);
+            } else {
+                layersToAdd = 0;
+            }
             let event = {
                 "AddedLayer": {
                     "num_layers_added": layersToAdd,

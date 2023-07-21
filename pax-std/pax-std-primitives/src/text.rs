@@ -282,7 +282,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
     }
 
-    fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 

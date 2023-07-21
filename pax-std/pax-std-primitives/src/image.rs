@@ -118,21 +118,25 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
         }
     }
 
-    fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounds;
         let width =  bounding_dimens.0;
         let height =  bounding_dimens.1;
 
+        let bounds = kurbo::Rect::new(0.0,0.0, width, height);
+        let top_left = transform * kurbo::Point::new(bounds.min_x(), bounds.min_y());
+        let bottom_right = transform * kurbo::Point::new(bounds.max_x(), bounds.max_y());
+        let transformed_bounds = kurbo::Rect::new(top_left.x, top_left.y, bottom_right.x, bottom_right.y);
+
         let properties = (*self.properties).borrow();
         let id_chain = rtc.get_id_chain(self.instance_id);
-        if rtc.engine.image_map.contains_key(&id_chain) {
-            let bounds = kurbo::Rect::new(0.0,0.0, width, height);
-            let top_left = transform * kurbo::Point::new(bounds.min_x(), bounds.min_y());
-            let bottom_right = transform * kurbo::Point::new(bounds.max_x(), bounds.max_y());
-            let transformed_bounds = kurbo::Rect::new(top_left.x, top_left.y, bottom_right.x, bottom_right.y);
+        if rtc.engine.image_map.contains_key(&id_chain)  && self.image.is_none(){
             let (bytes, width, height) = rtc.engine.image_map.get(&id_chain).unwrap();
             let image = rc.make_image(*width, *height, &*bytes, ImageFormat::RgbaSeparate).unwrap();
+            self.image = Some(image);
+        }
+        if let Some(image) = &self.image {
             rc.draw_image(&image, transformed_bounds, InterpolationMode::Bilinear);
         }
     }

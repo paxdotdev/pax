@@ -95,7 +95,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
         }
 
     }
-    fn handle_render(&self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
+    fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let transform = rtc.transform;
         let bounding_dimens = rtc.bounds;
         let width: f64 =  bounding_dimens.0;
