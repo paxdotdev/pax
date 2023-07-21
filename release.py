@@ -93,8 +93,15 @@ for root in root_packages:
         with open("{}/Cargo.toml".format(elem), 'w') as file:
             file.write(tomlkit.dumps(doc))
 
-# Run cargo build, to update Cargo.lock
-subprocess.run(["cargo", "build"])
+# Build for macos in order to update Cargo.lock
+# Save the current working directory
+original_dir = os.getcwd()
+# Change the current working directory
+os.chdir('./pax-example')
+# Run the command
+subprocess.run(['./pax', 'build', '--target=macos'])
+# Change back to the original directory
+os.chdir(original_dir)
 
 # Perform git commit
 subprocess.run(["git", "commit", "-am", "Release " + NEW_VERSION], check=True)
