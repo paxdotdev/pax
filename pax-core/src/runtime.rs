@@ -2,7 +2,7 @@ use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::{VecDeque};
 use std::ops::Deref;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use piet::RenderContext;
 use pax_properties_coproduct::{PropertiesCoproduct};
@@ -75,7 +75,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Slot` and a scope that includes the PropertiesCoproduct of the associated Component
     pub fn push_stack_frame(&mut self, flattened_adoptees: RenderNodePtrList<R>, properties: Rc<RefCell<PropertiesCoproduct>>, timeline: Option<Rc<RefCell<Timeline>>>) {
-        let parent = self.peek_stack_frame();
+        let parent = self.peek_stack_frame().as_ref().map(Rc::downgrade);
 
         self.stack.push(
             Rc::new(RefCell::new(
@@ -136,12 +136,12 @@ pub struct StackFrame<R: 'static + RenderContext>
 {
     adoptees: RenderNodePtrList<R>,
     properties: Rc<RefCell<PropertiesCoproduct>>,
-    parent: Option<Rc<RefCell<StackFrame<R>>>>,
+    parent: Option<Weak<RefCell<StackFrame<R>>>>,
     timeline: Option<Rc<RefCell<Timeline>>>,
 }
 
 impl<R: 'static + RenderContext> StackFrame<R> {
-    pub fn new(adoptees: RenderNodePtrList<R>, properties: Rc<RefCell<PropertiesCoproduct>>, parent: Option<Rc<RefCell<StackFrame<R>>>>, timeline: Option<Rc<RefCell<Timeline>>>) -> Self {
+    pub fn new(adoptees: RenderNodePtrList<R>, properties: Rc<RefCell<PropertiesCoproduct>>, parent: Option<Weak<RefCell<StackFrame<R>>>>, timeline: Option<Rc<RefCell<Timeline>>>) -> Self {
         StackFrame {
             adoptees,
             properties,
@@ -157,7 +157,7 @@ impl<R: 'static + RenderContext> StackFrame<R> {
                 //to the parent stackframe's timeline (and recurse)
                 match &self.parent {
                     Some(parent_frame) => {
-                        (**parent_frame).borrow().get_timeline_playhead_position()
+                        (*parent_frame.upgrade().unwrap()).borrow().get_timeline_playhead_position()
                     },
                     None => 0
                 }
@@ -183,9 +183,9 @@ impl<R: 'static + RenderContext> StackFrame<R> {
         let new_depth = depth + 1;
         let parent = self.parent.as_ref().unwrap();
         if new_depth == n {
-            return Some(Rc::clone(parent));
+            return Some(parent.upgrade().unwrap());
         }
-        parent.deref().borrow().recurse_peek_nth(n, new_depth)
+        (*parent.deref().upgrade().unwrap()).borrow().recurse_peek_nth(n, new_depth)
     }
 
     pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {

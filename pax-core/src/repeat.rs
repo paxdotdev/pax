@@ -6,7 +6,7 @@ use std::ops::Deref;
 
 
 use piet_common::RenderContext;
-use crate::{ComponentInstance, TabCache, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs, HandlerRegistry};
+use crate::{ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs, HandlerRegistry};
 use pax_runtime_api::{Layer, log, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
@@ -64,7 +64,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
 
         if self.next_frame_children.is_some() {
-            self.active_children = Rc::clone(self.next_frame_children.as_ref().unwrap());
+            self.active_children = self.next_frame_children.take().unwrap();
             self.next_frame_children = None;
         }
 
@@ -186,6 +186,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         self.cached_old_value_range = None;
         self.cached_old_value_vec = None;
     }
+
 }
 
 

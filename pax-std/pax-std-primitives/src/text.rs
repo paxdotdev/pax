@@ -4,7 +4,7 @@ use std::rc::Rc;
 use std::collections::HashMap;
 use piet::{RenderContext};
 use pax_std::primitives::{Text};
-use pax_core::{ComputableTransform, TabCache, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, unsafe_unwrap};
+use pax_core::{ComputableTransform, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_message::{AnyCreatePatch, TextPatch, TextStyleMessage};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log, Layer, SizePixels};
@@ -300,8 +300,9 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     }
 
     fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        self.last_patches.clear();
+
         let id_chain = _rtc.get_id_chain(self.instance_id);
+        self.last_patches.remove(&id_chain).unwrap();
         (*_rtc.engine.runtime).borrow_mut().enqueue_native_message(
             pax_message::NativeMessage::TextDelete(id_chain)
         );
