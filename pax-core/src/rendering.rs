@@ -292,7 +292,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// AFTER all descendents have been rendered.
     /// Occurs in a post-order traversal of the render tree. Most primitives
     /// are expected to draw their contents to the rendering context during this event.
-    fn handle_render(&self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
         //no-op default implementation
     }
 
