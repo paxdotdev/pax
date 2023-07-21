@@ -3,7 +3,7 @@ use piet::{RenderContext};
 
 use pax_std::primitives::{Ellipse};
 use pax_std::types::ColorVariant;
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap, unsafe_cleanup};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D};
 
@@ -20,7 +20,6 @@ pub struct EllipseInstance<R: 'static + RenderContext> {
     pub properties: Rc<RefCell<Ellipse>>,
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    cleanup_ptr: *mut PropertiesCoproduct,
 }
 
 impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
@@ -34,7 +33,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
     }
 
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
-        let (properties, ptr) = unsafe_unwrap!(args.properties, PropertiesCoproduct, Ellipse);
+        let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Ellipse);
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(EllipseInstance {
@@ -43,7 +42,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
             properties: Rc::new(RefCell::new(properties)),
             size: args.size.expect("Ellipse requires a size"),
             handler_registry: args.handler_registry,
-            cleanup_ptr: ptr
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -138,9 +136,5 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
             rc.stroke(duplicate_transformed_bez_path, &properties.stroke.get().color.get().to_piet_color(), width);
         }
 
-    }
-
-    fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        unsafe_cleanup!(self.cleanup_ptr);
     }
 }
