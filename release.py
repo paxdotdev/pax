@@ -93,21 +93,12 @@ for root in root_packages:
         with open("{}/Cargo.toml".format(elem), 'w') as file:
             file.write(tomlkit.dumps(doc))
 
-# Build for macos in order to update Cargo.lock
-# Save the current working directory
-original_dir = os.getcwd()
-# Change the current working directory
-os.chdir('./pax-example')
-# Run the command
-subprocess.run(['./pax', 'build', '--target=macos'])
-# Change back to the original directory
-os.chdir(original_dir)
-
-# Perform git commit
-subprocess.run(["git", "commit", "-am", "Release " + NEW_VERSION], check=True)
 
 # Set to keep track of already published packages
 published = set()
+
+# Perform git commit
+subprocess.run(["git", "commit", "-am", "Release " + NEW_VERSION], check=True)
 
 # Second pass to publish the crates
 for root in root_packages:
@@ -122,6 +113,11 @@ for root in root_packages:
             # Mark this package as published
             published.add(elem)
 
+# Build for macos in order to update Cargo.lock
+subprocess.run(['cargo', 'build'])
+
+# Perform amend git commit, to include updates to Cargo.lock
+subprocess.run(["git", "commit", "--amend", "-m", "Release " + NEW_VERSION], check=True)
 
 # Perform git tag
 # subprocess.run(["git", "tag", "-a", "v" + NEW_VERSION, "-m", "Release v" + NEW_VERSION], check=True)
