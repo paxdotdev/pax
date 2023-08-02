@@ -117,11 +117,6 @@
         </Frame>
 </Frame>
 
-
-@events {
-    did_mount: handle_did_mount
-}
-
 @settings {
     .link {
         style_link: {

@@ -17,6 +17,7 @@ pub struct ConditionalInstance<R: 'static + RenderContext> {
     pub boolean_expression: Box<dyn PropertyInstance<bool>>,
     pub true_branch_children: RenderNodePtrList<R>,
     pub false_branch_children: RenderNodePtrList<R>,
+    pub next_frame_expression: Option<bool>,
 
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 }
@@ -39,7 +40,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
             transform: args.transform,
             boolean_expression: args.conditional_boolean_expression.expect("Conditional requires boolean_expression"),
             false_branch_children: Rc::new(RefCell::new(vec![])),
-
+            next_frame_expression: None
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -47,6 +48,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+
+        if self.next_frame_expression.is_some() {
+            self.boolean_expression.set(self.next_frame_expression.clone().unwrap());
+            self.next_frame_expression = None;
+        }
+
         if let Some(boolean_expression) = rtc.compute_vtable_value(self.boolean_expression._get_vtable_id()) {
             let old_value = *self.boolean_expression.get();
             let new_value = if let TypesCoproduct::bool(v) = boolean_expression { v } else { unreachable!() };
@@ -60,7 +67,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
                 });
             }
 
-            self.boolean_expression.set(new_value);
+            self.next_frame_expression = Some(new_value);
         }
     }
 
