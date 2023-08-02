@@ -633,7 +633,7 @@ class NativeElementPool {
         // let oldNode = this.textNodes.get(id_chain);
         // console.assert(oldNode !== undefined);
         // this.textNodes.delete(id_chain);
-
+        //
         // let nativeLayer = document.querySelector("#" + NATIVE_OVERLAY_CLASS);
         // nativeLayer?.removeChild(oldNode);
     }
@@ -664,7 +664,6 @@ async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8
     const img = await createImageBitmap(blob);
     const canvas = new OffscreenCanvas(img.width+1000, img.height);
     const ctx = canvas.getContext('2d');
-    console.log("Image Loading");
     // @ts-ignore
     ctx.drawImage(img, 0, 0, img.width, img.height);
     // @ts-ignore
@@ -940,7 +939,6 @@ let nativePool = new NativeElementPool();
 function processMessages(messages: any[], chassis: PaxChassisWeb) {
 
     messages?.forEach((unwrapped_msg) => {
-
         // if (Math.random() < .1) console.log(unwrapped_msg)
         if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
