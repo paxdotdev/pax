@@ -38,7 +38,6 @@ serde_json = { version = "1.0.95", optional = true }
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 console_error_panic_hook = { version = "0.1.6", optional = true }
 futures = "0.3.28"
-
 uuid = {version = "0.8", features = ["v4"] }
 
 
