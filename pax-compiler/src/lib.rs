@@ -747,6 +747,10 @@ fn clean_dependencies_table_of_relative_paths(crate_name: &str, dependencies: &m
         let dep_name = dep.0.to_string();
         let is_cloned_dep = dep_name.contains("pax-properties-coproduct") || dep_name.contains("pax-cartridge");
 
+        if is_cloned_dep {
+            println!("Break");
+        }
+
         match dep.1.get_mut("path") {
             Some(existing_path) => {
                 if  !existing_path.is_none() && !is_cloned_dep && host_crate_info.is_lib_dev_mode {
@@ -800,6 +804,8 @@ fn generate_chassis(pax_dir: &PathBuf, target: &RunTarget, host_crate_info: &Hos
 
     //remove all relative `path` entries from dependencies, so that we may patch.
     clean_dependencies_table_of_relative_paths("pax-chassis", existing_cargo_toml["dependencies"].as_table_mut().unwrap(), host_crate_info);
+    // existing_cargo_toml["dependencies"]["pax-cartridge"]["path"] = toml_edit::value("");
+    // existing_cargo_toml["dependencies"]["pax-properties-coproduct"]["path"] = toml_edit::value("");
 
     //add `patch`
     let mut patch_table = toml_edit::table();
