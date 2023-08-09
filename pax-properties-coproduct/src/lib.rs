@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::ops::Range;
 use std::rc::Rc;
 
 pub enum PropertiesCoproduct {
@@ -21,6 +22,7 @@ pub enum TypesCoproduct {
     usize(usize), //used by Slot for index
 
     stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR(Vec<Rc<PropertiesCoproduct>>),
+    stdCOCOopsCOCORangeLABRisizeRABR(Range<isize>),
     String(String),
     Transform2D(pax_runtime_api::Transform2D),
     SizePixels(pax_runtime_api::SizePixels),
