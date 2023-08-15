@@ -1,4 +1,4 @@
-<Frame width=100% height=100% @scroll=handle_container_scroll>
+<Frame width=100% height=100% @scroll=handle_container_scroll @touch_start=handle_touch_start @touch_move=handle_touch_move @touch_end=handle_touch_end>
     // Nav fixed overlay
     <Frame width=80% height=75px transform={
        Transform2D::anchor(50%, 0%) *
@@ -104,6 +104,10 @@
         </Stacker>
         </Frame>
 </Frame>
+
+@events {
+    will_render: handle_will_render
+}
 
 @settings {
     .link {

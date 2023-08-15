@@ -20,6 +20,11 @@ let layers: { "native": HTMLDivElement[], "canvas": HTMLCanvasElement[] } = { "n
 
 let is_mobile_device = false;
 
+let is_initialized = false;
+
+let lastScrollTop = 0;
+let lastScrollLeft = 0;
+
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
 //  - global (screen) coordinates
@@ -37,11 +42,6 @@ function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
     initializeLayers(1);
     //Initialize chassis & engine
     let chassis = wasmMod.PaxChassisWeb.new();
-
-    //Handle click events on canvas layer
-    setupEventListeners(chassis,layers.canvas[0]);
-
-    addEventListenersToNativeLayers(0, layers.native.length, chassis);
 
     //Kick off render loop
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
@@ -136,23 +136,23 @@ function setupEventListeners(chassis: any, layer: any) {
     }, true);
     // @ts-ignore
     layer.addEventListener('wheel', (evt) => {
-        let event = {
-            "Wheel": {
-                "x": evt.clientX,
-                "y": evt.clientY,
-                "delta_x": evt.deltaX,
-                "delta_y": evt.deltaY,
-                "modifiers": convertModifiers(evt)
-            }
-        };
-        chassis.interrupt(JSON.stringify(event), []);
-        let scrollEvent = {
-            "Scroll": {
-                "delta_x": evt.deltaX,
-                "delta_y": evt.deltaY,
-            }
-        };
-        chassis.interrupt(JSON.stringify(scrollEvent), []);
+        // let event = {
+        //     "Wheel": {
+        //         "x": evt.clientX,
+        //         "y": evt.clientY,
+        //         "delta_x": evt.deltaX,
+        //         "delta_y": evt.deltaY,
+        //         "modifiers": convertModifiers(evt)
+        //     }
+        // };
+        //chassis.interrupt(JSON.stringify(event), []);
+        // let scrollEvent = {
+        //     "Scroll": {
+        //         "delta_x": evt.deltaX,
+        //         "delta_y": evt.deltaY,
+        //     }
+        // };
+        // chassis.interrupt(JSON.stringify(scrollEvent), []);
     }, true);
     // @ts-ignore
     layer.addEventListener('mousedown', (evt) => {
@@ -244,13 +244,13 @@ function setupEventListeners(chassis: any, layer: any) {
         };
         chassis.interrupt(JSON.stringify(event), []);
 
-        let scrollEvent = {
-            "Scroll": {
-                "delta_x": touches[0].delta_x,
-                "delta_y": touches[0].delta_y,
-            }
-        };
-        chassis.interrupt(JSON.stringify(scrollEvent), []);
+        // let scrollEvent = {
+        //     "Scroll": {
+        //         "delta_x": touches[0].delta_x,
+        //         "delta_y": touches[0].delta_y,
+        //     }
+        // };
+        // chassis.interrupt(JSON.stringify(scrollEvent), []);
     }, true);
     // @ts-ignore
     layer.addEventListener('touchend', (evt) => {
@@ -308,9 +308,6 @@ function addEventListenersToNativeLayers(starting_index: number, count: number, 
 
 function initializeLayers(num: number){
     let mount = document.querySelector("#" + MOUNT_ID); // FUTURE: make more general; see approach used by Vue & React
-    // Set the position of the container to relative
-    // @ts-ignore
-    mount.style.position = 'relative';
 
     let starting_index = layers.canvas.length;
 
@@ -363,6 +360,43 @@ function clearCanvases(){
 function renderLoop (chassis: PaxChassisWeb) {
      clearCanvases()
      let messages : string = chassis.tick();
+
+     if(!is_initialized){
+         let scrollContainer = document.querySelector("#mount"); // FUTURE: make more general; see approach used by Vue & React
+
+
+         // @ts-ignore
+         scrollContainer.addEventListener('scroll', (evt) => {
+
+             // @ts-ignore
+             let currentScrollTop = evt.target.scrollTop;
+             // @ts-ignore
+             let currentScrollLeft = evt.target.scrollLeft;
+
+             let deltaY = currentScrollTop - lastScrollTop;
+             let deltaX = currentScrollLeft - lastScrollLeft;
+             lastScrollTop = currentScrollTop;
+             lastScrollLeft = currentScrollLeft;
+
+             // @ts-ignore
+             let scrollEvent = {
+                 "Scroll": {
+                     "delta_x": deltaX,
+                     "delta_y": deltaY,
+                 }
+             };
+             console.log(scrollEvent);
+             chassis.interrupt(JSON.stringify(scrollEvent), []);
+         }, true);
+
+
+         //Handle click events on canvas layer
+         setupEventListeners(chassis,layers.canvas[0]);
+
+         addEventListenersToNativeLayers(0, layers.native.length, chassis);
+         is_initialized = true;
+     }
+
      messages = JSON.parse(messages);
 
      // @ts-ignore
@@ -965,7 +999,7 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
             let msg = unwrapped_msg["LayerAdd"];
             let layersToAdd = msg["num_layers_to_add"];
             let old_length = layers.native.length;
-            if (!is_mobile_device || (old_length+layersToAdd) < 5) {
+            if ((old_length+layersToAdd) < 10) {
                 initializeLayers(layersToAdd);
                 addEventListenersToNativeLayers(old_length, layersToAdd, chassis);
             } else {
