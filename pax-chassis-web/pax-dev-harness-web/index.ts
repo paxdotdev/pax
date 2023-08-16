@@ -357,12 +357,14 @@ function clearCanvases(){
     }
 }
 
+
 function renderLoop (chassis: PaxChassisWeb) {
      clearCanvases()
      let messages : string = chassis.tick();
 
      if(!is_initialized){
-         let scrollContainer = document.querySelector("#mount"); // FUTURE: make more general; see approach used by Vue & React
+         let scrollContainer = document.querySelector("#scrolling-container");
+         let mount = document.querySelector("#mount"); // FUTURE: make more general; see approach used by Vue & React
 
 
          // @ts-ignore
@@ -377,6 +379,10 @@ function renderLoop (chassis: PaxChassisWeb) {
              let deltaX = currentScrollLeft - lastScrollLeft;
              lastScrollTop = currentScrollTop;
              lastScrollLeft = currentScrollLeft;
+             requestAnimationFrame(() => {
+                 // @ts-ignore
+                 mount.style.transform = `translateY(${currentScrollTop}px)`;
+             });
 
              // @ts-ignore
              let scrollEvent = {
@@ -385,8 +391,8 @@ function renderLoop (chassis: PaxChassisWeb) {
                      "delta_y": deltaY,
                  }
              };
-             console.log(scrollEvent);
              chassis.interrupt(JSON.stringify(scrollEvent), []);
+
          }, true);
 
 
