@@ -1,5 +1,7 @@
 extern crate core;
 
+use lazy_static::lazy_static;
+
 pub mod manifest;
 pub mod templating;
 pub mod parsing;
@@ -239,6 +241,10 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
         updated_type_table.insert(t.0.replace("{PREFIX}", &host_crate_info.import_prefix), t.1.clone());
     });
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
+
+}
+
+fn copy_all_dependencies(pax_dir: &PathBuf) {
 
 }
 
@@ -855,14 +861,45 @@ fn libdev_chassis_copy(src: &PathBuf, dest: &PathBuf) {
     }
 }
 
-static CHASSIS_MACOS_LIBDEV: &str = "../pax-chassis-macos";
-static CHASSIS_MACOS_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos");
-//NOTE: including this whole pax-chassis-web directory, plus node_modules, adds >100MB to the size of the
-//      compiler binary; also extends build times for Web and build times for pax-compiler itself.
-//      These are all development dependencies, namely around webpack/typescript -- this could be
-//      improved with a "production build" of `pax-chassis-web` that gets included into the compiler
-static CHASSIS_WEB_LIBDEV: &str = "../pax-chassis-web";
-static CHASSIS_WEB_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web");
+
+const ALL_DIRS: [(&'static str, Dir); 13] = [
+    ("pax-cartridge", include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge")),
+    ("pax-chassis-ios", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-ios")),
+    ("pax-chassis-macos", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos")),
+    ("pax-chassis-web", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web")),
+    ("pax-cli", include_dir!("$CARGO_MANIFEST_DIR/../pax-cli")),
+    ("pax-compiler", include_dir!("$CARGO_MANIFEST_DIR/../pax-compiler")),
+    ("pax-core", include_dir!("$CARGO_MANIFEST_DIR/../pax-core")),
+    ("pax-lang", include_dir!("$CARGO_MANIFEST_DIR/../pax-lang")),
+    ("pax-macro", include_dir!("$CARGO_MANIFEST_DIR/../pax-macro")),
+    ("pax-message", include_dir!("$CARGO_MANIFEST_DIR/../pax-message")),
+    ("pax-properties-coproduct", include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct")),
+    ("pax-runtime-api", include_dir!("$CARGO_MANIFEST_DIR/../pax-runtime-api")),
+    ("pax-std", include_dir!("$CARGO_MANIFEST_DIR/../pax-std")),
+];
+
+
+lazy_static! {
+    static ref ALL_DIRS_LIBDEV: HashMap<&'static str, &'static str> = {
+        let mut map = HashMap::new();
+        map.insert("pax-cartridge", "../pax-cartridge");
+        map.insert("pax-chassis-ios", "../pax-chassis-ios");
+        map.insert("pax-chassis-macos", "../pax-chassis-macos");
+        map.insert("pax-chassis-web", "../pax-chassis-web");
+        map.insert("pax-cli", "../pax-cli");
+        map.insert("pax-compiler", "../pax-compiler");
+        map.insert("pax-core", "../pax-core");
+        map.insert("pax-lang", "../pax-lang");
+        map.insert("pax-macro", "../pax-macro");
+        map.insert("pax-message", "../pax-message");
+        map.insert("pax-properties-coproduct", "../pax-properties-coproduct");
+        map.insert("pax-runtime-api", "../pax-runtime-api");
+        map.insert("pax-std", "../pax-std");
+        map
+    };
+}
+
+
 /// Clone the relevant chassis (and dev harness) to the local .pax directory
 /// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
 /// and the encapsulated dev harness is the actual dev executable
@@ -884,9 +921,10 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
                 // We can assume we're in the pax monorepo — thus we can raw-copy ../pax-chassis-* into .pax,
                 // instead of relying on include_dir (which has a very sticky cache and requires constant `cargo clean`ing to clear)
                 // This feature allows us to make edits e.g. to @/pax-chassis-macos and rest assured that they are copied into @/pax-example/.pax/chassis/MacOS with every libdev build
-                libdev_chassis_copy(&fs::canonicalize(CHASSIS_MACOS_LIBDEV).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
+                libdev_chassis_copy(&fs::canonicalize(ALL_DIRS_LIBDEV.get("pax-chassis-macos").unwrap()).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
             } else {
-                persistent_extract(&CHASSIS_MACOS_DIR, &chassis_specific_dir).unwrap();
+                let chassis = &ALL_DIRS.iter().find(|t|{t.0 == "pax-chassis-macos"}).unwrap().1;
+                persistent_extract(chassis, &chassis_specific_dir).unwrap();
             }
 
             // CHASSIS_MACOS_DIR.extract(&chassis_specific_dir).unwrap();
@@ -903,9 +941,10 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
                 // We can assume we're in the pax monorepo — thus we can raw-copy ../pax-chassis-* into .pax,
                 // instead of relying on include_dir (which has a very sticky cache and requires constant `cargo clean`ing to clear)
                 // This feature allows us to make edits e.g. to @/pax-chassis-web and rest assured that they are copied into @/pax-example/.pax/chassis/Web with every libdev build
-                libdev_chassis_copy(&fs::canonicalize(CHASSIS_WEB_LIBDEV).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
+                libdev_chassis_copy(&fs::canonicalize(ALL_DIRS_LIBDEV.get("pax-chassis-web").unwrap()).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
             } else {
-                persistent_extract(&CHASSIS_WEB_DIR, &chassis_specific_dir).unwrap();
+                let chassis = &ALL_DIRS.iter().find(|t|{t.0 == "pax-chassis-web"}).unwrap().1;
+                persistent_extract(chassis, &chassis_specific_dir).unwrap();
             }
 
             //write +x permission to copied run-debuggable-mac-app
@@ -1044,13 +1083,26 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     expressions::compile_all_expressions(&mut manifest);
 
     println!("{} 🦀 Generating Rust", &PAX_BADGE);
+
+    //TODO:
+    // 1. copy & expand all necessary deps, as code, a la cargo itself, into .pax (not just chassis & cartridge)
+    // 2. clean up the special cases around current chassis & cartridge codegen, incl. `../../..` patching & dir names / paths
+    // 3. adjust the final build logic — point to _in vivo_ chassis dirs instead of the special chassis folder; rely on overwritten codegen of cartridge & properties-coproduct instead of patches
+
+    //ADD: copy all necessary dirs
+    copy_all_dependencies(&pax_dir);
+    //KEEP
     generate_reexports_partial_rs(&pax_dir, &manifest);
+    //MODIFY: generate into .pax/pax-properties-coproduct
     generate_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
+    //MODIFY: generate into .pax/pax-cartridge
     generate_cartridge_definition(&pax_dir, &manifest, &host_crate_info);
+    //MODIFY: no need to generate a chassis at all, beyond the rote-copied ones
     generate_chassis(&pax_dir, &ctx.target, &host_crate_info, ctx.libdevmode);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with cargo", &PAX_BADGE);
+    //MODIFY: working directory, possibly keep env/flags?
     let output = build_chassis_with_cartridge(&pax_dir, &ctx.target);
     //forward stderr only
     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
