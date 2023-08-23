@@ -31,6 +31,36 @@ use crate::templating::{press_template_codegen_cartridge_component_factory, pres
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
 
+const ALL_DIRS: [(&'static str, Dir); 13] = [
+    ("pax-cartridge", include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge")),
+    ("pax-chassis-ios", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-ios")),
+    ("pax-chassis-macos", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos")),
+    ("pax-chassis-web", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web")),
+    ("pax-cli", include_dir!("$CARGO_MANIFEST_DIR/../pax-cli")),
+    ("pax-compiler", include_dir!("$CARGO_MANIFEST_DIR/../pax-compiler")),
+    ("pax-core", include_dir!("$CARGO_MANIFEST_DIR/../pax-core")),
+    ("pax-lang", include_dir!("$CARGO_MANIFEST_DIR/../pax-lang")),
+    ("pax-macro", include_dir!("$CARGO_MANIFEST_DIR/../pax-macro")),
+    ("pax-message", include_dir!("$CARGO_MANIFEST_DIR/../pax-message")),
+    ("pax-properties-coproduct", include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct")),
+    ("pax-runtime-api", include_dir!("$CARGO_MANIFEST_DIR/../pax-runtime-api")),
+    ("pax-std", include_dir!("$CARGO_MANIFEST_DIR/../pax-std")),
+];
+const ALL_DIRS_LIBDEV: [(&'static str, &'static str); 13] = [
+    ("pax-cartridge", "../pax-cartridge"),
+    ("pax-chassis-ios", "../pax-chassis-ios"),
+    ("pax-chassis-macos", "../pax-chassis-macos"),
+    ("pax-chassis-web", "../pax-chassis-web"),
+    ("pax-cli", "../pax-cli"),
+    ("pax-compiler", "../pax-compiler"),
+    ("pax-core", "../pax-core"),
+    ("pax-lang", "../pax-lang"),
+    ("pax-macro", "../pax-macro"),
+    ("pax-message", "../pax-message"),
+    ("pax-properties-coproduct", "../pax-properties-coproduct"),
+    ("pax-runtime-api", "../pax-runtime-api"),
+    ("pax-std", "../pax-std"),
+];
 
 /// Returns a sorted and de-duped list of combined_reexports.
 fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
@@ -212,10 +242,7 @@ mod tests {
     }
 }
 
-
-
 fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
-
     let mut root = NamespaceTrieNode {
         node_string: None,
         children: Default::default(),
@@ -226,11 +253,9 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
     }
 
     root.serialize_to_reexports()
-
 }
 
 fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
-
     let mut updated_type_table = HashMap::new();
     manifest.type_table.iter_mut().for_each(|t|{
         t.1.type_id_escaped = t.1.type_id_escaped.replace("{PREFIX}", "");
@@ -241,10 +266,30 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
         updated_type_table.insert(t.0.replace("{PREFIX}", &host_crate_info.import_prefix), t.1.clone());
     });
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
-
 }
 
-fn copy_all_dependencies(pax_dir: &PathBuf) {
+fn copy_all_dependencies(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
+
+    if host_crate_info.is_lib_dev_mode {
+        //In lib-dev mode, we can assume these crates exist in the filesystem at the relative paths encoded into the const `ALL_DIRS_LIBDEV`
+        //For lib-dev, instead of using `include_dir`, which has a nasty-sticky cache that requires `cargo clean`ing across changes and breaks the lib-dev experience,
+        //we copy these relative files directly with each compilation
+
+        ALL_DIRS_LIBDEV.iter().for_each(|dir_tuple|{
+            let src  = pax_dir.join("..").join(dir_tuple.1);
+            let dest = pax_dir.join(dir_tuple.0);
+            libdev_dep_copy(&src, &dest);
+        })
+    } else {
+        //This is a user-facing build — not a libdev monorepo build.
+        //Thus, we will copy code from the binary-embedded `include_dir!` directories, encoded in the const `ALL_DIRS`
+
+        ALL_DIRS.iter().for_each(|dir_tuple|{
+            let src  = &dir_tuple.1;
+            let dest = pax_dir.join(dir_tuple.0);
+            persistent_extract(src, &dest).unwrap();
+        })
+    }
 
 }
 
@@ -330,8 +375,8 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
 }
 
 fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
-    let target_dir = pax_dir.join("cartridge");
-    clone_cartridge_to_dot_pax(&target_dir).unwrap();
+    let target_dir = pax_dir.join("pax-cartridge");
+    // clone_cartridge_to_dot_pax(&target_dir).unwrap();
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
@@ -796,13 +841,13 @@ fn clean_dependencies_table_of_relative_paths(crate_name: &str, dependencies: &m
 
 fn generate_chassis(pax_dir: &PathBuf, target: &RunTarget, host_crate_info: &HostCrateInfo, libdevmode: bool) {
     //1. clone (git or raw fs) pax-chassis-whatever into .pax/chassis/
-    let chassis_dir = pax_dir.join("chassis");
-    std::fs::create_dir_all(&chassis_dir).expect("Failed to create chassis directory.  Check filesystem permissions?");
 
-    let target_str : &str = target.into();
-    let relative_chassis_specific_target_dir = chassis_dir.join(target_str);
 
-    clone_target_chassis_to_dot_pax(&relative_chassis_specific_target_dir, target_str, libdevmode).unwrap();
+    let chassis_specific_dir : &str = &("pax-chassis-".to_string() + target.into());
+    let relative_chassis_specific_target_dir = pax_dir.join(chassis_specific_dir);
+    std::fs::create_dir_all(&relative_chassis_specific_target_dir);
+
+    clone_target_chassis_to_dot_pax(&relative_chassis_specific_target_dir, target.into(), libdevmode).unwrap();
 
     //2. patch Cargo.toml
     let existing_cargo_toml_path = fs::canonicalize(relative_chassis_specific_target_dir.join("Cargo.toml")).unwrap();
@@ -826,10 +871,10 @@ fn generate_chassis(pax_dir: &PathBuf, target: &RunTarget, host_crate_info: &Hos
 
 /// Instead of the built-in Dir#extract method, which aborts when a file exists,
 /// this implementation will continue extracting, as well as overwrite existing files
-fn persistent_extract<S: AsRef<Path>>(dir: &Dir, base_path: S) -> std::io::Result<()> {
-    let base_path = base_path.as_ref();
+fn persistent_extract<S: AsRef<Path>>(src_dir: &Dir, dest_base_path: S) -> std::io::Result<()> {
+    let base_path = dest_base_path.as_ref();
 
-    for entry in dir.entries() {
+    for entry in src_dir.entries() {
         let path = base_path.join(entry.path());
 
         match entry {
@@ -847,56 +892,18 @@ fn persistent_extract<S: AsRef<Path>>(dir: &Dir, base_path: S) -> std::io::Resul
 }
 
 /// Simple recursive fs copy function, since std::fs::copy doesn't recurse for us
-fn libdev_chassis_copy(src: &PathBuf, dest: &PathBuf) {
+fn libdev_dep_copy(src: &PathBuf, dest: &PathBuf) {
     for entry_wrapped in fs::read_dir(src).unwrap() {
         let entry = entry_wrapped.unwrap();
         let file_name = entry.file_name();
         let src_path= &entry.path();
         if entry.file_type().unwrap().is_dir() {
-            libdev_chassis_copy(src_path, &dest.join(&file_name));
+            libdev_dep_copy(src_path, &dest.join(&file_name));
         } else {
             fs::create_dir_all(dest).ok();
             fs::copy(src_path, dest.join(&file_name)).unwrap();
         }
     }
-}
-
-
-const ALL_DIRS: [(&'static str, Dir); 13] = [
-    ("pax-cartridge", include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge")),
-    ("pax-chassis-ios", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-ios")),
-    ("pax-chassis-macos", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos")),
-    ("pax-chassis-web", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web")),
-    ("pax-cli", include_dir!("$CARGO_MANIFEST_DIR/../pax-cli")),
-    ("pax-compiler", include_dir!("$CARGO_MANIFEST_DIR/../pax-compiler")),
-    ("pax-core", include_dir!("$CARGO_MANIFEST_DIR/../pax-core")),
-    ("pax-lang", include_dir!("$CARGO_MANIFEST_DIR/../pax-lang")),
-    ("pax-macro", include_dir!("$CARGO_MANIFEST_DIR/../pax-macro")),
-    ("pax-message", include_dir!("$CARGO_MANIFEST_DIR/../pax-message")),
-    ("pax-properties-coproduct", include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct")),
-    ("pax-runtime-api", include_dir!("$CARGO_MANIFEST_DIR/../pax-runtime-api")),
-    ("pax-std", include_dir!("$CARGO_MANIFEST_DIR/../pax-std")),
-];
-
-
-lazy_static! {
-    static ref ALL_DIRS_LIBDEV: HashMap<&'static str, &'static str> = {
-        let mut map = HashMap::new();
-        map.insert("pax-cartridge", "../pax-cartridge");
-        map.insert("pax-chassis-ios", "../pax-chassis-ios");
-        map.insert("pax-chassis-macos", "../pax-chassis-macos");
-        map.insert("pax-chassis-web", "../pax-chassis-web");
-        map.insert("pax-cli", "../pax-cli");
-        map.insert("pax-compiler", "../pax-compiler");
-        map.insert("pax-core", "../pax-core");
-        map.insert("pax-lang", "../pax-lang");
-        map.insert("pax-macro", "../pax-macro");
-        map.insert("pax-message", "../pax-message");
-        map.insert("pax-properties-coproduct", "../pax-properties-coproduct");
-        map.insert("pax-runtime-api", "../pax-runtime-api");
-        map.insert("pax-std", "../pax-std");
-        map
-    };
 }
 
 
@@ -917,15 +924,15 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
     match RunTarget::from(target_str) {
         RunTarget::MacOS => {
 
-            if libdevmode {
-                // We can assume we're in the pax monorepo — thus we can raw-copy ../pax-chassis-* into .pax,
-                // instead of relying on include_dir (which has a very sticky cache and requires constant `cargo clean`ing to clear)
-                // This feature allows us to make edits e.g. to @/pax-chassis-macos and rest assured that they are copied into @/pax-example/.pax/chassis/MacOS with every libdev build
-                libdev_chassis_copy(&fs::canonicalize(ALL_DIRS_LIBDEV.get("pax-chassis-macos").unwrap()).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
-            } else {
-                let chassis = &ALL_DIRS.iter().find(|t|{t.0 == "pax-chassis-macos"}).unwrap().1;
-                persistent_extract(chassis, &chassis_specific_dir).unwrap();
-            }
+            // if libdevmode {
+            //     // We can assume we're in the pax monorepo — thus we can raw-copy ../pax-chassis-* into .pax,
+            //     // instead of relying on include_dir (which has a very sticky cache and requires constant `cargo clean`ing to clear)
+            //     // This feature allows us to make edits e.g. to @/pax-chassis-macos and rest assured that they are copied into @/pax-example/.pax/chassis/MacOS with every libdev build
+            //     libdev_chassis_copy(&fs::canonicalize(ALL_DIRS_LIBDEV.get("pax-chassis-macos").unwrap()).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
+            // } else {
+            //     let chassis = &ALL_DIRS.iter().find(|t|{t.0 == "pax-chassis-macos"}).unwrap().1;
+            //     persistent_extract(chassis, &chassis_specific_dir).unwrap();
+            // }
 
             // CHASSIS_MACOS_DIR.extract(&chassis_specific_dir).unwrap();
             //HACK: patch the relative directory for the cdylib, because in a rust monorepo the `target` dir
@@ -937,15 +944,15 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
             fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o777)).unwrap();
         }
         RunTarget::Web => {
-            if libdevmode {
-                // We can assume we're in the pax monorepo — thus we can raw-copy ../pax-chassis-* into .pax,
-                // instead of relying on include_dir (which has a very sticky cache and requires constant `cargo clean`ing to clear)
-                // This feature allows us to make edits e.g. to @/pax-chassis-web and rest assured that they are copied into @/pax-example/.pax/chassis/Web with every libdev build
-                libdev_chassis_copy(&fs::canonicalize(ALL_DIRS_LIBDEV.get("pax-chassis-web").unwrap()).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
-            } else {
-                let chassis = &ALL_DIRS.iter().find(|t|{t.0 == "pax-chassis-web"}).unwrap().1;
-                persistent_extract(chassis, &chassis_specific_dir).unwrap();
-            }
+            // if libdevmode {
+            //     // We can assume we're in the pax monorepo — thus we can raw-copy ../pax-chassis-* into .pax,
+            //     // instead of relying on include_dir (which has a very sticky cache and requires constant `cargo clean`ing to clear)
+            //     // This feature allows us to make edits e.g. to @/pax-chassis-web and rest assured that they are copied into @/pax-example/.pax/chassis/Web with every libdev build
+            //     libdev_chassis_copy(&fs::canonicalize(ALL_DIRS_LIBDEV.get("pax-chassis-web").unwrap()).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
+            // } else {
+            //     let chassis = &ALL_DIRS.iter().find(|t|{t.0 == "pax-chassis-web"}).unwrap().1;
+            //     persistent_extract(chassis, &chassis_specific_dir).unwrap();
+            // }
 
             //write +x permission to copied run-debuggable-mac-app
             fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-web").join("run-web.sh"), fs::Permissions::from_mode(0o777)).unwrap();
@@ -955,20 +962,6 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
 
 }
 
-static CARTRIDGE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge");
-/// Clone the template pax-cartridge directory into .pax, for further codegen
-fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
-    // fs::remove_dir_all(&relative_cartridge_target_dir);
-    fs::create_dir_all(&relative_cartridge_target_dir).unwrap();
-
-    let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
-
-    // println!("Cloning cartridge to {:?}", target_dir);
-
-    persistent_extract(&CARTRIDGE_DIR, &target_dir).unwrap();
-
-    Ok(())
-}
 
 static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct");
 /// Clone a copy of the relevant chassis (and dev harness) to the local .pax directory
@@ -1090,15 +1083,14 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     // 3. adjust the final build logic — point to _in vivo_ chassis dirs instead of the special chassis folder; rely on overwritten codegen of cartridge & properties-coproduct instead of patches
 
     //ADD: copy all necessary dirs
-    copy_all_dependencies(&pax_dir);
+    copy_all_dependencies(&pax_dir, &host_crate_info);
     //KEEP
     generate_reexports_partial_rs(&pax_dir, &manifest);
     //MODIFY: generate into .pax/pax-properties-coproduct
     generate_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
     //MODIFY: generate into .pax/pax-cartridge
     generate_cartridge_definition(&pax_dir, &manifest, &host_crate_info);
-    //MODIFY: no need to generate a chassis at all, beyond the rote-copied ones
-    generate_chassis(&pax_dir, &ctx.target, &host_crate_info, ctx.libdevmode);
+
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with cargo", &PAX_BADGE);
