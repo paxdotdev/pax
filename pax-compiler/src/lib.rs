@@ -274,16 +274,14 @@ fn copy_all_dependencies(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
         //In lib-dev mode, we can assume these crates exist in the filesystem at the relative paths encoded into the const `ALL_DIRS_LIBDEV`
         //For lib-dev, instead of using `include_dir`, which has a nasty-sticky cache that requires `cargo clean`ing across changes and breaks the lib-dev experience,
         //we copy these relative files directly with each compilation
-
         ALL_DIRS_LIBDEV.iter().for_each(|dir_tuple|{
             let src  = pax_dir.join("..").join(dir_tuple.1);
             let dest = pax_dir.join(dir_tuple.0);
             libdev_dep_copy(&src, &dest);
         })
     } else {
-        //This is a user-facing build — not a libdev monorepo build.
+        //This is a user-facing build, e.g. via the pax CLI.  This is not a libdev monorepo build.
         //Thus, we will copy code from the binary-embedded `include_dir!` directories, encoded in the const `ALL_DIRS`
-
         ALL_DIRS.iter().for_each(|dir_tuple|{
             let src  = &dir_tuple.1;
             let dest = pax_dir.join(dir_tuple.0);
@@ -294,15 +292,13 @@ fn copy_all_dependencies(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
 }
 
 
-fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
+fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
-    let target_dir = pax_dir.join("properties-coproduct");
-    clone_properties_coproduct_to_dot_pax(&target_dir).unwrap();
+    let target_dir = pax_dir.join("pax-properties-coproduct");
+    // clone_properties_coproduct_to_dot_pax(&target_dir).unwrap();
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
-
-    clean_dependencies_table_of_relative_paths("pax-properties-coproduct", target_cargo_toml_contents["dependencies"].as_table_mut().unwrap(), host_crate_info);
 
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
@@ -374,14 +370,11 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
 
 }
 
-fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
+fn generate_and_overwrite_cartridge(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
     let target_dir = pax_dir.join("pax-cartridge");
-    // clone_cartridge_to_dot_pax(&target_dir).unwrap();
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
-
-    clean_dependencies_table_of_relative_paths("pax-cartridge", target_cargo_toml_contents["dependencies"].as_table_mut().unwrap(), host_crate_info);
 
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
@@ -391,7 +384,6 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
 
     //write patched Cargo.toml
     fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
-
 
     const IMPORTS_BUILTINS : [&str; 27] = [
         "std::cell::RefCell",
@@ -423,12 +415,10 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
         "piet_common::RenderContext",
     ];
 
-
     let imports_builtins_set: HashSet<&str> = IMPORTS_BUILTINS.into_iter().collect();
 
     #[allow(non_snake_case)]
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
-
 
     let mut imports : Vec<String> = manifest.import_paths.iter().map(|path|{
         if ! imports_builtins_set.contains(&**path) {
@@ -491,22 +481,25 @@ fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host
         component_factories_literal,
     });
 
-
-    //format output
-    let formatted = {
-        // let mut formatter = rust_format::RustFmt::default();
-        //
-        // if let Ok(out) = formatter.format_str(generated_lib_rs.clone()) {
-        //     out
-        // } else {
-            //if formatting fails (e.g. parsing error, common expected case) then
-            //fall back to unformatted generated code
-            generated_lib_rs
-        //}
-    };
+    // Re: formatting the generated output, refer to `_format_generated_lib_rs`
 
     //write String to file
-    fs::write(target_dir.join("src/lib.rs"), formatted).unwrap();
+    fs::write(target_dir.join("src/lib.rs"), generated_lib_rs).unwrap();
+}
+
+/// Note: this function was abandoned, but left for posterity, because RustFmt takes unacceptably long to format complex
+/// pax-cartridge/src/lib.rs files.  The net effect was a show-stoppingly slow `pax build`.
+/// We can problaby mitigate this by: (a) waiting for or eliciting improvements in RustFmt, or (b) figuring out what about our codegen is slowing RustFmt down, and generate our code differently to side-step.
+fn _format_generated_lib_rs(generated_lib_rs: String) -> String {
+    let mut formatter = rust_format::RustFmt::default();
+
+    if let Ok(out) = formatter.format_str(generated_lib_rs.clone()) {
+        out
+    } else {
+        //if formatting fails (e.g. parsing error, common expected case) then
+        //fall back to unformatted generated code
+        generated_lib_rs
+    }
 }
 
 
@@ -842,7 +835,6 @@ fn clean_dependencies_table_of_relative_paths(crate_name: &str, dependencies: &m
 fn generate_chassis(pax_dir: &PathBuf, target: &RunTarget, host_crate_info: &HostCrateInfo, libdevmode: bool) {
     //1. clone (git or raw fs) pax-chassis-whatever into .pax/chassis/
 
-
     let chassis_specific_dir : &str = &("pax-chassis-".to_string() + target.into());
     let relative_chassis_specific_target_dir = pax_dir.join(chassis_specific_dir);
     std::fs::create_dir_all(&relative_chassis_specific_target_dir);
@@ -1078,23 +1070,22 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     println!("{} 🦀 Generating Rust", &PAX_BADGE);
 
     //TODO:
-    // 1. copy & expand all necessary deps, as code, a la cargo itself, into .pax (not just chassis & cartridge)
-    // 2. clean up the special cases around current chassis & cartridge codegen, incl. `../../..` patching & dir names / paths
-    // 3. adjust the final build logic — point to _in vivo_ chassis dirs instead of the special chassis folder; rely on overwritten codegen of cartridge & properties-coproduct instead of patches
+    // [x] copy & expand all necessary deps, as code, a la cargo itself, into .pax (not just chassis & cartridge)
+    // [x] clean up the special cases around current chassis & cartridge codegen, incl. `../../..` patching & dir names / paths
+    // [x] adjust the final build logic — point to _in vivo_ chassis dirs instead of the special chassis folder; rely on overwritten codegen of cartridge & properties-coproduct instead of patches
+    //     [ ] web
+    //     [ ] macos
+    // [ ] fix build times (maybe don't clobber Cargo.lock?)
+    // [ ] Assess viability of pointing userland projects to .pax/pax-lang (for example)
 
-    //ADD: copy all necessary dirs
     copy_all_dependencies(&pax_dir, &host_crate_info);
-    //KEEP
     generate_reexports_partial_rs(&pax_dir, &manifest);
-    //MODIFY: generate into .pax/pax-properties-coproduct
-    generate_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
-    //MODIFY: generate into .pax/pax-cartridge
-    generate_cartridge_definition(&pax_dir, &manifest, &host_crate_info);
-
+    generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
+    generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with cargo", &PAX_BADGE);
-    //MODIFY: working directory, possibly keep env/flags?
+
     let output = build_chassis_with_cartridge(&pax_dir, &ctx.target);
     //forward stderr only
     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
@@ -1103,7 +1094,6 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     if ctx.should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
         println!("{} 🏃‍ Running fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target));
-
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
         println!("{} 🛠 Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target));
@@ -1119,13 +1109,11 @@ pub enum Harness {
 }
 
 fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harness) {
-
     let target_str : &str = ctx.target.borrow().into();
     let target_str_lower: &str = &target_str.to_lowercase();
 
     let harness_path = pax_dir
-        .join("chassis")
-        .join({let s : &str = ctx.target.borrow().into(); s})
+        .join(format!("pax-chassis-{}",target_str_lower))
         .join({
             match harness {
                 Harness::Development => {
@@ -1145,9 +1133,11 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
 
     let is_web = if let RunTarget::Web = ctx.target { true } else { false };
     let target_folder : &str = ctx.target.borrow().into();
-    let path = fs::canonicalize(std::path::Path::new(&ctx.path)).unwrap();
-    let output_path = path.join("build").join(target_folder);
-    let output_path_val = output_path.to_str().unwrap();
+
+    let output_path = pax_dir.join("build").join(target_folder);
+    let output_path_str = output_path.to_str().unwrap();
+
+    std::fs::create_dir_all(&output_path);
 
     let verbose_val = format!("{}",ctx.verbose);
     let exclude_arch_val =  if std::env::consts::ARCH == "aarch64" {
@@ -1160,7 +1150,7 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
         Command::new(script)
             .current_dir(&harness_path)
             .arg(should_also_run)
-            .arg(output_path_val)
+            .arg(output_path_str)
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::inherit())
             .spawn()
@@ -1173,7 +1163,7 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
             .arg(verbose_val)
             .arg(exclude_arch_val)
             .arg(should_also_run)
-            .arg(output_path_val)
+            .arg(output_path_str)
             .stdout(std::process::Stdio::inherit())
             .stderr(if ctx.verbose { std::process::Stdio::inherit() } else {std::process::Stdio::piped()})
             .spawn()
@@ -1188,8 +1178,10 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
 pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Output {
 
+    let target_str : &str = target.into();
+    let target_str_lower = &target_str.to_lowercase();
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
-    let chassis_path = pax_dir.join("chassis").join({let s: & str = target.into(); s});
+    let chassis_path = pax_dir.join(format!("pax-chassis-{}", target_str_lower));
     //string together a shell call like the following:
     let cargo_run_chassis_build = match target {
         RunTarget::MacOS => {
@@ -1210,7 +1202,7 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
                 .arg("build")
                 .arg("--release")
                 .arg("-d")
-                .arg(pax_dir.join("chassis").join("Web").join("pax-dev-harness-web").join("dist").to_str().unwrap()) //--release -d pax-dev-harness-web/dist
+                .arg(chassis_path.join("pax-dev-harness-web").join("dist").to_str().unwrap()) //--release -d pax-dev-harness-web/dist
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit())
