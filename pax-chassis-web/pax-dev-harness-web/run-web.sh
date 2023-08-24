@@ -2,7 +2,7 @@
 SHOULD_ALSO_RUN=$1
 OUTPUT_PATH=$2
 
-assets_dir="../../../../assets"
+assets_dir="../../../assets"
 new_dir="./public/assets"
 mkdir -p "$new_dir"
 cp -r "$assets_dir"/* "$new_dir"
