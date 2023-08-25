@@ -17,13 +17,12 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::collections::{HashMap, HashSet};
-use std::fs::DirEntry;
 use std::io::Write;
 use itertools::Itertools;
 
 use std::os::unix::fs::PermissionsExt;
 
-use include_dir::{Dir, DirEntry, include_dir};
+use include_dir::{Dir, include_dir};
 use toml_edit::{Item};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -90,88 +89,126 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
 // The following "double-buffer" approach for generating / comparing files
 // allows us to sidestep `cargo`s greedy FS-watching dirty-checking algorithm,
 // which leads to slow user-facing builds
+//
 // The stable output directory for generated / copied files
 const PAX_DIR_PKG_PATH : &str = "pkg";
 // The transient output directory, which we use as a second buffer before we commit to writing files in `pkg`
 const PAX_DIR_PKG_TMP_PATH : &str = "pkg-tmp";
 
-fn copy_all_dependencies(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
+fn copy_all_dependencies_to_tmp(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
 
     for dir_tuple in ALL_DIRS_LIBDEV {
-        let dest_pkg_root = pax_dir.join(PAX_DIR_PKG_PATH).join(dir_tuple.0);
         let dest_pkg_tmp_root = pax_dir.join(PAX_DIR_PKG_TMP_PATH).join(dir_tuple.0);
 
-
-
-        //if libdev mode, monorepo files are source of truth for directory traversal
-        //   otherwise, include_dir files are source of truth for directory traversal
-        //   Thereafter: we operate on DirEntry with shared logic
-        let src_root_dir_entries = if host_crate_info.is_lib_dev_mode {
-            let src  = pax_dir.join("..").join(dir_tuple.1);
-            fs::read_dir(src).unwrap().filter_map(|entry| {
-                match entry {
-                    Ok(de) => Some(de),
-                    Err(e) => {
-                        eprintln!("Error reading directory: {}", e);
-                        None
-                    }
-                }
-            }).collect();
-            vec.into_iter()
-
+        if host_crate_info.is_lib_dev_mode {
+            let embedded_dir = &dir_tuple.2;
+            recurse_include_dir(embedded_dir, &dest_pkg_tmp_root, host_crate_info);
         } else {
-            dir_tuple.2.entries().into_iter()
-        };
-
-        //recurse through DirEntries, copy into dest_pkg_tmp, applying filters along the way if needed
-        for dir_entry in src_root_dir_entries {
-            recurse_pkg_copy_with_filters(dir_entry, &dest_pkg_tmp_root, host_crate_info);
+            let start_path = "."; // Change this to your desired start path for filesystem.
+            recurse_fs(start_path, &dest_pkg_tmp_root, host_crate_info);
         }
     }
 
 }
 
 
-fn recurse_pkg_copy_with_filters(entry: &DirEntry, dest_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
-    let file_name = entry.file_name();
-    let src_path = &entry.path();
-    let dest_path = dest_dir.join(&file_name);
 
-    if entry.file_type().unwrap().is_dir() {
-        //For dir, recurse
-        //Ignore `target` dirs, as this breaks cargo's cache mechanism and makes builds slow
-        if entry.file_name().to_str().unwrap() != "target" {
-            recurse_pkg_copy_with_filters(src_path, &dest_path, host_crate_info);
+fn process_file_content<P: AsRef<Path>>(content: &str, path: P, host_crate_info: &HostCrateInfo) -> String {
+    let path_str = path.as_ref().to_str().unwrap();
+
+    //Override two specific Cargo.tomls, to insert entry pointing to userland crate where `pax_app` is defined
+    if path_str.ends_with("pax-properties-coproduct/Cargo.toml") || path_str.ends_with("pax-cartridge/Cargo.toml") {
+        let mut target_cargo_toml_contents = toml_edit::Document::from_str(content).unwrap();
+
+        std::mem::swap(
+            target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
+            &mut Item::from_str("{ path=\"../..\" }").unwrap()
+        );
+
+        target_cargo_toml_contents.to_string()
+    } else {
+        content.to_string()
+    }
+}
+
+fn write_to_output_directory<P: AsRef<Path>>(path: P, content: &str) {
+    fs::create_dir_all(&path);
+    fs::write(path, content).expect("Failed to write to file");
+}
+
+
+// Recursive function for the real filesystem.
+fn recurse_fs<P: AsRef<Path>>(path: P, output_directory: &Path, host_crate_info: &HostCrateInfo) {
+    if path.as_ref().is_dir() {
+        for entry in fs::read_dir(path).expect("Failed to read directory") {
+            let entry = entry.expect("Failed to read entry");
+            let entry_path = entry.path();
+            recurse_fs(&entry_path, output_directory, host_crate_info);
         }
     } else {
-
-        let mut src_content = String::new();
-        let mut dest_content = String::new();
-
-        //simply copy files that fail to read to string
-        if let Err(_) = fs::File::open(src_path).unwrap().read_to_string(&mut src_content) {
-            fs::copy(src_path, dest_path).ok();
-        } else {
-            let src_path_str = src_path.to_str().unwrap();
-            if src_path_str.ends_with("pax-properties-coproduct/Cargo.toml") || src_path_str.ends_with("pax-cartridge/Cargo.toml") {
-                let mut target_cargo_toml_contents = toml_edit::Document::from_str(src_content).unwrap();
-
-                //insert new entry pointing to userland crate, where `pax_app` is defined
-                std::mem::swap(
-                    target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
-                    &mut Item::from_str("{ path=\"../..\" }").unwrap()
-                );
-
-                target_cargo_toml_contents.to_string()
-            } else {
-                src_content.to_string()
-            }
-
-
-        }
-
+        let content = fs::read_to_string(&path).expect("Failed to read file");
+        let processed_content = process_file_content(&content, &path, host_crate_info);
+        let output_path = output_directory.join(&path);
+        write_to_output_directory(output_path, &processed_content);
     }
 }
+
+// Recursive function for the `include_dir` macro.
+fn recurse_include_dir(dir: &Dir, output_directory: &Path, host_crate_info: &HostCrateInfo) {
+    for entry in dir.entries() {
+        match entry {
+            include_dir::DirEntry::Dir(inner_dir) => recurse_include_dir(inner_dir, output_directory, host_crate_info),
+            include_dir::DirEntry::File(file) => {
+                let content = file.contents_utf8().expect("Failed to read embedded file");
+                let processed_content = process_file_content(content, file.path(), host_crate_info);
+                let output_path = output_directory.join(file.path());
+                write_to_output_directory(output_path, &processed_content);
+            }
+        }
+    }
+}
+
+
+// fn recurse_pkg_copy_with_filters(entry: &DirEntry, dest_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
+//     let file_name = entry.file_name();
+//     let src_path = &entry.path();
+//     let dest_path = dest_dir.join(&file_name);
+//
+//     if entry.file_type().unwrap().is_dir() {
+//         //For dir, recurse
+//         //Ignore `target` dirs, as this breaks cargo's cache mechanism and makes builds slow
+//         if entry.file_name().to_str().unwrap() != "target" {
+//             recurse_pkg_copy_with_filters(src_path, &dest_path, host_crate_info);
+//         }
+//     } else {
+//
+//         let mut src_content = String::new();
+//         let mut dest_content = String::new();
+//
+//         //simply copy files that fail to read to string
+//         if let Err(_) = fs::File::open(src_path).unwrap().read_to_string(&mut src_content) {
+//             fs::copy(src_path, dest_path).ok();
+//         } else {
+//             let src_path_str = src_path.to_str().unwrap();
+//             if src_path_str.ends_with("pax-properties-coproduct/Cargo.toml") || src_path_str.ends_with("pax-cartridge/Cargo.toml") {
+//                 let mut target_cargo_toml_contents = toml_edit::Document::from_str(src_content).unwrap();
+//
+//                 //insert new entry pointing to userland crate, where `pax_app` is defined
+//                 std::mem::swap(
+//                     target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
+//                     &mut Item::from_str("{ path=\"../..\" }").unwrap()
+//                 );
+//
+//                 target_cargo_toml_contents.to_string()
+//             } else {
+//                 src_content.to_string()
+//             }
+//
+//
+//         }
+//
+//     }
+// }
 
 
 fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
@@ -666,26 +703,26 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
 
 /// Instead of the built-in Dir#extract method, which aborts when a file exists,
 /// this implementation will continue extracting, as well as overwrite existing files
-fn persistent_extract<S: AsRef<Path>>(src_dir: &Dir, dest_base_path: S, host_crate_info: &HostCrateInfo) -> std::io::Result<()> {
-
-    let base_path = dest_base_path.as_ref();
-
-    for entry in src_dir.entries() {
-        let path = base_path.join(entry.path());
-
-        match entry {
-            DirEntry::Dir(d) => {
-                fs::create_dir_all(&path).ok();
-                persistent_extract(d, base_path, host_crate_info).ok();
-            }
-            DirEntry::File(f) => {
-                fs::write(path, f.contents()).ok();
-            }
-        }
-    }
-
-    Ok(())
-}
+// fn persistent_extract<S: AsRef<Path>>(src_dir: &Dir, dest_base_path: S, host_crate_info: &HostCrateInfo) -> std::io::Result<()> {
+//
+//     let base_path = dest_base_path.as_ref();
+//
+//     for entry in src_dir.entries() {
+//         let path = base_path.join(entry.path());
+//
+//         match entry {
+//             DirEntry::Dir(d) => {
+//                 fs::create_dir_all(&path).ok();
+//                 persistent_extract(d, base_path, host_crate_info).ok();
+//             }
+//             DirEntry::File(f) => {
+//                 fs::write(path, f.contents()).ok();
+//             }
+//         }
+//     }
+//
+//     Ok(())
+// }
 
 
 // fn maybe_copy_file(src_path: &PathBuf, dest_path: &PathBuf, host_crate_info: &HostCrateInfo) {
@@ -877,7 +914,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     // 3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
     // 4. along the way, abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
 
-    copy_all_dependencies(&pax_dir, &host_crate_info);
+    copy_all_dependencies_to_tmp(&pax_dir, &host_crate_info);
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
     generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
