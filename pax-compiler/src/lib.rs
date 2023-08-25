@@ -1,6 +1,7 @@
 extern crate core;
 
 use lazy_static::lazy_static;
+use std::io::Read;
 
 pub mod manifest;
 pub mod templating;
@@ -167,7 +168,6 @@ impl NamespaceTrieNode {
         });
 
         accum
-
     }
 }
 
@@ -277,7 +277,7 @@ fn copy_all_dependencies(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
         ALL_DIRS_LIBDEV.iter().for_each(|dir_tuple|{
             let src  = pax_dir.join("..").join(dir_tuple.1);
             let dest = pax_dir.join(dir_tuple.0);
-            libdev_dep_copy(&src, &dest);
+            recurse_libdev_dep_copy(&src, &dest, host_crate_info);
         })
     } else {
         //This is a user-facing build, e.g. via the pax CLI.  This is not a libdev monorepo build.
@@ -285,12 +285,10 @@ fn copy_all_dependencies(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
         ALL_DIRS.iter().for_each(|dir_tuple|{
             let src  = &dir_tuple.1;
             let dest = pax_dir.join(dir_tuple.0);
-            persistent_extract(src, &dest).unwrap();
+            persistent_extract(src, &dest, host_crate_info).unwrap();
         })
     }
-
 }
-
 
 fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
@@ -716,7 +714,6 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             }
         }).collect();
 
-
         //then, on the post-order traversal, press template string and return
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: component_for_current_node.is_primitive,
@@ -762,7 +759,6 @@ fn generate_events_map(events: Option<Vec<EventDefinition>>) -> HashMap<String, 
 
 
 fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition,  host_crate_info: &HostCrateInfo) -> String {
-
     let rngc = RenderNodesGenerationContext {
         components: &manifest.components,
         active_component_definition: cd,
@@ -782,88 +778,12 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
     };
 
     press_template_codegen_cartridge_component_factory(args)
-
-}
-
-fn clean_dependencies_table_of_relative_paths(crate_name: &str, dependencies: &mut toml_edit::Table, host_crate_info: &HostCrateInfo) {
-    dependencies.iter_mut().for_each(|dep| {
-
-        let dep_name = dep.0.to_string();
-        let is_cloned_dep = dep_name.contains("pax-properties-coproduct") || dep_name.contains("pax-cartridge");
-
-        if is_cloned_dep {
-            println!("Break");
-        }
-
-        match dep.1.get_mut("path") {
-            Some(existing_path) => {
-                if  !existing_path.is_none() && !is_cloned_dep && host_crate_info.is_lib_dev_mode {
-                    //in "library dev mode," instead of removing relative paths, we want to prepend them with an extra `../'
-                    //This allows us to compile `pax-example` against the latest local Pax lib code,
-                    //instead of relying on crates.io
-
-                    //Two twists:
-                    // 1. because of the extra nesting of Chassis dirs, they require yet an extra prepended "../"
-                    //    (this could be made more elegant by flattening `chassis/MacOS` into `chassis-macos`, etc.
-                    // 2. because we are copying `pax-properties-coproduct` and `pax-cartridge` from source (rather than referring to the crates at the root of `pax/*`)
-                    //    we DO want to remove relative paths for these dependencies
-
-                    let existing_str = existing_path.as_str().unwrap();
-                    let mut new_str = "\"../../".to_string() + existing_str + "\"";
-
-                    if crate_name == "pax-chassis" {
-                        //add yet another `../`
-                        new_str = new_str.replacen("../", "../../", 1);
-                    }
-
-                    std::mem::swap(
-                        existing_path,
-                        &mut Item::from_str(&new_str).unwrap()
-                    );
-                } else {
-                    std::mem::swap(
-                        existing_path,
-                        &mut Item::None,
-                    );
-                }
-            },
-            _ => {}
-        }
-    });
-}
-
-fn generate_chassis(pax_dir: &PathBuf, target: &RunTarget, host_crate_info: &HostCrateInfo, libdevmode: bool) {
-    //1. clone (git or raw fs) pax-chassis-whatever into .pax/chassis/
-
-    let chassis_specific_dir : &str = &("pax-chassis-".to_string() + target.into());
-    let relative_chassis_specific_target_dir = pax_dir.join(chassis_specific_dir);
-    std::fs::create_dir_all(&relative_chassis_specific_target_dir);
-
-    clone_target_chassis_to_dot_pax(&relative_chassis_specific_target_dir, target.into(), libdevmode).unwrap();
-
-    //2. patch Cargo.toml
-    let existing_cargo_toml_path = fs::canonicalize(relative_chassis_specific_target_dir.join("Cargo.toml")).unwrap();
-    let mut existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap()).unwrap();
-
-    //remove all relative `path` entries from dependencies, so that we may patch.
-    clean_dependencies_table_of_relative_paths("pax-chassis", existing_cargo_toml["dependencies"].as_table_mut().unwrap(), host_crate_info);
-    // existing_cargo_toml["dependencies"]["pax-cartridge"]["path"] = toml_edit::value("");
-    // existing_cargo_toml["dependencies"]["pax-properties-coproduct"]["path"] = toml_edit::value("");
-
-    //add `patch`
-    let mut patch_table = toml_edit::table();
-    patch_table["pax-cartridge"]["path"] = toml_edit::value("../../cartridge");
-    patch_table["pax-properties-coproduct"]["path"] = toml_edit::value("../../properties-coproduct");
-    existing_cargo_toml.insert("patch.crates-io", patch_table);
-
-    //3. write Cargo.toml back to disk & done
-    //   hack out the double-quotes inserted by toml_edit along the way
-    fs::write(existing_cargo_toml_path, existing_cargo_toml.to_string().replace("\"patch.crates-io\"", "patch.crates-io") ).unwrap();
 }
 
 /// Instead of the built-in Dir#extract method, which aborts when a file exists,
 /// this implementation will continue extracting, as well as overwrite existing files
-fn persistent_extract<S: AsRef<Path>>(src_dir: &Dir, dest_base_path: S) -> std::io::Result<()> {
+fn persistent_extract<S: AsRef<Path>>(src_dir: &Dir, dest_base_path: S, host_crate_info: &HostCrateInfo) -> std::io::Result<()> {
+
     let base_path = dest_base_path.as_ref();
 
     for entry in src_dir.entries() {
@@ -872,7 +792,7 @@ fn persistent_extract<S: AsRef<Path>>(src_dir: &Dir, dest_base_path: S) -> std::
         match entry {
             DirEntry::Dir(d) => {
                 fs::create_dir_all(&path).ok();
-                persistent_extract(d, base_path).ok();
+                persistent_extract(d, base_path, host_crate_info).ok();
             }
             DirEntry::File(f) => {
                 fs::write(path, f.contents()).ok();
@@ -884,20 +804,74 @@ fn persistent_extract<S: AsRef<Path>>(src_dir: &Dir, dest_base_path: S) -> std::
 }
 
 /// Simple recursive fs copy function, since std::fs::copy doesn't recurse for us
-fn libdev_dep_copy(src: &PathBuf, dest: &PathBuf) {
+fn recurse_libdev_dep_copy(src: &PathBuf, dest: &PathBuf, host_crate_info: &HostCrateInfo) {
     for entry_wrapped in fs::read_dir(src).unwrap() {
         let entry = entry_wrapped.unwrap();
         let file_name = entry.file_name();
-        let src_path= &entry.path();
+        let src_path = &entry.path();
+        let dest_path = dest.join(&file_name);
+
         if entry.file_type().unwrap().is_dir() {
-            libdev_dep_copy(src_path, &dest.join(&file_name));
+            //For dir, recurse
+            //Ignore `target` dirs, as this breaks cargo's cache mechanism and makes builds slow
+            if entry.file_name().to_str().unwrap() != "target" {
+                recurse_libdev_dep_copy(src_path, &dest_path, host_crate_info);
+            }
         } else {
-            fs::create_dir_all(dest).ok();
-            fs::copy(src_path, dest.join(&file_name)).unwrap();
+            maybe_copy_file(src_path, &dest_path, host_crate_info);
         }
     }
 }
 
+
+
+
+
+fn maybe_copy_file(src_path: &PathBuf, dest_path: &PathBuf, host_crate_info: &HostCrateInfo) {
+    if dest_path.exists() {
+        let mut src_content = String::new();
+        let mut dest_content = String::new();
+
+        //early return for files that fail to read to string
+        if let Err(_) = fs::File::open(src_path).unwrap().read_to_string(&mut src_content) {
+            // fs::create_dir_all(dest_path).ok();
+            fs::copy(src_path, dest_path).ok();
+            return
+        }
+        if let Err(_) = fs::File::open(dest_path).unwrap().read_to_string(&mut dest_content) {
+            // fs::create_dir_all(dest_path).ok();
+            fs::copy(src_path, dest_path).ok();
+            return
+        }
+
+        src_content = transform_file_content(src_path, &src_content, host_crate_info);
+
+        if src_content != dest_content {
+            // fs::create_dir_all(dest_path).ok();
+            fs::write(dest_path, &src_content).unwrap();
+        }
+    } else {
+        // fs::create_dir_all(dest_path).ok();
+        fs::copy(src_path, dest_path).ok();
+    }
+}
+
+fn transform_file_content(src_path: &PathBuf, src_content: &str, host_crate_info: &HostCrateInfo) -> String {
+    let src_path_str = src_path.to_str().unwrap();
+    if src_path_str.ends_with("pax-properties-coproduct/Cargo.toml") || src_path_str.ends_with("pax-cartridge/Cargo.toml") {
+        let mut target_cargo_toml_contents = toml_edit::Document::from_str(src_content).unwrap();
+
+        //insert new entry pointing to userland crate, where `pax_app` is defined
+        std::mem::swap(
+            target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
+            &mut Item::from_str("{ path=\"../..\" }").unwrap()
+        );
+
+        target_cargo_toml_contents.to_string()
+    } else {
+        src_content.to_string()
+    }
+}
 
 /// Clone the relevant chassis (and dev harness) to the local .pax directory
 /// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
@@ -956,19 +930,7 @@ fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBu
 
 
 static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct");
-/// Clone a copy of the relevant chassis (and dev harness) to the local .pax directory
-/// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
-/// and the encapsulated dev harness is the actual dev executable
-fn clone_properties_coproduct_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
-    // fs::remove_dir_all(&relative_cartridge_target_dir);
-    fs::create_dir_all(&relative_cartridge_target_dir).unwrap();
 
-    let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
-
-    persistent_extract(&PROPERTIES_COPRODUCT_DIR, &target_dir).unwrap();
-
-    Ok(())
-}
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let working_path = std::path::Path::new(working_dir).join(".pax");
@@ -1037,6 +999,7 @@ pub fn run_parser_binary(path: &str) -> Output {
 
 
 use colored::Colorize;
+use crate::manifest::Unit::Percent;
 use crate::parsing::escape_identifier;
 
 
@@ -1073,10 +1036,21 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     // [x] copy & expand all necessary deps, as code, a la cargo itself, into .pax (not just chassis & cartridge)
     // [x] clean up the special cases around current chassis & cartridge codegen, incl. `../../..` patching & dir names / paths
     // [x] adjust the final build logic — point to _in vivo_ chassis dirs instead of the special chassis folder; rely on overwritten codegen of cartridge & properties-coproduct instead of patches
-    //     [ ] web
-    //     [ ] macos
-    // [ ] fix build times (maybe don't clobber Cargo.lock?)
-    // [ ] Assess viability of pointing userland projects to .pax/pax-lang (for example)
+    //     [x] web
+    //     [x] macos
+    // [ ] fix build times
+    // [x] Assess viability of pointing userland projects to .pax/pax-lang (for example)
+    // [ ] verify that include_dir!-based builds work, in addition to libdev builds
+
+    //TODO: observation: can reproduce a minimal "cache-cleared slow build" by simply:
+    //      1. go to `pax-example` and build `cargo run --features=parser --bin=parser`.  Observe slow build
+    //      2. Run again — observe fast build
+    //      3. Change `.pax/pax-properties-coproduct/lib.rs` trivially, e.g. by adding a newline
+    //      4. Run again, — observe SLOW build.
+    //     Apparently a single change in a single lib file is enough to trigger a substantial rebuild.
+    //       Perhaps: because many things depend on properties-coproduct, a single change there is enough to require all of them to change
+    //     observation: when running cargo build @ command-line (as opposed to via Pax CLI), you can see that building `pax-compiler` takes a substantial portion of the time.  This checks out esp. re: the embedding of all the `include_dir`s into pax-compiler.
+    //
 
     copy_all_dependencies(&pax_dir, &host_crate_info);
     generate_reexports_partial_rs(&pax_dir, &manifest);
