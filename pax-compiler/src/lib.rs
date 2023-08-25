@@ -87,19 +87,25 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
 }
 
 
+// The following "double-buffer" approach for generating / comparing files
+// allows us to sidestep `cargo`s greedy FS-watching dirty-checking algorithm,
+// which leads to slow user-facing builds
+// The stable output directory for generated / copied files
 const PAX_DIR_PKG_PATH : &str = "pkg";
+// The transient output directory, which we use as a second buffer before we commit to writing files in `pkg`
 const PAX_DIR_PKG_TMP_PATH : &str = "pkg-tmp";
 
 fn copy_all_dependencies(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
 
-    //if libdev mode, monorepo files are source of truth for directory traversal
-    //   otherwise, include_dir files are source of truth for directory traversal
-    //   Thereafter: we operate on DirEntry and logic should be shareable
-
     for dir_tuple in ALL_DIRS_LIBDEV {
-        let dest_pkg_tmp = pax_dir.join(dir_tuple.0).join(PAX_DIR_PKG_TMP_PATH);
-        let dest_pkg_dir = dest_pkg_tmp.join(dir_tuple.0);
+        let dest_pkg_root = pax_dir.join(PAX_DIR_PKG_PATH).join(dir_tuple.0);
+        let dest_pkg_tmp_root = pax_dir.join(PAX_DIR_PKG_TMP_PATH).join(dir_tuple.0);
 
+
+
+        //if libdev mode, monorepo files are source of truth for directory traversal
+        //   otherwise, include_dir files are source of truth for directory traversal
+        //   Thereafter: we operate on DirEntry with shared logic
         let src_root_dir_entries = if host_crate_info.is_lib_dev_mode {
             let src  = pax_dir.join("..").join(dir_tuple.1);
             fs::read_dir(src).unwrap().filter_map(|entry| {
@@ -119,51 +125,54 @@ fn copy_all_dependencies(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
 
         //recurse through DirEntries, copy into dest_pkg_tmp, applying filters along the way if needed
         for dir_entry in src_root_dir_entries {
-            recurse_pkg_copy(dir_entry, &dest_pkg_dir, host_crate_info);
+            recurse_pkg_copy_with_filters(dir_entry, &dest_pkg_tmp_root, host_crate_info);
         }
     }
 
-    fn recurse_pkg_copy(entry: &DirEntry, dest_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
-            let file_name = entry.file_name();
-            let src_path = &entry.path();
-            let dest_path = dest_dir.join(&file_name);
-
-            if entry.file_type().unwrap().is_dir() {
-                //For dir, recurse
-                //Ignore `target` dirs, as this breaks cargo's cache mechanism and makes builds slow
-                if entry.file_name().to_str().unwrap() != "target" {
-                    recurse_pkg_copy(src_path, &dest_path, host_crate_info);
-                }
-            } else {
-
-                //
-
-                maybe_copy_file(src_path, &dest_path, host_crate_info);
-            }
-        }
-    }
-
-
-
-    // if host_crate_info.is_lib_dev_mode {
-    //     //In lib-dev mode, we can assume these crates exist in the filesystem at the relative paths encoded into the const `ALL_DIRS_LIBDEV`
-    //     //For lib-dev, instead of using `include_dir`, which has a nasty-sticky cache that requires `cargo clean`ing across changes and breaks the lib-dev experience,
-    //     //we copy these relative files directly with each compilation
-    //     ALL_DIRS_LIBDEV.iter().for_each(|dir_tuple|{
-    //         let src  = pax_dir.join("..").join(dir_tuple.1);
-    //         let dest = pax_dir.join(dir_tuple.0);
-    //         recurse_libdev_dep_copy(&src, &dest, host_crate_info);
-    //     })
-    // } else {
-    //     //This is a user-facing build, e.g. via the pax CLI.  This is not a libdev monorepo build.
-    //     //Thus, we will copy code from the binary-embedded `include_dir!` directories, encoded in the const `ALL_DIRS`
-    //     ALL_DIRS.iter().for_each(|dir_tuple|{
-    //         let src  = &dir_tuple.1;
-    //         let dest = pax_dir.join(dir_tuple.0);
-    //         persistent_extract(src, &dest, host_crate_info).unwrap();
-    //     })
-    // }
 }
+
+
+fn recurse_pkg_copy_with_filters(entry: &DirEntry, dest_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
+    let file_name = entry.file_name();
+    let src_path = &entry.path();
+    let dest_path = dest_dir.join(&file_name);
+
+    if entry.file_type().unwrap().is_dir() {
+        //For dir, recurse
+        //Ignore `target` dirs, as this breaks cargo's cache mechanism and makes builds slow
+        if entry.file_name().to_str().unwrap() != "target" {
+            recurse_pkg_copy_with_filters(src_path, &dest_path, host_crate_info);
+        }
+    } else {
+
+        let mut src_content = String::new();
+        let mut dest_content = String::new();
+
+        //simply copy files that fail to read to string
+        if let Err(_) = fs::File::open(src_path).unwrap().read_to_string(&mut src_content) {
+            fs::copy(src_path, dest_path).ok();
+        } else {
+            let src_path_str = src_path.to_str().unwrap();
+            if src_path_str.ends_with("pax-properties-coproduct/Cargo.toml") || src_path_str.ends_with("pax-cartridge/Cargo.toml") {
+                let mut target_cargo_toml_contents = toml_edit::Document::from_str(src_content).unwrap();
+
+                //insert new entry pointing to userland crate, where `pax_app` is defined
+                std::mem::swap(
+                    target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
+                    &mut Item::from_str("{ path=\"../..\" }").unwrap()
+                );
+
+                target_cargo_toml_contents.to_string()
+            } else {
+                src_content.to_string()
+            }
+
+
+        }
+
+    }
+}
+
 
 fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
