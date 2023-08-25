@@ -17,6 +17,7 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::str::FromStr;
 use std::collections::{HashMap, HashSet};
+use std::fs::DirEntry;
 use std::io::Write;
 use itertools::Itertools;
 
@@ -32,35 +33,20 @@ use crate::templating::{press_template_codegen_cartridge_component_factory, pres
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
 
-const ALL_DIRS: [(&'static str, Dir); 13] = [
-    ("pax-cartridge", include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge")),
-    ("pax-chassis-ios", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-ios")),
-    ("pax-chassis-macos", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos")),
-    ("pax-chassis-web", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web")),
-    ("pax-cli", include_dir!("$CARGO_MANIFEST_DIR/../pax-cli")),
-    ("pax-compiler", include_dir!("$CARGO_MANIFEST_DIR/../pax-compiler")),
-    ("pax-core", include_dir!("$CARGO_MANIFEST_DIR/../pax-core")),
-    ("pax-lang", include_dir!("$CARGO_MANIFEST_DIR/../pax-lang")),
-    ("pax-macro", include_dir!("$CARGO_MANIFEST_DIR/../pax-macro")),
-    ("pax-message", include_dir!("$CARGO_MANIFEST_DIR/../pax-message")),
-    ("pax-properties-coproduct", include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct")),
-    ("pax-runtime-api", include_dir!("$CARGO_MANIFEST_DIR/../pax-runtime-api")),
-    ("pax-std", include_dir!("$CARGO_MANIFEST_DIR/../pax-std")),
-];
-const ALL_DIRS_LIBDEV: [(&'static str, &'static str); 13] = [
-    ("pax-cartridge", "../pax-cartridge"),
-    ("pax-chassis-ios", "../pax-chassis-ios"),
-    ("pax-chassis-macos", "../pax-chassis-macos"),
-    ("pax-chassis-web", "../pax-chassis-web"),
-    ("pax-cli", "../pax-cli"),
-    ("pax-compiler", "../pax-compiler"),
-    ("pax-core", "../pax-core"),
-    ("pax-lang", "../pax-lang"),
-    ("pax-macro", "../pax-macro"),
-    ("pax-message", "../pax-message"),
-    ("pax-properties-coproduct", "../pax-properties-coproduct"),
-    ("pax-runtime-api", "../pax-runtime-api"),
-    ("pax-std", "../pax-std"),
+const ALL_DIRS_LIBDEV: [(&'static str, &'static str, Dir); 13] = [
+    ("pax-cartridge", "../pax-cartridge", include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge")),
+    ("pax-chassis-ios", "../pax-chassis-ios", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-ios")),
+    ("pax-chassis-macos", "../pax-chassis-macos", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos")),
+    ("pax-chassis-web", "../pax-chassis-web", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web")),
+    ("pax-cli", "../pax-cli", include_dir!("$CARGO_MANIFEST_DIR/../pax-cli")),
+    ("pax-compiler", "../pax-compiler", include_dir!("$CARGO_MANIFEST_DIR/../pax-compiler")),
+    ("pax-core", "../pax-core", include_dir!("$CARGO_MANIFEST_DIR/../pax-core")),
+    ("pax-lang", "../pax-lang", include_dir!("$CARGO_MANIFEST_DIR/../pax-lang")),
+    ("pax-macro", "../pax-macro", include_dir!("$CARGO_MANIFEST_DIR/../pax-macro")),
+    ("pax-message", "../pax-message", include_dir!("$CARGO_MANIFEST_DIR/../pax-message")),
+    ("pax-properties-coproduct", "../pax-properties-coproduct", include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct")),
+    ("pax-runtime-api", "../pax-runtime-api", include_dir!("$CARGO_MANIFEST_DIR/../pax-runtime-api")),
+    ("pax-std", "../pax-std", include_dir!("$CARGO_MANIFEST_DIR/../pax-std")),
 ];
 
 /// Returns a sorted and de-duped list of combined_reexports.
@@ -73,174 +59,6 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     fs::write(path, file_contents).unwrap();
 }
 
-struct NamespaceTrieNode {
-    pub node_string: Option<String>,
-    pub children: HashMap<String, NamespaceTrieNode>,
-}
-
-impl PartialEq for NamespaceTrieNode {
-    fn eq(&self, other: &Self) -> bool {
-        self.node_string == other.node_string
-    }
-}
-
-impl Eq for NamespaceTrieNode {}
-
-impl PartialOrd for NamespaceTrieNode {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Ord for NamespaceTrieNode {
-    fn cmp(&self, other: &Self) -> Ordering {
-        match (&self.node_string, &other.node_string) {
-            (Some(a), Some(b)) => a.cmp(b),
-            (Some(_), None) => Ordering::Greater,
-            (None, Some(_)) => Ordering::Less,
-            (None, None) => Ordering::Equal,
-        }
-    }
-}
-
-impl NamespaceTrieNode {
-    pub fn insert(&mut self, namespace_string: &str) {
-        let mut segments = namespace_string.split("::");
-        let first_segment = segments.next().unwrap();
-
-        let mut current_node = self;
-        current_node = current_node.get_or_create_child(first_segment);
-
-        for segment in segments {
-            current_node = current_node.get_or_create_child(segment);
-        }
-    }
-
-    pub fn get_or_create_child(&mut self, segment: &str) -> &mut NamespaceTrieNode {
-        self.children
-            .entry(segment.to_string())
-            .or_insert_with(|| NamespaceTrieNode {
-                node_string: Some(if let Some(ns) = self.node_string.as_ref() {
-                    ns.to_string() + "::" + segment
-                } else {
-                    segment.to_string()
-                }),
-                children: HashMap::new(),
-            })
-    }
-
-    pub fn serialize_to_reexports(&self) -> String {
-        "pub mod pax_reexports {\n".to_string() + &self.recurse_serialize_to_reexports(1) + "\n}"
-    }
-
-    pub fn recurse_serialize_to_reexports(&self, indent: usize) -> String {
-
-        let indent_str = "    ".repeat(indent);
-
-        let mut accum : String = "".into();
-
-        self.children.iter().sorted().for_each(|child|{
-            if child.1.node_string.as_ref().unwrap() == "crate" {
-                //handle crate subtrie by skipping the crate NamespaceTrieNode, traversing directly into its children
-                child.1.children.iter().sorted().for_each(|child| {
-                    if child.1.children.len() == 0 {
-                        //leaf node:  write `pub use ...` entry
-                        accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
-                    } else {
-                        //non-leaf node:  write `pub mod ...` block
-                        accum += &format!("{}pub mod {} {{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
-                        accum += &child.1.recurse_serialize_to_reexports(indent + 1);
-                        accum += &format!("{}}}\n", indent_str);
-                    }
-                })
-
-            }else {
-                if child.1.children.len() == 0 {
-                    //leaf node:  write `pub use ...` entry
-                    accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
-                } else {
-                    //non-leaf node:  write `pub mod ...` block
-                    accum += &format!("{}pub mod {}{{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
-                    accum += &child.1.recurse_serialize_to_reexports(indent + 1);
-                    accum += &format!("{}}}\n", indent_str);
-                }
-            };
-        });
-
-        accum
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::NamespaceTrieNode;
-    use std::collections::HashMap;
-
-    #[test]
-    fn test_serialize_to_reexports() {
-        let input_vec = vec![
-            "crate::Example",
-            "crate::fireworks::Fireworks",
-            "crate::grids::Grids",
-            "crate::grids::RectDef",
-            "crate::hello_rgb::HelloRGB",
-            "f64",
-            "pax_std::primitives::Ellipse",
-            "pax_std::primitives::Group",
-            "pax_std::primitives::Rectangle",
-            "pax_std::types::Color",
-            "pax_std::types::Stroke",
-            "std::vec::Vec",
-            "usize",
-        ];
-
-        let mut root_node = NamespaceTrieNode {
-            node_string: None,
-            children: HashMap::new(),
-        };
-
-        for namespace_string in input_vec {
-            root_node.insert(&namespace_string);
-        }
-
-        let output = root_node.serialize_to_reexports();
-
-        let expected_output = r#"pub mod pax_reexports {
-    pub use crate::Example;
-    pub mod fireworks {
-        pub use crate::fireworks::Fireworks;
-    }
-    pub mod grids {
-        pub use crate::grids::Grids;
-        pub use crate::grids::RectDef;
-    }
-    pub mod hello_rgb {
-        pub use crate::hello_rgb::HelloRGB;
-    }
-    pub use f64;
-    pub mod pax_std{
-        pub mod primitives{
-            pub use pax_std::primitives::Ellipse;
-            pub use pax_std::primitives::Group;
-            pub use pax_std::primitives::Rectangle;
-        }
-        pub mod types{
-            pub use pax_std::types::Color;
-            pub use pax_std::types::Stroke;
-        }
-    }
-    pub mod std{
-        pub mod vec{
-            pub use std::vec::Vec;
-        }
-    }
-    pub use usize;
-
-}"#;
-
-        assert_eq!(output, expected_output);
-    }
-}
 
 fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
     let mut root = NamespaceTrieNode {
@@ -268,26 +86,83 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
 }
 
+
+const PAX_DIR_PKG_PATH : &str = "pkg";
+const PAX_DIR_PKG_TMP_PATH : &str = "pkg-tmp";
+
 fn copy_all_dependencies(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
 
-    if host_crate_info.is_lib_dev_mode {
-        //In lib-dev mode, we can assume these crates exist in the filesystem at the relative paths encoded into the const `ALL_DIRS_LIBDEV`
-        //For lib-dev, instead of using `include_dir`, which has a nasty-sticky cache that requires `cargo clean`ing across changes and breaks the lib-dev experience,
-        //we copy these relative files directly with each compilation
-        ALL_DIRS_LIBDEV.iter().for_each(|dir_tuple|{
+    //if libdev mode, monorepo files are source of truth for directory traversal
+    //   otherwise, include_dir files are source of truth for directory traversal
+    //   Thereafter: we operate on DirEntry and logic should be shareable
+
+    for dir_tuple in ALL_DIRS_LIBDEV {
+        let dest_pkg_tmp = pax_dir.join(dir_tuple.0).join(PAX_DIR_PKG_TMP_PATH);
+        let dest_pkg_dir = dest_pkg_tmp.join(dir_tuple.0);
+
+        let src_root_dir_entries = if host_crate_info.is_lib_dev_mode {
             let src  = pax_dir.join("..").join(dir_tuple.1);
-            let dest = pax_dir.join(dir_tuple.0);
-            recurse_libdev_dep_copy(&src, &dest, host_crate_info);
-        })
-    } else {
-        //This is a user-facing build, e.g. via the pax CLI.  This is not a libdev monorepo build.
-        //Thus, we will copy code from the binary-embedded `include_dir!` directories, encoded in the const `ALL_DIRS`
-        ALL_DIRS.iter().for_each(|dir_tuple|{
-            let src  = &dir_tuple.1;
-            let dest = pax_dir.join(dir_tuple.0);
-            persistent_extract(src, &dest, host_crate_info).unwrap();
-        })
+            fs::read_dir(src).unwrap().filter_map(|entry| {
+                match entry {
+                    Ok(de) => Some(de),
+                    Err(e) => {
+                        eprintln!("Error reading directory: {}", e);
+                        None
+                    }
+                }
+            }).collect();
+            vec.into_iter()
+
+        } else {
+            dir_tuple.2.entries().into_iter()
+        };
+
+        //recurse through DirEntries, copy into dest_pkg_tmp, applying filters along the way if needed
+        for dir_entry in src_root_dir_entries {
+            recurse_pkg_copy(dir_entry, &dest_pkg_dir, host_crate_info);
+        }
     }
+
+    fn recurse_pkg_copy(entry: &DirEntry, dest_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
+            let file_name = entry.file_name();
+            let src_path = &entry.path();
+            let dest_path = dest_dir.join(&file_name);
+
+            if entry.file_type().unwrap().is_dir() {
+                //For dir, recurse
+                //Ignore `target` dirs, as this breaks cargo's cache mechanism and makes builds slow
+                if entry.file_name().to_str().unwrap() != "target" {
+                    recurse_pkg_copy(src_path, &dest_path, host_crate_info);
+                }
+            } else {
+
+                //
+
+                maybe_copy_file(src_path, &dest_path, host_crate_info);
+            }
+        }
+    }
+
+
+
+    // if host_crate_info.is_lib_dev_mode {
+    //     //In lib-dev mode, we can assume these crates exist in the filesystem at the relative paths encoded into the const `ALL_DIRS_LIBDEV`
+    //     //For lib-dev, instead of using `include_dir`, which has a nasty-sticky cache that requires `cargo clean`ing across changes and breaks the lib-dev experience,
+    //     //we copy these relative files directly with each compilation
+    //     ALL_DIRS_LIBDEV.iter().for_each(|dir_tuple|{
+    //         let src  = pax_dir.join("..").join(dir_tuple.1);
+    //         let dest = pax_dir.join(dir_tuple.0);
+    //         recurse_libdev_dep_copy(&src, &dest, host_crate_info);
+    //     })
+    // } else {
+    //     //This is a user-facing build, e.g. via the pax CLI.  This is not a libdev monorepo build.
+    //     //Thus, we will copy code from the binary-embedded `include_dir!` directories, encoded in the const `ALL_DIRS`
+    //     ALL_DIRS.iter().for_each(|dir_tuple|{
+    //         let src  = &dir_tuple.1;
+    //         let dest = pax_dir.join(dir_tuple.0);
+    //         persistent_extract(src, &dest, host_crate_info).unwrap();
+    //     })
+    // }
 }
 
 fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
@@ -479,15 +354,15 @@ fn generate_and_overwrite_cartridge(pax_dir: &PathBuf, manifest: &PaxManifest, h
         component_factories_literal,
     });
 
-    // Re: formatting the generated output, refer to `_format_generated_lib_rs`
-
+    // Re: formatting the generated output, see prior art at `_format_generated_lib_rs`
     //write String to file
     fs::write(target_dir.join("src/lib.rs"), generated_lib_rs).unwrap();
 }
 
-/// Note: this function was abandoned, but left for posterity, because RustFmt takes unacceptably long to format complex
+/// Note: this function was abandoned because RustFmt takes unacceptably long to format complex
 /// pax-cartridge/src/lib.rs files.  The net effect was a show-stoppingly slow `pax build`.
 /// We can problaby mitigate this by: (a) waiting for or eliciting improvements in RustFmt, or (b) figuring out what about our codegen is slowing RustFmt down, and generate our code differently to side-step.
+/// This code is left for posterity in case we take another crack at formatting generated code.
 fn _format_generated_lib_rs(generated_lib_rs: String) -> String {
     let mut formatter = rust_format::RustFmt::default();
 
@@ -803,58 +678,46 @@ fn persistent_extract<S: AsRef<Path>>(src_dir: &Dir, dest_base_path: S, host_cra
     Ok(())
 }
 
-/// Simple recursive fs copy function, since std::fs::copy doesn't recurse for us
-fn recurse_libdev_dep_copy(src: &PathBuf, dest: &PathBuf, host_crate_info: &HostCrateInfo) {
-    for entry_wrapped in fs::read_dir(src).unwrap() {
-        let entry = entry_wrapped.unwrap();
-        let file_name = entry.file_name();
-        let src_path = &entry.path();
-        let dest_path = dest.join(&file_name);
 
-        if entry.file_type().unwrap().is_dir() {
-            //For dir, recurse
-            //Ignore `target` dirs, as this breaks cargo's cache mechanism and makes builds slow
-            if entry.file_name().to_str().unwrap() != "target" {
-                recurse_libdev_dep_copy(src_path, &dest_path, host_crate_info);
-            }
-        } else {
-            maybe_copy_file(src_path, &dest_path, host_crate_info);
-        }
-    }
-}
-
-
-
-
-
-fn maybe_copy_file(src_path: &PathBuf, dest_path: &PathBuf, host_crate_info: &HostCrateInfo) {
-    if dest_path.exists() {
-        let mut src_content = String::new();
-        let mut dest_content = String::new();
-
-        //early return for files that fail to read to string
-        if let Err(_) = fs::File::open(src_path).unwrap().read_to_string(&mut src_content) {
-            // fs::create_dir_all(dest_path).ok();
-            fs::copy(src_path, dest_path).ok();
-            return
-        }
-        if let Err(_) = fs::File::open(dest_path).unwrap().read_to_string(&mut dest_content) {
-            // fs::create_dir_all(dest_path).ok();
-            fs::copy(src_path, dest_path).ok();
-            return
-        }
-
-        src_content = transform_file_content(src_path, &src_content, host_crate_info);
-
-        if src_content != dest_content {
-            // fs::create_dir_all(dest_path).ok();
-            fs::write(dest_path, &src_content).unwrap();
-        }
-    } else {
-        // fs::create_dir_all(dest_path).ok();
-        fs::copy(src_path, dest_path).ok();
-    }
-}
+// fn maybe_copy_file(src_path: &PathBuf, dest_path: &PathBuf, host_crate_info: &HostCrateInfo) {
+//
+//
+//     if dest_path.exists() {
+//         let src_path_str = src_path.to_str().unwrap();
+//
+//         //HACK, build time speed-up:
+//         // no-op early return if we are generating one of our codegen files, so that we don't
+//         // unnecessarily churn FS & trigger cargo's cache-busting FS watchers
+//         if src_path_str.ends_with("pax-properties-coproduct/src/lib.rs") || src_path_str.ends_with("pax-cartridge/src/lib.rs") {
+//             return
+//         }
+//
+//         let mut src_content = String::new();
+//         let mut dest_content = String::new();
+//
+//         //early return for files that fail to read to string
+//         if let Err(_) = fs::File::open(src_path).unwrap().read_to_string(&mut src_content) {
+//             fs::create_dir_all(dest_path).ok();
+//             fs::copy(src_path, dest_path).ok();
+//             return
+//         }
+//         if let Err(_) = fs::File::open(dest_path).unwrap().read_to_string(&mut dest_content) {
+//             fs::create_dir_all(dest_path).ok();
+//             fs::copy(src_path, dest_path).ok();
+//             return
+//         }
+//
+//         src_content = transform_file_content(src_path, &src_content, host_crate_info);
+//
+//         if src_content != dest_content {
+//             fs::create_dir_all(dest_path).ok();
+//             fs::write(dest_path, &src_content).unwrap();
+//         }
+//     } else {
+//         fs::create_dir_all(dest_path).ok();
+//         fs::copy(src_path, dest_path).ok();
+//     }
+// }
 
 fn transform_file_content(src_path: &PathBuf, src_content: &str, host_crate_info: &HostCrateInfo) -> String {
     let src_path_str = src_path.to_str().unwrap();
@@ -872,62 +735,6 @@ fn transform_file_content(src_path: &PathBuf, src_content: &str, host_crate_info
         src_content.to_string()
     }
 }
-
-/// Clone the relevant chassis (and dev harness) to the local .pax directory
-/// The chassis is the final compiled Rust library (thus the point where `patch`es must occur)
-/// and the encapsulated dev harness is the actual dev executable
-fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBuf, target_str: &str, libdevmode: bool) -> std::io::Result<()> {
-
-    // fs::remove_dir_all(&relative_chassis_specific_target_dir);
-    fs::create_dir_all(&relative_chassis_specific_target_dir).unwrap();
-
-    //Note: zb spent too long tangling with this -- seems like fs::remove* and fs::create* work
-    //      only with the relative path, while Dir::extract requires a canonicalized path.  At least: this works on macOS,
-    //      and failed silently/partially in all explored configurations until this one
-    let chassis_specific_dir = fs::canonicalize(&relative_chassis_specific_target_dir).expect("Invalid path");
-
-    // println!("Cloning {} chassis to {:?}", target_str, chassis_specific_dir);
-    match RunTarget::from(target_str) {
-        RunTarget::MacOS => {
-
-            // if libdevmode {
-            //     // We can assume we're in the pax monorepo — thus we can raw-copy ../pax-chassis-* into .pax,
-            //     // instead of relying on include_dir (which has a very sticky cache and requires constant `cargo clean`ing to clear)
-            //     // This feature allows us to make edits e.g. to @/pax-chassis-macos and rest assured that they are copied into @/pax-example/.pax/chassis/MacOS with every libdev build
-            //     libdev_chassis_copy(&fs::canonicalize(ALL_DIRS_LIBDEV.get("pax-chassis-macos").unwrap()).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
-            // } else {
-            //     let chassis = &ALL_DIRS.iter().find(|t|{t.0 == "pax-chassis-macos"}).unwrap().1;
-            //     persistent_extract(chassis, &chassis_specific_dir).unwrap();
-            // }
-
-            // CHASSIS_MACOS_DIR.extract(&chassis_specific_dir).unwrap();
-            //HACK: patch the relative directory for the cdylib, because in a rust monorepo the `target` dir
-            //      is at the monorepo root, while in this isolated project it will be in `pax-chassis-macos`.
-            let pbx_path = &chassis_specific_dir.join("pax-dev-harness-macos").join("pax-dev-harness-macos.xcodeproj").join("project.pbxproj");
-            fs::write(pbx_path, fs::read_to_string(pbx_path).unwrap().replace("../../target", "../target")).unwrap();
-
-            //write +x permission to copied run-debuggable-mac-app
-            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-macos").join("run-debuggable-mac-app.sh"), fs::Permissions::from_mode(0o777)).unwrap();
-        }
-        RunTarget::Web => {
-            // if libdevmode {
-            //     // We can assume we're in the pax monorepo — thus we can raw-copy ../pax-chassis-* into .pax,
-            //     // instead of relying on include_dir (which has a very sticky cache and requires constant `cargo clean`ing to clear)
-            //     // This feature allows us to make edits e.g. to @/pax-chassis-web and rest assured that they are copied into @/pax-example/.pax/chassis/Web with every libdev build
-            //     libdev_chassis_copy(&fs::canonicalize(ALL_DIRS_LIBDEV.get("pax-chassis-web").unwrap()).expect("cannot pass --libdev outside of pax monorepo environment."), &chassis_specific_dir);
-            // } else {
-            //     let chassis = &ALL_DIRS.iter().find(|t|{t.0 == "pax-chassis-web"}).unwrap().1;
-            //     persistent_extract(chassis, &chassis_specific_dir).unwrap();
-            // }
-
-            //write +x permission to copied run-debuggable-mac-app
-            fs::set_permissions(chassis_specific_dir.join("pax-dev-harness-web").join("run-web.sh"), fs::Permissions::from_mode(0o777)).unwrap();
-        }
-    }
-    Ok(())
-
-}
-
 
 static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct");
 
@@ -1039,8 +846,13 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     //     [x] web
     //     [x] macos
     // [ ] fix build times
+    //      [ ] Refactor:
+    //        1. perform current code-gen & patching process into a tmp-pkg dir
+    //        2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
+    //        3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
     // [x] Assess viability of pointing userland projects to .pax/pax-lang (for example)
     // [ ] verify that include_dir!-based builds work, in addition to libdev builds
+    //     [ ] abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
 
     //TODO: observation: can reproduce a minimal "cache-cleared slow build" by simply:
     //      1. go to `pax-example` and build `cargo run --features=parser --bin=parser`.  Observe slow build
@@ -1050,7 +862,11 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     //     Apparently a single change in a single lib file is enough to trigger a substantial rebuild.
     //       Perhaps: because many things depend on properties-coproduct, a single change there is enough to require all of them to change
     //     observation: when running cargo build @ command-line (as opposed to via Pax CLI), you can see that building `pax-compiler` takes a substantial portion of the time.  This checks out esp. re: the embedding of all the `include_dir`s into pax-compiler.
-    //
+    //Possibility: when code-genning & patching — do so into _yet another_ directory —e.g. `tmp` — so that the resulting files can be bytewise-checked against canonical files, before overwriting.  This should stabilize FS writes and cargo's tendency to clear caches when files change.
+    // 1. perform current code-gen & patching process into a tmp-pkg dir
+    // 2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
+    // 3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
+    // 4. along the way, abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
 
     copy_all_dependencies(&pax_dir, &host_crate_info);
     generate_reexports_partial_rs(&pax_dir, &manifest);
@@ -1225,5 +1041,178 @@ impl<'a> Into<&'a str> for &'a RunTarget {
                 "MacOS"
             },
         }
+    }
+}
+
+
+
+
+
+struct NamespaceTrieNode {
+    pub node_string: Option<String>,
+    pub children: HashMap<String, NamespaceTrieNode>,
+}
+
+impl PartialEq for NamespaceTrieNode {
+    fn eq(&self, other: &Self) -> bool {
+        self.node_string == other.node_string
+    }
+}
+
+impl Eq for NamespaceTrieNode {}
+
+impl PartialOrd for NamespaceTrieNode {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for NamespaceTrieNode {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (&self.node_string, &other.node_string) {
+            (Some(a), Some(b)) => a.cmp(b),
+            (Some(_), None) => Ordering::Greater,
+            (None, Some(_)) => Ordering::Less,
+            (None, None) => Ordering::Equal,
+        }
+    }
+}
+
+impl NamespaceTrieNode {
+    pub fn insert(&mut self, namespace_string: &str) {
+        let mut segments = namespace_string.split("::");
+        let first_segment = segments.next().unwrap();
+
+        let mut current_node = self;
+        current_node = current_node.get_or_create_child(first_segment);
+
+        for segment in segments {
+            current_node = current_node.get_or_create_child(segment);
+        }
+    }
+
+    pub fn get_or_create_child(&mut self, segment: &str) -> &mut NamespaceTrieNode {
+        self.children
+            .entry(segment.to_string())
+            .or_insert_with(|| NamespaceTrieNode {
+                node_string: Some(if let Some(ns) = self.node_string.as_ref() {
+                    ns.to_string() + "::" + segment
+                } else {
+                    segment.to_string()
+                }),
+                children: HashMap::new(),
+            })
+    }
+
+    pub fn serialize_to_reexports(&self) -> String {
+        "pub mod pax_reexports {\n".to_string() + &self.recurse_serialize_to_reexports(1) + "\n}"
+    }
+
+    pub fn recurse_serialize_to_reexports(&self, indent: usize) -> String {
+
+        let indent_str = "    ".repeat(indent);
+
+        let mut accum : String = "".into();
+
+        self.children.iter().sorted().for_each(|child|{
+            if child.1.node_string.as_ref().unwrap() == "crate" {
+                //handle crate subtrie by skipping the crate NamespaceTrieNode, traversing directly into its children
+                child.1.children.iter().sorted().for_each(|child| {
+                    if child.1.children.len() == 0 {
+                        //leaf node:  write `pub use ...` entry
+                        accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
+                    } else {
+                        //non-leaf node:  write `pub mod ...` block
+                        accum += &format!("{}pub mod {} {{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
+                        accum += &child.1.recurse_serialize_to_reexports(indent + 1);
+                        accum += &format!("{}}}\n", indent_str);
+                    }
+                })
+
+            }else {
+                if child.1.children.len() == 0 {
+                    //leaf node:  write `pub use ...` entry
+                    accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
+                } else {
+                    //non-leaf node:  write `pub mod ...` block
+                    accum += &format!("{}pub mod {}{{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
+                    accum += &child.1.recurse_serialize_to_reexports(indent + 1);
+                    accum += &format!("{}}}\n", indent_str);
+                }
+            };
+        });
+
+        accum
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::NamespaceTrieNode;
+    use std::collections::HashMap;
+
+    #[test]
+    fn test_serialize_to_reexports() {
+        let input_vec = vec![
+            "crate::Example",
+            "crate::fireworks::Fireworks",
+            "crate::grids::Grids",
+            "crate::grids::RectDef",
+            "crate::hello_rgb::HelloRGB",
+            "f64",
+            "pax_std::primitives::Ellipse",
+            "pax_std::primitives::Group",
+            "pax_std::primitives::Rectangle",
+            "pax_std::types::Color",
+            "pax_std::types::Stroke",
+            "std::vec::Vec",
+            "usize",
+        ];
+
+        let mut root_node = NamespaceTrieNode {
+            node_string: None,
+            children: HashMap::new(),
+        };
+
+        for namespace_string in input_vec {
+            root_node.insert(&namespace_string);
+        }
+
+        let output = root_node.serialize_to_reexports();
+
+        let expected_output = r#"pub mod pax_reexports {
+    pub use crate::Example;
+    pub mod fireworks {
+        pub use crate::fireworks::Fireworks;
+    }
+    pub mod grids {
+        pub use crate::grids::Grids;
+        pub use crate::grids::RectDef;
+    }
+    pub mod hello_rgb {
+        pub use crate::hello_rgb::HelloRGB;
+    }
+    pub use f64;
+    pub mod pax_std{
+        pub mod primitives{
+            pub use pax_std::primitives::Ellipse;
+            pub use pax_std::primitives::Group;
+            pub use pax_std::primitives::Rectangle;
+        }
+        pub mod types{
+            pub use pax_std::types::Color;
+            pub use pax_std::types::Stroke;
+        }
+    }
+    pub mod std{
+        pub mod vec{
+            pub use std::vec::Vec;
+        }
+    }
+    pub use usize;
+
+}"#;
+
+        assert_eq!(output, expected_output);
     }
 }
