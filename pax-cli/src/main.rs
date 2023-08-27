@@ -2,7 +2,7 @@ use std::fs;
 use std::io::Write;
 use std::path::Path;
 use clap::{App, AppSettings, Arg};
-use pax_compiler::{RunTarget, RunContext};
+use pax_compiler::{RunTarget, RunContext, InitContext};
 
 fn main() -> Result<(), ()> {
 
@@ -61,6 +61,12 @@ fn main() -> Result<(), ()> {
                 .arg( ARG_LIBDEV.clone() )
         )
         .subcommand(
+            App::new("init")
+                .about("Establishes the specified Cargo crate as a Pax project, creating the .pax folder and performing other relevant modifications.")
+                .arg( ARG_PATH.clone() )
+                .arg( ARG_LIBDEV.clone() )
+        )
+        .subcommand(
             App::new("clean")
                 .arg( ARG_PATH.clone() )
                 .about("Cleans the temporary files associated with the Pax project in the current working directory — notably, the temporary files generated into the .pax directory")
@@ -110,6 +116,15 @@ fn main() -> Result<(), ()> {
                 path,
                 should_also_run: false,
                 verbose,
+                libdevmode,
+            })
+        },
+        ("init", Some(args)) => {
+            let path = args.value_of("path").unwrap().to_string(); //default value "."
+            let libdevmode = args.is_present("libdev");
+
+            pax_compiler::perform_init(&InitContext{
+                path,
                 libdevmode,
             })
         },
