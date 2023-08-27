@@ -132,14 +132,16 @@ fn process_file_content<P: AsRef<Path>>(content: &str, path: P, host_crate_info:
 }
 
 fn write_to_output_directory<P: AsRef<Path>>(path: P, content: &str) {
-    fs::create_dir_all(&path);
-    fs::write(path, content).expect("Failed to write to file");
-}
+    if let Some(parent) = path.as_ref().parent() {
+        fs::create_dir_all(parent).expect("Failed to create directories");
+    }
 
+    fs::write(&path, content).expect("Failed to write to file");
+}
 
 // Recursive function for the real filesystem.
 fn recurse_fs<P: AsRef<Path>>(path: P, output_directory: &Path, host_crate_info: &HostCrateInfo) {
-    if path.as_ref().is_dir() {
+    if path.as_ref().is_dir() || !path.as_ref().is_file() {
         for entry in fs::read_dir(path).expect("Failed to read directory") {
             let entry = entry.expect("Failed to read entry");
             let entry_path = entry.path();
@@ -994,6 +996,8 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
             .wait()
             .expect("failed to run harness");
     } else {
+
+
         Command::new(script)
             .current_dir(&harness_path)
             .arg(verbose_val)
@@ -1007,6 +1011,43 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
             .wait()
             .expect("failed to run harness");
     }
+}
+
+
+pub fn perform_init(ctx: &InitContext) {
+    //mkdir .pax
+    let path = PathBuf::from(&ctx.path);
+    let pax_dir = path.join(".pax");
+    fs::create_dir_all(pax_dir);
+    //copy files: check for libdev mode
+
+    for dir_tuple in ALL_DIRS_LIBDEV {
+        let dest_pkg_tmp_root = pax_dir.join(PAX_DIR_PKG_PATH).join(dir_tuple.0);
+
+        if ctx.libdevmode {
+            //copy from ../*
+            fs::create_dir_all()
+
+        } else {
+            //copy from include_dir
+
+        }
+
+        // if host_crate_info.is_lib_dev_mode {
+        //     let embedded_dir = &dir_tuple.2;
+        //     recurse_include_dir(embedded_dir, &dest_pkg_tmp_root, host_crate_info);
+        // } else {
+        //     let start_path = "."; // Change this to your desired start path for filesystem.
+        //     recurse_fs(start_path, &dest_pkg_tmp_root, host_crate_info);
+        // }
+    }
+
+
+
+
+    //TODO:
+    //  - Patch .gitignore with `.pax`
+    //  -
 }
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
@@ -1061,6 +1102,11 @@ pub struct RunContext {
 pub enum RunTarget {
     MacOS,
     Web,
+}
+
+pub struct InitContext {
+    pub path: String,
+    pub libdevmode: bool,
 }
 
 impl From<&str> for RunTarget {
