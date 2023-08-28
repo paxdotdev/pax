@@ -2,6 +2,7 @@ extern crate core;
 
 use lazy_static::lazy_static;
 use std::io::Read;
+use include_dir::{Dir, include_dir};
 
 pub mod manifest;
 pub mod templating;
@@ -22,7 +23,6 @@ use itertools::Itertools;
 
 use std::os::unix::fs::PermissionsExt;
 
-use include_dir::{Dir, include_dir};
 use toml_edit::{Item};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
@@ -86,7 +86,6 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
 }
 
-
 // The following "double-buffer" approach for generating / comparing files
 // allows us to sidestep `cargo`s greedy FS-watching dirty-checking algorithm,
 // which leads to slow user-facing builds
@@ -96,19 +95,36 @@ const PAX_DIR_PKG_PATH : &str = "pkg";
 // The transient output directory, which we use as a second buffer before we commit to writing files in `pkg`
 const PAX_DIR_PKG_TMP_PATH : &str = "pkg-tmp";
 
-fn copy_all_dependencies_to_tmp(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
+fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, host_crate_info: &HostCrateInfo) {
 
+    let dest_pkg_root = pax_dir.join("pkg");
     for pkg in ALL_PKGS {
-        let dest_pkg_tmp_root = pax_dir.join(PAX_DIR_PKG_TMP_PATH).join(pkg);
 
-        // if host_crate_info.is_lib_dev_mode {
-        //     let embedded_dir = &dir_tuple.2;
-        //     recurse_include_dir(embedded_dir, &dest_pkg_tmp_root, host_crate_info);
-        // } else {
-        //     let start_path = "."; // Change this to your desired start path for filesystem.
-        //     recurse_fs(start_path, &dest_pkg_tmp_root, host_crate_info);
-        // }
-        unimplemented!()
+        if host_crate_info.is_lib_dev_mode {
+            //Copy all packages from monorepo root on every build.  this allows us to propagate changes
+            //to a libdev build without "sticky caches."
+            //
+            //Note that this may incur a penalty on libdev build times,
+            //since cargo will want to rebuild the whole workspace from scratch on every build.  If we run into this,
+            //consider a "double buffered" approach, where we copy everything into a fresh new buffer (B), while leaving (A)
+            //unchanged on disk.  Bytewise check each file found in B against a prospective match in A, and copy only if different.
+            let pax_workspace_root = pax_dir.parent().unwrap().parent().unwrap();
+            let src = pax_workspace_root.join(pkg);
+            let dest = dest_pkg_root.join(pkg);
+            copy_dir_to(&src, &dest).expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
+        } else {
+            let dest = dest_pkg_root.join(pkg);
+            if !dest.exists() {
+                let tarball_url = format!("https://crates.io/api/v1/crates/{}/{}/download", pkg, pax_version);
+                let resp = reqwest::blocking::get(&tarball_url)
+                    .expect(&format!("Failed to fetch tarball for {} at version {}", pkg, pax_version));
+
+                let tarball_bytes = resp.bytes().expect("Failed to read tarball bytes");
+                let mut tar = tar::Archive::new(&tarball_bytes[..]);
+                tar.unpack(&dest).expect(&format!("Failed to unpack tarball for {}", pkg));
+            }
+        }
+
     }
 
 }
@@ -158,19 +174,19 @@ fn recurse_fs<P: AsRef<Path>>(path: P, output_directory: &Path, host_crate_info:
 }
 
 // Recursive function for the `include_dir` macro.
-fn recurse_include_dir(dir: &Dir, output_directory: &Path, host_crate_info: &HostCrateInfo) {
-    for entry in dir.entries() {
-        match entry {
-            include_dir::DirEntry::Dir(inner_dir) => recurse_include_dir(inner_dir, output_directory, host_crate_info),
-            include_dir::DirEntry::File(file) => {
-                let content = file.contents_utf8().expect("Failed to read embedded file");
-                let processed_content = process_file_content(content, file.path(), host_crate_info);
-                let output_path = output_directory.join(file.path());
-                write_to_output_directory(output_path, &processed_content);
-            }
-        }
-    }
-}
+// fn recurse_include_dir(dir: &Dir, output_directory: &Path, host_crate_info: &HostCrateInfo) {
+//     for entry in dir.entries() {
+//         match entry {
+//             include_dir::DirEntry::Dir(inner_dir) => recurse_include_dir(inner_dir, output_directory, host_crate_info),
+//             include_dir::DirEntry::File(file) => {
+//                 let content = file.contents_utf8().expect("Failed to read embedded file");
+//                 let processed_content = process_file_content(content, file.path(), host_crate_info);
+//                 let output_path = output_directory.join(file.path());
+//                 write_to_output_directory(output_path, &processed_content);
+//             }
+//         }
+//     }
+// }
 
 
 // fn recurse_pkg_copy_with_filters(entry: &DirEntry, dest_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
@@ -217,8 +233,7 @@ fn recurse_include_dir(dir: &Dir, output_directory: &Path, host_crate_info: &Hos
 
 fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
-    let target_dir = pax_dir.join("pax-properties-coproduct");
-    // clone_properties_coproduct_to_dot_pax(&target_dir).unwrap();
+    let target_dir = pax_dir.join("pkg").join("pax-properties-coproduct");
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
@@ -294,7 +309,7 @@ fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &Pax
 }
 
 fn generate_and_overwrite_cartridge(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
-    let target_dir = pax_dir.join("pax-cartridge");
+    let target_dir = pax_dir.join("pkg").join("pax-cartridge");
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
@@ -786,7 +801,7 @@ fn transform_file_content(src_path: &PathBuf, src_content: &str, host_crate_info
     }
 }
 
-static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct");
+// static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct");
 
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
@@ -908,13 +923,6 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
     tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in the project's dependency graph.  Add e.g. `pax-lang` to your Cargo.toml to resolve this error.")
 }
 
-
-
-
-
-
-
-
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
@@ -938,6 +946,8 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_property_prefixes_in_place(&mut manifest, &host_crate_info);
+
+    let pax_version = get_version_of_whitelisted_packages(&ctx.path).unwrap();
 
     println!("{} 🧮 Compiling expressions", &PAX_BADGE);
     expressions::compile_all_expressions(&mut manifest);
@@ -978,9 +988,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     //3. codegen properties-coproduct & cartridge (incl. relative dep to host codebase in latter)
     //4. include patch directive in appropriate chassis; build dylib, run dev-harness
 
-
-
-    copy_all_dependencies_to_tmp(&pax_dir, &host_crate_info);
+    clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &host_crate_info);
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
     generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
@@ -1001,6 +1009,27 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
         println!("{} 🛠 Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target));
     }
     build_harness_with_chassis(&pax_dir, &ctx, &Harness::Development);
+
+    Ok(())
+}
+
+fn copy_dir_to(src_dir: &Path, dst_dir: &Path) -> std::io::Result<()> {
+    if !dst_dir.exists() {
+        fs::create_dir_all(dst_dir)?;
+    }
+
+    for entry_result in fs::read_dir(src_dir)? {
+        let entry = entry_result?;
+        let file_type = entry.file_type()?;
+        let src_path = entry.path();
+        let dst_path = dst_dir.join(entry.file_name());
+
+        if file_type.is_dir() {
+            copy_dir_to(&src_path, &dst_path)?;
+        } else {
+            fs::copy(&src_path, &dst_path)?;
+        }
+    }
 
     Ok(())
 }
@@ -1077,10 +1106,11 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
     }
 }
 
-
 pub fn perform_clean(path: &str) {
     let path = PathBuf::from(path);
     let pax_dir = path.join(".pax");
+
+    //Sledgehammer approach: nuke the .pax directory
     fs::remove_dir_all(&pax_dir);
 }
 
@@ -1092,7 +1122,7 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
     let target_str : &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
-    let chassis_path = pax_dir.join(format!("pax-chassis-{}", target_str_lower));
+    let chassis_path = pax_dir.join("pkg").join(format!("pax-chassis-{}", target_str_lower));
     //string together a shell call like the following:
     let cargo_run_chassis_build = match target {
         RunTarget::MacOS => {
@@ -1164,10 +1194,6 @@ impl<'a> Into<&'a str> for &'a RunTarget {
         }
     }
 }
-
-
-
-
 
 struct NamespaceTrieNode {
     pub node_string: Option<String>,
