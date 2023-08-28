@@ -3108,7 +3108,7 @@ This gets a bit hairy — 1. we still need to codegen (or clone) everything we'r
 One possible solution to the above: build the userland crate / project as a dynamic library!  Then, instead of a relative path to load it, the cartridge loads that dylib.
     - Would this actually resolve the conflicting versions problem?  Even if it makes the compiler happy, we are probably bundling different versions of deps......  This might be OK for e.g. pax-compiler, but gets particularly dicey around runtime deps
 
-Stepping back to the lastest pencilled approach:
+Stepping back to the latest pencilled approach:
  - clone EVERYTHING into .pax/pkg (plus the "double-buffering" optimization for cargo build times? Maybe not so important if we speed up compiler build time, by dropping `include_dir` )
  - depend on userland_crate via pax-cartridge
 We have previously run into the issue where userland_crate relies on, say, pax-compiler#0.4.0, but cargo sees that as a conflict with the local FS version
@@ -3129,10 +3129,10 @@ We might be able to mitigate the above issue by:
 So boiling down to an algorithm:
 
 1. Read userland Cargo.lock, discover stated version of any `.pax` project with id in our whitelist
-2. If libdev mode
-   3. Copy all directories in whitelist to `.pax/pkg`
+2. If host_crate_info.is_lib_dev mode
+   3. Copy all directories in whitelist to `.pax/pkg`.  Each src directory can be constructed by roughly `pax_dir.join("../").join("../").join(whitelist_dir)`
 4. Else
-   5. Foreach directory in whitelist, detect if exists in `.pax/pkg`.  If so, do nothing; assume it is already cloned.  If the directory doesn't exist, clone tarball for version found in (1) from crates.io to the appropriate dir, `.pax/pkg/{whitelist-pkg-id}`
+   5. Foreach directory in whitelist, detect if exists in `.pax/pkg`.  If so, do nothing; assume it is already cloned.  If the directory doesn't exist, clone tarball for version `pax_version` from crates.io to the appropriate dir, `.pax/pkg/{whitelist-pkg-id}`.  Print to stderr and panic if unable to find or clone any of these packages from crates.io.
 6. Include patch directive in the appropriate `chassis`'s Cargo.toml (either `.pax/pkg/pax-chassis-web` or `.pax/pkg/pax-chassis-macos`, depending on `TARGET`) —
    7. Within this directive, patch all discovered dependencies from (1) to override concrete semver => local `.pax/pkg/{pkg-id}`
 8. Within our `.pax/pkg/` chassis directory with the patched `Cargo.toml`, run `perform_build()` 

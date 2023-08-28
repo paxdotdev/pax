@@ -1,7 +1,6 @@
 ### Prints the Pax monorepo's dependency DAG to stdout
 ### Usage, from monorepo root: `python3 scripts/print-dag.py`
 
-
 import tomlkit
 from collections import defaultdict
 
