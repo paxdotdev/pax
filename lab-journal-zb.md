@@ -3085,3 +3085,25 @@ Trade-off:  `self.some_vec.set(new_vec_of_same_length_as_old)` will not update a
 
  
 Viewport culling should majorly improve perf
+
+
+
+
+### Aug 28 2023
+
+Rethinking PropertiesCoproduct, patching, dependency management
+
+Much build complexity arises from the code-genned PropertiesCoproduct.
+    - If we didn't need to patch this — could we build userland projects entirely from crates.io? (it looks like the answer is "we must build from source")
+    - The other code-genned dependency is `pax-cartridge` — does anything still rely on this besides the chassis?  (The answer is no — only the chassis)
+    - What if we refactor `pax-properties-coproduct` to rely downstream on a dylib?  Thus, we can leave all dependencies on pax-properties-coproduct alone — no need to codegen & mangle dependencies — and can swap that dylib not only at static build time, but for live reloading as well
+
+In the above world, we would only need to:
+    1. codegen cartridge (clone code, patch lib.rs)
+    2. codegen the internal properties-coproduct, build as dylib
+    3. build the chassis, specifying path to cartridge (../), and hopefully just including the dylib in a special directory
+
+This gets a bit hairy — 1. we still need to codegen (or clone) everything we're going to build, and 2. we still face the "conflicting dependency" problem between userland crate and codegenned / built crates.
+
+One possible solution to the above: build the userland crate / project as a dynamic library!  Then, instead of a relative path to load it, the cartridge loads that dylib.
+    - Would this actually resolve the conflicting versions problem?  Even if it makes the compiler happy, we are probably bundling different versions of deps......  This might be OK for e.g. pax-compiler, but gets particularly dicey around runtime deps
