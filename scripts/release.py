@@ -4,6 +4,9 @@
 # `pip3 install tomlkit`
 # `cargo login`
 
+# USAGE:
+#
+
 import os
 import subprocess
 import sys
@@ -11,7 +14,7 @@ import tomlkit
 from collections import defaultdict
 
 if len(sys.argv) != 2:
-    print("Usage: {} new_version".format(sys.argv[0]))
+    print("Usage (from monorepo root): `python3 scripts/release.py new_version`")
     sys.exit(1)
 
 NEW_VERSION = sys.argv[1]

@@ -9,11 +9,10 @@ repository = "https://www.github.com/pax-lang/pax"
 description = "Example and development app for the Pax monorepo and compiler"
 
 [dependencies]
-pax-lang = {path = ".pax/pax-lang", version="0.6.9"}
-pax-std = {path = ".pax/pax-std", version="0.6.9"}
+pax-lang = { version="0.6.9" }
+pax-std = { version="0.6.9" }
 serde_json = {version = "1.0.95", optional = true}
-pax-compiler = {path=".pax/pax-compiler", optional=true,version = "0.6.9"}
-pax-message = {path = ".pax/pax-message", version="0.6.9"}
+pax-compiler = {optional=true,version = "0.6.9"}
 
 
 [features]
