@@ -32,20 +32,22 @@ use crate::templating::{press_template_codegen_cartridge_component_factory, pres
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
 
-const ALL_DIRS_LIBDEV: [(&'static str, &'static str, Dir); 13] = [
-    ("pax-cartridge", "../pax-cartridge", include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge")),
-    ("pax-chassis-ios", "../pax-chassis-ios", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-ios")),
-    ("pax-chassis-macos", "../pax-chassis-macos", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-macos")),
-    ("pax-chassis-web", "../pax-chassis-web", include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-web")),
-    ("pax-cli", "../pax-cli", include_dir!("$CARGO_MANIFEST_DIR/../pax-cli")),
-    ("pax-compiler", "../pax-compiler", include_dir!("$CARGO_MANIFEST_DIR/../pax-compiler")),
-    ("pax-core", "../pax-core", include_dir!("$CARGO_MANIFEST_DIR/../pax-core")),
-    ("pax-lang", "../pax-lang", include_dir!("$CARGO_MANIFEST_DIR/../pax-lang")),
-    ("pax-macro", "../pax-macro", include_dir!("$CARGO_MANIFEST_DIR/../pax-macro")),
-    ("pax-message", "../pax-message", include_dir!("$CARGO_MANIFEST_DIR/../pax-message")),
-    ("pax-properties-coproduct", "../pax-properties-coproduct", include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct")),
-    ("pax-runtime-api", "../pax-runtime-api", include_dir!("$CARGO_MANIFEST_DIR/../pax-runtime-api")),
-    ("pax-std", "../pax-std", include_dir!("$CARGO_MANIFEST_DIR/../pax-std")),
+//whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
+//or for looking up package IDs from a userland Cargo.lock.
+const ALL_PKGS: [&'static str; 13] = [
+    "pax-cartridge",
+    "pax-chassis-ios",
+    "pax-chassis-macos",
+    "pax-chassis-web",
+    "pax-cli",
+    "pax-compiler",
+    "pax-core",
+    "pax-lang",
+    "pax-macro",
+    "pax-message",
+    "pax-properties-coproduct",
+    "pax-runtime-api",
+    "pax-std",
 ];
 
 /// Returns a sorted and de-duped list of combined_reexports.
@@ -57,7 +59,6 @@ fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
     let path = pax_dir.join(Path::new(REEXPORTS_PARTIAL_RS_PATH));
     fs::write(path, file_contents).unwrap();
 }
-
 
 fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
     let mut root = NamespaceTrieNode {
@@ -97,16 +98,17 @@ const PAX_DIR_PKG_TMP_PATH : &str = "pkg-tmp";
 
 fn copy_all_dependencies_to_tmp(pax_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
 
-    for dir_tuple in ALL_DIRS_LIBDEV {
-        let dest_pkg_tmp_root = pax_dir.join(PAX_DIR_PKG_TMP_PATH).join(dir_tuple.0);
+    for pkg in ALL_PKGS {
+        let dest_pkg_tmp_root = pax_dir.join(PAX_DIR_PKG_TMP_PATH).join(pkg);
 
-        if host_crate_info.is_lib_dev_mode {
-            let embedded_dir = &dir_tuple.2;
-            recurse_include_dir(embedded_dir, &dest_pkg_tmp_root, host_crate_info);
-        } else {
-            let start_path = "."; // Change this to your desired start path for filesystem.
-            recurse_fs(start_path, &dest_pkg_tmp_root, host_crate_info);
-        }
+        // if host_crate_info.is_lib_dev_mode {
+        //     let embedded_dir = &dir_tuple.2;
+        //     recurse_include_dir(embedded_dir, &dest_pkg_tmp_root, host_crate_info);
+        // } else {
+        //     let start_path = "."; // Change this to your desired start path for filesystem.
+        //     recurse_fs(start_path, &dest_pkg_tmp_root, host_crate_info);
+        // }
+        unimplemented!()
     }
 
 }
@@ -828,12 +830,6 @@ fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
 #[allow(unused)]
 static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
-pub fn perform_clean(path: &str) -> Result<(), ()> {
-    let pax_dir = get_or_create_pax_directory(path);
-    fs::remove_dir_all(pax_dir).unwrap();
-    Ok(())
-}
-
 /// Executes a shell command to run the feature-flagged parser at the specified path
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
 pub fn run_parser_binary(path: &str) -> Output {
@@ -856,6 +852,67 @@ pub fn run_parser_binary(path: &str) -> Output {
 use colored::Colorize;
 use crate::manifest::Unit::Percent;
 use crate::parsing::escape_identifier;
+
+use serde::Deserialize;
+
+#[derive(Debug, Deserialize)]
+struct Metadata {
+    packages: Vec<Package>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Package {
+    id: String,
+    name: String,
+    version: String,
+    dependencies: Vec<Dependency>,
+}
+
+#[derive(Debug, Deserialize)]
+struct Dependency {
+    name: String,
+    req: String,  // This gives the version requirement, not exact version.
+}
+
+fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static str> {
+    let output = Command::new("cargo")
+        .arg("metadata")
+        .arg("--format-version=1")
+        .current_dir(path)
+        .output()
+        .expect("Failed to execute `cargo metadata`");
+
+    if !output.status.success() {
+        eprintln!("{}", String::from_utf8_lossy(&output.stderr));
+        panic!("Failed to get metadata from Cargo");
+    }
+
+    let metadata: Metadata = serde_json::from_slice(&output.stdout)
+        .expect("Failed to parse JSON from `cargo metadata`");
+
+    let mut tracked_version: Option<String> = None;
+
+    for package in &metadata.packages {
+        if ALL_PKGS.contains(&package.name.as_str()) {
+            if let Some(ref version) = tracked_version {
+                if package.version != *version {
+                    panic!("Version mismatch for {}: expected {}, found {}",
+                           package.name, version, package.version);
+                }
+            } else {
+                tracked_version = Some(package.version.clone());
+            }
+        }
+    }
+
+    tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in the project's dependency graph.  Add e.g. `pax-lang` to your Cargo.toml to resolve this error.")
+}
+
+
+
+
+
+
 
 
 /// For the specified file path or current working directory, first compile Pax project,
@@ -915,6 +972,13 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     // 2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
     // 3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
     // 4. along the way, abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
+
+    //1. fetch pax version numbers from host codebase
+    //2. copy all deps — either from crates.io or from libdev ../
+    //3. codegen properties-coproduct & cartridge (incl. relative dep to host codebase in latter)
+    //4. include patch directive in appropriate chassis; build dylib, run dev-harness
+
+
 
     copy_all_dependencies_to_tmp(&pax_dir, &host_crate_info);
     generate_reexports_partial_rs(&pax_dir, &manifest);
@@ -1014,40 +1078,10 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
 }
 
 
-pub fn perform_init(ctx: &InitContext) {
-    //mkdir .pax
-    let path = PathBuf::from(&ctx.path);
+pub fn perform_clean(path: &str) {
+    let path = PathBuf::from(path);
     let pax_dir = path.join(".pax");
-    fs::create_dir_all(pax_dir);
-    //copy files: check for libdev mode
-
-    for dir_tuple in ALL_DIRS_LIBDEV {
-        let dest_pkg_tmp_root = pax_dir.join(PAX_DIR_PKG_PATH).join(dir_tuple.0);
-
-        if ctx.libdevmode {
-            //copy from ../*
-            fs::create_dir_all()
-
-        } else {
-            //copy from include_dir
-
-        }
-
-        // if host_crate_info.is_lib_dev_mode {
-        //     let embedded_dir = &dir_tuple.2;
-        //     recurse_include_dir(embedded_dir, &dest_pkg_tmp_root, host_crate_info);
-        // } else {
-        //     let start_path = "."; // Change this to your desired start path for filesystem.
-        //     recurse_fs(start_path, &dest_pkg_tmp_root, host_crate_info);
-        // }
-    }
-
-
-
-
-    //TODO:
-    //  - Patch .gitignore with `.pax`
-    //  -
+    fs::remove_dir_all(&pax_dir);
 }
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
@@ -1102,11 +1136,6 @@ pub struct RunContext {
 pub enum RunTarget {
     MacOS,
     Web,
-}
-
-pub struct InitContext {
-    pub path: String,
-    pub libdevmode: bool,
 }
 
 impl From<&str> for RunTarget {

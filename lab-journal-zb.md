@@ -3107,3 +3107,32 @@ This gets a bit hairy — 1. we still need to codegen (or clone) everything we'r
 
 One possible solution to the above: build the userland crate / project as a dynamic library!  Then, instead of a relative path to load it, the cartridge loads that dylib.
     - Would this actually resolve the conflicting versions problem?  Even if it makes the compiler happy, we are probably bundling different versions of deps......  This might be OK for e.g. pax-compiler, but gets particularly dicey around runtime deps
+
+Stepping back to the lastest pencilled approach:
+ - clone EVERYTHING into .pax/pkg (plus the "double-buffering" optimization for cargo build times? Maybe not so important if we speed up compiler build time, by dropping `include_dir` )
+ - depend on userland_crate via pax-cartridge
+We have previously run into the issue where userland_crate relies on, say, pax-compiler#0.4.0, but cargo sees that as a conflict with the local FS version
+We might be able to mitigate the above issue by:
+   1. detecting all `pax-*` dependencies in the userland Cargo.toml — track which version(s) they specify (note that all versions must be lock-stepped; we can throw an error if any are mismatched)
+        1a. consider what it would take to support a user relying on pax versions in downstream crates or in a cargo workspace
+            - Either crawl all dependencies, resolving versions
+            - Or look for the first dep, match it
+            - Or, special-case where the pax lib version is specified (e.g. .paxrc)
+            - Or, introspect the Cargo.lock and find a canonical list of resolved versions (?!)
+        2a. Let's go with reading the Cargo.lock — we can build the project if Cargo.lock is missing, and we can *look for each whitelisted dependency in the Cargo.lock, checking versions and ensuring they match.*
+   2. instead of bundling a particular version of the lib crates via `include_dir`, we can reach out to crates.io and clone/extract the published tarball.
+   3. We can come back later for "offline builds," and we can handle libdev specially to "clone" from `../` instead of crates.io
+      3a. For crates.io builds, we can assume idempotency for everything except codegenned crates — no need to clone if directory exists (but be sure to surface some sort of `clean` or `init` to clean corruptions)
+      3b. For libdev builds, we can full-clone everything every time. Note that removing the dependency on `include_dir` should dramatically improve libdev build times
+   4. Use `patch`, at `chassis-macos`, (root crate) to override each `pax-` dep used by userland_crate, to resolve to the local FS (cloned / extracted) version to the same `.pax/pkg` version used elsewhere in the build
+
+So boiling down to an algorithm:
+
+1. Read userland Cargo.lock, discover stated version of any `.pax` project with id in our whitelist
+2. If libdev mode
+   3. Copy all directories in whitelist to `.pax/pkg`
+4. Else
+   5. Foreach directory in whitelist, detect if exists in `.pax/pkg`.  If so, do nothing; assume it is already cloned.  If the directory doesn't exist, clone tarball for version found in (1) from crates.io to the appropriate dir, `.pax/pkg/{whitelist-pkg-id}`
+6. Include patch directive in the appropriate `chassis`'s Cargo.toml (either `.pax/pkg/pax-chassis-web` or `.pax/pkg/pax-chassis-macos`, depending on `TARGET`) —
+   7. Within this directive, patch all discovered dependencies from (1) to override concrete semver => local `.pax/pkg/{pkg-id}`
+8. Within our `.pax/pkg/` chassis directory with the patched `Cargo.toml`, run `perform_build()` 
