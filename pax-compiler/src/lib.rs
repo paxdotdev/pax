@@ -34,9 +34,8 @@ pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
 
 //whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
 //or for looking up package IDs from a userland Cargo.lock.
-const ALL_PKGS: [&'static str; 13] = [
+const ALL_PKGS: [&'static str; 12] = [
     "pax-cartridge",
-    "pax-chassis-ios",
     "pax-chassis-macos",
     "pax-chassis-web",
     "pax-cli",
@@ -86,18 +85,12 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
 }
 
-// The following "double-buffer" approach for generating / comparing files
-// allows us to sidestep `cargo`s greedy FS-watching dirty-checking algorithm,
-// which leads to slow user-facing builds
-//
 // The stable output directory for generated / copied files
 const PAX_DIR_PKG_PATH : &str = "pkg";
-// The transient output directory, which we use as a second buffer before we commit to writing files in `pkg`
-const PAX_DIR_PKG_TMP_PATH : &str = "pkg-tmp";
 
 fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, host_crate_info: &HostCrateInfo) {
 
-    let dest_pkg_root = pax_dir.join("pkg");
+    let dest_pkg_root = pax_dir.join(PAX_DIR_PKG_PATH);
     for pkg in ALL_PKGS {
 
         if host_crate_info.is_lib_dev_mode {
@@ -126,10 +119,7 @@ fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, host_crat
         }
 
     }
-
 }
-
-
 
 fn process_file_content<P: AsRef<Path>>(content: &str, path: P, host_crate_info: &HostCrateInfo) -> String {
     let path_str = path.as_ref().to_str().unwrap();
@@ -156,37 +146,6 @@ fn write_to_output_directory<P: AsRef<Path>>(path: P, content: &str) {
 
     fs::write(&path, content).expect("Failed to write to file");
 }
-
-// Recursive function for the real filesystem.
-fn recurse_fs<P: AsRef<Path>>(path: P, output_directory: &Path, host_crate_info: &HostCrateInfo) {
-    if path.as_ref().is_dir() || !path.as_ref().is_file() {
-        for entry in fs::read_dir(path).expect("Failed to read directory") {
-            let entry = entry.expect("Failed to read entry");
-            let entry_path = entry.path();
-            recurse_fs(&entry_path, output_directory, host_crate_info);
-        }
-    } else {
-        let content = fs::read_to_string(&path).expect("Failed to read file");
-        let processed_content = process_file_content(&content, &path, host_crate_info);
-        let output_path = output_directory.join(&path);
-        write_to_output_directory(output_path, &processed_content);
-    }
-}
-
-// Recursive function for the `include_dir` macro.
-// fn recurse_include_dir(dir: &Dir, output_directory: &Path, host_crate_info: &HostCrateInfo) {
-//     for entry in dir.entries() {
-//         match entry {
-//             include_dir::DirEntry::Dir(inner_dir) => recurse_include_dir(inner_dir, output_directory, host_crate_info),
-//             include_dir::DirEntry::File(file) => {
-//                 let content = file.contents_utf8().expect("Failed to read embedded file");
-//                 let processed_content = process_file_content(content, file.path(), host_crate_info);
-//                 let output_path = output_directory.join(file.path());
-//                 write_to_output_directory(output_path, &processed_content);
-//             }
-//         }
-//     }
-// }
 
 
 // fn recurse_pkg_copy_with_filters(entry: &DirEntry, dest_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
@@ -233,7 +192,7 @@ fn recurse_fs<P: AsRef<Path>>(path: P, output_directory: &Path, host_crate_info:
 
 fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
-    let target_dir = pax_dir.join("pkg").join("pax-properties-coproduct");
+    let target_dir = pax_dir.join(PAX_DIR_PKG_PATH).join("pax-properties-coproduct");
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
@@ -241,7 +200,7 @@ fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &Pax
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
         target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
-        &mut Item::from_str("{ path=\"../..\" }").unwrap()
+        &mut Item::from_str("{ path=\"../../..\" }").unwrap()
     );
 
     //write patched Cargo.toml
@@ -309,7 +268,7 @@ fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &Pax
 }
 
 fn generate_and_overwrite_cartridge(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
-    let target_dir = pax_dir.join("pkg").join("pax-cartridge");
+    let target_dir = pax_dir.join(PAX_DIR_PKG_PATH).join("pax-cartridge");
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
@@ -317,7 +276,7 @@ fn generate_and_overwrite_cartridge(pax_dir: &PathBuf, manifest: &PaxManifest, h
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
         target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
-        &mut Item::from_str("{ path=\"../..\" }").unwrap()
+        &mut Item::from_str("{ path=\"../../..\" }").unwrap()
     );
 
     //write patched Cargo.toml
@@ -465,7 +424,6 @@ fn generate_bound_events(inline_settings: Option<Vec<(String, ValueDefinition)>>
     };
     ret
 }
-
 
 fn recurse_literal_block(block: LiteralBlockDefinition, type_definition: &TypeDefinition, host_crate_info: &HostCrateInfo) -> String {
     let qualified_path =
@@ -947,47 +905,13 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_property_prefixes_in_place(&mut manifest, &host_crate_info);
 
+    //Inspect Cargo.lock to find declared pax lib versions
     let pax_version = get_version_of_whitelisted_packages(&ctx.path).unwrap();
 
     println!("{} 🧮 Compiling expressions", &PAX_BADGE);
     expressions::compile_all_expressions(&mut manifest);
 
     println!("{} 🦀 Generating Rust", &PAX_BADGE);
-
-    //TODO:
-    // [x] copy & expand all necessary deps, as code, a la cargo itself, into .pax (not just chassis & cartridge)
-    // [x] clean up the special cases around current chassis & cartridge codegen, incl. `../../..` patching & dir names / paths
-    // [x] adjust the final build logic — point to _in vivo_ chassis dirs instead of the special chassis folder; rely on overwritten codegen of cartridge & properties-coproduct instead of patches
-    //     [x] web
-    //     [x] macos
-    // [ ] fix build times
-    //      [ ] Refactor:
-    //        1. perform current code-gen & patching process into a tmp-pkg dir
-    //        2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
-    //        3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
-    // [x] Assess viability of pointing userland projects to .pax/pax-lang (for example)
-    // [ ] verify that include_dir!-based builds work, in addition to libdev builds
-    //     [ ] abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
-
-    //TODO: observation: can reproduce a minimal "cache-cleared slow build" by simply:
-    //      1. go to `pax-example` and build `cargo run --features=parser --bin=parser`.  Observe slow build
-    //      2. Run again — observe fast build
-    //      3. Change `.pax/pax-properties-coproduct/lib.rs` trivially, e.g. by adding a newline
-    //      4. Run again, — observe SLOW build.
-    //     Apparently a single change in a single lib file is enough to trigger a substantial rebuild.
-    //       Perhaps: because many things depend on properties-coproduct, a single change there is enough to require all of them to change
-    //     observation: when running cargo build @ command-line (as opposed to via Pax CLI), you can see that building `pax-compiler` takes a substantial portion of the time.  This checks out esp. re: the embedding of all the `include_dir`s into pax-compiler.
-    //Possibility: when code-genning & patching — do so into _yet another_ directory —e.g. `tmp` — so that the resulting files can be bytewise-checked against canonical files, before overwriting.  This should stabilize FS writes and cargo's tendency to clear caches when files change.
-    // 1. perform current code-gen & patching process into a tmp-pkg dir
-    // 2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
-    // 3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
-    // 4. along the way, abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
-
-    //1. fetch pax version numbers from host codebase
-    //2. copy all deps — either from crates.io or from libdev ../
-    //3. codegen properties-coproduct & cartridge (incl. relative dep to host codebase in latter)
-    //4. include patch directive in appropriate chassis; build dylib, run dev-harness
-
     clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &host_crate_info);
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
@@ -1044,6 +968,7 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
     let target_str_lower: &str = &target_str.to_lowercase();
 
     let harness_path = pax_dir
+        .join(PAX_DIR_PKG_PATH)
         .join(format!("pax-chassis-{}",target_str_lower))
         .join({
             match harness {
@@ -1122,7 +1047,19 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
     let target_str : &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
-    let chassis_path = pax_dir.join("pkg").join(format!("pax-chassis-{}", target_str_lower));
+    let chassis_path = pax_dir.join(PAX_DIR_PKG_PATH).join(format!("pax-chassis-{}", target_str_lower));
+
+    //Inject `patch` directive, which allows userland projects to refer to concrete versions like `0.4.0`, while we
+    //swap them for local filesystem versions during compilation.
+    let existing_cargo_toml_path = chassis_path.join("Cargo.toml");
+    let mut existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap()).unwrap();
+    let mut patch_table = toml_edit::table();
+    for pkg in ALL_PKGS {
+        patch_table[pkg]["path"] = toml_edit::value(format!("../{}", pkg));
+    }
+    existing_cargo_toml.insert("patch.crates-io", patch_table);
+    fs::write(existing_cargo_toml_path, existing_cargo_toml.to_string().replace("\"patch.crates-io\"", "patch.crates-io") ).unwrap();
+
     //string together a shell call like the following:
     let cargo_run_chassis_build = match target {
         RunTarget::MacOS => {
