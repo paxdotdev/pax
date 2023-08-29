@@ -926,6 +926,20 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
     cargo_run_chassis_build.wait_with_output().unwrap()
 }
 
+pub fn perform_create(ctx: &CreateContext) {
+    let full_path = Path::new(&ctx.path).join(&ctx.crate_name);
+    fs::create_dir_all(full_path);
+
+    // clone template into full_path
+}
+
+pub struct CreateContext {
+    pub crate_name: String,
+    pub path: String,
+    pub libdevmode: bool,
+    pub version: String,
+}
+
 pub struct RunContext {
     pub target: RunTarget,
     pub path: String,

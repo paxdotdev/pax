@@ -1,8 +1,8 @@
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use clap::{App, AppSettings, Arg};
-use pax_compiler::{RunTarget, RunContext};
+use clap::{App, AppSettings, Arg, crate_version};
+use pax_compiler::{RunTarget, RunContext, CreateContext};
 
 fn main() -> Result<(), ()> {
 
@@ -14,10 +14,17 @@ fn main() -> Result<(), ()> {
         .default_value(".");
 
     #[allow(non_snake_case)]
-        let ARG_VERBOSE = Arg::with_name("verbose")
+    let ARG_VERBOSE = Arg::with_name("verbose")
         .short("v")
         .long("verbose")
         .takes_value(false);
+
+    #[allow(non_snake_case)]
+    let ARG_NAME = Arg::with_name("name")
+        .long("name")
+        .takes_value(true)
+        .required(true)
+        .help("Name for the new Pax project.  Will be used in multiple places, including the name of the crate for Cargo and the name of the directory where the project is generated.");
 
     #[allow(non_snake_case)]
     let ARG_TARGET = Arg::with_name("target")
@@ -37,11 +44,13 @@ fn main() -> Result<(), ()> {
         .help("Signal to the compiler to run certain operations in libdev mode, offering certain ergonomic affordances for Pax library developers.")
         .hidden(true); //hidden because this is of negative value to end-users; things are expected to break when invoked outside of the pax monorepo
 
+
+
     let matches = App::new("pax")
         .name("pax")
         .bin_name("pax")
         .about("Pax CLI including compiler and dev tooling")
-        .version("0.0.1")
+        .version(crate_version!())
         .setting(AppSettings::SubcommandRequiredElseHelp)
         .author("Zack Brown <zack@pax.dev>")
         .subcommand(
@@ -64,6 +73,14 @@ fn main() -> Result<(), ()> {
             App::new("clean")
                 .arg( ARG_PATH.clone() )
                 .about("Cleans the temporary files associated with the Pax project in the current working directory — notably, the temporary files generated into the .pax directory")
+        )
+        .subcommand(
+            App::new("create")
+                .alias("new")
+                .arg( ARG_PATH.clone() )
+                .arg( ARG_LIBDEV.clone() )
+                .arg(ARG_NAME.clone() )
+                .about("Creates a new Pax project in a new directory with the specified `name`.  If a `path` is specified, the new directory `name` will be appended to the `path`.")
         )
         .subcommand(
             App::new("libdev")
@@ -119,6 +136,21 @@ fn main() -> Result<(), ()> {
             pax_compiler::perform_clean(&path);
             Ok(())
         },
+        ("create", Some(args)) => {
+            let path = args.value_of("path").unwrap().to_string(); //default value "."
+            let name = args.value_of("name").unwrap().to_string(); //default value "."
+            let libdevmode = args.is_present("libdev");
+            let version = crate_version!().to_string(); // Note: this could also be parameterized, but an easy default is to clamp to the CLI version
+
+            pax_compiler::perform_create(&CreateContext {
+                crate_name: name,
+                path,
+                libdevmode,
+                version,
+            });
+            Ok(())
+        },
+
         ("libdev", Some(args)) => {
             match args.subcommand() {
                 ("parse", Some(args)) => {

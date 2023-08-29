@@ -3175,3 +3175,15 @@ So boiling down to an algorithm:
 6. Include patch directive in the appropriate `chassis`'s Cargo.toml (either `.pax/pkg/pax-chassis-web` or `.pax/pkg/pax-chassis-macos`, depending on `TARGET`) —
    7. Within this directive, patch all discovered dependencies from (1) to override concrete semver => local `.pax/pkg/{pkg-id}`
 8. Within our `.pax/pkg/` chassis directory with the patched `Cargo.toml`, run `perform_build()` 
+
+Update: the above seemed to work satisfactorily.
+
+#### Next steps: "create-react-app"-style CLI
+
+1. install pax-cli
+   2. for development, can do this in a sibling-folder to `pax` monorepo, and refer to `../pax/pax-cli` (to cut out need to publish to crates.io)
+3. run `pax create some-project` 
+   4. clone template project
+      5. Maintain template project inside monorepo — `pax-create-template` ?
+      6. either fs-copy this template project or pull tarball from crates.io (don't include_dir(../), as this breaks crates.io builds)
+      7. 
