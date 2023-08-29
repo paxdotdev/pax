@@ -3097,14 +3097,15 @@ TODO:
  [x] adjust the final build logic — point to _in vivo_ chassis dirs instead of the special chassis folder; rely on overwritten codegen of cartridge & properties-coproduct instead of patches
      [x] web
      [x] macos
- [ ] fix build times
-      [ ] Refactor:
+ [x] fix build times
+      [-] Refactor:
         1. perform current code-gen & patching process into a tmp-pkg dir
         2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
         3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
+        NOTE: see Aug 28 entry for resolution
  [x] Assess viability of pointing userland projects to .pax/pax-lang (for example)
- [ ] verify that include_dir!-based builds work, in addition to libdev builds
-     [ ] abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
+ [-] verify that include_dir!-based builds work, in addition to libdev builds
+     [-] abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
 
 //TODO: observation: can reproduce a minimal "cache-cleared slow build" by simply:
 //      1. go to `pax-example` and build `cargo run --features=parser --bin=parser`.  Observe slow build
