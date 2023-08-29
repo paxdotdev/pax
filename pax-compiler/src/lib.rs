@@ -98,9 +98,10 @@ fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, host_crat
             //to a libdev build without "sticky caches."
             //
             //Note that this may incur a penalty on libdev build times,
-            //since cargo will want to rebuild the whole workspace from scratch on every build.  If we run into this,
-            //consider a "double buffered" approach, where we copy everything into a fresh new buffer (B), while leaving (A)
-            //unchanged on disk.  Bytewise check each file found in B against a prospective match in A, and copy only if different.
+            //since cargo will want to rebuild the whole workspace from scratch on every build.  If we want to optimize this,
+            //consider a "double buffered" approach, where we copy everything into a fresh new buffer (B), call it `.pax/pkg-tmp`, while leaving (A) `.pax/pkg`
+            //unchanged on disk.  Bytewise check each file found in B against a prospective match in A, and copy only if different.  (B) could also be stored on a virtual
+            //FS in memory, to reduce disk churn.
             let pax_workspace_root = pax_dir.parent().unwrap().parent().unwrap();
             let src = pax_workspace_root.join(pkg);
             let dest = dest_pkg_root.join(pkg);
@@ -120,75 +121,6 @@ fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, host_crat
 
     }
 }
-
-fn process_file_content<P: AsRef<Path>>(content: &str, path: P, host_crate_info: &HostCrateInfo) -> String {
-    let path_str = path.as_ref().to_str().unwrap();
-
-    //Override two specific Cargo.tomls, to insert entry pointing to userland crate where `pax_app` is defined
-    if path_str.ends_with("pax-properties-coproduct/Cargo.toml") || path_str.ends_with("pax-cartridge/Cargo.toml") {
-        let mut target_cargo_toml_contents = toml_edit::Document::from_str(content).unwrap();
-
-        std::mem::swap(
-            target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
-            &mut Item::from_str("{ path=\"../..\" }").unwrap()
-        );
-
-        target_cargo_toml_contents.to_string()
-    } else {
-        content.to_string()
-    }
-}
-
-fn write_to_output_directory<P: AsRef<Path>>(path: P, content: &str) {
-    if let Some(parent) = path.as_ref().parent() {
-        fs::create_dir_all(parent).expect("Failed to create directories");
-    }
-
-    fs::write(&path, content).expect("Failed to write to file");
-}
-
-
-// fn recurse_pkg_copy_with_filters(entry: &DirEntry, dest_dir: &PathBuf, host_crate_info: &HostCrateInfo) {
-//     let file_name = entry.file_name();
-//     let src_path = &entry.path();
-//     let dest_path = dest_dir.join(&file_name);
-//
-//     if entry.file_type().unwrap().is_dir() {
-//         //For dir, recurse
-//         //Ignore `target` dirs, as this breaks cargo's cache mechanism and makes builds slow
-//         if entry.file_name().to_str().unwrap() != "target" {
-//             recurse_pkg_copy_with_filters(src_path, &dest_path, host_crate_info);
-//         }
-//     } else {
-//
-//         let mut src_content = String::new();
-//         let mut dest_content = String::new();
-//
-//         //simply copy files that fail to read to string
-//         if let Err(_) = fs::File::open(src_path).unwrap().read_to_string(&mut src_content) {
-//             fs::copy(src_path, dest_path).ok();
-//         } else {
-//             let src_path_str = src_path.to_str().unwrap();
-//             if src_path_str.ends_with("pax-properties-coproduct/Cargo.toml") || src_path_str.ends_with("pax-cartridge/Cargo.toml") {
-//                 let mut target_cargo_toml_contents = toml_edit::Document::from_str(src_content).unwrap();
-//
-//                 //insert new entry pointing to userland crate, where `pax_app` is defined
-//                 std::mem::swap(
-//                     target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
-//                     &mut Item::from_str("{ path=\"../..\" }").unwrap()
-//                 );
-//
-//                 target_cargo_toml_contents.to_string()
-//             } else {
-//                 src_content.to_string()
-//             }
-//
-//
-//         }
-//
-//     }
-// }
-
 
 fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
@@ -398,7 +330,6 @@ fn _format_generated_lib_rs(generated_lib_rs: String) -> String {
         generated_lib_rs
     }
 }
-
 
 fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext,  host_crate_info: &HostCrateInfo) -> String {
     let nodes = rngc.active_component_definition.template.as_ref().expect("tried to generate render nodes literal for component, but template was undefined");
@@ -655,7 +586,6 @@ fn generate_events_map(events: Option<Vec<EventDefinition>>) -> HashMap<String, 
     ret
 }
 
-
 fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition,  host_crate_info: &HostCrateInfo) -> String {
     let rngc = RenderNodesGenerationContext {
         components: &manifest.components,
@@ -678,70 +608,6 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
     press_template_codegen_cartridge_component_factory(args)
 }
 
-/// Instead of the built-in Dir#extract method, which aborts when a file exists,
-/// this implementation will continue extracting, as well as overwrite existing files
-// fn persistent_extract<S: AsRef<Path>>(src_dir: &Dir, dest_base_path: S, host_crate_info: &HostCrateInfo) -> std::io::Result<()> {
-//
-//     let base_path = dest_base_path.as_ref();
-//
-//     for entry in src_dir.entries() {
-//         let path = base_path.join(entry.path());
-//
-//         match entry {
-//             DirEntry::Dir(d) => {
-//                 fs::create_dir_all(&path).ok();
-//                 persistent_extract(d, base_path, host_crate_info).ok();
-//             }
-//             DirEntry::File(f) => {
-//                 fs::write(path, f.contents()).ok();
-//             }
-//         }
-//     }
-//
-//     Ok(())
-// }
-
-
-// fn maybe_copy_file(src_path: &PathBuf, dest_path: &PathBuf, host_crate_info: &HostCrateInfo) {
-//
-//
-//     if dest_path.exists() {
-//         let src_path_str = src_path.to_str().unwrap();
-//
-//         //HACK, build time speed-up:
-//         // no-op early return if we are generating one of our codegen files, so that we don't
-//         // unnecessarily churn FS & trigger cargo's cache-busting FS watchers
-//         if src_path_str.ends_with("pax-properties-coproduct/src/lib.rs") || src_path_str.ends_with("pax-cartridge/src/lib.rs") {
-//             return
-//         }
-//
-//         let mut src_content = String::new();
-//         let mut dest_content = String::new();
-//
-//         //early return for files that fail to read to string
-//         if let Err(_) = fs::File::open(src_path).unwrap().read_to_string(&mut src_content) {
-//             fs::create_dir_all(dest_path).ok();
-//             fs::copy(src_path, dest_path).ok();
-//             return
-//         }
-//         if let Err(_) = fs::File::open(dest_path).unwrap().read_to_string(&mut dest_content) {
-//             fs::create_dir_all(dest_path).ok();
-//             fs::copy(src_path, dest_path).ok();
-//             return
-//         }
-//
-//         src_content = transform_file_content(src_path, &src_content, host_crate_info);
-//
-//         if src_content != dest_content {
-//             fs::create_dir_all(dest_path).ok();
-//             fs::write(dest_path, &src_content).unwrap();
-//         }
-//     } else {
-//         fs::create_dir_all(dest_path).ok();
-//         fs::copy(src_path, dest_path).ok();
-//     }
-// }
-
 fn transform_file_content(src_path: &PathBuf, src_content: &str, host_crate_info: &HostCrateInfo) -> String {
     let src_path_str = src_path.to_str().unwrap();
     if src_path_str.ends_with("pax-properties-coproduct/Cargo.toml") || src_path_str.ends_with("pax-cartridge/Cargo.toml") {
@@ -758,9 +624,6 @@ fn transform_file_content(src_path: &PathBuf, src_content: &str, host_crate_info
         src_content.to_string()
     }
 }
-
-// static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-properties-coproduct");
-
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let working_path = std::path::Path::new(working_dir).join(".pax");
@@ -821,7 +684,6 @@ pub fn run_parser_binary(path: &str) -> Output {
     cargo_run_parser_process.wait_with_output().unwrap()
 }
 
-
 use colored::Colorize;
 use crate::manifest::Unit::Percent;
 use crate::parsing::escape_identifier;
@@ -878,7 +740,7 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
         }
     }
 
-    tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in the project's dependency graph.  Add e.g. `pax-lang` to your Cargo.toml to resolve this error.")
+    tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in your project's dependency graph.  Add e.g. `pax-lang` to your Cargo.toml to resolve this error.")
 }
 
 /// For the specified file path or current working directory, first compile Pax project,
@@ -1050,7 +912,7 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
     let chassis_path = pax_dir.join(PAX_DIR_PKG_PATH).join(format!("pax-chassis-{}", target_str_lower));
 
     //Inject `patch` directive, which allows userland projects to refer to concrete versions like `0.4.0`, while we
-    //swap them for local filesystem versions during compilation.
+    //swap them for our locally cloned filesystem versions during compilation.
     let existing_cargo_toml_path = chassis_path.join("Cargo.toml");
     let mut existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap()).unwrap();
     let mut patch_table = toml_edit::table();
