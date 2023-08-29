@@ -14,6 +14,7 @@ pub mod primitives {
     use pax_lang::Pax;
     use pax_lang::api::numeric::Numeric;
     use pax_lang::api::SizePixels;
+    use pax_runtime_api::{Size, Size2D};
 
     use crate::types::PathSegment;
     use crate::types::text::{TextStyle};
@@ -26,6 +27,16 @@ pub mod primitives {
     #[custom(Imports)]
     #[primitive("pax_std_primitives::group::GroupInstance")]
     pub struct Group {}
+
+    #[derive(Pax)]
+    #[custom(Imports)]
+    #[primitive("pax_std_primitives::scroller::ScrollerInstance")]
+    pub struct Scroller {
+        pub size_inner_pane_x: pax_lang::Property<Size>,
+        pub size_inner_pane_y: pax_lang::Property<Size>,
+        pub scroll_enabled_x: pax_lang::Property<bool>,
+        pub scroll_enabled_y: pax_lang::Property<bool>,
+    }
 
     #[derive(Pax)]
     #[custom(Imports)]

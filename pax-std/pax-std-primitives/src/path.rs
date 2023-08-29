@@ -86,7 +86,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
 
     }
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
-        let transform = rtc.transform;
+        let transform = rtc.transform_scroller_reset;
 
         let properties = (*self.properties).borrow();
 

@@ -182,7 +182,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         Layer::DontCare
     }
 
-    fn handle_did_mount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    fn handle_did_mount(&mut self, _rtc: &mut RenderTreeContext<R>, z_index: u32) {
         self.cached_old_value_range = None;
         self.cached_old_value_vec = None;
     }

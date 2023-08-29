@@ -5,7 +5,7 @@
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Pax Web</title>
         <style>
-            html, body, #mount, canvas, .native-overlay, #clipping-container {
+            html, body, #mount, canvas, .native-overlay{
                 margin: 0;
                 padding: 0;
                 width: 100%;
@@ -21,26 +21,30 @@
                 position: absolute;
                 top: 0;
                 left: 0;
+                pointer-events: none;
             }
 
-            #clipping-container {
+            .scroller-container {
+                position: relative;
+                overflow: auto;
+            }
+
+            .scroller-content {
                 position: absolute;
                 top: 0;
                 left: 0;
+                pointer-events: auto;
             }
 
             .native-overlay {
                 position: absolute;
                 top: 0;
                 left: 0;
+                pointer-events: none;
             }
 
             .native-overlay:focus {
                 outline: none;
-            }
-
-            .native-clipping {
-                position: absolute;                
             }
 
             .native-leaf {
@@ -49,6 +53,17 @@
                 overflow: hidden;
                 transform-origin: top left;
                 pointer-events: auto;
+                position: absolute;
+            }
+
+            #clipping-container {
+                position: absolute;
+                top: 0;
+                left: 0;
+            }
+
+
+            .native-clipping {
                 position: absolute;
             }
 

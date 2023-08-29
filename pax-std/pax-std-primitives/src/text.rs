@@ -166,7 +166,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
     }
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth: usize) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, z_index: u32, subtree_depth: u32) {
         let mut new_message: TextPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
         if !self.last_patches.contains_key(&new_message.id_chain) {
@@ -178,21 +178,6 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         let mut has_any_updates = false;
 
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
-
-        let val = depth;
-        let is_new_value = match &last_patch.depth {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            }
-        };
-        if is_new_value {
-            new_message.depth = Some(val);
-            last_patch.depth = Some(val);
-            has_any_updates = true;
-        }
 
         let val = properties.text.get();
         let is_new_value = match &last_patch.content {
@@ -286,15 +271,20 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
-    fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
-
-        let clipping_ids = rtc.runtime.borrow().get_current_clipping_ids();
-
+    fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
         let id_chain = rtc.get_id_chain(self.instance_id);
+
+        //though macOS and iOS don't need this ancestry chain for clipping, Web does
+        let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
+
+        let scroller_ids = (*rtc.runtime).borrow().get_current_scroller_ids();
+
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::NativeMessage::TextCreate(AnyCreatePatch{
-                id_chain,
+            pax_message::NativeMessage::TextCreate(AnyCreatePatch {
+                id_chain: id_chain.clone(),
                 clipping_ids,
+                scroller_ids,
+                z_index,
             })
         );
     }

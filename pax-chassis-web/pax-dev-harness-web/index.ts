@@ -7,6 +7,8 @@ import snarkdown from 'snarkdown';
 const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_CLASS = "native-overlay";
 const CANVAS_CLASS = "canvas";
+const SCROLLER_CONTAINER = "scroller-container"
+const SCROLLER_CONTENT = "scroller-content";
 
 const NATIVE_LEAF_CLASS = "native-leaf";
 const NATIVE_CLIPPING_CLASS = "native-clipping";
@@ -15,10 +17,234 @@ const CLIP_PREFIX = "clip"
 
 const registeredFontFaces = new Set<string>();
 
+let initializedMountListeners = false;
+
 
 let layers: { "native": HTMLDivElement[], "canvas": HTMLCanvasElement[] } = { "native": [], "canvas": [] };
 
 let is_mobile_device = false;
+
+class Layer {
+    readonly canvas: HTMLCanvasElement;
+    readonly native: HTMLDivElement;
+    readonly scrollerId : BigUint64Array | undefined;
+    readonly zIndex: number;
+    chassis: PaxChassisWeb
+
+    constructor(parent: Element, zIndex: number, scroller_id: BigUint64Array | undefined, chassis: PaxChassisWeb) {
+        //console.log(scroller_id, zIndex);
+        this.zIndex = zIndex;
+        this.scrollerId = scroller_id;
+        this.chassis = chassis;
+
+        this.native = document.createElement("div");
+        this.native.className = NATIVE_OVERLAY_CLASS;
+        parent.prepend(this.native);
+
+        this.canvas = document.createElement("canvas");
+        if(scroller_id != undefined){
+            this.canvas.style.position = "sticky";
+        }
+        this.canvas .className = CANVAS_CLASS
+        this.canvas.id = PaxChassisWeb.generate_location_id(scroller_id, zIndex);
+        parent.prepend(this.canvas);
+        console.log("Adding Context", this.canvas.id);
+        chassis.add_context(scroller_id, zIndex);
+
+    }
+
+    public remove(){
+        let parent = this.canvas.parentElement;
+        this.chassis.remove_context(this.scrollerId, this.zIndex);
+        parent!.removeChild(this.native);
+        parent!.removeChild(this.canvas);
+    }
+
+    public updateCanvas(width: number, height: number){
+        this.canvas.width = (width * window.devicePixelRatio);
+        this.canvas.height = (height * window.devicePixelRatio);
+        this.canvas.style.width = String(width)+'px';
+        this.canvas.style.height = String(height)+'px';
+    }
+}
+
+class OcclusionContext {
+    private layers: Layer[];
+    private parent: Element;
+    private zIndex: number;
+    private scrollerId: BigUint64Array | undefined;
+    chassis: PaxChassisWeb;
+
+    constructor(parent: Element, scrollerId : BigUint64Array | undefined, chassis: PaxChassisWeb) {
+        this.layers = [];
+        this.parent = parent;
+        this.zIndex = -1;
+        this.scrollerId = scrollerId;
+        this.chassis = chassis;
+        this.growTo(0);
+    }
+
+    growTo(zIndex: number) {
+        if(this.zIndex < zIndex){
+            for(let i = this.zIndex+1; i <= zIndex; i++) {
+                let newLayer = new Layer(this.parent, i, this.scrollerId, this.chassis);
+                this.layers.push(newLayer);
+            }
+            this.zIndex = zIndex;
+        }
+    }
+
+    shrinkTo(zIndex: number){
+        if(this.zIndex > zIndex) {
+            for(let i = this.zIndex; i > zIndex; i--){
+                this.layers[i].remove();
+                this.layers.pop();
+            }
+            this.zIndex = zIndex;
+        }
+    }
+
+    addElement(element: Element, zIndex: number){
+        if(zIndex > this.zIndex){
+            this.growTo(zIndex);
+        }
+        this.layers[zIndex].native.appendChild(element);
+    }
+
+    updateCanvases(width: number, height: number){
+        this.layers.forEach((layer)=>{layer.updateCanvas(width, height)});
+    }
+}
+
+
+class Scroller {
+    readonly idChain: BigUint64Array;
+    readonly parentScrollerId: BigUint64Array | undefined;
+    readonly zIndex : number;
+    readonly container: HTMLDivElement;
+    readonly content: HTMLDivElement;
+    occlusionContext: OcclusionContext;
+    sizeX?: number;
+    sizeY?: number;
+    sizeInnerPaneX?: number;
+    sizeInnerPaneY?: number;
+    transform?: number[];
+    scrollX?: boolean;
+    scrollY?: boolean;
+    subtreeDepth?: number;
+    scrollOffsetX: number;
+    scrollOffsetY: number;
+
+
+    constructor(idChain: BigUint64Array, zIndex: number, scrollerId: BigUint64Array | undefined, chassis: PaxChassisWeb) {
+        this.idChain = idChain;
+        this.parentScrollerId = scrollerId;
+        this.zIndex = zIndex;
+        this.scrollOffsetX = 0;
+        this.scrollOffsetY = 0;
+
+        this.container = document.createElement("div");
+        this.container.className = SCROLLER_CONTAINER;
+        addNativeElement(this.container, idChain, scrollerId, zIndex);
+
+        this.container.addEventListener("scroll", () => {
+            let scrollEvent = {
+                "Scroll": {
+                    "delta_x": this.container.scrollLeft - this.scrollOffsetX,
+                    "delta_y": this.container.scrollTop - this.scrollOffsetY,
+                }
+            };
+            this.scrollOffsetX = this.container.scrollLeft;
+            this.scrollOffsetY = this.container.scrollTop;
+            chassis.interrupt(JSON.stringify(scrollEvent), []);
+        })
+
+        this.content = document.createElement("div");
+        this.content.className = SCROLLER_CONTENT;
+        this.container.appendChild(this.content);
+
+        this.occlusionContext = new OcclusionContext(this.content, idChain, chassis);
+
+        if(scrollerId != null){
+            // @ts-ignore
+            let scrollerParent = scrollers[scrollerId];
+            scrollerParent.occlusionContext.addElement(this.container, zIndex);
+        } else {
+            baseOcclusionContext.addElement(this.container, zIndex);
+        }
+    }
+
+    handleScrollerUpdate(msg: ScrollerUpdatePatch){
+        if(msg.sizeX != null){
+            this.sizeX = msg.sizeX;
+            this.container.style.width = msg.sizeX + "px";
+        }
+        if(msg.sizeY != null){
+            this.sizeY = msg.sizeY;
+            this.container.style.height = msg.sizeY + "px";
+        }
+        if(msg.sizeInnerPaneX != null){
+            this.sizeInnerPaneX = msg.sizeInnerPaneX;
+        }
+        if(msg.sizeInnerPaneY != null){
+            this.sizeInnerPaneY = msg.sizeInnerPaneY;
+        }
+        if(msg.scrollX != null){
+            this.scrollX = msg.scrollX;
+            if(!msg.scrollX){
+                this.container.style.overflowX = "hidden";
+            }
+        }
+        if(msg.scrollY != null){
+            this.scrollY = msg.scrollY;
+            if(!msg.scrollY){
+                this.container.style.overflowY = "hidden";
+            }
+        }
+        if(msg.subtreeDepth != null){
+            this.subtreeDepth = msg.subtreeDepth;
+            this.occlusionContext.shrinkTo(msg.subtreeDepth);
+        }
+        if(msg.transform != null){
+            this.container.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
+            this.transform = msg.transform;
+        }
+        if(msg.sizeX != null && msg.sizeY != null){
+            this.occlusionContext.updateCanvases(msg.sizeX, msg.sizeY);
+        }
+        if(msg.sizeInnerPaneX != null && msg.sizeInnerPaneY != null){
+            this.sizeInnerPaneX = msg.sizeInnerPaneX;
+            this.sizeInnerPaneY = msg.sizeInnerPaneY;
+            this.content.style.width = msg.sizeInnerPaneX + "px";
+            this.content.style.height = msg.sizeInnerPaneY + "px";
+        }
+    }
+
+    addElement(elem: Element, zIndex: number){
+        this.occlusionContext.addElement(elem, zIndex);
+    }
+}
+
+
+// global map of scrollers
+// scroller id_chain -> Scroller object
+let scrollers = {};
+let elemToScroller = {};
+let baseOcclusionContext: OcclusionContext;
+
+function addNativeElement(elem: Element, idChain: BigUint64Array , scrollerIdChain: BigUint64Array | undefined, zIndex: number){
+    //console.log(elem, idChain, scrollerIdChain, zIndex);
+    if(scrollerIdChain != undefined){
+        // @ts-ignore
+        let scroller = scrollers[scrollerIdChain];
+        scroller.addElement(elem, zIndex);
+        // @ts-ignore
+        elemToScroller[idChain] = scroller;
+    } else {
+        baseOcclusionContext.addElement(elem, zIndex);
+    }
+}
+
 
 //handle {click, mouseover, ...} on {canvas element, native elements}
 //for both virtual and native events, pass:
@@ -29,19 +255,17 @@ let is_mobile_device = false;
 //can be used by engine to resolve virtual element
 //This ID mechanism will also likely knock out most of the work for DOM element pooling/recycling
 
-function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
+async function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
 
     is_mobile_device = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
 
-    initializeLayers(1);
     //Initialize chassis & engine
-    let chassis = wasmMod.PaxChassisWeb.new();
+    let chassis = await wasmMod.PaxChassisWeb.new();
 
-    //Handle click events on canvas layer
-    setupEventListeners(chassis,layers.canvas[0]);
+    let mount = document.querySelector("#" + MOUNT_ID)!;
+    baseOcclusionContext = new OcclusionContext(mount, undefined, chassis);
 
-    addEventListenersToNativeLayers(0, layers.native.length, chassis);
 
     //Kick off render loop
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
@@ -146,13 +370,6 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-        let scrollEvent = {
-            "Scroll": {
-                "delta_x": evt.deltaX,
-                "delta_y": evt.deltaY,
-            }
-        };
-        chassis.interrupt(JSON.stringify(scrollEvent), []);
     }, true);
     // @ts-ignore
     layer.addEventListener('mousedown', (evt) => {
@@ -342,7 +559,7 @@ function initializeLayers(num: number){
     }
 }
 
-function getStringIdFromClippingId(prefix: string, id_chain: number[]) {
+function getStringIdFromClippingId(prefix: string, id_chain: BigUint64Array) {
     return prefix + "_" + id_chain.join("_");
 }
 
@@ -350,21 +567,30 @@ function escapeHtml(content: string){
     return new Option(content).innerHTML;
 }
 
-function clearCanvases(){
-    for (let i = 0; i < layers.canvas.length; i++) {
-        let canvas = layers.canvas[i];
-        let context = canvas.getContext('2d');
+function clearCanvases(): void {
+    const canvases: HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
+
+    for (let i = 0; i < canvases.length; i++) {
+        const canvas = canvases[i];
+        const context = canvas.getContext('2d');
         if (context) {
             context.clearRect(0, 0, canvas.width, canvas.height);
         }
     }
 }
 
+
 function renderLoop (chassis: PaxChassisWeb) {
      clearCanvases()
      let messages : string = chassis.tick();
      messages = JSON.parse(messages);
 
+     if(!initializedMountListeners){
+         //Handle events on mount
+         let mount = document.querySelector("#" + MOUNT_ID)!;
+         setupEventListeners(chassis, mount);
+         initializedMountListeners = true;
+     }
      // @ts-ignore
      processMessages(messages, chassis);
      messages;
@@ -423,46 +649,41 @@ function getAlignItems(verticalAlignment: string): string {
 }
 
 
+
+
 class NativeElementPool {
     private textNodes : any = {};
     private clippingNodes : any = {};
     private clippingValueCache : any = {};
 
     textCreate(patch: AnyCreatePatch) {
-        console.assert(patch.id_chain != null);
-        console.assert(patch.clipping_ids != null);
+        console.assert(patch.idChain != null);
+        console.assert(patch.clippingIds != null);
+        console.assert(patch.scrollerIds != null);
+        console.assert(patch.zIndex != null);
+
 
         let runningChain = document.createElement("div")
         let textChild = document.createElement('div');
         runningChain.appendChild(textChild);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
 
-        let attachPoint = getAttachPointFromClippingIds(patch.clipping_ids);
-
-        attachPoint?.appendChild(runningChain);
+        let scrollerId = undefined;
+        if(patch.scrollerIds.length > 0){
+            scrollerId = patch.scrollerIds[patch.scrollerIds.length-1];
+        }
+        addNativeElement(runningChain, patch.idChain, scrollerId, patch.zIndex);
 
         // @ts-ignore
-        this.textNodes[patch.id_chain] = runningChain;
+        this.textNodes[patch.idChain] = runningChain;
     }
 
     textUpdate(patch: TextUpdatePatch) {
-
         //@ts-ignore
         window.textNodes = this.textNodes;
         // @ts-ignore
         let leaf = this.textNodes[patch.id_chain];
         console.assert(leaf !== undefined);
-
-        // Handle depth
-        let depth = patch.depth;
-        if (depth != null && depth < layers.native.length) {
-            let parentElement = leaf.parentElement;
-            let newParent = layers.native[depth];
-            if (parentElement != newParent) {
-                parentElement.removeChild(leaf);
-                newParent?.appendChild(leaf);
-            }
-        }
 
         let textChild = leaf.firstChild;
 
@@ -552,81 +773,93 @@ class NativeElementPool {
 
         // Handle transform
         if (patch.transform != null) {
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+
+            let scrollerNormalizedTransform = patch.transform;
+            // @ts-ignore
+            let scrollerParent = elemToScroller[patch.id_chain];
+            if(scrollerParent) {
+                let scrollOffsetX = scrollerParent.scrollOffsetX;
+                let scrollOffsetY = scrollerParent.scrollOffsetY;
+                // Since native elements are scrolled by native containers,
+                // we don't need to incorporate the engine's transform.
+                // Thus we remove the scroll translation from the transform
+                console.log(
+                    "transformX", scrollerNormalizedTransform[4],
+                    "offsetX", scrollOffsetX,
+                    "transformY", scrollerNormalizedTransform[5],
+                    "offsetY", scrollOffsetY
+                );
+
+                scrollerNormalizedTransform[4] += scrollOffsetX;
+                scrollerNormalizedTransform[5] += scrollOffsetY;
+            }
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(scrollerNormalizedTransform);
         }
     }
 
 
 
 
-    textDelete(id_chain: number[]) {
+    textDelete(id_chain: BigUint64Array) {
         // @ts-ignore
         let oldNode = this.textNodes[id_chain];
-        //console.assert(oldNode !== undefined);
         if (oldNode){
             let parent = oldNode.parentElement;
-
-
-            oldNode.style.pointerEvents = "none";
-            requestAnimationFrame(() => {
-                parent.removeChild(oldNode);
-            })
-            // @ts-ignore
-            delete this.textNodes[id_chain];
+            parent.removeChild(oldNode);
         }
     }
 
     frameCreate(patch: AnyCreatePatch) {
-        console.assert(patch.id_chain != null);
-        console.assert(this.clippingNodes["id_chain"] === undefined);
+        // console.assert(patch.idChain != null);
+        // console.assert(this.clippingNodes["id_chain"] === undefined);
+        //
+        // let attachPoint = getAttachPointFromClippingIds(patch.clippingIds);
+        //
+        // let newClip = document.createElement("div");
+        // newClip.id = getStringIdFromClippingId("clip", patch.idChain);
+        // newClip.classList.add(NATIVE_CLIPPING_CLASS);
 
-        let attachPoint = getAttachPointFromClippingIds(patch.clipping_ids);
-
-        let newClip = document.createElement("div");
-        newClip.id = getStringIdFromClippingId("clip", patch.id_chain);
-        newClip.classList.add(NATIVE_CLIPPING_CLASS);
-
-        attachPoint!.appendChild(newClip);
+        //attachPoint!.appendChild(newClip);
     }
 
     frameUpdate(patch: FrameUpdatePatch) {
         //@ts-ignore
-        let cacheContainer : FrameUpdatePatch = this.clippingValueCache[patch.id_chain] || new FrameUpdatePatch();
-
-        let shouldRedraw = false;
-        if (patch.size_x != null) {
-            shouldRedraw = true;
-            cacheContainer.size_x = patch.size_x
-        }
-        if (patch.size_y != null) {
-            shouldRedraw = true;
-            cacheContainer.size_y = patch.size_y
-        }
-        if (patch.transform != null) {
-            shouldRedraw = true;
-            cacheContainer.transform = patch.transform;
-        }
-
-        if (shouldRedraw) {
-            let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
-            
-            // Fallback and/or perf optimizer: `polygon` instead of `path`.
-            let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-            node.style.clipPath = polygonDef;
-            //@ts-ignore
-            node.style.webkitClipPath = polygonDef;
-
-            // PoC arbitrary path clipping (noticeably poorer perf in Firefox at time of authoring)
-            // let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
-            // node.style.clipPath = pathDef;
-            // //@ts-ignore
-            // node.style.webkitClipPath = pathDef;
-        }
-        //@ts-ignore
-        this.clippingValueCache[patch.id_chain] = cacheContainer;
+        // let cacheContainer : FrameUpdatePatch = this.clippingValueCache[patch.id_chain] || new FrameUpdatePatch();
+        //
+        // let shouldRedraw = false;
+        // if (patch.size_x != null) {
+        //     shouldRedraw = true;
+        //     cacheContainer.size_x = patch.size_x
+        // }
+        // if (patch.size_y != null) {
+        //     shouldRedraw = true;
+        //     cacheContainer.size_y = patch.size_y
+        // }
+        // if (patch.transform != null) {
+        //     shouldRedraw = true;
+        //     cacheContainer.transform = patch.transform;
+        // }
+        //
+        // if (shouldRedraw) {
+        //     let node : HTMLElement = document.querySelector("#" + getStringIdFromClippingId(CLIP_PREFIX, patch.id_chain!))!
+        //
+        //     // Fallback and/or perf optimizer: `polygon` instead of `path`.
+        //     let polygonDef = getQuadClipPolygonCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+        //     node.style.clipPath = polygonDef;
+        //     //@ts-ignore
+        //     node.style.webkitClipPath = polygonDef;
+        //
+        //     // PoC arbitrary path clipping (noticeably poorer perf in Firefox at time of authoring)
+        //     // let pathDef = getQuadClipPathCommand(cacheContainer.size_x!, cacheContainer.size_y!, cacheContainer.transform!)
+        //     // node.style.clipPath = pathDef;
+        //     // //@ts-ignore
+        //     // node.style.webkitClipPath = pathDef;
+        // }
+        // //@ts-ignore
+        // this.clippingValueCache[patch.id_chain] = cacheContainer;
     }
 
-    frameDelete(id_chain: number[]) {
+    frameDelete(id_chain: BigUint64Array) {
         // NOTE: this should be supported, and may cause a memory leak if left unaddressed;
         //       was likely unplugged during v0 implementation due to some deeper bug that was interfering with 'hello world'
 
@@ -638,7 +871,29 @@ class NativeElementPool {
         // nativeLayer?.removeChild(oldNode);
     }
 
+    scrollerCreate(patch: AnyCreatePatch, chassis: PaxChassisWeb){
+        //console.log(patch);
+        let scroller_id;
+        if(patch.scrollerIds != null){
+            let length = patch.scrollerIds.length;
+            if(length != 0) {
+                scroller_id = patch.scrollerIds[length-1];
+            }
+        }
+        let scroller = new Scroller(patch.idChain, patch.zIndex, scroller_id, chassis);
+        // @ts-ignore
+        scrollers[patch.idChain] = scroller;
+    }
 
+    scrollerUpdate(patch: ScrollerUpdatePatch){
+        //console.log(patch);
+        // @ts-ignore
+        scrollers[patch.idChain].handleScrollerUpdate(patch);
+    }
+
+    scrollerDelete(idChain: BigUint64Array){
+        //unimplemented
+    }
 
     async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
 
@@ -647,7 +902,7 @@ class NativeElementPool {
         let message = {
             "Image": {
                 "Data": {
-                    "id_chain": patch.id_chain,
+                    "id_chain": Array.from(patch.id_chain, value => Number(value)),
                     "width": image_data.width,
                     "height": image_data.height,
                 }
@@ -655,6 +910,7 @@ class NativeElementPool {
         }
         chassis.interrupt(JSON.stringify(message), image_data.pixels);
     }
+
 }
 
 
@@ -673,11 +929,13 @@ async function readImageToByteBuffer(imagePath: string): Promise<{ pixels: Uint8
 }
 
 class ImageLoadPatch {
-    public id_chain: number[];
+    public id_chain: BigUint64Array;
     public path: string;
 
     constructor(jsonMessage: any) {
-        this.id_chain = jsonMessage["id_chain"];
+        this.id_chain = new BigUint64Array(
+            jsonMessage["id_chain"].map((id: number | string) => BigInt(id))
+        );
         this.path = jsonMessage["path"];
     }
 }
@@ -708,7 +966,7 @@ class TextStyle {
 
 //Type-safe wrappers around JSON representation
 class TextUpdatePatch {
-    public id_chain: number[];
+    public id_chain: BigUint64Array;
     public content?: string;
     public size_x?: number;
     public size_y?: number;
@@ -718,7 +976,9 @@ class TextUpdatePatch {
     public depth?: number;
 
     constructor(jsonMessage: any) {
-        this.id_chain = jsonMessage["id_chain"];
+        this.id_chain = new BigUint64Array(
+            jsonMessage["id_chain"].map((id: number | string) => BigInt(id))
+        );
         this.content = jsonMessage["content"];
         this.size_x = jsonMessage["size_x"];
         this.size_y = jsonMessage["size_y"];
@@ -734,6 +994,32 @@ class TextUpdatePatch {
         if (styleLinkMessage) {
             this.style_link = new TextStyle(styleLinkMessage);
         }
+    }
+}
+
+class ScrollerUpdatePatch {
+    public idChain: BigUint64Array;
+    public sizeX?: number;
+    public sizeY?: number;
+    public sizeInnerPaneX? : number;
+    public sizeInnerPaneY? : number;
+    public transform? : number[];
+    public scrollX? : boolean;
+    public scrollY? : boolean;
+    public subtreeDepth?: number;
+
+    constructor(jsonMessage: any) {
+        this.idChain = new BigUint64Array(
+            jsonMessage["id_chain"].map((id: number | string) => BigInt(id))
+        );
+        this.sizeX = jsonMessage["size_x"];
+        this.sizeY = jsonMessage["size_y"];
+        this.sizeInnerPaneX = jsonMessage["size_inner_pane_x"];
+        this.sizeInnerPaneY = jsonMessage["size_inner_pane_y"];
+        this.transform = jsonMessage["transform"];
+        this.scrollX = jsonMessage["scroll_x"];
+        this.scrollY = jsonMessage["scroll_y"];
+        this.subtreeDepth = jsonMessage["subtree_depth"];
     }
 }
 
@@ -890,13 +1176,15 @@ enum FontWeight {
 
 
 class FrameUpdatePatch {
-    public id_chain?: number[];
+    public id_chain?: BigUint64Array;
     public size_x?: number;
     public size_y?: number;
     public transform?: number[];
     constructor(jsonMessage: any) {
-        if(jsonMessage != null) { 
-            this.id_chain = jsonMessage["id_chain"];
+        if(jsonMessage != null) {
+            this.id_chain = new BigUint64Array(
+                jsonMessage["id_chain"].map((id: number | string) => BigInt(id))
+            );
             this.size_x = jsonMessage["size_x"];
             this.size_y = jsonMessage["size_y"];
             this.transform = jsonMessage["transform"];
@@ -905,11 +1193,29 @@ class FrameUpdatePatch {
 }
 
 class AnyCreatePatch {
-    public id_chain: number[];
-    public clipping_ids: number[][];
+    public idChain: BigUint64Array;
+    public clippingIds: BigUint64Array[];
+    public scrollerIds: BigUint64Array[];
+    public zIndex: number;
+
     constructor(jsonMessage: any) {
-        this.id_chain = jsonMessage["id_chain"];
-        this.clipping_ids = jsonMessage["clipping_ids"];
+        // Convert idChain
+        this.idChain = new BigUint64Array(
+            jsonMessage["id_chain"].map((id: number | string) => BigInt(id))
+        );
+
+
+        // Convert clippingIds - Array of BigUint64Array
+        this.clippingIds = jsonMessage["clipping_ids"].map((idArray: (number | string)[]) =>
+            new BigUint64Array(idArray.map(id => BigInt(id)))
+        );
+
+        // Convert scrollerIds - Array of BigUint64Array
+        this.scrollerIds = jsonMessage["scroller_ids"].map((idArray: (number | string)[]) =>
+            new BigUint64Array(idArray.map(id => BigInt(id)))
+        );
+
+        this.zIndex = jsonMessage["z_index"];
     }
 }
 
@@ -977,6 +1283,15 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
                 }
             }
             chassis.interrupt(JSON.stringify(event), []);
+        }else if(unwrapped_msg["ScrollerCreate"]) {
+            let msg = unwrapped_msg["ScrollerCreate"]
+            nativePool.scrollerCreate(new AnyCreatePatch(msg), chassis);
+        }else if (unwrapped_msg["ScrollerUpdate"]){
+            let msg = unwrapped_msg["ScrollerUpdate"]
+            nativePool.scrollerUpdate(new ScrollerUpdatePatch(msg));
+        }else if (unwrapped_msg["ScrollerDelete"]) {
+            let msg = unwrapped_msg["ScrollerDelete"];
+            nativePool.scrollerDelete(msg["id_chain"])
         }
     })
 }
@@ -1037,7 +1352,7 @@ function packAffineCoeffsIntoMatrix2DString(coeffs: number[]) : string {
     ].join(",") + ")";
 }
 
-function getAttachPointFromClippingIds(clipping_ids: number[][]) {
+function getAttachPointFromClippingIds(clipping_ids: BigUint64Array[]) {
     // If there's a clipping context, attach to it.  Otherwise, attach directly to the native element layer.
     let attachPoint = (() => {
         if (clipping_ids.length > 0) {
