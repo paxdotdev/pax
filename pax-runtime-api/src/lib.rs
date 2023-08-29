@@ -393,7 +393,7 @@ pub fn log(msg: &str) {
         },
         PlatformSpecificLogger::MacOS(closure) => {
             let msg = CString::new(msg).unwrap();
-            unsafe {(closure)(msg.as_ptr())};
+            (closure)(msg.as_ptr());
         }
     }
 }
@@ -429,10 +429,6 @@ impl Mul for Size {
             }
         }
     }
-}
-
-pub struct TransformInstance {
-    rotate: Option<Box<dyn PropertyInstance<f64>>>
 }
 
 // More than just a tuble of (Size, Size),
@@ -579,8 +575,8 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     //FUTURE: when trait fields land in Rust, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
         self.transition_manager.value = Some(self.get().clone());
-        &self.transition_manager.queue.clear();
-        &self.transition_manager.queue.push_back(TransitionQueueEntry {
+        let _ = &self.transition_manager.queue.clear();
+        let _ = &self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
             duration_frames,
             curve,
@@ -610,7 +606,6 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         });
     }
 
-    #[allow(duplicate)]
     fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
         if let None = self.transition_manager.value {
             None
@@ -635,6 +630,7 @@ impl EasingEvaluators {
     fn linear(t: f64) -> f64 {
         t
     }
+    #[allow(dead_code)]
     fn none(t: f64) -> f64 {
         if t == 1.0 { 1.0 } else { 0.0 }
     }
@@ -703,7 +699,7 @@ where Self : Sized + Clone //Clone used for default implementation of `interpola
 {
     //default implementation acts like a `None` ease — that is,
     //the first value is simply returned.
-    fn interpolate(&self, other: &Self, t: f64) -> Self {
+    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
         self.clone()
     }
 }
@@ -726,7 +722,7 @@ impl Interpolatable for f64 {
 }
 
 impl Interpolatable for bool {
-    fn interpolate(&self, other: &bool, t: f64) -> bool {
+    fn interpolate(&self, _other: &bool, _t: f64) -> bool {
         *self
     }
 }
