@@ -3088,6 +3088,44 @@ Viewport culling should majorly improve perf
 
 
 
+### Aug 21 2023
+
+
+TODO:
+ [x] copy & expand all necessary deps, as code, a la cargo itself, into .pax (not just chassis & cartridge)
+ [x] clean up the special cases around current chassis & cartridge codegen, incl. `../../..` patching & dir names / paths
+ [x] adjust the final build logic — point to _in vivo_ chassis dirs instead of the special chassis folder; rely on overwritten codegen of cartridge & properties-coproduct instead of patches
+     [x] web
+     [x] macos
+ [ ] fix build times
+      [ ] Refactor:
+        1. perform current code-gen & patching process into a tmp-pkg dir
+        2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
+        3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
+ [x] Assess viability of pointing userland projects to .pax/pax-lang (for example)
+ [ ] verify that include_dir!-based builds work, in addition to libdev builds
+     [ ] abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
+
+//TODO: observation: can reproduce a minimal "cache-cleared slow build" by simply:
+//      1. go to `pax-example` and build `cargo run --features=parser --bin=parser`.  Observe slow build
+//      2. Run again — observe fast build
+//      3. Change `.pax/pax-properties-coproduct/lib.rs` trivially, e.g. by adding a newline
+//      4. Run again, — observe SLOW build.
+//     Apparently a single change in a single lib file is enough to trigger a substantial rebuild.
+//       Perhaps: because many things depend on properties-coproduct, a single change there is enough to require all of them to change
+//     observation: when running cargo build @ command-line (as opposed to via Pax CLI), you can see that building `pax-compiler` takes a substantial portion of the time.  This checks out esp. re: the embedding of all the `include_dir`s into pax-compiler.
+//Possibility: when code-genning & patching — do so into _yet another_ directory —e.g. `tmp` — so that the resulting files can be bytewise-checked against canonical files, before overwriting.  This should stabilize FS writes and cargo's tendency to clear caches when files change.
+// 1. perform current code-gen & patching process into a tmp-pkg dir
+// 2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
+// 3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
+// 4. along the way, abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
+
+//1. fetch pax version numbers from host codebase
+//2. copy all deps — either from crates.io or from libdev ../
+//3. codegen properties-coproduct & cartridge (incl. relative dep to host codebase in latter)
+//4. include patch directive in appropriate chassis; build dylib, run dev-harness
+
+
 
 ### Aug 28 2023
 
