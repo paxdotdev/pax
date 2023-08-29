@@ -1,7 +1,5 @@
 extern crate core;
 
-use lazy_static::lazy_static;
-use std::io::Read;
 use include_dir::{Dir, include_dir};
 
 pub mod manifest;
@@ -10,10 +8,9 @@ pub mod parsing;
 pub mod expressions;
 
 use manifest::PaxManifest;
-use rust_format::{Config, Formatter};
+use rust_format::{Formatter};
 
 use std::{fs};
-use std::any::Any;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -21,7 +18,7 @@ use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use itertools::Itertools;
 
-use std::os::unix::fs::PermissionsExt;
+
 
 use toml_edit::{Item};
 use std::path::{Path, PathBuf};
@@ -320,7 +317,7 @@ fn generate_and_overwrite_cartridge(pax_dir: &PathBuf, manifest: &PaxManifest, h
 /// We can problaby mitigate this by: (a) waiting for or eliciting improvements in RustFmt, or (b) figuring out what about our codegen is slowing RustFmt down, and generate our code differently to side-step.
 /// This code is left for posterity in case we take another crack at formatting generated code.
 fn _format_generated_lib_rs(generated_lib_rs: String) -> String {
-    let mut formatter = rust_format::RustFmt::default();
+    let formatter = rust_format::RustFmt::default();
 
     if let Ok(out) = formatter.format_str(generated_lib_rs.clone()) {
         out
@@ -608,23 +605,6 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
     press_template_codegen_cartridge_component_factory(args)
 }
 
-fn transform_file_content(src_path: &PathBuf, src_content: &str, host_crate_info: &HostCrateInfo) -> String {
-    let src_path_str = src_path.to_str().unwrap();
-    if src_path_str.ends_with("pax-properties-coproduct/Cargo.toml") || src_path_str.ends_with("pax-cartridge/Cargo.toml") {
-        let mut target_cargo_toml_contents = toml_edit::Document::from_str(src_content).unwrap();
-
-        //insert new entry pointing to userland crate, where `pax_app` is defined
-        std::mem::swap(
-            target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
-            &mut Item::from_str("{ path=\"../..\" }").unwrap()
-        );
-
-        target_cargo_toml_contents.to_string()
-    } else {
-        src_content.to_string()
-    }
-}
-
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let working_path = std::path::Path::new(working_dir).join(".pax");
     std::fs::create_dir_all( &working_path).unwrap();
@@ -685,7 +665,7 @@ pub fn run_parser_binary(path: &str) -> Output {
 }
 
 use colored::Colorize;
-use crate::manifest::Unit::Percent;
+
 use crate::parsing::escape_identifier;
 
 use serde::Deserialize;
@@ -697,16 +677,8 @@ struct Metadata {
 
 #[derive(Debug, Deserialize)]
 struct Package {
-    id: String,
     name: String,
     version: String,
-    dependencies: Vec<Dependency>,
-}
-
-#[derive(Debug, Deserialize)]
-struct Dependency {
-    name: String,
-    req: String,  // This gives the version requirement, not exact version.
 }
 
 fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static str> {
@@ -855,7 +827,7 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
     let output_path = pax_dir.join("build").join(target_folder);
     let output_path_str = output_path.to_str().unwrap();
 
-    std::fs::create_dir_all(&output_path);
+    std::fs::create_dir_all(&output_path).ok();
 
     let verbose_val = format!("{}",ctx.verbose);
     let exclude_arch_val =  if std::env::consts::ARCH == "aarch64" {
@@ -898,7 +870,7 @@ pub fn perform_clean(path: &str) {
     let pax_dir = path.join(".pax");
 
     //Sledgehammer approach: nuke the .pax directory
-    fs::remove_dir_all(&pax_dir);
+    fs::remove_dir_all(&pax_dir).ok();
 }
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
