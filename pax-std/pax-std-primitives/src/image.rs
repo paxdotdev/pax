@@ -90,7 +90,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
     }
 
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth : usize) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, z_index: u32, subtree_depth: u32) {
         let mut new_message: ImagePatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
         if !self.last_patches.contains_key(&new_message.id_chain) {
@@ -119,7 +119,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
     }
 
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
-        let transform = rtc.transform;
+        let transform = rtc.transform_scroller_reset;
         let bounding_dimens = rtc.bounds;
         let width =  bounding_dimens.0;
         let height =  bounding_dimens.1;

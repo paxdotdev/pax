@@ -270,7 +270,6 @@ pub struct FramePatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
-    pub depth: Option<usize>,
 }
 
 
@@ -284,7 +283,6 @@ pub struct TextPatch {
     pub size_y: Option<f64>,
     pub style: Option<TextStyleMessage>,
     pub style_link: Option<TextStyleMessage>,
-    pub depth: Option<usize>,
 }
 
 #[derive(Default, Serialize)]
@@ -354,14 +352,14 @@ pub struct LinkStyleMessage {
 #[repr(C)]
 pub struct ScrollerPatch {
     pub id_chain: Vec<u64>,
-    pub size_frame_x: Option<f64>,
-    pub size_frame_y: Option<f64>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
     pub size_inner_pane_x: Option<f64>,
     pub size_inner_pane_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
     pub scroll_x: Option<bool>,
     pub scroll_y: Option<bool>,
-    pub depth: Option<usize>,
+    pub subtree_depth: u32,
 }
 
 
@@ -370,6 +368,8 @@ pub struct ScrollerPatch {
 pub struct AnyCreatePatch {
     pub id_chain: Vec<u64>,
     pub clipping_ids: Vec<Vec<u64>>,
+    pub scroller_ids: Vec<Vec<u64>>,
+    pub z_index: u32,
 }
 
 // Possible approach to heterogeneous rich text:

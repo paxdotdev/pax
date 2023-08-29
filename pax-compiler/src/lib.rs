@@ -1158,7 +1158,7 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
             Command::new("wasm-pack")
                 .current_dir(&chassis_path)
                 .arg("build")
-                .arg("--release")
+                .arg("--dev")
                 .arg("-d")
                 .arg(pax_dir.join("chassis").join("Web").join("pax-dev-harness-web").join("dist").to_str().unwrap()) //--release -d pax-dev-harness-web/dist
                 .env("PAX_DIR", &pax_dir)

@@ -6,6 +6,7 @@ use web_sys::{window, HtmlCanvasElement};
 use js_sys::Uint8Array;
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
 
 use piet_web::WebRenderContext;
 
@@ -13,7 +14,7 @@ use pax_core::{InstanceRegistry, PaxEngine};
 
 use serde_json;
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
-use pax_runtime_api::{ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, KeyboardEventArgs, ModifierKey, MouseButton, MouseEventArgs, Touch};
+use pax_runtime_api::{ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, KeyboardEventArgs, ZIndex, ModifierKey, MouseButton, MouseEventArgs, Touch};
 
 // Console.log support, piped from `pax_lang::log`
 #[wasm_bindgen]
@@ -45,7 +46,7 @@ pub fn log_wrapper(msg: &str) {
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
     engine: Rc<RefCell<PaxEngine<WebRenderContext<'static>>>>,
-    drawing_contexts: Vec<WebRenderContext<'static>>,
+    drawing_contexts: HashMap<String, WebRenderContext<'static>>,
 }
 
 #[wasm_bindgen]
@@ -56,63 +57,50 @@ impl PaxChassisWeb {
         #[cfg(feature = "console_error_panic_hook")]
         std::panic::set_hook(Box::new(console_error_panic_hook::hook));
         let window = window().unwrap();
-        let dpr = window.device_pixel_ratio();
-        let document = window.document().unwrap();
-        let canvases = document.get_elements_by_class_name("canvas");
-        let canvas = canvases.item(0).unwrap().dyn_into::<HtmlCanvasElement>().unwrap();
-        let width = canvas.offset_width() as f64 * dpr;
-        let height = canvas.offset_height() as f64 * dpr;
+        let width = window.inner_width().unwrap().as_f64().unwrap();
+        let height = window.inner_height().unwrap().as_f64().unwrap();
 
         let instance_registry : Rc<RefCell<InstanceRegistry<WebRenderContext>>> = Rc::new(RefCell::new(InstanceRegistry::new()));
         let main_component_instance = pax_cartridge::instantiate_main_component(Rc::clone(&instance_registry));
         let expression_table = pax_cartridge::instantiate_expression_table();
 
-        let engine = pax_core::PaxEngine::new(main_component_instance, expression_table, pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper), (width / dpr, height / dpr), instance_registry);
+        let engine = pax_core::PaxEngine::new(main_component_instance, expression_table, pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper), (width, height), instance_registry);
 
         let engine_container : Rc<RefCell<PaxEngine<WebRenderContext>>> = Rc::new(RefCell::new(engine));
 
-        let render_contexts = PaxChassisWeb::initializeContexts(canvases.length(), &engine_container, &vec![]);
-
         Self {
             engine: engine_container,
-            drawing_contexts: render_contexts,
+            drawing_contexts: HashMap::new()
         }
     }
 
-    fn initializeContexts(num_canvases: u32, engine: &Rc<RefCell<PaxEngine<WebRenderContext>>>, current_contexts: &Vec<WebRenderContext>) -> Vec<WebRenderContext<'static>>{
-        let mut new_render_contexts = Vec::new();
+    pub fn add_context(&mut self, scroller_id: Option<Vec<u64>>, z_index: u32) {
+        let id = PaxChassisWeb::generate_location_id(scroller_id, z_index);
         let window = window().unwrap();
         let dpr = window.device_pixel_ratio();
         let document = window.document().unwrap();
-        let canvases = document.get_elements_by_class_name("canvas");
-        let mut width = 0.0;
-        let mut height = 0.0;
+        let canvas = document.get_element_by_id(id.as_str()).unwrap().dyn_into::<HtmlCanvasElement>().unwrap();
+        let context: web_sys::CanvasRenderingContext2d = canvas
+            .get_context("2d")
+            .unwrap()
+            .unwrap()
+            .dyn_into::<web_sys::CanvasRenderingContext2d>()
+            .unwrap();
 
-        let starting_index: u32 = current_contexts.len() as u32;
+        let width = canvas.offset_width() as f64 * dpr;
+        let height = canvas.offset_height() as f64 * dpr;
 
-        for i in 0..num_canvases {
-            let index = starting_index + i;
-            let canvas = canvases.item(index).unwrap().dyn_into::<HtmlCanvasElement>().unwrap();
+        canvas.set_width(width as u32);
+        canvas.set_height(height as u32);
 
-            let context: web_sys::CanvasRenderingContext2d = canvas
-                .get_context("2d")
-                .unwrap()
-                .unwrap()
-                .dyn_into::<web_sys::CanvasRenderingContext2d>()
-                .unwrap();
 
-            width = canvas.offset_width() as f64 * dpr;
-            height = canvas.offset_height() as f64 * dpr;
+        let _ = context.scale(dpr, dpr);
 
-            canvas.set_width(width as u32);
-            canvas.set_height(height as u32);
+        let render_context = WebRenderContext::new(context, window.clone());
 
-            let _ = context.scale(dpr, dpr);
-            let render_context = WebRenderContext::new(context, window.clone());
-            new_render_contexts.push(render_context);
-        }
+        self.drawing_contexts.insert(id, render_context);
 
-        let engine_cloned = Rc::clone(engine);
+        let engine_cloned = Rc::clone(&self.engine);
         //see web-sys docs for handling browser events with closures
         //https://rustwasm.github.io/docs/wasm-bindgen/examples/closures.html
         {
@@ -125,12 +113,8 @@ impl PaxChassisWeb {
                 let height = inner_window.inner_height().unwrap().as_f64().unwrap();
 
                 //handle window resize
-                for i in 0..canvases.length() {
-                    let canvas = canvases.item(i).unwrap().dyn_into::<HtmlCanvasElement>().unwrap();
-                    let _ = canvas.set_attribute("width", format!("{}",width).as_str());
-                    let _ = canvas.set_attribute("height", format!("{}",height).as_str());
-
-                }
+                canvas.set_width(width as u32);
+                canvas.set_height(height as u32);
 
                 engine.set_viewport_size((width, height));
             }) as Box<dyn FnMut(_)>);
@@ -140,7 +124,11 @@ impl PaxChassisWeb {
             let _ = inner_window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref());
             closure.forget();
         }
-        new_render_contexts
+    }
+
+    pub fn remove_context(&mut self, scroller_id: Option<Vec<u64>>, z_index: u32) {
+        let id = PaxChassisWeb::generate_location_id(scroller_id, z_index);
+        self.drawing_contexts.remove(&id);
     }
 
     pub fn interrupt(&mut self, native_interrupt: String, additional_payload: &JsValue) {
@@ -155,10 +143,7 @@ impl PaxChassisWeb {
                     }
                 }
             },
-            NativeInterrupt::AddedLayer(args) => {
-                let mut new_contexts = PaxChassisWeb::initializeContexts(args.num_layers_added, &self.engine, &self.drawing_contexts);
-                self.drawing_contexts.append(&mut new_contexts);
-            },
+            NativeInterrupt::AddedLayer(args) => {},
             NativeInterrupt::Click(args) => {
                 let prospective_hit = (*self.engine).borrow().get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
@@ -372,6 +357,10 @@ impl PaxChassisWeb {
         //Note that this approach likely carries some CPU overhead, but may be suitable.
         //See zb lab journal `On robust message-passing to web` May 11 2022
         serde_json::to_string(&message_queue).unwrap()
+    }
+
+    pub fn generate_location_id(scroller_id: Option<Vec<u64>>, z_index: u32) -> String {
+        ZIndex::generate_location_id(scroller_id, z_index)
     }
 
 }

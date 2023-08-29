@@ -7,7 +7,7 @@ new_dir="./public/assets"
 mkdir -p "$new_dir"
 cp -r "$assets_dir"/* "$new_dir"
 
-npm run build
+#npm run build
 
 # Clear old build and move to output directory
 rm -rf "$OUTPUT_PATH"

@@ -122,7 +122,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
     }
 
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
-        let transform = rtc.transform;
+        let transform = rtc.transform_scroller_reset;
         let bounding_dimens = rtc.bounds;
         let width: f64 =  bounding_dimens.0;
         let height: f64 =  bounding_dimens.1;
