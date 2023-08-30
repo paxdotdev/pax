@@ -3186,4 +3186,19 @@ Update: the above seemed to work satisfactorily.
    4. clone template project
       5. Maintain template project inside monorepo — `pax-create-template` ?
       6. either fs-copy this template project or pull tarball from crates.io (don't include_dir(../), as this breaks crates.io builds)
-      7. 
+
+
+Stretch:
+- opt-in analytics
+  - Decide whether to track crashs / errors, too
+  - Interactive prompt — _after_ first action — and only once.
+    - *****************************
+      - Thanks for trying out Pax!  
+      - Are you willing to share anonymized usage information with our team?
+      - You can change this setting any time with `pax analytics [on | off]`
+      - Will you share your anonymous usage data with us? [y/N]
+    - *****************************
+    - Explicit CLI option to change settings: `pax analytics on | off`
+    - Ensure offline robustness — no breaking of any flow
+  
+    
