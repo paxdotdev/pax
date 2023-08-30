@@ -1,10 +1,19 @@
 use std::fs;
 use std::io::Write;
 use std::path::Path;
-use clap::{App, AppSettings, Arg, crate_version};
+use std::str::Matches;
+use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::signal;
+use colored::Colorize;
+use clap::{App, AppSettings, Arg, ArgMatches, crate_version};
+use tokio::signal::unix::{Signal, SignalKind};
 use pax_compiler::{RunTarget, RunContext, CreateContext};
 
-fn main() -> Result<(), ()> {
+mod http;
+
+#[tokio::main]
+async fn main() -> Result<(), ()> {
 
     #[allow(non_snake_case)]
     let ARG_PATH = Arg::with_name("path")
@@ -43,7 +52,6 @@ fn main() -> Result<(), ()> {
         .takes_value(false)
         .help("Signal to the compiler to run certain operations in libdev mode, offering certain ergonomic affordances for Pax library developers.")
         .hidden(true); //hidden because this is of negative value to end-users; things are expected to break when invoked outside of the pax monorepo
-
 
 
     let matches = App::new("pax")
@@ -99,22 +107,71 @@ fn main() -> Result<(), ()> {
         )
         .get_matches();
 
+    let current_version = env!("CARGO_PKG_VERSION");
+
+    // Shared state to store the new version info if available.
+    let new_version_info = Arc::new(Mutex::new(None));
+
+    // Spawn the check_for_update task so it runs concurrently.
+    let update_check_handle = tokio::spawn(crate::http::check_for_update(current_version, new_version_info.clone()));
+
+    // Use tokio::select! to wait for either the nominal action to complete or the interrupt signal.
+    tokio::select! {
+        _ = perform_nominal_action(matches) => {}
+        _ = wait_for_signals() => {}
+    }
+
+    // After the primary action is done, check if there was an update info available.
+    if let Some(new_version) = new_version_info.lock().await.as_ref().cloned() {
+        println!();
+        println!("************************************************************");
+        println!("{}", format!("A new version of the Pax CLI is available: {}", new_version).blue().bold());
+        println!("To update, run: `cargo install --force pax-cli`");
+        println!("************************************************************");
+        println!();
+    }
+
+    Ok(())
+}
+
+async fn wait_for_signals() {
+    #[cfg(unix)]
+    {
+        let mut sigint = tokio::signal::unix::signal(SignalKind::interrupt()).unwrap();
+        let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate()).unwrap();
+
+        tokio::select! {
+            _ = sigint.recv() => {
+                println!("Received SIGINT. Cleaning up...");
+            }
+            _ = sigterm.recv() => {
+                println!("Received SIGTERM. Cleaning up...");
+            }
+        }
+    }
+
+    #[cfg(not(unix))]
+    {
+        tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl+c");
+        println!("Received Ctrl+C. Cleaning up...");
+    }
+}
+
+async fn perform_nominal_action(matches: ArgMatches<'_>) -> Result<(), ()> {
     match matches.subcommand() {
         ("run", Some(args)) => {
-
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
             let libdevmode = args.is_present("libdev");
 
-            pax_compiler::perform_build(&RunContext{
+            pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
                 path,
                 verbose,
                 should_also_run: true,
                 libdevmode,
             })
-
         },
         ("build", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
@@ -122,7 +179,7 @@ fn main() -> Result<(), ()> {
             let verbose = args.is_present("verbose");
             let libdevmode = args.is_present("libdev");
 
-            pax_compiler::perform_build(&RunContext{
+            pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
                 path,
                 should_also_run: false,
@@ -150,7 +207,6 @@ fn main() -> Result<(), ()> {
             });
             Ok(())
         },
-
         ("libdev", Some(args)) => {
             match args.subcommand() {
                 ("parse", Some(args)) => {
@@ -178,10 +234,9 @@ fn main() -> Result<(), ()> {
 
                     Ok(())
                 },
-                _ => {unreachable!()}
+                _ => { unreachable!() }
             }
         },
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }
-
 }
