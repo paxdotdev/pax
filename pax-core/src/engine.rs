@@ -732,9 +732,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_scroller_normalized_accumulated_transform.as_coeffs().to_vec(), current_z_index, subtree_depth);
         }
 
-        if  node_type.clone() != Layer::DontCare{
-            //panic!("{:?} {:?} ", current_z_index, node_type);
-        }
         if let Some(rc) =  rcs.get_mut(&canvas_id) {
             //lifecycle: render
             //this is this node's time to do its own rendering, aside

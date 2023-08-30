@@ -92,38 +92,15 @@ impl PaxChassisWeb {
 
         canvas.set_width(width as u32);
         canvas.set_height(height as u32);
-
-
         let _ = context.scale(dpr, dpr);
 
         let render_context = WebRenderContext::new(context, window.clone());
 
         self.drawing_contexts.insert(id, render_context);
+    }
 
-        let engine_cloned = Rc::clone(&self.engine);
-        //see web-sys docs for handling browser events with closures
-        //https://rustwasm.github.io/docs/wasm-bindgen/examples/closures.html
-        {
-            let closure = Closure::wrap(Box::new(move |_event: web_sys::Event| {
-                let mut engine = engine_cloned.borrow_mut();
-                let inner_window = web_sys::window().unwrap();
-
-                //inner_width and inner_height already account for device pixel ratio.
-                let width = inner_window.inner_width().unwrap().as_f64().unwrap();
-                let height = inner_window.inner_height().unwrap().as_f64().unwrap();
-
-                //handle window resize
-                canvas.set_width(width as u32);
-                canvas.set_height(height as u32);
-
-                engine.set_viewport_size((width, height));
-            }) as Box<dyn FnMut(_)>);
-            let inner_window = web_sys::window().unwrap();
-
-            //attach handler closure to DOM `window` `resize` event
-            let _ = inner_window.add_event_listener_with_callback("resize", closure.as_ref().unchecked_ref());
-            closure.forget();
-        }
+    pub fn sendViewportUpdate(&mut self, width: f64, height: f64){
+        self.engine.borrow_mut().set_viewport_size((width, height));
     }
 
     pub fn remove_context(&mut self, scroller_id: Option<Vec<u64>>, z_index: u32) {

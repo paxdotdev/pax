@@ -8,7 +8,6 @@ const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_CLASS = "native-overlay";
 const CANVAS_CLASS = "canvas";
 const SCROLLER_CONTAINER = "scroller-container"
-const SCROLLER_CONTENT = "scroller-content";
 
 const NATIVE_LEAF_CLASS = "native-leaf";
 const NATIVE_CLIPPING_CLASS = "native-clipping";
@@ -17,7 +16,7 @@ const CLIP_PREFIX = "clip"
 
 const registeredFontFaces = new Set<string>();
 
-let initializedMountListeners = false;
+let initializedChassis = false;
 
 
 let layers: { "native": HTMLDivElement[], "canvas": HTMLCanvasElement[] } = { "native": [], "canvas": [] };
@@ -29,27 +28,37 @@ class Layer {
     readonly native: HTMLDivElement;
     readonly scrollerId : BigUint64Array | undefined;
     readonly zIndex: number;
+    lastCanvas: Element | undefined;
     chassis: PaxChassisWeb
 
-    constructor(parent: Element, zIndex: number, scroller_id: BigUint64Array | undefined, chassis: PaxChassisWeb) {
+    constructor(parent: Element, zIndex: number, scroller_id: BigUint64Array | undefined, chassis: PaxChassisWeb,
+                lastCanvas: Element | undefined) {
         //console.log(scroller_id, zIndex);
         this.zIndex = zIndex;
         this.scrollerId = scroller_id;
         this.chassis = chassis;
+        this.lastCanvas = lastCanvas;
 
-        this.native = document.createElement("div");
-        this.native.className = NATIVE_OVERLAY_CLASS;
-        parent.prepend(this.native);
 
         this.canvas = document.createElement("canvas");
+        this.canvas .className = CANVAS_CLASS
+        this.canvas.id = PaxChassisWeb.generate_location_id(scroller_id, zIndex);
+        this.canvas.style.zIndex = String(1000-zIndex);
         if(scroller_id != undefined){
             this.canvas.style.position = "sticky";
         }
-        this.canvas .className = CANVAS_CLASS
-        this.canvas.id = PaxChassisWeb.generate_location_id(scroller_id, zIndex);
-        parent.prepend(this.canvas);
+        if(lastCanvas != undefined){
+            parent.insertBefore(this.canvas, lastCanvas.nextSibling);
+        } else {
+            parent.appendChild(this.canvas);
+        }
         console.log("Adding Context", this.canvas.id);
         chassis.add_context(scroller_id, zIndex);
+
+        this.native = document.createElement("div");
+        this.native.className = NATIVE_OVERLAY_CLASS;
+        this.native.style.zIndex = String(1000-zIndex);
+        parent.appendChild(this.native);
 
     }
 
@@ -61,10 +70,27 @@ class Layer {
     }
 
     public updateCanvas(width: number, height: number){
-        this.canvas.width = (width * window.devicePixelRatio);
-        this.canvas.height = (height * window.devicePixelRatio);
-        this.canvas.style.width = String(width)+'px';
-        this.canvas.style.height = String(height)+'px';
+        let dpr = window.devicePixelRatio;
+        requestAnimationFrame(() => {
+            if(this.lastCanvas != undefined && this.scrollerId != undefined){
+                this.canvas.style.marginTop = String(-height)+"px";
+            }
+            this.canvas.width = (width * dpr);
+            this.canvas.height = (height * dpr);
+            this.canvas.style.width = String(width)+'px';
+            this.canvas.style.height = String(height)+'px';
+            const context = this.canvas.getContext('2d');
+            if (context) {
+                context.scale(dpr, dpr);
+            }
+        });
+    }
+
+    public updateNativeOverlay(width: number, height: number){
+        requestAnimationFrame(()=> {
+            this.native.style.width = String(width)+'px';
+            this.native.style.height = String(height)+'px';
+        });
     }
 }
 
@@ -87,7 +113,12 @@ class OcclusionContext {
     growTo(zIndex: number) {
         if(this.zIndex < zIndex){
             for(let i = this.zIndex+1; i <= zIndex; i++) {
-                let newLayer = new Layer(this.parent, i, this.scrollerId, this.chassis);
+                let lastCanvas = undefined;
+                if(i > 0){
+                    lastCanvas = this.layers[i-1].canvas;
+                }
+                let newLayer = new Layer(this.parent, i, this.scrollerId, this.chassis,
+                    lastCanvas);
                 this.layers.push(newLayer);
             }
             this.zIndex = zIndex;
@@ -114,6 +145,10 @@ class OcclusionContext {
     updateCanvases(width: number, height: number){
         this.layers.forEach((layer)=>{layer.updateCanvas(width, height)});
     }
+
+    updateNativeOverlays(width: number, height: number){
+        this.layers.forEach((layer)=>{layer.updateNativeOverlay(width, height)});
+    }
 }
 
 
@@ -122,7 +157,6 @@ class Scroller {
     readonly parentScrollerId: BigUint64Array | undefined;
     readonly zIndex : number;
     readonly container: HTMLDivElement;
-    readonly content: HTMLDivElement;
     occlusionContext: OcclusionContext;
     sizeX?: number;
     sizeY?: number;
@@ -157,13 +191,9 @@ class Scroller {
             this.scrollOffsetX = this.container.scrollLeft;
             this.scrollOffsetY = this.container.scrollTop;
             chassis.interrupt(JSON.stringify(scrollEvent), []);
-        })
+        });
 
-        this.content = document.createElement("div");
-        this.content.className = SCROLLER_CONTENT;
-        this.container.appendChild(this.content);
-
-        this.occlusionContext = new OcclusionContext(this.content, idChain, chassis);
+        this.occlusionContext = new OcclusionContext(this.container, idChain, chassis);
 
         if(scrollerId != null){
             // @ts-ignore
@@ -215,8 +245,7 @@ class Scroller {
         if(msg.sizeInnerPaneX != null && msg.sizeInnerPaneY != null){
             this.sizeInnerPaneX = msg.sizeInnerPaneX;
             this.sizeInnerPaneY = msg.sizeInnerPaneY;
-            this.content.style.width = msg.sizeInnerPaneX + "px";
-            this.content.style.height = msg.sizeInnerPaneY + "px";
+            this.occlusionContext.updateNativeOverlays(msg.sizeInnerPaneX, this.sizeInnerPaneY);
         }
     }
 
@@ -461,13 +490,6 @@ function setupEventListeners(chassis: any, layer: any) {
         };
         chassis.interrupt(JSON.stringify(event), []);
 
-        let scrollEvent = {
-            "Scroll": {
-                "delta_x": touches[0].delta_x,
-                "delta_y": touches[0].delta_y,
-            }
-        };
-        chassis.interrupt(JSON.stringify(scrollEvent), []);
     }, true);
     // @ts-ignore
     layer.addEventListener('touchend', (evt) => {
@@ -584,12 +606,18 @@ function renderLoop (chassis: PaxChassisWeb) {
      clearCanvases()
      let messages : string = chassis.tick();
      messages = JSON.parse(messages);
-
-     if(!initializedMountListeners){
+    console.log(messages);
+     if(!initializedChassis){
          //Handle events on mount
          let mount = document.querySelector("#" + MOUNT_ID)!;
+         window.addEventListener('resize', () => {
+             let width = window.innerWidth;
+             let height = window.innerHeight;
+             chassis.sendViewportUpdate(width, height);
+             baseOcclusionContext.updateCanvases(width, height);
+         });
          setupEventListeners(chassis, mount);
-         initializedMountListeners = true;
+         initializedChassis = true;
      }
      // @ts-ignore
      processMessages(messages, chassis);
@@ -783,12 +811,12 @@ class NativeElementPool {
                 // Since native elements are scrolled by native containers,
                 // we don't need to incorporate the engine's transform.
                 // Thus we remove the scroll translation from the transform
-                console.log(
-                    "transformX", scrollerNormalizedTransform[4],
-                    "offsetX", scrollOffsetX,
-                    "transformY", scrollerNormalizedTransform[5],
-                    "offsetY", scrollOffsetY
-                );
+                // console.log(
+                //     "transformX", scrollerNormalizedTransform[4],
+                //     "offsetX", scrollOffsetX,
+                //     "transformY", scrollerNormalizedTransform[5],
+                //     "offsetY", scrollOffsetY
+                // );
 
                 scrollerNormalizedTransform[4] += scrollOffsetX;
                 scrollerNormalizedTransform[5] += scrollOffsetY;
@@ -805,7 +833,9 @@ class NativeElementPool {
         let oldNode = this.textNodes[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
-            parent.removeChild(oldNode);
+            requestAnimationFrame(()=> {
+                parent.removeChild(oldNode);
+            });
         }
     }
 
@@ -1246,6 +1276,7 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
 
     messages?.forEach((unwrapped_msg) => {
         // if (Math.random() < .1) console.log(unwrapped_msg)
+       // console.log(unwrapped_msg);
         if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
             nativePool.textCreate(new AnyCreatePatch(msg));
