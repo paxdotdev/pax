@@ -210,7 +210,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
 
         let scroller_ids = (*rtc.runtime).borrow().get_current_scroller_ids();
-
+        pax_runtime_api::log("Create");
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
             pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
                 id_chain: id_chain.clone(),
