@@ -8,6 +8,7 @@ const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_CLASS = "native-overlay";
 const CANVAS_CLASS = "canvas";
 const SCROLLER_CONTAINER = "scroller-container"
+const INNER_PANE = "inner-pane"
 
 const NATIVE_LEAF_CLASS = "native-leaf";
 const NATIVE_CLIPPING_CLASS = "native-clipping";
@@ -44,14 +45,8 @@ class Layer {
         this.canvas .className = CANVAS_CLASS
         this.canvas.id = PaxChassisWeb.generate_location_id(scroller_id, zIndex);
         this.canvas.style.zIndex = String(1000-zIndex);
-        if(scroller_id != undefined){
-            this.canvas.style.position = "sticky";
-        }
-        if(lastCanvas != undefined){
-            parent.insertBefore(this.canvas, lastCanvas.nextSibling);
-        } else {
-            parent.appendChild(this.canvas);
-        }
+        parent.appendChild(this.canvas);
+
         console.log("Adding Context", this.canvas.id);
         chassis.add_context(scroller_id, zIndex);
 
@@ -59,7 +54,14 @@ class Layer {
         this.native.className = NATIVE_OVERLAY_CLASS;
         this.native.style.zIndex = String(1000-zIndex);
         parent.appendChild(this.native);
-
+        if(scroller_id != undefined){
+            this.canvas.style.position = "sticky";
+            if(zIndex > 0){
+                this.canvas.style.marginTop = String(-this.canvas.style.height)+'px';
+            }
+            this.native.style.position = "sticky";
+            this.native.style.marginTop = String(-this.canvas.style.height)+'px';
+        }
     }
 
     public remove(){
@@ -72,7 +74,7 @@ class Layer {
     public updateCanvas(width: number, height: number){
         let dpr = window.devicePixelRatio;
         requestAnimationFrame(() => {
-            if(this.lastCanvas != undefined && this.scrollerId != undefined){
+            if(this.scrollerId != undefined && this.zIndex > 0){
                 this.canvas.style.marginTop = String(-height)+"px";
             }
             this.canvas.width = (width * dpr);
@@ -88,6 +90,9 @@ class Layer {
 
     public updateNativeOverlay(width: number, height: number){
         requestAnimationFrame(()=> {
+            if(this.scrollerId != undefined){
+                this.native.style.marginTop = String(-height)+"px";
+            }
             this.native.style.width = String(width)+'px';
             this.native.style.height = String(height)+'px';
         });
@@ -157,6 +162,7 @@ class Scroller {
     readonly parentScrollerId: BigUint64Array | undefined;
     readonly zIndex : number;
     readonly container: HTMLDivElement;
+    innerPane: HTMLDivElement;
     occlusionContext: OcclusionContext;
     sizeX?: number;
     sizeY?: number;
@@ -165,9 +171,9 @@ class Scroller {
     transform?: number[];
     scrollX?: boolean;
     scrollY?: boolean;
-    subtreeDepth?: number;
     scrollOffsetX: number;
     scrollOffsetY: number;
+    subtreeDepth?: number;
 
 
     constructor(idChain: BigUint64Array, zIndex: number, scrollerId: BigUint64Array | undefined, chassis: PaxChassisWeb) {
@@ -192,6 +198,10 @@ class Scroller {
             this.scrollOffsetY = this.container.scrollTop;
             chassis.interrupt(JSON.stringify(scrollEvent), []);
         });
+
+        this.innerPane = document.createElement("div");
+        this.innerPane.className = INNER_PANE;
+        this.container.appendChild(this.innerPane);
 
         this.occlusionContext = new OcclusionContext(this.container, idChain, chassis);
 
@@ -241,11 +251,13 @@ class Scroller {
         }
         if(msg.sizeX != null && msg.sizeY != null){
             this.occlusionContext.updateCanvases(msg.sizeX, msg.sizeY);
+            this.occlusionContext.updateNativeOverlays(msg.sizeX, msg.sizeY);
         }
         if(msg.sizeInnerPaneX != null && msg.sizeInnerPaneY != null){
             this.sizeInnerPaneX = msg.sizeInnerPaneX;
             this.sizeInnerPaneY = msg.sizeInnerPaneY;
-            this.occlusionContext.updateNativeOverlays(msg.sizeInnerPaneX, this.sizeInnerPaneY);
+            this.innerPane.style.width = String(this.sizeInnerPaneX)+'px';
+            this.innerPane.style.height = String(this.sizeInnerPaneY)+'px';
         }
     }
 
@@ -801,27 +813,7 @@ class NativeElementPool {
 
         // Handle transform
         if (patch.transform != null) {
-
-            let scrollerNormalizedTransform = patch.transform;
-            // @ts-ignore
-            let scrollerParent = elemToScroller[patch.id_chain];
-            if(scrollerParent) {
-                let scrollOffsetX = scrollerParent.scrollOffsetX;
-                let scrollOffsetY = scrollerParent.scrollOffsetY;
-                // Since native elements are scrolled by native containers,
-                // we don't need to incorporate the engine's transform.
-                // Thus we remove the scroll translation from the transform
-                // console.log(
-                //     "transformX", scrollerNormalizedTransform[4],
-                //     "offsetX", scrollOffsetX,
-                //     "transformY", scrollerNormalizedTransform[5],
-                //     "offsetY", scrollOffsetY
-                // );
-
-                scrollerNormalizedTransform[4] += scrollOffsetX;
-                scrollerNormalizedTransform[5] += scrollOffsetY;
-            }
-            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(scrollerNormalizedTransform);
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
         }
     }
 
