@@ -10,16 +10,26 @@ use colored::Colorize;
 use clap::{App, AppSettings, Arg, ArgMatches, crate_version};
 use tokio::signal::unix::{Signal, SignalKind};
 use pax_compiler::{RunTarget, RunContext, CreateContext};
-
+use tokio::sync::mpsc;
+// use signal_hook::{iterator::Signals, signals::SIGINT};
 mod http;
 
-
-
-
-
+use signal_hook::iterator::Signals;
+use signal_hook::consts::{SIGINT, SIGTERM};
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
+
+    let (tx, mut rx) = mpsc::channel::<()>(1);
+    let tx_shared = Arc::new(std::sync::Mutex::new(tx));
+
+    std::thread::spawn(move || {
+        let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
+        for _ in signals.forever() {
+            let tx = tx_shared.lock().unwrap();
+            let _ = tx.try_send(());
+        }
+    });
 
     #[allow(non_snake_case)]
     let ARG_PATH = Arg::with_name("path")
@@ -128,8 +138,11 @@ async fn main() -> Result<(), ()> {
 
     // Use tokio::select! to wait for either the nominal action to complete or the interrupt signal.
     tokio::select! {
-        _ = perform_nominal_action(matches, Arc::clone(&commands)) => {}
-        _ = wait_for_signals() => {
+        _ = perform_nominal_action(matches, Arc::clone(&commands)) => {
+            //Nominal (requested) user-requested action is complete.
+            println!("Done!");
+        }
+        _ = rx.recv() => {
             println!("Interrupt received! Attempting graceful clean-up...");
 
             // Lock the commands list.

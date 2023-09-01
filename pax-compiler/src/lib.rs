@@ -17,6 +17,7 @@ use std::str::FromStr;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use itertools::Itertools;
+use std::process::Stdio;
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt; // For the .before_exec() method
@@ -663,7 +664,8 @@ pub async fn run_parser_binary(path: &str, commands: Arc<Mutex<HashMap<String, C
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
-    let child = cmd.command.spawn().expect("failed to spawn child");
+    let mut child = cmd.command.spawn().expect("failed to spawn child");
+    child.stdin.take().map(drop);
     let output = wait_with_output(&commands, "PARSER", child).await;
     output
 }
@@ -759,7 +761,7 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with cargo", &PAX_BADGE);
 
-    build_chassis_with_cartridge(&pax_dir, &ctx.target, Arc::clone(&ctx.commands));
+    build_chassis_with_cartridge(&pax_dir, &ctx.target, Arc::clone(&ctx.commands)).await;
 
     if ctx.should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
@@ -768,7 +770,7 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
         println!("{} 🛠 Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target));
     }
-    build_harness_with_chassis(&pax_dir, &ctx, &Harness::Development, Arc::clone(&ctx.commands));
+    build_harness_with_chassis(&pax_dir, &ctx, &Harness::Development, Arc::clone(&ctx.commands)).await;
 
     Ok(())
 }
@@ -846,7 +848,8 @@ async fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness
             .stdout(std::process::Stdio::inherit())
             .stderr(std::process::Stdio::inherit());
 
-        let child = cmd.command.spawn().expect("failed to spawn child");
+        let mut child = cmd.command.spawn().expect("failed to spawn child");
+        child.stdin.take().map(drop);
         let _output = wait_with_output(&commands, "CHASSIS WEB BUILD SCRIPT", child).await;
 
     } else {
@@ -861,7 +864,8 @@ async fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness
             .stderr(if ctx.verbose { std::process::Stdio::inherit() } else {std::process::Stdio::piped()});
 
 
-        let child = cmd.command.spawn().expect("failed to spawn child");
+        let mut child = cmd.command.spawn().expect("failed to spawn child");
+        child.stdin.take().map(drop);
         let _output = wait_with_output(&commands, "CHASSIS MACOS BUILD SCRIPT", child).await;
 
     }
@@ -915,7 +919,8 @@ pub async fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget,
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit());
 
-            let child = cmd.command.spawn().expect("failed to spawn child");
+            let mut child = cmd.command.spawn().expect("failed to spawn child");
+            child.stdin.take().map(drop);
             let output = wait_with_output(&commands, CHILD_ID, child).await;
 
             output
@@ -931,7 +936,8 @@ pub async fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget,
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit());
 
-            let child = cmd.command.spawn().expect("failed to spawn child");
+            let mut child = cmd.command.spawn().expect("failed to spawn child");
+            child.stdin.take().map(drop);
             let output = wait_with_output(&commands, CHILD_ID, child).await;
 
             output
@@ -1038,8 +1044,13 @@ impl SafeCommand {
         {
             cmd.before_exec(|| {
                 // UNIX-specific logic here
-                use nix::unistd::{setpgid, Pid};
-                setpgid(Pid::from_raw(0), Pid::from_raw(0)).expect("setpgid failed");
+                use nix::unistd::setsid;
+                use nix::sys::signal::{signal, SigHandler, SIGINT};
+                setsid().expect("setsid failed");
+
+                unsafe {
+                    signal(SIGINT, SigHandler::SigDfl).expect("Failed to set default SIGINT handler");
+                }
                 Ok(())
             });
         }
