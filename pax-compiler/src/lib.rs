@@ -665,7 +665,7 @@ pub async fn run_parser_binary(path: &str, commands: Arc<Mutex<HashMap<String, C
         .stderr(std::process::Stdio::piped());
 
     let mut child = cmd.command.spawn().expect("failed to spawn child");
-    child.stdin.take().map(drop);
+    // child.stdin.take().map(drop);
     let output = wait_with_output(&commands, "PARSER", child).await;
     output
 }
@@ -849,7 +849,7 @@ async fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness
             .stderr(std::process::Stdio::inherit());
 
         let mut child = cmd.command.spawn().expect("failed to spawn child");
-        child.stdin.take().map(drop);
+        // child.stdin.take().map(drop);
         let _output = wait_with_output(&commands, "CHASSIS WEB BUILD SCRIPT", child).await;
 
     } else {
@@ -865,7 +865,7 @@ async fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness
 
 
         let mut child = cmd.command.spawn().expect("failed to spawn child");
-        child.stdin.take().map(drop);
+        // child.stdin.take().map(drop);
         let _output = wait_with_output(&commands, "CHASSIS MACOS BUILD SCRIPT", child).await;
 
     }
@@ -920,7 +920,7 @@ pub async fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget,
                 .stderr(std::process::Stdio::inherit());
 
             let mut child = cmd.command.spawn().expect("failed to spawn child");
-            child.stdin.take().map(drop);
+            // child.stdin.take().map(drop);
             let output = wait_with_output(&commands, CHILD_ID, child).await;
 
             output
@@ -937,7 +937,7 @@ pub async fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget,
                 .stderr(std::process::Stdio::inherit());
 
             let mut child = cmd.command.spawn().expect("failed to spawn child");
-            child.stdin.take().map(drop);
+            // child.stdin.take().map(drop);
             let output = wait_with_output(&commands, CHILD_ID, child).await;
 
             output
@@ -1043,18 +1043,24 @@ impl SafeCommand {
         #[cfg(unix)]
         {
             cmd.before_exec(|| {
-                // UNIX-specific logic here
-                use nix::unistd::setsid;
-                use nix::sys::signal::{signal, SigHandler, SIGINT};
-                setsid().expect("setsid failed");
+                use nix::unistd::{setsid, setpgid, Pid};
+                use nix::sys::signal::{signal, SigHandler, SIGINT, SIGTERM};
 
+                // Create a new session
+                // setsid().expect("setsid failed");
+
+                // Set the process group ID to the process ID, effectively creating a new process group
+                // setpgid(Pid::from_raw(0), Pid::from_raw(0)).expect("setpgid failed");
+
+                // Reset SIGINT and SIGTERM handlers to their defaults
                 unsafe {
                     signal(SIGINT, SigHandler::SigDfl).expect("Failed to set default SIGINT handler");
+                    signal(SIGTERM, SigHandler::SigDfl).expect("Failed to set default SIGTERM handler");
                 }
+
                 Ok(())
             });
         }
-
         #[cfg(windows)]
         {
             // Any Windows-specific logic (if needed) can be placed here

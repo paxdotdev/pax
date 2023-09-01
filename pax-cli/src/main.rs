@@ -15,7 +15,8 @@ use tokio::sync::mpsc;
 mod http;
 
 use signal_hook::iterator::Signals;
-use signal_hook::consts::{SIGINT, SIGTERM};
+use nix::sys::signal::{SIGINT, SIGTERM};
+use nix::sys::signal::{sigprocmask, SigSet, SigmaskHow};
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
@@ -23,11 +24,30 @@ async fn main() -> Result<(), ()> {
     let (tx, mut rx) = mpsc::channel::<()>(1);
     let tx_shared = Arc::new(std::sync::Mutex::new(tx));
 
+    let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
+
+    //Block signals to child processes
+    let mut mask = SigSet::empty();
+    mask.add(SIGINT);
+    mask.add(SIGTERM);
+    sigprocmask(SigmaskHow::SIG_BLOCK, Some(&mask), None).expect("Failed to block signals");
+
+    // Spawn the signal handling thread.
     std::thread::spawn(move || {
-        let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
-        for _ in signals.forever() {
-            let tx = tx_shared.lock().unwrap();
-            let _ = tx.try_send(());
+        for signal in &signals {
+            match signal {
+                SIGINT => {
+                    println!("Received SIGINT in dedicated thread!");
+                    let tx = tx_shared.lock().unwrap();
+                    let _ = tx.try_send(());
+                },
+                SIGTERM => {
+                    println!("Received SIGTERM in dedicated thread!");
+                    let tx = tx_shared.lock().unwrap();
+                    let _ = tx.try_send(());
+                },
+                _ => unreachable!(),
+            }
         }
     });
 
