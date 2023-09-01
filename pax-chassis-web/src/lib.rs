@@ -7,6 +7,7 @@ use js_sys::Uint8Array;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
+use piet::TextStorage;
 
 use piet_web::WebRenderContext;
 

@@ -22,7 +22,7 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     pub source_expression_vec: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
     pub source_expression_range: Option<Box<dyn PropertyInstance<std::ops::Range<isize>>>>,
     pub active_children: RenderNodePtrList<R>,
-    pub next_frame_children: Option<RenderNodePtrList<R>>,
+    pub cleanup_children: RenderNodePtrList<R>,
     /// Used for hacked dirty-checking, in the absence of our centralized dirty-checker
     cached_old_value_vec: Option<Vec<Rc<PropertiesCoproduct>>>,
     cached_old_value_range: Option<std::ops::Range<isize>>,
@@ -49,7 +49,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             source_expression_vec: args.repeat_source_expression_vec,
             source_expression_range: args.repeat_source_expression_range,
             active_children: Rc::new(RefCell::new(vec![])),
-            next_frame_children: None,
+            cleanup_children:  Rc::new(RefCell::new(vec![])),
             cached_old_value_vec: None,
             cached_old_value_range: None,
             cached_old_bounds: (0.0, 0.0),
@@ -60,13 +60,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-
-
-
-        if self.next_frame_children.is_some() {
-            self.active_children = self.next_frame_children.take().unwrap();
-            self.next_frame_children = None;
-        }
 
         let (is_dirty, normalized_vec_of_props) = if let Some(se) = &self.source_expression_vec {
             //Handle case where the source expression is a Vec<Property<T>>,
@@ -129,10 +122,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 instance_registry.mark_for_unmount(instance_id);
             });
 
+            self.cleanup_children = self.active_children.clone();
+
             //reset children:
             //wrap source_expression into `RepeatItems`, which attach
             //the necessary data as stack frame context
-            self.next_frame_children = Some(Rc::new(RefCell::new(
+            self.active_children = Rc::new(RefCell::new(
                 normalized_vec_of_props.iter().enumerate().map(|(i, datum)| {
                     let instance_id = instance_registry.mint_id();
 
@@ -159,7 +154,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
                     render_node
                 }).collect()
-            )));
+            ));
 
         }
 
@@ -174,6 +169,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
     }
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.active_children)
+    }
+    fn pop_cleanup_children(&mut self) -> RenderNodePtrList<R> {
+        let ret = self.cleanup_children.clone();
+        self.cleanup_children = Rc::new(RefCell::new(vec![]));
+        ret
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
