@@ -3187,9 +3187,16 @@ Update: the above seemed to work satisfactorily.
       5. Maintain template project inside monorepo — `pax-create-template` ?
       6. either fs-copy this template project or pull tarball from crates.io (don't include_dir(../), as this breaks crates.io builds)
 
+[ ] embedded template project
+  [ ] semver management, e.g. injecting current pax lib versions
+    - Consider ability to specify explicit past versions?
+  [ ] ensure that crates.io stand-alone build of pax-cli / pax-compiler will have access to these files (no ../ or monorepo paths pointing out of crate, for example)
+  [ ] build out livdev vs. prod mode
+    [ ] libdev copies a live copy of template, to enable iterative refinement
+    [x] libdev checks a locally running server (http://localhost:9000) vs. prod checks a live server (https://update.pax.dev)
+        (made it an explicit
 
-Stretch:
-- opt-in analytics
+[-] opt-in analytics (DECIDED TO PUNT)
   - Decide whether to track crashs / errors, too
   - Interactive prompt — _after_ first action — and only once.
     - *****************************
@@ -3200,5 +3207,15 @@ Stretch:
     - *****************************
     - Explicit CLI option to change settings: `pax analytics on | off`
     - Ensure offline robustness — no breaking of any flow
-  
+
+[ ] Update checking
+    [ ] Async, during any CLI command, determine whether a new version of pax-cli is available
+        [x] Check remotely via a server we control, for ability to guarantee stability (keep registry of published versions remotely, or check upstream to crates.io, or both)
+            [x] build update server
+                [x] logic
+                [x] dev env
+                [x] deployment
+        [x] Make CLI main async, "race" nominal actions against update check; give up on update check if a nominal update finishes before update check finishes.  Otherwise, print message after nominal action (incl ctrl-c) if a newer version is available.
+        [ ] Wrap `Command`s with an async-friendly, interruptable wrapper that handles e.g. ctrl-c
+        [ ] Seek to make shell scripts compatible with this async mechanism, too
     
