@@ -1391,6 +1391,7 @@ version = "0.6.10"
 dependencies = [
  "clap",
  "colored",
+ "nix",
  "pax-compiler",
  "reqwest",
  "rustc_version",
