@@ -18,11 +18,13 @@ use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use itertools::Itertools;
 
+#[cfg(unix)]
+use std::os::unix::process::CommandExt; // For the .before_exec() method
 
 
 use toml_edit::{Item};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Output};
+use std::process::{Child, Command, Output};
 use crate::manifest::{ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition, TypeTable, LiteralBlockDefinition, TypeDefinition};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
@@ -648,8 +650,10 @@ static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 
 /// Executes a shell command to run the feature-flagged parser at the specified path
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
-pub fn run_parser_binary(path: &str) -> Output {
-    let cargo_run_parser_process = Command::new("cargo")
+pub async fn run_parser_binary(path: &str, commands: Arc<Mutex<HashMap<String, Child>>>) -> Output {
+
+    let mut cmd = SafeCommand::new("cargo");
+    cmd.command
         .current_dir(path)
         .arg("run")
         .arg("--features")
@@ -657,11 +661,11 @@ pub fn run_parser_binary(path: &str) -> Output {
         .arg("--color")
         .arg("always")
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .spawn()
-        .expect("failed to execute parser binary");
+        .stderr(std::process::Stdio::piped());
 
-    cargo_run_parser_process.wait_with_output().unwrap()
+    let child = cmd.command.spawn().expect("failed to spawn child");
+    let output = wait_with_output(&commands, "PARSER", child).await;
+    output
 }
 
 use colored::Colorize;
@@ -682,7 +686,8 @@ struct Package {
 }
 
 fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static str> {
-    let output = Command::new("cargo")
+    let mut cmd = SafeCommand::new("cargo");
+    let output = cmd
         .arg("metadata")
         .arg("--format-version=1")
         .current_dir(path)
@@ -718,7 +723,7 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
-pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
+ pub async fn perform_build(ctx: &RunContext) -> Result<(), ()> {
 
     #[allow(non_snake_case)]
     let PAX_BADGE = "[Pax]".bold().on_black().white();
@@ -727,7 +732,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     let pax_dir = get_or_create_pax_directory(&ctx.path);
 
     // Run parser bin from host project with `--features parser`
-    let output = run_parser_binary(&ctx.path);
+    let output = run_parser_binary(&ctx.path, Arc::clone(&ctx.commands)).await;
 
     // Forward stderr only
     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
@@ -754,10 +759,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with cargo", &PAX_BADGE);
 
-    let output = build_chassis_with_cartridge(&pax_dir, &ctx.target);
-    //forward stderr only
-    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
-    assert_eq!(output.status.code().unwrap(), 0);
+    build_chassis_with_cartridge(&pax_dir, &ctx.target, Arc::clone(&ctx.commands));
 
     if ctx.should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
@@ -766,7 +768,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
         println!("{} 🛠 Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target));
     }
-    build_harness_with_chassis(&pax_dir, &ctx, &Harness::Development);
+    build_harness_with_chassis(&pax_dir, &ctx, &Harness::Development, Arc::clone(&ctx.commands));
 
     Ok(())
 }
@@ -797,7 +799,7 @@ pub enum Harness {
     Development,
 }
 
-fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harness) {
+async fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harness, commands: Arc<Mutex<HashMap<String, Child>>>) {
     let target_str : &str = ctx.target.borrow().into();
     let target_str_lower: &str = &target_str.to_lowercase();
 
@@ -837,31 +839,31 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
     };
     let should_also_run = &format!("{}",ctx.should_also_run);
     if is_web {
-        Command::new(script)
-            .current_dir(&harness_path)
+        let mut cmd = SafeCommand::new(script);
+        cmd.command.current_dir(&harness_path)
             .arg(should_also_run)
             .arg(output_path_str)
             .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit())
-            .spawn()
-            .expect("failed to run harness")
-            .wait()
-            .expect("failed to run harness");
+            .stderr(std::process::Stdio::inherit());
+
+        let child = cmd.command.spawn().expect("failed to spawn child");
+        let _output = wait_with_output(&commands, "CHASSIS WEB BUILD SCRIPT", child).await;
+
     } else {
 
-
-        Command::new(script)
-            .current_dir(&harness_path)
+        let mut cmd = SafeCommand::new(script);
+        cmd.command.current_dir(&harness_path)
             .arg(verbose_val)
             .arg(exclude_arch_val)
             .arg(should_also_run)
             .arg(output_path_str)
             .stdout(std::process::Stdio::inherit())
-            .stderr(if ctx.verbose { std::process::Stdio::inherit() } else {std::process::Stdio::piped()})
-            .spawn()
-            .expect("failed to run harness")
-            .wait()
-            .expect("failed to run harness");
+            .stderr(if ctx.verbose { std::process::Stdio::inherit() } else {std::process::Stdio::piped()});
+
+
+        let child = cmd.command.spawn().expect("failed to spawn child");
+        let _output = wait_with_output(&commands, "CHASSIS MACOS BUILD SCRIPT", child).await;
+
     }
 }
 
@@ -873,10 +875,16 @@ pub fn perform_clean(path: &str) {
     fs::remove_dir_all(&pax_dir).ok();
 }
 
+use std::sync::Arc;
+use tokio::sync::Mutex;
+
+
+
+
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
-pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Output {
+pub async fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, commands: Arc<Mutex<HashMap<String, std::process::Child>>>) -> Output {
 
     let target_str : &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
@@ -894,36 +902,42 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Ou
     existing_cargo_toml.insert("patch.crates-io", patch_table);
     fs::write(existing_cargo_toml_path, existing_cargo_toml.to_string().replace("\"patch.crates-io\"", "patch.crates-io") ).unwrap();
 
+    const CHILD_ID : &str ="BUILD_CHASSIS";
     //string together a shell call like the following:
-    let cargo_run_chassis_build = match target {
+    match target {
         RunTarget::MacOS => {
-            Command::new("cargo")
-                .current_dir(&chassis_path)
+            let mut cmd = SafeCommand::new("cargo");
+            cmd.command.current_dir(&chassis_path)
                 .arg("build")
                 .arg("--color")
                 .arg("always")
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit())
-                .spawn()
-                .expect("failed to build chassis")
+                .stderr(std::process::Stdio::inherit());
+
+            let child = cmd.command.spawn().expect("failed to spawn child");
+            let output = wait_with_output(&commands, CHILD_ID, child).await;
+
+            output
         },
         RunTarget::Web => {
-            Command::new("wasm-pack")
-                .current_dir(&chassis_path)
+            let mut cmd = SafeCommand::new("wasm-pack");
+            cmd.command.current_dir(&chassis_path)
                 .arg("build")
                 .arg("--release")
                 .arg("-d")
-                .arg(chassis_path.join("pax-dev-harness-web").join("dist").to_str().unwrap()) //--release -d pax-dev-harness-web/dist
+                .arg(chassis_path.join("pax-dev-harness-web").join("dist").to_str().unwrap())
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit())
-                .spawn()
-                .expect("failed to build chassis")
-        }
-    };
+                .stderr(std::process::Stdio::inherit());
 
-    cargo_run_chassis_build.wait_with_output().unwrap()
+            let child = cmd.command.spawn().expect("failed to spawn child");
+            let output = wait_with_output(&commands, CHILD_ID, child).await;
+
+            output
+        }
+    }
+
 }
 
 pub fn perform_create(ctx: &CreateContext) {
@@ -946,6 +960,7 @@ pub struct RunContext {
     pub verbose: bool,
     pub should_also_run: bool,
     pub libdevmode: bool,
+    pub commands: Arc<Mutex<HashMap<String, Child>>>,
 }
 
 pub enum RunTarget {
@@ -1009,6 +1024,62 @@ impl Ord for NamespaceTrieNode {
         }
     }
 }
+
+pub struct SafeCommand {
+    pub command: Command,
+    pub child: Option<std::process::Child>,
+}
+
+impl SafeCommand {
+    pub fn new<S: AsRef<std::ffi::OsStr>>(program: S) -> Self {
+        let mut cmd = Command::new(program);
+
+        #[cfg(unix)]
+        {
+            cmd.before_exec(|| {
+                // UNIX-specific logic here
+                use nix::unistd::{setpgid, Pid};
+                setpgid(Pid::from_raw(0), Pid::from_raw(0)).expect("setpgid failed");
+                Ok(())
+            });
+        }
+
+        #[cfg(windows)]
+        {
+            // Any Windows-specific logic (if needed) can be placed here
+        }
+
+        SafeCommand { command: cmd, child: None }
+    }
+
+    // You can add more methods to delegate to the inner Command if needed
+    pub fn arg<S: AsRef<std::ffi::OsStr>>(&mut self, arg: S) -> &mut Command {
+        self.command.arg(arg)
+    }
+
+    // Add other methods as needed, mirroring Command's API...
+}
+
+pub async fn wait_with_output(commands: &Arc<Mutex<HashMap<String, std::process::Child>>>, id: &str, mut child: std::process::Child) -> std::process::Output {
+    commands.lock().await.insert(id.to_string(), child); // Insert child directly
+
+    let child_opt = commands.lock().await.remove(id);
+
+    if let Some(child) = child_opt {
+        let output = child.wait_with_output().expect("Failed to wait for child process");
+        output
+    } else {
+        panic!("Failed to retrieve child for id: {}", id);
+    }
+}
+
+// RAII-based cleanup on drop
+impl Drop for SafeCommand {
+    fn drop(&mut self) {
+        // Cleanup logic here, if necessary.
+    }
+}
+
 
 impl NamespaceTrieNode {
     pub fn insert(&mut self, namespace_string: &str) {

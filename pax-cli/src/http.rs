@@ -3,7 +3,14 @@ use tokio::sync::Mutex;
 use rustc_version::version;
 
 pub async fn check_for_update(current_version: &str, new_version_info: Arc<Mutex<Option<String>>>) {
-    let url = format!("http://localhost:8080/pax-cli/{}", current_version);
+    let url = match option_env!("PAX_UPDATE_SERVER") {
+        Some(server) => {
+            format!("{}/pax-cli/{}", server, current_version)
+        },
+        None => {
+            format!("https://update.pax.dev/pax-cli/{}", current_version)
+        }
+    };
     let user_agent = get_user_agent();
 
     let client = reqwest::Client::new();

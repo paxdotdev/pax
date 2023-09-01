@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fs;
 use std::io::Write;
 use std::path::Path;
@@ -11,6 +12,11 @@ use tokio::signal::unix::{Signal, SignalKind};
 use pax_compiler::{RunTarget, RunContext, CreateContext};
 
 mod http;
+
+
+
+
+
 
 #[tokio::main]
 async fn main() -> Result<(), ()> {
@@ -115,10 +121,34 @@ async fn main() -> Result<(), ()> {
     // Spawn the check_for_update task so it runs concurrently.
     let update_check_handle = tokio::spawn(crate::http::check_for_update(current_version, new_version_info.clone()));
 
+
+    //Arc<Mutex<>> of commands, for thread-safe sharing between nominal_actions (where SafeCommands are created)
+    //and our wait_for_signals clean-up handler (where we must send clean-up signals to any open SafeCommands.)
+    let commands: Arc<Mutex<HashMap<String, std::process::Child>>> = Arc::new(Mutex::new(HashMap::new()));
+
     // Use tokio::select! to wait for either the nominal action to complete or the interrupt signal.
     tokio::select! {
-        _ = perform_nominal_action(matches) => {}
-        _ = wait_for_signals() => {}
+        _ = perform_nominal_action(matches, Arc::clone(&commands)) => {}
+        _ = wait_for_signals() => {
+            println!("Interrupt received! Attempting graceful clean-up...");
+
+            // Lock the commands list.
+            let mut locked_commands = commands.lock().await;
+
+            // Try to terminate all the processes gracefully
+            for (_id, child) in locked_commands.iter_mut() {
+                let _ = child.kill();
+            }
+
+            // Wait for all processes to finish
+            for (_id, child) in locked_commands.iter_mut() {
+                let _ = child.wait();
+            }
+
+            locked_commands.clear(); // You can clear the HashMap here after all children have been waited on.
+
+            println!("Cleanup complete!");
+        }
     }
 
     // After the primary action is done, check if there was an update info available.
@@ -135,29 +165,23 @@ async fn main() -> Result<(), ()> {
 }
 
 async fn wait_for_signals() {
-    #[cfg(unix)]
-    {
-        let mut sigint = tokio::signal::unix::signal(SignalKind::interrupt()).unwrap();
-        let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate()).unwrap();
+    let mut sigint = tokio::signal::unix::signal(SignalKind::interrupt()).unwrap();
+    let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate()).unwrap();
 
-        tokio::select! {
-            _ = sigint.recv() => {
-                println!("Received SIGINT. Cleaning up...");
-            }
-            _ = sigterm.recv() => {
-                println!("Received SIGTERM. Cleaning up...");
-            }
+    tokio::select! {
+        _ = sigint.recv() => {
+            println!("Received SIGINT. Exiting...");
         }
-    }
-
-    #[cfg(not(unix))]
-    {
-        tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl+c");
-        println!("Received Ctrl+C. Cleaning up...");
+        _ = sigterm.recv() => {
+            println!("Received SIGTERM. Exiting...");
+        }
+        _ = tokio::signal::ctrl_c() => {
+            println!("Received CTRL+C. Exiting...");
+        }
     }
 }
 
-async fn perform_nominal_action(matches: ArgMatches<'_>) -> Result<(), ()> {
+async fn perform_nominal_action(matches: ArgMatches<'_>, commands: Arc<Mutex<HashMap<String, std::process::Child>>>) -> Result<(), ()> {
     match matches.subcommand() {
         ("run", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
@@ -171,7 +195,8 @@ async fn perform_nominal_action(matches: ArgMatches<'_>) -> Result<(), ()> {
                 verbose,
                 should_also_run: true,
                 libdevmode,
-            })
+                commands,
+            }).await
         },
         ("build", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
@@ -185,7 +210,8 @@ async fn perform_nominal_action(matches: ArgMatches<'_>) -> Result<(), ()> {
                 should_also_run: false,
                 verbose,
                 libdevmode,
-            })
+                commands,
+            }).await
         },
         ("clean", Some(args)) => {
             let path = args.value_of("path").unwrap().to_string(); //default value "."
@@ -211,7 +237,7 @@ async fn perform_nominal_action(matches: ArgMatches<'_>) -> Result<(), ()> {
             match args.subcommand() {
                 ("parse", Some(args)) => {
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
-                    let output = &pax_compiler::run_parser_binary(&path);
+                    let output = &pax_compiler::run_parser_binary(&path, commands).await;
 
                     // Forward both stdout and stderr
                     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
@@ -226,7 +252,7 @@ async fn perform_nominal_action(matches: ArgMatches<'_>) -> Result<(), ()> {
                     let working_path = Path::new(&path).join(".pax");
                     let pax_dir = fs::canonicalize(working_path).unwrap();
 
-                    let output = pax_compiler::build_chassis_with_cartridge(&pax_dir, &RunTarget::from(target.as_str()));
+                    let output = pax_compiler::build_chassis_with_cartridge(&pax_dir, &RunTarget::from(target.as_str()), commands).await;
 
                     // Forward both stdout and stderr
                     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();

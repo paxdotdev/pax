@@ -18,6 +18,8 @@ cbor = ["serde"]
 
 [dependencies]
 kurbo = "0.9.0"
+nix = "0.20.2"
+tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11.18", features = ["blocking"] }
 tar = "0.4"
 pax-message = {version = "0.6.10", path="../pax-message"}
