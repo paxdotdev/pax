@@ -338,7 +338,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     }
 
     fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        unimplemented!("Scroller unmount not yet handled")
+        let id_chain = _rtc.get_id_chain(self.instance_id);
+        self.last_patches.remove(&id_chain);
+        (*_rtc.engine.runtime).borrow_mut().enqueue_native_message(
+            pax_message::NativeMessage::ScrollerDelete(id_chain)
+        );
     }
 
 }

@@ -12,6 +12,7 @@ const INNER_PANE = "inner-pane"
 
 const NATIVE_LEAF_CLASS = "native-leaf";
 const NATIVE_CLIPPING_CLASS = "native-clipping";
+const ALPHA = 1.0;
 
 const CLIP_PREFIX = "clip"
 
@@ -47,7 +48,6 @@ class Layer {
         this.canvas.style.zIndex = String(1000-zIndex);
         parent.appendChild(this.canvas);
 
-        console.log("Adding Context", this.canvas.id);
         chassis.add_context(scroller_id, zIndex);
 
         this.native = document.createElement("div");
@@ -140,15 +140,22 @@ class OcclusionContext {
         }
     }
 
-    addElement(element: Element, zIndex: number){
+    addElement(element: HTMLElement, zIndex: number){
         if(zIndex > this.zIndex){
             this.growTo(zIndex);
         }
-        this.layers[zIndex].native.appendChild(element);
+        element.style.zIndex = String(1000-zIndex);
+        this.layers[zIndex].native.prepend(element);
     }
 
     updateCanvases(width: number, height: number){
         this.layers.forEach((layer)=>{layer.updateCanvas(width, height)});
+    }
+
+    cleanup(){
+        this.layers.forEach((layer) => {
+            layer.remove();
+        })
     }
 
     updateNativeOverlays(width: number, height: number){
@@ -164,10 +171,10 @@ class Scroller {
     readonly container: HTMLDivElement;
     innerPane: HTMLDivElement;
     occlusionContext: OcclusionContext;
-    sizeX?: number;
-    sizeY?: number;
-    sizeInnerPaneX?: number;
-    sizeInnerPaneY?: number;
+    sizeX: number;
+    sizeY: number;
+    sizeInnerPaneX: number;
+    sizeInnerPaneY: number;
     transform?: number[];
     scrollX?: boolean;
     scrollY?: boolean;
@@ -182,22 +189,15 @@ class Scroller {
         this.zIndex = zIndex;
         this.scrollOffsetX = 0;
         this.scrollOffsetY = 0;
+        this.sizeX = 0;
+        this.sizeY = 0;
+        this.sizeInnerPaneX = 0;
+        this.sizeInnerPaneY = 0;
 
         this.container = document.createElement("div");
         this.container.className = SCROLLER_CONTAINER;
         addNativeElement(this.container, idChain, scrollerId, zIndex);
 
-        this.container.addEventListener("scroll", () => {
-            let scrollEvent = {
-                "Scroll": {
-                    "delta_x": this.container.scrollLeft - this.scrollOffsetX,
-                    "delta_y": this.container.scrollTop - this.scrollOffsetY,
-                }
-            };
-            this.scrollOffsetX = this.container.scrollLeft;
-            this.scrollOffsetY = this.container.scrollTop;
-            chassis.interrupt(JSON.stringify(scrollEvent), []);
-        });
 
         this.innerPane = document.createElement("div");
         this.innerPane.className = INNER_PANE;
@@ -212,6 +212,12 @@ class Scroller {
         } else {
             baseOcclusionContext.addElement(this.container, zIndex);
         }
+    }
+
+    delete(){
+        let parent = this.container.parentElement;
+        this.occlusionContext.cleanup();
+        parent?.removeChild(this.container);
     }
 
     handleScrollerUpdate(msg: ScrollerUpdatePatch){
@@ -249,19 +255,17 @@ class Scroller {
             this.container.style.transform = packAffineCoeffsIntoMatrix3DString(msg.transform);
             this.transform = msg.transform;
         }
-        if(msg.sizeX != null && msg.sizeY != null){
-            this.occlusionContext.updateCanvases(msg.sizeX, msg.sizeY);
-            this.occlusionContext.updateNativeOverlays(msg.sizeX, msg.sizeY);
+        if(msg.sizeX != null || msg.sizeY != null){
+            this.occlusionContext.updateCanvases(this.sizeX, this.sizeY);
+            this.occlusionContext.updateNativeOverlays(this.sizeX, this.sizeY);
         }
-        if(msg.sizeInnerPaneX != null && msg.sizeInnerPaneY != null){
-            this.sizeInnerPaneX = msg.sizeInnerPaneX;
-            this.sizeInnerPaneY = msg.sizeInnerPaneY;
+        if(msg.sizeInnerPaneX != null || msg.sizeInnerPaneY != null){
             this.innerPane.style.width = String(this.sizeInnerPaneX)+'px';
             this.innerPane.style.height = String(this.sizeInnerPaneY)+'px';
         }
     }
 
-    addElement(elem: Element, zIndex: number){
+    addElement(elem: HTMLElement, zIndex: number){
         this.occlusionContext.addElement(elem, zIndex);
     }
 }
@@ -269,11 +273,11 @@ class Scroller {
 
 // global map of scrollers
 // scroller id_chain -> Scroller object
-let scrollers = {};
+let scrollers: { [key: string]: Scroller } =  {};
 let elemToScroller = {};
 let baseOcclusionContext: OcclusionContext;
 
-function addNativeElement(elem: Element, idChain: BigUint64Array , scrollerIdChain: BigUint64Array | undefined, zIndex: number){
+function addNativeElement(elem: HTMLElement, idChain: BigUint64Array , scrollerIdChain: BigUint64Array | undefined, zIndex: number){
     //console.log(elem, idChain, scrollerIdChain, zIndex);
     if(scrollerIdChain != undefined){
         // @ts-ignore
@@ -411,7 +415,7 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(event), []);
-    }, true);
+    }, {"passive": true, "capture": true});
     // @ts-ignore
     layer.addEventListener('mousedown', (evt) => {
         let event = {
@@ -491,7 +495,7 @@ function setupEventListeners(chassis: any, layer: any) {
             }
         };
         chassis.interrupt(JSON.stringify(jabEvent), []);
-    }, true);
+    }, {"passive": true, "capture": true});
     // @ts-ignore
     layer.addEventListener('touchmove', (evt) => {
         let touches = getTouchMessages(evt.touches);
@@ -502,7 +506,7 @@ function setupEventListeners(chassis: any, layer: any) {
         };
         chassis.interrupt(JSON.stringify(event), []);
 
-    }, true);
+    }, {"passive": true, "capture": true});
     // @ts-ignore
     layer.addEventListener('touchend', (evt) => {
         let event = {
@@ -514,7 +518,7 @@ function setupEventListeners(chassis: any, layer: any) {
         Array.from(evt.changedTouches).forEach(touch => { // @ts-ignore
             lastPositions.delete(touch.identifier);
         });
-    }, true);
+    }, {"passive": true, "capture": true});
     // @ts-ignore
     layer.addEventListener('keydown', (evt) => {
         let event = {
@@ -613,12 +617,33 @@ function clearCanvases(): void {
     }
 }
 
-
+let i = 0;
 function renderLoop (chassis: PaxChassisWeb) {
-     clearCanvases()
+
+    Object.values(scrollers).forEach(scroller => {
+        let currentTop = scroller.container.scrollTop;
+        let currentLeft = scroller.container.scrollLeft;
+        let deltaX = currentLeft - scroller.scrollOffsetX;
+        let deltaY = currentTop - scroller.scrollOffsetY;
+        if(Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0){
+            let scrollEvent = {
+                "Scroll": {
+                    "delta_x": deltaX,
+                    "delta_y": deltaY,
+                }
+            };
+            chassis.interrupt(JSON.stringify(scrollEvent), []);
+            scroller.scrollOffsetX = currentLeft;
+            scroller.scrollOffsetY = currentTop;
+        }
+    });
+     clearCanvases();
      let messages : string = chassis.tick();
      messages = JSON.parse(messages);
-    console.log(messages);
+     // if(i < 5){
+     //     console.log(messages);
+     //     i++;
+     // }
      if(!initializedChassis){
          //Handle events on mount
          let mount = document.querySelector("#" + MOUNT_ID)!;
@@ -707,6 +732,7 @@ class NativeElementPool {
         let textChild = document.createElement('div');
         runningChain.appendChild(textChild);
         runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
+        runningChain.setAttribute("id_chain", String(patch.idChain));
 
         let scrollerId = undefined;
         if(patch.scrollerIds.length > 0){
@@ -719,6 +745,8 @@ class NativeElementPool {
     }
 
     textUpdate(patch: TextUpdatePatch) {
+
+        //console.log("Msg received", patch.id_chain, patch.content);
         //@ts-ignore
         window.textNodes = this.textNodes;
         // @ts-ignore
@@ -908,13 +936,18 @@ class NativeElementPool {
     }
 
     scrollerUpdate(patch: ScrollerUpdatePatch){
-        //console.log(patch);
         // @ts-ignore
         scrollers[patch.idChain].handleScrollerUpdate(patch);
     }
 
     scrollerDelete(idChain: BigUint64Array){
-        //unimplemented
+        // @ts-ignore
+        if(idChain in scrollers){
+            // @ts-ignore
+            scrollers[idChain].delete();
+            // @ts-ignore
+            delete scrollers[idChain];
+        }
     }
 
     async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
@@ -1268,7 +1301,6 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
 
     messages?.forEach((unwrapped_msg) => {
         // if (Math.random() < .1) console.log(unwrapped_msg)
-       // console.log(unwrapped_msg);
         if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
             nativePool.textCreate(new AnyCreatePatch(msg));
@@ -1314,7 +1346,8 @@ function processMessages(messages: any[], chassis: PaxChassisWeb) {
             nativePool.scrollerUpdate(new ScrollerUpdatePatch(msg));
         }else if (unwrapped_msg["ScrollerDelete"]) {
             let msg = unwrapped_msg["ScrollerDelete"];
-            nativePool.scrollerDelete(msg["id_chain"])
+            //console.log(msg);
+            nativePool.scrollerDelete(msg)
         }
     })
 }

@@ -17,7 +17,7 @@ pub struct ConditionalInstance<R: 'static + RenderContext> {
     pub boolean_expression: Box<dyn PropertyInstance<bool>>,
     pub true_branch_children: RenderNodePtrList<R>,
     pub false_branch_children: RenderNodePtrList<R>,
-    pub next_frame_expression: Option<bool>,
+    pub cleanup_children: RenderNodePtrList<R>,
 
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 }
@@ -40,7 +40,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
             transform: args.transform,
             boolean_expression: args.conditional_boolean_expression.expect("Conditional requires boolean_expression"),
             false_branch_children: Rc::new(RefCell::new(vec![])),
-            next_frame_expression: None
+            cleanup_children:  Rc::new(RefCell::new(vec![])),
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -48,11 +48,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-
-        if self.next_frame_expression.is_some() {
-            self.boolean_expression.set(self.next_frame_expression.clone().unwrap());
-            self.next_frame_expression = None;
-        }
 
         if let Some(boolean_expression) = rtc.compute_vtable_value(self.boolean_expression._get_vtable_id()) {
             let old_value = *self.boolean_expression.get();
@@ -65,9 +60,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
                     instance_registry.deregister(instance_id);
                     instance_registry.mark_for_unmount(instance_id);
                 });
+                self.cleanup_children = self.true_branch_children.clone();
             }
-
-            self.next_frame_expression = Some(new_value);
+            self.boolean_expression.set(new_value);
         }
     }
 
@@ -80,7 +75,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
         } else {
             Rc::clone(&self.false_branch_children)
         }
-
+    }
+    fn pop_cleanup_children(&mut self) -> RenderNodePtrList<R> {
+        let ret = self.cleanup_children.clone();
+        self.cleanup_children = Rc::new(RefCell::new(vec![]));
+        ret
     }
     fn get_size(&self) -> Option<Size2D> { None }
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }

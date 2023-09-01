@@ -185,6 +185,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             None => true,
         };
         if is_new_value {
+            //pax_runtime_api::log(format!("Text update {:?}{:?}", new_message.id_chain, val.clone()).as_str());
             new_message.content = Some(val.clone());
             last_patch.content = Some(val.clone());
             has_any_updates = true;
@@ -290,9 +291,8 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     }
 
     fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-
         let id_chain = _rtc.get_id_chain(self.instance_id);
-        self.last_patches.remove(&id_chain).unwrap();
+        self.last_patches.remove(&id_chain);
         (*_rtc.engine.runtime).borrow_mut().enqueue_native_message(
             pax_message::NativeMessage::TextDelete(id_chain)
         );

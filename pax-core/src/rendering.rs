@@ -178,6 +178,13 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
+    /// Consumes the children of this node at render-time that should be removed.
+    /// This occurs when they were mounted in some previous frame but now need to be removed after a property change
+    /// This function resets this list once returned
+    fn pop_cleanup_children(&mut self) -> RenderNodePtrList<R> {
+        Rc::new(RefCell::new(vec![]))
+    }
+
     ///Determines whether the provided ray, orthogonal to the view plane,
     ///intersects this rendernode. `tab` must also be passed because these are specific
     ///to a RepeatExpandedNode

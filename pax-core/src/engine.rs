@@ -698,6 +698,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //keep recursing through children
 
 
+        let children_to_cleanup = node.borrow_mut().pop_cleanup_children();
+        children_to_cleanup.borrow_mut().iter().rev().for_each(|child| {
+            let mut new_rtc = rtc.clone();
+            &self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), &mut z_index_info.clone(), true);
+        });
+
         let mut child_z_index_info =  z_index_info.clone();
         if z_index_info.get_current_layer() == Layer::Scroller {
             let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
@@ -723,25 +729,23 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let is_viewport_culled = !repeat_expanded_node_tab.intersects(&self.viewport_tab);
 
+            //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
+            //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
+            if let Some(cb) = clipping_bounds {
+                node.borrow_mut().compute_native_patches(rtc, cb, new_scroller_normalized_accumulated_transform.as_coeffs().to_vec(), current_z_index, subtree_depth);
+            } else {
+                node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_scroller_normalized_accumulated_transform.as_coeffs().to_vec(), current_z_index, subtree_depth);
+            }
 
-        //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
-        //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
-        if let Some(cb) = clipping_bounds {
-            node.borrow_mut().compute_native_patches(rtc, cb, new_scroller_normalized_accumulated_transform.as_coeffs().to_vec(), current_z_index, subtree_depth);
-        } else {
-            node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_scroller_normalized_accumulated_transform.as_coeffs().to_vec(), current_z_index, subtree_depth);
-        }
+            if let Some(rc) = rcs.get_mut(&canvas_id) {
+                //lifecycle: render
+                //this is this node's time to do its own rendering, aside
+                //from the rendering of its children. Its children have already been rendered.
 
-        if let Some(rc) =  rcs.get_mut(&canvas_id) {
-            //lifecycle: render
-            //this is this node's time to do its own rendering, aside
-            //from the rendering of its children. Its children have already been rendered.
-
-           // if !is_viewport_culled {
+                // if !is_viewport_culled {
                 node.borrow_mut().handle_render(rtc, rc);
-           // }
-        }
-
+                // }
+            }
 
         //Handle node unmounting
         if marked_for_unmount {
@@ -757,6 +761,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         node.borrow_mut().handle_did_render(rtc, rcs);
 
     }
+
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
     /// ray running orthogonally to the view plane, intersecting at
