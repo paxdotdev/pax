@@ -640,10 +640,6 @@ function renderLoop (chassis: PaxChassisWeb) {
      clearCanvases();
      let messages : string = chassis.tick();
      messages = JSON.parse(messages);
-     // if(i < 5){
-     //     console.log(messages);
-     //     i++;
-     // }
      if(!initializedChassis){
          //Handle events on mount
          let mount = document.querySelector("#" + MOUNT_ID)!;
