@@ -4,7 +4,9 @@ extern crate core;
 
 use std::rc::Rc;
 use std::cell::RefCell;
+use std::collections::HashMap;
 use std::ffi::c_void;
+use std::fmt::format;
 use std::mem::{ManuallyDrop, transmute};
 use std::os::raw::{c_char};
 
@@ -151,8 +153,8 @@ pub extern "C" fn pax_tick(engine_container: *mut PaxEngineContainer, cgContext:
     let mut render_context = CoreGraphicsContext::new_y_up(ctx, height as f64, None);
     (*engine).set_viewport_size((width as f64, height as f64));
 
-    let mut render_contexts = Vec::new();
-    render_contexts.push(render_context);
+    let mut render_contexts = HashMap::new();
+    render_contexts.insert(format!("{}",0), render_context);
 
     let messages = (*engine).tick(&mut render_contexts);
 

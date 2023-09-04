@@ -13,7 +13,6 @@ use piet_common::RenderContext;
 use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode, TransformAndBounds, StackFrame, ScrollerArgs};
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_message::NativeMessage::LayerAdd;
 
 use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, ArgsTouchStart, ArgsTouchMove, ArgsTouchEnd, ArgsKeyDown, ArgsKeyUp, ArgsKeyPress, ArgsMouseDown, ArgsMouseUp, ArgsMouseOver, ArgsMouseOut, ArgsDoubleClick, ArgsContextMenu, ArgsWheel, Interpolatable, TransitionManager, Layer, ZIndex, RuntimeContext, ArgsMouseMove, Size2D};
 
@@ -669,7 +668,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let repeat_expanded_node_tab = TransformAndBounds {
             bounds: node_size,
             clipping_bounds,
-            transform: new_accumulated_transform.clone(),
+            transform: new_scroller_normalized_accumulated_transform.clone(),
         };
 
 
@@ -729,6 +728,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let is_viewport_culled = !repeat_expanded_node_tab.intersects(&self.viewport_tab);
 
+
             //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
             //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
             if let Some(cb) = clipping_bounds {
@@ -742,9 +742,15 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 //this is this node's time to do its own rendering, aside
                 //from the rendering of its children. Its children have already been rendered.
 
-                // if !is_viewport_culled {
-                node.borrow_mut().handle_render(rtc, rc);
-                // }
+                if !is_viewport_culled {
+                    node.borrow_mut().handle_render(rtc, rc);
+                }
+            } else {
+                if let Some(rc) = rcs.get_mut("0"){
+                    if !is_viewport_culled {
+                        node.borrow_mut().handle_render(rtc, rc);
+                    }
+                }
             }
 
         //Handle node unmounting
