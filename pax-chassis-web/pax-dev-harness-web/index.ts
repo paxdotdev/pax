@@ -72,18 +72,9 @@ class Layer {
     }
 
     public updateCanvas(width: number, height: number){
-        let dpr = window.devicePixelRatio;
         requestAnimationFrame(() => {
             if(this.scrollerId != undefined && this.zIndex > 0){
                 this.canvas.style.marginTop = String(-height)+"px";
-            }
-            this.canvas.width = (width * dpr);
-            this.canvas.height = (height * dpr);
-            this.canvas.style.width = String(width)+'px';
-            this.canvas.style.height = String(height)+'px';
-            const context = this.canvas.getContext('2d');
-            if (context) {
-                context.scale(dpr, dpr);
             }
         });
     }
@@ -607,12 +598,17 @@ function escapeHtml(content: string){
 
 function clearCanvases(): void {
     const canvases: HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
-
     for (let i = 0; i < canvases.length; i++) {
+        let dpr = window.devicePixelRatio;
         const canvas = canvases[i];
         const context = canvas.getContext('2d');
         if (context) {
             context.clearRect(0, 0, canvas.width, canvas.height);
+        }
+        canvas.width = (canvas.clientWidth * dpr);
+        canvas.height = (canvas.clientHeight * dpr);
+        if (context) {
+            context.scale(dpr, dpr);
         }
     }
 }
@@ -849,9 +845,7 @@ class NativeElementPool {
         let oldNode = this.textNodes[id_chain];
         if (oldNode){
             let parent = oldNode.parentElement;
-            requestAnimationFrame(()=> {
-                parent.removeChild(oldNode);
-            });
+            parent.removeChild(oldNode);
         }
     }
 
