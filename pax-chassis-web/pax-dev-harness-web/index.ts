@@ -3,7 +3,7 @@
 import {PaxChassisWeb} from './dist/pax_chassis_web';
 // @ts-ignore
 import snarkdown from 'snarkdown';
-
+import Stats from 'stats-js';
 const MOUNT_ID = "mount";
 const NATIVE_OVERLAY_CLASS = "native-overlay";
 const CANVAS_CLASS = "canvas";
@@ -25,6 +25,11 @@ let layers: { "native": HTMLDivElement[], "canvas": HTMLCanvasElement[] } = { "n
 
 let is_mobile_device = false;
 
+
+var stats = new Stats();
+stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+document.body.appendChild( stats.dom );
+let canvases = {}
 class Layer {
     readonly canvas: HTMLCanvasElement;
     readonly native: HTMLDivElement;
@@ -47,6 +52,8 @@ class Layer {
         this.canvas.id = PaxChassisWeb.generate_location_id(scroller_id, zIndex);
         this.canvas.style.zIndex = String(1000-zIndex);
         parent.appendChild(this.canvas);
+        // @ts-ignore
+        canvases[this.canvas.id] = this.canvas;
 
         chassis.add_context(scroller_id, zIndex);
 
@@ -65,6 +72,8 @@ class Layer {
     }
 
     public remove(){
+        // @ts-ignore
+        delete canvases[this.canvas.id];
         let parent = this.canvas.parentElement;
         this.chassis.remove_context(this.scrollerId, this.zIndex);
         parent!.removeChild(this.native);
@@ -597,10 +606,10 @@ function escapeHtml(content: string){
 }
 
 function clearCanvases(): void {
-    const canvases: HTMLCollectionOf<HTMLCanvasElement> = document.getElementsByTagName('canvas');
-    for (let i = 0; i < canvases.length; i++) {
+    for (let key in canvases){
         let dpr = window.devicePixelRatio;
-        const canvas = canvases[i];
+        // @ts-ignore
+        const canvas = canvases[key];
         const context = canvas.getContext('2d');
         if (context) {
             context.clearRect(0, 0, canvas.width, canvas.height);
@@ -615,6 +624,8 @@ function clearCanvases(): void {
 
 let i = 0;
 function renderLoop (chassis: PaxChassisWeb) {
+
+    stats.begin();
 
     Object.values(scrollers).forEach(scroller => {
         let currentTop = scroller.container.scrollTop;
@@ -651,6 +662,7 @@ function renderLoop (chassis: PaxChassisWeb) {
      // @ts-ignore
      processMessages(messages, chassis);
      messages;
+    stats.end();
      requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
