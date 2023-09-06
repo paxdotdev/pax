@@ -1410,6 +1410,7 @@ dependencies = [
  "itertools",
  "kurbo",
  "lazy_static",
+ "libc",
  "nix",
  "pax-message",
  "pax-runtime-api",
