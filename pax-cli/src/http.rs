@@ -1,6 +1,7 @@
 use std::sync::{Arc, Mutex};
 
-pub fn check_for_update(current_version: &str, new_version_info: Arc<Mutex<Option<String>>>) {
+pub fn check_for_update(new_version_info: Arc<Mutex<Option<String>>>) {
+    let current_version = env!("CARGO_PKG_VERSION");
     let url = match option_env!("PAX_UPDATE_SERVER") {
         Some(server) => {
             format!("{}/pax-cli/{}", server, current_version)

@@ -3190,32 +3190,20 @@ Update: the above seemed to work satisfactorily.
 [ ] embedded template project
   [ ] semver management, e.g. injecting current pax lib versions
     - Consider ability to specify explicit past versions?
-  [ ] ensure that crates.io stand-alone build of pax-cli / pax-compiler will have access to these files (no ../ or monorepo paths pointing out of crate, for example)
+  [x] ensure that crates.io stand-alone build of pax-cli / pax-compiler will have access to these files (no ../ or monorepo paths pointing out of crate, for example)
   [ ] build out livdev vs. prod mode
     [ ] libdev copies a live copy of template, to enable iterative refinement
-    [x] libdev checks a locally running server (http://localhost:9000) vs. prod checks a live server (https://update.pax.dev)
-        (made it an explicit
-
-[-] opt-in analytics (DECIDED TO PUNT)
-  - Decide whether to track crashs / errors, too
-  - Interactive prompt — _after_ first action — and only once.
-    - *****************************
-      - Thanks for trying out Pax!  
-      - Are you willing to share anonymized usage information with our team?
-      - You can change this setting any time with `pax analytics [on | off]`
-      - Will you share your anonymous usage data with us? [y/N]
-    - *****************************
-    - Explicit CLI option to change settings: `pax analytics on | off`
-    - Ensure offline robustness — no breaking of any flow
-
-[ ] Update checking
-    [ ] Async, during any CLI command, determine whether a new version of pax-cli is available
+    
+[x] Update checking
+    [x] Async, during any CLI command, determine whether a new version of pax-cli is available
         [x] Check remotely via a server we control, for ability to guarantee stability (keep registry of published versions remotely, or check upstream to crates.io, or both)
             [x] build update server
                 [x] logic
                 [x] dev env
                 [x] deployment
         [x] Make CLI main async, "race" nominal actions against update check; give up on update check if a nominal update finishes before update check finishes.  Otherwise, print message after nominal action (incl ctrl-c) if a newer version is available.
-        [ ] Wrap `Command`s with an async-friendly, interruptable wrapper that handles e.g. ctrl-c
-        [ ] Seek to make shell scripts compatible with this async mechanism, too
+        [x] Wrap `Command`s with an async-friendly, interruptable wrapper that handles e.g. ctrl-c
+        [x] Seek to make shell scripts compatible with this async mechanism, too
+    [x] libdev checks a locally running server (http://localhost:9000) vs. prod checks a live server (https://update.pax.dev)
+        - Made it an explicit env option, PAX_UPDATE_SERVER
     

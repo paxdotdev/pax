@@ -3,7 +3,7 @@ use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 use clap::{App, AppSettings, Arg, ArgMatches, crate_version};
 
 use pax_compiler::{RunTarget, RunContext, CreateContext};
@@ -15,10 +15,6 @@ use signal_hook::consts::{SIGINT, SIGTERM};
 
 fn main() -> Result<(), ()> {
 
-    let current_version = env!("CARGO_PKG_VERSION");
-
-    
-
     //Shared state to store child processes keyed by static unique string IDs, for cleanup tracking
     let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
     // Shared state to store the new version info if available.
@@ -27,7 +23,7 @@ fn main() -> Result<(), ()> {
     // Spawn the check_for_update thread so it runs concurrently.
     let cloned_new_version_info = Arc::clone(&new_version_info);
     thread::spawn(move || {
-        http::check_for_update(current_version, cloned_new_version_info);
+        http::check_for_update(cloned_new_version_info);
     });
 
     // Create a separate thread to handle signals e.g. via CTRL+C
@@ -36,10 +32,10 @@ fn main() -> Result<(), ()> {
     let cloned_process_child_ids = Arc::clone(&process_child_ids);
     thread::spawn(move || {
         for _sig in signals.forever() {
+            println!("\nInterrupt received. Cleaning up child processes...");
             perform_cleanup(Arc::clone(&cloned_version_info),Arc::clone(&cloned_process_child_ids));
         }
     });
-
 
     #[allow(non_snake_case)]
     let ARG_PATH = Arg::with_name("path")
@@ -79,7 +75,6 @@ fn main() -> Result<(), ()> {
         .help("Signal to the compiler to run certain operations in libdev mode, offering certain ergonomic affordances for Pax library developers.")
         .hidden(true); //hidden because this is of negative value to end-users; things are expected to break when invoked outside of the pax monorepo
 
-
     let matches = App::new("pax")
         .name("pax")
         .bin_name("pax")
@@ -106,6 +101,7 @@ fn main() -> Result<(), ()> {
         .subcommand(
             App::new("clean")
                 .arg( ARG_PATH.clone() )
+                .arg( ARG_LIBDEV.clone() )
                 .about("Cleans the temporary files associated with the Pax project in the current working directory — notably, the temporary files generated into the .pax directory")
         )
         .subcommand(
@@ -141,7 +137,7 @@ fn main() -> Result<(), ()> {
 
 
 fn perform_cleanup(new_version_info: Arc<Mutex<Option<String>>>, process_child_ids: Arc<Mutex<Vec<u64>>> ) {
-    const RETRY_COUNT : u8 = 2;
+    const RETRY_COUNT : u8 = 3;
     const RETRY_PERIOD_MS : u64 = 250;
     let mut current_count : u8 = 0;
 
@@ -159,19 +155,53 @@ fn perform_cleanup(new_version_info: Arc<Mutex<Option<String>>>, process_child_i
     }
 
     //2. print update message if appropriate
-
     let mut current_count : u8 = 0;
     while current_count < RETRY_COUNT {
         if let Ok(new_version_lock) = new_version_info.lock() {
             if let Some(new_version) = new_version_lock.as_ref() {
-                println!();
-                println!("************************************************************");
-                println!("{}", format!("A new version of the Pax CLI is available: {}", new_version).blue().bold());
-                println!("To update, run: `cargo install --force pax-cli`");
-                println!("************************************************************");
-                println!();
+                if new_version == "" {
+                    //Perform our retry loop even if the mutex contains an empty string — in case a short running command
+                    //hasn't yet had a chance to perform a round trip with the update server.
+                    current_count = current_count + 1;
+                    thread::sleep(Duration::from_millis(RETRY_PERIOD_MS));
+                } else {
+                    const TOTAL_LENGTH : usize = 60;
+                    let stars_line: ColoredString = "*".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
+                    let empty_line: ColoredString = " ".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
+
+                    let new_version_static = "  A new version of the Pax CLI is available: ";
+                    let new_version_formatted = format!("{}{}", new_version_static, new_version);
+                    let new_version_line: ColoredString = format!("{: <width$}", new_version_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black().bold();
+
+                    let current_version = env!("CARGO_PKG_VERSION");
+                    let current_version_static = "  Currently installed version: ";
+                    let current_version_formatted = format!("{}{}", current_version_static, current_version);
+                    let current_version_line = format!("{: <width$}", current_version_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black();
+
+                    let update_instructions_static = "To update, run: ";
+                    let lpad = (TOTAL_LENGTH - update_instructions_static.len()) / 2;
+                    let lpad_spaces = " ".repeat(lpad);
+                    let update_formatted = format!("{}{}", lpad_spaces, update_instructions_static);
+                    let update_instructions_line = format!("{: <width$}", update_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black().bold();
+
+                    let install_command_static = "cargo install --force pax-cli";
+                    let lpad = (TOTAL_LENGTH - install_command_static.len()) / 2;
+                    let lpad_spaces = " ".repeat(lpad);
+                    let update_line_2_formatted = format!("{}{}", lpad_spaces, install_command_static);
+                    let update_line_2 = format!("{: <width$}", update_line_2_formatted, width=TOTAL_LENGTH).bright_black().on_bright_white().bold();
+
+                    println!();
+                    println!("{}", &stars_line);
+                    println!("{}", new_version_line);
+                    println!("{}", current_version_line);
+                    println!("{}", &empty_line);
+                    println!("{}", update_instructions_line);
+                    println!("{}", update_line_2);
+                    println!("{}", &stars_line);
+                    println!();
+                    break;
+                }
             }
-            break;
         } else {
             current_count = current_count + 1;
             thread::sleep(Duration::from_millis(RETRY_PERIOD_MS));
