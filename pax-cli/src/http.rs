@@ -1,8 +1,7 @@
-use std::sync::Arc;
-use tokio::sync::Mutex;
+use std::sync::{Arc, Mutex};
 use rustc_version::version;
 
-pub async fn check_for_update(current_version: &str, new_version_info: Arc<Mutex<Option<String>>>) {
+pub fn check_for_update(current_version: &str, new_version_info: Arc<Mutex<Option<String>>>) {
     let url = match option_env!("PAX_UPDATE_SERVER") {
         Some(server) => {
             format!("{}/pax-cli/{}", server, current_version)
@@ -13,18 +12,17 @@ pub async fn check_for_update(current_version: &str, new_version_info: Arc<Mutex
     };
     let user_agent = get_user_agent();
 
-    let client = reqwest::Client::new();
+    let client = reqwest::blocking::Client::new();
     if let Ok(response) = client.get(&url)
         .header(reqwest::header::USER_AGENT, user_agent)
-        .send()
-        .await {
+        .send() {
         if response.status().is_success() {
-            match response.text().await {
+            match response.text() {
                 Ok(body) => {
                     if !body.is_empty() {
                         // Store the new version info — this mutex is how the "nominal action"
                         // will decide, upon completion, whether an update is available.
-                        let mut lock = new_version_info.lock().await;
+                        let mut lock = new_version_info.lock().unwrap();
                         *lock = Some(body);
                     }
                 },
@@ -33,8 +31,10 @@ pub async fn check_for_update(current_version: &str, new_version_info: Arc<Mutex
                 }
             }
         } else {
-            panic!();
+            //error returned by remote, e.g. by a malformed request.  Silently proceed as if no update is available.
         }
+    } else {
+        //error connecting to remote.  Silently proceed as if no update is available.
     }
 }
 

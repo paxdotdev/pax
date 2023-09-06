@@ -1,55 +1,58 @@
 use std::collections::HashMap;
-use std::fs;
+use std::{fs, thread};
 use std::io::Write;
 use std::path::Path;
 use std::str::Matches;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-use tokio::signal;
+use std::sync::{Arc, Mutex};
+use std::collections::HashSet;
+use std::process::Termination;
+use std::time::Duration;
 use colored::Colorize;
 use clap::{App, AppSettings, Arg, ArgMatches, crate_version};
-use tokio::signal::unix::{Signal, SignalKind};
+
 use pax_compiler::{RunTarget, RunContext, CreateContext};
 use tokio::sync::mpsc;
 // use signal_hook::{iterator::Signals, signals::SIGINT};
 mod http;
 
-use signal_hook::iterator::Signals;
-use nix::sys::signal::{SIGINT, SIGTERM};
-use nix::sys::signal::{sigprocmask, SigSet, SigmaskHow};
+#[cfg(unix)]
+use nix::sys::signal::{self, Signal};
+#[cfg(unix)]
+use nix::unistd::Pid;
+use signal_hook::{iterator::Signals};
+use signal_hook::consts::{SIGINT, SIGTERM};
 
-#[tokio::main]
-async fn main() -> Result<(), ()> {
 
-    let (tx, mut rx) = mpsc::channel::<()>(1);
-    let tx_shared = Arc::new(std::sync::Mutex::new(tx));
+fn main() -> Result<(), ()> {
 
-    let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
+    let current_version = env!("CARGO_PKG_VERSION");
 
-    //Block signals to child processes
-    let mut mask = SigSet::empty();
-    mask.add(SIGINT);
-    mask.add(SIGTERM);
-    sigprocmask(SigmaskHow::SIG_BLOCK, Some(&mask), None).expect("Failed to block signals");
+    //Shared state to store child processes keyed by static unique string IDs, for cleanup tracking
+    let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
 
-    // Spawn the signal handling thread.
+    // Shared state to store the new version info if available.
+    let new_version_info = Arc::new(Mutex::new(None));
+
+
+    let cloned_new_version_info = Arc::clone(&new_version_info);
+    // Spawn the check_for_update thread so it runs concurrently.
+    thread::spawn(move || {
+        http::check_for_update(current_version, cloned_new_version_info);
+    });
+
+    // Create a separate thread to handle signals
+    let mut signals = Signals::new(&[SIGINT]).unwrap();
+
+    let cloned_version_info = Arc::clone(&new_version_info);
+    let cloned_process_child_ids = Arc::clone(&process_child_ids);
     std::thread::spawn(move || {
-        for signal in &signals {
-            match signal {
-                SIGINT => {
-                    println!("Received SIGINT in dedicated thread!");
-                    let tx = tx_shared.lock().unwrap();
-                    let _ = tx.try_send(());
-                },
-                SIGTERM => {
-                    println!("Received SIGTERM in dedicated thread!");
-                    let tx = tx_shared.lock().unwrap();
-                    let _ = tx.try_send(());
-                },
-                _ => unreachable!(),
-            }
+        for _sig in signals.forever() {
+            println!("Received SIGINT!");
+
+            perform_cleanup(Arc::clone(&cloned_version_info),Arc::clone(&cloned_process_child_ids));
         }
     });
+
 
     #[allow(non_snake_case)]
     let ARG_PATH = Arg::with_name("path")
@@ -143,78 +146,91 @@ async fn main() -> Result<(), ()> {
         )
         .get_matches();
 
-    let current_version = env!("CARGO_PKG_VERSION");
 
-    // Shared state to store the new version info if available.
-    let new_version_info = Arc::new(Mutex::new(None));
+    perform_nominal_action(matches, Arc::clone(&process_child_ids)).unwrap_or_else(|()|{
+        perform_cleanup(Arc::clone(&new_version_info),Arc::clone(&process_child_ids));
 
-    // Spawn the check_for_update task so it runs concurrently.
-    let update_check_handle = tokio::spawn(crate::http::check_for_update(current_version, new_version_info.clone()));
-
-
-    //Arc<Mutex<>> of commands, for thread-safe sharing between nominal_actions (where SafeCommands are created)
-    //and our wait_for_signals clean-up handler (where we must send clean-up signals to any open SafeCommands.)
-    let commands: Arc<Mutex<HashMap<String, std::process::Child>>> = Arc::new(Mutex::new(HashMap::new()));
-
-    // Use tokio::select! to wait for either the nominal action to complete or the interrupt signal.
-    tokio::select! {
-        _ = perform_nominal_action(matches, Arc::clone(&commands)) => {
-            //Nominal (requested) user-requested action is complete.
-            println!("Done!");
-        }
-        _ = rx.recv() => {
-            println!("Interrupt received! Attempting graceful clean-up...");
-
-            // Lock the commands list.
-            let mut locked_commands = commands.lock().await;
-
-            // Try to terminate all the processes gracefully
-            for (_id, child) in locked_commands.iter_mut() {
-                let _ = child.kill();
-            }
-
-            // Wait for all processes to finish
-            for (_id, child) in locked_commands.iter_mut() {
-                let _ = child.wait();
-            }
-
-            locked_commands.clear(); // You can clear the HashMap here after all children have been waited on.
-
-            println!("Cleanup complete!");
-        }
-    }
-
-    // After the primary action is done, check if there was an update info available.
-    if let Some(new_version) = new_version_info.lock().await.as_ref().cloned() {
-        println!();
-        println!("************************************************************");
-        println!("{}", format!("A new version of the Pax CLI is available: {}", new_version).blue().bold());
-        println!("To update, run: `cargo install --force pax-cli`");
-        println!("************************************************************");
-        println!();
-    }
+    });
+    perform_cleanup(new_version_info, process_child_ids);
 
     Ok(())
 }
 
-async fn wait_for_signals() {
-    let mut sigint = tokio::signal::unix::signal(SignalKind::interrupt()).unwrap();
-    let mut sigterm = tokio::signal::unix::signal(SignalKind::terminate()).unwrap();
 
-    tokio::select! {
-        _ = sigint.recv() => {
-            println!("Received SIGINT. Exiting...");
+fn perform_cleanup(new_version_info: Arc<Mutex<Option<String>>>, process_child_ids: Arc<Mutex<Vec<u64>>> ) {
+    const RETRY_COUNT : u8 = 2;
+    const RETRY_PERIOD_MS : u64 = 250;
+    let mut current_count : u8 = 0;
+
+    //1. kill any running child processes
+    while current_count < RETRY_COUNT {
+        if let Ok(process_child_ids_lock) = process_child_ids.lock() {
+            process_child_ids_lock.iter().for_each(|mut child_id| {
+               kill_process(*child_id).expect(&format!("Failed to kill process with ID: {}", child_id));
+            });
+            break;
+        } else {
+            current_count = current_count + 1;
+            thread::sleep(Duration::from_millis(RETRY_PERIOD_MS));
         }
-        _ = sigterm.recv() => {
-            println!("Received SIGTERM. Exiting...");
-        }
-        _ = tokio::signal::ctrl_c() => {
-            println!("Received CTRL+C. Exiting...");
+    }
+
+    //2. print update message if appropriate
+
+    let mut current_count : u8 = 0;
+    while current_count < RETRY_COUNT {
+        if let Ok(new_version_lock) = new_version_info.lock() {
+            if let Some(new_version) = new_version_lock.as_ref() {
+                println!();
+                println!("************************************************************");
+                println!("{}", format!("A new version of the Pax CLI is available: {}", new_version).blue().bold());
+                println!("To update, run: `cargo install --force pax-cli`");
+                println!("************************************************************");
+                println!();
+            }
+            break;
+        } else {
+            current_count = current_count + 1;
+            thread::sleep(Duration::from_millis(RETRY_PERIOD_MS));
         }
     }
 }
 
-async fn perform_nominal_action(matches: ArgMatches<'_>, commands: Arc<Mutex<HashMap<String, std::process::Child>>>) -> Result<(), ()> {
+#[cfg(unix)]
+fn kill_process(pid: u64) -> Result<(), std::io::Error> {
+    use std::process::Command;
+
+    let output = Command::new("kill")
+        .arg("-9") // send SIGKILL
+        .arg(pid.to_string())
+        .output()?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to kill process"))
+    }
+}
+
+#[cfg(windows)]
+fn kill_process(pid: u64) -> Result<(), std::io::Error> {
+    use std::process::Command;
+
+    let output = Command::new("taskkill")
+        .arg("/F") // forcefully kill the process
+        .arg("/PID")
+        .arg(pid.to_string())
+        .output()?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to kill process"))
+    }
+}
+
+
+fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<Vec<u64>>>) -> Result<(), ()> {
     match matches.subcommand() {
         ("run", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
@@ -228,8 +244,8 @@ async fn perform_nominal_action(matches: ArgMatches<'_>, commands: Arc<Mutex<Has
                 verbose,
                 should_also_run: true,
                 libdevmode,
-                commands,
-            }).await
+                process_child_ids,
+            })
         },
         ("build", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
@@ -243,8 +259,8 @@ async fn perform_nominal_action(matches: ArgMatches<'_>, commands: Arc<Mutex<Has
                 should_also_run: false,
                 verbose,
                 libdevmode,
-                commands,
-            }).await
+                process_child_ids,
+            })
         },
         ("clean", Some(args)) => {
             let path = args.value_of("path").unwrap().to_string(); //default value "."
@@ -270,7 +286,7 @@ async fn perform_nominal_action(matches: ArgMatches<'_>, commands: Arc<Mutex<Has
             match args.subcommand() {
                 ("parse", Some(args)) => {
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
-                    let output = &pax_compiler::run_parser_binary(&path, commands).await;
+                    let output = &pax_compiler::run_parser_binary(&path, process_child_ids);
 
                     // Forward both stdout and stderr
                     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
@@ -285,7 +301,7 @@ async fn perform_nominal_action(matches: ArgMatches<'_>, commands: Arc<Mutex<Has
                     let working_path = Path::new(&path).join(".pax");
                     let pax_dir = fs::canonicalize(working_path).unwrap();
 
-                    let output = pax_compiler::build_chassis_with_cartridge(&pax_dir, &RunTarget::from(target.as_str()), commands).await;
+                    let output = pax_compiler::build_chassis_with_cartridge(&pax_dir, &RunTarget::from(target.as_str()), process_child_ids);
 
                     // Forward both stdout and stderr
                     std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
