@@ -145,7 +145,7 @@ impl TransformAndBounds {
         let corners_self = self.corners();
         let corners_other = other.corners();
 
-        for i in 0..4 {
+        for i in 0..2 {
             let axis = corners_self[i].subtract(corners_self[(i + 1) % 4]).normal();
 
             let self_projections: Vec<_> = corners_self.iter().map(|&p| p.project_onto(axis)).collect();

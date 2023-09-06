@@ -44,6 +44,13 @@ pub fn log_wrapper(msg: &str) {
     console_log!("{}", msg);
 }
 
+
+
+#[wasm_bindgen]
+pub fn wasm_memory() -> JsValue {
+    wasm_bindgen::memory()
+}
+
 #[wasm_bindgen]
 pub struct PaxChassisWeb {
     engine: Rc<RefCell<PaxEngine<WebRenderContext<'static>>>>,
@@ -52,6 +59,10 @@ pub struct PaxChassisWeb {
 
 #[wasm_bindgen]
 impl PaxChassisWeb {
+
+
+
+
     //called from JS, this is essentially `main`
     pub fn new() -> Self {
 
@@ -329,16 +340,57 @@ impl PaxChassisWeb {
 
     }
 
-    pub fn tick(&mut self) -> String {
+    pub fn deallocate(&mut self, slice: MemorySlice) {
+        let layout = std::alloc::Layout::from_size_align(slice.len(), 1).unwrap();
+        unsafe {
+            std::alloc::dealloc(slice.ptr() as *mut u8, layout);
+        }
+    }
+
+    pub fn tick(&mut self) -> MemorySlice {
         let message_queue = self.engine.borrow_mut().tick(&mut self.drawing_contexts);
 
-        //Note that this approach likely carries some CPU overhead, but may be suitable.
-        //See zb lab journal `On robust message-passing to web` May 11 2022
-        serde_json::to_string(&message_queue).unwrap()
+        // Serialize data to a JSON string
+        let json_string = serde_json::to_string(&message_queue).unwrap();
+
+        // Convert the string into bytes
+        let bytes = json_string.as_bytes();
+
+        // Allocate space in the WebAssembly memory
+        let layout = std::alloc::Layout::from_size_align(bytes.len(), 1).unwrap();
+        let ptr = unsafe { std::alloc::alloc(layout) as *mut u8 };
+
+        // Copy the data into the WebAssembly memory
+        unsafe {
+            std::ptr::copy_nonoverlapping(bytes.as_ptr(), ptr, bytes.len());
+        }
+
+        MemorySlice {
+            ptr: ptr as *const u8,
+            len: bytes.len(),
+        }
     }
 
     pub fn generate_location_id(scroller_id: Option<Vec<u64>>, z_index: u32) -> String {
         ZIndex::generate_location_id(scroller_id, z_index)
     }
 
+}
+
+
+#[wasm_bindgen]
+pub struct MemorySlice {
+    ptr: *const u8,
+    len: usize,
+}
+
+#[wasm_bindgen]
+impl MemorySlice {
+    pub fn ptr(&self) -> *const u8 {
+        self.ptr
+    }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
 }
