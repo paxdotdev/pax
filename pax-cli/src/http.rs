@@ -1,5 +1,4 @@
 use std::sync::{Arc, Mutex};
-use rustc_version::version;
 
 pub fn check_for_update(current_version: &str, new_version_info: Arc<Mutex<Option<String>>>) {
     let url = match option_env!("PAX_UPDATE_SERVER") {
