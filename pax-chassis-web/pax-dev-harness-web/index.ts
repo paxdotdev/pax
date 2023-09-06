@@ -1,6 +1,6 @@
 
 // const rust = import('./dist/pax_chassis_web');
-import {PaxChassisWeb} from './dist/pax_chassis_web';
+import {PaxChassisWeb, wasm_memory} from './dist/pax_chassis_web';
 // @ts-ignore
 import snarkdown from 'snarkdown';
 import Stats from 'stats-js';
@@ -26,9 +26,9 @@ let layers: { "native": HTMLDivElement[], "canvas": HTMLCanvasElement[] } = { "n
 let is_mobile_device = false;
 
 
-var stats = new Stats();
-stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
-document.body.appendChild( stats.dom );
+// var stats = new Stats();
+// stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+// document.body.appendChild( stats.dom );
 let canvases = {}
 class Layer {
     readonly canvas: HTMLCanvasElement;
@@ -310,6 +310,7 @@ async function main(wasmMod: typeof import('./dist/pax_chassis_web')) {
 
     let mount = document.querySelector("#" + MOUNT_ID)!;
     baseOcclusionContext = new OcclusionContext(mount, undefined, chassis);
+
 
 
     //Kick off render loop
@@ -622,10 +623,20 @@ function clearCanvases(): void {
     }
 }
 
+// Init-once globals for garbage collector optimization
+let messages : any[];
+let scrollEvent = {
+    "Scroll": {
+        "delta_x": 0,
+        "delta_y": 0,
+    }
+};
+let scrollEventStringified : string = "";
+
 let i = 0;
 function renderLoop (chassis: PaxChassisWeb) {
 
-    stats.begin();
+    // stats.begin();
 
     Object.values(scrollers).forEach(scroller => {
         let currentTop = scroller.container.scrollTop;
@@ -633,20 +644,30 @@ function renderLoop (chassis: PaxChassisWeb) {
         let deltaX = currentLeft - scroller.scrollOffsetX;
         let deltaY = currentTop - scroller.scrollOffsetY;
         if(Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0){
-            let scrollEvent = {
+            scrollEvent = {
                 "Scroll": {
                     "delta_x": deltaX,
                     "delta_y": deltaY,
                 }
             };
-            chassis.interrupt(JSON.stringify(scrollEvent), []);
+            scrollEventStringified = JSON.stringify(scrollEvent);
+            chassis.interrupt(scrollEventStringified, []);
             scroller.scrollOffsetX = currentLeft;
             scroller.scrollOffsetY = currentTop;
         }
     });
-     clearCanvases();
-     let messages : string = chassis.tick();
-     messages = JSON.parse(messages);
+    clearCanvases();
+
+    const memorySlice = chassis.tick();
+    const memory = wasm_memory();
+    const memoryBuffer = new Uint8Array(memory.buffer);
+
+    // Extract the serialized data directly from memory
+    const jsonString = new TextDecoder().decode(memoryBuffer.subarray(memorySlice.ptr(), memorySlice.ptr() + memorySlice.len()));
+
+    // Parse the JSON string
+    messages = JSON.parse(jsonString);
+
      if(!initializedChassis){
          //Handle events on mount
          let mount = document.querySelector("#" + MOUNT_ID)!;
@@ -661,9 +682,10 @@ function renderLoop (chassis: PaxChassisWeb) {
      }
      // @ts-ignore
      processMessages(messages, chassis);
-     messages;
-    stats.end();
-     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
+
+    //necessary manual cleanup
+    chassis.deallocate(memorySlice);
+    requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
 enum TextAlignHorizontal {
