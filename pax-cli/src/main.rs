@@ -1,24 +1,14 @@
-use std::collections::HashMap;
-use std::{fs, thread};
+use std::{fs, process, thread};
 use std::io::Write;
 use std::path::Path;
-use std::str::Matches;
 use std::sync::{Arc, Mutex};
-use std::collections::HashSet;
-use std::process::Termination;
 use std::time::Duration;
 use colored::Colorize;
 use clap::{App, AppSettings, Arg, ArgMatches, crate_version};
 
 use pax_compiler::{RunTarget, RunContext, CreateContext};
-use tokio::sync::mpsc;
-// use signal_hook::{iterator::Signals, signals::SIGINT};
 mod http;
 
-#[cfg(unix)]
-use nix::sys::signal::{self, Signal};
-#[cfg(unix)]
-use nix::unistd::Pid;
 use signal_hook::{iterator::Signals};
 use signal_hook::consts::{SIGINT, SIGTERM};
 
@@ -27,28 +17,25 @@ fn main() -> Result<(), ()> {
 
     let current_version = env!("CARGO_PKG_VERSION");
 
+    
+
     //Shared state to store child processes keyed by static unique string IDs, for cleanup tracking
     let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
-
     // Shared state to store the new version info if available.
     let new_version_info = Arc::new(Mutex::new(None));
 
-
-    let cloned_new_version_info = Arc::clone(&new_version_info);
     // Spawn the check_for_update thread so it runs concurrently.
+    let cloned_new_version_info = Arc::clone(&new_version_info);
     thread::spawn(move || {
         http::check_for_update(current_version, cloned_new_version_info);
     });
 
-    // Create a separate thread to handle signals
-    let mut signals = Signals::new(&[SIGINT]).unwrap();
-
+    // Create a separate thread to handle signals e.g. via CTRL+C
+    let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
     let cloned_version_info = Arc::clone(&new_version_info);
     let cloned_process_child_ids = Arc::clone(&process_child_ids);
-    std::thread::spawn(move || {
+    thread::spawn(move || {
         for _sig in signals.forever() {
-            println!("Received SIGINT!");
-
             perform_cleanup(Arc::clone(&cloned_version_info),Arc::clone(&cloned_process_child_ids));
         }
     });
@@ -146,11 +133,7 @@ fn main() -> Result<(), ()> {
         )
         .get_matches();
 
-
-    perform_nominal_action(matches, Arc::clone(&process_child_ids)).unwrap_or_else(|()|{
-        perform_cleanup(Arc::clone(&new_version_info),Arc::clone(&process_child_ids));
-
-    });
+    let _ = perform_nominal_action(matches, Arc::clone(&process_child_ids));
     perform_cleanup(new_version_info, process_child_ids);
 
     Ok(())
@@ -165,8 +148,8 @@ fn perform_cleanup(new_version_info: Arc<Mutex<Option<String>>>, process_child_i
     //1. kill any running child processes
     while current_count < RETRY_COUNT {
         if let Ok(process_child_ids_lock) = process_child_ids.lock() {
-            process_child_ids_lock.iter().for_each(|mut child_id| {
-               kill_process(*child_id).expect(&format!("Failed to kill process with ID: {}", child_id));
+            process_child_ids_lock.iter().for_each(|child_id| {
+                kill_process(*child_id as u32).expect(&format!("Failed to kill process with ID: {}", child_id));
             });
             break;
         } else {
@@ -194,15 +177,18 @@ fn perform_cleanup(new_version_info: Arc<Mutex<Option<String>>>, process_child_i
             thread::sleep(Duration::from_millis(RETRY_PERIOD_MS));
         }
     }
+
+    process::exit(0);
 }
 
 #[cfg(unix)]
-fn kill_process(pid: u64) -> Result<(), std::io::Error> {
+fn kill_process(pid: u32) -> Result<(), std::io::Error> {
     use std::process::Command;
 
+    // Use the negative PID to refer to the process group
     let output = Command::new("kill")
         .arg("-9") // send SIGKILL
-        .arg(pid.to_string())
+        .arg(format!("-{}", pid))
         .output()?;
 
     if output.status.success() {

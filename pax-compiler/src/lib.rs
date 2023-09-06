@@ -17,15 +17,13 @@ use std::str::FromStr;
 use std::collections::{HashMap, HashSet};
 use std::io::Write;
 use itertools::Itertools;
-use std::process::Stdio;
 
 #[cfg(unix)]
-use std::os::unix::process::CommandExt; // For the .before_exec() method
-
+use std::os::unix::process::CommandExt; // For the .pre_exec() method
 
 use toml_edit::{Item};
 use std::path::{Path, PathBuf};
-use std::process::{Child, Command, Output};
+use std::process::{Command, Output};
 use crate::manifest::{ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition, TypeTable, LiteralBlockDefinition, TypeDefinition};
 use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
 
@@ -118,7 +116,6 @@ fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, host_crat
                 tar.unpack(&dest).expect(&format!("Failed to unpack tarball for {}", pkg));
             }
         }
-
     }
 }
 
@@ -661,13 +658,17 @@ pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) ->
         .arg("--color")
         .arg("always")
         .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped())
-        .before_exec(before_exec_hook);
+        .stderr(std::process::Stdio::piped());
 
-    let mut child = cmd.spawn().expect("failed to spawn child");
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(pre_exec_hook);
+    }
+
+    let child = cmd.spawn().expect("failed to spawn child");
 
     // child.stdin.take().map(drop);
-    let output = wait_with_output(&process_child_ids, "PARSER", child);
+    let output = wait_with_output(&process_child_ids, child);
     output
 }
 
@@ -848,12 +849,16 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
             .arg(should_also_run)
             .arg(output_path_str)
             .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit())
-            .before_exec(before_exec_hook);
+            .stderr(std::process::Stdio::inherit());
 
-        let mut child = cmd.spawn().expect("failed to spawn child");
+        #[cfg(unix)]
+        unsafe {
+            cmd.pre_exec(pre_exec_hook);
+        }
+
+        let child = cmd.spawn().expect("failed to spawn child");
         // child.stdin.take().map(drop);
-        let _output = wait_with_output(&process_child_ids, "CHASSIS WEB BUILD SCRIPT", child);
+        let _output = wait_with_output(&process_child_ids,  child);
 
     } else {
 
@@ -864,13 +869,17 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
             .arg(should_also_run)
             .arg(output_path_str)
             .stdout(std::process::Stdio::inherit())
-            .stderr(if ctx.verbose { std::process::Stdio::inherit() } else {std::process::Stdio::piped()})
-            .before_exec(before_exec_hook);
+            .stderr(if ctx.verbose { std::process::Stdio::inherit() } else {std::process::Stdio::piped()});
+
+        #[cfg(unix)]
+        unsafe {
+            cmd.pre_exec(pre_exec_hook);
+        }
 
 
-        let mut child = cmd.spawn().expect("failed to spawn child");
+        let child = cmd.spawn().expect("failed to spawn child");
         // child.stdin.take().map(drop);
-        let _output = wait_with_output(&process_child_ids, "CHASSIS MACOS BUILD SCRIPT", child);
+        let _output = wait_with_output(&process_child_ids, child);
 
     }
 }
@@ -906,7 +915,6 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
     existing_cargo_toml.insert("patch.crates-io", patch_table);
     fs::write(existing_cargo_toml_path, existing_cargo_toml.to_string().replace("\"patch.crates-io\"", "patch.crates-io") ).unwrap();
 
-    const CHILD_ID : &str ="BUILD_CHASSIS";
     //string together a shell call like the following:
     match target {
         RunTarget::MacOS => {
@@ -917,12 +925,16 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
                 .arg("always")
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit())
-                .before_exec(before_exec_hook);
+                .stderr(std::process::Stdio::inherit());
 
-            let mut child = cmd.spawn().expect("failed to spawn child");
+            #[cfg(unix)]
+            unsafe {
+                cmd.pre_exec(pre_exec_hook);
+            }
+
+            let child = cmd.spawn().expect("failed to spawn child");
             // child.stdin.take().map(drop);
-            let output = wait_with_output(&process_child_ids, CHILD_ID, child);
+            let output = wait_with_output(&process_child_ids, child);
 
             output
         },
@@ -935,12 +947,16 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
                 .arg(chassis_path.join("pax-dev-harness-web").join("dist").to_str().unwrap())
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit())
-                .before_exec(before_exec_hook);
+                .stderr(std::process::Stdio::inherit());
 
-            let mut child = cmd.spawn().expect("failed to spawn child");
+            #[cfg(unix)]
+            unsafe {
+                cmd.pre_exec(pre_exec_hook);
+            }
+
+            let child = cmd.spawn().expect("failed to spawn child");
             // child.stdin.take().map(drop);
-            let output = wait_with_output(&process_child_ids, CHILD_ID, child);
+            let output = wait_with_output(&process_child_ids, child);
 
             output
         }
@@ -950,7 +966,7 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
 
 pub fn perform_create(ctx: &CreateContext) {
     let full_path = Path::new(&ctx.path).join(&ctx.crate_name);
-    fs::create_dir_all(full_path);
+    let _ = fs::create_dir_all(full_path);
 
     // clone template into full_path
 }
@@ -1033,55 +1049,8 @@ impl Ord for NamespaceTrieNode {
     }
 }
 
-// pub struct Command {
-//     pub command: Command,
-//     pub child: Option<std::process::Child>,
-// }
-
-// impl Command {
-//     pub fn new<S: AsRef<std::ffi::OsStr>>(program: S) -> Self {
-//         let mut cmd = Command::new(program);
-//
-//         #[cfg(unix)]
-//         {
-//             cmd.before_exec(|| {
-//                 use nix::unistd::{setsid, setpgid, Pid};
-//                 use nix::sys::signal::{signal, SigHandler, SIGINT, SIGTERM};
-//
-//                 // Create a new session
-//                 // setsid().expect("setsid failed");
-//
-//                 // Set the process group ID to the process ID, effectively creating a new process group
-//                 // setpgid(Pid::from_raw(0), Pid::from_raw(0)).expect("setpgid failed");
-//
-//                 // Reset SIGINT and SIGTERM handlers to their defaults
-//                 unsafe {
-//                     signal(SIGINT, SigHandler::SigDfl).expect("Failed to set default SIGINT handler");
-//                     signal(SIGTERM, SigHandler::SigDfl).expect("Failed to set default SIGTERM handler");
-//                 }
-//
-//                 Ok(())
-//             });
-//         }
-//         #[cfg(windows)]
-//         {
-//             // Any Windows-specific logic (if needed) can be placed here
-//         }
-//
-//         Command { command: cmd, child: None }
-//     }
-//
-//     // You can add more methods to delegate to the inner Command if needed
-//     pub fn arg<S: AsRef<std::ffi::OsStr>>(&mut self, arg: S) -> &mut Command {
-//         self.command.arg(arg)
-//     }
-//
-//     // Add other methods as needed, mirroring Command's API...
-// }
-
 const ERR_ASYNC : &str = "Expected synchronous execution; encountered async execution";
-
-pub fn wait_with_output(process_child_ids: &Arc<Mutex<Vec<u64>>>, id: &str, mut child: std::process::Child) -> std::process::Output {
+pub fn wait_with_output(process_child_ids: &Arc<Mutex<Vec<u64>>>, child: std::process::Child) -> std::process::Output {
     let child_id : u64 = child.id().into();
     process_child_ids.lock().expect(ERR_ASYNC).push(child_id);
     let output = child.wait_with_output().expect("Failed to wait for child process");
@@ -1089,21 +1058,14 @@ pub fn wait_with_output(process_child_ids: &Arc<Mutex<Vec<u64>>>, id: &str, mut 
     output
 }
 
-fn before_exec_hook() -> Result<(), std::io::Error> {
+#[cfg(unix)]
+fn pre_exec_hook() -> Result<(), std::io::Error> {
     // Set a new process group for this command
-    #[cfg(unix)]
     unsafe {
         libc::setpgid(0, 0);
     }
     Ok(())
 }
-
-// RAII-based cleanup on drop
-// impl Drop for Command {
-//     fn drop(&mut self) {
-//         // Cleanup logic here, if necessary.
-//     }
-// }
 
 
 impl NamespaceTrieNode {
