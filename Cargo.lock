@@ -1339,7 +1339,7 @@ dependencies = [
 
 [[package]]
 name = "pax-cartridge"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "pax-core",
  "pax-properties-coproduct",
@@ -1350,7 +1350,7 @@ dependencies = [
 
 [[package]]
 name = "pax-chassis-macos"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "core-graphics",
  "flexbuffers",
@@ -1368,7 +1368,7 @@ dependencies = [
 
 [[package]]
 name = "pax-chassis-web"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
@@ -1387,7 +1387,7 @@ dependencies = [
 
 [[package]]
 name = "pax-cli"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "clap",
  "colored",
@@ -1401,7 +1401,7 @@ dependencies = [
 
 [[package]]
 name = "pax-compiler"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "colored",
  "console_error_panic_hook",
@@ -1434,7 +1434,7 @@ dependencies = [
 
 [[package]]
 name = "pax-core"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -1448,7 +1448,7 @@ dependencies = [
 
 [[package]]
 name = "pax-lang"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "pax-compiler",
  "pax-macro",
@@ -1458,7 +1458,7 @@ dependencies = [
 
 [[package]]
 name = "pax-macro"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "litrs",
  "pest",
@@ -1474,7 +1474,7 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "serde",
  "serde_json",
@@ -1483,14 +1483,14 @@ dependencies = [
 
 [[package]]
 name = "pax-properties-coproduct"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "pax-runtime-api",
 ]
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -1501,7 +1501,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -1515,7 +1515,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std-primitives"
-version = "0.6.11"
+version = "0.6.12"
 dependencies = [
  "kurbo",
  "pax-core",
