@@ -885,6 +885,7 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
 }
 
 pub fn perform_clean(path: &str) {
+
     let path = PathBuf::from(path);
     let pax_dir = path.join(".pax");
 
@@ -1066,7 +1067,6 @@ fn pre_exec_hook() -> Result<(), std::io::Error> {
     }
     Ok(())
 }
-
 
 impl NamespaceTrieNode {
     pub fn insert(&mut self, namespace_string: &str) {
