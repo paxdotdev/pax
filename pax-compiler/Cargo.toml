@@ -1,6 +1,6 @@
 [package]
 name = "pax-compiler"
-version = "0.6.12"
+version = "0.6.13"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -23,8 +23,8 @@ nix = "0.20.2"
 tokio = { version = "1", features = ["full"] }
 reqwest = { version = "0.11.18", features = ["blocking"] }
 tar = "0.4"
-pax-message = {version = "0.6.12", path="../pax-message"}
-pax-runtime-api = {version= "0.6.12", path="../pax-runtime-api"}
+pax-message = {version = "0.6.13", path="../pax-message"}
+pax-runtime-api = {version= "0.6.13", path="../pax-runtime-api"}
 pest = "2.6.0"
 pest_derive = "2.6.0"
 itertools = "0.10.5"
