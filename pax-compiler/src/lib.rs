@@ -87,12 +87,12 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
 // The stable output directory for generated / copied files
 const PAX_DIR_PKG_PATH : &str = "pkg";
 
-fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, host_crate_info: &HostCrateInfo) {
+fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, ctx: &RunContext) {
 
     let dest_pkg_root = pax_dir.join(PAX_DIR_PKG_PATH);
     for pkg in ALL_PKGS {
 
-        if host_crate_info.is_lib_dev_mode {
+        if ctx.libdevmode {
             //Copy all packages from monorepo root on every build.  this allows us to propagate changes
             //to a libdev build without "sticky caches."
             //
@@ -620,9 +620,6 @@ struct HostCrateInfo {
     identifier: String,
     /// for example: `some_crate::pax_reexports`,
     import_prefix: String,
-    /// describes whether we're developing inside pax/pax-example, which is
-    /// used at least to special-case relative paths for compiled projects
-    is_lib_dev_mode: bool,
 }
 
 fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
@@ -631,16 +628,12 @@ fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
 
     let name = existing_cargo_toml["package"]["name"].as_str().unwrap().to_string();
     let identifier = name.replace("-", "_"); //NOTE: perhaps this could be less naive?
-
     let import_prefix = format!("{}::pax_reexports::", &identifier);
-
-    let is_lib_dev_mode = cargo_toml_path.to_str().unwrap().ends_with("pax-example/Cargo.toml");
 
     HostCrateInfo {
         name,
         identifier,
         import_prefix,
-        is_lib_dev_mode,
     }
 }
 
@@ -757,7 +750,7 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
     expressions::compile_all_expressions(&mut manifest);
 
     println!("{} 🦀 Generating Rust", &PAX_BADGE);
-    clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &host_crate_info);
+    clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &ctx);
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
     generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
