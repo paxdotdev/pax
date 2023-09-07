@@ -965,11 +965,34 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
 
 }
 
+
+
+static PAX_CREATE_TEMPLATE : Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/pax-create-template");
+const PAX_CREATE_TEMPLATE_DIR_NAME : &str = "pax-create-template";
+
 pub fn perform_create(ctx: &CreateContext) {
     let full_path = Path::new(&ctx.path).join(&ctx.crate_name);
     let _ = fs::create_dir_all(full_path);
 
     // clone template into full_path
+    if ctx.libdevmode {
+        //file src is local fs
+        let pax_compiler_cargo_root = Path::from(env!("CARGO_MANIFEST_DIR"));
+        let template_src = pax_compiler_cargo_root.join(PAX_CREATE_TEMPLATE_DIR_NAME);
+
+        //extract template_src recursively into path target
+
+    } else {
+        //file src is include_dir
+
+    }
+
+    //patch Cargo.toml library versions — probably do this after cloning, in-place on FS
+    // (alternative would be to treat libdev/prod file sources as templates and to
+    //  expand templates before writing to FS, but this feels overwrought.)
+    
+
+
 }
 
 pub struct CreateContext {

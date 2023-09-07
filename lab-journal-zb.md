@@ -3187,13 +3187,32 @@ Update: the above seemed to work satisfactorily.
       5. Maintain template project inside monorepo — `pax-create-template` ?
       6. either fs-copy this template project or pull tarball from crates.io (don't include_dir(../), as this breaks crates.io builds)
 
-[ ] embedded template project
-  [ ] semver management, e.g. injecting current pax lib versions
-    - Consider ability to specify explicit past versions?
-  [x] ensure that crates.io stand-alone build of pax-cli / pax-compiler will have access to these files (no ../ or monorepo paths pointing out of crate, for example)
-  [ ] build out livdev vs. prod mode
-    [ ] libdev copies a live copy of template, to enable iterative refinement
-    
+[ ] Unpack template project
+    [ ] improve args & ergonomics - namely path & name
+        Consider CRA's NUX — note that "path" and "name" are the same thing
+        > npx create-react-app my-app
+        > cd my-app
+        > npm start
+        Consider also cargo's NUX:
+        > cargo new ../nested/path
+        >    Created binary (application) `../nested/path` package
+        Seems like we should just accept a single unnamed arg and treat it as both path and name.
+        Handle cases of already-existing paths with an error:  `error: destination `/Users/zack/code/scrap/../nested/path` already exists | Use `cargo init` to initialize the directory`
+        Could follow on with a pax init that patches the existing project, but this is a bit hairier and doesn't feel MVP
+    [ ] inject current pax lib versions into Cargo.toml
+        - Decide for libdev mode: do we want to refer to monorepo packages or crates.io packages?
+        (easiest way to start is crates.io packages)
+        - Consider ability to specify explicit (past) versions?
+    [x] ensure that crates.io stand-alone build of pax-cli / pax-compiler will have access to these files (no ../ or monorepo paths pointing out of crate, for example)
+    [ ] build out libdev vs. prod mode
+        [ ] libdev copies a live fs copy of template, to enable iterative refinement
+        [ ] prod mode uses include_dir!
+    [ ] iterate & refine the starter template — probably base it on our website
+    [ ] Test e2e & document pain-points / steps&deps:
+        [ ] macos
+        [ ] linux
+        [ ] windows
+    [ ] Update monorepo README with instructions to get started with CPA, as well as libdev instructions
 [x] Update checking
     [x] Async, during any CLI command, determine whether a new version of pax-cli is available
         [x] Check remotely via a server we control, for ability to guarantee stability (keep registry of published versions remotely, or check upstream to crates.io, or both)
@@ -3206,4 +3225,6 @@ Update: the above seemed to work satisfactorily.
         [x] Seek to make shell scripts compatible with this async mechanism, too
     [x] libdev checks a locally running server (http://localhost:9000) vs. prod checks a live server (https://update.pax.dev)
         - Made it an explicit env option, PAX_UPDATE_SERVER
+    [x] reasonably formatted banner
+    [x] offline robustness
     
