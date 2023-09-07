@@ -51,13 +51,6 @@ fn main() -> Result<(), ()> {
         .takes_value(false);
 
     #[allow(non_snake_case)]
-    let ARG_NAME = Arg::with_name("name")
-        .long("name")
-        .takes_value(true)
-        .required(true)
-        .help("Name for the new Pax project.  Will be used in multiple places, including the name of the crate for Cargo and the name of the directory where the project is generated.");
-
-    #[allow(non_snake_case)]
     let ARG_TARGET = Arg::with_name("target")
         .short("t")
         .long("target")
@@ -107,10 +100,12 @@ fn main() -> Result<(), ()> {
         .subcommand(
             App::new("create")
                 .alias("new")
-                .arg( ARG_PATH.clone() )
-                .arg( ARG_LIBDEV.clone() )
-                .arg(ARG_NAME.clone() )
-                .about("Creates a new Pax project in a new directory with the specified `name`.  If a `path` is specified, the new directory `name` will be appended to the `path`.")
+                .alias("new")
+                .arg(Arg::with_name("path")
+                    .help("File system path where the new project should be created. If not provided with --path, it should directly follow 'create'")
+                    .takes_value(true)
+                    .index(1))  // Positional arg, `pax create positional_arg_here`
+                .arg( ARG_LIBDEV.clone())
         )
         .subcommand(
             App::new("libdev")
@@ -135,11 +130,95 @@ fn main() -> Result<(), ()> {
     Ok(())
 }
 
+fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<Vec<u64>>>) -> Result<(), ()> {
+    match matches.subcommand() {
+        ("run", Some(args)) => {
+            let target = args.value_of("target").unwrap().to_lowercase();
+            let path = args.value_of("path").unwrap().to_string(); //default value "."
+            let verbose = args.is_present("verbose");
+            let libdevmode = args.is_present("libdev");
+
+            pax_compiler::perform_build(&RunContext {
+                target: RunTarget::from(target.as_str()),
+                path,
+                verbose,
+                should_also_run: true,
+                libdevmode,
+                process_child_ids,
+            })
+        },
+        ("build", Some(args)) => {
+            let target = args.value_of("target").unwrap().to_lowercase();
+            let path = args.value_of("path").unwrap().to_string(); //default value "."
+            let verbose = args.is_present("verbose");
+            let libdevmode = args.is_present("libdev");
+
+            pax_compiler::perform_build(&RunContext {
+                target: RunTarget::from(target.as_str()),
+                path,
+                should_also_run: false,
+                verbose,
+                libdevmode,
+                process_child_ids,
+            })
+        },
+        ("clean", Some(args)) => {
+            println!("🧹 Cleaning cached & temporary files...");
+            let path = args.value_of("path").unwrap().to_string(); //default value "."
+
+            pax_compiler::perform_clean(&path);
+            thread::sleep(Duration::from_millis(1000)); //Sleep for 1s to let update check finish
+
+            println!("Done.");
+            Ok(())
+        },
+        ("create", Some(args)) => {
+            let path = args.value_of("path").unwrap().to_string(); //default value "."
+            let libdevmode = args.is_present("libdev");
+            let version = crate_version!().to_string(); // Note: this could also be parameterized, but an easy default is to clamp to the CLI version
+
+            pax_compiler::perform_create(&CreateContext {
+                path,
+                libdevmode,
+                version,
+            });
+            Ok(())
+        },
+        ("libdev", Some(args)) => {
+            match args.subcommand() {
+                ("parse", Some(args)) => {
+                    let path = args.value_of("path").unwrap().to_string(); //default value "."
+                    let output = &pax_compiler::run_parser_binary(&path, process_child_ids);
+
+                    // Forward both stdout and stderr
+                    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
+                    std::io::stdout().write_all(output.stdout.as_slice()).unwrap();
+
+                    Ok(())
+                },
+                ("build-chassis", Some(args)) => {
+                    let target = args.value_of("target").unwrap().to_lowercase();
+                    let path = args.value_of("path").unwrap().to_string(); //default value "."
+
+                    let working_path = Path::new(&path).join(".pax");
+                    let pax_dir = fs::canonicalize(working_path).unwrap();
+
+                    let output = pax_compiler::build_chassis_with_cartridge(&pax_dir, &RunTarget::from(target.as_str()), process_child_ids);
+
+                    // Forward both stdout and stderr
+                    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
+                    std::io::stdout().write_all(output.stdout.as_slice()).unwrap();
+
+                    Ok(())
+                },
+                _ => { unreachable!() }
+            }
+        },
+        _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
+    }
+}
 
 fn perform_cleanup(new_version_info: Arc<Mutex<Option<String>>>, process_child_ids: Arc<Mutex<Vec<u64>>> ) {
-    const RETRY_COUNT : u8 = 3;
-    const RETRY_PERIOD_MS : u64 = 250;
-    let mut current_count : u8 = 0;
 
     //1. kill any running child processes
     if let Ok(process_child_ids_lock) = process_child_ids.lock() {
@@ -225,96 +304,5 @@ fn kill_process(pid: u64) -> Result<(), std::io::Error> {
         Ok(())
     } else {
         Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to kill process"))
-    }
-}
-
-
-fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<Vec<u64>>>) -> Result<(), ()> {
-    match matches.subcommand() {
-        ("run", Some(args)) => {
-            let target = args.value_of("target").unwrap().to_lowercase();
-            let path = args.value_of("path").unwrap().to_string(); //default value "."
-            let verbose = args.is_present("verbose");
-            let libdevmode = args.is_present("libdev");
-
-            pax_compiler::perform_build(&RunContext {
-                target: RunTarget::from(target.as_str()),
-                path,
-                verbose,
-                should_also_run: true,
-                libdevmode,
-                process_child_ids,
-            })
-        },
-        ("build", Some(args)) => {
-            let target = args.value_of("target").unwrap().to_lowercase();
-            let path = args.value_of("path").unwrap().to_string(); //default value "."
-            let verbose = args.is_present("verbose");
-            let libdevmode = args.is_present("libdev");
-
-            pax_compiler::perform_build(&RunContext {
-                target: RunTarget::from(target.as_str()),
-                path,
-                should_also_run: false,
-                verbose,
-                libdevmode,
-                process_child_ids,
-            })
-        },
-        ("clean", Some(args)) => {
-            println!("🧹 Cleaning cached & temporary files...");
-            let path = args.value_of("path").unwrap().to_string(); //default value "."
-
-            pax_compiler::perform_clean(&path);
-            thread::sleep(Duration::from_millis(1000)); //Sleep for 1s to let update check finish
-
-            println!("Done.");
-            Ok(())
-        },
-        ("create", Some(args)) => {
-            let path = args.value_of("path").unwrap().to_string(); //default value "."
-            let name = args.value_of("name").unwrap().to_string(); //default value "."
-            let libdevmode = args.is_present("libdev");
-            let version = crate_version!().to_string(); // Note: this could also be parameterized, but an easy default is to clamp to the CLI version
-
-            pax_compiler::perform_create(&CreateContext {
-                crate_name: name,
-                path,
-                libdevmode,
-                version,
-            });
-            Ok(())
-        },
-        ("libdev", Some(args)) => {
-            match args.subcommand() {
-                ("parse", Some(args)) => {
-                    let path = args.value_of("path").unwrap().to_string(); //default value "."
-                    let output = &pax_compiler::run_parser_binary(&path, process_child_ids);
-
-                    // Forward both stdout and stderr
-                    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
-                    std::io::stdout().write_all(output.stdout.as_slice()).unwrap();
-
-                    Ok(())
-                },
-                ("build-chassis", Some(args)) => {
-                    let target = args.value_of("target").unwrap().to_lowercase();
-                    let path = args.value_of("path").unwrap().to_string(); //default value "."
-
-                    let working_path = Path::new(&path).join(".pax");
-                    let pax_dir = fs::canonicalize(working_path).unwrap();
-
-                    let output = pax_compiler::build_chassis_with_cartridge(&pax_dir, &RunTarget::from(target.as_str()), process_child_ids);
-
-                    // Forward both stdout and stderr
-                    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
-                    std::io::stdout().write_all(output.stdout.as_slice()).unwrap();
-
-                    Ok(())
-                },
-                _ => { unreachable!() }
-            }
-        },
-        _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }
 }

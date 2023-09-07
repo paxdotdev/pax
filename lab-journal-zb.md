@@ -3204,15 +3204,11 @@ Update: the above seemed to work satisfactorily.
         (easiest way to start is crates.io packages)
         - Consider ability to specify explicit (past) versions?
     [x] ensure that crates.io stand-alone build of pax-cli / pax-compiler will have access to these files (no ../ or monorepo paths pointing out of crate, for example)
-    [ ] build out libdev vs. prod mode
-        [ ] libdev copies a live fs copy of template, to enable iterative refinement
-        [ ] prod mode uses include_dir!
+    [x] build out libdev vs. prod mode
+        [x] libdev copies a live fs copy of template, to enable iterative refinement
+        [x] prod mode uses include_dir!
     [ ] iterate & refine the starter template — probably base it on our website
-    [ ] Test e2e & document pain-points / steps&deps:
-        [ ] macos
-        [ ] linux
-        [ ] windows
-    [ ] Update monorepo README with instructions to get started with CPA, as well as libdev instructions
+        [ ] create a helper script in the monorepo (scripts/create-and-run-template.sh)
 [x] Update checking
     [x] Async, during any CLI command, determine whether a new version of pax-cli is available
         [x] Check remotely via a server we control, for ability to guarantee stability (keep registry of published versions remotely, or check upstream to crates.io, or both)
@@ -3227,4 +3223,28 @@ Update: the above seemed to work satisfactorily.
         - Made it an explicit env option, PAX_UPDATE_SERVER
     [x] reasonably formatted banner
     [x] offline robustness
-    
+[ ] Packaging & installation flow
+    [ ] create an installer script — can't use `cargo install` due to our need for scripting
+        [ ] macOS + *nix
+        [ ] Windows
+[ ] Test e2e & document pain-points / steps&deps:
+    [ ] macos
+    [ ] linux
+    [ ] windows
+[ ] Update monorepo README with instructions to get started with CPA, as well as libdev instructions
+
+
+Looks like `cargo install` doesn't give us post-install hooks, e.g. to modify PATH or perform other related tasks.
+We want this ability at least to alias `pax-cli` to `pax`
+
+Note that `pax` is a system binary available on macOS at `/bin/pax` and likely in many *nix installs —
+This appears to have been used for the macOS installer packages until about 15 years ago, deprecated with the release of Mac OSX Leopard (10.5)
+See: https://en.wikipedia.org/wiki/Xar_(archiver), https://en.wikipedia.org/wiki/Mac_OS_X_Leopard, https://en.wikipedia.org/wiki/List_of_macOS_built-in_apps#Installer
+
+It's very possible that `pax` is still in use on some machines, though for anyone who wants to use (our) pax, it feels
+acceptable to usurp `pax` in PATH, especially with documentation & and path back out.
+
+Cautiously, let's proceed with aliasing / overriding `pax` in the system PATH, with the recommendation that
+users of the legacy `pax` fully qualify its usage `/bin/pax`, or otherwise alias / rename our pax binary to something like `pax-cli`
+
+
