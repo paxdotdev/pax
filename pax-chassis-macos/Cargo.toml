@@ -28,3 +28,8 @@ mut_static = "5.0.0"
 core-graphics = "0.22.3"
 serde = "1.0.159"
 flexbuffers = "2.0.0"
+
+
+# The following empty [workspace] directive is a workaround to satisfy
+# a cargo workspace bug, as documented: https://github.com/rust-lang/cargo/issues/6745
+[workspace]

@@ -11,7 +11,7 @@ use manifest::PaxManifest;
 use rust_format::{Formatter};
 
 use std::fs;
-
+use fs_extra::dir::{self, CopyOptions};
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -978,13 +978,15 @@ pub fn perform_create(ctx: &CreateContext) {
         let pax_compiler_cargo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let template_src = pax_compiler_cargo_root.join(PAX_CREATE_TEMPLATE_DIR_NAME);
 
+        let mut options = CopyOptions::new();
+        options.overwrite = true;
+
         for entry in std::fs::read_dir(&template_src).expect("Failed to read template directory") {
-            let entry = entry.expect("Failed to read entry");
-            let dest_path = full_path.join(entry.path().strip_prefix(&template_src).expect("Failed to strip prefix"));
-            if entry.path().is_dir() {
-                fs::create_dir_all(&dest_path).expect("Failed to create directories");
+            let entry_path = entry.expect("Failed to read entry").path();
+            if entry_path.is_dir() {
+                dir::copy(&entry_path, &full_path, &options).expect("Failed to copy directory");
             } else {
-                fs::copy(entry.path(), dest_path).expect("Failed to copy file");
+                fs::copy(&entry_path, full_path.join(entry_path.file_name().unwrap())).expect("Failed to copy file");
             }
         }
     } else {
@@ -996,6 +998,7 @@ pub fn perform_create(ctx: &CreateContext) {
     let cargo_template_path = full_path.join("Cargo.toml.template");
     let extracted_cargo_toml_path = full_path.join("Cargo.toml");
     let _ = fs::copy(&cargo_template_path, &extracted_cargo_toml_path);
+    let _ = fs::remove_file(&cargo_template_path);
 
     let crate_name = full_path.file_name().unwrap().to_str().unwrap().to_string();
 
