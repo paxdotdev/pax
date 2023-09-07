@@ -1305,7 +1305,7 @@ dependencies = [
 
 [[package]]
 name = "pax-cli"
-version = "0.6.16"
+version = "0.6.17"
 dependencies = [
  "clap",
  "colored",
@@ -1319,7 +1319,7 @@ dependencies = [
 
 [[package]]
 name = "pax-compiler"
-version = "0.6.16"
+version = "0.6.17"
 dependencies = [
  "colored",
  "console_error_panic_hook",
@@ -1353,7 +1353,7 @@ dependencies = [
 
 [[package]]
 name = "pax-core"
-version = "0.6.16"
+version = "0.6.17"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -1367,7 +1367,7 @@ dependencies = [
 
 [[package]]
 name = "pax-lang"
-version = "0.6.16"
+version = "0.6.17"
 dependencies = [
  "pax-compiler",
  "pax-macro",
@@ -1377,7 +1377,7 @@ dependencies = [
 
 [[package]]
 name = "pax-macro"
-version = "0.6.16"
+version = "0.6.17"
 dependencies = [
  "litrs",
  "pest",
@@ -1393,7 +1393,7 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.6.16"
+version = "0.6.17"
 dependencies = [
  "serde",
  "serde_json",
@@ -1402,14 +1402,14 @@ dependencies = [
 
 [[package]]
 name = "pax-properties-coproduct"
-version = "0.6.16"
+version = "0.6.17"
 dependencies = [
  "pax-runtime-api",
 ]
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.6.16"
+version = "0.6.17"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -1420,7 +1420,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std"
-version = "0.6.16"
+version = "0.6.17"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -1434,7 +1434,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std-primitives"
-version = "0.6.16"
+version = "0.6.17"
 dependencies = [
  "kurbo",
  "pax-core",
