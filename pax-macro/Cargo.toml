@@ -1,6 +1,6 @@
 [package]
 name = "pax-macro"
-version = "0.6.14"
+version = "0.6.15"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
