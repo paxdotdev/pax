@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 import tomlkit
+import time
 from collections import defaultdict
 
 if len(sys.argv) != 2:
@@ -112,9 +113,12 @@ for root in root_packages:
         if elem not in published:
             # Run `cargo publish` within the current package directory
             subprocess.run(["cargo", "publish", "--no-verify"], cwd=os.path.join(os.getcwd(), elem), check=True)
-
             # Mark this package as published
             published.add(elem)
+            # Wait one minute, to satisfy crates.io's throttling mechanism
+            time.sleep(60)
+
+
 
 # Build for macos in order to update Cargo.lock
 subprocess.run(['cargo', 'build'])
