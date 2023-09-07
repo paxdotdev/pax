@@ -1,6 +1,6 @@
 [package]
-name = "pax-create-template"
-version = "0.1.0"
+name = "CRATE_NAME"
+version = "VERSION_PLACEHOLDER"
 edition = "2021"
 
 [dependencies]

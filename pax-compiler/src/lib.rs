@@ -1008,32 +1008,18 @@ pub fn perform_create(ctx: &CreateContext) {
     let crate_name = full_path.file_name().unwrap().to_str().unwrap().to_string();
 
     // Read the Cargo.toml
-    let cargo_contents = fs::read_to_string(&extracted_cargo_toml_path).expect("Failed to read Cargo.toml");
+    let mut cargo_contents = fs::read_to_string(&extracted_cargo_toml_path).expect("Failed to read Cargo.toml");
 
-    // Parse the file using toml_edit
-    let mut doc = cargo_contents.parse::<toml_edit::Document>().expect("Failed to parse Cargo.toml");
+    // Replace the version placeholder for all pax-* dependencies
+    let version_replacer = format!("{}", ctx.version);
+    cargo_contents = cargo_contents.replace("VERSION_PLACEHOLDER", &version_replacer);
 
-    // Update the crate name
-    if let Some(package) = doc.as_table_mut().get_mut("package") {
-        package.as_table_mut()
-            .expect("Malformed template Cargo.toml is missing `package`.")
-            .insert("name", toml_edit::value(crate_name));
-    }
-
-    // Update pax-* dependencies version
-    if let Some(table) = doc.as_table_mut().entry("dependencies").or_insert_with(toml_edit::table).as_table_mut() {
-        for (key, value) in table.iter_mut() {
-            if key.starts_with("pax-") {
-                if let toml_edit::Item::Value(ref mut existing_value) = *value {
-                    *existing_value = toml_edit::Value::from(ctx.version.clone());
-                }
-            }
-        }
-    }
+    // Replace the crate name
+    let crate_name_replacer = format!("{}", crate_name);
+    cargo_contents = cargo_contents.replace("CRATE_NAME", &crate_name_replacer);
 
     // Write the modified Cargo.toml back
-    let modified_cargo_contents = doc.to_string();
-    fs::write(&extracted_cargo_toml_path, modified_cargo_contents).expect("Failed to write modified Cargo.toml");
+    fs::write(&extracted_cargo_toml_path, cargo_contents).expect("Failed to write modified Cargo.toml");
 
     println!("\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax run --target=web`", full_path.to_str().unwrap(), full_path.to_str().unwrap());
 }
