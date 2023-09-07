@@ -3,8 +3,6 @@
 members = [
     "pax-lang",
     "pax-core",
-    "pax-chassis-web",
-    "pax-chassis-macos",
     "pax-macro",
     "pax-message",
     "pax-compiler",

@@ -3188,7 +3188,7 @@ Update: the above seemed to work satisfactorily.
       6. either fs-copy this template project or pull tarball from crates.io (don't include_dir(../), as this breaks crates.io builds)
 
 [ ] Unpack template project
-    [ ] improve args & ergonomics - namely path & name
+    [x] improve args & ergonomics - namely path & name
         Consider CRA's NUX — note that "path" and "name" are the same thing
         > npx create-react-app my-app
         > cd my-app
@@ -3199,7 +3199,7 @@ Update: the above seemed to work satisfactorily.
         Seems like we should just accept a single unnamed arg and treat it as both path and name.
         Handle cases of already-existing paths with an error:  `error: destination `/Users/zack/code/scrap/../nested/path` already exists | Use `cargo init` to initialize the directory`
         Could follow on with a pax init that patches the existing project, but this is a bit hairier and doesn't feel MVP
-    [ ] inject current pax lib versions into Cargo.toml
+    [x] inject current pax lib versions into Cargo.toml
         - Decide for libdev mode: do we want to refer to monorepo packages or crates.io packages?
         (easiest way to start is crates.io packages)
         - Consider ability to specify explicit (past) versions?
@@ -3208,7 +3208,7 @@ Update: the above seemed to work satisfactorily.
         [x] libdev copies a live fs copy of template, to enable iterative refinement
         [x] prod mode uses include_dir!
     [ ] iterate & refine the starter template — probably base it on our website
-        [ ] create a helper script in the monorepo (scripts/create-and-run-template.sh)
+        [x] create a helper script in the monorepo (scripts/create-and-run-template.sh)
 [x] Update checking
     [x] Async, during any CLI command, determine whether a new version of pax-cli is available
         [x] Check remotely via a server we control, for ability to guarantee stability (keep registry of published versions remotely, or check upstream to crates.io, or both)
