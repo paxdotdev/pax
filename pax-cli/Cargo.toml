@@ -1,21 +1,18 @@
 [package]
 name = "pax-cli"
-version = "0.6.13"
+version = "0.6.14"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Command line interface tool for developing, packaging, and managing Pax projects"
-include = [
-    "pax-create-template/**/*"
-]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 clap = "2.33.3"
-pax-compiler = {path = "../pax-compiler", version = "0.6.13"}
+pax-compiler = {path = "../pax-compiler", version = "0.6.14"}
 rustc_version = "0.4.0"
 tokio = { version = "1", features = ["full"] }
 colored = "2.0.0"
