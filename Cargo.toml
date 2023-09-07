@@ -22,6 +22,7 @@ exclude = [
     "pax-example/.pax/chassis/MacOS",
     "pax-example/.pax/chassis/Web",
     "pax-chassis-macos/pax-dev-harness-macos",
+    "pax-create-sandbox",
 ]
 
 [profile.release]

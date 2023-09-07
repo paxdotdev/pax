@@ -10,7 +10,8 @@ pub mod expressions;
 use manifest::PaxManifest;
 use rust_format::{Formatter};
 
-use std::{fs};
+use std::fs;
+
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -971,32 +972,73 @@ static PAX_CREATE_TEMPLATE : Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/pax-cre
 const PAX_CREATE_TEMPLATE_DIR_NAME : &str = "pax-create-template";
 
 pub fn perform_create(ctx: &CreateContext) {
-    let full_path = Path::new(&ctx.path).join(&ctx.crate_name);
-    let _ = fs::create_dir_all(full_path);
+    let full_path = Path::new(&ctx.path);
+
+    // Abort if directory already exists
+    if full_path.exists() {
+        panic!("Error: destination `{:?}` already exists", full_path);
+    }
+    let _ = fs::create_dir_all(&full_path);
 
     // clone template into full_path
     if ctx.libdevmode {
-        //file src is local fs
-        let pax_compiler_cargo_root = Path::from(env!("CARGO_MANIFEST_DIR"));
+        //For libdevmode, we copy our monorepo @/pax-compiler/pax-create-template directory
+        //to the target directly.  This enables iterating on pax-create-template during libdev
+        //without the sticky caches associated with `include_dir`
+        let pax_compiler_cargo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let template_src = pax_compiler_cargo_root.join(PAX_CREATE_TEMPLATE_DIR_NAME);
 
-        //extract template_src recursively into path target
-
+        for entry in std::fs::read_dir(&template_src).expect("Failed to read template directory") {
+            let entry = entry.expect("Failed to read entry");
+            let dest_path = full_path.join(entry.path().strip_prefix(&template_src).expect("Failed to strip prefix"));
+            if entry.path().is_dir() {
+                fs::create_dir_all(&dest_path).expect("Failed to create directories");
+            } else {
+                fs::copy(entry.path(), dest_path).expect("Failed to copy file");
+            }
+        }
     } else {
-        //file src is include_dir
-
+        // File src is include_dir — recursively extract files from include_dir into full_path
+        PAX_CREATE_TEMPLATE.extract(&full_path).expect("Failed to extract files");
     }
 
-    //patch Cargo.toml library versions — probably do this after cloning, in-place on FS
-    // (alternative would be to treat libdev/prod file sources as templates and to
-    //  expand templates before writing to FS, but this feels overwrought.)
-    
+    //Patch Cargo.toml
 
+    let extracted_cargo_toml_path = full_path.join("Cargo.toml");
+    let crate_name = full_path.file_name().unwrap().to_str().unwrap().to_string();
 
+    // Read the Cargo.toml
+    let cargo_contents = fs::read_to_string(&extracted_cargo_toml_path).expect("Failed to read Cargo.toml");
+
+    // Parse the file using toml_edit
+    let mut doc = cargo_contents.parse::<toml_edit::Document>().expect("Failed to parse Cargo.toml");
+
+    // Update the crate name
+    if let Some(package) = doc.as_table_mut().get_mut("package") {
+        package.as_table_mut()
+            .expect("Malformed template Cargo.toml is missing `package`.")
+            .insert("name", toml_edit::value(crate_name));
+    }
+
+    // Update pax-* dependencies version
+    if let Some(table) = doc.as_table_mut().entry("dependencies").or_insert_with(toml_edit::table).as_table_mut() {
+        for (key, value) in table.iter_mut() {
+            if key.starts_with("pax-") {
+                if let toml_edit::Item::Value(ref mut existing_value) = *value {
+                    *existing_value = toml_edit::Value::from(ctx.version.clone());
+                }
+            }
+        }
+    }
+
+    // Write the modified Cargo.toml back
+    let modified_cargo_contents = doc.to_string();
+    fs::write(&extracted_cargo_toml_path, modified_cargo_contents).expect("Failed to write modified Cargo.toml");
+
+    println!("\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax run --target=web`", full_path.to_str().unwrap(), full_path.to_str().unwrap());
 }
 
 pub struct CreateContext {
-    pub crate_name: String,
     pub path: String,
     pub libdevmode: bool,
     pub version: String,
