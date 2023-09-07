@@ -142,69 +142,52 @@ fn perform_cleanup(new_version_info: Arc<Mutex<Option<String>>>, process_child_i
     let mut current_count : u8 = 0;
 
     //1. kill any running child processes
-    while current_count < RETRY_COUNT {
-        if let Ok(process_child_ids_lock) = process_child_ids.lock() {
-            process_child_ids_lock.iter().for_each(|child_id| {
-                kill_process(*child_id as u32).expect(&format!("Failed to kill process with ID: {}", child_id));
-            });
-            break;
-        } else {
-            current_count = current_count + 1;
-            thread::sleep(Duration::from_millis(RETRY_PERIOD_MS));
-        }
+    if let Ok(process_child_ids_lock) = process_child_ids.lock() {
+        process_child_ids_lock.iter().for_each(|child_id| {
+            kill_process(*child_id as u32).expect(&format!("Failed to kill process with ID: {}", child_id));
+        });
     }
 
     //2. print update message if appropriate
-    let mut current_count : u8 = 0;
-    while current_count < RETRY_COUNT {
-        if let Ok(new_version_lock) = new_version_info.lock() {
-            if let Some(new_version) = new_version_lock.as_ref() {
-                if new_version == "" {
-                    //Perform our retry loop even if the mutex contains an empty string — in case a short running command
-                    //hasn't yet had a chance to perform a round trip with the update server.
-                    current_count = current_count + 1;
-                    thread::sleep(Duration::from_millis(RETRY_PERIOD_MS));
-                } else {
-                    const TOTAL_LENGTH : usize = 60;
-                    let stars_line: ColoredString = "*".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
-                    let empty_line: ColoredString = " ".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
+    if let Ok(new_version_lock) = new_version_info.lock() {
+        if let Some(new_version) = new_version_lock.as_ref() {
+            if new_version != "" {
+                //Print our banner if we have a concrete value stored in the new version mutex
+                const TOTAL_LENGTH : usize = 60;
+                let stars_line: ColoredString = "*".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
+                let empty_line: ColoredString = " ".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
 
-                    let new_version_static = "  A new version of the Pax CLI is available: ";
-                    let new_version_formatted = format!("{}{}", new_version_static, new_version);
-                    let new_version_line: ColoredString = format!("{: <width$}", new_version_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black().bold();
+                let new_version_static = "  A new version of the Pax CLI is available: ";
+                let new_version_formatted = format!("{}{}", new_version_static, new_version);
+                let new_version_line: ColoredString = format!("{: <width$}", new_version_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black().bold();
 
-                    let current_version = env!("CARGO_PKG_VERSION");
-                    let current_version_static = "  Currently installed version: ";
-                    let current_version_formatted = format!("{}{}", current_version_static, current_version);
-                    let current_version_line = format!("{: <width$}", current_version_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black();
+                let current_version = env!("CARGO_PKG_VERSION");
+                let current_version_static = "  Currently installed version: ";
+                let current_version_formatted = format!("{}{}", current_version_static, current_version);
+                let current_version_line = format!("{: <width$}", current_version_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black();
 
-                    let update_instructions_static = "To update, run: ";
-                    let lpad = (TOTAL_LENGTH - update_instructions_static.len()) / 2;
-                    let lpad_spaces = " ".repeat(lpad);
-                    let update_formatted = format!("{}{}", lpad_spaces, update_instructions_static);
-                    let update_instructions_line = format!("{: <width$}", update_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black().bold();
+                let update_instructions_static = "To update, run: ";
+                let lpad = (TOTAL_LENGTH - update_instructions_static.len()) / 2;
+                let lpad_spaces = " ".repeat(lpad);
+                let update_formatted = format!("{}{}", lpad_spaces, update_instructions_static);
+                let update_instructions_line = format!("{: <width$}", update_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black().bold();
 
-                    let install_command_static = "cargo install --force pax-cli";
-                    let lpad = (TOTAL_LENGTH - install_command_static.len()) / 2;
-                    let lpad_spaces = " ".repeat(lpad);
-                    let update_line_2_formatted = format!("{}{}", lpad_spaces, install_command_static);
-                    let update_line_2 = format!("{: <width$}", update_line_2_formatted, width=TOTAL_LENGTH).bright_black().on_bright_white().bold();
+                let install_command_static = "cargo install --force pax-cli";
+                let lpad = (TOTAL_LENGTH - install_command_static.len()) / 2;
+                let lpad_spaces = " ".repeat(lpad);
+                let update_line_2_formatted = format!("{}{}", lpad_spaces, install_command_static);
+                let update_line_2 = format!("{: <width$}", update_line_2_formatted, width=TOTAL_LENGTH).bright_black().on_bright_white().bold();
 
-                    println!();
-                    println!("{}", &stars_line);
-                    println!("{}", new_version_line);
-                    println!("{}", current_version_line);
-                    println!("{}", &empty_line);
-                    println!("{}", update_instructions_line);
-                    println!("{}", update_line_2);
-                    println!("{}", &stars_line);
-                    println!();
-                    break;
-                }
+                println!();
+                println!("{}", &stars_line);
+                println!("{}", new_version_line);
+                println!("{}", current_version_line);
+                println!("{}", &empty_line);
+                println!("{}", update_instructions_line);
+                println!("{}", update_line_2);
+                println!("{}", &stars_line);
+                println!();
             }
-        } else {
-            current_count = current_count + 1;
-            thread::sleep(Duration::from_millis(RETRY_PERIOD_MS));
         }
     }
 
@@ -279,9 +262,13 @@ fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<
             })
         },
         ("clean", Some(args)) => {
+            println!("🧹 Cleaning cached & temporary files...");
             let path = args.value_of("path").unwrap().to_string(); //default value "."
 
             pax_compiler::perform_clean(&path);
+            thread::sleep(Duration::from_millis(1000)); //Sleep for 1s to let update check finish
+
+            println!("Done.");
             Ok(())
         },
         ("create", Some(args)) => {
