@@ -956,10 +956,7 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
             output
         }
     }
-
 }
-
-
 
 static PAX_CREATE_TEMPLATE : Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/pax-create-template");
 const PAX_CREATE_TEMPLATE_DIR_NAME : &str = "pax-create-template";
@@ -996,23 +993,72 @@ pub fn perform_create(ctx: &CreateContext) {
     }
 
     //Patch Cargo.toml
-
+    let cargo_template_path = full_path.join("Cargo.toml.template");
     let extracted_cargo_toml_path = full_path.join("Cargo.toml");
+    let _ = fs::copy(&cargo_template_path, &extracted_cargo_toml_path);
+
     let crate_name = full_path.file_name().unwrap().to_str().unwrap().to_string();
 
     // Read the Cargo.toml
-    let mut cargo_contents = fs::read_to_string(&extracted_cargo_toml_path).expect("Failed to read Cargo.toml");
+    let mut doc = fs::read_to_string(&full_path.join("Cargo.toml"))
+        .expect("Failed to read Cargo.toml")
+        .parse::<toml_edit::Document>()
+        .expect("Failed to parse Cargo.toml");
 
-    // Replace the version placeholder for all pax-* dependencies
-    let version_replacer = format!("{}", ctx.version);
-    cargo_contents = cargo_contents.replace("VERSION_PLACEHOLDER", &version_replacer);
+    // Update the `dependencies` section
+    if let Some(deps) = doc.as_table_mut().entry("dependencies").or_insert_with(toml_edit::table).as_table_mut() {
+        let keys: Vec<String> = deps.iter().filter_map(|(key, _)| {
+            if key.starts_with("pax-") {
+                Some(key.to_string())
+            } else {
+                None
+            }
+        }).collect();
 
-    // Replace the crate name
-    let crate_name_replacer = format!("{}", crate_name);
-    cargo_contents = cargo_contents.replace("CRATE_NAME", &crate_name_replacer);
+        for key in keys {
+            let dep_entry = deps.get_mut(&key).unwrap();
 
-    // Write the modified Cargo.toml back
-    fs::write(&extracted_cargo_toml_path, cargo_contents).expect("Failed to write modified Cargo.toml");
+            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) = dep_entry {
+                // This entry is an inline table, update it
+
+                dep_table.insert("version", toml_edit::Value::String(toml_edit::Formatted::new(ctx.version.clone())));
+
+                if ctx.libdevmode {
+                    dep_table.insert("path", toml_edit::Value::String(toml_edit::Formatted::new(format!("../{}", &key))));
+                }
+            } else {
+                // If dependency entry is not a table, create a new table with version and path
+                let dependency_string = if ctx.libdevmode {
+                    format!("{{ version=\"{}\", path=\"../{}\", optional=true }}", ctx.version, &key)
+                } else {
+                    format!("{{ version=\"{}\" }}", ctx.version)
+                };
+
+                std::mem::swap(
+                    deps.get_mut(&key).unwrap(),
+                    &mut toml_edit::Item::from_str(&dependency_string).unwrap()
+                );
+            }
+        }
+    }
+
+
+
+
+    // Update the `package` section
+    if let Some(package) = doc.as_table_mut().entry("package").or_insert_with(toml_edit::table).as_table_mut() {
+        if let Some(name_item) = package.get_mut("name") {
+            *name_item = toml_edit::Item::Value(crate_name.into());
+        }
+        if let Some(version_item) = package.get_mut("version") {
+            *version_item = toml_edit::Item::Value(ctx.version.clone().into());
+        }
+    }
+
+
+    // Write the modified Cargo.toml back to disk
+    fs::write(&full_path.join("Cargo.toml"), doc.to_string())
+        .expect("Failed to write modified Cargo.toml");
 
     println!("\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax run --target=web`", full_path.to_str().unwrap(), full_path.to_str().unwrap());
 }
