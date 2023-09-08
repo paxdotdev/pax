@@ -4,12 +4,13 @@ OUTPUT_PATH=$2
 
 assets_dir="../../../../assets"
 new_dir="./public/assets"
+mkdir -p "$new_dir"
+
 if [ -d "$assets_dir" ]; then
-    mkdir -p "$new_dir"
-    cp -r "$assets_dir"/* "$new_dir"
+  cp -r "$assets_dir"/* "$new_dir"
 fi
 
-npm run build
+yarn build
 
 # Clear old build and move to output directory
 rm -rf "$OUTPUT_PATH"
