@@ -1,11 +1,9 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::collections::HashMap;
 use piet_common::RenderContext;
 
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime, LifecycleNode};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime};
 
 use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, Layer};
 

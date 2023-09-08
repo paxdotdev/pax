@@ -1,12 +1,10 @@
-use std::any::Any;
 use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, PropertyDefinition, SettingsSelectorBlockDefinition};
 use std::collections::HashMap;
-use std::ops::{Deref, IndexMut, RangeFrom};
+use std::ops::{IndexMut, RangeFrom};
 use std::slice::IterMut;
-use std::str::Split;
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use crate::manifest::{LiteralBlockDefinition, PropertyDefinitionFlags, TypeDefinition, TypeTable};
+use crate::manifest::{PropertyDefinitionFlags, TypeDefinition, TypeTable};
 use crate::parsing::escape_identifier;
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
@@ -69,7 +67,7 @@ fn pull_settings_with_selector(settings: &Option<Vec<SettingsSelectorBlockDefini
     if let Some(val) = settings {
         let merged_settings : Vec<(String, ValueDefinition)> = val.iter().filter(|block| { block.selector == selector })
             .map(|block| { block.value_block.settings_key_value_pairs.clone()}).flatten().clone().collect();
-        if merged_settings.len() > 0 {Some(merged_settings)} else {None}
+        if !merged_settings.is_empty() {Some(merged_settings)} else {None}
     } else {
         None
     }
@@ -82,7 +80,7 @@ fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(Strin
 
     let mut id_settings = Vec::new();
     if ids.len() == 1{
-        if let Some(settings) = pull_settings_with_selector(&settings_block, format!("#{}", ids[0])) {
+        if let Some(settings) = pull_settings_with_selector(settings_block, format!("#{}", ids[0])) {
             id_settings.extend(settings.clone());
         }
     } else if ids.len() > 1 {
@@ -90,11 +88,11 @@ fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(Strin
     }
 
     // collect all class settings
-    let classes = pull_matched_identifiers_from_inline(&inline_settings, "class".to_string());
+    let classes = pull_matched_identifiers_from_inline(inline_settings, "class".to_string());
 
     let mut class_settings = Vec::new();
     for class in classes {
-        if let Some(settings )= pull_settings_with_selector(&settings_block, format!(".{}", class)){
+        if let Some(settings )= pull_settings_with_selector(settings_block, format!(".{}", class)){
             class_settings.extend(settings.clone());
         }
     }
@@ -117,10 +115,10 @@ fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(Strin
     }
 
     let merged : Vec<(String, ValueDefinition)> = map.into_iter().collect();
-    if merged.len() > 0 {Some(merged)} else{None}
+    if !merged.is_empty() {Some(merged)} else{None}
 }
 
-fn recurse_compile_literal_block<'a>(settings_pairs: IterMut<(String, ValueDefinition)>, mut ctx: &mut ExpressionCompilationContext, current_property_definitions: Vec<PropertyDefinition>, type_id: String){
+fn recurse_compile_literal_block<'a>(settings_pairs: IterMut<(String, ValueDefinition)>, ctx: &mut ExpressionCompilationContext, current_property_definitions: Vec<PropertyDefinition>, type_id: String){
     settings_pairs.for_each(|pair| {
         match &mut pair.1 {
             ValueDefinition::LiteralValue(_) => {
@@ -141,7 +139,7 @@ fn recurse_compile_literal_block<'a>(settings_pairs: IterMut<(String, ValueDefin
                 // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
                 let id = ctx.uid_gen.next().unwrap();
 
-                let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
+                let (output_statement, invocations) = compile_paxel_to_ril(input, ctx);
 
                 let builtin_types = HashMap::from([
                     ("transform","Transform2D".to_string()),
@@ -195,7 +193,7 @@ fn recurse_compile_literal_block<'a>(settings_pairs: IterMut<(String, ValueDefin
 
                     //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
                     //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
-                    let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
+                    let (output_statement, invocations) = compile_paxel_to_ril(identifier, ctx);
 
                     let pascalized_return_type = (&ctx.component_def.get_property_definitions(ctx.type_table).iter().find(
                         |property_def| {
@@ -239,7 +237,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                 .expect(&format!("No known component with identifier {}.  Try importing or defining a component named {}", &type_id, &type_id));
 
             pascal_identifier = active_node_component.pascal_identifier.clone();
-            property_def = active_node_component.get_property_definitions(&mut ctx.type_table);
+            property_def = active_node_component.get_property_definitions(&ctx.type_table);
         }
 
         recurse_compile_literal_block(inline_settings.iter_mut(), &mut ctx, property_def.clone(), pascal_identifier);
@@ -304,7 +302,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     // property_type:isize (the iterable_type)
 
                     let property_definition = PropertyDefinition {
-                        name: format!("{}", elem_id),
+                        name: elem_id.to_string(),
 
                         flags: PropertyDefinitionFlags {
                             is_binding_repeat_i: false,
@@ -328,7 +326,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
                     //if repeat_source is a range, this is simply isize
                     //if repeat_source is a symbolic binding, then we resolve that symbolic binding and use that resolved type here
-                    let iterable_type = if let Some(_) = &repeat_source_definition.range_expression_paxel {
+                    let iterable_type = if repeat_source_definition.range_expression_paxel.is_some() {
                         TypeDefinition::primitive("isize")
                     } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                         let pd = ctx.resolve_symbol_as_prop_def(symbolic_binding).expect(&format!("Property not found: {}", symbolic_binding)).last().unwrap().clone();
@@ -336,7 +334,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
                     } else {unreachable!()};
 
                     let elem_property_definition = PropertyDefinition {
-                        name: format!("{}", elem_id),
+                        name: elem_id.to_string(),
                         type_id: iterable_type.type_id,
                         flags: PropertyDefinitionFlags {
                             is_binding_repeat_elem: true,
@@ -390,7 +388,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
 
         } else if let Some(condition_expression_paxel) = &cfa.condition_expression_paxel {
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
-            let (output_statement, invocations) = compile_paxel_to_ril(&condition_expression_paxel, &ctx);
+            let (output_statement, invocations) = compile_paxel_to_ril(condition_expression_paxel, &ctx);
             let id = ctx.uid_gen.next().unwrap();
 
             cfa.condition_expression_vtable_id = Some(id);
@@ -409,7 +407,7 @@ fn recurse_compile_expressions<'a>(mut ctx: ExpressionCompilationContext<'a>) ->
             });
         } else if let Some(slot_index_expression_paxel) = &cfa.slot_index_expression_paxel {
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
-            let (output_statement, invocations) = compile_paxel_to_ril(&slot_index_expression_paxel, &ctx);
+            let (output_statement, invocations) = compile_paxel_to_ril(slot_index_expression_paxel, &ctx);
             let id = ctx.uid_gen.next().unwrap();
 
             cfa.slot_index_expression_vtable_id = Some(id);
@@ -477,12 +475,12 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         unimplemented!("Built-ins like $bounds are not yet supported")
     } else {
 
-        let prop_def_chain = ctx.resolve_symbol_as_prop_def(&sym).expect(&format!("symbol not found: {}", &sym));
+        let prop_def_chain = ctx.resolve_symbol_as_prop_def(sym).expect(&format!("symbol not found: {}", &sym));
 
         let nested_prop_def = prop_def_chain.last().unwrap();
         let is_nested_numeric = ExpressionSpecInvocation::is_numeric(&nested_prop_def.type_id);
 
-        let split_symbols = clean_and_split_symbols(&sym);
+        let split_symbols = clean_and_split_symbols(sym);
         let escaped_identifier = escape_identifier(split_symbols.join("."));
 
         let mut split_symbols = split_symbols.into_iter();
@@ -502,7 +500,8 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
         let mut found_depth: Option<usize> = None;
         let mut current_depth = 0;
         let mut found_val : Option<PropertyDefinition> = None;
-        while let None = found_depth {
+
+        while found_depth.is_none() {
             let map = ctx.scope_stack.get((ctx.scope_stack.len() - 1) - current_depth).unwrap();
             if let Some(val) = map.get(&root_identifier) {
                 found_depth = Some(current_depth);
@@ -512,7 +511,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             }
         }
 
-        let mut stack_offset = found_depth.unwrap();
+        let stack_offset = found_depth.unwrap();
 
 
 
@@ -530,7 +529,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
                 };
             }
         });
-        if nested_symbol_tail_literal != "" {nested_symbol_tail_literal += ".clone()"}
+        if !nested_symbol_tail_literal.is_empty() {nested_symbol_tail_literal += ".clone()"}
 
 
         ExpressionSpecInvocation {
@@ -556,7 +555,7 @@ fn compile_paxel_to_ril<'a>(paxel: &str, ctx: &ExpressionCompilationContext<'a>)
 
     //2. for each symbolic id discovered during parsing, resolve that id through scope_stack and populate an ExpressionSpecInvocation
     let invocations = symbolic_ids.iter().map(|sym| {
-        resolve_symbol_as_invocation(&sym.trim(), ctx)
+        resolve_symbol_as_invocation(sym.trim(), ctx)
     })
         .unique_by(|esi|{esi.escaped_identifier.clone()})
         .sorted_by(|esi0, esi1|{esi0.escaped_identifier.cmp(&esi1.escaped_identifier)})
@@ -615,7 +614,7 @@ pub fn clean_and_split_symbols(possibly_nested_symbols: &str) -> Vec<String> {
         possibly_nested_symbols.to_string()
     };
 
-    entire_symbol.split(".").map(|atomic_symbol|{atomic_symbol.to_string()}).collect::<Vec<_>>()
+    entire_symbol.split('.').map(|atomic_symbol|{atomic_symbol.to_string()}).collect::<Vec<_>>()
 }
 
 impl<'a> ExpressionCompilationContext<'a> {
@@ -662,7 +661,7 @@ impl<'a> ExpressionCompilationContext<'a> {
             Some(root_symbol_pd) => {
                 let mut ret = vec![root_symbol_pd];
                 //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
-                while let Some(atomic_symbol) = split_symbols.next() {
+                for atomic_symbol in split_symbols {
                     let td = ret.last().unwrap().get_type_definition(self.type_table);
                     ret.push(
                         td.property_definitions.iter().find(|pd|{pd.name == *atomic_symbol})

@@ -393,7 +393,7 @@ pub fn log(msg: &str) {
         },
         PlatformSpecificLogger::MacOS(closure) => {
             let msg = CString::new(msg).unwrap();
-            unsafe {(closure)(msg.as_ptr())};
+            (closure)(msg.as_ptr())
         }
     }
 }
@@ -483,34 +483,39 @@ impl Mul for Transform2D {
 impl Transform2D {
     ///Scale coefficients (1.0 == 100%) over x-y plane
     pub fn scale(x: Numeric, y: Numeric) -> Self {
-        let mut ret  = Transform2D::default();
-        ret.scale = Some([x.get_as_float(), y.get_as_float()]);
-        ret
+        Transform2D {
+            scale: Some([x.get_as_float(), y.get_as_float()]),
+            ..Default::default()
+        }
     }
     ///Rotation over z axis
     pub fn rotate(z: Numeric) -> Self {
-        let mut ret  = Transform2D::default();
-        ret.rotate = Some(z.get_as_float());
-        ret
+        Transform2D {
+            rotate: Some(z.get_as_float()),
+            ..Default::default()
+        }
     }
     ///Translation across x-y plane, pixels
     pub fn translate(x: Numeric, y: Numeric) -> Self {
-        let mut ret  = Transform2D::default();
-        ret.translate = Some([x.get_as_float(), y.get_as_float()]);
-        ret
+        Transform2D {
+            translate: Some([x.get_as_float(), y.get_as_float()]),
+            ..Default::default()
+        }
     }
     ///Describe alignment within parent bounding box, as a starting point before
     /// affine transformations are applied
     pub fn align(x: Size, y: Size) -> Self {
-        let mut ret  = Transform2D::default();
-        ret.align = Some([x, y]);
-        ret
+        Transform2D {
+            align: Some([x, y]),
+            ..Default::default()
+        }
     }
     ///Describe alignment of the (0,0) position of this element as it relates to its own bounding box
     pub fn anchor(x: Size, y: Size) -> Self {
-        let mut ret  = Transform2D::default();
-        ret.anchor = Some([x, y]);
-        ret
+        Transform2D {
+            anchor: Some([x, y]),
+            ..Default::default()
+        }
     }
 
     pub fn default_wrapped() -> Rc<RefCell<dyn PropertyInstance<Self>>> {
@@ -579,8 +584,8 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     //FUTURE: when trait fields land in Rust, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
         self.transition_manager.value = Some(self.get().clone());
-        &self.transition_manager.queue.clear();
-        &self.transition_manager.queue.push_back(TransitionQueueEntry {
+        self.transition_manager.queue.clear();
+        self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
             duration_frames,
             curve,
@@ -590,12 +595,12 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     }
 
     fn ease_to_later(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
-        if let None = self.transition_manager.value {
+        if self.transition_manager.value.is_none() {
             //handle case where transition queue is empty -- a None value gets skipped, so populate it with Some
             self.transition_manager.value = Some(self.get().clone());
         }
 
-        let starting_value = if self.transition_manager.queue.len() > 0 {
+        let starting_value = if !self.transition_manager.queue.is_empty() {
             self.transition_manager.queue.get(self.transition_manager.queue.len() - 1).unwrap().ending_value.clone()
         } else {
             self.value.clone()
@@ -612,7 +617,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
 
     #[allow(duplicate)]
     fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
-        if let None = self.transition_manager.value {
+        if self.transition_manager.value.is_none() {
             None
         }else {
             Some(&mut self.transition_manager)
@@ -703,7 +708,7 @@ where Self : Sized + Clone //Clone used for default implementation of `interpola
 {
     //default implementation acts like a `None` ease — that is,
     //the first value is simply returned.
-    fn interpolate(&self, other: &Self, t: f64) -> Self {
+    fn interpolate(&self, _other: &Self, _t: f64) -> Self {
         self.clone()
     }
 }
@@ -726,7 +731,7 @@ impl Interpolatable for f64 {
 }
 
 impl Interpolatable for bool {
-    fn interpolate(&self, other: &bool, t: f64) -> bool {
+    fn interpolate(&self, _other: &bool, _t: f64) -> bool {
         *self
     }
 }

@@ -1,8 +1,7 @@
 use pax_lang::*;
-use pax_lang::api::{Size2D, Size, Property, Transform2D};
+use pax_lang::api::{Size, Property};
 use pax_lang::api::numeric::Numeric;
 use pax_runtime_api::RuntimeContext;
-use crate::primitives::{Frame};
 use crate::types::{StackerDirection, StackerCell};
 
 /// Stacker lays out a series of nodes either
@@ -59,7 +58,7 @@ impl Stacker {
         let mut cell_space = vec![per_cell_space; self.cells.get().get_as_float() as usize];
         let sizes = self.sizes.get();
 
-        if sizes.len() > 0 {
+        if !sizes.is_empty() {
             if sizes.len() != (cells as usize) {
                 unreachable!("Sizes is not a valid length. Please specify {} sizes", (cells as usize));
             }

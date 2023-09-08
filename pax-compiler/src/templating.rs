@@ -74,21 +74,21 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
 static TEMPLATE_CODEGEN_PROPERTIES_COPRODUCT_LIB : &str = include_str!("../templates/properties-coproduct-lib.tera");
 pub fn press_template_codegen_properties_coproduct_lib(args: TemplateArgsCodegenPropertiesCoproductLib ) -> String {
     let template = TEMPLATE_DIR.get_file("properties-coproduct-lib.tera").unwrap().contents_utf8().unwrap();
-    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
+    Tera::one_off(template, &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_CARTRIDGE_LIB : &str = include_str!("../templates/cartridge-lib.tera");
 pub fn press_template_codegen_cartridge_lib(args: TemplateArgsCodegenCartridgeLib ) -> String {
     let template = TEMPLATE_DIR.get_file("cartridge-lib.tera").unwrap().contents_utf8().unwrap();
-    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
+    Tera::one_off(template, &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
 #[allow(unused)]
 static TEMPLATE_CODEGEN_CARTRIDGE_COMPONENT_FACTORY : &str = include_str!("../templates/cartridge-component-factory.tera");
 pub fn press_template_codegen_cartridge_component_factory(args: TemplateArgsCodegenCartridgeComponentFactory) -> String {
     let template = TEMPLATE_DIR.get_file("cartridge-component-factory.tera").unwrap().contents_utf8().unwrap();
-    Tera::one_off(template.into(), &tera::Context::from_serialize(args).unwrap(), false).unwrap()
+    Tera::one_off(template, &tera::Context::from_serialize(args).unwrap(), false).unwrap()
 }
 
 #[allow(unused)]

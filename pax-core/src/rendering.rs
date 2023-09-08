@@ -1,9 +1,8 @@
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::ops::Mul;
 use std::rc::Rc;
 
-use kurbo::{Affine, Point, Vec2};
+use kurbo::{Affine, Point};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 use pax_properties_coproduct::PropertiesCoproduct;
@@ -12,7 +11,7 @@ use pax_runtime_api::{Layer, Size, Size2D};
 
 use crate::{RenderTreeContext, HandlerRegistry, InstanceRegistry};
 
-use pax_runtime_api::{PropertyInstance, PropertyLiteral};
+use pax_runtime_api::PropertyInstance;
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.

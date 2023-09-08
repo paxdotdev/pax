@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
-use std::rc::Rc;
 use crate::Interpolatable;
 
 /// Numeric is a module that wraps numeric literals in Pax
@@ -164,12 +163,12 @@ impl From<&i128> for Numeric {
 }
 impl From<&isize> for Numeric {
     fn from(value: &isize) -> Self {
-        Numeric::Integer(*value as isize)
+        Numeric::Integer(*value)
     }
 }
 impl From<&f64> for Numeric {
     fn from(value: &f64) -> Self {
-        Numeric::Float(*value as f64)
+        Numeric::Float(*value)
     }
 }
 impl From<Numeric> for f64 {

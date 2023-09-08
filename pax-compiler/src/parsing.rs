@@ -1,13 +1,10 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::{HashSet, HashMap};
-use std::fs;
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
 use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, TypeDefinition, TypeTable, get_primitive_type_table};
-
-use uuid::Uuid;
 
 extern crate pest;
 use pest_derive::Parser;
@@ -17,7 +14,6 @@ use pest::iterators::{Pair, Pairs};
 use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
 };
-use pax_runtime_api::log;
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -69,7 +65,7 @@ fn convert_symbolic_binding_from_paxel_to_ril(xo_symbol: Pair<Rule>) -> String {
         });
 
         //remove initial fencepost "."
-        output.replacen(".", "", 1)
+        output.replacen('.', "", 1)
     } else {
         //remove original binding; no self or this
         xo_symbol.as_str().to_string()
@@ -226,9 +222,9 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                     output += &ril;
                 }
 
-                let mut remaining_kvps = inner.into_iter();
+                let remaining_kvps = inner.into_iter();
 
-                while let Some(xoskkvp) = remaining_kvps.next() {
+                for xoskkvp in remaining_kvps {
                     let ril =  handle_xoskvp(xoskkvp, pratt_parser.clone(), Rc::clone(&symbolic_ids));
                     output += &ril;
                 }
@@ -237,7 +233,7 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
             },
             Rule::xo_symbol => {
                 symbolic_ids.borrow_mut().push(primary.as_str().to_string());
-                format!("{}",convert_symbolic_binding_from_paxel_to_ril(primary))
+                convert_symbolic_binding_from_paxel_to_ril(primary).to_string()
             },
             Rule::xo_tuple => {
                 let mut tuple = primary.into_inner();
@@ -248,10 +244,10 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
                 format!("({},{})", exp0, exp1)
             },
             Rule::xo_list => {
-                let mut list = primary.into_inner();
+                let list = primary.into_inner();
                 let mut vec = Vec::new();
 
-                while let Some(item) = list.next() {
+                for item in list {
                     let item_str = recurse_pratt_parse_to_string(item.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
                     vec.push(item_str);
                 }
@@ -361,7 +357,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
     //add self to parent's children_id_list
     let mut parents_children_id_list = ctx.child_id_tracking_stack.pop().unwrap();
-    parents_children_id_list.push(new_id.clone());
+    parents_children_id_list.push(new_id);
     ctx.child_id_tracking_stack.push(parents_children_id_list);
 
     match any_tag_pair.as_rule() {
@@ -434,7 +430,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
                     //`if` TemplateNodeDefinition
                     TemplateNodeDefinition {
-                        id: new_id.clone(),
+                        id: new_id,
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: Some(expression_body),
                             condition_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
@@ -500,7 +496,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
                     //`for` TemplateNodeDefinition
                     TemplateNodeDefinition {
-                        id: new_id.clone(),
+                        id: new_id,
                         type_id: TYPE_ID_REPEAT.to_string(),
                         control_flow_settings: Some(cfavd),
                         settings: None,
@@ -521,7 +517,7 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                     }
 
                     TemplateNodeDefinition {
-                        id: *&new_id.clone(),
+                        id: new_id.clone(),
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: None,
                             condition_expression_vtable_id: None,
@@ -588,7 +584,7 @@ fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Ru
 
     }).collect();
 
-    if vec.len() > 0 {
+    if !vec.is_empty() {
         Some(vec)
     }else{
         None
@@ -875,19 +871,19 @@ pub fn assemble_type_definition(
 
 pub fn escape_identifier(input: String) -> String {
     input
-        .replace("(","LPAR")
+        .replace('(',"LPAR")
         .replace("::","COCO")
-        .replace(")","RPAR")
-        .replace("<","LABR")
-        .replace(">","RABR")
-        .replace(",","COMM")
-        .replace(".","PERI")
-        .replace("[","LSQB")
-        .replace("]","RSQB")
-        .replace("/", "FSLA")
-        .replace("\\", "BSLA")
-        .replace("#", "HASH")
-        .replace("-", "HYPH")
+        .replace(')',"RPAR")
+        .replace('<',"LABR")
+        .replace('>',"RABR")
+        .replace(',',"COMM")
+        .replace('.',"PERI")
+        .replace('[',"LSQB")
+        .replace(']',"RSQB")
+        .replace('/', "FSLA")
+        .replace('\\', "BSLA")
+        .replace('#', "HASH")
+        .replace('-', "HYPH")
 }
 
 /// This trait is used only to extend primitives like u64
@@ -1111,7 +1107,7 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
             ctx.type_table.insert(type_id, td);
         }
 
-        /// Also parse iterable type
+        // Also parse iterable type
         T::parse_to_manifest(ctx)
     }
     fn get_import_path() -> String {

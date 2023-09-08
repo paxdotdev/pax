@@ -2,9 +2,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use piet_common::RenderContext;
-use crate::{HandlerRegistry, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
-use pax_runtime_api::{Layer, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
-use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use crate::{RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
+use pax_runtime_api::{Layer, PropertyInstance, Size2D, Transform2D};
+use pax_properties_coproduct::{TypesCoproduct};
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
 /// subtree of a component template to be rendered conditionally,

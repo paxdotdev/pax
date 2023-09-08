@@ -6,22 +6,17 @@ mod parsing;
 use std::io::Read;
 use std::fs;
 use std::str::FromStr;
-use std::collections::HashSet;
 use std::fs::File;
-use std::convert::TryFrom;
 use std::path::Path;
-use litrs::StringLit;
 
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::__private::ext::RepToTokensExt;
 use quote::{quote, ToTokens};
 
 use templating::{ArgsPrimitive, ArgsFullComponent, ArgsStructOnlyComponent, TemplateArgsDerivePax, StaticPropertyDefinition};
 
 use sailfish::TemplateOnce;
 
-use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Attribute, Meta, NestedMeta, parse2, MetaList, Lit};
-use syn::parse::{Parse, ParseStream};
+use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Meta, NestedMeta, MetaList, Lit};
 
 
 fn pax_primitive(input_parsed: DeriveInput, primitive_instance_import_path: String, include_imports: bool, is_custom_interpolatable: bool,) -> proc_macro2::TokenStream {
@@ -628,7 +623,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let name = Ident::new("PaxFile", Span::call_site());
         let include_fix = generate_include(&name,path.clone().to_str().unwrap());
 
-        let mut file = File::open(path);
+        let file = File::open(path);
         let mut content = String::new();
         let _ = file.unwrap().read_to_string(&mut content);
         let stream: proc_macro::TokenStream = content.parse().unwrap();

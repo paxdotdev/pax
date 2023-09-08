@@ -1,9 +1,6 @@
 use sailfish::TemplateOnce;
 
 use serde_derive::{Serialize};
-use serde_json;
-
-use std::collections::HashSet;
 
 #[derive(Serialize, Debug)]
 pub struct StaticPropertyDefinition {

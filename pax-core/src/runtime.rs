@@ -8,7 +8,7 @@ use piet::RenderContext;
 use pax_properties_coproduct::{PropertiesCoproduct};
 use pax_runtime_api::{Timeline};
 
-use crate::{HandlerRegistry, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use crate::{RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,

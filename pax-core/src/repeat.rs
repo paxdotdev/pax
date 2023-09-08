@@ -1,13 +1,10 @@
-use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
-use std::collections::HashMap;
-use std::ops::Deref;
 
 
 use piet_common::RenderContext;
-use crate::{ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs, HandlerRegistry};
-use pax_runtime_api::{Layer, log, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
+use crate::{ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
+use pax_runtime_api::{Layer, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 /// A special "control-flow" primitive associated with the `for` statement.

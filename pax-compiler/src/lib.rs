@@ -6,10 +6,8 @@ pub mod parsing;
 pub mod expressions;
 
 use manifest::PaxManifest;
-use rust_format::{Config, Formatter};
 
-use std::{fs};
-use std::any::Any;
+use std::fs;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::str::FromStr;
@@ -31,7 +29,7 @@ pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
 
 
 /// Returns a sorted and de-duped list of combined_reexports.
-fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
+fn generate_reexports_partial_rs(pax_dir: &Path, manifest: &PaxManifest) {
     let imports = manifest.import_paths.clone().into_iter().sorted().collect();
 
     let file_contents = &bundle_reexports_into_namespace_string(&imports);
@@ -110,7 +108,7 @@ impl NamespaceTrieNode {
             if child.1.node_string.as_ref().unwrap() == "crate" {
                 //handle crate subtrie by skipping the crate NamespaceTrieNode, traversing directly into its children
                 child.1.children.iter().sorted().for_each(|child| {
-                    if child.1.children.len() == 0 {
+                    if child.1.children.is_empty() {
                         //leaf node:  write `pub use ...` entry
                         accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
                     } else {
@@ -121,17 +119,15 @@ impl NamespaceTrieNode {
                     }
                 })
 
-            }else {
-                if child.1.children.len() == 0 {
-                    //leaf node:  write `pub use ...` entry
-                    accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
-                } else {
-                    //non-leaf node:  write `pub mod ...` block
-                    accum += &format!("{}pub mod {}{{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
-                    accum += &child.1.recurse_serialize_to_reexports(indent + 1);
-                    accum += &format!("{}}}\n", indent_str);
-                }
-            };
+            } else if child.1.children.is_empty() {
+                //leaf node:  write `pub use ...` entry
+                accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
+            } else {
+                //non-leaf node:  write `pub mod ...` block
+                accum += &format!("{}pub mod {}{{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
+                accum += &child.1.recurse_serialize_to_reexports(indent + 1);
+                accum += &format!("{}}}\n", indent_str);
+            }
         });
 
         accum
@@ -243,7 +239,7 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
 }
 
 
-fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
+fn generate_properties_coproduct(pax_dir: &Path, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
 
     let target_dir = pax_dir.join("properties-coproduct");
     clone_properties_coproduct_to_dot_pax(&target_dir).unwrap();
@@ -260,7 +256,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     );
 
     //write patched Cargo.toml
-    fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
+    fs::write(&target_cargo_full_path, target_cargo_toml_contents.to_string()).unwrap();
 
     //build tuples for PropertiesCoproduct
     let mut properties_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|comp_def| {
@@ -271,7 +267,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
         )
     }).collect();
     let set: HashSet<(String, String)> = properties_coproduct_tuples.drain(..).collect();
-    properties_coproduct_tuples.extend(set.into_iter());
+    properties_coproduct_tuples.extend(set);
     properties_coproduct_tuples.sort();
 
     //build tuples for TypesCoproduct
@@ -307,7 +303,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
     ];
 
     TYPES_COPRODUCT_BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
-    types_coproduct_tuples.extend(set.into_iter());
+    types_coproduct_tuples.extend(set);
     types_coproduct_tuples.sort();
 
     types_coproduct_tuples = types_coproduct_tuples.into_iter().unique_by(|elem|{elem.0.to_string()}).collect::<Vec<(String, String)>>();
@@ -323,7 +319,7 @@ fn generate_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host
 
 }
 
-fn generate_cartridge_definition(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
+fn generate_cartridge_definition(pax_dir: &Path, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
     let target_dir = pax_dir.join("cartridge");
     clone_cartridge_to_dot_pax(&target_dir).unwrap();
 
@@ -531,11 +527,11 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         let rsd = tnd.control_flow_settings.as_ref().unwrap().repeat_source_definition.as_ref().unwrap();
         let id = rsd.vtable_id.unwrap();
 
-        let rse_vec = if let Some(_) = &rsd.symbolic_binding {
+        let rse_vec = if rsd.symbolic_binding.is_some() {
             format!("Some(Box::new(PropertyExpression::new({})))", id)
         } else {"None".into()};
 
-        let rse_range = if let Some(_) = &rsd.range_expression_paxel {
+        let rse_range = if rsd.range_expression_paxel.is_some() {
             format!("Some(Box::new(PropertyExpression::new({})))", id)
         } else {"None".into()};
 
@@ -863,12 +859,12 @@ static CHASSIS_WEB_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-chassis-w
 fn clone_target_chassis_to_dot_pax(relative_chassis_specific_target_dir: &PathBuf, target_str: &str, libdevmode: bool) -> std::io::Result<()> {
 
     // fs::remove_dir_all(&relative_chassis_specific_target_dir);
-    fs::create_dir_all(&relative_chassis_specific_target_dir).unwrap();
+    fs::create_dir_all(relative_chassis_specific_target_dir).unwrap();
 
     //Note: zb spent too long tangling with this -- seems like fs::remove* and fs::create* work
     //      only with the relative path, while Dir::extract requires a canonicalized path.  At least: this works on macOS,
     //      and failed silently/partially in all explored configurations until this one
-    let chassis_specific_dir = fs::canonicalize(&relative_chassis_specific_target_dir).expect("Invalid path");
+    let chassis_specific_dir = fs::canonicalize(relative_chassis_specific_target_dir).expect("Invalid path");
 
     // println!("Cloning {} chassis to {:?}", target_str, chassis_specific_dir);
     match RunTarget::from(target_str) {
@@ -914,13 +910,13 @@ static CARTRIDGE_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-cartridge")
 /// Clone the template pax-cartridge directory into .pax, for further codegen
 fn clone_cartridge_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
     // fs::remove_dir_all(&relative_cartridge_target_dir);
-    fs::create_dir_all(&relative_cartridge_target_dir).unwrap();
+    fs::create_dir_all(relative_cartridge_target_dir).unwrap();
 
-    let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
+    let target_dir = fs::canonicalize(relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
 
     // println!("Cloning cartridge to {:?}", target_dir);
 
-    persistent_extract(&CARTRIDGE_DIR, &target_dir).unwrap();
+    persistent_extract(&CARTRIDGE_DIR, target_dir).unwrap();
 
     Ok(())
 }
@@ -931,11 +927,11 @@ static PROPERTIES_COPRODUCT_DIR: Dir = include_dir!("$CARGO_MANIFEST_DIR/../pax-
 /// and the encapsulated dev harness is the actual dev executable
 fn clone_properties_coproduct_to_dot_pax(relative_cartridge_target_dir: &PathBuf) -> std::io::Result<()> {
     // fs::remove_dir_all(&relative_cartridge_target_dir);
-    fs::create_dir_all(&relative_cartridge_target_dir).unwrap();
+    fs::create_dir_all(relative_cartridge_target_dir).unwrap();
 
-    let target_dir = fs::canonicalize(&relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
+    let target_dir = fs::canonicalize(relative_cartridge_target_dir).expect("Invalid path for generated pax cartridge");
 
-    persistent_extract(&PROPERTIES_COPRODUCT_DIR, &target_dir).unwrap();
+    persistent_extract(&PROPERTIES_COPRODUCT_DIR, target_dir).unwrap();
 
     Ok(())
 }
@@ -964,7 +960,7 @@ fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
         fs::canonicalize(cargo_toml_path).unwrap()).unwrap()).expect("Error loading host Cargo.toml");
 
     let name = existing_cargo_toml["package"]["name"].as_str().unwrap().to_string();
-    let identifier = name.replace("-", "_"); //NOTE: perhaps this could be less naive?
+    let identifier = name.replace('-', "_"); //NOTE: perhaps this could be less naive?
 
     let import_prefix = format!("{}::pax_reexports::", &identifier);
 
@@ -1058,7 +1054,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
         println!("{} 🛠 Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target));
     }
-    build_harness_with_chassis(&pax_dir, &ctx, &Harness::Development);
+    build_harness_with_chassis(&pax_dir, ctx, &Harness::Development);
 
     Ok(())
 }
@@ -1068,7 +1064,7 @@ pub enum Harness {
     Development,
 }
 
-fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harness) {
+fn build_harness_with_chassis(pax_dir: &Path, ctx: &RunContext, harness: &Harness) {
 
     let target_str : &str = ctx.target.borrow().into();
     let target_str_lower: &str = &target_str.to_lowercase();
@@ -1093,7 +1089,7 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
         }
     };
 
-    let is_web = if let RunTarget::Web = ctx.target { true } else { false };
+    let is_web = matches!(ctx.target, RunTarget::Web);
     let target_folder : &str = ctx.target.borrow().into();
     let path = fs::canonicalize(std::path::Path::new(&ctx.path)).unwrap();
     let output_path = path.join("build").join(target_folder);
@@ -1136,7 +1132,7 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
-pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget) -> Output {
+pub fn build_chassis_with_cartridge(pax_dir: &Path, target: &RunTarget) -> Output {
 
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
     let chassis_path = pax_dir.join("chassis").join({let s: & str = target.into(); s});

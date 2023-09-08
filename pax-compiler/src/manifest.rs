@@ -1,7 +1,5 @@
 use std::collections::{HashMap};
 use std::cmp::Ordering;
-use std::ops::Deref;
-use std::rc::Rc;
 
 use serde_derive::{Serialize, Deserialize};
 #[allow(unused_imports)]
@@ -170,11 +168,11 @@ impl ComponentDefinition {
     pub fn get_snake_case_id(&self) -> String {
         self.type_id
             .replace("::", "_")
-            .replace("/", "_")
-            .replace("\\", "_")
-            .replace(">", "_")
-            .replace("<", "_")
-            .replace(".", "_")
+            .replace('/', "_")
+            .replace('\\', "_")
+            .replace('>', "_")
+            .replace('<', "_")
+            .replace('.', "_")
     }
 
     pub fn get_property_definitions<'a>(&self, tt: &'a TypeTable) -> &'a Vec<PropertyDefinition> {

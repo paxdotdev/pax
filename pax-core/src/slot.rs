@@ -2,11 +2,10 @@ use core::cell::RefCell;
 use core::option::Option;
 use core::option::Option::{None, Some};
 use std::rc::Rc;
-use std::collections::HashMap;
-use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use pax_properties_coproduct::TypesCoproduct;
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext, HandlerRegistry};
+use crate::{InstantiationArgs, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, Layer};
 
 
