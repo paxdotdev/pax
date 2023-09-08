@@ -1025,10 +1025,6 @@ pub fn perform_create(ctx: &CreateContext) {
                 // This entry is an inline table, update it
 
                 dep_table.insert("version", toml_edit::Value::String(toml_edit::Formatted::new(ctx.version.clone())));
-
-                if ctx.libdevmode {
-                    dep_table.insert("path", toml_edit::Value::String(toml_edit::Formatted::new(format!("../{}", &key))));
-                }
             } else {
                 // If dependency entry is not a table, create a new table with version and path
                 let dependency_string = if ctx.libdevmode {
