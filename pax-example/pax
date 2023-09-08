@@ -6,6 +6,13 @@
 ### `cd pax-example && ./pax parse`
 ### `cd pax-example && ./pax libdev build-chassis`
 
-pushd ../pax-cli
-cargo run -- "$@" --path="../pax-example" --libdev
-popd
+pushd ../pax-cli > /dev/null
+
+libdev_mode="--libdev"
+if [ $1 = "clean" ]; then
+    # The clean command does not expect the "--libdev" argument which we supply by default.
+    libdev_mode=""
+fi
+
+cargo run -- "$@" --path="../pax-example" $libdev_mode
+popd > /dev/null
