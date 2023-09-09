@@ -92,7 +92,7 @@ fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, ctx: &Run
     let dest_pkg_root = pax_dir.join(PAX_DIR_PKG_PATH);
     for pkg in ALL_PKGS {
 
-        if ctx.libdevmode {
+        if ctx.is_libdev_mode {
             //Copy all packages from monorepo root on every build.  this allows us to propagate changes
             //to a libdev build without "sticky caches."
             //
@@ -971,8 +971,8 @@ pub fn perform_create(ctx: &CreateContext) {
     let _ = fs::create_dir_all(&full_path);
 
     // clone template into full_path
-    if ctx.libdevmode {
-        //For libdevmode, we copy our monorepo @/pax-compiler/pax-create-template directory
+    if ctx.is_libdev_mode {
+        //For is_libdev_mode, we copy our monorepo @/pax-compiler/pax-create-template directory
         //to the target directly.  This enables iterating on pax-create-template during libdev
         //without the sticky caches associated with `include_dir`
         let pax_compiler_cargo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -1027,7 +1027,7 @@ pub fn perform_create(ctx: &CreateContext) {
                 dep_table.insert("version", toml_edit::Value::String(toml_edit::Formatted::new(ctx.version.clone())));
             } else {
                 // If dependency entry is not a table, create a new table with version and path
-                let dependency_string = if ctx.libdevmode {
+                let dependency_string = if ctx.is_libdev_mode {
                     format!("{{ version=\"{}\", path=\"../{}\", optional=true }}", ctx.version, &key)
                 } else {
                     format!("{{ version=\"{}\" }}", ctx.version)
@@ -1064,7 +1064,7 @@ pub fn perform_create(ctx: &CreateContext) {
 
 pub struct CreateContext {
     pub path: String,
-    pub libdevmode: bool,
+    pub is_libdev_mode: bool,
     pub version: String,
 }
 
@@ -1073,7 +1073,7 @@ pub struct RunContext {
     pub path: String,
     pub verbose: bool,
     pub should_also_run: bool,
-    pub libdevmode: bool,
+    pub is_libdev_mode: bool,
     pub process_child_ids: Arc<Mutex<Vec<u64>>>,
 }
 
