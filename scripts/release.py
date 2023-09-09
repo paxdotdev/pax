@@ -4,9 +4,6 @@
 # `pip3 install tomlkit`
 # `cargo login`
 
-# USAGE:
-#
-
 import os
 import subprocess
 import sys

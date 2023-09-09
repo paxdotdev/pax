@@ -100,7 +100,6 @@ fn main() -> Result<(), ()> {
         .subcommand(
             App::new("create")
                 .alias("new")
-                .alias("new")
                 .arg(Arg::with_name("path")
                     .help("File system path where the new project should be created. If not provided with --path, it should directly follow 'create'")
                     .takes_value(true)
@@ -136,14 +135,14 @@ fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
-            let libdevmode = args.is_present("libdev");
+            let is_libdev_mode = args.is_present("libdev");
 
             pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
                 path,
                 verbose,
                 should_also_run: true,
-                libdevmode,
+                is_libdev_mode,
                 process_child_ids,
             })
         },
@@ -151,14 +150,14 @@ fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
-            let libdevmode = args.is_present("libdev");
+            let is_libdev_mode = args.is_present("libdev");
 
             pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
                 path,
                 should_also_run: false,
                 verbose,
-                libdevmode,
+                is_libdev_mode,
                 process_child_ids,
             })
         },
@@ -174,12 +173,12 @@ fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<
         },
         ("create", Some(args)) => {
             let path = args.value_of("path").unwrap().to_string(); //default value "."
-            let libdevmode = args.is_present("libdev");
+            let is_libdev_mode = args.is_present("libdev");
             let version = crate_version!().to_string(); // Note: this could also be parameterized, but an easy default is to clamp to the CLI version
 
             pax_compiler::perform_create(&CreateContext {
                 path,
-                libdevmode,
+                is_libdev_mode,
                 version,
             });
             Ok(())
