@@ -3085,3 +3085,170 @@ Trade-off:  `self.some_vec.set(new_vec_of_same_length_as_old)` will not update a
 
  
 Viewport culling should majorly improve perf
+
+
+
+### Aug 21 2023
+
+
+TODO:
+ [x] copy & expand all necessary deps, as code, a la cargo itself, into .pax (not just chassis & cartridge)
+ [x] clean up the special cases around current chassis & cartridge codegen, incl. `../../..` patching & dir names / paths
+ [x] adjust the final build logic — point to _in vivo_ chassis dirs instead of the special chassis folder; rely on overwritten codegen of cartridge & properties-coproduct instead of patches
+     [x] web
+     [x] macos
+ [x] fix build times
+      [-] Refactor:
+        1. perform current code-gen & patching process into a tmp-pkg dir
+        2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
+        3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
+        NOTE: see Aug 28 entry for resolution
+ [x] Assess viability of pointing userland projects to .pax/pax-lang (for example)
+ [-] verify that include_dir!-based builds work, in addition to libdev builds
+     [-] abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
+
+//TODO: observation: can reproduce a minimal "cache-cleared slow build" by simply:
+//      1. go to `pax-example` and build `cargo run --features=parser --bin=parser`.  Observe slow build
+//      2. Run again — observe fast build
+//      3. Change `.pax/pax-properties-coproduct/lib.rs` trivially, e.g. by adding a newline
+//      4. Run again, — observe SLOW build.
+//     Apparently a single change in a single lib file is enough to trigger a substantial rebuild.
+//       Perhaps: because many things depend on properties-coproduct, a single change there is enough to require all of them to change
+//     observation: when running cargo build @ command-line (as opposed to via Pax CLI), you can see that building `pax-compiler` takes a substantial portion of the time.  This checks out esp. re: the embedding of all the `include_dir`s into pax-compiler.
+//Possibility: when code-genning & patching — do so into _yet another_ directory —e.g. `tmp` — so that the resulting files can be bytewise-checked against canonical files, before overwriting.  This should stabilize FS writes and cargo's tendency to clear caches when files change.
+// 1. perform current code-gen & patching process into a tmp-pkg dir
+// 2. maintain a separate pkg dir, into which we move the "final state" `pax-*` directories, the ones we refer to from userland and the ones we build from inside the pax compiler
+// 3. after generating a snapshot of `tmp-pkg`, bytewise-check all existing files against the `pkg` dir, *only replacing the ones that are actually different* (this should solve build time issues)
+// 4. along the way, abstract the `include_dir` vs. fs-copied folders, probably at the string-contents level (`read_possibly_virtual_file(str_path) -> String`)
+
+//1. fetch pax version numbers from host codebase
+//2. copy all deps — either from crates.io or from libdev ../
+//3. codegen properties-coproduct & cartridge (incl. relative dep to host codebase in latter)
+//4. include patch directive in appropriate chassis; build dylib, run dev-harness
+
+
+
+### Aug 28 2023
+
+Rethinking PropertiesCoproduct, patching, dependency management
+
+Much build complexity arises from the code-genned PropertiesCoproduct.
+    - If we didn't need to patch this — could we build userland projects entirely from crates.io? (it looks like the answer is "we must build from source")
+    - The other code-genned dependency is `pax-cartridge` — does anything still rely on this besides the chassis?  (The answer is no — only the chassis)
+    - What if we refactor `pax-properties-coproduct` to rely downstream on a dylib?  Thus, we can leave all dependencies on pax-properties-coproduct alone — no need to codegen & mangle dependencies — and can swap that dylib not only at static build time, but for live reloading as well
+
+In the above world, we would only need to:
+    1. codegen cartridge (clone code, patch lib.rs)
+    2. codegen the internal properties-coproduct, build as dylib
+    3. build the chassis, specifying path to cartridge (../), and hopefully just including the dylib in a special directory
+
+This gets a bit hairy — 1. we still need to codegen (or clone) everything we're going to build, and 2. we still face the "conflicting dependency" problem between userland crate and codegenned / built crates.
+
+One possible solution to the above: build the userland crate / project as a dynamic library!  Then, instead of a relative path to load it, the cartridge loads that dylib.
+    - Would this actually resolve the conflicting versions problem?  Even if it makes the compiler happy, we are probably bundling different versions of deps......  This might be OK for e.g. pax-compiler, but gets particularly dicey around runtime deps
+
+Stepping back to the latest pencilled approach:
+ - clone EVERYTHING into .pax/pkg (plus the "double-buffering" optimization for cargo build times? Maybe not so important if we speed up compiler build time, by dropping `include_dir` )
+ - depend on userland_crate via pax-cartridge
+We have previously run into the issue where userland_crate relies on, say, pax-compiler#0.4.0, but cargo sees that as a conflict with the local FS version
+We might be able to mitigate the above issue by:
+   1. detecting all `pax-*` dependencies in the userland Cargo.toml — track which version(s) they specify (note that all versions must be lock-stepped; we can throw an error if any are mismatched)
+        1a. consider what it would take to support a user relying on pax versions in downstream crates or in a cargo workspace
+            - Either crawl all dependencies, resolving versions
+            - Or look for the first dep, match it
+            - Or, special-case where the pax lib version is specified (e.g. .paxrc)
+            - Or, introspect the Cargo.lock and find a canonical list of resolved versions (?!)
+        2a. Let's go with reading the Cargo.lock — we can build the project if Cargo.lock is missing, and we can *look for each whitelisted dependency in the Cargo.lock, checking versions and ensuring they match.*
+   2. instead of bundling a particular version of the lib crates via `include_dir`, we can reach out to crates.io and clone/extract the published tarball.
+   3. We can come back later for "offline builds," and we can handle libdev specially to "clone" from `../` instead of crates.io
+      3a. For crates.io builds, we can assume idempotency for everything except codegenned crates — no need to clone if directory exists (but be sure to surface some sort of `clean` or `init` to clean corruptions)
+      3b. For libdev builds, we can full-clone everything every time. Note that removing the dependency on `include_dir` should dramatically improve libdev build times
+   4. Use `patch`, at `chassis-macos`, (root crate) to override each `pax-` dep used by userland_crate, to resolve to the local FS (cloned / extracted) version to the same `.pax/pkg` version used elsewhere in the build
+
+So boiling down to an algorithm:
+
+1. Read userland Cargo.lock, discover stated version of any `.pax` project with id in our whitelist
+2. If host_crate_info.is_lib_dev mode
+   3. Copy all directories in whitelist to `.pax/pkg`.  Each src directory can be constructed by roughly `pax_dir.join("../").join("../").join(whitelist_dir)`
+4. Else
+   5. Foreach directory in whitelist, detect if exists in `.pax/pkg`.  If so, do nothing; assume it is already cloned.  If the directory doesn't exist, clone tarball for version `pax_version` from crates.io to the appropriate dir, `.pax/pkg/{whitelist-pkg-id}`.  Print to stderr and panic if unable to find or clone any of these packages from crates.io.
+6. Include patch directive in the appropriate `chassis`'s Cargo.toml (either `.pax/pkg/pax-chassis-web` or `.pax/pkg/pax-chassis-macos`, depending on `TARGET`) —
+   7. Within this directive, patch all discovered dependencies from (1) to override concrete semver => local `.pax/pkg/{pkg-id}`
+8. Within our `.pax/pkg/` chassis directory with the patched `Cargo.toml`, run `perform_build()` 
+
+Update: the above seemed to work satisfactorily.
+
+#### Aside: `pax` name collision with system binary `pax`
+
+Looks like `cargo install` doesn't give us post-install hooks, e.g. to modify PATH or perform other related tasks.
+We want this ability at least to alias `pax-cli` to `pax`
+
+Note that `pax` is a system binary available on macOS at `/bin/pax` and likely in many *nix installs —
+This appears to have been used for the macOS installer packages until about 15 years ago, deprecated with the release of Mac OSX Leopard (10.5)
+See: https://en.wikipedia.org/wiki/Xar_(archiver), https://en.wikipedia.org/wiki/Mac_OS_X_Leopard, https://en.wikipedia.org/wiki/List_of_macOS_built-in_apps#Installer
+
+It's very possible that `pax` is still in use on some machines, though for anyone who wants to use (our) pax, it feels
+acceptable to usurp `pax` in PATH, especially with documentation & and path back out.
+
+Cautiously, let's proceed with aliasing / overriding `pax` in the system PATH, with the recommendation that
+users of the legacy `pax` fully qualify its usage `/bin/pax`, or otherwise alias / rename our pax binary to something like `pax-cli`
+
+#### Next steps: "create-react-app"-style CLI
+
+1. install pax-cli
+   2. for development, can do this in a sibling-folder to `pax` monorepo, and refer to `../pax/pax-cli` (to cut out need to publish to crates.io)
+3. run `pax create some-project` 
+   4. clone template project
+      5. Maintain template project inside monorepo — `new-project-template` ?
+      6. either fs-copy this template project or pull tarball from crates.io (don't include_dir(../), as this breaks crates.io builds)
+
+[x] Unpack template project
+    [x] improve args & ergonomics - namely path & name
+        Consider CRA's NUX — note that "path" and "name" are the same thing
+        > npx create-react-app my-app
+        > cd my-app
+        > npm start
+        Consider also cargo's NUX:
+        > cargo new ../nested/path
+        >    Created binary (application) `../nested/path` package
+        Seems like we should just accept a single unnamed arg and treat it as both path and name.
+        Handle cases of already-existing paths with an error:  `error: destination `/Users/zack/code/scrap/../nested/path` already exists | Use `cargo init` to initialize the directory`
+        Could follow on with a pax init that patches the existing project, but this is a bit hairier and doesn't feel MVP
+    [x] inject current pax lib versions into Cargo.toml
+        - Decide for libdev mode: do we want to refer to monorepo packages or crates.io packages?
+        (easiest way to start is crates.io packages)
+        - Consider ability to specify explicit (past) versions?
+    [x] ensure that crates.io stand-alone build of pax-cli / pax-compiler will have access to these files (no ../ or monorepo paths pointing out of crate, for example)
+    [x] build out libdev vs. prod mode
+        [x] libdev copies a live fs copy of template, to enable iterative refinement
+        [x] prod mode uses include_dir!
+    [x] iterate & refine the starter template — probably base it on our website
+        [x] create a helper script in the monorepo (scripts/create-and-run-template.sh)
+[x] Update checking
+    [x] Async, during any CLI command, determine whether a new version of pax-cli is available
+        [x] Check remotely via a server we control, for ability to guarantee stability (keep registry of published versions remotely, or check upstream to crates.io, or both)
+            [x] build update server
+                [x] logic
+                [x] dev env
+                [x] deployment
+        [x] Make CLI main async, "race" nominal actions against update check; give up on update check if a nominal update finishes before update check finishes.  Otherwise, print message after nominal action (incl ctrl-c) if a newer version is available.
+        [x] Wrap `Command`s with an async-friendly, interruptable wrapper that handles e.g. ctrl-c
+        [x] Seek to make shell scripts compatible with this async mechanism, too
+    [x] libdev checks a locally running server (http://localhost:9000) vs. prod checks a live server (https://update.pax.dev)
+        - Made it an explicit env option, PAX_UPDATE_SERVER
+    [x] reasonably formatted banner
+    [x] offline robustness
+
+Split out: Merge the above, tackle the following separately
+
+[ ] Packaging & installation flow
+    [ ] create an installer script — can't use `cargo install` due to our need for scripting
+        [ ] macOS + *nix
+        [ ] Windows
+[ ] Test e2e & document pain-points / steps&deps:
+    [ ] macos
+    [ ] linux
+    [ ] windows
+[ ] Update monorepo README with instructions to get started with CPA, as well as libdev instructions
+[ ] Better starting project - copy of website, router example, layout example, ...?
+

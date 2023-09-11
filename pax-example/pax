@@ -5,7 +5,8 @@
 ### `cd pax-example && ./pax run --target=macos`
 ### `cd pax-example && ./pax parse`
 ### `cd pax-example && ./pax libdev build-chassis`
-
+set -e
 pushd ../pax-cli
-cargo run -- "$@" --path="../pax-example" --libdev
+cargo build
+../target/debug/pax-cli "$@" --path="../pax-example" --libdev
 popd

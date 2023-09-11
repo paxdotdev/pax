@@ -1,13 +1,13 @@
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::{HashSet, HashMap};
-use std::fs;
+
 use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
 
 use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, TypeDefinition, TypeTable, get_primitive_type_table};
 
-use uuid::Uuid;
+
 
 extern crate pest;
 use pest_derive::Parser;
@@ -17,7 +17,7 @@ use pest::iterators::{Pair, Pairs};
 use pest::{
     pratt_parser::{Assoc, Op, PrattParser},
 };
-use pax_runtime_api::log;
+
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
@@ -1111,7 +1111,7 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
             ctx.type_table.insert(type_id, td);
         }
 
-        /// Also parse iterable type
+        // Also parse iterable type
         T::parse_to_manifest(ctx)
     }
     fn get_import_path() -> String {
