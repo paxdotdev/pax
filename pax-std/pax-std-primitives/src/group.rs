@@ -9,7 +9,7 @@ use pax_runtime_api::{Transform2D, Size2D, PropertyInstance, Layer};
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
 pub struct GroupInstance<R: 'static + RenderContext> {
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub primitive_children: RenderNodePtrList<R>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
@@ -18,7 +18,7 @@ pub struct GroupInstance<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
 

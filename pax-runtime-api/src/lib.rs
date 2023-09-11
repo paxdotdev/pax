@@ -778,11 +778,11 @@ pub enum Layer {
 pub struct ZIndex {
     z_index: u32,
     layer: Layer,
-    parent_scroller: Option<Vec<u64>>,
+    parent_scroller: Option<Vec<u32>>,
 }
 
 impl ZIndex {
-    pub fn new(scroller_id: Option<Vec<u64>>) -> Self {
+    pub fn new(scroller_id: Option<Vec<u32>>) -> Self {
         ZIndex {
             z_index: 0,
             layer: Layer::Canvas,
@@ -811,7 +811,7 @@ impl ZIndex {
         }
     }
 
-    pub fn generate_location_id(scroller_id: Option<Vec<u64>>, z_index: u32) -> String {
+    pub fn generate_location_id(scroller_id: Option<Vec<u32>>, z_index: u32) -> String {
         if let Some(id) = scroller_id {
             format!("{:?}_{}", id, z_index)
         } else {

@@ -15,7 +15,7 @@ use pax_std::types::Color;
 
 pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub properties: Rc<RefCell<Text>>,
 
     pub size: Size2D,
@@ -25,12 +25,12 @@ pub struct TextInstance<R: 'static + RenderContext> {
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
     //      shares this last_patches cache
-    last_patches: HashMap<Vec<u64>, pax_message::TextPatch>,
+    last_patches: HashMap<Vec<u32>, pax_message::TextPatch>,
 }
 
 impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
 

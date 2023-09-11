@@ -1,6 +1,7 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::env::Args;
+use std::fmt::format;
 use std::rc::{Rc, Weak};
 use std::thread::sleep;
 use std::time::Duration;
@@ -22,7 +23,7 @@ pub struct PaxEngine<R: 'static + RenderContext> {
     pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct> >,
     pub main_component: Rc<RefCell<ComponentInstance<R>>>,
     pub runtime: Rc<RefCell<Runtime<R>>>,
-    pub image_map: HashMap<Vec<u64>, (Box<Vec<u8>>, usize, usize)>,
+    pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
     viewport_tab: TransformAndBounds,
 }
 
@@ -109,7 +110,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     /// Thus, the `id_chain` is used as a unique key, first the `instance_id` (which will increase monotonically through the lifetime of the program),
     /// then each RepeatItem index through a traversal of the stack frame.  Thus, each virtually `Repeat`ed element
     /// gets its own unique ID in the form of an "address" through any nested `Repeat`-ancestors.
-    pub fn get_id_chain(&self, id: u64) -> Vec<u64> {
+    pub fn get_id_chain(&self, id: u32) -> Vec<u32> {
         let mut indices = (*self.runtime).borrow().get_list_of_repeat_indicies_from_stack();
         indices.insert(0, id);
         indices
@@ -184,7 +185,7 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
 /// a `for j in 0..4` would have 12 repeat-expanded nodes representing the 12 virtual Rectangles in the
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
 pub struct RepeatExpandedNode<R: 'static + RenderContext> {
-    id_chain: Vec<u64>,
+    id_chain: Vec<u32>,
     parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
     instance_node: RenderNodePtr<R>,
     stack_frame: Rc<RefCell<crate::StackFrame<R>>>,
@@ -419,7 +420,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
 
 pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///look up RenderNodePtr by id
-    instance_map: HashMap<u64, RenderNodePtr<R>>,
+    instance_map: HashMap<u32, RenderNodePtr<R>>,
 
     ///a cache of repeat-expanded elements visited by rendertree traversal,
     ///intended to be cleared at the beginning of each frame and populated
@@ -428,12 +429,12 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
     repeat_expanded_node_cache: Vec<Rc<RepeatExpandedNode<R>>>,
 
     ///track which repeat-expanded elements are currently mounted -- if id is present in set, is mounted
-    mounted_set: HashSet<Vec<u64>>,
+    mounted_set: HashSet<Vec<u32>>,
     ///tracks whichs instance nodes are marked for unmounting, to be done at the correct point in the render tree lifecycle
-    marked_for_unmount_set: HashSet<u64>,
+    marked_for_unmount_set: HashSet<u32>,
 
     ///register holding the next value to mint as an id
-    next_id: u64,
+    next_id: u32,
 }
 
 impl<R: 'static + RenderContext> InstanceRegistry<R> {
@@ -447,29 +448,29 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         }
     }
 
-    pub fn mint_id(&mut self) -> u64 {
+    pub fn mint_id(&mut self) -> u32 {
         let new_id = self.next_id;
         self.next_id = self.next_id + 1;
         new_id
     }
 
-    pub fn register(&mut self, instance_id: u64, node: RenderNodePtr<R>) {
+    pub fn register(&mut self, instance_id: u32, node: RenderNodePtr<R>) {
         self.instance_map.insert(instance_id, node);
     }
 
-    pub fn deregister(&mut self, instance_id: u64) {
+    pub fn deregister(&mut self, instance_id: u32) {
         self.instance_map.remove(&instance_id);
     }
 
-    pub fn mark_mounted(&mut self, id_chain: Vec<u64>) {
+    pub fn mark_mounted(&mut self, id_chain: Vec<u32>) {
         self.mounted_set.insert(id_chain);
     }
 
-    pub fn is_mounted(&self, id_chain: &Vec<u64>) -> bool {
+    pub fn is_mounted(&self, id_chain: &Vec<u32>) -> bool {
         self.mounted_set.contains(id_chain)
     }
 
-    pub fn mark_for_unmount(&mut self, instance_id: u64) {
+    pub fn mark_for_unmount(&mut self, instance_id: u32) {
         self.marked_for_unmount_set.insert(instance_id);
     }
 
@@ -741,7 +742,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 //lifecycle: render
                 //this is this node's time to do its own rendering, aside
                 //from the rendering of its children. Its children have already been rendered.
-
                 if !is_viewport_culled {
                     node.borrow_mut().handle_render(rtc, rc);
                 }
@@ -856,7 +856,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         native_render_queue
     }
 
-    pub fn loadImage(&mut self, id_chain: Vec<u64>, image_data: Vec<u8>, width: usize, height: usize) {
+    pub fn loadImage(&mut self, id_chain: Vec<u32>, image_data: Vec<u8>, width: usize, height: usize) {
         self.image_map.insert(id_chain, (Box::new(image_data), width, height));
     }
 }

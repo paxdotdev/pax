@@ -16,14 +16,14 @@ use pax_std::types::PathSegment::LineSegment;
 /// A basic 2D vector path for arbitrary Bézier / line-segment chains
 pub struct PathInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub properties: Rc<RefCell<Path>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
 }
 
 impl<R: 'static + RenderContext>  RenderNode<R> for PathInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
 

@@ -26,7 +26,7 @@ module.exports = {
     extensions: ['.tsx', '.html', '.ts', '.js', '.wasm', '.css'],
   },
 
-  entry: './index.ts',
+  entry: './src/index.ts',
 
   output: {
     path: path.join(path.resolve(__dirname), 'dist'),
