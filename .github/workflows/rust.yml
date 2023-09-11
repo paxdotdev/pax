@@ -20,9 +20,5 @@ jobs:
     # Install dependencies
     - name: Install dependencies
       run: sudo apt update && sudo apt install -y libgtk-4-dev
-    - name: Build
-      run: cargo build --verbose
     - name: Run tests
       run: cargo test --verbose
-    - name: Run `cargo check`
-      run: cargo check
