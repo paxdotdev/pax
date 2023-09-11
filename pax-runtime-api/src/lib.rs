@@ -739,6 +739,54 @@ impl Interpolatable for isize {
     }
 }
 
+impl Interpolatable for i64 {
+    fn interpolate(&self, other: &i64, t: f64) -> i64 {
+        (*self as f64 + (*other - self) as f64 * t) as i64
+    }
+}
+
+impl Interpolatable for u64 {
+    fn interpolate(&self, other: &u64, t: f64) -> u64 {
+        (*self as f64 + (*other - self) as f64 * t) as u64
+    }
+}
+
+impl Interpolatable for u8 {
+    fn interpolate(&self, other: &u8, t: f64) -> u8 {
+        (*self as f64 + (*other - *self) as f64 * t) as u8
+    }
+}
+
+impl Interpolatable for u16 {
+    fn interpolate(&self, other: &u16, t: f64) -> u16 {
+        (*self as f64 + (*other - *self) as f64 * t) as u16
+    }
+}
+
+impl Interpolatable for u32 {
+    fn interpolate(&self, other: &u32, t: f64) -> u32 {
+        (*self as f64 + (*other - *self) as f64 * t) as u32
+    }
+}
+
+impl Interpolatable for i8 {
+    fn interpolate(&self, other: &i8, t: f64) -> i8 {
+        (*self as f64 + (*other - *self) as f64 * t) as i8
+    }
+}
+
+impl Interpolatable for i16 {
+    fn interpolate(&self, other: &i16, t: f64) -> i16 {
+        (*self as f64 + (*other - *self) as f64 * t) as i16
+    }
+}
+
+impl Interpolatable for i32 {
+    fn interpolate(&self, other: &i32, t: f64) -> i32 {
+        (*self as f64 + (*other - *self) as f64 * t) as i32
+    }
+}
+
 impl Interpolatable for String {}
 
 

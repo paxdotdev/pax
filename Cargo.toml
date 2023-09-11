@@ -14,11 +14,9 @@ members = [
 
 exclude = [
     "pax-cartridge",
-    "pax-compiler/pax-create-template",
+    "pax-compiler/new-project-template",
     "pax-example",
     "pax-properties-coproduct",
-    "pax-example/.pax/chassis/MacOS",
-    "pax-example/.pax/chassis/Web",
     "pax-chassis-macos/pax-dev-harness-macos",
     "pax-create-sandbox",
 ]

@@ -3184,7 +3184,7 @@ Update: the above seemed to work satisfactorily.
    2. for development, can do this in a sibling-folder to `pax` monorepo, and refer to `../pax/pax-cli` (to cut out need to publish to crates.io)
 3. run `pax create some-project` 
    4. clone template project
-      5. Maintain template project inside monorepo — `pax-create-template` ?
+      5. Maintain template project inside monorepo — `new-project-template` ?
       6. either fs-copy this template project or pull tarball from crates.io (don't include_dir(../), as this breaks crates.io builds)
 
 [ ] Unpack template project
