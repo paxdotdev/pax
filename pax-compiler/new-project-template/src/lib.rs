@@ -8,7 +8,7 @@ use pax_std::components::{Stacker, Sidebar};
 #[main]
 #[file("lib.pax")]
 pub struct Example {
-    pub container_width: Property<f64>,
+    pub num_clicks: Property<usize>,
 }
 
 impl Example {
@@ -16,7 +16,4 @@ impl Example {
         pax_lang::log("Mounted!");
     }
 
-    pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
-        self.container_width.set(ctx.bounds_parent.0);
-    }
 }

@@ -958,8 +958,8 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
     }
 }
 
-static PAX_CREATE_TEMPLATE : Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/pax-create-template");
-const PAX_CREATE_TEMPLATE_DIR_NAME : &str = "pax-create-template";
+static PAX_CREATE_TEMPLATE : Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/new-project-template");
+const PAX_CREATE_TEMPLATE_DIR_NAME : &str = "new-project-template";
 
 pub fn perform_create(ctx: &CreateContext) {
     let full_path = Path::new(&ctx.path);
@@ -972,8 +972,8 @@ pub fn perform_create(ctx: &CreateContext) {
 
     // clone template into full_path
     if ctx.is_libdev_mode {
-        //For is_libdev_mode, we copy our monorepo @/pax-compiler/pax-create-template directory
-        //to the target directly.  This enables iterating on pax-create-template during libdev
+        //For is_libdev_mode, we copy our monorepo @/pax-compiler/new-project-template directory
+        //to the target directly.  This enables iterating on new-project-template during libdev
         //without the sticky caches associated with `include_dir`
         let pax_compiler_cargo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
         let template_src = pax_compiler_cargo_root.join(PAX_CREATE_TEMPLATE_DIR_NAME);

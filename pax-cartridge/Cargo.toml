@@ -8,8 +8,6 @@ homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Static program definition container for Pax programs, intended to be patched during compilation"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
 piet-common = "0.6.0"
 pax-core = {path = "../pax-core", version = "0.6.17"}
