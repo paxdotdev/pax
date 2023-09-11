@@ -3178,6 +3178,21 @@ So boiling down to an algorithm:
 
 Update: the above seemed to work satisfactorily.
 
+#### Aside: `pax` name collision with system binary `pax`
+
+Looks like `cargo install` doesn't give us post-install hooks, e.g. to modify PATH or perform other related tasks.
+We want this ability at least to alias `pax-cli` to `pax`
+
+Note that `pax` is a system binary available on macOS at `/bin/pax` and likely in many *nix installs —
+This appears to have been used for the macOS installer packages until about 15 years ago, deprecated with the release of Mac OSX Leopard (10.5)
+See: https://en.wikipedia.org/wiki/Xar_(archiver), https://en.wikipedia.org/wiki/Mac_OS_X_Leopard, https://en.wikipedia.org/wiki/List_of_macOS_built-in_apps#Installer
+
+It's very possible that `pax` is still in use on some machines, though for anyone who wants to use (our) pax, it feels
+acceptable to usurp `pax` in PATH, especially with documentation & and path back out.
+
+Cautiously, let's proceed with aliasing / overriding `pax` in the system PATH, with the recommendation that
+users of the legacy `pax` fully qualify its usage `/bin/pax`, or otherwise alias / rename our pax binary to something like `pax-cli`
+
 #### Next steps: "create-react-app"-style CLI
 
 1. install pax-cli
@@ -3187,7 +3202,7 @@ Update: the above seemed to work satisfactorily.
       5. Maintain template project inside monorepo — `new-project-template` ?
       6. either fs-copy this template project or pull tarball from crates.io (don't include_dir(../), as this breaks crates.io builds)
 
-[ ] Unpack template project
+[x] Unpack template project
     [x] improve args & ergonomics - namely path & name
         Consider CRA's NUX — note that "path" and "name" are the same thing
         > npx create-react-app my-app
@@ -3207,7 +3222,7 @@ Update: the above seemed to work satisfactorily.
     [x] build out libdev vs. prod mode
         [x] libdev copies a live fs copy of template, to enable iterative refinement
         [x] prod mode uses include_dir!
-    [ ] iterate & refine the starter template — probably base it on our website
+    [x] iterate & refine the starter template — probably base it on our website
         [x] create a helper script in the monorepo (scripts/create-and-run-template.sh)
 [x] Update checking
     [x] Async, during any CLI command, determine whether a new version of pax-cli is available
@@ -3223,6 +3238,9 @@ Update: the above seemed to work satisfactorily.
         - Made it an explicit env option, PAX_UPDATE_SERVER
     [x] reasonably formatted banner
     [x] offline robustness
+
+Split out: Merge the above, tackle the following separately
+
 [ ] Packaging & installation flow
     [ ] create an installer script — can't use `cargo install` due to our need for scripting
         [ ] macOS + *nix
@@ -3232,19 +3250,5 @@ Update: the above seemed to work satisfactorily.
     [ ] linux
     [ ] windows
 [ ] Update monorepo README with instructions to get started with CPA, as well as libdev instructions
-
-
-Looks like `cargo install` doesn't give us post-install hooks, e.g. to modify PATH or perform other related tasks.
-We want this ability at least to alias `pax-cli` to `pax`
-
-Note that `pax` is a system binary available on macOS at `/bin/pax` and likely in many *nix installs —
-This appears to have been used for the macOS installer packages until about 15 years ago, deprecated with the release of Mac OSX Leopard (10.5)
-See: https://en.wikipedia.org/wiki/Xar_(archiver), https://en.wikipedia.org/wiki/Mac_OS_X_Leopard, https://en.wikipedia.org/wiki/List_of_macOS_built-in_apps#Installer
-
-It's very possible that `pax` is still in use on some machines, though for anyone who wants to use (our) pax, it feels
-acceptable to usurp `pax` in PATH, especially with documentation & and path back out.
-
-Cautiously, let's proceed with aliasing / overriding `pax` in the system PATH, with the recommendation that
-users of the legacy `pax` fully qualify its usage `/bin/pax`, or otherwise alias / rename our pax binary to something like `pax-cli`
-
+[ ] Better starting project - copy of website, router example, layout example, ...?
 
