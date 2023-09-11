@@ -20,13 +20,13 @@ use pax_message::{AnyCreatePatch, FramePatch};
 /// a [`Group`] will generally be a more performant and otherwise-equivalent
 /// to [`Frame`], since `[Frame]` creates a clipping mask.
 pub struct FrameInstance<R: 'static + RenderContext> {
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub children: RenderNodePtrList<R>,
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
 
-    last_patches: HashMap<Vec<u64>, FramePatch>,
+    last_patches: HashMap<Vec<u32>, FramePatch>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
@@ -41,7 +41,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         }
     }
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
     

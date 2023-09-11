@@ -16,7 +16,7 @@ use std::rc::Rc;
 /// by `size`, transformed by `transform`
 pub struct RectangleInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub properties: Rc<RefCell<Rectangle>>,
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
@@ -24,7 +24,7 @@ pub struct RectangleInstance<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
     

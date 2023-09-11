@@ -12,7 +12,7 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 /// The Pax compiler handles ConditionalInstance specially
 /// with the `if` syntax in templates.
 pub struct ConditionalInstance<R: 'static + RenderContext> {
-    pub instance_id: u64,
+    pub instance_id: u32,
 
     pub boolean_expression: Box<dyn PropertyInstance<bool>>,
     pub true_branch_children: RenderNodePtrList<R>,
@@ -24,7 +24,7 @@ pub struct ConditionalInstance<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
 

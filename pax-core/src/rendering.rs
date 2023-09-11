@@ -229,7 +229,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// individual rendered elements may share an instance_id, for example
     /// inside of `Repeat`.  See also `RenderTreeContext::get_id_chain`, which enables globally
     /// unique node addressing in the context of an in-progress render tree traversal.
-    fn get_instance_id(&self) -> u64;
+    fn get_instance_id(&self) -> u32;
 
     /// Used for exotic tree traversals, e.g. for `Stacker` > `Repeat` > `Rectangle`
     /// where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.

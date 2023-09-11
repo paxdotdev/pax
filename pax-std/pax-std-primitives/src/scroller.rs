@@ -22,7 +22,7 @@ use crate::group::GroupInstance;
 /// When both scrolling axes are disabled, `Scroller` acts exactly like a `Frame`, with a possibly-
 /// transformed `Group` surrounding its contents.
 pub struct ScrollerInstance<R: 'static + RenderContext> {
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub children: RenderNodePtrList<R>,
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
@@ -30,12 +30,12 @@ pub struct ScrollerInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub scroll_x_offset: f64,
     pub scroll_y_offset: f64,
-    last_patches: HashMap<Vec<u64>, ScrollerPatch>,
+    last_patches: HashMap<Vec<u32>, ScrollerPatch>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
 

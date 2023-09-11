@@ -31,7 +31,7 @@ module.exports = {
     }
   },
 
-  entry: './index.ts',
+  entry: './src/index.ts',
 
   output: {
     path: path.join(path.resolve(__dirname), 'dist'),

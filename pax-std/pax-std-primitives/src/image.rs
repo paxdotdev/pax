@@ -15,17 +15,17 @@ use pax_message::ImagePatch;
 /// by `size`, transformed by `transform`
 pub struct ImageInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub properties: Rc<RefCell<Image>>,
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    last_patches: HashMap<Vec<u64>, pax_message::ImagePatch>,
+    last_patches: HashMap<Vec<u32>, pax_message::ImagePatch>,
     pub image: Option<<R as RenderContext>::Image>,
 }
 
 impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
 

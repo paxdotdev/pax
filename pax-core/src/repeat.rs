@@ -16,7 +16,7 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 /// template `n` times, each with an embedded component context (`RepeatItem`)
 /// with an index `i` and a pointer to that relevant datum `source_expression[i]`
 pub struct RepeatInstance<R: 'static + RenderContext> {
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub repeated_template: RenderNodePtrList<R>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub source_expression_vec: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
@@ -31,7 +31,7 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
 

@@ -16,7 +16,7 @@ use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, Layer};
 /// in special applications like `Repeat` where it houses the `RepeatItem`
 /// properties attached to each of Repeat's virtual nodes.
 pub struct ComponentInstance<R: 'static + RenderContext> {
-    pub(crate) instance_id: u64,
+    pub(crate) instance_id: u32,
     pub template: RenderNodePtrList<R>,
     pub children: RenderNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
@@ -28,7 +28,7 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {

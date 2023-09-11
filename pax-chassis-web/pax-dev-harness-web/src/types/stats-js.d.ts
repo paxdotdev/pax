@@ -1,0 +1,1 @@
+declare module 'src/types/stats-js';
