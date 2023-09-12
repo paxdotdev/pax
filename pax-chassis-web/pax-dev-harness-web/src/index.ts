@@ -21,16 +21,14 @@ import {setupEventListeners} from "./events/listeners";
 let initializedChassis = false;
 let is_mobile_device = false;
 
-// var stats = new Stats();
-// stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
-// document.body.appendChild( stats.dom );
+var stats = new Stats();
+stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+document.body.appendChild( stats.dom );
 
 
 // Init-once globals for garbage collector optimization
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
-let old_messages: any[] = [];
-let old_views: any[] = [];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
 
@@ -57,36 +55,35 @@ async function main(wasmMod: typeof import('../dist/pax_chassis_web')) {
 
 function renderLoop (chassis: PaxChassisWeb) {
 
-    // stats.begin();
-    // nativePool.sendScrollerValues();
-    // nativePool.clearCanvases();
+    stats.begin();
+    nativePool.sendScrollerValues();
+    nativePool.clearCanvases();
 
     const memorySlice = chassis.tick();
-    //const memory = wasm_memory();
-    //const memoryBuffer = new Uint8Array(memory.buffer);
-    //
-    // // Extract the serialized data directly from memory
-    // const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySlice.ptr(), memorySlice.ptr() + memorySlice.len()));
-    // messages = JSON.parse(jsonString);
-    //
-    //  if(!initializedChassis){
-    //      window.addEventListener('resize', () => {
-    //          let width = window.innerWidth;
-    //          let height = window.innerHeight;
-    //          chassis.sendViewportUpdate(width, height);
-    //          nativePool.baseOcclusionContext.updateCanvases(width, height);
-    //      });
-    //      //setupEventListeners(chassis, mount);
-    //      initializedChassis = true;
-    //  }
-     // @ts-ignore
-    // processMessages(messages, chassis, objectManager);
-    //
+    const memory = wasm_memory();
+    const memoryBuffer = new Uint8Array(memory.buffer);
+
+    // Extract the serialized data directly from memory
+    const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySlice.ptr(), memorySlice.ptr() + memorySlice.len()));
+    messages = JSON.parse(jsonString);
+
+     if(!initializedChassis){
+         let mount = document.querySelector("#" + MOUNT_ID)!;
+         window.addEventListener('resize', () => {
+             let width = window.innerWidth;
+             let height = window.innerHeight;
+             chassis.sendViewportUpdate(width, height);
+             nativePool.baseOcclusionContext.updateCanvases(width, height);
+         });
+         setupEventListeners(chassis, mount);
+         initializedChassis = true;
+     }
+     //@ts-ignore
+    processMessages(messages, chassis, objectManager);
+
     // //necessary manual cleanup
     chassis.deallocate(memorySlice);
-    //old_views.push(memoryBuffer);
-    //old_messages.push(messages);
-    //old_messages.push(jsonString);
+    stats.end();
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
@@ -105,24 +102,24 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
         }else if (unwrapped_msg["TextDelete"]) {
             let msg = unwrapped_msg["TextDelete"];
             nativePool.textDelete(msg)
-        // } else if(unwrapped_msg["FrameCreate"]) {
-        //     let msg = unwrapped_msg["FrameCreate"]
-        //     let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
-        //     patch.fromPatch(msg);
-        //     nativePool.frameCreate(patch);
-        // }else if (unwrapped_msg["FrameUpdate"]){
-        //     let msg = unwrapped_msg["FrameUpdate"]
-        //     let patch: FrameUpdatePatch = objectManager.getFromPool(FRAME_UPDATE_PATCH);
-        //     patch.fromPatch(msg);
-        //     nativePool.frameUpdate(patch);
-        // }else if (unwrapped_msg["FrameDelete"]) {
-        //     let msg = unwrapped_msg["FrameDelete"];
-        //     nativePool.frameDelete(msg["id_chain"])
-        // }else if (unwrapped_msg["ImageLoad"]){
-            // let msg = unwrapped_msg["ImageLoad"];
-            // let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);
-            // patch.fromPatch(msg);
-            // nativePool.imageLoad(patch, chassis)
+        } else if(unwrapped_msg["FrameCreate"]) {
+            let msg = unwrapped_msg["FrameCreate"]
+            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.frameCreate(patch);
+        }else if (unwrapped_msg["FrameUpdate"]){
+            let msg = unwrapped_msg["FrameUpdate"]
+            let patch: FrameUpdatePatch = objectManager.getFromPool(FRAME_UPDATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.frameUpdate(patch);
+        }else if (unwrapped_msg["FrameDelete"]) {
+            let msg = unwrapped_msg["FrameDelete"];
+            nativePool.frameDelete(msg["id_chain"])
+        }else if (unwrapped_msg["ImageLoad"]){
+            let msg = unwrapped_msg["ImageLoad"];
+            let patch: ImageLoadPatch = objectManager.getFromPool(IMAGE_LOAD_PATCH);
+            patch.fromPatch(msg);
+            nativePool.imageLoad(patch, chassis)
         }else if(unwrapped_msg["ScrollerCreate"]) {
             let msg = unwrapped_msg["ScrollerCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);

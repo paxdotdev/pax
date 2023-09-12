@@ -85,7 +85,6 @@ impl PaxChassisWeb {
     }
 
     pub fn add_context(&mut self, id: String) {
-        pax_runtime_api::log(format!("added context {}", id).as_str());
         let window = window().unwrap();
         let dpr = window.device_pixel_ratio();
         let document = window.document().unwrap();
@@ -113,7 +112,6 @@ impl PaxChassisWeb {
         self.engine.borrow_mut().set_viewport_size((width, height));
     }
     pub fn remove_context(&mut self, id: String) {
-        pax_runtime_api::log(format!("removed context {}", id).as_str());
         self.drawing_contexts.remove(&id);
     }
 

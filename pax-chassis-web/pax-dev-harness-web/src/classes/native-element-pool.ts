@@ -50,13 +50,8 @@ export class NativeElementPool {
 
 
     clearCanvases(): void {
-        for (let key in this.canvases){
+        this.canvases.forEach((canvas, key) => {
             let dpr = window.devicePixelRatio;
-            const canvas = this.canvases.get(key)!;
-            console.log(canvas);
-            console.log(key);
-            console.log(this.canvases);
-            console.log(this.canvases.get(key));
             const context = canvas.getContext('2d');
             if (context) {
                 context.clearRect(0, 0, canvas.width, canvas.height);
@@ -66,7 +61,7 @@ export class NativeElementPool {
             if (context) {
                 context.scale(dpr, dpr);
             }
-        }
+        });
     }
 
     sendScrollerValues(){
