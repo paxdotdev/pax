@@ -87,7 +87,7 @@ fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info
 // The stable output directory for generated / copied files
 const PAX_DIR_PKG_PATH : &str = "pkg";
 
-fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, ctx: &RunContext) {
+fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &RunContext) {
 
     let dest_pkg_root = pax_dir.join(PAX_DIR_PKG_PATH);
     for pkg in ALL_PKGS {
@@ -104,10 +104,12 @@ fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &str, ctx: &Run
             let pax_workspace_root = pax_dir.parent().unwrap().parent().unwrap();
             let src = pax_workspace_root.join(pkg);
             let dest = dest_pkg_root.join(pkg);
+
             copy_dir_to(&src, &dest).expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
         } else {
             let dest = dest_pkg_root.join(pkg);
             if !dest.exists() {
+                let pax_version = pax_version.as_ref().expect("Pax version required but not found");
                 let tarball_url = format!("https://crates.io/api/v1/crates/{}/{}/download", pkg, pax_version);
                 let resp = reqwest::blocking::get(&tarball_url)
                     .expect(&format!("Failed to fetch tarball for {} at version {}", pkg, pax_version));
@@ -727,9 +729,22 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
     #[allow(non_snake_case)]
     let PAX_BADGE = "[Pax]".bold().on_black().white();
 
-    println!("{} 🛠 Running `cargo build`...", &PAX_BADGE);
+    //First we clone dependencies into the .pax/pkg directory.  We must do this before running
+    //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
+    //dependency paths are `.pax/pkg/*`.
     let pax_dir = get_or_create_pax_directory(&ctx.path);
 
+    //Inspect Cargo.lock to find declared pax lib versions.  Note that this is moot for
+    //libdev, where we don't care about a crates.io version (and where `cargo metadata` won't work
+    //on a cold-start monorepo clone.)
+    let pax_version = if ctx.is_libdev_mode {
+        None
+    } else {
+        Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
+    };
+    clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &ctx);
+
+    println!("{} 🛠 Running `cargo build`...", &PAX_BADGE);
     // Run parser bin from host project with `--features parser`
     let output = run_parser_binary(&ctx.path, Arc::clone(&ctx.process_child_ids));
 
@@ -743,14 +758,10 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_property_prefixes_in_place(&mut manifest, &host_crate_info);
 
-    //Inspect Cargo.lock to find declared pax lib versions
-    let pax_version = get_version_of_whitelisted_packages(&ctx.path).unwrap();
-
     println!("{} 🧮 Compiling expressions", &PAX_BADGE);
     expressions::compile_all_expressions(&mut manifest);
 
     println!("{} 🦀 Generating Rust", &PAX_BADGE);
-    clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &ctx);
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
     generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
