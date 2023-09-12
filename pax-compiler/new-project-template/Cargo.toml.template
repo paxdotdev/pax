@@ -1,0 +1,22 @@
+[package]
+name = "CRATE_NAME"
+version = "VERSION_PLACEHOLDER"
+edition = "2021"
+
+[dependencies]
+pax-lang = { version="VERSION_PLACEHOLDER" }
+pax-std = { version="VERSION_PLACEHOLDER" }
+pax-compiler = {version = "VERSION_PLACEHOLDER", optional = true}
+serde_json = {version = "1.0.95", optional = true}
+
+[[bin]]
+name = "parser"
+path = "src/lib.rs"
+required-features = ["parser"]
+
+[features]
+parser = ["pax-std/parser", "pax-lang/parser", "dep:serde_json", "dep:pax-compiler"]
+
+# The following empty [workspace] directive is a workaround to satisfy
+# a cargo workspace bug, as documented: https://github.com/rust-lang/cargo/issues/6745
+[workspace]

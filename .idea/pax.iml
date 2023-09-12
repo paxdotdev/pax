@@ -25,7 +25,7 @@
       <sourceFolder url="file://$MODULE_DIR$/pax-core/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/pax-std/pax-std-primitives/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
-      <excludeFolder url="file://$MODULE_DIR$/pax-example/.pax/chassis/MacOS/target" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-example/.pax" />
       <excludeFolder url="file://$MODULE_DIR$/pax-example/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-std/target" />
     </content>

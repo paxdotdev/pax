@@ -1,12 +1,11 @@
-use std::any::Any;
 use super::manifest::{TemplateNodeDefinition, PaxManifest, ExpressionSpec, ExpressionSpecInvocation, ComponentDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, PropertyDefinition, SettingsSelectorBlockDefinition};
 use std::collections::HashMap;
-use std::ops::{Deref, IndexMut, RangeFrom};
+use std::ops::{IndexMut, RangeFrom};
 use std::slice::IterMut;
-use std::str::Split;
+
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use crate::manifest::{LiteralBlockDefinition, PropertyDefinitionFlags, TypeDefinition, TypeTable};
+use crate::manifest::{PropertyDefinitionFlags, TypeDefinition, TypeTable};
 use crate::parsing::escape_identifier;
 
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
@@ -120,7 +119,7 @@ fn merge_inline_settings_with_settings_block(inline_settings: &Option<Vec<(Strin
     if merged.len() > 0 {Some(merged)} else{None}
 }
 
-fn recurse_compile_literal_block<'a>(settings_pairs: IterMut<(String, ValueDefinition)>, mut ctx: &mut ExpressionCompilationContext, current_property_definitions: Vec<PropertyDefinition>, type_id: String){
+fn recurse_compile_literal_block<'a>(settings_pairs: IterMut<(String, ValueDefinition)>, ctx: &mut ExpressionCompilationContext, current_property_definitions: Vec<PropertyDefinition>, type_id: String){
     settings_pairs.for_each(|pair| {
         match &mut pair.1 {
             ValueDefinition::LiteralValue(_) => {
@@ -512,7 +511,7 @@ fn resolve_symbol_as_invocation(sym: &str, ctx: &ExpressionCompilationContext) -
             }
         }
 
-        let mut stack_offset = found_depth.unwrap();
+        let stack_offset = found_depth.unwrap();
 
 
 

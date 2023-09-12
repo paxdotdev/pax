@@ -1,6 +1,5 @@
 use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
-use std::rc::Rc;
 use crate::Interpolatable;
 
 /// Numeric is a module that wraps numeric literals in Pax

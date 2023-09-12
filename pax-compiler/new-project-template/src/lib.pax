@@ -1,0 +1,7 @@
+<Group>
+    <Text text="Welcome to Pax!" />
+</Group>
+
+@events {
+    did_mount: self.handle_did_mount
+}

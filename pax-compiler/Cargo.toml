@@ -1,12 +1,19 @@
 [package]
 name = "pax-compiler"
-version = "0.6.9"
+version = "0.6.17"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 description = "Compiler APIs for parsing and building Pax projects into application executables"
+include = [
+    "new-project-template/**/*",
+    "src/**/*",
+    "templates/**/*",
+    "README.md",
+]
+
 
 [features]
 default = ["console_error_panic_hook", "cbor", "json", "messagepack"]
@@ -17,9 +24,15 @@ cbor = ["serde"]
 [lib]
 
 [dependencies]
+libc = "0.2"
 kurbo = "0.9.0"
-pax-message = {version = "0.6.9", path="../pax-message"}
-pax-runtime-api = {version= "0.6.9", path="../pax-runtime-api"}
+nix = "0.20.2"
+tokio = { version = "1", features = ["full"] }
+reqwest = { version = "0.11.18", features = ["blocking"] }
+tar = "0.4"
+fs_extra = "1.3.0"
+pax-message = {version = "0.6.17", path="../pax-message"}
+pax-runtime-api = {version= "0.6.17", path="../pax-runtime-api"}
 pest = "2.6.0"
 pest_derive = "2.6.0"
 itertools = "0.10.5"
@@ -38,9 +51,7 @@ serde_json = { version = "1.0.95", optional = true }
 wasm-bindgen = {version = "0.2.30", features=["serde-serialize"]}
 console_error_panic_hook = { version = "0.1.6", optional = true }
 futures = "0.3.28"
-
 uuid = {version = "0.8", features = ["v4"] }
-
 
 
 

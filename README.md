@@ -11,7 +11,7 @@ This repository includes:
 
 ## Example
 
-Writing Pax is intended to feel familiar and the language borrows many ideas from [prior art](https://docs.pax.dev/intro-goals-prior-art.htmll#prior-art--inspiration).
+Writing Pax is intended to feel familiar and the language borrows many ideas from [prior art](https://docs.pax.dev/intro-goals-prior-art.html#prior-art--inspiration).
 
 Following is a simple Pax component called `IncrementMe`:
 

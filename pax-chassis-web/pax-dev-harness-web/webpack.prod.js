@@ -42,10 +42,11 @@ module.exports = {
     new CopyWebpackPlugin({
       patterns: [
         {
-          from: 'public',
+          context: path.resolve(__dirname),
+          from: 'public/**/*',
           to: '.',
           globOptions: {
-            ignore: ['**/index.html'],
+            ignore: ['index.html'],
           },
         },
       ],
