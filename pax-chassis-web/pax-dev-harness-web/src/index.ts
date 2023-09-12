@@ -21,9 +21,9 @@ import {setupEventListeners} from "./events/listeners";
 let initializedChassis = false;
 let is_mobile_device = false;
 
-var stats = new Stats();
-stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
-document.body.appendChild( stats.dom );
+// var stats = new Stats();
+// stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
+// document.body.appendChild( stats.dom );
 
 
 // Init-once globals for garbage collector optimization
@@ -55,7 +55,7 @@ async function main(wasmMod: typeof import('../dist/pax_chassis_web')) {
 
 function renderLoop (chassis: PaxChassisWeb) {
 
-    stats.begin();
+    //stats.begin();
     nativePool.sendScrollerValues();
     nativePool.clearCanvases();
 
@@ -83,7 +83,7 @@ function renderLoop (chassis: PaxChassisWeb) {
 
     // //necessary manual cleanup
     chassis.deallocate(memorySlice);
-    stats.end();
+    //stats.end();
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
