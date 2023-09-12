@@ -1,0 +1,24 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    # Install dependencies
+    - name: Install dependencies
+      run: sudo apt update && sudo apt install -y libgtk-4-dev
+    - name: Run tests
+      run: cargo test --verbose

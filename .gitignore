@@ -5,6 +5,8 @@ vendor/
 pax-chassis-macos/pax-dev-harness-macos/build
 pax-example/build
 pax-example/.pax/
+pax-create-sandbox/
+
 
 **/*.rs.bk
 Cargo.lock
