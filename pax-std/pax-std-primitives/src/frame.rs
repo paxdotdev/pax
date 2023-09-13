@@ -9,7 +9,7 @@ use piet::RenderContext;
 
 use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, RenderNodePtr, InstantiationArgs, HandlerRegistry};
 use pax_core::pax_properties_coproduct::TypesCoproduct;
-use pax_runtime_api::{Transform2D, Size, PropertyInstance, PropertyLiteral, Size2D, Layer};
+use pax_runtime_api::{Transform2D, PropertyInstance, Size2D, Layer};
 use pax_message::{AnyCreatePatch, FramePatch};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
@@ -45,7 +45,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         self.instance_id
     }
     
-    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
 
         let mut instance_registry = args.instance_registry.borrow_mut();
         let instance_id = instance_registry.mint_id();
@@ -73,7 +73,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     }
 
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, z_index: u32, subtree_depth: u32) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, _z_index: u32, _subtree_depth: u32) {
 
         let mut new_message : FramePatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
@@ -150,7 +150,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut size = &mut *self.size.as_ref().borrow_mut();
+        let size = &mut *self.size.as_ref().borrow_mut();
 
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
@@ -162,7 +162,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
             size[1].set(new_value);
         }
 
-        let mut transform = &mut *self.transform.as_ref().borrow_mut();
+        let transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
@@ -188,7 +188,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         bez_path.close_path();
 
         let transformed_bez_path = transform * bez_path;
-        for (key,rc) in rcs.iter_mut() {
+        for (_key,rc) in rcs.iter_mut() {
             rc.save().unwrap(); //our "save point" before clipping — restored to in the did_render
             rc.clip(transformed_bez_path.clone());
         }
@@ -196,7 +196,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         (*rtc.runtime).borrow_mut().push_clipping_stack_id(id_chain);
     }
     fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
-        for (key,rc) in _rcs.iter_mut() {
+        for (_key,rc) in _rcs.iter_mut() {
             //pop the clipping context from the stack
             rc.restore().unwrap();
         }
@@ -220,7 +220,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         );
     }
 
-    fn handle_will_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
 
         // The following, sending a `FrameDelete` message, was unplugged in desperation on May 11 2022
         // There was a bug wherein a flood of `FrameDelete` messages was getting

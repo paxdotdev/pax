@@ -1,9 +1,9 @@
 use pax_lang::*;
-use pax_lang::api::{Size2D, Size, Property, Transform2D, EasingCurve, ArgsKeyDown};
-use pax_lang::api::numeric::Numeric;
+use pax_lang::api::{Property, EasingCurve, ArgsKeyDown};
+
 use pax_runtime_api::RuntimeContext;
-use crate::primitives::{Frame};
-use crate::types::{SidebarDirection};
+
+
 
 #[derive(Pax)]
 #[inlined(
@@ -30,7 +30,7 @@ pub struct Sidebar {
 }
 
 impl Sidebar {
-    pub fn handle_key_down(&mut self, ctx: RuntimeContext, args: ArgsKeyDown) {
+    pub fn handle_key_down(&mut self, _ctx: RuntimeContext, args: ArgsKeyDown) {
         let enabled = *self.enabled.get();
         if (args.keyboard.key == "c".to_string()) && !enabled {
             self.position.ease_to(-500.0, 80, EasingCurve::InQuad);
@@ -42,7 +42,7 @@ impl Sidebar {
         }
     }
 
-    pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
+    pub fn handle_did_mount(&mut self, _ctx: RuntimeContext) {
         self.enabled.set(false);
         self.position.set(0.0);
     }
