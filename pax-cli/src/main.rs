@@ -1,20 +1,18 @@
-use std::{fs, process, thread};
+use clap::{crate_version, App, AppSettings, Arg, ArgMatches};
+use colored::{ColoredString, Colorize};
 use std::io::Write;
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use colored::{ColoredString, Colorize};
-use clap::{App, AppSettings, Arg, ArgMatches, crate_version};
+use std::{fs, process, thread};
 
-use pax_compiler::{RunTarget, RunContext, CreateContext};
+use pax_compiler::{CreateContext, RunContext, RunTarget};
 mod http;
 
-use signal_hook::{iterator::Signals};
 use signal_hook::consts::{SIGINT, SIGTERM};
-
+use signal_hook::iterator::Signals;
 
 fn main() -> Result<(), ()> {
-
     //Shared state to store child processes keyed by static unique string IDs, for cleanup tracking
     let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
     // Shared state to store the new version info if available.
@@ -33,7 +31,10 @@ fn main() -> Result<(), ()> {
     thread::spawn(move || {
         for _sig in signals.forever() {
             println!("\nInterrupt received. Cleaning up child processes...");
-            perform_cleanup(Arc::clone(&cloned_version_info),Arc::clone(&cloned_process_child_ids));
+            perform_cleanup(
+                Arc::clone(&cloned_version_info),
+                Arc::clone(&cloned_process_child_ids),
+            );
         }
     });
 
@@ -129,7 +130,10 @@ fn main() -> Result<(), ()> {
     Ok(())
 }
 
-fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<Vec<u64>>>) -> Result<(), ()> {
+fn perform_nominal_action(
+    matches: ArgMatches<'_>,
+    process_child_ids: Arc<Mutex<Vec<u64>>>,
+) -> Result<(), ()> {
     match matches.subcommand() {
         ("run", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
@@ -145,7 +149,7 @@ fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<
                 is_libdev_mode,
                 process_child_ids,
             })
-        },
+        }
         ("build", Some(args)) => {
             let target = args.value_of("target").unwrap().to_lowercase();
             let path = args.value_of("path").unwrap().to_string(); //default value "."
@@ -160,7 +164,7 @@ fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<
                 is_libdev_mode,
                 process_child_ids,
             })
-        },
+        }
         ("clean", Some(args)) => {
             println!("🧹 Cleaning cached & temporary files...");
             let path = args.value_of("path").unwrap().to_string(); //default value "."
@@ -170,7 +174,7 @@ fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<
 
             println!("Done.");
             Ok(())
-        },
+        }
         ("create", Some(args)) => {
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let is_libdev_mode = args.is_present("libdev");
@@ -182,7 +186,7 @@ fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<
                 version,
             });
             Ok(())
-        },
+        }
         ("libdev", Some(args)) => {
             match args.subcommand() {
                 ("parse", Some(args)) => {
@@ -190,11 +194,15 @@ fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<
                     let output = &pax_compiler::run_parser_binary(&path, process_child_ids);
 
                     // Forward both stdout and stderr
-                    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
-                    std::io::stdout().write_all(output.stdout.as_slice()).unwrap();
+                    std::io::stderr()
+                        .write_all(output.stderr.as_slice())
+                        .unwrap();
+                    std::io::stdout()
+                        .write_all(output.stdout.as_slice())
+                        .unwrap();
 
                     Ok(())
-                },
+                }
                 ("build-chassis", Some(args)) => {
                     let target = args.value_of("target").unwrap().to_lowercase();
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
@@ -202,27 +210,40 @@ fn perform_nominal_action(matches: ArgMatches<'_>, process_child_ids: Arc<Mutex<
                     let working_path = Path::new(&path).join(".pax");
                     let pax_dir = fs::canonicalize(working_path).unwrap();
 
-                    let output = pax_compiler::build_chassis_with_cartridge(&pax_dir, &RunTarget::from(target.as_str()), process_child_ids);
+                    let output = pax_compiler::build_chassis_with_cartridge(
+                        &pax_dir,
+                        &RunTarget::from(target.as_str()),
+                        process_child_ids,
+                    );
 
                     // Forward both stdout and stderr
-                    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
-                    std::io::stdout().write_all(output.stdout.as_slice()).unwrap();
+                    std::io::stderr()
+                        .write_all(output.stderr.as_slice())
+                        .unwrap();
+                    std::io::stdout()
+                        .write_all(output.stdout.as_slice())
+                        .unwrap();
 
                     Ok(())
-                },
-                _ => { unreachable!() }
+                }
+                _ => {
+                    unreachable!()
+                }
             }
-        },
+        }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }
 }
 
-fn perform_cleanup(new_version_info: Arc<Mutex<Option<String>>>, process_child_ids: Arc<Mutex<Vec<u64>>> ) {
-
+fn perform_cleanup(
+    new_version_info: Arc<Mutex<Option<String>>>,
+    process_child_ids: Arc<Mutex<Vec<u64>>>,
+) {
     //1. kill any running child processes
     if let Ok(process_child_ids_lock) = process_child_ids.lock() {
         process_child_ids_lock.iter().for_each(|child_id| {
-            kill_process(*child_id as u32).expect(&format!("Failed to kill process with ID: {}", child_id));
+            kill_process(*child_id as u32)
+                .expect(&format!("Failed to kill process with ID: {}", child_id));
         });
     }
 
@@ -231,30 +252,51 @@ fn perform_cleanup(new_version_info: Arc<Mutex<Option<String>>>, process_child_i
         if let Some(new_version) = new_version_lock.as_ref() {
             if new_version != "" {
                 //Print our banner if we have a concrete value stored in the new version mutex
-                const TOTAL_LENGTH : usize = 60;
-                let stars_line: ColoredString = "*".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
-                let empty_line: ColoredString = " ".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
+                const TOTAL_LENGTH: usize = 60;
+                let stars_line: ColoredString =
+                    "*".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
+                let empty_line: ColoredString =
+                    " ".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
 
                 let new_version_static = "  A new version of the Pax CLI is available: ";
                 let new_version_formatted = format!("{}{}", new_version_static, new_version);
-                let new_version_line: ColoredString = format!("{: <width$}", new_version_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black().bold();
+                let new_version_line: ColoredString =
+                    format!("{: <width$}", new_version_formatted, width = TOTAL_LENGTH)
+                        .bright_white()
+                        .on_bright_black()
+                        .bold();
 
                 let current_version = env!("CARGO_PKG_VERSION");
                 let current_version_static = "  Currently installed version: ";
-                let current_version_formatted = format!("{}{}", current_version_static, current_version);
-                let current_version_line = format!("{: <width$}", current_version_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black();
+                let current_version_formatted =
+                    format!("{}{}", current_version_static, current_version);
+                let current_version_line = format!(
+                    "{: <width$}",
+                    current_version_formatted,
+                    width = TOTAL_LENGTH
+                )
+                .bright_white()
+                .on_bright_black();
 
                 let update_instructions_static = "To update, run: ";
                 let lpad = (TOTAL_LENGTH - update_instructions_static.len()) / 2;
                 let lpad_spaces = " ".repeat(lpad);
                 let update_formatted = format!("{}{}", lpad_spaces, update_instructions_static);
-                let update_instructions_line = format!("{: <width$}", update_formatted, width=TOTAL_LENGTH).bright_white().on_bright_black().bold();
+                let update_instructions_line =
+                    format!("{: <width$}", update_formatted, width = TOTAL_LENGTH)
+                        .bright_white()
+                        .on_bright_black()
+                        .bold();
 
                 let install_command_static = "cargo install --force pax-cli";
                 let lpad = (TOTAL_LENGTH - install_command_static.len()) / 2;
                 let lpad_spaces = " ".repeat(lpad);
                 let update_line_2_formatted = format!("{}{}", lpad_spaces, install_command_static);
-                let update_line_2 = format!("{: <width$}", update_line_2_formatted, width=TOTAL_LENGTH).bright_black().on_bright_white().bold();
+                let update_line_2 =
+                    format!("{: <width$}", update_line_2_formatted, width = TOTAL_LENGTH)
+                        .bright_black()
+                        .on_bright_white()
+                        .bold();
 
                 println!();
                 println!("{}", &stars_line);
@@ -285,7 +327,10 @@ fn kill_process(pid: u32) -> Result<(), std::io::Error> {
     if output.status.success() {
         Ok(())
     } else {
-        Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to kill process"))
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to kill process",
+        ))
     }
 }
 
@@ -302,6 +347,9 @@ fn kill_process(pid: u64) -> Result<(), std::io::Error> {
     if output.status.success() {
         Ok(())
     } else {
-        Err(std::io::Error::new(std::io::ErrorKind::Other, "Failed to kill process"))
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "Failed to kill process",
+        ))
     }
 }

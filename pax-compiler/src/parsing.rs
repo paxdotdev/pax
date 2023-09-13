@@ -1,59 +1,56 @@
-use std::rc::Rc;
 use std::cell::RefCell;
-use std::collections::{HashSet, HashMap};
+use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
-use std::ops::{RangeFrom};
 use itertools::{Itertools, MultiPeek};
+use std::ops::RangeFrom;
 
-use crate::manifest::{PropertyDefinition, ComponentDefinition, TemplateNodeDefinition, ControlFlowSettingsDefinition, ControlFlowRepeatPredicateDefinition, ValueDefinition, SettingsSelectorBlockDefinition, LiteralBlockDefinition, ControlFlowRepeatSourceDefinition, EventDefinition, TypeDefinition, TypeTable, get_primitive_type_table};
-
-
-
-extern crate pest;
-use pest_derive::Parser;
-use pest::Parser;
-use pest::iterators::{Pair, Pairs};
-
-use pest::{
-    pratt_parser::{Assoc, Op, PrattParser},
+use crate::manifest::{
+    get_primitive_type_table, ComponentDefinition, ControlFlowRepeatPredicateDefinition,
+    ControlFlowRepeatSourceDefinition, ControlFlowSettingsDefinition, EventDefinition,
+    LiteralBlockDefinition, PropertyDefinition, SettingsSelectorBlockDefinition,
+    TemplateNodeDefinition, TypeDefinition, TypeTable, ValueDefinition,
 };
 
+extern crate pest;
+use pest::iterators::{Pair, Pairs};
+use pest::Parser;
+use pest_derive::Parser;
+
+use pest::pratt_parser::{Assoc, Op, PrattParser};
 
 #[derive(Parser)]
 #[grammar = "pax.pest"]
 pub struct PaxParser;
 
-
 /// Returns (RIL output string, `symbolic id`s found during parse)
 /// where a `symbolic id` may be something like `self.num_clicks` or `i`
 pub fn run_pratt_parser(input_paxel: &str) -> (String, Vec<String>) {
-
     // Operator precedence is declared via the ordering here:
     let pratt = PrattParser::new()
-        .op(Op::infix(Rule::xo_tern_then, Assoc::Left) | Op::infix(Rule::xo_tern_else, Assoc::Right))
+        .op(Op::infix(Rule::xo_tern_then, Assoc::Left)
+            | Op::infix(Rule::xo_tern_else, Assoc::Right))
         .op(Op::infix(Rule::xo_bool_and, Assoc::Left) | Op::infix(Rule::xo_bool_or, Assoc::Left))
         .op(Op::infix(Rule::xo_add, Assoc::Left) | Op::infix(Rule::xo_sub, Assoc::Left))
         .op(Op::infix(Rule::xo_mul, Assoc::Left) | Op::infix(Rule::xo_div, Assoc::Left))
         .op(Op::infix(Rule::xo_mod, Assoc::Left))
         .op(Op::infix(Rule::xo_exp, Assoc::Right))
         .op(Op::prefix(Rule::xo_neg))
-        .op(
-            Op::infix(Rule::xo_rel_eq, Assoc::Left) |
-            Op::infix(Rule::xo_rel_neq, Assoc::Left) |
-            Op::infix(Rule::xo_rel_lt, Assoc::Left) |
-            Op::infix(Rule::xo_rel_lte, Assoc::Left) |
-            Op::infix(Rule::xo_rel_gt, Assoc::Left) |
-            Op::infix(Rule::xo_rel_gte, Assoc::Left)
-        )
+        .op(Op::infix(Rule::xo_rel_eq, Assoc::Left)
+            | Op::infix(Rule::xo_rel_neq, Assoc::Left)
+            | Op::infix(Rule::xo_rel_lt, Assoc::Left)
+            | Op::infix(Rule::xo_rel_lte, Assoc::Left)
+            | Op::infix(Rule::xo_rel_gt, Assoc::Left)
+            | Op::infix(Rule::xo_rel_gte, Assoc::Left))
         .op(Op::prefix(Rule::xo_bool_not));
 
-    let pairs = PaxParser::parse(Rule::expression_body, input_paxel).expect(&format!("unsuccessful pratt parse {}", &input_paxel));
+    let pairs = PaxParser::parse(Rule::expression_body, input_paxel)
+        .expect(&format!("unsuccessful pratt parse {}", &input_paxel));
 
     let symbolic_ids = Rc::new(RefCell::new(vec![]));
     let output = recurse_pratt_parse_to_string(pairs, &pratt, Rc::clone(&symbolic_ids));
     (output, symbolic_ids.take())
 }
-
 
 /// Removes leading `self.` or `this.`, escapes remaining symbol to be a suitable atomic identifier
 fn convert_symbolic_binding_from_paxel_to_ril(xo_symbol: Pair<Rule>) -> String {
@@ -64,9 +61,7 @@ fn convert_symbolic_binding_from_paxel_to_ril(xo_symbol: Pair<Rule>) -> String {
         let mut output = "".to_string();
 
         //accumulate remaining identifiers, having skipped `this` or `self` with the original `.next()`
-        pairs.for_each(|pair|{
-            output += &*(".".to_owned() + pair.as_str())
-        });
+        pairs.for_each(|pair| output += &*(".".to_owned() + pair.as_str()));
 
         //remove initial fencepost "."
         output.replacen(".", "", 1)
@@ -79,7 +74,11 @@ fn convert_symbolic_binding_from_paxel_to_ril(xo_symbol: Pair<Rule>) -> String {
 }
 
 /// Workhorse method for compiling Expressions into Rust Intermediate Language (RIL, a string of Rust)
-fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &PrattParser<Rule>, symbolic_ids: Rc<RefCell<Vec<String>>>) -> String {
+fn recurse_pratt_parse_to_string<'a>(
+    expression: Pairs<Rule>,
+    pratt_parser: &PrattParser<Rule>,
+    symbolic_ids: Rc<RefCell<Vec<String>>>,
+) -> String {
     pratt_parser
         .map_primary(move |primary| match primary.as_rule() {
             /* expression_grouped | xo_function_call | xo_range     */
@@ -293,50 +292,45 @@ fn recurse_pratt_parse_to_string<'a>(expression: Pairs<Rule>, pratt_parser: &Pra
         .parse(expression)
 }
 
-
-
-
-fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseContext, pax: &str)  {
+fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseContext, pax: &str) {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
+        .next()
+        .unwrap(); // get and unwrap the `pax_component_definition` rule
 
     let mut roots_ids = vec![];
 
     //insert placeholder for IMPLICIT_ROOT.  We will fill this back in on the post-order.
-    ctx.template_node_definitions.insert(0, TemplateNodeDefinition::default());
+    ctx.template_node_definitions
+        .insert(0, TemplateNodeDefinition::default());
 
-    pax_component_definition.into_inner().for_each(|pair|{
-        match pair.as_rule() {
+    pax_component_definition
+        .into_inner()
+        .for_each(|pair| match pair.as_rule() {
             Rule::root_tag_pair => {
                 ctx.child_id_tracking_stack.push(vec![]);
                 let next_id = ctx.uid_gen.peek().unwrap();
                 roots_ids.push(*next_id);
-                recurse_visit_tag_pairs_for_template(
-                    ctx,
-                    pair.into_inner().next().unwrap(),
-                );
+                recurse_visit_tag_pairs_for_template(ctx, pair.into_inner().next().unwrap());
             }
             _ => {}
-        }
-    });
+        });
 
     // This IMPLICIT_ROOT placeholder node, at index 0 of the TND vec,
     // is a container for the child_ids that act as "multi-roots," which enables
     // templates to be authored without requiring a single top-level container
     ctx.template_node_definitions.remove(0);
-    ctx.template_node_definitions.insert(0,
+    ctx.template_node_definitions.insert(
+        0,
         TemplateNodeDefinition {
             id: 0,
             child_ids: roots_ids,
             type_id: "IMPLICIT_ROOT".to_string(),
             control_flow_settings: None,
             settings: None,
-            pascal_identifier: "<UNREACHABLE>".to_string()
-        }
+            pascal_identifier: "<UNREACHABLE>".to_string(),
+        },
     );
-
-
 }
 
 struct TemplateNodeParseContext {
@@ -350,14 +344,18 @@ struct TemplateNodeParseContext {
     pub uid_gen: MultiPeek<RangeFrom<usize>>,
 }
 
-pub static TYPE_ID_IF : &str = "IF";
-pub static TYPE_ID_REPEAT : &str = "REPEAT";
-pub static TYPE_ID_SLOT : &str = "SLOT";
+pub static TYPE_ID_IF: &str = "IF";
+pub static TYPE_ID_REPEAT: &str = "REPEAT";
+pub static TYPE_ID_SLOT: &str = "SLOT";
 
-fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_tag_pair: Pair<Rule>)  {
+fn recurse_visit_tag_pairs_for_template(
+    ctx: &mut TemplateNodeParseContext,
+    any_tag_pair: Pair<Rule>,
+) {
     let new_id = ctx.uid_gen.next().unwrap();
     //insert blank placeholder
-    ctx.template_node_definitions.insert(new_id, TemplateNodeDefinition::default());
+    ctx.template_node_definitions
+        .insert(new_id, TemplateNodeDefinition::default());
 
     //add self to parent's children_id_list
     let mut parents_children_id_list = ctx.child_id_tracking_stack.pop().unwrap();
@@ -368,7 +366,12 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
         Rule::matched_tag => {
             //matched_tag => open_tag > pascal_identifier
             let matched_tag = any_tag_pair;
-            let mut open_tag = matched_tag.clone().into_inner().next().unwrap().into_inner();
+            let mut open_tag = matched_tag
+                .clone()
+                .into_inner()
+                .next()
+                .unwrap()
+                .into_inner();
             let pascal_identifier = open_tag.next().unwrap().as_str();
 
             //push the empty frame for this node's children
@@ -379,24 +382,32 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
             match prospective_inner_nodes.as_rule() {
                 Rule::inner_nodes => {
                     let inner_nodes = prospective_inner_nodes;
-                    inner_nodes.into_inner()
-                        .for_each(|sub_tag_pair|{
-                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
-                        })
-                },
-                _ => {panic!("wrong prospective inner nodes (or nth)")}
+                    inner_nodes.into_inner().for_each(|sub_tag_pair| {
+                        recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                    })
+                }
+                _ => {
+                    panic!("wrong prospective inner nodes (or nth)")
+                }
             }
 
             let mut template_node = TemplateNodeDefinition {
                 id: new_id,
                 control_flow_settings: None,
-                type_id: ctx.pascal_identifier_to_type_id_map.get(pascal_identifier.clone()).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
+                type_id: ctx
+                    .pascal_identifier_to_type_id_map
+                    .get(pascal_identifier.clone())
+                    .expect(&format!("Template key not found {}", &pascal_identifier))
+                    .to_string(),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
                 child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                 pascal_identifier: pascal_identifier.to_string(),
             };
-            std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node);
-        },
+            std::mem::swap(
+                ctx.template_node_definitions.get_mut(new_id).unwrap(),
+                &mut template_node,
+            );
+        }
         Rule::self_closing_tag => {
             let mut tag_pairs = any_tag_pair.into_inner();
             let pascal_identifier = tag_pairs.next().unwrap().as_str();
@@ -404,13 +415,20 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
             let mut template_node = TemplateNodeDefinition {
                 id: new_id,
                 control_flow_settings: None,
-                type_id: ctx.pascal_identifier_to_type_id_map.get(pascal_identifier).expect(&format!("Template key not found {}", &pascal_identifier)).to_string(),
+                type_id: ctx
+                    .pascal_identifier_to_type_id_map
+                    .get(pascal_identifier)
+                    .expect(&format!("Template key not found {}", &pascal_identifier))
+                    .to_string(),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(tag_pairs),
                 child_ids: vec![],
                 pascal_identifier: pascal_identifier.to_string(),
             };
-            std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node);
-        },
+            std::mem::swap(
+                ctx.template_node_definitions.get_mut(new_id).unwrap(),
+                &mut template_node,
+            );
+        }
         Rule::statement_control_flow => {
             /* statement_control_flow = {(statement_if | statement_for | statement_slot)} */
 
@@ -420,16 +438,14 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
             let any_tag_pair = any_tag_pair.into_inner().next().unwrap();
             let mut template_node_definition = match any_tag_pair.as_rule() {
                 Rule::statement_if => {
-
                     let mut statement_if = any_tag_pair.into_inner();
                     let expression_body = statement_if.next().unwrap().as_str().to_string();
                     let prospective_inner_nodes = statement_if.next();
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
-                        inner_nodes.into_inner()
-                            .for_each(|sub_tag_pair|{
-                                recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
-                            })
+                        inner_nodes.into_inner().for_each(|sub_tag_pair| {
+                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                        })
                     }
 
                     //`if` TemplateNodeDefinition
@@ -441,14 +457,14 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             slot_index_expression_paxel: None,
                             slot_index_expression_vtable_id: None,
                             repeat_predicate_definition: None,
-                            repeat_source_definition: None
+                            repeat_source_definition: None,
                         }),
                         type_id: TYPE_ID_IF.to_string(),
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Conditional".to_string(),
                     }
-                },
+                }
                 Rule::statement_for => {
                     let mut cfavd = ControlFlowSettingsDefinition::default();
                     let mut for_statement = any_tag_pair.clone().into_inner();
@@ -459,14 +475,17 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
 
                     if predicate_declaration.clone().count() > 1 {
                         //tuple, like the `elem, i` in `for (elem, i) in self.some_list`
-                        cfavd.repeat_predicate_definition = Some(ControlFlowRepeatPredicateDefinition::ElemIdIndexId(
-                            (&predicate_declaration.next().unwrap().as_str()).to_string(),
-                            (&predicate_declaration.next().unwrap().as_str()).to_string()
-                        ));
-
+                        cfavd.repeat_predicate_definition =
+                            Some(ControlFlowRepeatPredicateDefinition::ElemIdIndexId(
+                                (&predicate_declaration.next().unwrap().as_str()).to_string(),
+                                (&predicate_declaration.next().unwrap().as_str()).to_string(),
+                            ));
                     } else {
                         //single identifier, like the `elem` in `for elem in self.some_list`
-                        cfavd.repeat_predicate_definition = Some(ControlFlowRepeatPredicateDefinition::ElemId(predicate_declaration.as_str().to_string()));
+                        cfavd.repeat_predicate_definition =
+                            Some(ControlFlowRepeatPredicateDefinition::ElemId(
+                                predicate_declaration.as_str().to_string(),
+                            ));
                     }
 
                     let inner_source = source.into_inner().next().unwrap();
@@ -478,24 +497,25 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                                 vtable_id: None, //This will be written back to this data structure later, during expression compilation
                                 symbolic_binding: None,
                             }
+                        }
+                        Rule::xo_symbol => ControlFlowRepeatSourceDefinition {
+                            range_expression_paxel: None,
+                            vtable_id: None,
+                            symbolic_binding: Some(convert_symbolic_binding_from_paxel_to_ril(
+                                inner_source,
+                            )),
                         },
-                        Rule::xo_symbol => {
-                            ControlFlowRepeatSourceDefinition {
-                                range_expression_paxel: None,
-                                vtable_id: None,
-                                symbolic_binding: Some(convert_symbolic_binding_from_paxel_to_ril(inner_source)),
-                            }
-                        },
-                        _ => {unreachable!()}
+                        _ => {
+                            unreachable!()
+                        }
                     };
 
                     cfavd.repeat_source_definition = Some(repeat_source_definition);
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
-                        inner_nodes.into_inner()
-                            .for_each(|sub_tag_pair|{
-                                recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
-                            })
+                        inner_nodes.into_inner().for_each(|sub_tag_pair| {
+                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                        })
                     }
 
                     //`for` TemplateNodeDefinition
@@ -507,17 +527,16 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Repeat".to_string(),
                     }
-                },
+                }
                 Rule::statement_slot => {
                     let mut statement_slot = any_tag_pair.into_inner();
                     let expression_body = statement_slot.next().unwrap().as_str().to_string();
                     let prospective_inner_nodes = statement_slot.next();
 
                     if let Some(inner_nodes) = prospective_inner_nodes {
-                        inner_nodes.into_inner()
-                            .for_each(|sub_tag_pair|{
-                                recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
-                            })
+                        inner_nodes.into_inner().for_each(|sub_tag_pair| {
+                            recurse_visit_tag_pairs_for_template(ctx, sub_tag_pair);
+                        })
                     }
 
                     TemplateNodeDefinition {
@@ -528,183 +547,260 @@ fn recurse_visit_tag_pairs_for_template(ctx: &mut TemplateNodeParseContext, any_
                             slot_index_expression_paxel: Some(expression_body),
                             slot_index_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
                             repeat_predicate_definition: None,
-                            repeat_source_definition: None
+                            repeat_source_definition: None,
                         }),
                         type_id: TYPE_ID_SLOT.to_string(),
                         settings: None,
                         child_ids: ctx.child_id_tracking_stack.pop().unwrap(),
                         pascal_identifier: "Slot".to_string(),
                     }
-                },
+                }
                 _ => {
                     unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());
                 }
             };
 
-            std::mem::swap(ctx.template_node_definitions.get_mut(new_id).unwrap(),  &mut template_node_definition);
-        },
+            std::mem::swap(
+                ctx.template_node_definitions.get_mut(new_id).unwrap(),
+                &mut template_node_definition,
+            );
+        }
         Rule::node_inner_content => {
             //For example:  `<Text>"I am inner content"</Text>`
             unimplemented!("Inner content not yet supported");
-        },
-        _ => {unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());}
+        }
+        _ => {
+            unreachable!("Parsing error: {:?}", any_tag_pair.as_rule());
+        }
     }
 }
 
-fn parse_inline_attribute_from_final_pairs_of_tag ( final_pairs_of_tag: Pairs<Rule>) -> Option<Vec<(String, ValueDefinition)>> {
-    let vec : Vec<(String, ValueDefinition)> = final_pairs_of_tag.map(|attribute_key_value_pair|{
-        match attribute_key_value_pair.clone().into_inner().next().unwrap().as_rule() {
-            Rule::attribute_event_binding => {
-                // attribute_event_binding = {attribute_event_id ~ "=" ~ xo_symbol}
-                let mut kv = attribute_key_value_pair.into_inner();
-                let mut attribute_event_binding = kv.next().unwrap().into_inner();
-                let event_id = attribute_event_binding.next().unwrap().into_inner().last().unwrap().as_str().to_string();
-                let symbolic_binding = attribute_event_binding.next().unwrap().into_inner().next().unwrap().as_str().to_string();
-                (event_id, ValueDefinition::EventBindingTarget(symbolic_binding))
-            },
-            _ => { //Vanilla `key=value` setting pair
+fn parse_inline_attribute_from_final_pairs_of_tag(
+    final_pairs_of_tag: Pairs<Rule>,
+) -> Option<Vec<(String, ValueDefinition)>> {
+    let vec: Vec<(String, ValueDefinition)> = final_pairs_of_tag
+        .map(|attribute_key_value_pair| {
+            match attribute_key_value_pair
+                .clone()
+                .into_inner()
+                .next()
+                .unwrap()
+                .as_rule()
+            {
+                Rule::attribute_event_binding => {
+                    // attribute_event_binding = {attribute_event_id ~ "=" ~ xo_symbol}
+                    let mut kv = attribute_key_value_pair.into_inner();
+                    let mut attribute_event_binding = kv.next().unwrap().into_inner();
+                    let event_id = attribute_event_binding
+                        .next()
+                        .unwrap()
+                        .into_inner()
+                        .last()
+                        .unwrap()
+                        .as_str()
+                        .to_string();
+                    let symbolic_binding = attribute_event_binding
+                        .next()
+                        .unwrap()
+                        .into_inner()
+                        .next()
+                        .unwrap()
+                        .as_str()
+                        .to_string();
+                    (
+                        event_id,
+                        ValueDefinition::EventBindingTarget(symbolic_binding),
+                    )
+                }
+                _ => {
+                    //Vanilla `key=value` setting pair
 
-                let mut kv = attribute_key_value_pair.into_inner();
-                let key = kv.next().unwrap().as_str().to_string();
-                let raw_value = kv.next().unwrap().into_inner().next().unwrap();
-                let value = match raw_value.as_rule() {
-                    Rule::literal_value => {
-                        //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
-                        let (output_string,  _) = crate::parsing::run_pratt_parser(raw_value.as_str());
-                        ValueDefinition::LiteralValue(output_string)
-                    },
-                    Rule::literal_object => {
-                        ValueDefinition::Block(
-                            derive_value_definition_from_literal_object_pair(raw_value)
-                        )
-                    },
-                    Rule::expression_body => { ValueDefinition::Expression(raw_value.as_str().to_string(), None)},
-                    Rule::identifier => { ValueDefinition::Identifier(raw_value.as_str().to_string(), None)},
-                    _ => {unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());}
-                };
-                (key, value)
+                    let mut kv = attribute_key_value_pair.into_inner();
+                    let key = kv.next().unwrap().as_str().to_string();
+                    let raw_value = kv.next().unwrap().into_inner().next().unwrap();
+                    let value = match raw_value.as_rule() {
+                        Rule::literal_value => {
+                            //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
+                            let (output_string, _) =
+                                crate::parsing::run_pratt_parser(raw_value.as_str());
+                            ValueDefinition::LiteralValue(output_string)
+                        }
+                        Rule::literal_object => ValueDefinition::Block(
+                            derive_value_definition_from_literal_object_pair(raw_value),
+                        ),
+                        Rule::expression_body => {
+                            ValueDefinition::Expression(raw_value.as_str().to_string(), None)
+                        }
+                        Rule::identifier => {
+                            ValueDefinition::Identifier(raw_value.as_str().to_string(), None)
+                        }
+                        _ => {
+                            unreachable!("Parsing error 3342638857230: {:?}", raw_value.as_rule());
+                        }
+                    };
+                    (key, value)
+                }
             }
-        }
-
-    }).collect();
+        })
+        .collect();
 
     if vec.len() > 0 {
         Some(vec)
-    }else{
+    } else {
         None
     }
 }
 
-fn derive_value_definition_from_literal_object_pair(literal_object: Pair<Rule>) -> LiteralBlockDefinition {
+fn derive_value_definition_from_literal_object_pair(
+    literal_object: Pair<Rule>,
+) -> LiteralBlockDefinition {
     let mut literal_object_pairs = literal_object.into_inner();
 
     let explicit_type_pascal_identifier = match literal_object_pairs.peek().unwrap().as_rule() {
-        Rule::pascal_identifier => {
-            Some(literal_object_pairs.next().unwrap().as_str().to_string())
-        },
-        _ => { None }
+        Rule::pascal_identifier => Some(literal_object_pairs.next().unwrap().as_str().to_string()),
+        _ => None,
     };
 
     LiteralBlockDefinition {
         explicit_type_pascal_identifier,
-        settings_key_value_pairs: literal_object_pairs.map(|settings_key_value_pair| {
-            let mut pairs = settings_key_value_pair.into_inner();
-            let setting_key = pairs.next().unwrap().into_inner().next().unwrap().as_str().to_string();
-            let raw_value = pairs.next().unwrap().into_inner().next().unwrap();
-            let setting_value = match raw_value.as_rule() {
-                Rule::literal_value => {
-                    //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
-                    let (output_string,  _) = crate::parsing::run_pratt_parser(raw_value.as_str());
-                    ValueDefinition::LiteralValue(output_string)},
-                Rule::literal_object => {
-                    ValueDefinition::Block(
-                    //Recurse
-                    derive_value_definition_from_literal_object_pair(raw_value)
-                )},
-                // Rule::literal_enum_value => {ValueDefinition::Enum(raw_value.as_str().to_string())},
-                Rule::expression_body => {
-                    ValueDefinition::Expression(raw_value.as_str().to_string(), None)},
-                _ => {unreachable!("Parsing error 231453468: {:?}", raw_value.as_rule());}
-            };
+        settings_key_value_pairs: literal_object_pairs
+            .map(|settings_key_value_pair| {
+                let mut pairs = settings_key_value_pair.into_inner();
+                let setting_key = pairs
+                    .next()
+                    .unwrap()
+                    .into_inner()
+                    .next()
+                    .unwrap()
+                    .as_str()
+                    .to_string();
+                let raw_value = pairs.next().unwrap().into_inner().next().unwrap();
+                let setting_value = match raw_value.as_rule() {
+                    Rule::literal_value => {
+                        //we want to pratt-parse literals, mostly to unpack `px` and `%` (recursively)
+                        let (output_string, _) =
+                            crate::parsing::run_pratt_parser(raw_value.as_str());
+                        ValueDefinition::LiteralValue(output_string)
+                    }
+                    Rule::literal_object => {
+                        ValueDefinition::Block(
+                            //Recurse
+                            derive_value_definition_from_literal_object_pair(raw_value),
+                        )
+                    }
+                    // Rule::literal_enum_value => {ValueDefinition::Enum(raw_value.as_str().to_string())},
+                    Rule::expression_body => {
+                        ValueDefinition::Expression(raw_value.as_str().to_string(), None)
+                    }
+                    _ => {
+                        unreachable!("Parsing error 231453468: {:?}", raw_value.as_rule());
+                    }
+                };
 
-            (setting_key, setting_value)
-
-        }).collect()
+                (setting_key, setting_value)
+            })
+            .collect(),
     }
 }
 
-fn parse_settings_from_component_definition_string(pax: &str) -> Option<Vec<SettingsSelectorBlockDefinition>> {
-
+fn parse_settings_from_component_definition_string(
+    pax: &str,
+) -> Option<Vec<SettingsSelectorBlockDefinition>> {
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
+        .next()
+        .unwrap(); // get and unwrap the `pax_component_definition` rule
 
-    let mut ret : Vec<SettingsSelectorBlockDefinition> = vec![];
+    let mut ret: Vec<SettingsSelectorBlockDefinition> = vec![];
 
-    pax_component_definition.into_inner().for_each(|top_level_pair|{
-        match top_level_pair.as_rule() {
-            Rule::settings_block_declaration => {
+    pax_component_definition
+        .into_inner()
+        .for_each(|top_level_pair| {
+            match top_level_pair.as_rule() {
+                Rule::settings_block_declaration => {
+                    let selector_block_definitions: Vec<SettingsSelectorBlockDefinition> =
+                        top_level_pair
+                            .into_inner()
+                            .map(|selector_block| {
+                                //selector_block => settings_key_value_pair where v is a ValueDefinition
+                                let mut selector_block_pairs = selector_block.into_inner();
+                                //first pair is the selector itself
+                                let raw_selector = selector_block_pairs.next().unwrap().as_str();
+                                let selector: String = raw_selector
+                                    .chars()
+                                    .filter(|c| !c.is_whitespace())
+                                    .collect();
+                                let literal_object = selector_block_pairs.next().unwrap();
 
-                let selector_block_definitions: Vec<SettingsSelectorBlockDefinition> = top_level_pair.into_inner().map(|selector_block| {
-                    //selector_block => settings_key_value_pair where v is a ValueDefinition
-                    let mut selector_block_pairs = selector_block.into_inner();
-                    //first pair is the selector itself
-                    let raw_selector = selector_block_pairs.next().unwrap().as_str();
-                    let selector: String = raw_selector.chars().filter(|c| !c.is_whitespace()).collect();
-                    let literal_object = selector_block_pairs.next().unwrap();
+                                SettingsSelectorBlockDefinition {
+                                    selector: selector.clone(),
+                                    value_block: derive_value_definition_from_literal_object_pair(
+                                        literal_object,
+                                    ),
+                                }
+                            })
+                            .collect();
 
-                    SettingsSelectorBlockDefinition {
-                        selector: selector.clone(),
-                        value_block: derive_value_definition_from_literal_object_pair(literal_object),
-                    }
-                }).collect();
-
-                ret.extend(selector_block_definitions);
+                    ret.extend(selector_block_definitions);
+                }
+                _ => {}
             }
-            _ => {}
-        }
-    });
+        });
     Some(ret)
 }
 
 fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<EventDefinition>> {
-
     let pax_component_definition = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
+        .next()
+        .unwrap(); // get and unwrap the `pax_component_definition` rule
 
-    let mut ret : Vec<EventDefinition> = vec![];
+    let mut ret: Vec<EventDefinition> = vec![];
 
-    pax_component_definition.into_inner().for_each(|top_level_pair|{
-        match top_level_pair.as_rule() {
+    pax_component_definition
+        .into_inner()
+        .for_each(|top_level_pair| match top_level_pair.as_rule() {
             Rule::events_block_declaration => {
-
-                let event_definitions: Vec<EventDefinition> = top_level_pair.into_inner().map(|events_key_value_pair| {
-                    let mut pairs = events_key_value_pair.into_inner();
-                    let key = pairs.next().unwrap().into_inner().next().unwrap().as_str().to_string();
-                    let raw_values = pairs.next().unwrap().into_inner().next().unwrap();
-                    let value = match raw_values.as_rule() {
-                        Rule::literal_function => {
-                            vec![raw_values.into_inner().next().unwrap().as_str().to_string()]
-                        },
-                        Rule::function_list => {
-                            raw_values.into_inner().map(|literal_function|{
-                                literal_function.into_inner().next().unwrap().as_str().to_string()
-                            }).collect()
-                        },
-                        _ => {unreachable!("Parsing error: {:?}", raw_values.as_rule());}
-                    };
-                    EventDefinition {
-                        key,
-                        value,
-                    }
-                }).collect();
+                let event_definitions: Vec<EventDefinition> = top_level_pair
+                    .into_inner()
+                    .map(|events_key_value_pair| {
+                        let mut pairs = events_key_value_pair.into_inner();
+                        let key = pairs
+                            .next()
+                            .unwrap()
+                            .into_inner()
+                            .next()
+                            .unwrap()
+                            .as_str()
+                            .to_string();
+                        let raw_values = pairs.next().unwrap().into_inner().next().unwrap();
+                        let value = match raw_values.as_rule() {
+                            Rule::literal_function => {
+                                vec![raw_values.into_inner().next().unwrap().as_str().to_string()]
+                            }
+                            Rule::function_list => raw_values
+                                .into_inner()
+                                .map(|literal_function| {
+                                    literal_function
+                                        .into_inner()
+                                        .next()
+                                        .unwrap()
+                                        .as_str()
+                                        .to_string()
+                                })
+                                .collect(),
+                            _ => {
+                                unreachable!("Parsing error: {:?}", raw_values.as_rule());
+                            }
+                        };
+                        EventDefinition { key, value }
+                    })
+                    .collect();
 
                 ret.extend(event_definitions);
             }
             _ => {}
-        }
-    });
+        });
     Some(ret)
 }
 
@@ -748,11 +844,12 @@ pub fn assemble_component_definition(
     is_main_component: bool,
     template_map: HashMap<String, String>,
     module_path: &str,
-    self_type_id: &str
+    self_type_id: &str,
 ) -> (ParsingContext, ComponentDefinition) {
     let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
-        .next().unwrap(); // get and unwrap the `pax_component_definition` rule
+        .next()
+        .unwrap(); // get and unwrap the `pax_component_definition` rule
 
     if is_main_component {
         ctx.main_component_type_id = self_type_id.to_string();
@@ -805,8 +902,12 @@ pub fn clean_module_path(module_path: &str) -> String {
     }
 }
 
-pub fn assemble_struct_only_component_definition(ctx: ParsingContext, pascal_identifier: &str, module_path: &str, self_type_id: &str) -> (ParsingContext, ComponentDefinition) {
-
+pub fn assemble_struct_only_component_definition(
+    ctx: ParsingContext,
+    pascal_identifier: &str,
+    module_path: &str,
+    self_type_id: &str,
+) -> (ParsingContext, ComponentDefinition) {
     let modified_module_path = clean_module_path(module_path);
 
     let new_def = ComponentDefinition {
@@ -830,7 +931,7 @@ pub fn assemble_primitive_definition(
     pascal_identifier: &str,
     module_path: &str,
     primitive_instance_import_path: String,
-    self_type_id: &str
+    self_type_id: &str,
 ) -> ComponentDefinition {
     let modified_module_path = clean_module_path(module_path);
 
@@ -856,7 +957,6 @@ pub fn assemble_type_definition(
     self_type_id: &str,
     import_path: String,
 ) -> (ParsingContext, TypeDefinition) {
-
     let type_id_escaped = escape_identifier(self_type_id.to_string());
 
     let new_def = TypeDefinition {
@@ -867,23 +967,23 @@ pub fn assemble_type_definition(
         import_path,
     };
 
-    ctx.type_table.insert(self_type_id.to_string(), new_def.clone());
+    ctx.type_table
+        .insert(self_type_id.to_string(), new_def.clone());
 
     (ctx, new_def)
 }
 
-
 pub fn escape_identifier(input: String) -> String {
     input
-        .replace("(","LPAR")
-        .replace("::","COCO")
-        .replace(")","RPAR")
-        .replace("<","LABR")
-        .replace(">","RABR")
-        .replace(",","COMM")
-        .replace(".","PERI")
-        .replace("[","LSQB")
-        .replace("]","RSQB")
+        .replace("(", "LPAR")
+        .replace("::", "COCO")
+        .replace(")", "RPAR")
+        .replace("<", "LABR")
+        .replace(">", "RABR")
+        .replace(",", "COMM")
+        .replace(".", "PERI")
+        .replace("[", "LSQB")
+        .replace("]", "RSQB")
         .replace("/", "FSLA")
         .replace("\\", "BSLA")
         .replace("#", "HASH")
@@ -906,7 +1006,7 @@ pub trait Reflectable {
             import_path: type_id.to_string(),
         };
 
-        if ! ctx.type_table.contains_key(&type_id) {
+        if !ctx.type_table.contains_key(&type_id) {
             ctx.type_table.insert(type_id, td);
         }
 
@@ -1031,11 +1131,11 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
             import_path: type_id.to_string(),
         };
 
-        if ! ctx.type_table.contains_key(&type_id) {
+        if !ctx.type_table.contains_key(&type_id) {
             ctx.type_table.insert(type_id, td);
         }
 
-        let (ctx,_) = T::parse_to_manifest(ctx);
+        let (ctx, _) = T::parse_to_manifest(ctx);
         (ctx, vec![]) //Option itself has no PAXEL-addressable properties
     }
     fn get_import_path() -> String {
@@ -1046,13 +1146,11 @@ impl<T: Reflectable> Reflectable for std::option::Option<T> {
     }
 
     fn get_type_id() -> String {
-        format!("std::option::Option<{}{}>","{PREFIX}",&T::get_type_id())
+        format!("std::option::Option<{}{}>", "{PREFIX}", &T::get_type_id())
     }
 }
 
-
 impl Reflectable for pax_runtime_api::Size {
-
     fn get_import_path() -> String {
         "pax_lang::api::Size".to_string()
     }
@@ -1063,7 +1161,6 @@ impl Reflectable for pax_runtime_api::Size {
 }
 
 impl Reflectable for pax_runtime_api::SizePixels {
-
     fn get_import_path() -> String {
         "pax_lang::api::SizePixels".to_string()
     }
@@ -1074,7 +1171,6 @@ impl Reflectable for pax_runtime_api::SizePixels {
 }
 
 impl Reflectable for pax_runtime_api::Numeric {
-
     fn get_import_path() -> String {
         "pax_lang::api::Numeric".to_string()
     }
@@ -1084,9 +1180,7 @@ impl Reflectable for pax_runtime_api::Numeric {
     }
 }
 
-
 impl Reflectable for kurbo::Point {
-
     fn get_import_path() -> String {
         "kurbo::Point".to_string()
     }
@@ -1107,7 +1201,7 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
             property_definitions: vec![],
         };
 
-        if ! ctx.type_table.contains_key(&type_id) {
+        if !ctx.type_table.contains_key(&type_id) {
             ctx.type_table.insert(type_id, td);
         }
 
@@ -1122,7 +1216,11 @@ impl<T: Reflectable> Reflectable for std::vec::Vec<T> {
     }
     fn get_type_id() -> String {
         //Need to encode generics contents as part of unique id for iterables
-        format!("std::vec::Vec<{}{}>","{PREFIX}",&Self::get_iterable_type_id().unwrap())
+        format!(
+            "std::vec::Vec<{}{}>",
+            "{PREFIX}",
+            &Self::get_iterable_type_id().unwrap()
+        )
     }
     fn get_iterable_type_id() -> Option<String> {
         Some(T::get_type_id())

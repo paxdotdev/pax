@@ -3,9 +3,9 @@ pub use pax_macro::*;
 
 pub use pax_runtime_api as api;
 
+pub use declarative_macros::*;
 pub use pax_runtime_api::log;
 pub use pax_runtime_api::Property;
-pub use declarative_macros::*;
 
 mod declarative_macros {
     #[macro_export]

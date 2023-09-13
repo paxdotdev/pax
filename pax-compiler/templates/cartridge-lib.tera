@@ -1,6 +1,7 @@
 
 // generate imports, pointing to userland cartridge `pub mod pax_reexports`
 {% for import in imports %}
+#[allow(unused_imports)]
 use {{ import }};
 {% endfor %}
 
@@ -14,8 +15,10 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
 
     {% for expression_spec in expression_specs %}
     //{{ expression_spec.input_statement}}
+    #[allow(unused)]
     vtable.insert({{ expression_spec.id }}, Box::new(|ec: ExpressionContext<R>| -> TypesCoproduct {
         {% for invocation in expression_spec.invocations %}
+            #[allow(non_snake_case)]
             let {{ invocation.escaped_identifier }} =
             {
                 let properties = if let Some(sf) = (*ec.stack_frame).borrow().peek_nth({{ invocation.stack_offset }}) {
@@ -26,6 +29,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 let properties = &*(*properties).borrow();
                 {% if invocation.property_flags.is_binding_repeat_elem %}
                     //binding repeat elem
+                    #[allow(unused)]
                     if let PropertiesCoproduct::RepeatItem(elem, i) = properties {
                         {% if invocation.is_numeric %}
                             //iterable numeric
@@ -44,6 +48,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                     } else {unreachable!()}
                 {% elif invocation.property_flags.is_binding_repeat_i %}
                     //binding repeat i
+                    #[allow(unused)]
                     if let PropertiesCoproduct::RepeatItem(_, i) = properties {
                         Numeric::from(*i)
                     } else {unreachable!()}
@@ -60,6 +65,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                 {% endif %}
             }{{ invocation.nested_symbol_tail_literal }};
             {% if invocation.is_nested_numeric %}
+                #[allow(non_snake_case)]
                 let {{ invocation.escaped_identifier }} = Numeric::from( {{ invocation.escaped_identifier }} );
             {% endif %}
 

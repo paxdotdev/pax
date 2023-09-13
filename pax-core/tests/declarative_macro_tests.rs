@@ -6,9 +6,9 @@ enum Fruit {
     #[default]
     None,
     Apple(String),
+    #[allow(unused)]
     Banana(String),
 }
-
 
 //let new_value = unsafe_unwrap!(stroke_width, TypesCoproduct, pax_runtime_api::SizePixels);
 

@@ -1,11 +1,13 @@
+#![allow(unused_imports)]
+
 pub mod website_desktop;
 pub mod website_mobile;
 
-use pax_lang::*;
 use pax_lang::api::*;
-use pax_std::primitives::{Frame, Group, Rectangle, Text, Image};
+use pax_lang::*;
+use pax_std::components::Stacker;
+use pax_std::primitives::{Frame, Group, Image, Rectangle, Text};
 use pax_std::types::{Color, Fill, LinearGradient, StackerDirection};
-use pax_std::components::{Stacker, Sidebar};
 
 use crate::website_desktop::WebsiteDesktop;
 use crate::website_mobile::WebsiteMobile;
@@ -29,7 +31,7 @@ pub struct Example {
 impl Example {
     pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
         self.container_width.set(ctx.bounds_parent.0);
-     }
+    }
 
     pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
         self.container_width.set(ctx.bounds_parent.0);

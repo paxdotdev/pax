@@ -1356,7 +1356,6 @@ name = "pax-core"
 version = "0.6.17"
 dependencies = [
  "kurbo",
- "lazy_static",
  "pax-message",
  "pax-properties-coproduct",
  "pax-runtime-api",

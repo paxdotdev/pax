@@ -30,6 +30,7 @@
       <excludeFolder url="file://$MODULE_DIR$/pax-example/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-std/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-chassis-web/target" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-example/build" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
