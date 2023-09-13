@@ -1,13 +1,13 @@
 use std::borrow::BorrowMut;
 use std::cell::RefCell;
 use std::rc::Rc;
-
-
+use std::collections::HashMap;
+use std::ops::Deref;
 
 
 use piet_common::RenderContext;
-use crate::{ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
-use pax_runtime_api::{Layer, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
+use crate::{ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs, HandlerRegistry};
+use pax_runtime_api::{Layer, log, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 /// A special "control-flow" primitive associated with the `for` statement.
@@ -35,7 +35,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         self.instance_id
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
 
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id  = instance_registry.mint_id();
@@ -102,7 +102,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             };
             self.cached_old_bounds = rtc.bounds.clone();
             self.cached_old_value_range = Some(new_value.clone());
-            let normalized_vec_of_props = new_value.into_iter().enumerate().map(|(_i, elem)|{Rc::new(PropertiesCoproduct::isize(elem))}).collect();
+            let normalized_vec_of_props = new_value.into_iter().enumerate().map(|(i, elem)|{Rc::new(PropertiesCoproduct::isize(elem))}).collect();
             (is_dirty, normalized_vec_of_props)
         } else {unreachable!()};
 
@@ -140,7 +140,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                             properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(Rc::clone(datum), i))),
                             timeline: None,
                             handler_registry: None,
-                            compute_properties_fn: Box::new(|_props, _rtc|{
+                            compute_properties_fn: Box::new(|props, rtc|{
                                 //no-op since the Repeat RenderNode handles the necessary calc (see `RepeatInstance::compute_properties`)
                             }),
 
@@ -182,7 +182,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         Layer::DontCare
     }
 
-    fn handle_did_mount(&mut self, _rtc: &mut RenderTreeContext<R>, _z_index: u32) {
+    fn handle_did_mount(&mut self, _rtc: &mut RenderTreeContext<R>, z_index: u32) {
         self.cached_old_value_range = None;
         self.cached_old_value_vec = None;
     }

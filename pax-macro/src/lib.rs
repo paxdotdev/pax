@@ -6,11 +6,11 @@ mod parsing;
 use std::io::Read;
 use std::fs;
 use std::str::FromStr;
-
+use std::collections::HashSet;
 use std::fs::File;
-
+use std::convert::TryFrom;
 use std::path::Path;
-
+use litrs::StringLit;
 
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::__private::ext::RepToTokensExt;
@@ -20,12 +20,12 @@ use templating::{ArgsPrimitive, ArgsFullComponent, ArgsStructOnlyComponent, Temp
 
 use sailfish::TemplateOnce;
 
-use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Meta, NestedMeta, MetaList, Lit};
-use syn::parse::{Parse};
+use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Attribute, Meta, NestedMeta, parse2, MetaList, Lit};
+use syn::parse::{Parse, ParseStream};
 
 
 fn pax_primitive(input_parsed: DeriveInput, primitive_instance_import_path: String, include_imports: bool, is_custom_interpolatable: bool,) -> proc_macro2::TokenStream {
-    let _original_tokens = quote! { #input_parsed }.to_string();
+    let original_tokens = quote! { #input_parsed }.to_string();
     let pascal_identifier = input_parsed.ident.to_string();
 
     let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
@@ -225,7 +225,7 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                     let mut ret = vec![];
                     fields.named.iter().for_each(|f| {
                         let field_name = f.ident.as_ref().unwrap();
-                        let _field_type = match get_field_type(f) {
+                        let field_type = match get_field_type(f) {
                             None => { /* noop */ },
                             Some(ty) => {
                                 let type_name = quote!(#(ty.0)).to_string().replace(" ", "");
@@ -628,7 +628,7 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let name = Ident::new("PaxFile", Span::call_site());
         let include_fix = generate_include(&name,path.clone().to_str().unwrap());
 
-        let file = File::open(path);
+        let mut file = File::open(path);
         let mut content = String::new();
         let _ = file.unwrap().read_to_string(&mut content);
         let stream: proc_macro::TokenStream = content.parse().unwrap();

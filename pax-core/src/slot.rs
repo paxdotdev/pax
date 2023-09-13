@@ -2,11 +2,11 @@ use core::cell::RefCell;
 use core::option::Option;
 use core::option::Option::{None, Some};
 use std::rc::Rc;
-
-use pax_properties_coproduct::{TypesCoproduct};
+use std::collections::HashMap;
+use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext};
+use crate::{InstantiationArgs, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext, HandlerRegistry};
 use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, Layer};
 
 
@@ -35,7 +35,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let mut instance_registry = args.instance_registry.borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret  = Rc::new(RefCell::new(Self {

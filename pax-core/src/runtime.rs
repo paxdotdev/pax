@@ -8,7 +8,7 @@ use piet::RenderContext;
 use pax_properties_coproduct::{PropertiesCoproduct};
 use pax_runtime_api::{Timeline};
 
-use crate::{RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use crate::{HandlerRegistry, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,
@@ -43,7 +43,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
         let mut indices: Vec<u32> = vec![];
 
         self.stack.iter().for_each(|frame_wrapped|{
-            if let PropertiesCoproduct::RepeatItem(_datum, i) = &*(*(*(*frame_wrapped).borrow_mut()).borrow().properties).borrow() {
+            if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*frame_wrapped).borrow_mut()).borrow().properties).borrow() {
                 indices.push(*i as u32)
             }
         });

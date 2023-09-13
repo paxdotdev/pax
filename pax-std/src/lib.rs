@@ -12,9 +12,9 @@ pub mod components {
 
 pub mod primitives {
     use pax_lang::Pax;
-    
-    
-    use pax_runtime_api::{Size};
+    use pax_lang::api::numeric::Numeric;
+    use pax_lang::api::SizePixels;
+    use pax_runtime_api::{Size, Size2D};
 
     use crate::types::PathSegment;
     use crate::types::text::{TextStyle};

@@ -1,13 +1,13 @@
-use kurbo::{Rect, Ellipse as KurboEllipse, Shape};
+use kurbo::{BezPath, Rect, Ellipse as KurboEllipse, Shape};
 use piet::{RenderContext};
 
 use pax_std::primitives::{Ellipse};
 use pax_std::types::ColorVariant;
-use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{PropertyInstance, Size, Transform2D, Size2D};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D};
 
-
+use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -32,7 +32,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Ellipse);
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
@@ -59,7 +59,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.get().width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width { v } else { unreachable!() };
@@ -76,7 +76,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
             properties.fill.set(new_value);
         }
 
-        let size = &mut *self.size.as_ref().borrow_mut();
+        let mut size = &mut *self.size.as_ref().borrow_mut();
 
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
@@ -88,7 +88,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
             size[1].set(new_value);
         }
 
-        let transform = &mut *self.transform.as_ref().borrow_mut();
+        let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
@@ -104,7 +104,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for EllipseInstance<R> {
         let properties = (*self.properties).borrow();
 
         let properties_color = properties.fill.get();
-        let _color = match properties_color.color_variant {
+        let color = match properties_color.color_variant {
             ColorVariant::Hlca(slice) => {
                 Color::hlca(slice[0], slice[1], slice[2], slice[3])
             },

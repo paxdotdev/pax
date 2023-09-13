@@ -1,13 +1,13 @@
-use kurbo::{RoundedRect, Shape};
+use kurbo::{BezPath, RoundedRect, Shape};
 use piet::{LinearGradient, RadialGradient, RenderContext};
 
 use pax_std::primitives::{Rectangle};
-use pax_std::types::{Fill, RectangleCornerRadii};
-use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
+use pax_std::types::{ColorVariant, Fill, RectangleCornerRadii};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{PropertyInstance, Size, Transform2D, Size2D};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, Property};
 
-
+use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
 
@@ -32,7 +32,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Rectangle);
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
@@ -60,7 +60,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(stroke_width) = rtc.compute_vtable_value(properties.stroke.get().width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::SizePixels(v) = stroke_width { v } else { unreachable!() };
@@ -77,7 +77,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
             properties.fill.set(new_value);
         }
 
-        let size = &mut *self.size.as_ref().borrow_mut();
+        let mut size = &mut *self.size.as_ref().borrow_mut();
 
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
@@ -114,7 +114,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
             size[1].set(new_value);
         }
 
-        let transform = &mut *self.transform.as_ref().borrow_mut();
+        let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
@@ -133,7 +133,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
 
         let rect = RoundedRect::new(0.0, 0.0, width, height, properties.corner_radii.get());
 
-        let bez_path = rect.to_path(0.1);
+        let mut bez_path = rect.to_path(0.1);
 
         let transformed_bez_path = transform * bez_path;
         let duplicate_transformed_bez_path = transformed_bez_path.clone();

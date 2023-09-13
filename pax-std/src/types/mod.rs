@@ -1,12 +1,12 @@
 pub mod text;
 
 use kurbo::{Point, RoundedRectRadii};
-use piet::{UnitPoint};
+use piet::{UnitPoint, GradientStops};
 use pax_lang::*;
-use pax_lang::api::{PropertyInstance, PropertyLiteral, SizePixels};
+use pax_lang::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
 use pax_lang::api::numeric::Numeric;
 pub use pax_lang::api::Size;
-use pax_message::{ColorVariantMessage};
+use pax_message::{ColorVariantMessage, FontPatch, TextAlignHorizontalMessage, TextAlignVerticalMessage};
 use crate::primitives::Path;
 
 #[derive(Pax)]
