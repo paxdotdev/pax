@@ -10,13 +10,13 @@ use std::collections::HashMap;
 use piet::TextStorage;
 
 use piet_web::WebRenderContext;
-use serde::de::Unexpected::Option;
+
 
 use pax_core::{InstanceRegistry, PaxEngine};
 
 use serde_json;
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
-use pax_runtime_api::{ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, KeyboardEventArgs, ZIndex, ModifierKey, MouseButton, MouseEventArgs, Touch};
+use pax_runtime_api::{ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, KeyboardEventArgs, ModifierKey, MouseButton, MouseEventArgs, Touch};
 
 // Console.log support, piped from `pax_lang::log`
 #[wasm_bindgen]
@@ -120,14 +120,14 @@ impl PaxChassisWeb {
         match x {
             NativeInterrupt::Image(args) => {
                 match args {
-                    ImageLoadInterruptArgs::Reference(ref_args) => {}
+                    ImageLoadInterruptArgs::Reference(_ref_args) => {}
                     ImageLoadInterruptArgs::Data(data_args) => {
                         let data = Uint8Array::new(additional_payload).to_vec();
                         (*self.engine).borrow_mut().load_image(data_args.id_chain, data, data_args.width, data_args.height);
                     }
                 }
             },
-            NativeInterrupt::AddedLayer(args) => {},
+            NativeInterrupt::AddedLayer(_args) => {},
             NativeInterrupt::Click(args) => {
                 let prospective_hit = (*self.engine).borrow().get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
