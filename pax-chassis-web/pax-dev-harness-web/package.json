@@ -14,8 +14,6 @@
     "webpack-dev-server": "^4.15.1"
   },
   "dependencies": {
-    "snarkdown": "^2.0.0",
-    "stats-js": "^1.0.1",
-    "text-encoding": "^0.7.0"
+    "snarkdown": "^2.0.0"
   }
 }

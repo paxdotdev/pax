@@ -48,7 +48,6 @@ export class NativeElementPool {
         }
     }
 
-
     clearCanvases(): void {
         this.canvases.forEach((canvas, key) => {
             let dpr = window.devicePixelRatio;
@@ -56,10 +55,12 @@ export class NativeElementPool {
             if (context) {
                 context.clearRect(0, 0, canvas.width, canvas.height);
             }
-            canvas.width = (canvas.clientWidth * dpr);
-            canvas.height = (canvas.clientHeight * dpr);
-            if (context) {
-                context.scale(dpr, dpr);
+            if(canvas.width != (canvas.clientWidth * dpr) || canvas.height != (canvas.clientHeight * dpr)){
+                canvas.width = (canvas.clientWidth * dpr);
+                canvas.height = (canvas.clientHeight * dpr);
+                if (context) {
+                    context.scale(dpr, dpr);
+                }
             }
         });
     }

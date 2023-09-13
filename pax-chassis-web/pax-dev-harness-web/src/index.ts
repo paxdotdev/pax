@@ -1,7 +1,5 @@
 // @ts-ignore
 import {PaxChassisWeb, wasm_memory} from '../dist/pax_chassis_web';
-// @ts-ignore
-import Stats from 'stats-js';
 import {ObjectManager} from "./pools/object-manager";
 import {MOUNT_ID} from "./utils/constants";
 import {
