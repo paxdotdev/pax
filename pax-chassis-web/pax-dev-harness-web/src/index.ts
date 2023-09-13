@@ -70,7 +70,7 @@ function renderLoop (chassis: PaxChassisWeb) {
          window.addEventListener('resize', () => {
              let width = window.innerWidth;
              let height = window.innerHeight;
-             chassis.sendViewportUpdate(width, height);
+             chassis.send_viewport_update(width, height);
              nativePool.baseOcclusionContext.updateCanvases(width, height);
          });
          setupEventListeners(chassis, mount);
