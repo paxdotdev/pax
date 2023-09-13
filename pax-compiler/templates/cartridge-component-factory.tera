@@ -2,29 +2,31 @@
 pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     ComponentInstance::instantiate( InstantiationArgs{
         properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{ component_properties_struct }}::default() ),
-        handler_registry:  Some(Rc::new(RefCell::new({let mut handler_registry = HandlerRegistry::default();
-                                                          {% for key, value in events %}
-                                                          handler_registry.{{key}}_handlers =  vec![
-                                                          {% for handler in value %}
-                                                              {%- if key in ['will_render','did_mount'] -%}
-                                                                  |properties, ctx|{
-                                                                  let properties = &mut *properties.as_ref().borrow_mut();
-                                                                  let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-                                                                  {{ component_properties_struct }}::{{handler}}(properties,ctx);
-                                                                  },
-                                                          {% else %}
-                                                              |stack_frame, ctx, args|{
-                                                              let properties = ((*stack_frame).borrow().get_properties());
-                                                              let properties = &mut *properties.as_ref().borrow_mut();
-                                                              let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
-                                                              {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
-                                                              },
-                                                          {% endif %}
-                                                          {% endfor %}
-                                                          ];
-                                                          {% endfor %}
-                                                          handler_registry}
-         ))),
+        handler_registry:  Some(Rc::new(RefCell::new({
+            #[allow(unused_mut)]
+            let mut handler_registry = HandlerRegistry::default();
+                {% for key, value in events %}
+                handler_registry.{{key}}_handlers =  vec![
+                    {% for handler in value %}
+                        {%- if key in ['will_render','did_mount'] -%}
+                            |properties, ctx|{
+                                let properties = &mut *properties.as_ref().borrow_mut();
+                                let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                                {{ component_properties_struct }}::{{handler}}(properties,ctx);
+                            },
+                        {% else %}
+                        |stack_frame, ctx, args|{
+                            let properties = ((*stack_frame).borrow().get_properties());
+                            let properties = &mut *properties.as_ref().borrow_mut();
+                            let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
+                                {{ component_properties_struct }}::{{handler}}(properties,ctx,args);
+                            },
+                        {% endif %}
+                    {% endfor %}
+                ];
+                {% endfor %}
+            handler_registry
+        }))),
         instance_registry: Rc::clone(&instance_registry),
         transform: Transform2D::default_wrapped(),
         size: None,
@@ -52,10 +54,13 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
 }
 
 {% else %}
+#[allow(non_snake_case)]
 pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
     args.component_template = Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}])));
 
-    args.handler_registry = Some(Rc::new(RefCell::new({let mut handler_registry = HandlerRegistry::default();
+    args.handler_registry = Some(Rc::new(RefCell::new({
+     #[allow(unused_mut)]
+     let mut handler_registry = HandlerRegistry::default();
      {% for key, value in events %}
      handler_registry.{{key}}_handlers =  vec![
      {% for handler in value %}
