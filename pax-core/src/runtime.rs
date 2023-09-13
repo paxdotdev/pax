@@ -119,6 +119,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
     /// created by `for`.  In other words `for`s children need to be treated as `<Stacker>`s children,
     /// and this processing allows that to happpen.
     /// Note that this must be recursive to handle nested cases of flattening, for example nested `for` loops
+    #[allow(non_snake_case)]
     pub fn process__should_flatten__adoptees_recursive(adoptee: &RenderNodePtr<R>, rtc: &mut RenderTreeContext<R>) -> Vec<RenderNodePtr<R>> {
         let mut adoptee_borrowed = (**adoptee).borrow_mut();
         if adoptee_borrowed.should_flatten() {

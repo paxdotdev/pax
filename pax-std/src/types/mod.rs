@@ -1,12 +1,12 @@
 pub mod text;
 
 use kurbo::{Point, RoundedRectRadii};
-use piet::{UnitPoint, GradientStops};
+use piet::{UnitPoint};
 use pax_lang::*;
-use pax_lang::api::{PropertyInstance, PropertyLiteral, Interpolatable, SizePixels};
+use pax_lang::api::{PropertyLiteral, SizePixels};
 use pax_lang::api::numeric::Numeric;
 pub use pax_lang::api::Size;
-use pax_message::{ColorVariantMessage, FontPatch, TextAlignHorizontalMessage, TextAlignVerticalMessage};
+use pax_message::{ColorVariantMessage};
 use crate::primitives::Path;
 
 #[derive(Pax)]
@@ -101,7 +101,7 @@ impl Default for Fill {
 
 impl Fill {
     pub fn to_unit_point((x,y): (Size,Size), (width,height) : (f64,f64)) -> UnitPoint {
-        let normalizedX = match x {
+        let normalized_x = match x {
             Size::Pixels(val) => {
                 val.get_as_float()/width
             }
@@ -110,7 +110,7 @@ impl Fill {
             }
         };
 
-        let normalizedY = match y {
+        let normalized_y = match y {
             Size::Pixels(val) => {
                 val.get_as_float()/height
             }
@@ -118,7 +118,7 @@ impl Fill {
                 val.get_as_float()/100.0
             }
         };
-        UnitPoint::new(normalizedX, normalizedY)
+        UnitPoint::new(normalized_x, normalized_y)
     }
 
     pub fn to_piet_gradient_stops(stops : Vec<GradientStop>) -> Vec<piet::GradientStop> {
@@ -137,6 +137,7 @@ impl Fill {
         ret
     }
 
+    #[allow(non_snake_case)]
     pub fn linearGradient(start: (Size, Size), end: (Size, Size), stops: Vec<GradientStop>) -> Fill {
         Fill::LinearGradient(LinearGradient{
             start,

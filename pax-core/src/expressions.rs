@@ -59,8 +59,8 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
     //FUTURE: when trait fields land, DRY this implementation vs. other <T: PropertyInstance> implementations
     fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
         self.transition_manager.value = Some(self.get().clone());
-        &self.transition_manager.queue.clear();
-        &self.transition_manager.queue.push_back(TransitionQueueEntry {
+        self.transition_manager.queue.clear();
+        self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
             duration_frames,
             curve,
@@ -74,7 +74,7 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
             //handle case where transition queue is empty -- a None value gets skipped, so populate it with Some
             self.transition_manager.value = Some(self.get().clone());
         }
-        &self.transition_manager.queue.push_back(TransitionQueueEntry {
+        self.transition_manager.queue.push_back(TransitionQueueEntry {
             global_frame_started: None,
             duration_frames,
             curve,

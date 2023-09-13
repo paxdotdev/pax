@@ -1,5 +1,5 @@
 
-use piet::{ImageFormat, InterpolationMode, RenderContext, Image as PietImage};
+use piet::{ImageFormat, InterpolationMode, RenderContext};
 use std::collections::HashMap;
 use pax_std::primitives::{Image};
 

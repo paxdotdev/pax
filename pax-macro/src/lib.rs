@@ -13,16 +13,13 @@ use std::path::Path;
 
 
 use proc_macro2::{Ident, Span, TokenStream};
-use quote::__private::ext::RepToTokensExt;
 use quote::{quote, ToTokens};
 
 use templating::{ArgsPrimitive, ArgsFullComponent, ArgsStructOnlyComponent, TemplateArgsDerivePax, StaticPropertyDefinition};
 
 use sailfish::TemplateOnce;
 
-use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Meta, NestedMeta, MetaList, Lit};
-use syn::parse::{Parse};
-
+use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Meta, Lit};
 
 fn pax_primitive(input_parsed: DeriveInput, primitive_instance_import_path: String, include_imports: bool, is_custom_interpolatable: bool,) -> proc_macro2::TokenStream {
     let _original_tokens = quote! { #input_parsed }.to_string();
@@ -43,31 +40,6 @@ fn pax_primitive(input_parsed: DeriveInput, primitive_instance_import_path: Stri
     }.render_once().unwrap().to_string();
 
     TokenStream::from_str(&output).unwrap().into()
-}
-
-// Helper function to extract the values inside the `custom` attribute.
-fn extract_custom_attr(attr: &MetaList) -> Option<Vec<String>> {
-    let custom_attr = attr
-        .nested
-        .iter()
-        .find(|nested_meta| match nested_meta {
-            NestedMeta::Meta(Meta::NameValue(name_value)) => {
-                name_value.path.is_ident("custom")
-            }
-            _ => false,
-        })?;
-
-    let custom_values = match custom_attr {
-        NestedMeta::Meta(Meta::NameValue(name_value)) => match &name_value.lit {
-            syn::Lit::Str(lit_str) => {
-                lit_str.value().split(',').map(|s| s.trim().to_string()).collect()
-            }
-            _ => return None,
-        },
-        _ => return None,
-    };
-
-    Some(custom_values)
 }
 
 fn pax_struct_only_component(input_parsed: DeriveInput, include_imports: bool, is_custom_interpolatable: bool) -> proc_macro2::TokenStream {
@@ -196,7 +168,6 @@ fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut Vec<String>) {
                                 }
                                 accumulated_scoped_resolvable_type = accumulated_scoped_resolvable_type.clone() + &ps.to_token_stream().to_string();
                             }
-                            _ => {}
                         }
                     });
 

@@ -52,25 +52,6 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub compute_properties_fn: Option<Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>>,
 }
 
-fn recurse_get_rendering_subtree_flattened<R: 'static + RenderContext>(children: RenderNodePtrList<R>) -> Vec<RenderNodePtr<R>> {
-    //For each node:
-    // - push self to list
-    // - push children (recursively) to list,
-    // - (next)
-    let mut ret = vec![];
-
-    (*children).borrow().iter().for_each(|child|{
-        ret.push(Rc::clone(child));
-
-        let new_children = (**child).borrow().get_rendering_children();
-        ret.append(&mut recurse_get_rendering_subtree_flattened(new_children));
-    });
-
-    ret
-}
-
-
-
 #[derive(Copy, Clone)]
 pub struct Point2D {
     x: f64,

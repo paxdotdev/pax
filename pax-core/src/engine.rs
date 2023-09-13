@@ -11,7 +11,7 @@ use pax_message::{NativeMessage};
 
 use piet_common::RenderContext;
 
-use crate::{Affine, ComponentInstance, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode, TransformAndBounds, StackFrame};
+use crate::{Affine, ComponentInstance, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, TransformAndBounds, StackFrame};
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
@@ -25,11 +25,6 @@ pub struct PaxEngine<R: 'static + RenderContext> {
     pub runtime: Rc<RefCell<Runtime<R>>>,
     pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
     viewport_tab: TransformAndBounds,
-}
-
-pub struct ExpressionVTable<R: 'static + RenderContext> {
-    inner_map: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
-    dependency_graph: HashMap<u64, Vec<u64>>,
 }
 
 pub struct RenderTreeContext<'a, R: 'static + RenderContext>
@@ -185,6 +180,7 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
 /// a `for j in 0..4` would have 12 repeat-expanded nodes representing the 12 virtual Rectangles in the
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
 pub struct RepeatExpandedNode<R: 'static + RenderContext> {
+    #[allow(dead_code)]
     id_chain: Vec<u32>,
     parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
     instance_node: RenderNodePtr<R>,
@@ -616,6 +612,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
         //and for this node itself (e.g. for specifying the size of a Rectangle node)
         let new_accumulated_bounds = node.borrow_mut().compute_size_within_bounds(accumulated_bounds);
+        #[allow(unused)]
         let mut node_size : (f64, f64) = (0.0, 0.0);
         let node_computed_transform = {
             let mut node_borrowed = rtc.node.borrow_mut();
@@ -701,7 +698,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let children_to_cleanup = node.borrow_mut().pop_cleanup_children();
         children_to_cleanup.borrow_mut().iter().rev().for_each(|child| {
             let mut new_rtc = rtc.clone();
-            &self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), &mut z_index_info.clone(), true);
+            self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), &mut z_index_info.clone(), true);
         });
 
         let mut child_z_index_info =  z_index_info.clone();
@@ -719,7 +716,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let mut new_rtc = rtc.clone();
             new_rtc.parent_repeat_expanded_node = Some(Rc::downgrade(&repeat_expanded_node));
             // if it's a scroller reset the z-index context for its children
-            &self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), &mut child_z_index_info.clone(), marked_for_unmount );
+            self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), &mut child_z_index_info.clone(), marked_for_unmount );
             //FUTURE: for dependency management, return computed values from subtree above
 
             subtree_depth = subtree_depth.max(child_z_index_info.get_level());
@@ -856,7 +853,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         native_render_queue
     }
 
-    pub fn loadImage(&mut self, id_chain: Vec<u32>, image_data: Vec<u8>, width: usize, height: usize) {
+    pub fn load_image(&mut self, id_chain: Vec<u32>, image_data: Vec<u8>, width: usize, height: usize) {
         self.image_map.insert(id_chain, (Box::new(image_data), width, height));
     }
 }

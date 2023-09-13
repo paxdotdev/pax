@@ -107,41 +107,40 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             properties.style_link.set(new_value);
         }
 
-        if let style_link = properties.style_link.get_mut() {
-            if let Some(style_font) = rtc.compute_vtable_value(style_link.font._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
-                style_link.font.set(new_value);
-            }
+        let style_link = properties.style_link.get_mut();
+        if let Some(style_font) = rtc.compute_vtable_value(style_link.font._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_font, TypesCoproduct, Font);
+            style_link.font.set(new_value);
+        }
 
-            if let Some(style_font_size) = rtc.compute_vtable_value(style_link.font_size._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_font_size, TypesCoproduct, SizePixels);
-                style_link.font_size.set(new_value);
-            }
+        if let Some(style_font_size) = rtc.compute_vtable_value(style_link.font_size._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_font_size, TypesCoproduct, SizePixels);
+            style_link.font_size.set(new_value);
+        }
 
-            if let Some(style_fill) = rtc.compute_vtable_value(style_link.fill._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
-                style_link.fill.set(new_value);
-            }
+        if let Some(style_fill) = rtc.compute_vtable_value(style_link.fill._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_fill, TypesCoproduct, Color);
+            style_link.fill.set(new_value);
+        }
 
-            if let Some(style_underline) = rtc.compute_vtable_value(style_link.underline._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_underline, TypesCoproduct, bool);
-                style_link.underline.set(new_value);
-            }
+        if let Some(style_underline) = rtc.compute_vtable_value(style_link.underline._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_underline, TypesCoproduct, bool);
+            style_link.underline.set(new_value);
+        }
 
-            if let Some(style_align_multiline) = rtc.compute_vtable_value(style_link.align_multiline._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_align_multiline, TypesCoproduct, TextAlignHorizontal);
-                style_link.align_multiline.set(new_value);
-            }
+        if let Some(style_align_multiline) = rtc.compute_vtable_value(style_link.align_multiline._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_align_multiline, TypesCoproduct, TextAlignHorizontal);
+            style_link.align_multiline.set(new_value);
+        }
 
-            if let Some(style_align_vertical) = rtc.compute_vtable_value(style_link.align_vertical._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_align_vertical, TypesCoproduct, TextAlignVertical);
-                style_link.align_vertical.set(new_value);
-            }
+        if let Some(style_align_vertical) = rtc.compute_vtable_value(style_link.align_vertical._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_align_vertical, TypesCoproduct, TextAlignVertical);
+            style_link.align_vertical.set(new_value);
+        }
 
-            if let Some(style_align_horizontal) = rtc.compute_vtable_value(style_link.align_horizontal._get_vtable_id()) {
-                let new_value = unsafe_unwrap!(style_align_horizontal, TypesCoproduct, TextAlignHorizontal);
-                style_link.align_horizontal.set(new_value);
-            }
+        if let Some(style_align_horizontal) = rtc.compute_vtable_value(style_link.align_horizontal._get_vtable_id()) {
+            let new_value = unsafe_unwrap!(style_align_horizontal, TypesCoproduct, TextAlignHorizontal);
+            style_link.align_horizontal.set(new_value);
         }
 
         let size = &mut *self.size.as_ref().borrow_mut();
