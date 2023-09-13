@@ -1,10 +1,11 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet, VecDeque};
 use std::env::Args;
+use std::fmt::format;
 use std::rc::{Rc, Weak};
 use std::thread::sleep;
 use std::time::Duration;
-use kurbo::Point;
+use kurbo::{Point, Vec2};
 
 use pax_message::{LayerAddPatch, NativeMessage};
 
@@ -13,9 +14,8 @@ use piet_common::RenderContext;
 use crate::{Affine, ComponentInstance, Color, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, RenderNode, TransformAndBounds, StackFrame, ScrollerArgs};
 use crate::runtime::{Runtime};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_message::NativeMessage::LayerAdd;
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, ArgsTouchStart, ArgsTouchMove, ArgsTouchEnd, ArgsKeyDown, ArgsKeyUp, ArgsKeyPress, ArgsMouseDown, ArgsMouseUp, ArgsMouseOver, ArgsMouseOut, ArgsDoubleClick, ArgsContextMenu, ArgsWheel, Interpolatable, TransitionManager, Layer, LayerInfo, RuntimeContext, ArgsMouseMove};
+use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, ArgsTouchStart, ArgsTouchMove, ArgsTouchEnd, ArgsKeyDown, ArgsKeyUp, ArgsKeyPress, ArgsMouseDown, ArgsMouseUp, ArgsMouseOver, ArgsMouseOut, ArgsDoubleClick, ArgsContextMenu, ArgsWheel, Interpolatable, TransitionManager, Layer, ZIndex, RuntimeContext, ArgsMouseMove, Size2D};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -23,7 +23,7 @@ pub struct PaxEngine<R: 'static + RenderContext> {
     pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct> >,
     pub main_component: Rc<RefCell<ComponentInstance<R>>>,
     pub runtime: Rc<RefCell<Runtime<R>>>,
-    pub image_map: HashMap<Vec<u64>, (Box<Vec<u8>>, usize, usize)>,
+    pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
     viewport_tab: TransformAndBounds,
 }
 
@@ -35,7 +35,8 @@ pub struct ExpressionVTable<R: 'static + RenderContext> {
 pub struct RenderTreeContext<'a, R: 'static + RenderContext>
 {
     pub engine: &'a PaxEngine<R>,
-    pub transform: Affine,
+    pub transform_global: Affine,
+    pub transform_scroller_reset: Affine,
     pub bounds: (f64, f64),
     pub runtime: Rc<RefCell<Runtime<R>>>,
     pub node: RenderNodePtr<R>,
@@ -58,7 +59,8 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
     fn clone(&self) -> Self {
         RenderTreeContext {
             engine: &self.engine,
-            transform: self.transform.clone(),
+            transform_global: self.transform_global.clone(),
+            transform_scroller_reset: self.transform_scroller_reset.clone(),
             bounds: self.bounds.clone(),
             runtime: Rc::clone(&self.runtime),
             node: Rc::clone(&self.node),
@@ -108,7 +110,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     /// Thus, the `id_chain` is used as a unique key, first the `instance_id` (which will increase monotonically through the lifetime of the program),
     /// then each RepeatItem index through a traversal of the stack frame.  Thus, each virtually `Repeat`ed element
     /// gets its own unique ID in the form of an "address" through any nested `Repeat`-ancestors.
-    pub fn get_id_chain(&self, id: u64) -> Vec<u64> {
+    pub fn get_id_chain(&self, id: u32) -> Vec<u32> {
         let mut indices = (*self.runtime).borrow().get_list_of_repeat_indicies_from_stack();
         indices.insert(0, id);
         indices
@@ -183,7 +185,7 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
 /// a `for j in 0..4` would have 12 repeat-expanded nodes representing the 12 virtual Rectangles in the
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
 pub struct RepeatExpandedNode<R: 'static + RenderContext> {
-    id_chain: Vec<u64>,
+    id_chain: Vec<u32>,
     parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
     instance_node: RenderNodePtr<R>,
     stack_frame: Rc<RefCell<crate::StackFrame<R>>>,
@@ -199,7 +201,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
                 handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_scroll.clone());
             });
         }
-
+        (*self.instance_node).borrow_mut().handle_scroll(args_scroll.clone());
         if let Some(parent) = &self.parent_repeat_expanded_node {
             parent.upgrade().unwrap().dispatch_scroll(args_scroll);
         }
@@ -418,7 +420,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
 
 pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///look up RenderNodePtr by id
-    instance_map: HashMap<u64, RenderNodePtr<R>>,
+    instance_map: HashMap<u32, RenderNodePtr<R>>,
 
     ///a cache of repeat-expanded elements visited by rendertree traversal,
     ///intended to be cleared at the beginning of each frame and populated
@@ -427,12 +429,12 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
     repeat_expanded_node_cache: Vec<Rc<RepeatExpandedNode<R>>>,
 
     ///track which repeat-expanded elements are currently mounted -- if id is present in set, is mounted
-    mounted_set: HashSet<Vec<u64>>,
+    mounted_set: HashSet<Vec<u32>>,
     ///tracks whichs instance nodes are marked for unmounting, to be done at the correct point in the render tree lifecycle
-    marked_for_unmount_set: HashSet<u64>,
+    marked_for_unmount_set: HashSet<u32>,
 
     ///register holding the next value to mint as an id
-    next_id: u64,
+    next_id: u32,
 }
 
 impl<R: 'static + RenderContext> InstanceRegistry<R> {
@@ -446,29 +448,29 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         }
     }
 
-    pub fn mint_id(&mut self) -> u64 {
+    pub fn mint_id(&mut self) -> u32 {
         let new_id = self.next_id;
         self.next_id = self.next_id + 1;
         new_id
     }
 
-    pub fn register(&mut self, instance_id: u64, node: RenderNodePtr<R>) {
+    pub fn register(&mut self, instance_id: u32, node: RenderNodePtr<R>) {
         self.instance_map.insert(instance_id, node);
     }
 
-    pub fn deregister(&mut self, instance_id: u64) {
+    pub fn deregister(&mut self, instance_id: u32) {
         self.instance_map.remove(&instance_id);
     }
 
-    pub fn mark_mounted(&mut self, id_chain: Vec<u64>) {
+    pub fn mark_mounted(&mut self, id_chain: Vec<u32>) {
         self.mounted_set.insert(id_chain);
     }
 
-    pub fn is_mounted(&self, id_chain: &Vec<u64>) -> bool {
+    pub fn is_mounted(&self, id_chain: &Vec<u32>) -> bool {
         self.mounted_set.contains(id_chain)
     }
 
-    pub fn mark_for_unmount(&mut self, instance_id: u64) {
+    pub fn mark_for_unmount(&mut self, instance_id: u32) {
         self.marked_for_unmount_set.insert(instance_id);
     }
 
@@ -501,12 +503,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             viewport_tab: TransformAndBounds {
                 transform: Affine::default(),
                 bounds: viewport_size,
+                clipping_bounds: Some(viewport_size),
             },
             image_map: HashMap::new(),
         }
     }
 
-    fn traverse_render_tree(&self, rcs: &mut Vec<R>) -> Vec<pax_message::NativeMessage> {
+    fn traverse_render_tree(&self, rcs: &mut HashMap<String, R>) -> Vec<pax_message::NativeMessage> {
         //Broadly:
         // 1. compute properties
         // 2. find lowest node (last child of last node), accumulating transform along the way
@@ -516,7 +519,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let mut rtc = RenderTreeContext {
             engine: &self,
-            transform: Affine::default(),
+            transform_global: Affine::default(),
+            transform_scroller_reset: Affine::default(),
             bounds: self.viewport_tab.bounds,
             runtime: self.runtime.clone(),
             node: Rc::clone(&cast_component_rc),
@@ -525,24 +529,16 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             inherited_adoptees: None,
         };
 
-        let mut depth = LayerInfo::new();
-        self.recurse_traverse_render_tree(&mut rtc, rcs, Rc::clone(&cast_component_rc), &mut depth, false);
+        let mut z_index = ZIndex::new(None);
+        self.recurse_traverse_render_tree(&mut rtc, rcs, Rc::clone(&cast_component_rc), &mut z_index, false);
         //reset the marked_for_unmount set
         self.instance_registry.borrow_mut().marked_for_unmount_set = HashSet::new();
 
-        if depth.get_depth() >= rcs.len() {
-            let layerAddPatch = LayerAddPatch {
-                num_layers_to_add: depth.get_depth()-rcs.len()+1,
-            };
-            (*self.runtime).borrow_mut().enqueue_native_message(LayerAdd(layerAddPatch));
-        }
-
-        // here I have depth, compare with rcs length and if rcs less than depth add native message to chassis to increase layers for next tick
         let native_render_queue = (*self.runtime).borrow_mut().take_native_message_queue();
         native_render_queue.into()
     }
 
-    fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext<R>, rcs: &mut Vec<R>, node: RenderNodePtr<R>, layer_info: &mut LayerInfo, marked_for_unmount: bool)  {
+    fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String,R>, node: RenderNodePtr<R>, z_index_info: &mut ZIndex, marked_for_unmount: bool)  {
         //Recurse:
         //  - compute properties for this node
         //  - fire lifecycle events for this node
@@ -556,8 +552,21 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         //lifecycle: compute_properties happens before rendering
         node.borrow_mut().compute_properties(rtc);
-        let accumulated_transform = rtc.transform;
+        let accumulated_transform = rtc.transform_global;
+        let accumulated_scroller_normalized_transform = rtc.transform_scroller_reset;
         let accumulated_bounds = rtc.bounds;
+
+        //depth work
+
+        let node_type = node.borrow_mut().get_layer_type();
+        z_index_info.update_z_index(node_type.clone());
+        let current_z_index = z_index_info.get_level();
+        let scroller_ids = (*rtc.engine.runtime).borrow().get_current_scroller_ids();
+        let scroller_id = match scroller_ids.last() {
+            None => {None}
+            Some(v) => {Some((v.clone()))}
+        };
+        let canvas_id = ZIndex::generate_location_id(scroller_id.clone(), current_z_index);
 
 
         //fire `did_mount` event if this is this node's first frame
@@ -573,7 +582,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let id_chain = {let mut i = vec![id]; i.append(&mut repeat_indices); i};
             if !instance_registry.is_mounted(&id_chain) {
                 //Fire primitive-level did_mount lifecycle method
-                node.borrow_mut().handle_did_mount(rtc);
+                node.borrow_mut().handle_did_mount(rtc, current_z_index);
 
                 //Fire registered did_mount events
                 let registry = (*node).borrow().get_handler_registry();
@@ -621,8 +630,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         };
 
         let new_accumulated_transform = accumulated_transform * node_computed_transform;
+        let new_scroller_normalized_accumulated_transform = accumulated_scroller_normalized_transform * node_computed_transform;
         rtc.bounds = new_accumulated_bounds.clone();
-        rtc.transform = new_accumulated_transform.clone();
+        rtc.transform_global = new_accumulated_transform.clone();
+        rtc.transform_scroller_reset = new_scroller_normalized_accumulated_transform.clone();
 
         //lifecycle: will_render for primitives
         node.borrow_mut().handle_will_render(rtc, rcs);
@@ -647,9 +658,18 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //create the `repeat_expanded_node` for the current node
         let children = node.borrow_mut().get_rendering_children();
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
+        let clipping = node.borrow_mut().compute_clipping_within_bounds(accumulated_bounds);
+        let clipping_bounds = match node.borrow_mut().get_clipping_bounds() {
+            None => {None}
+            Some(_) => {
+                Some(clipping)
+            }
+        };
+
         let repeat_expanded_node_tab = TransformAndBounds {
             bounds: node_size,
-            transform: new_accumulated_transform.clone(),
+            clipping_bounds,
+            transform: new_scroller_normalized_accumulated_transform.clone(),
         };
 
 
@@ -674,46 +694,64 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //was marked for deletion, or this instance_node is present in the InstanceRegistry's "marked for unmount" set.
         let marked_for_unmount = marked_for_unmount || self.instance_registry.borrow().marked_for_unmount_set.contains(&instance_id);
 
-
+        let mut subtree_depth = 0;
         //keep recursing through children
+
+
+        let children_to_cleanup = node.borrow_mut().pop_cleanup_children();
+        children_to_cleanup.borrow_mut().iter().rev().for_each(|child| {
+            let mut new_rtc = rtc.clone();
+            &self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), &mut z_index_info.clone(), true);
+        });
+
+        let mut child_z_index_info =  z_index_info.clone();
+        if z_index_info.get_current_layer() == Layer::Scroller {
+            let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
+            child_z_index_info = ZIndex::new(Some(id_chain));
+            let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
+            let mut reset_transform = Affine::default();
+            reset_transform = reset_transform.then_translate(Vec2::new(scroll_offset_x, scroll_offset_y));
+            rtc.transform_scroller_reset = reset_transform.clone();
+        }
+
         children.borrow_mut().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
             new_rtc.parent_repeat_expanded_node = Some(Rc::downgrade(&repeat_expanded_node));
-            &self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), layer_info, marked_for_unmount );
+            // if it's a scroller reset the z-index context for its children
+            &self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), &mut child_z_index_info.clone(), marked_for_unmount );
             //FUTURE: for dependency management, return computed values from subtree above
+
+            subtree_depth = subtree_depth.max(child_z_index_info.get_level());
+
         });
-
-
-
 
 
         let is_viewport_culled = !repeat_expanded_node_tab.intersects(&self.viewport_tab);
 
-        let node_type = node.borrow_mut().get_layer_type();
-        if !is_viewport_culled {
-            layer_info.update_depth(node_type);
-        }
-        let current_depth = layer_info.get_depth();
 
-        let last_layer = &rcs.len() -1;
-        if let Some(rc) =  rcs.get_mut(current_depth) {
             //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
             //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
-            node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec(), current_depth);
-            //lifecycle: render
-            //this is this node's time to do its own rendering, aside
-            //from the rendering of its children. Its children have already been rendered.
-            if !is_viewport_culled {
-                node.borrow_mut().handle_render(rtc, rc);
+            if let Some(cb) = clipping_bounds {
+                node.borrow_mut().compute_native_patches(rtc, cb, new_scroller_normalized_accumulated_transform.as_coeffs().to_vec(), current_z_index, subtree_depth);
+            } else {
+                node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_scroller_normalized_accumulated_transform.as_coeffs().to_vec(), current_z_index, subtree_depth);
             }
-        } else {
-            node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_accumulated_transform.as_coeffs().to_vec(), last_layer);
-            if !is_viewport_culled {
-                node.borrow_mut().handle_render(rtc, rcs.get_mut(last_layer).unwrap());
-            }
-        }
 
+            if let Some(rc) = rcs.get_mut(&canvas_id) {
+                //lifecycle: render
+                //this is this node's time to do its own rendering, aside
+                //from the rendering of its children. Its children have already been rendered.
+                if !is_viewport_culled {
+                    node.borrow_mut().handle_render(rtc, rc);
+                }
+            } else {
+                if let Some(rc) = rcs.get_mut("0"){
+                    if !is_viewport_culled {
+                        node.borrow_mut().handle_render(rtc, rc);
+                    }
+                }
+            }
 
         //Handle node unmounting
         if marked_for_unmount {
@@ -729,6 +767,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         node.borrow_mut().handle_did_render(rtc, rcs);
 
     }
+
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
     /// ray running orthogonally to the view plane, intersecting at
@@ -777,8 +816,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
-                        if (*unwrapped_parent.instance_node).borrow().is_clipping() && !(*unwrapped_parent.instance_node).borrow().ray_cast_test(&ray, &unwrapped_parent.tab) {
-                            ancestral_clipping_bounds_are_satisfied = false;
+                        if let Some(_) = (*unwrapped_parent.instance_node).borrow().get_clipping_bounds() {
+                            ancestral_clipping_bounds_are_satisfied = (*unwrapped_parent.instance_node).borrow().ray_cast_test(&ray, &unwrapped_parent.tab);
                             break;
                         }
                         parent = unwrapped_parent.parent_repeat_expanded_node.as_ref().and_then(|weak| weak.upgrade());
@@ -810,14 +849,14 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
     /// Workhorse method to advance rendering and property calculation by one discrete tick
     /// Will be executed synchronously up to 240 times/second.
-    pub fn tick(&mut self, rcs: &mut Vec<R>) -> Vec<NativeMessage> {
+    pub fn tick(&mut self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
         (*self.instance_registry).borrow_mut().reset_repeat_expanded_node_cache();
         let native_render_queue = self.traverse_render_tree(rcs);
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue
     }
 
-    pub fn loadImage(&mut self, id_chain: Vec<u64>, image_data: Vec<u8>, width: usize, height: usize) {
+    pub fn loadImage(&mut self, id_chain: Vec<u32>, image_data: Vec<u8>, width: usize, height: usize) {
         self.image_map.insert(id_chain, (Box::new(image_data), width, height));
     }
 }

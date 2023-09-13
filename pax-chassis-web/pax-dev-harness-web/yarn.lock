@@ -2234,11 +2234,6 @@ terser@^5.10.0, terser@^5.16.5:
     commander "^2.20.0"
     source-map-support "~0.5.20"
 
-text-encoding@^0.7.0:
-  version "0.7.0"
-  resolved "https://registry.npmjs.org/text-encoding/-/text-encoding-0.7.0.tgz"
-  integrity sha512-oJQ3f1hrOnbRLOcwKz0Liq2IcrvDeZRHXhd9RgLrsT+DjWY/nty1Hi7v3dtkaEYbPYe0mUoOfzRrMwfXXwgPUA==
-
 thunky@^1.0.2:
   version "1.1.0"
   resolved "https://registry.npmjs.org/thunky/-/thunky-1.1.0.tgz"

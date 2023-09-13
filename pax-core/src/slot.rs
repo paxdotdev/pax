@@ -22,7 +22,7 @@ use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, Layer};
 /// that become the final rendered home of those adoptees.  This same technique
 /// is portable and applicable elsewhere via Slot.
 pub struct SlotInstance<R: 'static + RenderContext> {
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
     cached_computed_children: RenderNodePtrList<R>,
@@ -32,7 +32,7 @@ pub struct SlotInstance<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
     fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {

@@ -8,7 +8,7 @@ use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 use pax_properties_coproduct::PropertiesCoproduct;
 
-use pax_runtime_api::{Layer, Size, Size2D};
+use pax_runtime_api::{ArgsScroll, Layer, Size, Size2D};
 
 use crate::{RenderTreeContext, HandlerRegistry, InstanceRegistry};
 
@@ -124,6 +124,7 @@ impl Mul<Point2D> for Affine {
 pub struct TransformAndBounds {
     pub transform: Affine,
     pub bounds: (f64, f64),
+    pub clipping_bounds: Option<(f64, f64)>,
 }
 
 impl TransformAndBounds {
@@ -144,7 +145,7 @@ impl TransformAndBounds {
         let corners_self = self.corners();
         let corners_other = other.corners();
 
-        for i in 0..4 {
+        for i in 0..2 {
             let axis = corners_self[i].subtract(corners_self[(i + 1) % 4]).normal();
 
             let self_projections: Vec<_> = corners_self.iter().map(|&p| p.project_onto(axis)).collect();
@@ -177,6 +178,13 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
+    /// Consumes the children of this node at render-time that should be removed.
+    /// This occurs when they were mounted in some previous frame but now need to be removed after a property change
+    /// This function resets this list once returned
+    fn pop_cleanup_children(&mut self) -> RenderNodePtrList<R> {
+        Rc::new(RefCell::new(vec![]))
+    }
+
     ///Determines whether the provided ray, orthogonal to the view plane,
     ///intersects this rendernode. `tab` must also be passed because these are specific
     ///to a RepeatExpandedNode
@@ -193,9 +201,14 @@ pub trait RenderNode<R: 'static + RenderContext>
         let inverted_transform = tab.transform.inverse();
         let transformed_ray = inverted_transform * Point {x:ray.0,y:ray.1};
 
+        let relevant_bounds = match tab.clipping_bounds {
+            None => {tab.bounds}
+            Some(cp) => {cp}
+        };
+
         //Default implementation: rectilinear bounding hull
         transformed_ray.x > 0.0 && transformed_ray.y > 0.0
-            && transformed_ray.x < tab.bounds.0 && transformed_ray.y < tab.bounds.1
+            && transformed_ray.x < relevant_bounds.0 && transformed_ray.y < relevant_bounds.1
     }
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
@@ -204,8 +217,8 @@ pub trait RenderNode<R: 'static + RenderContext>
 
     /// Used at least by ray-casting; only nodes that clip content (and thus should
     /// not allow outside content to respond to ray-casting) should return true
-    fn is_clipping(&self) -> bool {
-        false
+    fn get_clipping_bounds(&self) -> Option<Size2D> {
+        None
     }
 
     /// Returns the size of this node, or `None` if this node
@@ -216,7 +229,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// individual rendered elements may share an instance_id, for example
     /// inside of `Repeat`.  See also `RenderTreeContext::get_id_chain`, which enables globally
     /// unique node addressing in the context of an in-progress render tree traversal.
-    fn get_instance_id(&self) -> u64;
+    fn get_instance_id(&self) -> u32;
 
     /// Used for exotic tree traversals, e.g. for `Stacker` > `Repeat` > `Rectangle`
     /// where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.
@@ -260,6 +273,34 @@ pub trait RenderNode<R: 'static + RenderContext>
         }
     }
 
+    /// Returns the clipping bounds of this node in pixels, requiring
+    /// parent bounds for calculation of `Percent` values
+    fn compute_clipping_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
+        match self.get_clipping_bounds() {
+            None => bounds,
+            Some(size_raw) => {
+                (
+                    match size_raw.borrow()[0].get() {
+                        Size::Pixels(width) => {
+                            width.get_as_float()
+                        },
+                        Size::Percent(width) => {
+                            bounds.0 * (*width / 100.0)
+                        }
+                    },
+                    match size_raw.borrow()[1].get() {
+                        Size::Pixels(height) => {
+                            height.get_as_float()
+                        },
+                        Size::Percent(height) => {
+                            bounds.1 * (*height / 100.0)
+                        }
+                    }
+                )
+            }
+        }
+    }
+
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>>;
 
     /// First lifecycle method during each render loop, used to compute
@@ -275,7 +316,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     ///
     /// An implementor of `compute_native_patches` is responsible for determining which properties if any have changed
     /// (e.g. by keeping a local patch object as a cache of last known values.)
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth: usize) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, z_index: u32, subtree_depth: u32) {
         //no-op default implementation
     }
 
@@ -284,7 +325,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// Example use-case: perform side-effects to the drawing contexts.
     /// This is how [`Frame`] performs clipping, for example.
     /// Occurs in a pre-order traversal of the render tree.
-    fn handle_will_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rcs: &mut Vec<R>) {
+    fn handle_will_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
         //no-op default implementation
     }
 
@@ -301,7 +342,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing contexts
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
-    fn handle_did_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rcs: &mut Vec<R>) {
+    fn handle_did_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
         //no-op default implementation
     }
 
@@ -310,7 +351,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// this event fires by all nodes on the global first tick, and by all nodes in a subtree
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
-    fn handle_did_mount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    fn handle_did_mount(&mut self, _rtc: &mut RenderTreeContext<R>, z_index: u32) {
         //no-op default implementation
     }
 
@@ -324,6 +365,17 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// Default is `Layer::Canvas`, and must be overwritten for native rendering
     fn get_layer_type(&mut self) -> Layer {
         Layer::Canvas
+    }
+
+    /// Invoked by event interrupts to pass scroll information to render node
+    fn handle_scroll(&mut self, args_scroll: ArgsScroll) {
+        //no-op default implementation
+    }
+
+    /// Returns the scroll offset from a Scroller component
+    /// Used by the engine to transform its children
+    fn get_scroll_offset(&mut self) -> (f64, f64) {
+        (0.0,0.0)
     }
 
 }
@@ -416,4 +468,3 @@ pub struct StrokeInstance {
     pub style: StrokeStyle,
     //FUTURE: stroke alignment, inner/outer/center?
 }
-

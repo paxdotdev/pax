@@ -20,7 +20,9 @@ pub struct Runtime<R: 'static + RenderContext> {
     /// Tracks the native ids (id_chain)s of clipping instances
     /// When a node is mounted, it may consult the clipping stack to see which clipping instances are relevant to it
     /// This list of `id_chain`s is passed along with `**Create`, in order to associate with the appropriate clipping elements on the native side
-    clipping_stack: Vec<Vec<u64>>,
+    clipping_stack: Vec<Vec<u32>>,
+    /// Similar to clipping stack but for scroller containers
+    scroller_stack: Vec<Vec<u32>>,
     native_message_queue: VecDeque<pax_message::NativeMessage>
 }
 
@@ -29,6 +31,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
         Runtime {
             stack: vec![],
             clipping_stack: vec![],
+            scroller_stack: vec![],
             native_message_queue: VecDeque::new(),
         }
     }
@@ -36,12 +39,12 @@ impl<R: 'static + RenderContext> Runtime<R> {
     // NOTE: this value could be cached on stackframes, registered & cached during engine rendertree traversal (specifically: when stackframes are pushed)
     //       This would make id_chain resolution essentially free, O(1) instead of O(log(n))
     //       Profile first to understand the impact before optimizing
-    pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u64> {
-        let mut indices: Vec<u64> = vec![];
+    pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u32> {
+        let mut indices: Vec<u32> = vec![];
 
         self.stack.iter().for_each(|frame_wrapped|{
             if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*frame_wrapped).borrow_mut()).borrow().properties).borrow() {
-                indices.push(*i as u64)
+                indices.push(*i as u32)
             }
         });
         indices
@@ -84,7 +87,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
         );
     }
 
-    pub fn push_clipping_stack_id(&mut self, id_chain: Vec<u64>) {
+    pub fn push_clipping_stack_id(&mut self, id_chain: Vec<u32>) {
         self.clipping_stack.push(id_chain);
     }
 
@@ -92,8 +95,20 @@ impl<R: 'static + RenderContext> Runtime<R> {
         self.clipping_stack.pop();
     }
 
-    pub fn get_current_clipping_ids(&self) -> Vec<Vec<u64>> {
+    pub fn get_current_clipping_ids(&self) -> Vec<Vec<u32>> {
         self.clipping_stack.clone()
+    }
+
+    pub fn push_scroller_stack_id(&mut self, id_chain: Vec<u32>) {
+        self.scroller_stack.push(id_chain);
+    }
+
+    pub fn pop_scroller_stack_id(&mut self) {
+        self.scroller_stack.pop();
+    }
+
+    pub fn get_current_scroller_ids(&self) -> Vec<Vec<u32>> {
+        self.scroller_stack.clone()
     }
 
     /// Handles special-cases like `for`/`Repeat`, where properties for the
