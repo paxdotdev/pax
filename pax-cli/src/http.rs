@@ -5,7 +5,7 @@ pub fn check_for_update(new_version_info: Arc<Mutex<Option<String>>>) {
     let url = match option_env!("PAX_UPDATE_SERVER") {
         Some(server) => {
             format!("{}/pax-cli/{}", server, current_version)
-        },
+        }
         None => {
             format!("https://update.pax.dev/pax-cli/{}", current_version)
         }
@@ -13,9 +13,11 @@ pub fn check_for_update(new_version_info: Arc<Mutex<Option<String>>>) {
     let user_agent = get_user_agent();
 
     let client = reqwest::blocking::Client::new();
-    if let Ok(response) = client.get(&url)
+    if let Ok(response) = client
+        .get(&url)
         .header(reqwest::header::USER_AGENT, user_agent)
-        .send() {
+        .send()
+    {
         if response.status().is_success() {
             match response.text() {
                 Ok(body) => {
@@ -25,9 +27,9 @@ pub fn check_for_update(new_version_info: Arc<Mutex<Option<String>>>) {
                         let mut lock = new_version_info.lock().unwrap();
                         *lock = Some(body);
                     }
-                },
+                }
                 Err(e) => {
-                    panic!("{:?}",e);
+                    panic!("{:?}", e);
                 }
             }
         } else {
@@ -38,7 +40,7 @@ pub fn check_for_update(new_version_info: Arc<Mutex<Option<String>>>) {
     }
 }
 
-const TOOL_NAME : &str = "pax-cli";
+const TOOL_NAME: &str = "pax-cli";
 fn get_user_agent() -> String {
     let os = if cfg!(target_os = "windows") {
         "Windows"

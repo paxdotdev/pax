@@ -1,6 +1,6 @@
+use crate::Interpolatable;
 use std::cmp::Ordering;
 use std::ops::{Add, Div, Mul, Neg, Rem, Sub};
-use crate::Interpolatable;
 
 /// Numeric is a module that wraps numeric literals in Pax
 /// It encapsulates the built-in Rust numeric scalar types and defines behavior across them
@@ -345,9 +345,9 @@ mod tests {
         let float_a = Numeric::from(3.0);
         let float_b = Numeric::from(4.0);
 
-        assert_eq!(integer_a+integer_b, Numeric::Integer(3 as isize));
-        assert_eq!(integer_a+float_a, Numeric::Float(4.0));
-        assert_eq!(float_a+float_b, Numeric::Float(7.0));
+        assert_eq!(integer_a + integer_b, Numeric::Integer(3 as isize));
+        assert_eq!(integer_a + float_a, Numeric::Float(4.0));
+        assert_eq!(float_a + float_b, Numeric::Float(7.0));
     }
 
     #[test]
@@ -397,8 +397,8 @@ mod tests {
         let epsilon_b = 0.001;
         let epsilon_c = 0.0001;
 
-        assert_eq!(Numeric::float_eq(a,b, epsilon_a ), true);
-        assert_eq!(Numeric::float_eq(a,b, epsilon_b ), true);
-        assert_eq!(Numeric::float_eq(a,b, epsilon_c ), false);
+        assert_eq!(Numeric::float_eq(a, b, epsilon_a), true);
+        assert_eq!(Numeric::float_eq(a, b, epsilon_b), true);
+        assert_eq!(Numeric::float_eq(a, b, epsilon_c), false);
     }
 }

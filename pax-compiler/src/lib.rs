@@ -1,32 +1,39 @@
 extern crate core;
 
-use include_dir::{Dir, include_dir};
+use include_dir::{include_dir, Dir};
 
-pub mod manifest;
-pub mod templating;
-pub mod parsing;
 pub mod expressions;
+pub mod manifest;
+pub mod parsing;
+pub mod templating;
 
 use manifest::PaxManifest;
-use rust_format::{Formatter};
+use rust_format::Formatter;
 
-use std::fs;
 use fs_extra::dir::{self, CopyOptions};
+use itertools::Itertools;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
-use std::str::FromStr;
 use std::collections::{HashMap, HashSet};
+use std::fs;
 use std::io::Write;
-use itertools::Itertools;
+use std::str::FromStr;
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt; // For the .pre_exec() method
 
-use toml_edit::{Item};
+use crate::manifest::{
+    ComponentDefinition, EventDefinition, ExpressionSpec, LiteralBlockDefinition,
+    TemplateNodeDefinition, TypeDefinition, TypeTable, ValueDefinition,
+};
+use crate::templating::{
+    press_template_codegen_cartridge_component_factory,
+    press_template_codegen_cartridge_render_node_literal,
+    TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral,
+};
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use crate::manifest::{ValueDefinition, ComponentDefinition, EventDefinition, ExpressionSpec, TemplateNodeDefinition, TypeTable, LiteralBlockDefinition, TypeDefinition};
-use crate::templating::{press_template_codegen_cartridge_component_factory, press_template_codegen_cartridge_render_node_literal, TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral};
+use toml_edit::Item;
 
 //relative to pax_dir
 pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
@@ -73,25 +80,34 @@ fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> Str
 
 fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
     let mut updated_type_table = HashMap::new();
-    manifest.type_table.iter_mut().for_each(|t|{
+    manifest.type_table.iter_mut().for_each(|t| {
         t.1.type_id_escaped = t.1.type_id_escaped.replace("{PREFIX}", "");
-        t.1.type_id = t.1.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
-        t.1.property_definitions.iter_mut().for_each(|pd|{
-            pd.type_id = pd.type_id.replace("{PREFIX}", &host_crate_info.import_prefix);
+        t.1.type_id =
+            t.1.type_id
+                .replace("{PREFIX}", &host_crate_info.import_prefix);
+        t.1.property_definitions.iter_mut().for_each(|pd| {
+            pd.type_id = pd
+                .type_id
+                .replace("{PREFIX}", &host_crate_info.import_prefix);
         });
-        updated_type_table.insert(t.0.replace("{PREFIX}", &host_crate_info.import_prefix), t.1.clone());
+        updated_type_table.insert(
+            t.0.replace("{PREFIX}", &host_crate_info.import_prefix),
+            t.1.clone(),
+        );
     });
     std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
 }
 
 // The stable output directory for generated / copied files
-const PAX_DIR_PKG_PATH : &str = "pkg";
+const PAX_DIR_PKG_PATH: &str = "pkg";
 
-fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &RunContext) {
-
+fn clone_all_dependencies_to_tmp(
+    pax_dir: &PathBuf,
+    pax_version: &Option<String>,
+    ctx: &RunContext,
+) {
     let dest_pkg_root = pax_dir.join(PAX_DIR_PKG_PATH);
     for pkg in ALL_PKGS {
-
         if ctx.is_libdev_mode {
             //Copy all packages from monorepo root on every build.  this allows us to propagate changes
             //to a libdev build without "sticky caches."
@@ -105,47 +121,80 @@ fn clone_all_dependencies_to_tmp(pax_dir: &PathBuf, pax_version: &Option<String>
             let src = pax_workspace_root.join(pkg);
             let dest = dest_pkg_root.join(pkg);
 
-            copy_dir_to(&src, &dest).expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
+            copy_dir_to(&src, &dest)
+                .expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
         } else {
             let dest = dest_pkg_root.join(pkg);
             if !dest.exists() {
-                let pax_version = pax_version.as_ref().expect("Pax version required but not found");
-                let tarball_url = format!("https://crates.io/api/v1/crates/{}/{}/download", pkg, pax_version);
-                let resp = reqwest::blocking::get(&tarball_url)
-                    .expect(&format!("Failed to fetch tarball for {} at version {}", pkg, pax_version));
+                let pax_version = pax_version
+                    .as_ref()
+                    .expect("Pax version required but not found");
+                let tarball_url = format!(
+                    "https://crates.io/api/v1/crates/{}/{}/download",
+                    pkg, pax_version
+                );
+                let resp = reqwest::blocking::get(&tarball_url).expect(&format!(
+                    "Failed to fetch tarball for {} at version {}",
+                    pkg, pax_version
+                ));
 
                 let tarball_bytes = resp.bytes().expect("Failed to read tarball bytes");
                 let mut tar = tar::Archive::new(&tarball_bytes[..]);
-                tar.unpack(&dest).expect(&format!("Failed to unpack tarball for {}", pkg));
+                tar.unpack(&dest)
+                    .expect(&format!("Failed to unpack tarball for {}", pkg));
             }
         }
     }
 }
 
-fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
-
-    let target_dir = pax_dir.join(PAX_DIR_PKG_PATH).join("pax-properties-coproduct");
+fn generate_and_overwrite_properties_coproduct(
+    pax_dir: &PathBuf,
+    manifest: &PaxManifest,
+    host_crate_info: &HostCrateInfo,
+) {
+    let target_dir = pax_dir
+        .join(PAX_DIR_PKG_PATH)
+        .join("pax-properties-coproduct");
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
-    let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
+    let mut target_cargo_toml_contents =
+        toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap())
+            .unwrap();
 
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
-        target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
-        &mut Item::from_str("{ path=\"../../..\" }").unwrap()
+        target_cargo_toml_contents["dependencies"]
+            .get_mut(&host_crate_info.name)
+            .unwrap(),
+        &mut Item::from_str("{ path=\"../../..\" }").unwrap(),
     );
 
     //write patched Cargo.toml
-    fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
+    fs::write(
+        &target_cargo_full_path,
+        &target_cargo_toml_contents.to_string(),
+    )
+    .unwrap();
 
     //build tuples for PropertiesCoproduct
-    let mut properties_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|comp_def| {
-        let mod_path = if &comp_def.1.module_path == "crate" {"".to_string()} else { comp_def.1.module_path.replace("crate::", "") + "::"};
-        (
-            comp_def.1.type_id_escaped.clone(),
-            format!("{}{}{}", &host_crate_info.import_prefix, &mod_path, &comp_def.1.pascal_identifier)
-        )
-    }).collect();
+    let mut properties_coproduct_tuples: Vec<(String, String)> = manifest
+        .components
+        .iter()
+        .map(|comp_def| {
+            let mod_path = if &comp_def.1.module_path == "crate" {
+                "".to_string()
+            } else {
+                comp_def.1.module_path.replace("crate::", "") + "::"
+            };
+            (
+                comp_def.1.type_id_escaped.clone(),
+                format!(
+                    "{}{}{}",
+                    &host_crate_info.import_prefix, &mod_path, &comp_def.1.pascal_identifier
+                ),
+            )
+        })
+        .collect();
     let set: HashSet<(String, String)> = properties_coproduct_tuples.drain(..).collect();
     properties_coproduct_tuples.extend(set.into_iter());
     properties_coproduct_tuples.sort();
@@ -153,16 +202,25 @@ fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &Pax
     //build tuples for TypesCoproduct
     // - include all Property types, representing all possible return types for Expressions
     // - include all T such that T is the iterator type for some Property<Vec<T>>
-    let mut types_coproduct_tuples : Vec<(String, String)> = manifest.components.iter().map(|cd|{
-        cd.1.get_property_definitions(&manifest.type_table).iter().map(|pm|{
-            let td = pm.get_type_definition(&manifest.type_table);
+    let mut types_coproduct_tuples: Vec<(String, String)> = manifest
+        .components
+        .iter()
+        .map(|cd| {
+            cd.1.get_property_definitions(&manifest.type_table)
+                .iter()
+                .map(|pm| {
+                    let td = pm.get_type_definition(&manifest.type_table);
 
-            (
-                td.type_id_escaped.clone(),
-                host_crate_info.import_prefix.to_string() + &td.type_id.clone().replace("crate::", "")
-            )
-        }).collect::<Vec<_>>()
-    }).flatten().collect::<Vec<_>>();
+                    (
+                        td.type_id_escaped.clone(),
+                        host_crate_info.import_prefix.to_string()
+                            + &td.type_id.clone().replace("crate::", ""),
+                    )
+                })
+                .collect::<Vec<_>>()
+        })
+        .flatten()
+        .collect::<Vec<_>>();
 
     let mut set: HashSet<_> = types_coproduct_tuples.drain(..).collect();
 
@@ -173,7 +231,10 @@ fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &Pax
         ("isize", "isize"),
         ("usize", "usize"),
         ("String", "String"),
-        ("stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR", "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>"),
+        (
+            "stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR",
+            "std::vec::Vec<std::rc::Rc<PropertiesCoproduct>>",
+        ),
         ("Transform2D", "pax_runtime_api::Transform2D"),
         ("stdCOCOopsCOCORangeLABRisizeRABR", "std::ops::Range<isize>"),
         ("Size2D", "pax_runtime_api::Size2D"),
@@ -182,39 +243,57 @@ fn generate_and_overwrite_properties_coproduct(pax_dir: &PathBuf, manifest: &Pax
         ("Numeric", "pax_runtime_api::Numeric"),
     ];
 
-    TYPES_COPRODUCT_BUILT_INS.iter().for_each(|builtin| {set.insert((builtin.0.to_string(), builtin.1.to_string()));});
+    TYPES_COPRODUCT_BUILT_INS.iter().for_each(|builtin| {
+        set.insert((builtin.0.to_string(), builtin.1.to_string()));
+    });
     types_coproduct_tuples.extend(set.into_iter());
     types_coproduct_tuples.sort();
 
-    types_coproduct_tuples = types_coproduct_tuples.into_iter().unique_by(|elem|{elem.0.to_string()}).collect::<Vec<(String, String)>>();
+    types_coproduct_tuples = types_coproduct_tuples
+        .into_iter()
+        .unique_by(|elem| elem.0.to_string())
+        .collect::<Vec<(String, String)>>();
 
     //press template into String
-    let generated_lib_rs = templating::press_template_codegen_properties_coproduct_lib(templating::TemplateArgsCodegenPropertiesCoproductLib {
-        properties_coproduct_tuples,
-        types_coproduct_tuples,
-    });
+    let generated_lib_rs = templating::press_template_codegen_properties_coproduct_lib(
+        templating::TemplateArgsCodegenPropertiesCoproductLib {
+            properties_coproduct_tuples,
+            types_coproduct_tuples,
+        },
+    );
 
     //write String to file
     fs::write(target_dir.join("src/lib.rs"), generated_lib_rs).unwrap();
-
 }
 
-fn generate_and_overwrite_cartridge(pax_dir: &PathBuf, manifest: &PaxManifest, host_crate_info: &HostCrateInfo) {
+fn generate_and_overwrite_cartridge(
+    pax_dir: &PathBuf,
+    manifest: &PaxManifest,
+    host_crate_info: &HostCrateInfo,
+) {
     let target_dir = pax_dir.join(PAX_DIR_PKG_PATH).join("pax-cartridge");
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
-    let mut target_cargo_toml_contents = toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap()).unwrap();
+    let mut target_cargo_toml_contents =
+        toml_edit::Document::from_str(&fs::read_to_string(&target_cargo_full_path).unwrap())
+            .unwrap();
 
     //insert new entry pointing to userland crate, where `pax_app` is defined
     std::mem::swap(
-        target_cargo_toml_contents["dependencies"].get_mut(&host_crate_info.name).unwrap(),
-        &mut Item::from_str("{ path=\"../../..\" }").unwrap()
+        target_cargo_toml_contents["dependencies"]
+            .get_mut(&host_crate_info.name)
+            .unwrap(),
+        &mut Item::from_str("{ path=\"../../..\" }").unwrap(),
     );
 
     //write patched Cargo.toml
-    fs::write(&target_cargo_full_path, &target_cargo_toml_contents.to_string()).unwrap();
+    fs::write(
+        &target_cargo_full_path,
+        &target_cargo_toml_contents.to_string(),
+    )
+    .unwrap();
 
-    const IMPORTS_BUILTINS : [&str; 27] = [
+    const IMPORTS_BUILTINS: [&str; 27] = [
         "std::cell::RefCell",
         "std::collections::HashMap",
         "std::collections::VecDeque",
@@ -249,19 +328,26 @@ fn generate_and_overwrite_cartridge(pax_dir: &PathBuf, manifest: &PaxManifest, h
     #[allow(non_snake_case)]
     let IMPORT_PREFIX = format!("{}::pax_reexports::", host_crate_info.identifier);
 
-    let mut imports : Vec<String> = manifest.import_paths.iter().map(|path|{
-        if ! imports_builtins_set.contains(&**path) {
-            IMPORT_PREFIX.clone() + &path.replace("crate::", "")
-        } else {
-            "".to_string()
-        }
-    }).collect();
+    let mut imports: Vec<String> = manifest
+        .import_paths
+        .iter()
+        .map(|path| {
+            if !imports_builtins_set.contains(&**path) {
+                IMPORT_PREFIX.clone() + &path.replace("crate::", "")
+            } else {
+                "".to_string()
+            }
+        })
+        .collect();
 
-    imports.append(&mut IMPORTS_BUILTINS.into_iter().map(|ib|{
-        ib.to_string()
-    }).collect::<Vec<String>>());
+    imports.append(
+        &mut IMPORTS_BUILTINS
+            .into_iter()
+            .map(|ib| ib.to_string())
+            .collect::<Vec<String>>(),
+    );
 
-    let consts = vec![];//TODO!
+    let consts = vec![]; //TODO!
 
     //Traverse component tree starting at root
     //build a N/PIT in memory for each component (maybe this can be automatically serialized for component factories?)
@@ -295,20 +381,32 @@ fn generate_and_overwrite_cartridge(pax_dir: &PathBuf, manifest: &PaxManifest, h
     //     JavaScript uses:
     // Uncaught ReferenceError: not_defined is not defined
 
-    let mut expression_specs : Vec<ExpressionSpec> = manifest.expression_specs.as_ref().unwrap().values().map(|es: &ExpressionSpec|{es.clone()}).collect();
+    let mut expression_specs: Vec<ExpressionSpec> = manifest
+        .expression_specs
+        .as_ref()
+        .unwrap()
+        .values()
+        .map(|es: &ExpressionSpec| es.clone())
+        .collect();
     expression_specs = expression_specs.iter().sorted().cloned().collect();
 
-    let component_factories_literal =  manifest.components.values().into_iter().filter(|cd|{!cd.is_primitive && !cd.is_struct_only_component}).map(|cd|{
-        generate_cartridge_component_factory_literal(manifest, cd, host_crate_info)
-    }).collect();
+    let component_factories_literal = manifest
+        .components
+        .values()
+        .into_iter()
+        .filter(|cd| !cd.is_primitive && !cd.is_struct_only_component)
+        .map(|cd| generate_cartridge_component_factory_literal(manifest, cd, host_crate_info))
+        .collect();
 
     //press template into String
-    let generated_lib_rs = templating::press_template_codegen_cartridge_lib(templating::TemplateArgsCodegenCartridgeLib {
-        imports,
-        consts,
-        expression_specs,
-        component_factories_literal,
-    });
+    let generated_lib_rs = templating::press_template_codegen_cartridge_lib(
+        templating::TemplateArgsCodegenCartridgeLib {
+            imports,
+            consts,
+            expression_specs,
+            component_factories_literal,
+        },
+    );
 
     // Re: formatting the generated output, see prior art at `_format_generated_lib_rs`
     //write String to file
@@ -331,34 +429,50 @@ fn _format_generated_lib_rs(generated_lib_rs: String) -> String {
     }
 }
 
-fn generate_cartridge_render_nodes_literal(rngc: &RenderNodesGenerationContext,  host_crate_info: &HostCrateInfo) -> String {
-    let nodes = rngc.active_component_definition.template.as_ref().expect("tried to generate render nodes literal for component, but template was undefined");
+fn generate_cartridge_render_nodes_literal(
+    rngc: &RenderNodesGenerationContext,
+    host_crate_info: &HostCrateInfo,
+) -> String {
+    let nodes =
+        rngc.active_component_definition.template.as_ref().expect(
+            "tried to generate render nodes literal for component, but template was undefined",
+        );
 
     let implicit_root = nodes[0].borrow();
-    let children_literal : Vec<String> = implicit_root.child_ids.iter().map(|child_id|{
-    let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
-    let active_tnd = &tnd_map[*child_id];
-        recurse_generate_render_nodes_literal(rngc, active_tnd,  host_crate_info)
-    }).collect();
+    let children_literal: Vec<String> = implicit_root
+        .child_ids
+        .iter()
+        .map(|child_id| {
+            let tnd_map = rngc.active_component_definition.template.as_ref().unwrap();
+            let active_tnd = &tnd_map[*child_id];
+            recurse_generate_render_nodes_literal(rngc, active_tnd, host_crate_info)
+        })
+        .collect();
 
     children_literal.join(",")
 }
 
-fn generate_bound_events(inline_settings: Option<Vec<(String, ValueDefinition)>>) -> HashMap<String, String> {
+fn generate_bound_events(
+    inline_settings: Option<Vec<(String, ValueDefinition)>>,
+) -> HashMap<String, String> {
     let mut ret: HashMap<String, String> = HashMap::new();
-     if let Some(ref inline) = inline_settings {
+    if let Some(ref inline) = inline_settings {
         for (key, value) in inline.iter() {
             if let ValueDefinition::EventBindingTarget(s) = value {
                 ret.insert(key.clone().to_string(), s.clone().to_string());
             };
-        };
+        }
     };
     ret
 }
 
-fn recurse_literal_block(block: LiteralBlockDefinition, type_definition: &TypeDefinition, host_crate_info: &HostCrateInfo) -> String {
-    let qualified_path =
-        host_crate_info.import_prefix.to_string() + &type_definition.import_path.clone().replace("crate::", "");
+fn recurse_literal_block(
+    block: LiteralBlockDefinition,
+    type_definition: &TypeDefinition,
+    host_crate_info: &HostCrateInfo,
+) -> String {
+    let qualified_path = host_crate_info.import_prefix.to_string()
+        + &type_definition.import_path.clone().replace("crate::", "");
 
     // Buffer to store the string representation of the struct
     let mut struct_representation = format!("\n{{ let mut ret = {}::default();", qualified_path);
@@ -366,12 +480,21 @@ fn recurse_literal_block(block: LiteralBlockDefinition, type_definition: &TypeDe
     // Iterating through each (key, value) pair in the settings_key_value_pairs
     for (key, value_definition) in block.settings_key_value_pairs.iter() {
         let value_string = match value_definition {
-            ValueDefinition::LiteralValue(value) => format!("ret.{} = Box::new(PropertyLiteral::new({}));", key, value),
-            ValueDefinition::Expression(_, id) |
-            ValueDefinition::Identifier(_, id) => {
-                format!("ret.{} = Box::new(PropertyExpression::new({}));", key, id.expect("Tried to use expression but it wasn't compiled"))
-            },
-            ValueDefinition::Block(inner_block) => format!("ret.{} = Box::new(PropertyLiteral::new({}));", key, recurse_literal_block(inner_block.clone(), type_definition, host_crate_info)),
+            ValueDefinition::LiteralValue(value) => {
+                format!("ret.{} = Box::new(PropertyLiteral::new({}));", key, value)
+            }
+            ValueDefinition::Expression(_, id) | ValueDefinition::Identifier(_, id) => {
+                format!(
+                    "ret.{} = Box::new(PropertyExpression::new({}));",
+                    key,
+                    id.expect("Tried to use expression but it wasn't compiled")
+                )
+            }
+            ValueDefinition::Block(inner_block) => format!(
+                "ret.{} = Box::new(PropertyLiteral::new({}));",
+                key,
+                recurse_literal_block(inner_block.clone(), type_definition, host_crate_info)
+            ),
             _ => {
                 panic!("Incorrect value bound to inline setting")
             }
@@ -385,13 +508,21 @@ fn recurse_literal_block(block: LiteralBlockDefinition, type_definition: &TypeDe
     struct_representation
 }
 
-
-fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tnd: &TemplateNodeDefinition,  host_crate_info: &HostCrateInfo) -> String {
+fn recurse_generate_render_nodes_literal(
+    rngc: &RenderNodesGenerationContext,
+    tnd: &TemplateNodeDefinition,
+    host_crate_info: &HostCrateInfo,
+) -> String {
     //first recurse, populating children_literal : Vec<String>
-    let children_literal : Vec<String> = tnd.child_ids.iter().map(|child_id|{
-        let active_tnd = &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
-        recurse_generate_render_nodes_literal(rngc, active_tnd,  host_crate_info)
-    }).collect();
+    let children_literal: Vec<String> = tnd
+        .child_ids
+        .iter()
+        .map(|child_id| {
+            let active_tnd =
+                &rngc.active_component_definition.template.as_ref().unwrap()[*child_id];
+            recurse_generate_render_nodes_literal(rngc, active_tnd, host_crate_info)
+        })
+        .collect();
 
     const DEFAULT_PROPERTY_LITERAL: &str = "PropertyLiteral::new(Default::default())";
 
@@ -399,16 +530,26 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
     let events = generate_bound_events(tnd.settings.clone());
     let args = if tnd.type_id == parsing::TYPE_ID_REPEAT {
         // Repeat
-        let rsd = tnd.control_flow_settings.as_ref().unwrap().repeat_source_definition.as_ref().unwrap();
+        let rsd = tnd
+            .control_flow_settings
+            .as_ref()
+            .unwrap()
+            .repeat_source_definition
+            .as_ref()
+            .unwrap();
         let id = rsd.vtable_id.unwrap();
 
         let rse_vec = if let Some(_) = &rsd.symbolic_binding {
             format!("Some(Box::new(PropertyExpression::new({})))", id)
-        } else {"None".into()};
+        } else {
+            "None".into()
+        };
 
         let rse_range = if let Some(_) = &rsd.range_expression_paxel {
             format!("Some(Box::new(PropertyExpression::new({})))", id)
-        } else {"None".into()};
+        } else {
+            "None".into()
+        };
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -418,19 +559,32 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             component_properties_struct: "None".to_string(),
             properties: vec![],
             transform_ril: DEFAULT_PROPERTY_LITERAL.to_string(),
-            size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
+            size_ril: [
+                DEFAULT_PROPERTY_LITERAL.to_string(),
+                DEFAULT_PROPERTY_LITERAL.to_string(),
+            ],
             children_literal,
             slot_index_literal: "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
-            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
-            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
+            pascal_identifier: rngc
+                .active_component_definition
+                .pascal_identifier
+                .to_string(),
+            type_id_escaped: escape_identifier(
+                rngc.active_component_definition.type_id.to_string(),
+            ),
             events,
             repeat_source_expression_literal_vec: rse_vec,
             repeat_source_expression_literal_range: rse_range,
         }
     } else if tnd.type_id == parsing::TYPE_ID_IF {
         // If
-        let id = tnd.control_flow_settings.as_ref().unwrap().condition_expression_vtable_id.unwrap();
+        let id = tnd
+            .control_flow_settings
+            .as_ref()
+            .unwrap()
+            .condition_expression_vtable_id
+            .unwrap();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -440,19 +594,35 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             component_properties_struct: "None".to_string(),
             properties: vec![],
             transform_ril: DEFAULT_PROPERTY_LITERAL.to_string(),
-            size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
+            size_ril: [
+                DEFAULT_PROPERTY_LITERAL.to_string(),
+                DEFAULT_PROPERTY_LITERAL.to_string(),
+            ],
             children_literal,
             slot_index_literal: "None".to_string(),
-            repeat_source_expression_literal_vec:  "None".to_string(),
-            repeat_source_expression_literal_range:  "None".to_string(),
-            conditional_boolean_expression_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
-            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
-            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
+            repeat_source_expression_literal_vec: "None".to_string(),
+            repeat_source_expression_literal_range: "None".to_string(),
+            conditional_boolean_expression_literal: format!(
+                "Some(Box::new(PropertyExpression::new({})))",
+                id
+            ),
+            pascal_identifier: rngc
+                .active_component_definition
+                .pascal_identifier
+                .to_string(),
+            type_id_escaped: escape_identifier(
+                rngc.active_component_definition.type_id.to_string(),
+            ),
             events,
         }
     } else if tnd.type_id == parsing::TYPE_ID_SLOT {
         // Slot
-        let id = tnd.control_flow_settings.as_ref().unwrap().slot_index_expression_vtable_id.unwrap();
+        let id = tnd
+            .control_flow_settings
+            .as_ref()
+            .unwrap()
+            .slot_index_expression_vtable_id
+            .unwrap();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -462,14 +632,22 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             component_properties_struct: "None".to_string(),
             properties: vec![],
             transform_ril: DEFAULT_PROPERTY_LITERAL.to_string(),
-            size_ril: [DEFAULT_PROPERTY_LITERAL.to_string(), DEFAULT_PROPERTY_LITERAL.to_string()],
+            size_ril: [
+                DEFAULT_PROPERTY_LITERAL.to_string(),
+                DEFAULT_PROPERTY_LITERAL.to_string(),
+            ],
             children_literal,
             slot_index_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
-            repeat_source_expression_literal_vec:  "None".to_string(),
-            repeat_source_expression_literal_range:  "None".to_string(),
+            repeat_source_expression_literal_vec: "None".to_string(),
+            repeat_source_expression_literal_range: "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
-            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
-            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
+            pascal_identifier: rngc
+                .active_component_definition
+                .pascal_identifier
+                .to_string(),
+            type_id_escaped: escape_identifier(
+                rngc.active_component_definition.type_id.to_string(),
+            ),
             events,
         }
     } else {
@@ -487,67 +665,93 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
         //    stage for any `Properties` that are bound to something other than an expression / literal)
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
-        let property_ril_tuples: Vec<(String, String)> = component_for_current_node.get_property_definitions(rngc.type_table).iter().map(|pd| {
-            let ril_literal_string = {
-                if let Some(merged_settings) = &tnd.settings {
-                    if let Some(matched_setting) = merged_settings.iter().find(|avd| { avd.0 == pd.name }) {
+        let property_ril_tuples: Vec<(String, String)> = component_for_current_node
+            .get_property_definitions(rngc.type_table)
+            .iter()
+            .map(|pd| {
+                let ril_literal_string = {
+                    if let Some(merged_settings) = &tnd.settings {
+                        if let Some(matched_setting) =
+                            merged_settings.iter().find(|avd| avd.0 == pd.name)
+                        {
+                            match &matched_setting.1 {
+                                ValueDefinition::LiteralValue(lv) => {
+                                    format!("PropertyLiteral::new({})", lv)
+                                }
+                                ValueDefinition::Expression(_, id)
+                                | ValueDefinition::Identifier(_, id) => {
+                                    format!(
+                                        "PropertyExpression::new({})",
+                                        id.expect("Tried to use expression but it wasn't compiled")
+                                    )
+                                }
+                                ValueDefinition::Block(block) => {
+                                    format!(
+                                        "PropertyLiteral::new({})",
+                                        recurse_literal_block(
+                                            block.clone(),
+                                            pd.get_type_definition(&rngc.type_table),
+                                            host_crate_info
+                                        )
+                                    )
+                                }
+                                _ => {
+                                    panic!("Incorrect value bound to inline setting")
+                                }
+                            }
+                        } else {
+                            DEFAULT_PROPERTY_LITERAL.to_string()
+                        }
+                    } else {
+                        //no inline attributes at all; everything will be default
+                        DEFAULT_PROPERTY_LITERAL.to_string()
+                    }
+                };
+
+                (pd.name.clone(), ril_literal_string)
+            })
+            .collect();
+
+        //handle size: "width" and "height"
+        let keys = ["width", "height", "transform"];
+        let builtins_ril: Vec<String> = keys
+            .iter()
+            .map(|builtin_key| {
+                if let Some(inline_settings) = &tnd.settings {
+                    if let Some(matched_setting) =
+                        inline_settings.iter().find(|vd| vd.0 == *builtin_key)
+                    {
                         match &matched_setting.1 {
                             ValueDefinition::LiteralValue(lv) => {
                                 format!("PropertyLiteral::new({})", lv)
-                            },
-                            ValueDefinition::Expression(_, id) |
-                            ValueDefinition::Identifier(_, id) => {
-                                format!("PropertyExpression::new({})", id.expect("Tried to use expression but it wasn't compiled"))
-                            },
-                            ValueDefinition::Block(block) => {
-                                format!("PropertyLiteral::new({})", recurse_literal_block(block.clone(),pd.get_type_definition(&rngc.type_table),  host_crate_info))
-                            },
+                            }
+                            ValueDefinition::Expression(_, id)
+                            | ValueDefinition::Identifier(_, id) => {
+                                format!(
+                                    "PropertyExpression::new({})",
+                                    id.expect("Tried to use expression but it wasn't compiled")
+                                )
+                            }
                             _ => {
-                                panic!("Incorrect value bound to inline setting")
+                                panic!("Incorrect value bound to attribute")
                             }
                         }
                     } else {
                         DEFAULT_PROPERTY_LITERAL.to_string()
                     }
                 } else {
-                    //no inline attributes at all; everything will be default
                     DEFAULT_PROPERTY_LITERAL.to_string()
                 }
-            };
-
-            (pd.name.clone(), ril_literal_string)
-        }).collect();
-
-        //handle size: "width" and "height"
-        let keys = ["width", "height", "transform"];
-        let builtins_ril: Vec<String> = keys.iter().map(|builtin_key| {
-            if let Some(inline_settings) = &tnd.settings {
-                if let Some(matched_setting) = inline_settings.iter().find(|vd| { vd.0 == *builtin_key }) {
-                    match &matched_setting.1 {
-                        ValueDefinition::LiteralValue(lv) => {
-                            format!("PropertyLiteral::new({})", lv)
-                        },
-                        ValueDefinition::Expression(_, id) |
-                        ValueDefinition::Identifier(_, id) => {
-                            format!("PropertyExpression::new({})", id.expect("Tried to use expression but it wasn't compiled"))
-                        },
-                        _ => {
-                            panic!("Incorrect value bound to attribute")
-                        }
-                    }
-                } else {
-                    DEFAULT_PROPERTY_LITERAL.to_string()
-                }
-            } else {
-                DEFAULT_PROPERTY_LITERAL.to_string()
-            }
-        }).collect();
+            })
+            .collect();
 
         //then, on the post-order traversal, press template string and return
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: component_for_current_node.is_primitive,
             snake_case_type_id: component_for_current_node.get_snake_case_id(),
-            primitive_instance_import_path: component_for_current_node.primitive_instance_import_path.clone(),
+            primitive_instance_import_path: component_for_current_node
+                .primitive_instance_import_path
+                .clone(),
             properties_coproduct_variant: component_for_current_node.type_id_escaped.to_string(),
             component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
             properties: property_ril_tuples,
@@ -556,10 +760,15 @@ fn recurse_generate_render_nodes_literal(rngc: &RenderNodesGenerationContext, tn
             children_literal,
             slot_index_literal: "None".to_string(),
             repeat_source_expression_literal_vec: "None".to_string(),
-            repeat_source_expression_literal_range:  "None".to_string(),
+            repeat_source_expression_literal_range: "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
-            pascal_identifier: rngc.active_component_definition.pascal_identifier.to_string(),
-            type_id_escaped: escape_identifier(rngc.active_component_definition.type_id.to_string()),
+            pascal_identifier: rngc
+                .active_component_definition
+                .pascal_identifier
+                .to_string(),
+            type_id_escaped: escape_identifier(
+                rngc.active_component_definition.type_id.to_string(),
+            ),
             events,
         }
     };
@@ -577,16 +786,20 @@ fn generate_events_map(events: Option<Vec<EventDefinition>>) -> HashMap<String, 
     let mut ret = HashMap::new();
     let _ = match events {
         Some(event_list) => {
-            for e in event_list.iter(){
+            for e in event_list.iter() {
                 ret.insert(e.key.clone(), e.value.clone());
             }
-        },
-        _ => {},
+        }
+        _ => {}
     };
     ret
 }
 
-fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &ComponentDefinition,  host_crate_info: &HostCrateInfo) -> String {
+fn generate_cartridge_component_factory_literal(
+    manifest: &PaxManifest,
+    cd: &ComponentDefinition,
+    host_crate_info: &HostCrateInfo,
+) -> String {
     let rngc = RenderNodesGenerationContext {
         components: &manifest.components,
         active_component_definition: cd,
@@ -597,12 +810,21 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
         is_main_component: cd.is_main_component,
         snake_case_type_id: cd.get_snake_case_id(),
         component_properties_struct: cd.pascal_identifier.to_string(),
-        properties: cd.get_property_definitions(&manifest.type_table).iter().map(|pd|{
-            (pd.clone(),pd.get_type_definition(&manifest.type_table).type_id_escaped.clone())
-        }).collect(),
+        properties: cd
+            .get_property_definitions(&manifest.type_table)
+            .iter()
+            .map(|pd| {
+                (
+                    pd.clone(),
+                    pd.get_type_definition(&manifest.type_table)
+                        .type_id_escaped
+                        .clone(),
+                )
+            })
+            .collect(),
         events: generate_events_map(cd.events.clone()),
-        render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc,  host_crate_info),
-        properties_coproduct_variant: cd.type_id_escaped.to_string()
+        render_nodes_literal: generate_cartridge_render_nodes_literal(&rngc, host_crate_info),
+        properties_coproduct_variant: cd.type_id_escaped.to_string(),
     };
 
     press_template_codegen_cartridge_component_factory(args)
@@ -610,7 +832,7 @@ fn generate_cartridge_component_factory_literal(manifest: &PaxManifest, cd: &Com
 
 fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
     let working_path = std::path::Path::new(working_dir).join(".pax");
-    std::fs::create_dir_all( &working_path).unwrap();
+    std::fs::create_dir_all(&working_path).unwrap();
     fs::canonicalize(working_path).unwrap()
 }
 
@@ -625,10 +847,15 @@ struct HostCrateInfo {
 }
 
 fn get_host_crate_info(cargo_toml_path: &Path) -> HostCrateInfo {
-    let existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(
-        fs::canonicalize(cargo_toml_path).unwrap()).unwrap()).expect("Error loading host Cargo.toml");
+    let existing_cargo_toml = toml_edit::Document::from_str(
+        &fs::read_to_string(fs::canonicalize(cargo_toml_path).unwrap()).unwrap(),
+    )
+    .expect("Error loading host Cargo.toml");
 
-    let name = existing_cargo_toml["package"]["name"].as_str().unwrap().to_string();
+    let name = existing_cargo_toml["package"]["name"]
+        .as_str()
+        .unwrap()
+        .to_string();
     let identifier = name.replace("-", "_"); //NOTE: perhaps this could be less naive?
     let import_prefix = format!("{}::pax_reexports::", &identifier);
 
@@ -645,7 +872,6 @@ static TEMPLATE_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/templates");
 /// Executes a shell command to run the feature-flagged parser at the specified path
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
 pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) -> Output {
-
     let mut cmd = Command::new("cargo");
     cmd.current_dir(path)
         .arg("run")
@@ -694,14 +920,13 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
         .output()
         .expect("Failed to execute `cargo metadata`");
 
-
     if !output.status.success() {
         eprintln!("{}", String::from_utf8_lossy(&output.stderr));
         panic!("Failed to get metadata from Cargo");
     }
 
-    let metadata: Metadata = serde_json::from_slice(&output.stdout)
-        .expect("Failed to parse JSON from `cargo metadata`");
+    let metadata: Metadata =
+        serde_json::from_slice(&output.stdout).expect("Failed to parse JSON from `cargo metadata`");
 
     let mut tracked_version: Option<String> = None;
 
@@ -709,8 +934,10 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
         if ALL_PKGS.contains(&package.name.as_str()) {
             if let Some(ref version) = tracked_version {
                 if package.version != *version {
-                    panic!("Version mismatch for {}: expected {}, found {}",
-                           package.name, version, package.version);
+                    panic!(
+                        "Version mismatch for {}: expected {}, found {}",
+                        package.name, version, package.version
+                    );
                 }
             } else {
                 tracked_version = Some(package.version.clone());
@@ -724,8 +951,7 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
- pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
-
+pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     #[allow(non_snake_case)]
     let PAX_BADGE = "[Pax]".bold().on_black().white();
 
@@ -749,11 +975,18 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
     let output = run_parser_binary(&ctx.path, Arc::clone(&ctx.process_child_ids));
 
     // Forward stderr only
-    std::io::stderr().write_all(output.stderr.as_slice()).unwrap();
-    assert_eq!(output.status.code().unwrap(), 0, "Parsing failed — there is likely a syntax error in the provided pax");
+    std::io::stderr()
+        .write_all(output.stderr.as_slice())
+        .unwrap();
+    assert_eq!(
+        output.status.code().unwrap(),
+        0,
+        "Parsing failed — there is likely a syntax error in the provided pax"
+    );
 
     let out = String::from_utf8(output.stdout).unwrap();
-    let mut manifest : PaxManifest = serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
+    let mut manifest: PaxManifest =
+        serde_json::from_str(&out).expect(&format!("Malformed JSON from parser: {}", &out));
     let host_cargo_toml_path = Path::new(&ctx.path).join("Cargo.toml");
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_property_prefixes_in_place(&mut manifest, &host_crate_info);
@@ -773,12 +1006,25 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
 
     if ctx.should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
-        println!("{} 🏃‍ Running fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target));
+        println!(
+            "{} 🏃‍ Running fully compiled {} app...",
+            &PAX_BADGE,
+            <&RunTarget as Into<&str>>::into(&ctx.target)
+        );
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
-        println!("{} 🛠 Building fully compiled {} app...", &PAX_BADGE, <&RunTarget as Into<&str>>::into(&ctx.target));
+        println!(
+            "{} 🛠 Building fully compiled {} app...",
+            &PAX_BADGE,
+            <&RunTarget as Into<&str>>::into(&ctx.target)
+        );
     }
-    build_harness_with_chassis(&pax_dir, &ctx, &Harness::Development, Arc::clone(&ctx.process_child_ids));
+    build_harness_with_chassis(
+        &pax_dir,
+        &ctx,
+        &Harness::Development,
+        Arc::clone(&ctx.process_child_ids),
+    );
 
     Ok(())
 }
@@ -809,13 +1055,18 @@ pub enum Harness {
     Development,
 }
 
-fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Harness, process_child_ids: Arc<Mutex<Vec<u64>>>) {
-    let target_str : &str = ctx.target.borrow().into();
+fn build_harness_with_chassis(
+    pax_dir: &PathBuf,
+    ctx: &RunContext,
+    harness: &Harness,
+    process_child_ids: Arc<Mutex<Vec<u64>>>,
+) {
+    let target_str: &str = ctx.target.borrow().into();
     let target_str_lower: &str = &target_str.to_lowercase();
 
     let harness_path = pax_dir
         .join(PAX_DIR_PKG_PATH)
-        .join(format!("pax-chassis-{}",target_str_lower))
+        .join(format!("pax-chassis-{}", target_str_lower))
         .join({
             match harness {
                 Harness::Development => {
@@ -825,29 +1076,31 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
         });
 
     let script = match harness {
-        Harness::Development => {
-            match ctx.target {
-                RunTarget::Web => "./run-web.sh",
-                RunTarget::MacOS => "./run-debuggable-mac-app.sh",
-            }
-        }
+        Harness::Development => match ctx.target {
+            RunTarget::Web => "./run-web.sh",
+            RunTarget::MacOS => "./run-debuggable-mac-app.sh",
+        },
     };
 
-    let is_web = if let RunTarget::Web = ctx.target { true } else { false };
-    let target_folder : &str = ctx.target.borrow().into();
+    let is_web = if let RunTarget::Web = ctx.target {
+        true
+    } else {
+        false
+    };
+    let target_folder: &str = ctx.target.borrow().into();
 
     let output_path = pax_dir.join("build").join(target_folder);
     let output_path_str = output_path.to_str().unwrap();
 
     std::fs::create_dir_all(&output_path).ok();
 
-    let verbose_val = format!("{}",ctx.verbose);
-    let exclude_arch_val =  if std::env::consts::ARCH == "aarch64" {
+    let verbose_val = format!("{}", ctx.verbose);
+    let exclude_arch_val = if std::env::consts::ARCH == "aarch64" {
         "x86_64"
     } else {
         "arm64"
     };
-    let should_also_run = &format!("{}",ctx.should_also_run);
+    let should_also_run = &format!("{}", ctx.should_also_run);
     if is_web {
         let mut cmd = Command::new(script);
         cmd.current_dir(&harness_path)
@@ -863,10 +1116,8 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
 
         let child = cmd.spawn().expect("failed to spawn child");
         // child.stdin.take().map(drop);
-        let _output = wait_with_output(&process_child_ids,  child);
-
+        let _output = wait_with_output(&process_child_ids, child);
     } else {
-
         let mut cmd = Command::new(script);
         cmd.current_dir(&harness_path)
             .arg(verbose_val)
@@ -874,23 +1125,24 @@ fn build_harness_with_chassis(pax_dir: &PathBuf, ctx: &RunContext, harness: &Har
             .arg(should_also_run)
             .arg(output_path_str)
             .stdout(std::process::Stdio::inherit())
-            .stderr(if ctx.verbose { std::process::Stdio::inherit() } else {std::process::Stdio::piped()});
+            .stderr(if ctx.verbose {
+                std::process::Stdio::inherit()
+            } else {
+                std::process::Stdio::piped()
+            });
 
         #[cfg(unix)]
         unsafe {
             cmd.pre_exec(pre_exec_hook);
         }
 
-
         let child = cmd.spawn().expect("failed to spawn child");
         // child.stdin.take().map(drop);
         let _output = wait_with_output(&process_child_ids, child);
-
     }
 }
 
 pub fn perform_clean(path: &str) {
-
     let path = PathBuf::from(path);
     let pax_dir = path.join(".pax");
 
@@ -903,23 +1155,36 @@ use std::sync::{Arc, Mutex};
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
-pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, process_child_ids: Arc<Mutex<Vec<u64>>>) -> Output {
-
-    let target_str : &str = target.into();
+pub fn build_chassis_with_cartridge(
+    pax_dir: &PathBuf,
+    target: &RunTarget,
+    process_child_ids: Arc<Mutex<Vec<u64>>>,
+) -> Output {
+    let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
-    let chassis_path = pax_dir.join(PAX_DIR_PKG_PATH).join(format!("pax-chassis-{}", target_str_lower));
+    let chassis_path = pax_dir
+        .join(PAX_DIR_PKG_PATH)
+        .join(format!("pax-chassis-{}", target_str_lower));
 
     //Inject `patch` directive, which allows userland projects to refer to concrete versions like `0.4.0`, while we
     //swap them for our locally cloned filesystem versions during compilation.
     let existing_cargo_toml_path = chassis_path.join("Cargo.toml");
-    let mut existing_cargo_toml = toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap()).unwrap();
+    let mut existing_cargo_toml =
+        toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap())
+            .unwrap();
     let mut patch_table = toml_edit::table();
     for pkg in ALL_PKGS {
         patch_table[pkg]["path"] = toml_edit::value(format!("../{}", pkg));
     }
     existing_cargo_toml.insert("patch.crates-io", patch_table);
-    fs::write(existing_cargo_toml_path, existing_cargo_toml.to_string().replace("\"patch.crates-io\"", "patch.crates-io") ).unwrap();
+    fs::write(
+        existing_cargo_toml_path,
+        existing_cargo_toml
+            .to_string()
+            .replace("\"patch.crates-io\"", "patch.crates-io"),
+    )
+    .unwrap();
 
     //string together a shell call like the following:
     match target {
@@ -930,7 +1195,7 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
                 .arg("--color")
                 .arg("always")
                 .env("PAX_DIR", &pax_dir)
-                .env("RUSTFLAGS", "-Awarnings")//suppress cargo warnings
+                .env("RUSTFLAGS", "-Awarnings") //suppress cargo warnings
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit());
 
@@ -944,13 +1209,19 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
             let output = wait_with_output(&process_child_ids, child);
 
             output
-        },
+        }
         RunTarget::Web => {
             let mut cmd = Command::new("wasm-pack");
             cmd.current_dir(&chassis_path)
                 .arg("build")
                 .arg("--out-dir")
-                .arg(chassis_path.join("pax-dev-harness-web").join("dist").to_str().unwrap())
+                .arg(
+                    chassis_path
+                        .join("pax-dev-harness-web")
+                        .join("dist")
+                        .to_str()
+                        .unwrap(),
+                )
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit());
@@ -969,8 +1240,8 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
     }
 }
 
-static PAX_CREATE_TEMPLATE : Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/new-project-template");
-const PAX_CREATE_TEMPLATE_DIR_NAME : &str = "new-project-template";
+static PAX_CREATE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/new-project-template");
+const PAX_CREATE_TEMPLATE_DIR_NAME: &str = "new-project-template";
 
 pub fn perform_create(ctx: &CreateContext) {
     let full_path = Path::new(&ctx.path);
@@ -997,12 +1268,15 @@ pub fn perform_create(ctx: &CreateContext) {
             if entry_path.is_dir() {
                 dir::copy(&entry_path, &full_path, &options).expect("Failed to copy directory");
             } else {
-                fs::copy(&entry_path, full_path.join(entry_path.file_name().unwrap())).expect("Failed to copy file");
+                fs::copy(&entry_path, full_path.join(entry_path.file_name().unwrap()))
+                    .expect("Failed to copy file");
             }
         }
     } else {
         // File src is include_dir — recursively extract files from include_dir into full_path
-        PAX_CREATE_TEMPLATE.extract(&full_path).expect("Failed to extract files");
+        PAX_CREATE_TEMPLATE
+            .extract(&full_path)
+            .expect("Failed to extract files");
     }
 
     //Patch Cargo.toml
@@ -1020,43 +1294,61 @@ pub fn perform_create(ctx: &CreateContext) {
         .expect("Failed to parse Cargo.toml");
 
     // Update the `dependencies` section
-    if let Some(deps) = doc.as_table_mut().entry("dependencies").or_insert_with(toml_edit::table).as_table_mut() {
-        let keys: Vec<String> = deps.iter().filter_map(|(key, _)| {
-            if key.starts_with("pax-") {
-                Some(key.to_string())
-            } else {
-                None
-            }
-        }).collect();
+    if let Some(deps) = doc
+        .as_table_mut()
+        .entry("dependencies")
+        .or_insert_with(toml_edit::table)
+        .as_table_mut()
+    {
+        let keys: Vec<String> = deps
+            .iter()
+            .filter_map(|(key, _)| {
+                if key.starts_with("pax-") {
+                    Some(key.to_string())
+                } else {
+                    None
+                }
+            })
+            .collect();
 
         for key in keys {
             let dep_entry = deps.get_mut(&key).unwrap();
 
-            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) = dep_entry {
+            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) =
+                dep_entry
+            {
                 // This entry is an inline table, update it
 
-                dep_table.insert("version", toml_edit::Value::String(toml_edit::Formatted::new(ctx.version.clone())));
+                dep_table.insert(
+                    "version",
+                    toml_edit::Value::String(toml_edit::Formatted::new(ctx.version.clone())),
+                );
             } else {
                 // If dependency entry is not a table, create a new table with version and path
                 let dependency_string = if ctx.is_libdev_mode {
-                    format!("{{ version=\"{}\", path=\"../{}\", optional=true }}", ctx.version, &key)
+                    format!(
+                        "{{ version=\"{}\", path=\"../{}\", optional=true }}",
+                        ctx.version, &key
+                    )
                 } else {
                     format!("{{ version=\"{}\" }}", ctx.version)
                 };
 
                 std::mem::swap(
                     deps.get_mut(&key).unwrap(),
-                    &mut toml_edit::Item::from_str(&dependency_string).unwrap()
+                    &mut toml_edit::Item::from_str(&dependency_string).unwrap(),
                 );
             }
         }
     }
 
-
-
-
     // Update the `package` section
-    if let Some(package) = doc.as_table_mut().entry("package").or_insert_with(toml_edit::table).as_table_mut() {
+    if let Some(package) = doc
+        .as_table_mut()
+        .entry("package")
+        .or_insert_with(toml_edit::table)
+        .as_table_mut()
+    {
         if let Some(name_item) = package.get_mut("name") {
             *name_item = toml_edit::Item::Value(crate_name.into());
         }
@@ -1065,12 +1357,15 @@ pub fn perform_create(ctx: &CreateContext) {
         }
     }
 
-
     // Write the modified Cargo.toml back to disk
     fs::write(&full_path.join("Cargo.toml"), doc.to_string())
         .expect("Failed to write modified Cargo.toml");
 
-    println!("\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax run --target=web`", full_path.to_str().unwrap(), full_path.to_str().unwrap());
+    println!(
+        "\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax run --target=web`",
+        full_path.to_str().unwrap(),
+        full_path.to_str().unwrap()
+    );
 }
 
 pub struct CreateContext {
@@ -1096,13 +1391,11 @@ pub enum RunTarget {
 impl From<&str> for RunTarget {
     fn from(input: &str) -> Self {
         match input.to_lowercase().as_str() {
-            "macos" => {
-                RunTarget::MacOS
-            },
-            "web" => {
-                RunTarget::Web
+            "macos" => RunTarget::MacOS,
+            "web" => RunTarget::Web,
+            _ => {
+                unreachable!()
             }
-            _ => {unreachable!()}
         }
     }
 }
@@ -1110,12 +1403,8 @@ impl From<&str> for RunTarget {
 impl<'a> Into<&'a str> for &'a RunTarget {
     fn into(self) -> &'a str {
         match self {
-            RunTarget::Web => {
-                "Web"
-            },
-            RunTarget::MacOS => {
-                "MacOS"
-            },
+            RunTarget::Web => "Web",
+            RunTarget::MacOS => "MacOS",
         }
     }
 }
@@ -1150,12 +1439,21 @@ impl Ord for NamespaceTrieNode {
     }
 }
 
-const ERR_ASYNC : &str = "Expected synchronous execution; encountered async execution";
-pub fn wait_with_output(process_child_ids: &Arc<Mutex<Vec<u64>>>, child: std::process::Child) -> std::process::Output {
-    let child_id : u64 = child.id().into();
+const ERR_ASYNC: &str = "Expected synchronous execution; encountered async execution";
+pub fn wait_with_output(
+    process_child_ids: &Arc<Mutex<Vec<u64>>>,
+    child: std::process::Child,
+) -> std::process::Output {
+    let child_id: u64 = child.id().into();
     process_child_ids.lock().expect(ERR_ASYNC).push(child_id);
-    let output = child.wait_with_output().expect("Failed to wait for child process");
-    assert!(process_child_ids.lock().expect(ERR_ASYNC).pop().unwrap() == child_id, "{}", ERR_ASYNC);
+    let output = child
+        .wait_with_output()
+        .expect("Failed to wait for child process");
+    assert!(
+        process_child_ids.lock().expect(ERR_ASYNC).pop().unwrap() == child_id,
+        "{}",
+        ERR_ASYNC
+    );
     output
 }
 
@@ -1199,33 +1497,61 @@ impl NamespaceTrieNode {
     }
 
     pub fn recurse_serialize_to_reexports(&self, indent: usize) -> String {
-
         let indent_str = "    ".repeat(indent);
 
-        let mut accum : String = "".into();
+        let mut accum: String = "".into();
 
-        self.children.iter().sorted().for_each(|child|{
+        self.children.iter().sorted().for_each(|child| {
             if child.1.node_string.as_ref().unwrap() == "crate" {
                 //handle crate subtrie by skipping the crate NamespaceTrieNode, traversing directly into its children
                 child.1.children.iter().sorted().for_each(|child| {
                     if child.1.children.len() == 0 {
                         //leaf node:  write `pub use ...` entry
-                        accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
+                        accum += &format!(
+                            "{}pub use {};\n",
+                            indent_str,
+                            child.1.node_string.as_ref().unwrap()
+                        );
                     } else {
                         //non-leaf node:  write `pub mod ...` block
-                        accum += &format!("{}pub mod {} {{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
+                        accum += &format!(
+                            "{}pub mod {} {{\n",
+                            indent_str,
+                            child
+                                .1
+                                .node_string
+                                .as_ref()
+                                .unwrap()
+                                .split("::")
+                                .last()
+                                .unwrap()
+                        );
                         accum += &child.1.recurse_serialize_to_reexports(indent + 1);
                         accum += &format!("{}}}\n", indent_str);
                     }
                 })
-
-            }else {
+            } else {
                 if child.1.children.len() == 0 {
                     //leaf node:  write `pub use ...` entry
-                    accum += &format!("{}pub use {};\n", indent_str, child.1.node_string.as_ref().unwrap());
+                    accum += &format!(
+                        "{}pub use {};\n",
+                        indent_str,
+                        child.1.node_string.as_ref().unwrap()
+                    );
                 } else {
                     //non-leaf node:  write `pub mod ...` block
-                    accum += &format!("{}pub mod {}{{\n", indent_str, child.1.node_string.as_ref().unwrap().split("::").last().unwrap());
+                    accum += &format!(
+                        "{}pub mod {}{{\n",
+                        indent_str,
+                        child
+                            .1
+                            .node_string
+                            .as_ref()
+                            .unwrap()
+                            .split("::")
+                            .last()
+                            .unwrap()
+                    );
                     accum += &child.1.recurse_serialize_to_reexports(indent + 1);
                     accum += &format!("{}}}\n", indent_str);
                 }

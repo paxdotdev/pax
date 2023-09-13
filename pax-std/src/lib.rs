@@ -1,10 +1,7 @@
-
-
 pub mod types;
 
 #[allow(unused_imports)]
 pub mod stacker;
-
 
 pub mod components {
     pub use super::stacker::*;
@@ -14,8 +11,8 @@ pub mod primitives {
     use pax_lang::Pax;
     use pax_runtime_api::Size;
 
+    use crate::types::text::TextStyle;
     use crate::types::PathSegment;
-    use crate::types::text::{TextStyle};
 
     #[derive(Pax)]
     #[primitive("pax_std_primitives::frame::FrameInstance")]
@@ -42,7 +39,7 @@ pub mod primitives {
     pub struct Rectangle {
         pub stroke: pax_lang::Property<crate::types::Stroke>,
         pub fill: pax_lang::Property<crate::types::Fill>,
-        pub corner_radii: pax_lang::Property<crate::types::RectangleCornerRadii>
+        pub corner_radii: pax_lang::Property<crate::types::RectangleCornerRadii>,
     }
 
     #[derive(Pax)]
@@ -77,5 +74,4 @@ pub mod primitives {
     pub struct Image {
         pub path: pax_lang::Property<String>,
     }
-
 }

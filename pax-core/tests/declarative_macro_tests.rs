@@ -9,7 +9,6 @@ enum Fruit {
     Banana(String),
 }
 
-
 //let new_value = unsafe_unwrap!(stroke_width, TypesCoproduct, pax_runtime_api::SizePixels);
 
 #[test]

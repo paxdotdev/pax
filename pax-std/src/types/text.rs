@@ -1,8 +1,11 @@
-use pax_lang::api::{PropertyLiteral, SizePixels, Numeric, Property};
-use pax_message::{FontPatch, FontWeightMessage, FontStyleMessage, LocalFontMessage, SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, WebFontMessage, TextStyleMessage, ColorVariantMessage};
-use pax_lang::*;
 use crate::types::Color;
-
+use pax_lang::api::{Numeric, Property, PropertyLiteral, SizePixels};
+use pax_lang::*;
+use pax_message::{
+    ColorVariantMessage, FontPatch, FontStyleMessage, FontWeightMessage, LocalFontMessage,
+    SystemFontMessage, TextAlignHorizontalMessage, TextAlignVerticalMessage, TextStyleMessage,
+    WebFontMessage,
+};
 
 #[derive(Pax)]
 #[custom(Default)]
@@ -21,10 +24,12 @@ impl Default for TextStyle {
         Self {
             font: Box::new(PropertyLiteral::new(Font::default())),
             font_size: Box::new(PropertyLiteral::new(SizePixels(Numeric::Float(20.0)))),
-            fill: Box::new(PropertyLiteral::new(Color::rgba(Numeric::Float(0.0),
-                               Numeric::Float(0.0),
-                               Numeric::Float(0.0),
-                               Numeric::Float(1.0)))),
+            fill: Box::new(PropertyLiteral::new(Color::rgba(
+                Numeric::Float(0.0),
+                Numeric::Float(0.0),
+                Numeric::Float(0.0),
+                Numeric::Float(1.0),
+            ))),
             underline: Box::new(PropertyLiteral::new(false)),
             align_multiline: Box::new(PropertyLiteral::new(TextAlignHorizontal::Left)),
             align_vertical: Box::new(PropertyLiteral::new(TextAlignVertical::Top)),
@@ -40,28 +45,59 @@ impl<'a> Into<TextStyleMessage> for &'a TextStyle {
             font_size: Some(f64::from(&self.font_size.get().clone())),
             fill: Some(Into::<ColorVariantMessage>::into(self.fill.get())),
             underline: Some(self.underline.get().clone()),
-            align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(self.align_multiline.get())),
-            align_vertical: Some(Into::<TextAlignVerticalMessage>::into(self.align_vertical.get())),
-            align_horizontal: Some(Into::<TextAlignHorizontalMessage>::into(self.align_horizontal.get())),
+            align_multiline: Some(Into::<TextAlignHorizontalMessage>::into(
+                self.align_multiline.get(),
+            )),
+            align_vertical: Some(Into::<TextAlignVerticalMessage>::into(
+                self.align_vertical.get(),
+            )),
+            align_horizontal: Some(Into::<TextAlignHorizontalMessage>::into(
+                self.align_horizontal.get(),
+            )),
         }
     }
 }
 
 impl PartialEq<TextStyleMessage> for TextStyle {
     fn eq(&self, other: &TextStyleMessage) -> bool {
-        let font_equal = other.font.as_ref().map_or(false, |font| self.font.get().eq(font));
+        let font_equal = other
+            .font
+            .as_ref()
+            .map_or(false, |font| self.font.get().eq(font));
 
-        let font_size_equal = other.font_size.map_or(false, |size| Numeric::Float(size) == self.font_size.get().clone());
+        let font_size_equal = other.font_size.map_or(false, |size| {
+            Numeric::Float(size) == self.font_size.get().clone()
+        });
 
-        let fill_equal = other.fill.as_ref().map_or(false, |fill| self.fill.get().eq(fill));
+        let fill_equal = other
+            .fill
+            .as_ref()
+            .map_or(false, |fill| self.fill.get().eq(fill));
 
-        let underline_equal = other.underline.map_or(false, |underline| underline == self.underline.get().clone());
+        let underline_equal = other
+            .underline
+            .map_or(false, |underline| underline == self.underline.get().clone());
 
-        let align_multiline_equal = other.align_multiline.as_ref().map_or(false, |align_multiline| self.align_multiline.get().eq(align_multiline));
+        let align_multiline_equal = other
+            .align_multiline
+            .as_ref()
+            .map_or(false, |align_multiline| {
+                self.align_multiline.get().eq(align_multiline)
+            });
 
-        let align_vertical_equal = other.align_vertical.as_ref().map_or(false, |align_vertical| self.align_vertical.get().eq(align_vertical));
+        let align_vertical_equal = other
+            .align_vertical
+            .as_ref()
+            .map_or(false, |align_vertical| {
+                self.align_vertical.get().eq(align_vertical)
+            });
 
-        let align_horizontal_equal = other.align_horizontal.as_ref().map_or(false, |align_horizontal| self.align_horizontal.get().eq(align_horizontal));
+        let align_horizontal_equal = other
+            .align_horizontal
+            .as_ref()
+            .map_or(false, |align_horizontal| {
+                self.align_horizontal.get().eq(align_horizontal)
+            });
 
         font_equal
             && font_size_equal
@@ -72,9 +108,6 @@ impl PartialEq<TextStyleMessage> for TextStyle {
             && align_horizontal_equal
     }
 }
-
-
-
 
 #[derive(Pax)]
 #[custom(Default, Imports)]
@@ -108,7 +141,6 @@ impl Default for SystemFont {
     }
 }
 
-
 #[derive(Pax)]
 #[custom(Imports)]
 pub struct WebFont {
@@ -127,7 +159,6 @@ pub struct LocalFont {
     pub weight: FontWeight,
 }
 
-
 #[derive(Pax)]
 #[custom(Imports)]
 pub enum FontStyle {
@@ -136,7 +167,6 @@ pub enum FontStyle {
     Italic,
     Oblique,
 }
-
 
 #[derive(Pax)]
 #[custom(Imports)]
@@ -152,7 +182,6 @@ pub enum FontWeight {
     ExtraBold,
     Black,
 }
-
 
 #[derive(Pax)]
 #[custom(Imports)]
@@ -175,9 +204,9 @@ pub enum TextAlignVertical {
 impl Into<TextAlignHorizontalMessage> for &TextAlignHorizontal {
     fn into(self) -> TextAlignHorizontalMessage {
         match self {
-            TextAlignHorizontal::Center => {TextAlignHorizontalMessage::Center}
-            TextAlignHorizontal::Left => {TextAlignHorizontalMessage::Left}
-            TextAlignHorizontal::Right => {TextAlignHorizontalMessage::Right}
+            TextAlignHorizontal::Center => TextAlignHorizontalMessage::Center,
+            TextAlignHorizontal::Left => TextAlignHorizontalMessage::Left,
+            TextAlignHorizontal::Right => TextAlignHorizontalMessage::Right,
         }
     }
 }
@@ -193,19 +222,19 @@ impl PartialEq<TextAlignHorizontalMessage> for TextAlignHorizontal {
     }
 }
 
-pub fn opt_align_to_message(opt_alignment: &Option<TextAlignHorizontal>) -> Option<TextAlignHorizontalMessage> {
-    opt_alignment.as_ref().map(|alignment| {
-        match alignment {
-            TextAlignHorizontal::Center => TextAlignHorizontalMessage::Center,
-            TextAlignHorizontal::Left => TextAlignHorizontalMessage::Left,
-            TextAlignHorizontal::Right => TextAlignHorizontalMessage::Right,
-        }
+pub fn opt_align_to_message(
+    opt_alignment: &Option<TextAlignHorizontal>,
+) -> Option<TextAlignHorizontalMessage> {
+    opt_alignment.as_ref().map(|alignment| match alignment {
+        TextAlignHorizontal::Center => TextAlignHorizontalMessage::Center,
+        TextAlignHorizontal::Left => TextAlignHorizontalMessage::Left,
+        TextAlignHorizontal::Right => TextAlignHorizontalMessage::Right,
     })
 }
 
 pub fn opt_value_eq_opt_msg<T, U>(opt_value: &Option<T>, opt_value_msg: &Option<U>) -> bool
-    where
-        T: PartialEq<U>,
+where
+    T: PartialEq<U>,
 {
     match (opt_value, opt_value_msg) {
         (Some(value), Some(value_msg)) => value.eq(value_msg),
@@ -291,21 +320,54 @@ impl PartialEq<FontPatch> for Font {
     fn eq(&self, other: &FontPatch) -> bool {
         match (self, other) {
             (Font::System(system_font), FontPatch::System(system_font_patch)) => {
-                system_font_patch.family.as_ref().map_or(false, |family| *family == system_font.family)
-                    && system_font_patch.style.as_ref().map_or(false, |style| system_font.style.eq(style))
-                    && system_font_patch.weight.as_ref().map_or(false, |weight| system_font.weight.eq(weight))
+                system_font_patch
+                    .family
+                    .as_ref()
+                    .map_or(false, |family| *family == system_font.family)
+                    && system_font_patch
+                        .style
+                        .as_ref()
+                        .map_or(false, |style| system_font.style.eq(style))
+                    && system_font_patch
+                        .weight
+                        .as_ref()
+                        .map_or(false, |weight| system_font.weight.eq(weight))
             }
             (Font::Web(web_font), FontPatch::Web(web_font_patch)) => {
-                web_font_patch.family.as_ref().map_or(false, |family| *family == web_font.family)
-                    && web_font_patch.url.as_ref().map_or(false, |url| *url == web_font.url)
-                    && web_font_patch.style.as_ref().map_or(false, |style| web_font.style.eq(style))
-                    && web_font_patch.weight.as_ref().map_or(false, |weight| web_font.weight.eq(weight))
+                web_font_patch
+                    .family
+                    .as_ref()
+                    .map_or(false, |family| *family == web_font.family)
+                    && web_font_patch
+                        .url
+                        .as_ref()
+                        .map_or(false, |url| *url == web_font.url)
+                    && web_font_patch
+                        .style
+                        .as_ref()
+                        .map_or(false, |style| web_font.style.eq(style))
+                    && web_font_patch
+                        .weight
+                        .as_ref()
+                        .map_or(false, |weight| web_font.weight.eq(weight))
             }
             (Font::Local(local_font), FontPatch::Local(local_font_patch)) => {
-                local_font_patch.family.as_ref().map_or(false, |family| *family == local_font.family)
-                    && local_font_patch.path.as_ref().map_or(false, |path| *path == local_font.path)
-                    && local_font_patch.style.as_ref().map_or(false, |style| local_font.style.eq(style))
-                    && local_font_patch.weight.as_ref().map_or(false, |weight| local_font.weight.eq(weight))
+                local_font_patch
+                    .family
+                    .as_ref()
+                    .map_or(false, |family| *family == local_font.family)
+                    && local_font_patch
+                        .path
+                        .as_ref()
+                        .map_or(false, |path| *path == local_font.path)
+                    && local_font_patch
+                        .style
+                        .as_ref()
+                        .map_or(false, |style| local_font.style.eq(style))
+                    && local_font_patch
+                        .weight
+                        .as_ref()
+                        .map_or(false, |weight| local_font.weight.eq(weight))
             }
             _ => false,
         }
@@ -314,15 +376,14 @@ impl PartialEq<FontPatch> for Font {
 
 impl Font {
     pub fn system(family: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::System(SystemFont { family, style, weight })
+        Self::System(SystemFont {
+            family,
+            style,
+            weight,
+        })
     }
 
-    pub fn web(
-        family: String,
-        url: String,
-        style: FontStyle,
-        weight: FontWeight,
-    ) -> Self {
+    pub fn web(family: String, url: String, style: FontStyle, weight: FontWeight) -> Self {
         Self::Web(WebFont {
             family,
             url,
@@ -332,7 +393,12 @@ impl Font {
     }
 
     pub fn local(family: String, path: String, style: FontStyle, weight: FontWeight) -> Self {
-        Self::Local(LocalFont { family, path, style, weight })
+        Self::Local(LocalFont {
+            family,
+            path,
+            style,
+            weight,
+        })
     }
 }
 
@@ -355,7 +421,6 @@ impl From<FontStyle> for FontStyleMessage {
         }
     }
 }
-
 
 impl From<FontWeightMessage> for FontWeight {
     fn from(weight_msg: FontWeightMessage) -> Self {

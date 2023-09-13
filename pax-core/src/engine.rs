@@ -1,34 +1,39 @@
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
-
 use std::rc::{Rc, Weak};
 
+use kurbo::Vec2;
 
-use kurbo::{Vec2};
-
-use pax_message::{NativeMessage};
+use pax_message::NativeMessage;
 
 use piet_common::RenderContext;
 
-use crate::{Affine, ComponentInstance, ComputableTransform, RenderNodePtr, ExpressionContext, RenderNodePtrList, TransformAndBounds, StackFrame};
-use crate::runtime::{Runtime};
+use crate::runtime::Runtime;
+use crate::{
+    Affine, ComponentInstance, ComputableTransform, ExpressionContext, RenderNodePtr,
+    RenderNodePtrList, StackFrame, TransformAndBounds,
+};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsJab, ArgsScroll, ArgsTouchStart, ArgsTouchMove, ArgsTouchEnd, ArgsKeyDown, ArgsKeyUp, ArgsKeyPress, ArgsMouseDown, ArgsMouseUp, ArgsMouseOver, ArgsMouseOut, ArgsDoubleClick, ArgsContextMenu, ArgsWheel, Interpolatable, TransitionManager, Layer, ZIndex, RuntimeContext, ArgsMouseMove};
+use pax_runtime_api::{
+    ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
+    ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
+    ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Interpolatable, Layer, RuntimeContext,
+    TransitionManager, ZIndex,
+};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
     pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
-    pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct> >,
+    pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
     pub main_component: Rc<RefCell<ComponentInstance<R>>>,
     pub runtime: Rc<RefCell<Runtime<R>>>,
     pub image_map: HashMap<Vec<u32>, (Box<Vec<u8>>, usize, usize)>,
     viewport_tab: TransformAndBounds,
 }
 
-pub struct RenderTreeContext<'a, R: 'static + RenderContext>
-{
+pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub engine: &'a PaxEngine<R>,
     pub transform_global: Affine,
     pub transform_scroller_reset: Affine,
@@ -39,7 +44,6 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext>
     pub timeline_playhead_position: usize,
     pub inherited_adoptees: Option<RenderNodePtrList<R>>,
 }
-
 
 impl<'a, R: 'static + RenderContext> RenderTreeContext<'a, R> {
     pub fn distill_userland_node_context(&self) -> RuntimeContext {
@@ -67,22 +71,36 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
 }
 
 impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
-    pub fn compute_eased_value<T: Clone + Interpolatable>(&self, transition_manager: Option<&mut TransitionManager<T>>) -> Option<T> {
+    pub fn compute_eased_value<T: Clone + Interpolatable>(
+        &self,
+        transition_manager: Option<&mut TransitionManager<T>>,
+    ) -> Option<T> {
         if let Some(mut tm) = transition_manager {
             if tm.queue.len() > 0 {
                 let mut current_transition = tm.queue.get_mut(0).unwrap();
                 if let None = current_transition.global_frame_started {
                     current_transition.global_frame_started = Some(self.engine.frames_elapsed);
                 }
-                let progress = (self.engine.frames_elapsed as f64 - current_transition.global_frame_started.unwrap() as f64) / (current_transition.duration_frames as f64);
-                return if progress >= 1.0 { //NOTE: we may encounter float imprecision here, consider `progress >= 1.0 - EPSILON` for some `EPSILON`
-                    let new_value = current_transition.curve.interpolate(&current_transition.starting_value, &current_transition.ending_value, progress);
+                let progress = (self.engine.frames_elapsed as f64
+                    - current_transition.global_frame_started.unwrap() as f64)
+                    / (current_transition.duration_frames as f64);
+                return if progress >= 1.0 {
+                    //NOTE: we may encounter float imprecision here, consider `progress >= 1.0 - EPSILON` for some `EPSILON`
+                    let new_value = current_transition.curve.interpolate(
+                        &current_transition.starting_value,
+                        &current_transition.ending_value,
+                        progress,
+                    );
                     tm.value = Some(new_value.clone());
 
                     tm.queue.pop_front();
                     self.compute_eased_value(Some(tm))
                 } else {
-                    let new_value = current_transition.curve.interpolate(&current_transition.starting_value, &current_transition.ending_value, progress);
+                    let new_value = current_transition.curve.interpolate(
+                        &current_transition.starting_value,
+                        &current_transition.ending_value,
+                        progress,
+                    );
                     tm.value = Some(new_value.clone());
                     tm.value.clone()
                 };
@@ -106,18 +124,21 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     /// then each RepeatItem index through a traversal of the stack frame.  Thus, each virtually `Repeat`ed element
     /// gets its own unique ID in the form of an "address" through any nested `Repeat`-ancestors.
     pub fn get_id_chain(&self, id: u32) -> Vec<u32> {
-        let mut indices = (*self.runtime).borrow().get_list_of_repeat_indicies_from_stack();
+        let mut indices = (*self.runtime)
+            .borrow()
+            .get_list_of_repeat_indicies_from_stack();
         indices.insert(0, id);
         indices
     }
 
     pub fn compute_vtable_value(&self, vtable_id: Option<usize>) -> Option<TypesCoproduct> {
-
         if let Some(id) = vtable_id {
             if let Some(evaluator) = self.engine.expression_table.get(&id) {
                 let ec = ExpressionContext {
                     engine: self.engine,
-                    stack_frame: Rc::clone(&(*self.runtime).borrow_mut().peek_stack_frame().unwrap()),
+                    stack_frame: Rc::clone(
+                        &(*self.runtime).borrow_mut().peek_stack_frame().unwrap(),
+                    ),
                 };
                 return Some((**evaluator)(ec));
             }
@@ -148,7 +169,6 @@ pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
     pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
 }
-
 
 impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
     fn default() -> Self {
@@ -194,10 +214,16 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().scroll_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_scroll.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_scroll.clone(),
+                );
             });
         }
-        (*self.instance_node).borrow_mut().handle_scroll(args_scroll.clone());
+        (*self.instance_node)
+            .borrow_mut()
+            .handle_scroll(args_scroll.clone());
         if let Some(parent) = &self.parent_repeat_expanded_node {
             parent.upgrade().unwrap().dispatch_scroll(args_scroll);
         }
@@ -207,7 +233,11 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().jab_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_jab.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_jab.clone(),
+                );
             });
         }
 
@@ -220,12 +250,19 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().touch_start_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_touch_start.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_touch_start.clone(),
+                );
             });
         }
 
         if let Some(parent) = &self.parent_repeat_expanded_node {
-            parent.upgrade().unwrap().dispatch_touch_start(args_touch_start);
+            parent
+                .upgrade()
+                .unwrap()
+                .dispatch_touch_start(args_touch_start);
         }
     }
 
@@ -233,12 +270,19 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().touch_move_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_touch_move.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_touch_move.clone(),
+                );
             });
         }
 
         if let Some(parent) = &self.parent_repeat_expanded_node {
-            parent.upgrade().unwrap().dispatch_touch_move(args_touch_move);
+            parent
+                .upgrade()
+                .unwrap()
+                .dispatch_touch_move(args_touch_move);
         }
     }
 
@@ -246,7 +290,11 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().touch_end_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_touch_end.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_touch_end.clone(),
+                );
             });
         }
 
@@ -259,7 +307,11 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().key_down_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_key_down.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_key_down.clone(),
+                );
             });
         }
 
@@ -272,7 +324,11 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().key_up_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_key_up.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_key_up.clone(),
+                );
             });
         }
 
@@ -285,7 +341,11 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().key_press_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_key_press.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_key_press.clone(),
+                );
             });
         }
 
@@ -298,7 +358,11 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().click_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_click.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_click.clone(),
+                );
             });
         }
 
@@ -311,12 +375,19 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().mouse_down_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_down.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_mouse_down.clone(),
+                );
             });
         }
 
         if let Some(parent) = &self.parent_repeat_expanded_node {
-            parent.upgrade().unwrap().dispatch_mouse_down(args_mouse_down);
+            parent
+                .upgrade()
+                .unwrap()
+                .dispatch_mouse_down(args_mouse_down);
         }
     }
 
@@ -324,7 +395,11 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().mouse_up_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_up.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_mouse_up.clone(),
+                );
             });
         }
 
@@ -337,12 +412,19 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().mouse_move_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_move.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_mouse_move.clone(),
+                );
             });
         }
 
         if let Some(parent) = &self.parent_repeat_expanded_node {
-            parent.upgrade().unwrap().dispatch_mouse_move(args_mouse_move);
+            parent
+                .upgrade()
+                .unwrap()
+                .dispatch_mouse_move(args_mouse_move);
         }
     }
 
@@ -350,12 +432,19 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().mouse_over_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_over.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_mouse_over.clone(),
+                );
             });
         }
 
         if let Some(parent) = &self.parent_repeat_expanded_node {
-            parent.upgrade().unwrap().dispatch_mouse_over(args_mouse_over);
+            parent
+                .upgrade()
+                .unwrap()
+                .dispatch_mouse_over(args_mouse_over);
         }
     }
 
@@ -363,7 +452,11 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().mouse_out_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_mouse_out.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_mouse_out.clone(),
+                );
             });
         }
 
@@ -376,12 +469,19 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().double_click_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_double_click.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_double_click.clone(),
+                );
             });
         }
 
         if let Some(parent) = &self.parent_repeat_expanded_node {
-            parent.upgrade().unwrap().dispatch_double_click(args_double_click);
+            parent
+                .upgrade()
+                .unwrap()
+                .dispatch_double_click(args_double_click);
         }
     }
 
@@ -389,12 +489,19 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().context_menu_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_context_menu.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_context_menu.clone(),
+                );
             });
         }
 
         if let Some(parent) = &self.parent_repeat_expanded_node {
-            parent.upgrade().unwrap().dispatch_context_menu(args_context_menu);
+            parent
+                .upgrade()
+                .unwrap()
+                .dispatch_context_menu(args_context_menu);
         }
     }
 
@@ -402,7 +509,11 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().wheel_handlers;
             handlers.iter().for_each(|handler| {
-                handler(Rc::clone(&self.stack_frame), self.node_context.clone(), args_wheel.clone());
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_wheel.clone(),
+                );
             });
         }
 
@@ -411,8 +522,6 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         }
     }
 }
-
-
 
 pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///look up RenderNodePtr by id
@@ -474,17 +583,19 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.repeat_expanded_node_cache = vec![];
     }
 
-    pub fn add_to_repeat_expanded_node_cache(&mut self, repeat_expanded_node: Rc<RepeatExpandedNode<R>>) {
+    pub fn add_to_repeat_expanded_node_cache(
+        &mut self,
+        repeat_expanded_node: Rc<RepeatExpandedNode<R>>,
+    ) {
         //Note: ray-casting requires that these nodes are sorted by z-index
         self.repeat_expanded_node_cache.push(repeat_expanded_node);
     }
-
 }
 
 impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn new(
         main_component_instance: Rc<RefCell<ComponentInstance<R>>>,
-        expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>)->TypesCoproduct>>,
+        expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
         logger: pax_runtime_api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
         instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
@@ -505,13 +616,16 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
-    fn traverse_render_tree(&self, rcs: &mut HashMap<String, R>) -> Vec<pax_message::NativeMessage> {
+    fn traverse_render_tree(
+        &self,
+        rcs: &mut HashMap<String, R>,
+    ) -> Vec<pax_message::NativeMessage> {
         //Broadly:
         // 1. compute properties
         // 2. find lowest node (last child of last node), accumulating transform along the way
         // 3. start rendering, from lowest node on-up
 
-        let cast_component_rc : RenderNodePtr<R> = self.main_component.clone();
+        let cast_component_rc: RenderNodePtr<R> = self.main_component.clone();
 
         let mut rtc = RenderTreeContext {
             engine: &self,
@@ -526,7 +640,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         };
 
         let mut z_index = ZIndex::new(None);
-        self.recurse_traverse_render_tree(&mut rtc, rcs, Rc::clone(&cast_component_rc), &mut z_index, false);
+        self.recurse_traverse_render_tree(
+            &mut rtc,
+            rcs,
+            Rc::clone(&cast_component_rc),
+            &mut z_index,
+            false,
+        );
         //reset the marked_for_unmount set
         self.instance_registry.borrow_mut().marked_for_unmount_set = HashSet::new();
 
@@ -534,7 +654,14 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         native_render_queue.into()
     }
 
-    fn recurse_traverse_render_tree(&self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String,R>, node: RenderNodePtr<R>, z_index_info: &mut ZIndex, marked_for_unmount: bool)  {
+    fn recurse_traverse_render_tree(
+        &self,
+        rtc: &mut RenderTreeContext<R>,
+        rcs: &mut HashMap<String, R>,
+        node: RenderNodePtr<R>,
+        z_index_info: &mut ZIndex,
+        marked_for_unmount: bool,
+    ) {
         //Recurse:
         //  - compute properties for this node
         //  - fire lifecycle events for this node
@@ -559,11 +686,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let current_z_index = z_index_info.get_level();
         let scroller_ids = (*rtc.engine.runtime).borrow().get_current_scroller_ids();
         let scroller_id = match scroller_ids.last() {
-            None => {None}
-            Some(v) => {Some(v.clone())}
+            None => None,
+            Some(v) => Some(v.clone()),
         };
         let canvas_id = ZIndex::generate_location_id(scroller_id.clone(), current_z_index);
-
 
         //fire `did_mount` event if this is this node's first frame
         //Note that this must happen after initial `compute_properties`, which performs the
@@ -572,10 +698,15 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let id = (*rtc.node).borrow().get_instance_id();
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
 
-
             //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
-            let mut repeat_indices = (*rtc.engine.runtime).borrow().get_list_of_repeat_indicies_from_stack();
-            let id_chain = {let mut i = vec![id]; i.append(&mut repeat_indices); i};
+            let mut repeat_indices = (*rtc.engine.runtime)
+                .borrow()
+                .get_list_of_repeat_indicies_from_stack();
+            let id_chain = {
+                let mut i = vec![id];
+                i.append(&mut repeat_indices);
+                i
+            };
             if !instance_registry.is_mounted(&id_chain) {
                 //Fire primitive-level did_mount lifecycle method
                 node.borrow_mut().handle_did_mount(rtc, current_z_index);
@@ -588,12 +719,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     match rtc.runtime.borrow_mut().peek_stack_frame() {
                         Some(stack_frame) => {
                             for handler in (*registry).borrow().did_mount_handlers.iter() {
-                                handler(stack_frame.borrow_mut().get_properties(), rtc.distill_userland_node_context());
+                                handler(
+                                    stack_frame.borrow_mut().get_properties(),
+                                    rtc.distill_userland_node_context(),
+                                );
                             }
-                        },
-                        None => {
-
-                        },
+                        }
+                        None => {}
                     }
                 }
                 instance_registry.mark_mounted(id_chain);
@@ -603,31 +735,37 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //peek at the current stack frame and set a scoped playhead position as needed
         match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
-                rtc.timeline_playhead_position = stack_frame.borrow_mut().get_timeline_playhead_position().clone();
-            },
-            None => ()
+                rtc.timeline_playhead_position = stack_frame
+                    .borrow_mut()
+                    .get_timeline_playhead_position()
+                    .clone();
+            }
+            None => (),
         }
 
         //get the size of this node (calc'd or otherwise) and use
         //it as the new accumulated bounds: both for this nodes children (their parent container bounds)
         //and for this node itself (e.g. for specifying the size of a Rectangle node)
-        let new_accumulated_bounds = node.borrow_mut().compute_size_within_bounds(accumulated_bounds);
+        let new_accumulated_bounds = node
+            .borrow_mut()
+            .compute_size_within_bounds(accumulated_bounds);
         #[allow(unused)]
-        let mut node_size : (f64, f64) = (0.0, 0.0);
+        let mut node_size: (f64, f64) = (0.0, 0.0);
         let node_computed_transform = {
             let mut node_borrowed = rtc.node.borrow_mut();
             node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
-            let components = node_borrowed.get_transform().borrow_mut().get()
-            .compute_transform_matrix(
-                node_size,
-                accumulated_bounds,
-            );
+            let components = node_borrowed
+                .get_transform()
+                .borrow_mut()
+                .get()
+                .compute_transform_matrix(node_size, accumulated_bounds);
             //combine align transformation exactly once per element per frame
             components.1 * components.0
         };
 
         let new_accumulated_transform = accumulated_transform * node_computed_transform;
-        let new_scroller_normalized_accumulated_transform = accumulated_scroller_normalized_transform * node_computed_transform;
+        let new_scroller_normalized_accumulated_transform =
+            accumulated_scroller_normalized_transform * node_computed_transform;
         rtc.bounds = new_accumulated_bounds.clone();
         rtc.transform_global = new_accumulated_transform.clone();
         rtc.transform_scroller_reset = new_scroller_normalized_accumulated_transform.clone();
@@ -643,24 +781,27 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             match rtc.runtime.borrow_mut().peek_stack_frame() {
                 Some(stack_frame) => {
                     for handler in (*registry).borrow().will_render_handlers.iter() {
-                        handler(stack_frame.borrow_mut().get_properties(), rtc.distill_userland_node_context());
+                        handler(
+                            stack_frame.borrow_mut().get_properties(),
+                            rtc.distill_userland_node_context(),
+                        );
                     }
-                },
+                }
                 None => {
                     panic!("can't bind events without a component")
-                },
+                }
             }
         }
 
         //create the `repeat_expanded_node` for the current node
         let children = node.borrow_mut().get_rendering_children();
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
-        let clipping = node.borrow_mut().compute_clipping_within_bounds(accumulated_bounds);
+        let clipping = node
+            .borrow_mut()
+            .compute_clipping_within_bounds(accumulated_bounds);
         let clipping_bounds = match node.borrow_mut().get_clipping_bounds() {
-            None => {None}
-            Some(_) => {
-                Some(clipping)
-            }
+            None => None,
+            Some(_) => Some(clipping),
         };
 
         let repeat_expanded_node_tab = TransformAndBounds {
@@ -668,7 +809,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             clipping_bounds,
             transform: new_scroller_normalized_accumulated_transform.clone(),
         };
-
 
         let parent_repeat_expanded_node = rtc.parent_repeat_expanded_node.clone();
         let repeat_expanded_node = Rc::new(RepeatExpandedNode {
@@ -682,32 +822,48 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         //Note: ray-casting requires that the repeat_expanded_node_cache is sorted by z-index,
         //so the order in which `add_to_repeat_expanded_node_cache` is invoked vs. descendants is important
-        (*rtc.engine.instance_registry).borrow_mut().add_to_repeat_expanded_node_cache(Rc::clone(&repeat_expanded_node));
-
+        (*rtc.engine.instance_registry)
+            .borrow_mut()
+            .add_to_repeat_expanded_node_cache(Rc::clone(&repeat_expanded_node));
 
         let instance_id = node.borrow().get_instance_id();
 
         //Determine if this node is marked for unmounting — either this has been passed as a flag from an ancestor that
         //was marked for deletion, or this instance_node is present in the InstanceRegistry's "marked for unmount" set.
-        let marked_for_unmount = marked_for_unmount || self.instance_registry.borrow().marked_for_unmount_set.contains(&instance_id);
+        let marked_for_unmount = marked_for_unmount
+            || self
+                .instance_registry
+                .borrow()
+                .marked_for_unmount_set
+                .contains(&instance_id);
 
         let mut subtree_depth = 0;
         //keep recursing through children
 
-
         let children_to_cleanup = node.borrow_mut().pop_cleanup_children();
-        children_to_cleanup.borrow_mut().iter().rev().for_each(|child| {
-            let mut new_rtc = rtc.clone();
-            self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), &mut z_index_info.clone(), true);
-        });
+        children_to_cleanup
+            .borrow_mut()
+            .iter()
+            .rev()
+            .for_each(|child| {
+                let mut new_rtc = rtc.clone();
+                self.recurse_traverse_render_tree(
+                    &mut new_rtc,
+                    rcs,
+                    Rc::clone(child),
+                    &mut z_index_info.clone(),
+                    true,
+                );
+            });
 
-        let mut child_z_index_info =  z_index_info.clone();
+        let mut child_z_index_info = z_index_info.clone();
         if z_index_info.get_current_layer() == Layer::Scroller {
             let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
             child_z_index_info = ZIndex::new(Some(id_chain));
             let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
             let mut reset_transform = Affine::default();
-            reset_transform = reset_transform.then_translate(Vec2::new(scroll_offset_x, scroll_offset_y));
+            reset_transform =
+                reset_transform.then_translate(Vec2::new(scroll_offset_x, scroll_offset_y));
             rtc.transform_scroller_reset = reset_transform.clone();
         }
 
@@ -716,61 +872,83 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let mut new_rtc = rtc.clone();
             new_rtc.parent_repeat_expanded_node = Some(Rc::downgrade(&repeat_expanded_node));
             // if it's a scroller reset the z-index context for its children
-            self.recurse_traverse_render_tree(&mut new_rtc, rcs, Rc::clone(child), &mut child_z_index_info.clone(), marked_for_unmount );
+            self.recurse_traverse_render_tree(
+                &mut new_rtc,
+                rcs,
+                Rc::clone(child),
+                &mut child_z_index_info.clone(),
+                marked_for_unmount,
+            );
             //FUTURE: for dependency management, return computed values from subtree above
 
             subtree_depth = subtree_depth.max(child_z_index_info.get_level());
-
         });
-
 
         let is_viewport_culled = !repeat_expanded_node_tab.intersects(&self.viewport_tab);
 
+        //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
+        //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
+        if let Some(cb) = clipping_bounds {
+            node.borrow_mut().compute_native_patches(
+                rtc,
+                cb,
+                new_scroller_normalized_accumulated_transform
+                    .as_coeffs()
+                    .to_vec(),
+                current_z_index,
+                subtree_depth,
+            );
+        } else {
+            node.borrow_mut().compute_native_patches(
+                rtc,
+                new_accumulated_bounds,
+                new_scroller_normalized_accumulated_transform
+                    .as_coeffs()
+                    .to_vec(),
+                current_z_index,
+                subtree_depth,
+            );
+        }
 
-            //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
-            //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
-            if let Some(cb) = clipping_bounds {
-                node.borrow_mut().compute_native_patches(rtc, cb, new_scroller_normalized_accumulated_transform.as_coeffs().to_vec(), current_z_index, subtree_depth);
-            } else {
-                node.borrow_mut().compute_native_patches(rtc, new_accumulated_bounds, new_scroller_normalized_accumulated_transform.as_coeffs().to_vec(), current_z_index, subtree_depth);
+        if let Some(rc) = rcs.get_mut(&canvas_id) {
+            //lifecycle: render
+            //this is this node's time to do its own rendering, aside
+            //from the rendering of its children. Its children have already been rendered.
+            if !is_viewport_culled {
+                node.borrow_mut().handle_render(rtc, rc);
             }
-
-            if let Some(rc) = rcs.get_mut(&canvas_id) {
-                //lifecycle: render
-                //this is this node's time to do its own rendering, aside
-                //from the rendering of its children. Its children have already been rendered.
+        } else {
+            if let Some(rc) = rcs.get_mut("0") {
                 if !is_viewport_culled {
                     node.borrow_mut().handle_render(rtc, rc);
                 }
-            } else {
-                if let Some(rc) = rcs.get_mut("0"){
-                    if !is_viewport_culled {
-                        node.borrow_mut().handle_render(rtc, rc);
-                    }
-                }
             }
+        }
 
         //Handle node unmounting
         if marked_for_unmount {
-
             //lifecycle: will_unmount
             node.borrow_mut().handle_will_unmount(rtc);
             let id_chain = rtc.get_id_chain(instance_id);
 
-            self.instance_registry.borrow_mut().mounted_set.remove(&id_chain);//, "Tried to unmount a node, but it was not mounted");
+            self.instance_registry
+                .borrow_mut()
+                .mounted_set
+                .remove(&id_chain); //, "Tried to unmount a node, but it was not mounted");
         }
 
         //lifecycle: did_render
         node.borrow_mut().handle_did_render(rtc, rcs);
-
     }
-
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
     /// ray running orthogonally to the view plane, intersecting at
     /// the specified point `ray`.  Areas outside of clipping bounds will
     /// not register a `hit`, nor will elements that suppress input events.
-    pub fn get_topmost_element_beneath_ray(&self, ray: (f64, f64)) -> Option<Rc<RepeatExpandedNode<R>>> {
+    pub fn get_topmost_element_beneath_ray(
+        &self,
+        ray: (f64, f64),
+    ) -> Option<Rc<RepeatExpandedNode<R>>> {
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
@@ -787,37 +965,52 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //
 
         // reverse nodes to get top-most first (rendered in reverse order)
-        let mut nodes_ordered : Vec<Rc<RepeatExpandedNode<R>>> = (*self.instance_registry).borrow()
-            .repeat_expanded_node_cache.iter().rev()
-            .map(|rc|{
-                Rc::clone(rc)
-            }).collect();
+        let mut nodes_ordered: Vec<Rc<RepeatExpandedNode<R>>> = (*self.instance_registry)
+            .borrow()
+            .repeat_expanded_node_cache
+            .iter()
+            .rev()
+            .map(|rc| Rc::clone(rc))
+            .collect();
 
         // remove root element that is moved to top during reversal
         nodes_ordered.remove(0);
 
         // let ray = Point {x: ray.0,y: ray.1};
-        let mut ret : Option<Rc<RepeatExpandedNode<R>>> = None;
+        let mut ret: Option<Rc<RepeatExpandedNode<R>>> = None;
         for node in nodes_ordered {
             // pax_runtime_api::log(&(**node).borrow().get_instance_id().to_string())
 
-
-            if (*node.instance_node).borrow().ray_cast_test(&ray, &node.tab) {
-
+            if (*node.instance_node)
+                .borrow()
+                .ray_cast_test(&ray, &node.tab)
+            {
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole
                 //calculation when we find the first matching node
 
                 let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent : Option<Rc<RepeatExpandedNode<R>>> = node.parent_repeat_expanded_node.as_ref().and_then(|weak| weak.upgrade());
+                let mut parent: Option<Rc<RepeatExpandedNode<R>>> = node
+                    .parent_repeat_expanded_node
+                    .as_ref()
+                    .and_then(|weak| weak.upgrade());
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
-                        if let Some(_) = (*unwrapped_parent.instance_node).borrow().get_clipping_bounds() {
-                            ancestral_clipping_bounds_are_satisfied = (*unwrapped_parent.instance_node).borrow().ray_cast_test(&ray, &unwrapped_parent.tab);
+                        if let Some(_) = (*unwrapped_parent.instance_node)
+                            .borrow()
+                            .get_clipping_bounds()
+                        {
+                            ancestral_clipping_bounds_are_satisfied = (*unwrapped_parent
+                                .instance_node)
+                                .borrow()
+                                .ray_cast_test(&ray, &unwrapped_parent.tab);
                             break;
                         }
-                        parent = unwrapped_parent.parent_repeat_expanded_node.as_ref().and_then(|weak| weak.upgrade());
+                        parent = unwrapped_parent
+                            .parent_repeat_expanded_node
+                            .as_ref()
+                            .and_then(|weak| weak.upgrade());
                     } else {
                         break;
                     }
@@ -835,9 +1028,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
     pub fn get_focused_element(&self) -> Option<Rc<RepeatExpandedNode<R>>> {
         let (x, y) = self.viewport_tab.bounds;
-        self.get_topmost_element_beneath_ray((x/2.0,y/2.0))
+        self.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
     }
-
 
     /// Called by chassis when viewport size changes, e.g. with native window resizes
     pub fn set_viewport_size(&mut self, new_viewport_size: (f64, f64)) {
@@ -847,13 +1039,22 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     /// Workhorse method to advance rendering and property calculation by one discrete tick
     /// Will be executed synchronously up to 240 times/second.
     pub fn tick(&mut self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
-        (*self.instance_registry).borrow_mut().reset_repeat_expanded_node_cache();
+        (*self.instance_registry)
+            .borrow_mut()
+            .reset_repeat_expanded_node_cache();
         let native_render_queue = self.traverse_render_tree(rcs);
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue
     }
 
-    pub fn load_image(&mut self, id_chain: Vec<u32>, image_data: Vec<u8>, width: usize, height: usize) {
-        self.image_map.insert(id_chain, (Box::new(image_data), width, height));
+    pub fn load_image(
+        &mut self,
+        id_chain: Vec<u32>,
+        image_data: Vec<u8>,
+        width: usize,
+        height: usize,
+    ) {
+        self.image_map
+            .insert(id_chain, (Box::new(image_data), width, height));
     }
 }

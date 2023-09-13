@@ -3,13 +3,11 @@ use core::option::Option;
 use core::option::Option::{None, Some};
 use std::rc::Rc;
 
-use pax_properties_coproduct::{TypesCoproduct};
+use pax_properties_coproduct::TypesCoproduct;
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, RenderNodePtr, RenderNodePtrList, RenderNode, RenderTreeContext};
-use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, Layer};
-
-
+use crate::{InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use pax_runtime_api::{Layer, PropertyInstance, Size2D, Transform2D};
 
 /// A special "control-flow" primitive (a la `yield`) — represents a slot into which
 /// an adoptee can be rendered.  Slot relies on `adoptees` being present
@@ -26,24 +24,23 @@ pub struct SlotInstance<R: 'static + RenderContext> {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
     cached_computed_children: RenderNodePtrList<R>,
-
 }
 
-
 impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
-
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
+    where
+        Self: Sized,
+    {
         let mut instance_registry = args.instance_registry.borrow_mut();
         let instance_id = instance_registry.mint_id();
-        let ret  = Rc::new(RefCell::new(Self {
+        let ret = Rc::new(RefCell::new(Self {
             instance_id,
             transform: args.transform,
             index: args.slot_index.expect("index required for Slot"),
             cached_computed_children: Rc::new(RefCell::new(vec![])),
-
         }));
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
@@ -53,15 +50,24 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
         Rc::clone(&self.cached_computed_children)
     }
 
-    fn get_size(&self) -> Option<Size2D> { None }
-    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
+    fn get_size(&self) -> Option<Size2D> {
+        None
+    }
+    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
+        bounds
+    }
 
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
+        Rc::clone(&self.transform)
+    }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-
         if let Some(index) = rtc.compute_vtable_value(self.index._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Numeric(v) = index { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::Numeric(v) = index {
+                v
+            } else {
+                unreachable!()
+            };
             self.index.set(new_value);
         }
 
@@ -71,12 +77,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
             Some(stack_frame) => {
                 // Grab the adoptee from the current stack_frame at Slot's specified `index`
                 // then make it Slot's own child.
-                match stack_frame.borrow().nth_adoptee(self.index.get().get_as_int() as usize) {
+                match stack_frame
+                    .borrow()
+                    .nth_adoptee(self.index.get().get_as_int() as usize)
+                {
                     Some(rnp) => Rc::new(RefCell::new(vec![Rc::clone(&rnp)])),
                     None => Rc::new(RefCell::new(vec![])),
                 }
-            },
-            None => {Rc::new(RefCell::new(vec![]))}
+            }
+            None => Rc::new(RefCell::new(vec![])),
         }
     }
 
