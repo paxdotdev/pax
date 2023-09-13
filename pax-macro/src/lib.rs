@@ -1,31 +1,42 @@
 extern crate proc_macro;
 extern crate proc_macro2;
 
-mod templating;
 mod parsing;
-use std::io::Read;
+mod templating;
 use std::fs;
+use std::io::Read;
 use std::str::FromStr;
 
 use std::fs::File;
 
 use std::path::Path;
 
-
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use templating::{ArgsPrimitive, ArgsFullComponent, ArgsStructOnlyComponent, TemplateArgsDerivePax, StaticPropertyDefinition};
+use templating::{
+    ArgsFullComponent, ArgsPrimitive, ArgsStructOnlyComponent, StaticPropertyDefinition,
+    TemplateArgsDerivePax,
+};
 
 use sailfish::TemplateOnce;
 
-use syn::{parse_macro_input, Data, DeriveInput, Type, Field, Fields, PathArguments, GenericArgument, Meta, Lit};
+use syn::{
+    parse_macro_input, Data, DeriveInput, Field, Fields, GenericArgument, Lit, Meta, PathArguments,
+    Type,
+};
 
-fn pax_primitive(input_parsed: DeriveInput, primitive_instance_import_path: String, include_imports: bool, is_custom_interpolatable: bool,) -> proc_macro2::TokenStream {
+fn pax_primitive(
+    input_parsed: DeriveInput,
+    primitive_instance_import_path: String,
+    include_imports: bool,
+    is_custom_interpolatable: bool,
+) -> proc_macro2::TokenStream {
     let _original_tokens = quote! { #input_parsed }.to_string();
     let pascal_identifier = input_parsed.ident.to_string();
 
-    let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
+    let static_property_definitions =
+        get_static_property_definitions_from_tokens(input_parsed.data);
 
     let output = TemplateArgsDerivePax {
         args_primitive: Some(ArgsPrimitive {
@@ -37,19 +48,25 @@ fn pax_primitive(input_parsed: DeriveInput, primitive_instance_import_path: Stri
         pascal_identifier,
         include_imports,
         is_custom_interpolatable,
-    }.render_once().unwrap().to_string();
+    }
+    .render_once()
+    .unwrap()
+    .to_string();
 
     TokenStream::from_str(&output).unwrap().into()
 }
 
-fn pax_struct_only_component(input_parsed: DeriveInput, include_imports: bool, is_custom_interpolatable: bool) -> proc_macro2::TokenStream {
-
-
+fn pax_struct_only_component(
+    input_parsed: DeriveInput,
+    include_imports: bool,
+    is_custom_interpolatable: bool,
+) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
 
-    let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
+    let static_property_definitions =
+        get_static_property_definitions_from_tokens(input_parsed.data);
 
-    let output = templating::TemplateArgsDerivePax{
+    let output = templating::TemplateArgsDerivePax {
         args_full_component: None,
         args_primitive: None,
         args_struct_only_component: Some(ArgsStructOnlyComponent {}),
@@ -58,7 +75,10 @@ fn pax_struct_only_component(input_parsed: DeriveInput, include_imports: bool, i
         static_property_definitions,
         include_imports,
         is_custom_interpolatable,
-    }.render_once().unwrap().to_string();
+    }
+    .render_once()
+    .unwrap()
+    .to_string();
 
     TokenStream::from_str(&output).unwrap().into()
 }
@@ -80,11 +100,11 @@ fn get_field_type(f: &Field) -> Option<(Type, bool)> {
                                         match abgaa {
                                             GenericArgument::Type(gat) => {
                                                 ret = Some((gat.to_owned(), true));
-                                            },
-                                            _ => {/* lifetimes and more */}
+                                            }
+                                            _ => { /* lifetimes and more */ }
                                         };
                                     })
-                                },
+                                }
                                 _ => {}
                             }
                         }
@@ -94,11 +114,11 @@ fn get_field_type(f: &Field) -> Option<(Type, bool)> {
                         //ret is still None, so we will assume this is a simple type and pass it forward
                         ret = Some((f.ty.to_owned(), false));
                     }
-                },
-                _ => {},
+                }
+                _ => {}
             };
-        },
-        _ => {},
+        }
+        _ => {}
     };
     ret
 }
@@ -116,7 +136,6 @@ fn get_scoped_resolvable_types(t: &Type) -> (Vec<String>, String) {
     //the recursion above was post-order, so we will assume
     //the final element is root
     let root_scoped_resolvable_type = accum.get(accum.len() - 1).unwrap().clone();
-
 
     (accum, root_scoped_resolvable_type)
 }
@@ -172,16 +191,18 @@ fn recurse_get_scoped_resolvable_types(t: &Type, accum: &mut Vec<String>) {
                     });
 
                     accum.push(accumulated_scoped_resolvable_type);
-                },
-                _ => { unimplemented!("Self-types not yet supported with Pax `Property<...>`")}
+                }
+                _ => {
+                    unimplemented!("Self-types not yet supported with Pax `Property<...>`")
+                }
             }
-        },
+        }
         //For example, the contained tuple: `Property<(usize, Vec<String>)>`
         Type::Tuple(t) => {
             t.elems.iter().for_each(|tuple_elem| {
                 recurse_get_scoped_resolvable_types(tuple_elem, accum);
             });
-        },
+        }
         _ => {
             unimplemented!("Unsupported Type::Path {}", t.to_token_stream().to_string());
         }
@@ -197,34 +218,33 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                     fields.named.iter().for_each(|f| {
                         let field_name = f.ident.as_ref().unwrap();
                         let _field_type = match get_field_type(f) {
-                            None => { /* noop */ },
+                            None => { /* noop */ }
                             Some(ty) => {
                                 let type_name = quote!(#(ty.0)).to_string().replace(" ", "");
 
-                                let (scoped_resolvable_types, root_scoped_resolvable_type) = get_scoped_resolvable_types(&ty.0);
+                                let (scoped_resolvable_types, root_scoped_resolvable_type) =
+                                    get_scoped_resolvable_types(&ty.0);
 
-                                let pascal_identifier = type_name.split("::").last().unwrap().to_string();
-                                ret.push(
-                                    StaticPropertyDefinition {
-                                        original_type: type_name,
-                                        field_name: quote!(#field_name).to_string(),
-                                        scoped_resolvable_types,
-                                        root_scoped_resolvable_type,
-                                        pascal_identifier,
-                                        is_property_wrapped: ty.1
-                                    }
-                                )
+                                let pascal_identifier =
+                                    type_name.split("::").last().unwrap().to_string();
+                                ret.push(StaticPropertyDefinition {
+                                    original_type: type_name,
+                                    field_name: quote!(#field_name).to_string(),
+                                    scoped_resolvable_types,
+                                    root_scoped_resolvable_type,
+                                    pascal_identifier,
+                                    is_property_wrapped: ty.1,
+                                })
                             }
                         };
-
                     });
                     ret
-                },
+                }
                 _ => {
                     unimplemented!("Pax may only be attached to `struct`s with named fields");
                 }
             }
-        },
+        }
         Data::Enum(ref data) => {
             let mut ret = vec![];
             data.variants.iter().for_each(|variant| {
@@ -233,39 +253,47 @@ fn get_static_property_definitions_from_tokens(data: Data) -> Vec<StaticProperty
                 variant.fields.iter().for_each(|f| {
                     if let Some(ty) = get_field_type(f) {
                         let original_type = quote!(#(ty.0)).to_string().replace(" ", "");
-                        let (scoped_resolvable_types, root_scoped_resolvable_type) = get_scoped_resolvable_types(&ty.0);
-                        let pascal_identifier = original_type.split("::").last().unwrap().to_string();
-                        ret.push(
-                            StaticPropertyDefinition {
-                                original_type,
-                                field_name: quote!(#variant_name).to_string(),
-                                scoped_resolvable_types,
-                                root_scoped_resolvable_type,
-                                pascal_identifier,
-                                is_property_wrapped: ty.1,
-                            }
-                        )
+                        let (scoped_resolvable_types, root_scoped_resolvable_type) =
+                            get_scoped_resolvable_types(&ty.0);
+                        let pascal_identifier =
+                            original_type.split("::").last().unwrap().to_string();
+                        ret.push(StaticPropertyDefinition {
+                            original_type,
+                            field_name: quote!(#variant_name).to_string(),
+                            scoped_resolvable_types,
+                            root_scoped_resolvable_type,
+                            pascal_identifier,
+                            is_property_wrapped: ty.1,
+                        })
                     }
                 })
-
-
             });
 
             ret
         }
 
-        _ => {unreachable!("Pax may only be attached to `struct`s")}
+        _ => {
+            unreachable!("Pax may only be attached to `struct`s")
+        }
     };
 
     ret
 }
 
-fn pax_full_component(raw_pax: String, input_parsed: DeriveInput, is_main_component: bool, include_fix : Option<TokenStream>, include_imports: bool, is_custom_interpolatable: bool) -> proc_macro2::TokenStream {
-
+fn pax_full_component(
+    raw_pax: String,
+    input_parsed: DeriveInput,
+    is_main_component: bool,
+    include_fix: Option<TokenStream>,
+    include_imports: bool,
+    is_custom_interpolatable: bool,
+) -> proc_macro2::TokenStream {
     let pascal_identifier = input_parsed.ident.to_string();
 
-    let static_property_definitions = get_static_property_definitions_from_tokens(input_parsed.data);
-    let template_dependencies = parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
+    let static_property_definitions =
+        get_static_property_definitions_from_tokens(input_parsed.data);
+    let template_dependencies =
+        parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
     // std::time::SystemTime::now().elapsed().unwrap().subsec_nanos()
 
@@ -291,17 +319,21 @@ fn pax_full_component(raw_pax: String, input_parsed: DeriveInput, is_main_compon
         include_imports,
         static_property_definitions,
         is_custom_interpolatable,
-    }.render_once().unwrap().to_string();
+    }
+    .render_once()
+    .unwrap()
+    .to_string();
 
     let ret = TokenStream::from_str(&output).unwrap().into();
-    if !include_fix.is_none(){
-         quote!{
+    if !include_fix.is_none() {
+        quote! {
             #include_fix
             #ret
         }
-    }else {
+    } else {
         ret
-    }.into()
+    }
+    .into()
 }
 
 #[proc_macro_derive(Pax, attributes(main, file, inlined, primitive, custom, default))]
@@ -386,9 +418,12 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     //Validation
     if let (Some(_), Some(_)) = (file_path.as_ref(), inlined_contents.as_ref()) {
-        return syn::Error::new_spanned(input.ident, "`#[file(...)]` and `#[inlined(...)]` attributes cannot be used together")
-            .to_compile_error()
-            .into();
+        return syn::Error::new_spanned(
+            input.ident,
+            "`#[file(...)]` and `#[inlined(...)]` attributes cannot be used together",
+        )
+        .to_compile_error()
+        .into();
     }
     if let (None, None) = (file_path.as_ref(), inlined_contents.as_ref()) {
         // &&
@@ -411,48 +446,45 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 .to_compile_error()
                 .into();
         }
-
     }
 
     // Implement Clone
     let mut clone_impl = match &input.data {
-        Data::Struct(data_struct) => {
-            match &data_struct.fields {
-                Fields::Named(fields) => {
-                    let field_names = fields.named.iter().map(|f| &f.ident);
-                    quote! {
-                        impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                            fn clone(&self) -> Self {
-                                #name {
-                                    #( #field_names : ::core::clone::Clone::clone(&self.#field_names), )*
-                                }
-                            }
-                        }
-                    }
-                }
-                Fields::Unnamed(fields) => {
-                    let indices = (0..fields.unnamed.len()).map(syn::Index::from);
-                    quote! {
-                        impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                            fn clone(&self) -> Self {
-                                #name (
-                                    #( ::core::clone::Clone::clone(&self.#indices), )*
-                                )
-                            }
-                        }
-                    }
-                }
-                Fields::Unit => {
-                    quote! {
-                        impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
-                            fn clone(&self) -> Self {
-                                #name
+        Data::Struct(data_struct) => match &data_struct.fields {
+            Fields::Named(fields) => {
+                let field_names = fields.named.iter().map(|f| &f.ident);
+                quote! {
+                    impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
+                        fn clone(&self) -> Self {
+                            #name {
+                                #( #field_names : ::core::clone::Clone::clone(&self.#field_names), )*
                             }
                         }
                     }
                 }
             }
-        }
+            Fields::Unnamed(fields) => {
+                let indices = (0..fields.unnamed.len()).map(syn::Index::from);
+                quote! {
+                    impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
+                        fn clone(&self) -> Self {
+                            #name (
+                                #( ::core::clone::Clone::clone(&self.#indices), )*
+                            )
+                        }
+                    }
+                }
+            }
+            Fields::Unit => {
+                quote! {
+                    impl #impl_generics ::core::clone::Clone for #name #ty_generics #where_clause {
+                        fn clone(&self) -> Self {
+                            #name
+                        }
+                    }
+                }
+            }
+        },
         Data::Enum(data_enum) => {
             let variants = data_enum.variants.iter().map(|v| {
                 let variant_ident = &v.ident;
@@ -468,10 +500,12 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                         }
                     }
                     Fields::Unnamed(fields) => {
-                        let indices: Vec<_> = (0..fields.unnamed.len()).map(|i| {
-                            let name = format!("_{}", i);
-                            Ident::new(&name, proc_macro2::Span::call_site())
-                        }).collect();
+                        let indices: Vec<_> = (0..fields.unnamed.len())
+                            .map(|i| {
+                                let name = format!("_{}", i);
+                                Ident::new(&name, proc_macro2::Span::call_site())
+                            })
+                            .collect();
                         quote! {
                             #name::#variant_ident ( #(ref #indices, )* ) => {
                                 #name::#variant_ident (
@@ -505,38 +539,39 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
 
     // Implement Default
     let mut default_impl = match &input.data {
-        Data::Struct(data_struct) => {
-            match &data_struct.fields {
-                Fields::Named(fields_named) => {
-                    let field_defaults = fields_named.named.iter().map(|f| {
-                        let name = &f.ident;
-                        quote! { #name: Default::default() }
-                    });
+        Data::Struct(data_struct) => match &data_struct.fields {
+            Fields::Named(fields_named) => {
+                let field_defaults = fields_named.named.iter().map(|f| {
+                    let name = &f.ident;
+                    quote! { #name: Default::default() }
+                });
 
-                    quote! {
-                        impl #impl_generics Default for #name #ty_generics #where_clause {
-                            fn default() -> Self {
-                                Self {
-                                    #(#field_defaults,)*
-                                }
-                            }
-                        }
-                    }
-                }
-                Fields::Unnamed(_) | Fields::Unit => {
-                    quote! {
-                        impl #impl_generics Default for #name #ty_generics #where_clause {
-                            fn default() -> Self {
-                                Self::default()
+                quote! {
+                    impl #impl_generics Default for #name #ty_generics #where_clause {
+                        fn default() -> Self {
+                            Self {
+                                #(#field_defaults,)*
                             }
                         }
                     }
                 }
             }
-        }
+            Fields::Unnamed(_) | Fields::Unit => {
+                quote! {
+                    impl #impl_generics Default for #name #ty_generics #where_clause {
+                        fn default() -> Self {
+                            Self::default()
+                        }
+                    }
+                }
+            }
+        },
         Data::Enum(data_enum) => {
             let default_variant = data_enum.variants.iter().find(|variant| {
-                variant.attrs.iter().any(|attr| attr.path.is_ident("default"))
+                variant
+                    .attrs
+                    .iter()
+                    .any(|attr| attr.path.is_ident("default"))
             });
 
             match default_variant {
@@ -589,28 +624,53 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     let is_pax_inlined = matches!(&inlined_contents, Some(_i));
     // let debug = format!("//is_pax_file:  {}, is_pax_inlined: {}\n//inlined_contents: /*{:?}*/", &is_pax_file, &is_pax_inlined, &inlined_contents);
 
-
     let appended_tokens = if is_pax_file {
-        let filename = if let Some(p) = file_path.as_ref() {p} else {unreachable!()};
+        let filename = if let Some(p) = file_path.as_ref() {
+            p
+        } else {
+            unreachable!()
+        };
         let current_dir = std::env::current_dir().expect("Unable to get current directory");
         let path = current_dir.join(Path::new("src").join(Path::new(&filename)));
 
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
         let name = Ident::new("PaxFile", Span::call_site());
-        let include_fix = generate_include(&name,path.clone().to_str().unwrap());
+        let include_fix = generate_include(&name, path.clone().to_str().unwrap());
 
         let file = File::open(path);
         let mut content = String::new();
         let _ = file.unwrap().read_to_string(&mut content);
         let stream: proc_macro::TokenStream = content.parse().unwrap();
-        pax_full_component(stream.to_string(), input.clone(), is_main_component, Some(include_fix),include_imports, is_custom_interpolatable)
-
+        pax_full_component(
+            stream.to_string(),
+            input.clone(),
+            is_main_component,
+            Some(include_fix),
+            include_imports,
+            is_custom_interpolatable,
+        )
     } else if is_pax_inlined {
-        let contents = if let Some(p) = inlined_contents {p} else {unreachable!()};
+        let contents = if let Some(p) = inlined_contents {
+            p
+        } else {
+            unreachable!()
+        };
 
-        pax_full_component(contents, input.clone(), is_main_component, None,include_imports, is_custom_interpolatable)
+        pax_full_component(
+            contents,
+            input.clone(),
+            is_main_component,
+            None,
+            include_imports,
+            is_custom_interpolatable,
+        )
     } else if is_primitive {
-        pax_primitive(input.clone(), primitive_instance_import_path.unwrap(), include_imports, is_custom_interpolatable)
+        pax_primitive(
+            input.clone(),
+            primitive_instance_import_path.unwrap(),
+            include_imports,
+            is_custom_interpolatable,
+        )
     } else {
         pax_struct_only_component(input.clone(), include_imports, is_custom_interpolatable)
     };
@@ -624,10 +684,6 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
     output.into()
 }
 
-
-
-
-
 // Needed because Cargo wouldn't otherwise watch for changes in pax files.
 // By include_str!ing the file contents,
 // (Trick borrowed from Pest: github.com/pest-parser/pest)
@@ -638,4 +694,3 @@ fn generate_include(name: &Ident, path: &str) -> TokenStream {
         const #const_name: &'static str = include_str!(#path);
     }
 }
-

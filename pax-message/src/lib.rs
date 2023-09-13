@@ -7,7 +7,7 @@ pub mod reflection;
 #[allow(unused_imports)]
 use wasm_bindgen::prelude::*;
 
-use serde::{Serialize};
+use serde::Serialize;
 
 #[derive(Serialize)]
 pub enum NativeMessage {
@@ -21,10 +21,8 @@ pub enum NativeMessage {
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(Vec<u32>),
     ImageLoad(ImagePatch),
-    LayerAdd(LayerAddPatch)
-    //FUTURE: native form controls
+    LayerAdd(LayerAddPatch), //FUTURE: native form controls
 }
-
 
 #[derive(Deserialize)]
 #[repr(C)]
@@ -272,7 +270,6 @@ pub struct FramePatch {
     pub transform: Option<Vec<f64>>,
 }
 
-
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct TextPatch {
@@ -297,7 +294,6 @@ pub struct TextStyleMessage {
     pub align_horizontal: Option<TextAlignHorizontalMessage>,
 }
 
-
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct ImagePatch {
@@ -316,7 +312,7 @@ pub enum ColorVariantMessage {
 
 impl Default for ColorVariantMessage {
     fn default() -> Self {
-        ColorVariantMessage::Rgba([1.0,0.5,0.0,1.0])
+        ColorVariantMessage::Rgba([1.0, 0.5, 0.0, 1.0])
     }
 }
 
@@ -337,7 +333,6 @@ pub enum TextAlignVerticalMessage {
     Center,
     Bottom,
 }
-
 
 #[derive(Serialize)]
 #[repr(C)]
@@ -361,7 +356,6 @@ pub struct ScrollerPatch {
     pub scroll_y: Option<bool>,
     pub subtree_depth: u32,
 }
-
 
 #[derive(Serialize)]
 #[repr(C)]
@@ -396,7 +390,6 @@ impl Default for FontPatch {
     }
 }
 
-
 #[derive(Serialize)]
 #[repr(C)]
 pub struct SystemFontMessage {
@@ -414,8 +407,6 @@ impl Default for SystemFontMessage {
         }
     }
 }
-
-
 
 #[derive(Serialize)]
 #[repr(C)]
@@ -461,4 +452,3 @@ pub enum FontWeightMessage {
 pub struct LayerAddPatch {
     pub num_layers_to_add: usize,
 }
-
