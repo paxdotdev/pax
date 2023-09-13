@@ -1,3 +1,5 @@
+#[allow(unused_imports)]
+
 use pax_lang::*;
 use pax_lang::api::{Size2D, Size, Property, Transform2D};
 use pax_lang::api::numeric::Numeric;
