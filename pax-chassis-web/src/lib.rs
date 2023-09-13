@@ -7,7 +7,6 @@ use js_sys::Uint8Array;
 use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
-use piet::TextStorage;
 
 use piet_web::WebRenderContext;
 
@@ -108,7 +107,7 @@ impl PaxChassisWeb {
         self.drawing_contexts.insert(id, render_context);
     }
 
-    pub fn sendViewportUpdate(&mut self, width: f64, height: f64){
+    pub fn send_viewport_update(&mut self, width: f64, height: f64){
         self.engine.borrow_mut().set_viewport_size((width, height));
     }
     pub fn remove_context(&mut self, id: String) {
