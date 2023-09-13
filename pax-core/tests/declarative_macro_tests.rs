@@ -6,6 +6,7 @@ enum Fruit {
     #[default]
     None,
     Apple(String),
+    #[allow(unused)]
     Banana(String),
 }
 

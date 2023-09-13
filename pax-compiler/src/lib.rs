@@ -1195,7 +1195,6 @@ pub fn build_chassis_with_cartridge(
                 .arg("--color")
                 .arg("always")
                 .env("PAX_DIR", &pax_dir)
-                .env("RUSTFLAGS", "-Awarnings") //suppress cargo warnings
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit());
 
