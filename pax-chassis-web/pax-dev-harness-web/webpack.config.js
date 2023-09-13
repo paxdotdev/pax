@@ -39,16 +39,11 @@ module.exports = {
     publicPath: '/',
   },
 
-  plugins: [
-    new webpack.ProvidePlugin({
-      TextDecoder: ['text-encoding', 'TextDecoder'],
-      TextEncoder: ['text-encoding', 'TextEncoder'],
-    }),
-  ],
+  plugins: [],
 
   experiments: {
     asyncWebAssembly: true,
   },
 
-  mode: 'development',
+  mode: 'production',
 };
