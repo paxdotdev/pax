@@ -13,13 +13,13 @@ use serde::{Serialize};
 pub enum NativeMessage {
     TextCreate(AnyCreatePatch),
     TextUpdate(TextPatch),
-    TextDelete(Vec<u64>), //node instance ID, "id_chain"
+    TextDelete(Vec<u32>), //node instance ID, "id_chain"
     FrameCreate(AnyCreatePatch),
     FrameUpdate(FramePatch),
-    FrameDelete(Vec<u64>),
+    FrameDelete(Vec<u32>),
     ScrollerCreate(AnyCreatePatch),
     ScrollerUpdate(ScrollerPatch),
-    ScrollerDelete(Vec<u64>),
+    ScrollerDelete(Vec<u32>),
     ImageLoad(ImagePatch),
     LayerAdd(LayerAddPatch)
     //FUTURE: native form controls
@@ -225,7 +225,7 @@ pub enum ImageLoadInterruptArgs {
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct ImagePointerArgs {
-    pub id_chain: Vec<u64>,
+    pub id_chain: Vec<u32>,
     pub image_data: u64,
     pub image_data_length: usize,
     pub width: usize,
@@ -235,7 +235,7 @@ pub struct ImagePointerArgs {
 #[derive(Deserialize)]
 #[repr(C)]
 pub struct ImageDataArgs {
-    pub id_chain: Vec<u64>,
+    pub id_chain: Vec<u32>,
     pub width: usize,
     pub height: usize,
 }
@@ -266,25 +266,23 @@ pub struct AddedLayerArgs {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct FramePatch {
-    pub id_chain: Vec<u64>,
+    pub id_chain: Vec<u32>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
-    pub depth: Option<usize>,
 }
 
 
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct TextPatch {
-    pub id_chain: Vec<u64>,
+    pub id_chain: Vec<u32>,
     pub content: Option<String>,
     pub transform: Option<Vec<f64>>,
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub style: Option<TextStyleMessage>,
     pub style_link: Option<TextStyleMessage>,
-    pub depth: Option<usize>,
 }
 
 #[derive(Default, Serialize)]
@@ -303,7 +301,7 @@ pub struct TextStyleMessage {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct ImagePatch {
-    pub id_chain: Vec<u64>,
+    pub id_chain: Vec<u32>,
     pub path: Option<String>,
 }
 
@@ -353,23 +351,25 @@ pub struct LinkStyleMessage {
 #[derive(Default, Serialize)]
 #[repr(C)]
 pub struct ScrollerPatch {
-    pub id_chain: Vec<u64>,
-    pub size_frame_x: Option<f64>,
-    pub size_frame_y: Option<f64>,
+    pub id_chain: Vec<u32>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
     pub size_inner_pane_x: Option<f64>,
     pub size_inner_pane_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
     pub scroll_x: Option<bool>,
     pub scroll_y: Option<bool>,
-    pub depth: Option<usize>,
+    pub subtree_depth: u32,
 }
 
 
 #[derive(Serialize)]
 #[repr(C)]
 pub struct AnyCreatePatch {
-    pub id_chain: Vec<u64>,
-    pub clipping_ids: Vec<Vec<u64>>,
+    pub id_chain: Vec<u32>,
+    pub clipping_ids: Vec<Vec<u32>>,
+    pub scroller_ids: Vec<Vec<u32>>,
+    pub z_index: u32,
 }
 
 // Possible approach to heterogeneous rich text:

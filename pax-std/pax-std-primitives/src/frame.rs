@@ -20,13 +20,13 @@ use pax_message::{AnyCreatePatch, FramePatch};
 /// a [`Group`] will generally be a more performant and otherwise-equivalent
 /// to [`Frame`], since `[Frame]` creates a clipping mask.
 pub struct FrameInstance<R: 'static + RenderContext> {
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub children: RenderNodePtrList<R>,
     pub size: Size2D,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
 
-    last_patches: HashMap<Vec<u64>, FramePatch>,
+    last_patches: HashMap<Vec<u32>, FramePatch>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
@@ -41,7 +41,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         }
     }
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
     
@@ -64,8 +64,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         ret
     }
 
-    fn is_clipping(&self) -> bool {
-        true
+    fn get_clipping_bounds(&self) -> Option<Size2D> {
+        self.get_size()
     }
 
     fn get_layer_type(&mut self) -> Layer {
@@ -73,7 +73,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     }
 
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth: usize) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, z_index: u32, subtree_depth: u32) {
 
         let mut new_message : FramePatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
@@ -84,21 +84,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         }
         let last_patch = self.last_patches.get_mut( &new_message.id_chain).unwrap();
         let mut has_any_updates = false;
-
-        let val = depth;
-        let is_new_value = match &last_patch.depth {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            }
-        };
-        if is_new_value {
-            new_message.depth = Some(val);
-            last_patch.depth = Some(val);
-            has_any_updates = true;
-        }
 
         let val = computed_size.0;
         let is_new_value = match &last_patch.size_x {
@@ -184,11 +169,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         }
     }
 
-    fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut Vec<R>) {
+    fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<std::string::String, R>) {
         // construct a BezPath of this frame's bounds * its transform,
         // then pass that BezPath into rc.clip() [which pushes a clipping context to a piet-internal stack]
 
-        let transform = rtc.transform;
+        let transform = rtc.transform_scroller_reset;
         let bounding_dimens = rtc.bounds;
 
         let width: f64 =  bounding_dimens.0;
@@ -203,34 +188,36 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         bez_path.close_path();
 
         let transformed_bez_path = transform * bez_path;
-        for rc in rcs {
+        for (key,rc) in rcs.iter_mut() {
             rc.save().unwrap(); //our "save point" before clipping — restored to in the did_render
             rc.clip(transformed_bez_path.clone());
         }
         let id_chain = rtc.get_id_chain(self.instance_id);
         (*rtc.runtime).borrow_mut().push_clipping_stack_id(id_chain);
     }
-    fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut Vec<R>) {
-        for rc in _rcs {
+    fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
+        for (key,rc) in _rcs.iter_mut() {
             //pop the clipping context from the stack
             rc.restore().unwrap();
         }
         (*rtc.runtime).borrow_mut().pop_clipping_stack_id();
     }
 
-    fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
         let id_chain = rtc.get_id_chain(self.instance_id);
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
-        let clipping_ids = rtc.runtime.borrow().get_current_clipping_ids();
+        let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
 
+        let scroller_ids = (*rtc.runtime).borrow().get_current_scroller_ids();
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
             pax_message::NativeMessage::FrameCreate(AnyCreatePatch {
                 id_chain: id_chain.clone(),
                 clipping_ids,
+                scroller_ids,
+                z_index,
             })
         );
-
     }
 
     fn handle_will_unmount(&mut self, rtc: &mut RenderTreeContext<R>) {

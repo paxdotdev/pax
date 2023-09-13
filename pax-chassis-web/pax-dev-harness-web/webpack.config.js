@@ -1,5 +1,4 @@
 const path = require('path');
-const webpack = require('webpack');
 
 module.exports = {
   module: {
@@ -28,10 +27,10 @@ module.exports = {
     host: '0.0.0.0',
     static: {
       directory: path.resolve(__dirname, 'public'),
-    }
+    },
   },
 
-  entry: './index.ts',
+  entry: './src/index.ts',
 
   output: {
     path: path.join(path.resolve(__dirname), 'dist'),
@@ -39,16 +38,11 @@ module.exports = {
     publicPath: '/',
   },
 
-  plugins: [
-    new webpack.ProvidePlugin({
-      TextDecoder: ['text-encoding', 'TextDecoder'],
-      TextEncoder: ['text-encoding', 'TextEncoder'],
-    }),
-  ],
+  plugins: [],
 
   experiments: {
     asyncWebAssembly: true,
   },
 
-  mode: 'development',
+  mode: 'production',
 };

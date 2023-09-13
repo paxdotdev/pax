@@ -1,7 +1,7 @@
 {
   "scripts": {
-    "build": "webpack --config webpack.prod.js",
-    "serve": "webpack-dev-server"
+    "build": "webpack --config ./webpack.prod.js",
+    "serve": "webpack-dev-server --config ./webpack.config.js"
   },
   "devDependencies": {
     "@types/web": "^0.0.99",
@@ -14,7 +14,6 @@
     "webpack-dev-server": "^4.15.1"
   },
   "dependencies": {
-    "snarkdown": "^2.0.0",
-    "text-encoding": "^0.7.0"
+    "snarkdown": "^2.0.0"
   }
 }

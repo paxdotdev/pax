@@ -1,5 +1,4 @@
 const path = require('path');
-const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
@@ -26,7 +25,7 @@ module.exports = {
     extensions: ['.tsx', '.html', '.ts', '.js', '.wasm', '.css'],
   },
 
-  entry: './index.ts',
+  entry: './src/index.ts',
 
   output: {
     path: path.join(path.resolve(__dirname), 'dist'),
@@ -42,19 +41,14 @@ module.exports = {
     new CopyWebpackPlugin({
       patterns: [
         {
-          context: path.resolve(__dirname),
-          from: 'public/**/*',
-          to: '.',
+          context: path.resolve(__dirname, 'public'),
+          from: '**/*',
+          to: path.resolve(__dirname, 'dist'),
           globOptions: {
-            ignore: ['index.html'],
+            ignore: [path.resolve(__dirname, 'public', 'index.html')],
           },
         },
       ],
-    }),
-
-    new webpack.ProvidePlugin({
-      TextDecoder: ['text-encoding', 'TextDecoder'],
-      TextEncoder: ['text-encoding', 'TextEncoder'],
     }),
   ],
 

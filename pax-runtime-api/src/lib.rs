@@ -5,6 +5,7 @@ use std::cell::RefCell;
 use std::collections::VecDeque;
 use std::rc::Rc;
 use std::ffi::CString;
+use std::fmt::Display;
 use std::ops::{Deref, Mul};
 
 
@@ -288,6 +289,17 @@ pub struct ArgsContextMenu {
 pub enum Size {
     Pixels(Numeric),
     Percent(Numeric),
+}
+
+impl Size {
+    pub fn getPixels(&self, parent: f64) -> f64 {
+        match &self {
+            Self::Pixels(p) => {p.get_as_float()},
+            Self::Percent(p)  => {
+                parent * (p.get_as_float()/100.0)
+            }
+        }
+    }
 }
 
 impl Interpolatable for Size {
@@ -796,44 +808,58 @@ pub struct Timeline {
     pub is_playing: bool,
 }
 
-#[derive(Clone, PartialEq)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum Layer {
     Native,
+    Scroller,
     Canvas,
     DontCare
 }
 
-pub struct LayerInfo {
-    depth: usize,
+/// Captures information about z-index during render node traversal
+/// Used for generating chassis side rendering architecture
+#[derive(Clone)]
+pub struct ZIndex {
+    z_index: u32,
     layer: Layer,
+    parent_scroller: Option<Vec<u32>>,
 }
 
-impl LayerInfo {
-    pub fn new() -> Self {
-        LayerInfo {
-            depth: 0,
+impl ZIndex {
+    pub fn new(scroller_id: Option<Vec<u32>>) -> Self {
+        ZIndex {
+            z_index: 0,
             layer: Layer::Canvas,
+            parent_scroller: scroller_id
         }
     }
 
-    pub fn get_depth(&mut self) -> usize {
-        self.depth
+    pub fn get_level(&mut self) -> u32 {
+        self.z_index
     }
 
     pub fn get_current_layer(&mut self) -> Layer {
         self.layer.clone()
     }
-    pub fn update_depth(&mut self, layer: Layer) {
+    pub fn update_z_index(&mut self, layer: Layer) {
         match layer {
             Layer::DontCare => {}
             _ => {
                 if self.layer != layer {
-                    if layer == Layer::Canvas {
-                        self.depth += 1;
+                    if layer == Layer::Canvas || layer == Layer::Scroller {
+                        self.z_index += 1;
                     }
-                    self.layer = layer.clone();
                 }
+                self.layer = layer.clone();
             }
+        }
+    }
+
+    pub fn generate_location_id(scroller_id: Option<Vec<u32>>, z_index: u32) -> String {
+        if let Some(id) = scroller_id {
+            format!("{:?}_{}", id, z_index)
+        } else {
+            format!("{}", z_index)
         }
     }
 }

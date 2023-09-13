@@ -15,17 +15,17 @@ use pax_message::ImagePatch;
 /// by `size`, transformed by `transform`
 pub struct ImageInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub properties: Rc<RefCell<Image>>,
     pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    last_patches: HashMap<Vec<u64>, pax_message::ImagePatch>,
+    last_patches: HashMap<Vec<u32>, pax_message::ImagePatch>,
     pub image: Option<<R as RenderContext>::Image>,
 }
 
 impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
 
@@ -90,7 +90,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
     }
 
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth : usize) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, z_index: u32, subtree_depth: u32) {
         let mut new_message: ImagePatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
         if !self.last_patches.contains_key(&new_message.id_chain) {
@@ -119,7 +119,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
     }
 
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
-        let transform = rtc.transform;
+        let transform = rtc.transform_scroller_reset;
         let bounding_dimens = rtc.bounds;
         let width =  bounding_dimens.0;
         let height =  bounding_dimens.1;

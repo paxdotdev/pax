@@ -15,7 +15,7 @@ use pax_std::types::Color;
 
 pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_id: u64,
+    pub instance_id: u32,
     pub properties: Rc<RefCell<Text>>,
 
     pub size: Size2D,
@@ -25,12 +25,12 @@ pub struct TextInstance<R: 'static + RenderContext> {
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
     //      shares this last_patches cache
-    last_patches: HashMap<Vec<u64>, pax_message::TextPatch>,
+    last_patches: HashMap<Vec<u32>, pax_message::TextPatch>,
 }
 
 impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
-    fn get_instance_id(&self) -> u64 {
+    fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
 
@@ -166,7 +166,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
     }
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, depth: usize) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, z_index: u32, subtree_depth: u32) {
         let mut new_message: TextPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
         if !self.last_patches.contains_key(&new_message.id_chain) {
@@ -179,27 +179,13 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
 
         let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
-        let val = depth;
-        let is_new_value = match &last_patch.depth {
-            Some(cached_value) => {
-                !val.eq(cached_value)
-            },
-            None => {
-                true
-            }
-        };
-        if is_new_value {
-            new_message.depth = Some(val);
-            last_patch.depth = Some(val);
-            has_any_updates = true;
-        }
-
         let val = properties.text.get();
         let is_new_value = match &last_patch.content {
             Some(cached_value) => !val.eq(cached_value),
             None => true,
         };
         if is_new_value {
+            //pax_runtime_api::log(format!("Text update {:?}{:?}", new_message.id_chain, val.clone()).as_str());
             new_message.content = Some(val.clone());
             last_patch.content = Some(val.clone());
             has_any_updates = true;
@@ -286,23 +272,27 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
-    fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>) {
-
-        let clipping_ids = rtc.runtime.borrow().get_current_clipping_ids();
-
+    fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
         let id_chain = rtc.get_id_chain(self.instance_id);
+
+        //though macOS and iOS don't need this ancestry chain for clipping, Web does
+        let clipping_ids = (*rtc.runtime).borrow().get_current_clipping_ids();
+
+        let scroller_ids = (*rtc.runtime).borrow().get_current_scroller_ids();
+
         (*rtc.engine.runtime).borrow_mut().enqueue_native_message(
-            pax_message::NativeMessage::TextCreate(AnyCreatePatch{
-                id_chain,
+            pax_message::NativeMessage::TextCreate(AnyCreatePatch {
+                id_chain: id_chain.clone(),
                 clipping_ids,
+                scroller_ids,
+                z_index,
             })
         );
     }
 
     fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
-
         let id_chain = _rtc.get_id_chain(self.instance_id);
-        self.last_patches.remove(&id_chain).unwrap();
+        self.last_patches.remove(&id_chain);
         (*_rtc.engine.runtime).borrow_mut().enqueue_native_message(
             pax_message::NativeMessage::TextDelete(id_chain)
         );
