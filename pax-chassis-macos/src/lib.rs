@@ -6,7 +6,7 @@ use std::rc::Rc;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::ffi::c_void;
-use std::fmt::format;
+
 use std::mem::{ManuallyDrop, transmute};
 use std::os::raw::{c_char};
 
@@ -15,7 +15,7 @@ use piet_coregraphics::{CoreGraphicsContext};
 
 use serde::Serialize;
 use flexbuffers;
-use flexbuffers::{Buffer, DeserializationError, Reader};
+use flexbuffers::{DeserializationError};
 
 use pax_core::{InstanceRegistry, PaxEngine};
 use pax_cartridge;
@@ -150,7 +150,7 @@ pub extern "C" fn pax_tick(engine_container: *mut PaxEngineContainer, cgContext:
 
     let will_cast_cgContext = cgContext as *mut CGContext;
     let ctx = unsafe { &mut *will_cast_cgContext };
-    let mut render_context = CoreGraphicsContext::new_y_up(ctx, height as f64, None);
+    let render_context = CoreGraphicsContext::new_y_up(ctx, height as f64, None);
     (*engine).set_viewport_size((width as f64, height as f64));
 
     let mut render_contexts = HashMap::new();
