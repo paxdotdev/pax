@@ -1,13 +1,15 @@
-use std::borrow::BorrowMut;
-use std::cell::RefCell;
-use std::rc::Rc;
-use std::collections::HashMap;
 use piet_common::RenderContext;
+use std::cell::RefCell;
+use std::collections::HashMap;
+use std::rc::Rc;
 
+use crate::{
+    HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
+    RenderTreeContext, Runtime,
+};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime, LifecycleNode};
 
-use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, Layer};
+use pax_runtime_api::{Layer, PropertyInstance, Size2D, Timeline, Transform2D};
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `adoptees` and
@@ -23,11 +25,11 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
-    pub compute_properties_fn: Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>,&mut RenderTreeContext<R>)>,
+    pub compute_properties_fn:
+        Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>, &mut RenderTreeContext<R>)>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
-
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -37,10 +39,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
-            Some(registry) => {
-                Some(Rc::clone(&registry))
-            },
-            _ => {None}
+            Some(registry) => Some(Rc::clone(&registry)),
+            _ => None,
         }
     }
 
@@ -48,7 +48,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         (*rtc.runtime).borrow_mut().pop_stack_frame();
     }
 
-    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
 
@@ -66,7 +66,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
             },
             transform: args.transform,
             properties: Rc::new(RefCell::new(args.properties)),
-            compute_properties_fn: args.compute_properties_fn.expect("must pass a compute_properties_fn to a Component instance"),
+            compute_properties_fn: args
+                .compute_properties_fn
+                .expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
             handler_registry: args.handler_registry,
         }));
@@ -75,13 +77,23 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         ret
     }
 
-    fn get_size(&self) -> Option<Size2D> { None }
-    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
+    fn get_size(&self) -> Option<Size2D> {
+        None
+    }
+    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
+        bounds
+    }
+    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
+        Rc::clone(&self.transform)
+    }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut transform = &mut *self.transform.as_ref().borrow_mut();
+        let transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
+            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
+                v
+            } else {
+                unreachable!()
+            };
             transform.set(new_value);
         }
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
@@ -92,9 +104,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         let unflattened_adoptees = Rc::clone(&self.children);
 
         let flattened_adoptees = Rc::new(RefCell::new(
-            (*unflattened_adoptees).borrow().iter().map(|adoptee| {
-                Runtime::process__should_flatten__adoptees_recursive(adoptee, rtc)
-            }).flatten().collect()
+            (*unflattened_adoptees)
+                .borrow()
+                .iter()
+                .map(|adoptee| Runtime::process__should_flatten__adoptees_recursive(adoptee, rtc))
+                .flatten()
+                .collect(),
         ));
 
         (*rtc.runtime).borrow_mut().push_stack_frame(
@@ -107,6 +122,4 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare
     }
-
 }
-

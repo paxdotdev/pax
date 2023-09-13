@@ -8,10 +8,13 @@ pub enum PropertiesCoproduct {
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
+    #[allow(non_camel_case_types)]
     isize(isize),
+    #[allow(non_camel_case_types)]
     stdCOCOopsCOCORangeLABRisizeRABR(std::ops::Range<isize>),
 
     {% for properties_coproduct_tuple in properties_coproduct_tuples %}
+    #[allow(non_camel_case_types)]
     {{properties_coproduct_tuple.0}}({{properties_coproduct_tuple.1}}),
     {% endfor %}
 }
@@ -20,6 +23,7 @@ pub enum PropertiesCoproduct {
 #[repr(C)]
 pub enum TypesCoproduct {
     {% for types_coproduct_tuple in types_coproduct_tuples %}
+    #[allow(non_camel_case_types)]
     {{types_coproduct_tuple.0}}({{types_coproduct_tuple.1}}),
     {% endfor %}
 }

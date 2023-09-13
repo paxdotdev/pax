@@ -1,12 +1,10 @@
-use std::collections::{HashMap};
 use std::cmp::Ordering;
+use std::collections::HashMap;
 
-
-
-use serde_derive::{Serialize, Deserialize};
+use crate::parsing::escape_identifier;
+use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
-use crate::parsing::escape_identifier;
 
 /// Definition container for an entire Pax cartridge
 #[derive(Serialize, Deserialize)]
@@ -50,8 +48,6 @@ pub struct ExpressionSpec {
     /// metadata to "invoke" those symbols from the runtime
     pub invocations: Vec<ExpressionSpecInvocation>,
 
-
-
     /// String (RIL) representation of the compiled expression
     pub output_statement: String,
 
@@ -64,7 +60,6 @@ pub struct ExpressionSpec {
     /// The PropertiesCoproduct variant (type_id_escaped) of the inner
     /// type `T` for some iterable repeat source type, e.g. `Vec<T>`
     pub repeat_source_iterable_type_id_escaped: String,
-
 }
 
 /// The spec of an expression `invocation`, the necessary configuration
@@ -74,7 +69,6 @@ pub struct ExpressionSpec {
 /// holds the recipe for such an `invocation`, populated as a part of expression compilation.
 #[derive(Serialize, Deserialize, Clone)]
 pub struct ExpressionSpecInvocation {
-
     /// Identifier of the top-level symbol (stripped of `this` or `self`) for nested symbols (`foo` for `foo.bar`) or the
     /// identifier itself for non-nested symbols (`foo` for `foo`)
     pub root_identifier: String,
@@ -107,32 +101,15 @@ pub struct ExpressionSpecInvocation {
     /// Flag describing whether the nested symbolic invocation, e.g. `foo.bar`, ultimately
     /// resolves to a numeric type (as opposed to `is_numeric`, which represents the root of a nested type)
     pub is_nested_numeric: bool,
-
 }
 
-pub const SUPPORTED_NUMERIC_PRIMITIVES : [&str; 13] = [
-    "u8",
-    "u16",
-    "u32",
-    "u64",
-    "u128",
-    "usize",
-    "i8",
-    "i16",
-    "i32",
-    "i64",
-    "i128",
-    "isize",
-    "f64",
+pub const SUPPORTED_NUMERIC_PRIMITIVES: [&str; 13] = [
+    "u8", "u16", "u32", "u64", "u128", "usize", "i8", "i16", "i32", "i64", "i128", "isize", "f64",
 ];
 
-pub const SUPPORTED_NONNUMERIC_PRIMITIVES : [&str; 2] = [
-    "String",
-    "bool",
-];
+pub const SUPPORTED_NONNUMERIC_PRIMITIVES: [&str; 2] = ["String", "bool"];
 
 impl ExpressionSpecInvocation {
-
     pub fn is_primitive_nonnumeric(property_properties_coproduct_type: &str) -> bool {
         SUPPORTED_NONNUMERIC_PRIMITIVES.contains(&property_properties_coproduct_type)
     }
@@ -206,14 +183,16 @@ pub struct TemplateNodeDefinition {
 
 pub type TypeTable = HashMap<String, TypeDefinition>;
 pub fn get_primitive_type_table() -> TypeTable {
-    let mut ret : TypeTable = Default::default();
+    let mut ret: TypeTable = Default::default();
 
     SUPPORTED_NUMERIC_PRIMITIVES.into_iter().for_each(|snp| {
         ret.insert(snp.to_string(), TypeDefinition::primitive(snp));
     });
-    SUPPORTED_NONNUMERIC_PRIMITIVES.into_iter().for_each(|snnp| {
-        ret.insert(snnp.to_string(), TypeDefinition::primitive(snnp));
-    });
+    SUPPORTED_NONNUMERIC_PRIMITIVES
+        .into_iter()
+        .for_each(|snnp| {
+            ret.insert(snnp.to_string(), TypeDefinition::primitive(snnp));
+        });
 
     ret
 }
@@ -230,25 +209,22 @@ pub struct PropertyDefinition {
 
     /// Statically known type_id for this Property's associated TypeDefinition
     pub type_id: String,
-
-
-
-
 }
 
 impl PropertyDefinition {
-
     pub fn get_type_definition<'a>(&'a self, tt: &'a TypeTable) -> &TypeDefinition {
         tt.get(&self.type_id).unwrap()
     }
 
-    pub fn get_inner_iterable_type_definition<'a>(&'a self, tt: &'a TypeTable) -> Option<&TypeDefinition> {
+    pub fn get_inner_iterable_type_definition<'a>(
+        &'a self,
+        tt: &'a TypeTable,
+    ) -> Option<&TypeDefinition> {
         if let Some(ref iiti) = tt.get(&self.type_id).unwrap().inner_iterable_type_id {
             Some(tt.get(iiti).unwrap())
         } else {
             None
         }
-
     }
 }
 
@@ -265,7 +241,6 @@ pub struct PropertyDefinitionFlags {
     /// Does this property represent `elem` in `for (elem, i)` OR `for elem in 0..5` ?
     pub is_binding_repeat_elem: bool,
 
-
     // // //
     // Source axis
     //
@@ -273,7 +248,6 @@ pub struct PropertyDefinitionFlags {
     pub is_repeat_source_range: bool,
     /// Is the source being iterated over an iterable, like Vec<T>?
     pub is_repeat_source_iterable: bool,
-
 
     /// Describes whether this property is a `Property`-wrapped `T` in `Property<T>`
     /// This distinction affects our ability to dirty-watch a particular property, and
@@ -297,9 +271,7 @@ impl PropertyDefinition {
 
 /// Describes metadata surrounding a property's type, gathered from a combination of static & dynamic analysis
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
-pub struct
-TypeDefinition {
-
+pub struct TypeDefinition {
     /// Program-unique ID for this type
     pub type_id: String,
 
@@ -313,14 +285,11 @@ TypeDefinition {
     /// T for some Property<Vec<T>>
     pub inner_iterable_type_id: Option<String>,
 
-
     /// A vec of PropertyType, describing known addressable (sub-)properties of this PropertyType
     pub property_definitions: Vec<PropertyDefinition>,
 }
 
 impl TypeDefinition {
-
-
     pub fn primitive(type_name: &str) -> Self {
         Self {
             type_id_escaped: escape_identifier(type_name.to_string()),
@@ -364,7 +333,6 @@ impl TypeDefinition {
             import_path: "std::rc::Rc".to_string(),
         }
     }
-
 }
 /// Container for settings values, storing all possible
 /// variants, populated at parse-time and used at compile-time
@@ -390,7 +358,6 @@ pub enum ControlFlowRepeatPredicateDefinition {
     ElemIdIndexId(String, String),
 }
 
-
 /// Container for storing parsed control flow information, for
 /// example the string (PAXEL) representations of condition / slot / repeat
 /// expressions and the related vtable ids (for "punching" during expression compilation)
@@ -401,7 +368,7 @@ pub struct ControlFlowSettingsDefinition {
     pub slot_index_expression_paxel: Option<String>,
     pub slot_index_expression_vtable_id: Option<usize>,
     pub repeat_predicate_definition: Option<ControlFlowRepeatPredicateDefinition>,
-    pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>
+    pub repeat_source_definition: Option<ControlFlowRepeatSourceDefinition>,
 }
 
 /// Container describing the possible variants of a Repeat source
@@ -420,7 +387,6 @@ pub struct SettingsSelectorBlockDefinition {
     pub value_block: LiteralBlockDefinition,
 }
 
-
 /// Container for a parsed
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct LiteralBlockDefinition {
@@ -431,13 +397,13 @@ pub struct LiteralBlockDefinition {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Number {
     Float(f64),
-    Int(isize)
+    Int(isize),
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub enum Unit {
     Pixels,
-    Percent
+    Percent,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

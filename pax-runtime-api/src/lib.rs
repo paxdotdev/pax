@@ -3,19 +3,18 @@ pub mod numeric;
 use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::rc::Rc;
 use std::ffi::CString;
-use std::fmt::Display;
-use std::ops::{Deref, Mul};
+use std::rc::Rc;
 
+use std::ops::{Deref, Mul};
 
 #[macro_use]
 extern crate lazy_static;
 extern crate mut_static;
 
+pub use crate::numeric::Numeric;
 use mut_static::MutStatic;
 use pax_message::{ModifierKeyMessage, MouseButtonMessage, TouchMessage};
-pub use crate::numeric::Numeric;
 
 pub struct TransitionQueueEntry<T> {
     pub global_frame_started: Option<usize>,
@@ -146,7 +145,6 @@ pub struct ArgsTouchEnd {
     pub touches: Vec<Touch>,
 }
 
-
 // Keyboard Events
 
 /// Common properties in keyboard events.
@@ -197,10 +195,10 @@ pub enum MouseButton {
 impl From<MouseButtonMessage> for MouseButton {
     fn from(value: MouseButtonMessage) -> Self {
         match value {
-            MouseButtonMessage::Left => {MouseButton::Left}
-            MouseButtonMessage::Right => {MouseButton::Right}
-            MouseButtonMessage::Middle => {MouseButton::Middle}
-            MouseButtonMessage::Unknown => {MouseButton::Unknown}
+            MouseButtonMessage::Left => MouseButton::Left,
+            MouseButtonMessage::Right => MouseButton::Right,
+            MouseButtonMessage::Middle => MouseButton::Middle,
+            MouseButtonMessage::Unknown => MouseButton::Unknown,
         }
     }
 }
@@ -216,10 +214,10 @@ pub enum ModifierKey {
 impl From<&ModifierKeyMessage> for ModifierKey {
     fn from(value: &ModifierKeyMessage) -> Self {
         match value {
-            ModifierKeyMessage::Shift => {ModifierKey::Shift}
-            ModifierKeyMessage::Control => {ModifierKey::Control}
-            ModifierKeyMessage::Alt => {ModifierKey::Alt}
-            ModifierKeyMessage::Command => {ModifierKey::Command}
+            ModifierKeyMessage::Shift => ModifierKey::Shift,
+            ModifierKeyMessage::Control => ModifierKey::Control,
+            ModifierKeyMessage::Alt => ModifierKey::Alt,
+            ModifierKeyMessage::Command => ModifierKey::Command,
         }
     }
 }
@@ -281,7 +279,6 @@ pub struct ArgsContextMenu {
     pub mouse: MouseEventArgs,
 }
 
-
 /// A Size value that can be either a concrete pixel value
 /// or a percent of parent bounds.
 
@@ -292,12 +289,10 @@ pub enum Size {
 }
 
 impl Size {
-    pub fn getPixels(&self, parent: f64) -> f64 {
+    pub fn get_pixels(&self, parent: f64) -> f64 {
         match &self {
-            Self::Pixels(p) => {p.get_as_float()},
-            Self::Percent(p)  => {
-                parent * (p.get_as_float()/100.0)
-            }
+            Self::Pixels(p) => p.get_as_float(),
+            Self::Percent(p) => parent * (p.get_as_float() / 100.0),
         }
     }
 }
@@ -305,18 +300,14 @@ impl Size {
 impl Interpolatable for Size {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         match &self {
-            Self::Pixels(sp) => {
-                match other {
-                    Self::Pixels(op) => Self::Pixels(*sp + ((*op-*sp)*Numeric::from(t))),
-                    Self::Percent(op) => Self::Percent(*op),
-                }
+            Self::Pixels(sp) => match other {
+                Self::Pixels(op) => Self::Pixels(*sp + ((*op - *sp) * Numeric::from(t))),
+                Self::Percent(op) => Self::Percent(*op),
             },
-            Self::Percent(sp) => {
-                match other {
-                    Self::Percent(op) => Self::Percent(*sp + ((*op-*sp)*Numeric::from(t))),
-                    Self::Pixels(op) => Self::Pixels(*op),
-                }
-            }
+            Self::Percent(sp) => match other {
+                Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::from(t))),
+                Self::Pixels(op) => Self::Pixels(*op),
+            },
         }
     }
 }
@@ -324,13 +315,9 @@ impl Interpolatable for Size {
 impl<T: Interpolatable> Interpolatable for Option<T> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         match &self {
-            Self::Some(s) => {
-                match other {
-                    Self::Some(o) => {
-                        Some(s.interpolate(o, t))
-                    },
-                    _ => None,
-                }
+            Self::Some(s) => match other {
+                Self::Some(o) => Some(s.interpolate(o, t)),
+                _ => None,
             },
             Self::None => None,
         }
@@ -346,12 +333,13 @@ impl Default for Size {
 impl From<Size> for SizePixels {
     fn from(value: Size) -> Self {
         match value {
-            Size::Pixels(x) => {SizePixels(x)}
-            _ => {panic!("Non pixel Size cannot be coerced into SizePixels");}
+            Size::Pixels(x) => SizePixels(x),
+            _ => {
+                panic!("Non pixel Size cannot be coerced into SizePixels");
+            }
         }
     }
 }
-
 
 #[derive(Copy, Clone)]
 pub struct SizePixels(pub Numeric);
@@ -361,7 +349,7 @@ impl Default for SizePixels {
         Self(Numeric::Float(150.0))
     }
 }
-impl From<&SizePixels > for f64{
+impl From<&SizePixels> for f64 {
     fn from(value: &SizePixels) -> Self {
         value.0.get_as_float()
     }
@@ -400,9 +388,7 @@ pub fn register_logger(logger: PlatformSpecificLogger) {
 pub fn log(msg: &str) {
     let logging_variant = &(LOGGER.borrow().read().expect("Logger isn't registered").0);
     match logging_variant {
-        PlatformSpecificLogger::Web(closure) => {
-            closure(msg)
-        },
+        PlatformSpecificLogger::Web(closure) => closure(msg),
         PlatformSpecificLogger::MacOS(closure) => {
             let msg = CString::new(msg).unwrap();
             (closure)(msg.as_ptr());
@@ -421,24 +407,14 @@ impl Mul for Size {
                     //in the sense of multiplying two affine translations.
                     //this might be wildly unexpected in some cases, so keep an eye on this and
                     //revisit whether to support Percent values in anchor calcs (could rescind)
-                    Size::Pixels(px1) => {
-                        Size::Pixels(px0 + px1)
-                    }
-                    Size::Percent(pc1) => {
-                        Size::Pixels(px0 * pc1)
-                    }
+                    Size::Pixels(px1) => Size::Pixels(px0 + px1),
+                    Size::Percent(pc1) => Size::Pixels(px0 * pc1),
                 }
             }
-            Size::Percent(pc0) => {
-                match rhs {
-                    Size::Pixels(px1) => {
-                        Size::Pixels(pc0 * px1)
-                    }
-                    Size::Percent(pc1) => {
-                        Size::Percent(pc0 * pc1)
-                    }
-                }
-            }
+            Size::Percent(pc0) => match rhs {
+                Size::Pixels(px1) => Size::Pixels(pc0 * px1),
+                Size::Percent(pc1) => Size::Percent(pc0 * pc1),
+            },
         }
     }
 }
@@ -447,9 +423,6 @@ impl Mul for Size {
 // Size2D wraps up Properties as well to make it easy
 // to declare expressable Size properties
 pub type Size2D = Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>;
-
-
-
 
 /// A sugary representation of an Affine transform+, including
 /// `anchor` and `align` as layout-computed properties.
@@ -469,9 +442,11 @@ pub type Size2D = Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>;
 ///             and horizontally within the parent container.  Combined with an anchor of (Size::Percent(50.0), Size::Percent(50.0)),
 ///             an element will appear fully centered within its parent.
 #[derive(Default, Clone)]
-pub struct Transform2D { //Literal
+pub struct Transform2D {
+    //Literal
     pub previous: Option<Box<Transform2D>>,
-    pub rotate: Option<f64>, ///over z axis
+    pub rotate: Option<f64>,
+    ///over z axis
     pub translate: Option<[f64; 2]>,
     pub anchor: Option<[Size; 2]>,
     pub align: Option<[Size; 2]>,
@@ -491,32 +466,32 @@ impl Mul for Transform2D {
 impl Transform2D {
     ///Scale coefficients (1.0 == 100%) over x-y plane
     pub fn scale(x: Numeric, y: Numeric) -> Self {
-        let mut ret  = Transform2D::default();
+        let mut ret = Transform2D::default();
         ret.scale = Some([x.get_as_float(), y.get_as_float()]);
         ret
     }
     ///Rotation over z axis
     pub fn rotate(z: Numeric) -> Self {
-        let mut ret  = Transform2D::default();
+        let mut ret = Transform2D::default();
         ret.rotate = Some(z.get_as_float());
         ret
     }
     ///Translation across x-y plane, pixels
     pub fn translate(x: Numeric, y: Numeric) -> Self {
-        let mut ret  = Transform2D::default();
+        let mut ret = Transform2D::default();
         ret.translate = Some([x.get_as_float(), y.get_as_float()]);
         ret
     }
     ///Describe alignment within parent bounding box, as a starting point before
     /// affine transformations are applied
     pub fn align(x: Size, y: Size) -> Self {
-        let mut ret  = Transform2D::default();
+        let mut ret = Transform2D::default();
         ret.align = Some([x, y]);
         ret
     }
     ///Describe alignment of the (0,0) position of this element as it relates to its own bounding box
     pub fn anchor(x: Size, y: Size) -> Self {
-        let mut ret  = Transform2D::default();
+        let mut ret = Transform2D::default();
         ret.anchor = Some([x, y]);
         ret
     }
@@ -525,8 +500,6 @@ impl Transform2D {
         Rc::new(RefCell::new(PropertyLiteral::new(Transform2D::default())))
     }
 }
-
-
 
 pub struct TransitionManager<T> {
     pub queue: VecDeque<TransitionQueueEntry<T>>,
@@ -548,14 +521,14 @@ pub struct PropertyLiteral<T> {
     transition_manager: TransitionManager<T>,
 }
 
-
 impl<T> Into<Box<dyn PropertyInstance<T>>> for PropertyLiteral<T>
-where T: Default + Clone + 'static {
+where
+    T: Default + Clone + 'static,
+{
     fn into(self) -> Box<dyn PropertyInstance<T>> {
         Box::new(self)
     }
 }
-
 
 impl<T: Clone> PropertyLiteral<T> {
     pub fn new(value: T) -> Self {
@@ -564,8 +537,6 @@ impl<T: Clone> PropertyLiteral<T> {
             transition_manager: TransitionManager::new(),
         }
     }
-
-
 }
 impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     fn get(&self) -> &T {
@@ -588,13 +559,16 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
     fn ease_to(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
         self.transition_manager.value = Some(self.get().clone());
         let _ = &self.transition_manager.queue.clear();
-        let _ = &self.transition_manager.queue.push_back(TransitionQueueEntry {
-            global_frame_started: None,
-            duration_frames,
-            curve,
-            starting_value: self.value.clone(),
-            ending_value: new_value
-        });
+        let _ = &self
+            .transition_manager
+            .queue
+            .push_back(TransitionQueueEntry {
+                global_frame_started: None,
+                duration_frames,
+                curve,
+                starting_value: self.value.clone(),
+                ending_value: new_value,
+            });
     }
 
     fn ease_to_later(&mut self, new_value: T, duration_frames: u64, curve: EasingCurve) {
@@ -604,24 +578,31 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyLiteral<T> {
         }
 
         let starting_value = if self.transition_manager.queue.len() > 0 {
-            self.transition_manager.queue.get(self.transition_manager.queue.len() - 1).unwrap().ending_value.clone()
+            self.transition_manager
+                .queue
+                .get(self.transition_manager.queue.len() - 1)
+                .unwrap()
+                .ending_value
+                .clone()
         } else {
             self.value.clone()
         };
 
-        self.transition_manager.queue.push_back(TransitionQueueEntry {
-            global_frame_started: None,
-            duration_frames,
-            curve,
-            starting_value,
-            ending_value: new_value
-        });
+        self.transition_manager
+            .queue
+            .push_back(TransitionQueueEntry {
+                global_frame_started: None,
+                duration_frames,
+                curve,
+                starting_value,
+                ending_value: new_value,
+            });
     }
 
     fn _get_transition_manager(&mut self) -> Option<&mut TransitionManager<T>> {
         if let None = self.transition_manager.value {
             None
-        }else {
+        } else {
             Some(&mut self.transition_manager)
         }
     }
@@ -644,7 +625,11 @@ impl EasingEvaluators {
     }
     #[allow(dead_code)]
     fn none(t: f64) -> f64 {
-        if t == 1.0 { 1.0 } else { 0.0 }
+        if t == 1.0 {
+            1.0
+        } else {
+            0.0
+        }
     }
     fn in_quad(t: f64) -> f64 {
         t * t
@@ -665,7 +650,7 @@ impl EasingEvaluators {
 
     fn in_out_back(t: f64) -> f64 {
         const C1: f64 = 1.70158;
-        const C2 : f64 = C1 * 1.525;
+        const C2: f64 = C1 * 1.525;
         if t < 0.5 {
             ((2.0 * t).powi(2) * ((C2 + 1.0) * 2.0 * t - C2)) / 2.0
         } else {
@@ -679,35 +664,22 @@ impl EasingCurve {
     // find the interpolated value `vt` between `v0` and `v1` given the self-contained easing curve
     pub fn interpolate<T: Interpolatable>(&self, v0: &T, v1: &T, t: f64) -> T /*vt*/ {
         let multiplier = match self {
-            EasingCurve::Linear => {
-                EasingEvaluators::linear(t)
-            }
-            EasingCurve::InQuad => {
-                EasingEvaluators::in_quad(t)
-            }
-            EasingCurve::OutQuad => {
-                EasingEvaluators::out_quad(t)
-            }
-            EasingCurve::InBack => {
-                EasingEvaluators::in_back(t)
-            }
-            EasingCurve::OutBack => {
-                EasingEvaluators::out_back(t)
-            }
-            EasingCurve::InOutBack => {
-                EasingEvaluators::in_out_back(t)
-            }
-            EasingCurve::Custom(evaluator) => {
-                (*evaluator)(t)
-            }
+            EasingCurve::Linear => EasingEvaluators::linear(t),
+            EasingCurve::InQuad => EasingEvaluators::in_quad(t),
+            EasingCurve::OutQuad => EasingEvaluators::out_quad(t),
+            EasingCurve::InBack => EasingEvaluators::in_back(t),
+            EasingCurve::OutBack => EasingEvaluators::out_back(t),
+            EasingCurve::InOutBack => EasingEvaluators::in_out_back(t),
+            EasingCurve::Custom(evaluator) => (*evaluator)(t),
         };
 
-        v0.interpolate( v1, multiplier)
+        v0.interpolate(v1, multiplier)
     }
 }
 
 pub trait Interpolatable
-where Self : Sized + Clone //Clone used for default implementation of `interpolate`
+where
+    Self: Sized + Clone,
 {
     //default implementation acts like a `None` ease — that is,
     //the first value is simply returned.
@@ -719,11 +691,16 @@ where Self : Sized + Clone //Clone used for default implementation of `interpola
 impl<I: Interpolatable> Interpolatable for Vec<I> {
     fn interpolate(&self, other: &Self, t: f64) -> Self {
         //FUTURE: could revisit the following assertion/constraint, perhaps with a "don't-care" approach to disjoint vec elements
-        assert_eq!(self.len(), other.len(), "cannot interpolate between vecs of different lengths");
+        assert_eq!(
+            self.len(),
+            other.len(),
+            "cannot interpolate between vecs of different lengths"
+        );
 
-        self.iter().enumerate().map(|(i, elem)| {
-            elem.interpolate(other.get(i).unwrap(), t)
-        }).collect()
+        self.iter()
+            .enumerate()
+            .map(|(i, elem)| elem.interpolate(other.get(i).unwrap(), t))
+            .collect()
     }
 }
 
@@ -801,7 +778,6 @@ impl Interpolatable for i32 {
 
 impl Interpolatable for String {}
 
-
 pub struct Timeline {
     pub playhead_position: usize,
     pub frame_count: usize,
@@ -813,7 +789,7 @@ pub enum Layer {
     Native,
     Scroller,
     Canvas,
-    DontCare
+    DontCare,
 }
 
 /// Captures information about z-index during render node traversal
@@ -822,6 +798,7 @@ pub enum Layer {
 pub struct ZIndex {
     z_index: u32,
     layer: Layer,
+    #[allow(dead_code)]
     parent_scroller: Option<Vec<u32>>,
 }
 
@@ -830,7 +807,7 @@ impl ZIndex {
         ZIndex {
             z_index: 0,
             layer: Layer::Canvas,
-            parent_scroller: scroller_id
+            parent_scroller: scroller_id,
         }
     }
 
@@ -863,4 +840,3 @@ impl ZIndex {
         }
     }
 }
-

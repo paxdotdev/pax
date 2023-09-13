@@ -1,15 +1,14 @@
 use std::borrow::Borrow;
 use std::cell::RefCell;
-use std::collections::{VecDeque};
+use std::collections::VecDeque;
 use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
+use pax_properties_coproduct::PropertiesCoproduct;
+use pax_runtime_api::Timeline;
 use piet::RenderContext;
-use pax_properties_coproduct::{PropertiesCoproduct};
-use pax_runtime_api::{Timeline};
 
-use crate::{HandlerRegistry, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
-
+use crate::{RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, this is a home
@@ -23,7 +22,7 @@ pub struct Runtime<R: 'static + RenderContext> {
     clipping_stack: Vec<Vec<u32>>,
     /// Similar to clipping stack but for scroller containers
     scroller_stack: Vec<Vec<u32>>,
-    native_message_queue: VecDeque<pax_message::NativeMessage>
+    native_message_queue: VecDeque<pax_message::NativeMessage>,
 }
 
 impl<R: 'static + RenderContext> Runtime<R> {
@@ -42,8 +41,10 @@ impl<R: 'static + RenderContext> Runtime<R> {
     pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u32> {
         let mut indices: Vec<u32> = vec![];
 
-        self.stack.iter().for_each(|frame_wrapped|{
-            if let PropertiesCoproduct::RepeatItem(datum, i) = &*(*(*(*frame_wrapped).borrow_mut()).borrow().properties).borrow() {
+        self.stack.iter().for_each(|frame_wrapped| {
+            if let PropertiesCoproduct::RepeatItem(_datum, i) =
+                &*(*(*(*frame_wrapped).borrow_mut()).borrow().properties).borrow()
+            {
                 indices.push(*i as u32)
             }
         });
@@ -64,27 +65,33 @@ impl<R: 'static + RenderContext> Runtime<R> {
     pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame<R>>>> {
         if self.stack.len() > 0 {
             Some(Rc::clone(&self.stack[&self.stack.len() - 1]))
-        }else{
+        } else {
             None
         }
     }
 
     /// Remove the top element from the stack.  Currently does
     /// nothing with the value of the popped StackFrame.
-    pub fn pop_stack_frame(&mut self){
+    pub fn pop_stack_frame(&mut self) {
         self.stack.pop(); //NOTE: handle value here if needed
     }
 
     /// Add a new frame to the stack, passing a list of adoptees
     /// that may be handled by `Slot` and a scope that includes the PropertiesCoproduct of the associated Component
-    pub fn push_stack_frame(&mut self, flattened_adoptees: RenderNodePtrList<R>, properties: Rc<RefCell<PropertiesCoproduct>>, timeline: Option<Rc<RefCell<Timeline>>>) {
+    pub fn push_stack_frame(
+        &mut self,
+        flattened_adoptees: RenderNodePtrList<R>,
+        properties: Rc<RefCell<PropertiesCoproduct>>,
+        timeline: Option<Rc<RefCell<Timeline>>>,
+    ) {
         let parent = self.peek_stack_frame().as_ref().map(Rc::downgrade);
 
-        self.stack.push(
-            Rc::new(RefCell::new(
-                StackFrame::new(flattened_adoptees, properties, parent, timeline)
-            ))
-        );
+        self.stack.push(Rc::new(RefCell::new(StackFrame::new(
+            flattened_adoptees,
+            properties,
+            parent,
+            timeline,
+        ))));
     }
 
     pub fn push_clipping_stack_id(&mut self, id_chain: Vec<u32>) {
@@ -119,16 +126,25 @@ impl<R: 'static + RenderContext> Runtime<R> {
     /// created by `for`.  In other words `for`s children need to be treated as `<Stacker>`s children,
     /// and this processing allows that to happpen.
     /// Note that this must be recursive to handle nested cases of flattening, for example nested `for` loops
-    pub fn process__should_flatten__adoptees_recursive(adoptee: &RenderNodePtr<R>, rtc: &mut RenderTreeContext<R>) -> Vec<RenderNodePtr<R>> {
+    #[allow(non_snake_case)]
+    pub fn process__should_flatten__adoptees_recursive(
+        adoptee: &RenderNodePtr<R>,
+        rtc: &mut RenderTreeContext<R>,
+    ) -> Vec<RenderNodePtr<R>> {
         let mut adoptee_borrowed = (**adoptee).borrow_mut();
         if adoptee_borrowed.should_flatten() {
             //1. this is an `if` or `for` (etc.) — it needs its properties computed
             //   in order for its children to be correct
             adoptee_borrowed.compute_properties(rtc);
             //2. recurse into top-level should_flatten() nodes
-            (*adoptee_borrowed.get_rendering_children()).borrow().iter().map(|top_level_child_node|{
-                Runtime::process__should_flatten__adoptees_recursive(top_level_child_node, rtc)
-            }).flatten().collect()
+            (*adoptee_borrowed.get_rendering_children())
+                .borrow()
+                .iter()
+                .map(|top_level_child_node| {
+                    Runtime::process__should_flatten__adoptees_recursive(top_level_child_node, rtc)
+                })
+                .flatten()
+                .collect()
             //NOTE: probably worth optimizing (pending profiling.)  Lots of allocation happening here -- flattening and collecting `Vec`s is probably not
             //the most efficient possible approach, and this is fairly hot-running code.
         } else {
@@ -136,7 +152,6 @@ impl<R: 'static + RenderContext> Runtime<R> {
         }
     }
 }
-
 
 /// Data structure for a single frame of our runtime stack, including
 /// a reference to its parent frame, a list of `adoptees` for
@@ -147,8 +162,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
 /// `Component`s push StackFrames when mounting and pop them when unmounting, thus providing a
 /// hierarchical store of node-relevant data that can be bound to symbols, e.g. in expressions.
 /// Note that `RepeatItem`s also push `StackFrame`s, because `RepeatItem` uses a `Component` internally.
-pub struct StackFrame<R: 'static + RenderContext>
-{
+pub struct StackFrame<R: 'static + RenderContext> {
     adoptees: RenderNodePtrList<R>,
     properties: Rc<RefCell<PropertiesCoproduct>>,
     parent: Option<Weak<RefCell<StackFrame<R>>>>,
@@ -156,7 +170,12 @@ pub struct StackFrame<R: 'static + RenderContext>
 }
 
 impl<R: 'static + RenderContext> StackFrame<R> {
-    pub fn new(adoptees: RenderNodePtrList<R>, properties: Rc<RefCell<PropertiesCoproduct>>, parent: Option<Weak<RefCell<StackFrame<R>>>>, timeline: Option<Rc<RefCell<Timeline>>>) -> Self {
+    pub fn new(
+        adoptees: RenderNodePtrList<R>,
+        properties: Rc<RefCell<PropertiesCoproduct>>,
+        parent: Option<Weak<RefCell<StackFrame<R>>>>,
+        timeline: Option<Rc<RefCell<Timeline>>>,
+    ) -> Self {
         StackFrame {
             adoptees,
             properties,
@@ -171,15 +190,13 @@ impl<R: 'static + RenderContext> StackFrame<R> {
                 //if this stackframe doesn't carry a timeline, then refer
                 //to the parent stackframe's timeline (and recurse)
                 match &self.parent {
-                    Some(parent_frame) => {
-                        (*parent_frame.upgrade().unwrap()).borrow().get_timeline_playhead_position()
-                    },
-                    None => 0
+                    Some(parent_frame) => (*parent_frame.upgrade().unwrap())
+                        .borrow()
+                        .get_timeline_playhead_position(),
+                    None => 0,
                 }
-            },
-            Some(timeline) => {
-                (**timeline).borrow().playhead_position
             }
+            Some(timeline) => (**timeline).borrow().playhead_position,
         }
     }
 
@@ -200,7 +217,9 @@ impl<R: 'static + RenderContext> StackFrame<R> {
         if new_depth == n {
             return Some(parent.upgrade().unwrap());
         }
-        (*parent.deref().upgrade().unwrap()).borrow().recurse_peek_nth(n, new_depth)
+        (*parent.deref().upgrade().unwrap())
+            .borrow()
+            .recurse_peek_nth(n, new_depth)
     }
 
     pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
@@ -213,13 +232,12 @@ impl<R: 'static + RenderContext> StackFrame<R> {
 
     pub fn nth_adoptee(&self, n: usize) -> Option<RenderNodePtr<R>> {
         match (*self.adoptees).borrow().get(n) {
-            Some(i) => {Some(Rc::clone(i))}
-            None => {None}
+            Some(i) => Some(Rc::clone(i)),
+            None => None,
         }
     }
 
     pub fn has_adoptees(&self) -> bool {
         (*self.adoptees).borrow().len() > 0
     }
-
 }

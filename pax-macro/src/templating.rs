@@ -1,9 +1,6 @@
 use sailfish::TemplateOnce;
 
-use serde_derive::{Serialize};
-use serde_json;
-
-use std::collections::HashSet;
+use serde_derive::Serialize;
 
 #[derive(Serialize, Debug)]
 pub struct StaticPropertyDefinition {
@@ -33,7 +30,7 @@ pub struct ArgsFullComponent {
 }
 
 #[derive(TemplateOnce)]
-#[template(path = "../templates/derive_pax.stpl", escape=false)]
+#[template(path = "../templates/derive_pax.stpl", escape = false)]
 pub struct TemplateArgsDerivePax {
     /// Modal properties
     pub args_primitive: Option<ArgsPrimitive>,
