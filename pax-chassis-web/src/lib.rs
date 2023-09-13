@@ -123,7 +123,7 @@ impl PaxChassisWeb {
                     ImageLoadInterruptArgs::Reference(ref_args) => {}
                     ImageLoadInterruptArgs::Data(data_args) => {
                         let data = Uint8Array::new(additional_payload).to_vec();
-                        (*self.engine).borrow_mut().loadImage(data_args.id_chain, data, data_args.width, data_args.height);
+                        (*self.engine).borrow_mut().load_image(data_args.id_chain, data, data_args.width, data_args.height);
                     }
                 }
             },

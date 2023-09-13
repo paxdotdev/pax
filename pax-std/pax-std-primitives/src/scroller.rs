@@ -3,7 +3,6 @@ use core::option::Option::Some;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::collections::HashMap;
-use std::borrow::Borrow;
 
 use kurbo::BezPath;
 use piet::RenderContext;

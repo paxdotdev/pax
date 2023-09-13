@@ -1,10 +1,8 @@
-#[allow(unused_imports)]
-
 use pax_lang::*;
 use pax_lang::api::{Size2D, Size, Property, Transform2D};
 use pax_lang::api::numeric::Numeric;
 use pax_runtime_api::RuntimeContext;
-use crate::primitives::{Frame};
+use crate::primitives::Frame;
 use crate::types::{StackerDirection, StackerCell};
 
 /// Stacker lays out a series of nodes either

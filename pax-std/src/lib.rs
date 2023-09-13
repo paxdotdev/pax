@@ -1,20 +1,18 @@
-#[macro_use]
-extern crate lazy_static;
+
 
 pub mod types;
+
+#[allow(unused_imports)]
 pub mod stacker;
-pub mod sidebar;
+
 
 pub mod components {
     pub use super::stacker::*;
-    pub use super::sidebar::*;
 }
 
 pub mod primitives {
     use pax_lang::Pax;
-    use pax_lang::api::numeric::Numeric;
-    use pax_lang::api::SizePixels;
-    use pax_runtime_api::{Size, Size2D};
+    use pax_runtime_api::Size;
 
     use crate::types::PathSegment;
     use crate::types::text::{TextStyle};

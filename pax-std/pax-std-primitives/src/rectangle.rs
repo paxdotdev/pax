@@ -68,7 +68,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for RectangleInstance<R> {
         }
 
         if let Some(stroke_color) = rtc.compute_vtable_value(properties.stroke.get().color._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(stroke_color, TypesCoproduct, pax_std::types::Color);;
+            let new_value = unsafe_unwrap!(stroke_color, TypesCoproduct, pax_std::types::Color);
             properties.stroke.get_mut().color.set(new_value);
         }
 
