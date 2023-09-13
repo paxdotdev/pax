@@ -1,16 +1,16 @@
 use std::cell::RefCell;
-
+use std::ffi::CString;
 use std::rc::Rc;
 use std::collections::HashMap;
 use piet::{RenderContext};
 use pax_std::primitives::{Text};
-use pax_core::{HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, unsafe_unwrap};
+use pax_core::{ComputableTransform, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, Layer, SizePixels};
-
+use pax_message::{AnyCreatePatch, TextPatch, TextStyleMessage};
+use pax_runtime_api::{PropertyInstance, Transform2D, Size2D, PropertyLiteral, log, Layer, SizePixels};
+use pax_lang::api::numeric::Numeric;
 use pax_std::types::text::{Font, TextStyle, TextAlignHorizontal, TextAlignVertical};
-
+use std::fs;
 use pax_std::types::Color;
 
 pub struct TextInstance<R: 'static + RenderContext> {
@@ -34,7 +34,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         self.instance_id
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
 
         let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Text);
 
@@ -60,7 +60,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(text) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
             let new_value = unsafe_unwrap!(text, TypesCoproduct, String);
@@ -144,7 +144,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             }
         }
 
-        let size = &mut *self.size.as_ref().borrow_mut();
+        let mut size = &mut *self.size.as_ref().borrow_mut();
 
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
@@ -158,7 +158,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
             size[1].set(new_value);
         }
 
-        let transform = &mut *self.transform.as_ref().borrow_mut();
+        let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
 
@@ -166,7 +166,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
     }
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, _z_index: u32, _subtree_depth: u32) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, z_index: u32, subtree_depth: u32) {
         let mut new_message: TextPatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
         if !self.last_patches.contains_key(&new_message.id_chain) {
@@ -177,7 +177,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
-        let properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
         let val = properties.text.get();
         let is_new_value = match &last_patch.content {
@@ -192,7 +192,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
 
         let val = properties.style.get();
-        let _is_new_val = match &last_patch.style {
+        let is_new_val = match &last_patch.style {
             Some(cached_value) => { !val.eq(cached_value) },
             None => { true }
         };
@@ -204,7 +204,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
 
         let val = properties.style_link.get();
-        let _is_new_val = match &last_patch.style_link {
+        let is_new_val = match &last_patch.style_link {
             Some(cached_value) => { !val.eq(cached_value) },
             None => { true }
         };
@@ -268,7 +268,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for TextInstance<R> {
         }
     }
 
-    fn handle_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
+    fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 

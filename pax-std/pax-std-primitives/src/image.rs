@@ -1,13 +1,13 @@
-
-use piet::{ImageFormat, InterpolationMode, RenderContext, Image as PietImage};
+use kurbo::{BezPath, Rect, Ellipse as KurboEllipse, Shape};
+use piet::{ImageFormat, InterpolationMode, RenderContext, Image as PietImage, Error, TextStorage};
 use std::collections::HashMap;
 use pax_std::primitives::{Image};
-
-use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
+use pax_std::types::ColorVariant;
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{PropertyInstance, Size, Transform2D, Size2D};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D, log};
 
-
+use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
 use pax_message::ImagePatch;
@@ -33,7 +33,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Image);
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
@@ -62,7 +62,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
     fn get_size(&self) -> Option<Size2D> { Some(Rc::clone(&self.size)) }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(path) = rtc.compute_vtable_value(properties.path._get_vtable_id()) {
             let new_value = if let TypesCoproduct::String(v) = path { v } else { unreachable!() };
@@ -70,7 +70,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
         }
 
 
-        let size = &mut *self.size.as_ref().borrow_mut();
+        let mut size = &mut *self.size.as_ref().borrow_mut();
 
         if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size { v } else { unreachable!() };
@@ -82,7 +82,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
             size[1].set(new_value);
         }
 
-        let transform = &mut *self.transform.as_ref().borrow_mut();
+        let mut transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
@@ -90,7 +90,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
     }
 
 
-    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, _computed_size: (f64, f64), _transform_coeffs: Vec<f64>, _z_index: u32, _subtree_depth: u32) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, z_index: u32, subtree_depth: u32) {
         let mut new_message: ImagePatch = Default::default();
         new_message.id_chain = rtc.get_id_chain(self.instance_id);
         if !self.last_patches.contains_key(&new_message.id_chain) {
@@ -101,7 +101,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
         let last_patch = self.last_patches.get_mut(&new_message.id_chain).unwrap();
         let mut has_any_updates = false;
 
-        let properties = &mut *self.properties.as_ref().borrow_mut();
+        let mut properties = &mut *self.properties.as_ref().borrow_mut();
         let val = properties.path.get();
         let is_new_value = match &last_patch.path {
             Some(cached_value) => !val.eq(cached_value),
@@ -129,7 +129,7 @@ impl<R: 'static + RenderContext>  RenderNode<R> for ImageInstance<R> {
         let bottom_right = transform * kurbo::Point::new(bounds.max_x(), bounds.max_y());
         let transformed_bounds = kurbo::Rect::new(top_left.x, top_left.y, bottom_right.x, bottom_right.y);
 
-        let _properties = (*self.properties).borrow();
+        let properties = (*self.properties).borrow();
         let id_chain = rtc.get_id_chain(self.instance_id);
         if rtc.engine.image_map.contains_key(&id_chain)  && self.image.is_none(){
             let (bytes, width, height) = rtc.engine.image_map.get(&id_chain).unwrap();

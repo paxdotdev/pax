@@ -2,9 +2,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use piet_common::RenderContext;
-use crate::{RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
-use pax_runtime_api::{Layer, PropertyInstance, Size2D, Transform2D};
-use pax_properties_coproduct::{TypesCoproduct};
+use crate::{HandlerRegistry, ComponentInstance, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, InstantiationArgs};
+use pax_runtime_api::{Layer, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
+use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
 /// subtree of a component template to be rendered conditionally,
@@ -28,7 +28,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
         self.instance_id
     }
 
-    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(Self {

@@ -1,16 +1,16 @@
-use kurbo::{BezPath};
+use kurbo::{BezPath, Rect, Ellipse as KurboEllipse, Shape};
 use piet::{RenderContext};
 
 use pax_std::primitives::{Path};
-use pax_std::types::{PathSegment};
-use pax_core::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
+use pax_std::types::{ColorVariant, CurveSegmentData, LineSegmentData, PathSegment};
+use pax_core::{Color, RenderNode, RenderNodePtrList, RenderTreeContext, ExpressionContext, InstanceRegistry, HandlerRegistry, InstantiationArgs, RenderNodePtr, unsafe_unwrap};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{PropertyInstance, Transform2D, Size2D};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral, Size, Transform2D, Size2D};
 
-
+use std::str::FromStr;
 use std::cell::RefCell;
 use std::rc::Rc;
-
+use pax_std::types::PathSegment::LineSegment;
 
 
 /// A basic 2D vector path for arbitrary Bézier / line-segment chains

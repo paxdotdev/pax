@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use std::ops::Mul;
 use std::rc::Rc;
 
-use kurbo::{Affine, Point};
+use kurbo::{Affine, Point, Vec2};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 use pax_properties_coproduct::PropertiesCoproduct;
@@ -12,7 +12,7 @@ use pax_runtime_api::{ArgsScroll, Layer, Size, Size2D};
 
 use crate::{RenderTreeContext, HandlerRegistry, InstanceRegistry};
 
-use pax_runtime_api::{PropertyInstance};
+use pax_runtime_api::{PropertyInstance, PropertyLiteral};
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.
@@ -316,7 +316,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     ///
     /// An implementor of `compute_native_patches` is responsible for determining which properties if any have changed
     /// (e.g. by keeping a local patch object as a cache of last known values.)
-    fn compute_native_patches(&mut self, _rtc: &mut RenderTreeContext<R>, _computed_size: (f64, f64), _transform_coeffs: Vec<f64>, _z_index: u32, _subtree_depth: u32) {
+    fn compute_native_patches(&mut self, rtc: &mut RenderTreeContext<R>, computed_size: (f64, f64), transform_coeffs: Vec<f64>, z_index: u32, subtree_depth: u32) {
         //no-op default implementation
     }
 
@@ -351,7 +351,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     /// this event fires by all nodes on the global first tick, and by all nodes in a subtree
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
-    fn handle_did_mount(&mut self, _rtc: &mut RenderTreeContext<R>, _z_index: u32) {
+    fn handle_did_mount(&mut self, _rtc: &mut RenderTreeContext<R>, z_index: u32) {
         //no-op default implementation
     }
 
@@ -368,7 +368,7 @@ pub trait RenderNode<R: 'static + RenderContext>
     }
 
     /// Invoked by event interrupts to pass scroll information to render node
-    fn handle_scroll(&mut self, _args_scroll: ArgsScroll) {
+    fn handle_scroll(&mut self, args_scroll: ArgsScroll) {
         //no-op default implementation
     }
 
