@@ -1,5 +1,4 @@
 const path = require('path');
-const webpack = require('webpack');
 
 module.exports = {
   module: {
@@ -28,7 +27,7 @@ module.exports = {
     host: '0.0.0.0',
     static: {
       directory: path.resolve(__dirname, 'public'),
-    }
+    },
   },
 
   entry: './src/index.ts',
