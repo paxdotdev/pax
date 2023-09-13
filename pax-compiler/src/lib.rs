@@ -948,8 +948,7 @@ pub fn build_chassis_with_cartridge(pax_dir: &PathBuf, target: &RunTarget, proce
             let mut cmd = Command::new("wasm-pack");
             cmd.current_dir(&chassis_path)
                 .arg("build")
-                .arg("--release")
-                .arg("-d")
+                .arg("--out-dir")
                 .arg(chassis_path.join("pax-dev-harness-web").join("dist").to_str().unwrap())
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::inherit())

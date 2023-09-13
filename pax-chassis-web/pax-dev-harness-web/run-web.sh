@@ -11,15 +11,19 @@ if [ -d "$assets_dir" ]; then
   cp -r "$assets_dir"/* "$new_dir"
 fi
 
-yarn build
-
-# Clear old build and move to output directory
-rm -rf "$OUTPUT_PATH"
-mkdir -p "$OUTPUT_PATH"
-cp -r dist "$OUTPUT_PATH"
 
 if [ "$SHOULD_ALSO_RUN" = "true" ]; then
-  # Run
+  # Run, which doesn't require a previous build step due to webpack dev server
   set -ex
   yarn serve || (yarn && yarn serve)
+else
+  # Build, with production webpack config
+  yarn build
+
+  # Clear old build and move to output directory
+  rm -rf "$OUTPUT_PATH"
+  mkdir -p "$OUTPUT_PATH"
+  cp -r dist "$OUTPUT_PATH"
 fi
+
+

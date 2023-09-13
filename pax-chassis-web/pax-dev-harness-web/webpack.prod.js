@@ -1,5 +1,4 @@
 const path = require('path');
-const webpack = require('webpack');
 const HtmlWebpackPlugin = require('html-webpack-plugin');
 const CopyWebpackPlugin = require('copy-webpack-plugin');
 
@@ -42,11 +41,11 @@ module.exports = {
     new CopyWebpackPlugin({
       patterns: [
         {
-          context: path.resolve(__dirname),
-          from: 'public/**/*',
-          to: '.',
+          context: path.resolve(__dirname, 'public'),
+          from: '**/*',
+          to: path.resolve(__dirname, 'dist'),
           globOptions: {
-            ignore: ['index.html'],
+            ignore: [path.resolve(__dirname, 'public', 'index.html')],
           },
         },
       ],
