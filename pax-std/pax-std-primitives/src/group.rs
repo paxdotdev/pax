@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 use piet_common::RenderContext;
-use pax_core::{HandlerRegistry, InstanceRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, TransformAndBounds};
-use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use pax_core::{HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, TransformAndBounds};
+use pax_core::pax_properties_coproduct::{TypesCoproduct};
 
 use pax_runtime_api::{Transform2D, Size2D, PropertyInstance, Layer};
 
@@ -26,7 +26,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
         Rc::clone(&self.primitive_children)
     }
 
-    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> where Self: Sized {
         let mut instance_registry = args.instance_registry.borrow_mut();
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(Self {
@@ -55,7 +55,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
 
     /// Can never hit a Group directly -- can only hit elements inside of it.
     /// Events can still be propagated to a group.
-    fn ray_cast_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
+    fn ray_cast_test(&self, _ray: &(f64, f64), _tab: &TransformAndBounds) -> bool {
         false
     }
 
@@ -69,7 +69,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
 
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut transform = &mut *self.transform.as_ref().borrow_mut();
+        let transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);

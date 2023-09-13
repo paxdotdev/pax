@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use piet_common::RenderContext;
 
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime, LifecycleNode};
+use crate::{RenderNode, RenderNodePtrList, RenderTreeContext, HandlerRegistry, InstantiationArgs, RenderNodePtr, Runtime};
 
 use pax_runtime_api::{Timeline, Transform2D, Size2D, PropertyInstance, Layer};
 
@@ -48,7 +48,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         (*rtc.runtime).borrow_mut().pop_stack_frame();
     }
 
-    fn instantiate(mut args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
+    fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_id();
 
@@ -79,7 +79,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) { bounds }
     fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> { Rc::clone(&self.transform) }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let mut transform = &mut *self.transform.as_ref().borrow_mut();
+        let transform = &mut *self.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform { v } else { unreachable!() };
             transform.set(new_value);
