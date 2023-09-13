@@ -56,24 +56,24 @@ export class Scroller {
     }
 
     cleanUp(){
+        if(this.occlusionContext != undefined){
+            this.occlusionContext.cleanUp();
+            this.occlusionContext = undefined;
+        }
+        if(this.innerPane != undefined){
+            this.objectManager.returnToPool(DIV, this.innerPane);
+            this.innerPane = undefined;
+        }
         if(this.container != undefined){
             let parent = this.container.parentElement;
             parent?.removeChild(this.container);
             this.objectManager.returnToPool(DIV, this.container);
             this.container = undefined;
         }
-        if(this.innerPane != undefined){
-            this.objectManager.returnToPool(DIV, this.innerPane);
-            this.innerPane = undefined;
-        }
 
         this.idChain = undefined;
         this.parentScrollerId = undefined;
         this.zIndex = undefined;
-        if(this.occlusionContext != undefined){
-            this.occlusionContext.cleanUp();
-            this.occlusionContext = undefined;
-        }
         this.sizeX = undefined;
         this.sizeY = undefined;
         this.sizeInnerPaneX = undefined;
