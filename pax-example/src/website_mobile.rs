@@ -1,3 +1,5 @@
+#![allow(unused_imports)]
+
 use pax_lang::*;
 use pax_lang::api::*;
 use pax_std::primitives::{Frame, Group, Rectangle, Text, Image, Scroller};
