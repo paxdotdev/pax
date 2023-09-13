@@ -292,7 +292,7 @@ pub enum Size {
 }
 
 impl Size {
-    pub fn getPixels(&self, parent: f64) -> f64 {
+    pub fn get_pixels(&self, parent: f64) -> f64 {
         match &self {
             Self::Pixels(p) => {p.get_as_float()},
             Self::Percent(p)  => {
@@ -822,6 +822,7 @@ pub enum Layer {
 pub struct ZIndex {
     z_index: u32,
     layer: Layer,
+    #[allow(dead_code)]
     parent_scroller: Option<Vec<u32>>,
 }
 

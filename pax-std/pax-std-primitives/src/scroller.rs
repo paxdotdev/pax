@@ -144,7 +144,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         }
 
 
-        let val = Size::getPixels( properties.size_inner_pane_x.get(), computed_size.0);
+        let val = Size::get_pixels( properties.size_inner_pane_x.get(), computed_size.0);
         let is_new_value = match &last_patch.size_inner_pane_x {
             Some(cached_value) => {
                 !val.eq(cached_value)
@@ -159,7 +159,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             has_any_updates = true;
         }
 
-        let val = Size::getPixels( properties.size_inner_pane_y.get(), computed_size.1);
+        let val = Size::get_pixels( properties.size_inner_pane_y.get(), computed_size.1);
         let is_new_value = match &last_patch.size_inner_pane_y {
             Some(cached_value) => {
                 !val.eq(cached_value)
