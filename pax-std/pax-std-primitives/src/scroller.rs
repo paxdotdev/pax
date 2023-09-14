@@ -13,7 +13,9 @@ use pax_core::{
     RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, ScrollerPatch};
-use pax_runtime_api::{ArgsScroll, Layer, PropertyInstance, Size, Size2D, Transform2D};
+use pax_runtime_api::{
+    ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size, Size2D, Transform2D,
+};
 use pax_std::primitives::Scroller;
 
 /// A combination of a clipping area (nearly identical to a `Frame`,) and an
@@ -29,8 +31,10 @@ pub struct ScrollerInstance<R: 'static + RenderContext> {
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub properties: Rc<RefCell<Scroller>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub scroll_x_offset: f64,
-    pub scroll_y_offset: f64,
+    pub scroll_x: f64,
+    pub scroll_y: f64,
+    pub scroll_x_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
+    pub scroll_y_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
     last_patches: HashMap<Vec<u32>, ScrollerPatch>,
 }
 
@@ -65,8 +69,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             properties: Rc::new(RefCell::new(properties)),
             last_patches: HashMap::new(),
             handler_registry: args.handler_registry,
-            scroll_x_offset: 0.0,
-            scroll_y_offset: 0.0,
+            scroll_x: 0.0,
+            scroll_y: 0.0,
+            scroll_x_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
+            scroll_y_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -74,12 +80,21 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     }
 
     fn handle_scroll(&mut self, args_scroll: ArgsScroll) {
-        self.scroll_x_offset -= args_scroll.delta_x;
-        self.scroll_y_offset -= args_scroll.delta_y;
+        self.scroll_x -= args_scroll.delta_x;
+        self.scroll_y -= args_scroll.delta_y;
+        (*self.scroll_x_offset)
+            .borrow_mut()
+            .ease_to(self.scroll_x, 2, EasingCurve::Linear);
+        (*self.scroll_y_offset)
+            .borrow_mut()
+            .ease_to(self.scroll_y, 2, EasingCurve::Linear);
     }
 
     fn get_scroll_offset(&mut self) -> (f64, f64) {
-        (self.scroll_x_offset, self.scroll_y_offset)
+        (
+            (*self.scroll_x_offset).borrow().get().clone(),
+            (*self.scroll_y_offset).borrow().get().clone(),
+        )
     }
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
@@ -225,6 +240,20 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+        let mut scroll_x_offset_borrowed = (*self.scroll_x_offset).borrow_mut();
+        if let Some(new_value) =
+            rtc.compute_eased_value(scroll_x_offset_borrowed._get_transition_manager())
+        {
+            scroll_x_offset_borrowed.set(new_value);
+        }
+
+        let mut scroll_y_offset_borrowed = (*self.scroll_y_offset).borrow_mut();
+        if let Some(new_value) =
+            rtc.compute_eased_value(scroll_y_offset_borrowed._get_transition_manager())
+        {
+            scroll_y_offset_borrowed.set(new_value);
+        }
+
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
         let size = &mut *self.size.as_ref().borrow_mut();

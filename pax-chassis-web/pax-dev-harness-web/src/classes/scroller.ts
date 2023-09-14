@@ -3,7 +3,7 @@ import {PaxChassisWeb} from '../../dist/pax_chassis_web';
 import {OcclusionContext} from "./occlusion-context";
 import {INNER_PANE, SCROLLER_CONTAINER} from "../utils/constants";
 import {ObjectManager} from "../pools/object-manager";
-import {DIV, OCCLUSION_CONTEXT} from "../pools/supported-objects";
+import {DIV, OBJECT, OCCLUSION_CONTEXT} from "../pools/supported-objects";
 import {packAffineCoeffsIntoMatrix3DString} from "../utils/helpers";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {NativeElementPool} from "./native-element-pool";
@@ -24,6 +24,8 @@ export class Scroller {
     private scrollY?: boolean;
     scrollOffsetX?: number;
     scrollOffsetY?: number;
+    unsentX = 0;
+    unsentY= 0;
     private subtreeDepth?: number;
     private objectManager: ObjectManager;
 
@@ -46,6 +48,23 @@ export class Scroller {
         this.container = this.objectManager.getFromPool(DIV);
         this.container.className = SCROLLER_CONTAINER;
         NativeElementPool.addNativeElement(this.container, baseOcclusionContext, scrollers, idChain, scrollerId, zIndex);
+
+
+        setInterval(() => {
+            // @ts-ignore
+            let currentTop = this.container.scrollTop;
+            // @ts-ignore
+            let currentLeft = this.container.scrollLeft;
+            // @ts-ignore
+            let deltaX = currentLeft - this.scrollOffsetX;
+            // @ts-ignore
+            let deltaY = currentTop - this.scrollOffsetY;
+            this.unsentX += deltaX;
+            this.unsentY += deltaY;
+            this.scrollOffsetX = currentLeft;
+            this.scrollOffsetY = currentTop;
+        }, 1);
+
 
         this.innerPane = this.objectManager.getFromPool(DIV);
         this.innerPane.className = INNER_PANE;
@@ -130,7 +149,9 @@ export class Scroller {
                 this.occlusionContext.updateNativeOverlays(this.sizeX, this.sizeY);
             }
             if(msg.sizeInnerPaneX != null || msg.sizeInnerPaneY != null){
+                // @ts-ignore
                 this.innerPane.style.width = String(this.sizeInnerPaneX)+'px';
+                // @ts-ignore
                 this.innerPane.style.height = String(this.sizeInnerPaneY)+'px';
             }
 

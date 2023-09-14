@@ -68,13 +68,9 @@ export class NativeElementPool {
     sendScrollerValues(){
         this.scrollers.forEach((scroller, id) => {
             // @ts-ignore
-            let currentTop = scroller.container.scrollTop;
+            let deltaX = scroller.unsentX;
             // @ts-ignore
-            let currentLeft = scroller.container.scrollLeft;
-            // @ts-ignore
-            let deltaX = currentLeft - scroller.scrollOffsetX;
-            // @ts-ignore
-            let deltaY = currentTop - scroller.scrollOffsetY;
+            let deltaY = scroller.unsentY;
             if(Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0){
                 const scrollEvent = this.objectManager.getFromPool(OBJECT);
                 const deltas: object = this.objectManager.getFromPool(OBJECT);
@@ -89,8 +85,8 @@ export class NativeElementPool {
                 this.chassis.interrupt(scrollEventStringified, []);
                 this.objectManager.returnToPool(OBJECT, deltas);
                 this.objectManager.returnToPool(OBJECT, scrollEvent);
-                scroller.scrollOffsetX = currentLeft;
-                scroller.scrollOffsetY = currentTop;
+                scroller.unsentX = 0;
+                scroller.unsentY = 0;
             }
         });
     }

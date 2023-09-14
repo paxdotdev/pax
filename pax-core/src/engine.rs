@@ -81,7 +81,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
                 if let None = current_transition.global_frame_started {
                     current_transition.global_frame_started = Some(self.engine.frames_elapsed);
                 }
-                let progress = (self.engine.frames_elapsed as f64
+                let progress = (1.0 + self.engine.frames_elapsed as f64
                     - current_transition.global_frame_started.unwrap() as f64)
                     / (current_transition.duration_frames as f64);
                 return if progress >= 1.0 {
