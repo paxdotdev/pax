@@ -3252,3 +3252,20 @@ Split out: Merge the above, tackle the following separately
 [ ] Update monorepo README with instructions to get started with CPA, as well as libdev instructions
 [ ] Better starting project - copy of website, router example, layout example, ...?
 
+
+
+
+### On porting to 3D
+
+By porting our 2D, CPU-bottlenecked rendering to 3D, we should relieve a significant compute burden on client devices.
+This should be particularly helpful for e.g. iOS Safari, where we seem to be hitting perf limitations with canvas, but
+should also raise the ceiling across the board on how much we can render.
+
+Broadly, to draw 2D vector shapes in 3D we will need to:
+
+1. tessellate _fills_ and _strokes_, using a library like `lyon`
+2. handle clipping, likely with the GPU stencil buffer and our own clipping stack
+3. handle gradient fills, likely with custom shaders
+4. handle antialiasing, either at the renderer config level or as a screenspace shader
+5. port our existing logic (can probably do this by introducing a new struct/trait that is API compatible with the current subset of the `rc` that we use, e.g. `save/restore` (clipping stack), `clip`, `bez_path`
+6. test rigorously across devices, especially mobile, and polyfill (or fall back to 2D canvas) as necessary
