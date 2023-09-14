@@ -49,7 +49,8 @@ export class Scroller {
         this.container.className = SCROLLER_CONTAINER;
         NativeElementPool.addNativeElement(this.container, baseOcclusionContext, scrollers, idChain, scrollerId, zIndex);
 
-        this.container.addEventListener('scroll', () => {
+
+        setInterval(() => {
             // @ts-ignore
             let currentTop = this.container.scrollTop;
             // @ts-ignore
@@ -62,7 +63,8 @@ export class Scroller {
             this.unsentY += deltaY;
             this.scrollOffsetX = currentLeft;
             this.scrollOffsetY = currentTop;
-        });
+        }, 1);
+
 
         this.innerPane = this.objectManager.getFromPool(DIV);
         this.innerPane.className = INNER_PANE;
