@@ -84,10 +84,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         self.scroll_y -= args_scroll.delta_y;
         (*self.scroll_x_offset)
             .borrow_mut()
-            .ease_to(self.scroll_x, 3, EasingCurve::Linear);
+            .ease_to(self.scroll_x, 2, EasingCurve::Linear);
         (*self.scroll_y_offset)
             .borrow_mut()
-            .ease_to(self.scroll_y, 3, EasingCurve::Linear);
+            .ease_to(self.scroll_y, 2, EasingCurve::Linear);
     }
 
     fn get_scroll_offset(&mut self) -> (f64, f64) {

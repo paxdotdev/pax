@@ -51,6 +51,7 @@ async function main(wasmMod: typeof import('../dist/pax_chassis_web')) {
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }
 
+
 function renderLoop (chassis: PaxChassisWeb) {
 
     //stats.begin();
