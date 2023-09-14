@@ -210,9 +210,18 @@ fn perform_nominal_action(
                     let working_path = Path::new(&path).join(".pax");
                     let pax_dir = fs::canonicalize(working_path).unwrap();
 
+                    let ctx = RunContext {
+                        target: RunTarget::from(target.as_str()),
+                        path,
+                        verbose: true,
+                        should_also_run: false,
+                        is_libdev_mode: true,
+                        process_child_ids: Arc::new(Mutex::new(vec![])),
+                    };
+
                     let output = pax_compiler::build_chassis_with_cartridge(
                         &pax_dir,
-                        &RunTarget::from(target.as_str()),
+                        &ctx,
                         process_child_ids,
                     );
 

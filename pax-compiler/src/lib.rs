@@ -1002,7 +1002,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with cargo", &PAX_BADGE);
 
-    build_chassis_with_cartridge(&pax_dir, &ctx.target, Arc::clone(&ctx.process_child_ids));
+    build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
 
     if ctx.should_also_run {
         //8a::run: compile and run dev harness, with freshly built chassis plugged in
@@ -1157,9 +1157,11 @@ use std::sync::{Arc, Mutex};
 /// Returns an output object containing bytestreams of stdout/stderr as well as an exit code
 pub fn build_chassis_with_cartridge(
     pax_dir: &PathBuf,
-    target: &RunTarget,
+    ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
 ) -> Output {
+
+    let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
@@ -1213,7 +1215,6 @@ pub fn build_chassis_with_cartridge(
             let mut cmd = Command::new("wasm-pack");
             cmd.current_dir(&chassis_path)
                 .arg("build")
-                .arg("--release")
                 .arg("--out-dir")
                 .arg(
                     chassis_path
@@ -1225,6 +1226,13 @@ pub fn build_chassis_with_cartridge(
                 .env("PAX_DIR", &pax_dir)
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit());
+
+            //approximate `should_also_run` as "dev build," `!should_also_run` as prod
+            if ctx.should_also_run {
+                cmd.arg("--dev");
+            } else {
+                cmd.arg("--release");
+            }
 
             #[cfg(unix)]
             unsafe {
