@@ -59,8 +59,7 @@ export let SUPPORTED_OBJECTS = [{
     {
         name: CANVAS,
         factory: () => {
-            let canvas = document.createElement('canvas')
-            console.log("Created canvas");
+            let canvas = document.createElement('canvas');
             canvas.className = CANVAS_CLASS;
             return canvas
         },

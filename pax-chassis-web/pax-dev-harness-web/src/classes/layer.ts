@@ -33,8 +33,6 @@ export class Layer {
         parent.appendChild(this.canvas);
         // @ts-ignore
         canvasMap.set(this.canvas.id, this.canvas);
-        console.log("adding context:", this.canvas.id);
-        console.log(this.canvas);
         chassis.add_context(this.canvas.id);
 
         this.native.className = NATIVE_OVERLAY_CLASS;

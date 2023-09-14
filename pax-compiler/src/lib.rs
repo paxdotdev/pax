@@ -1213,6 +1213,7 @@ pub fn build_chassis_with_cartridge(
             let mut cmd = Command::new("wasm-pack");
             cmd.current_dir(&chassis_path)
                 .arg("build")
+                .arg("--release")
                 .arg("--out-dir")
                 .arg(
                     chassis_path
