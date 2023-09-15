@@ -18,7 +18,7 @@ if [ "$SHOULD_ALSO_RUN" = "true" ]; then
   yarn serve || (yarn && yarn serve)
 else
   # Build, with production webpack config
-  yarn build
+  yarn && yarn build
 
   # Clear old build and move to output directory
   rm -rf "$OUTPUT_PATH"
