@@ -122,7 +122,7 @@
         transform: {Transform2D::align(0%, 50%) * Transform2D::anchor(0%, 50%)}
     }
     #f1 {
-        width: 30%,
+        width: 80%,
         height: 800px,
         transform: {
            Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)
