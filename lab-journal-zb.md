@@ -3254,18 +3254,43 @@ Split out: Merge the above, tackle the following separately
 
 
 
+### On common properties like `x`, `y`, `width`, and `height`
+
+A.k.a. "Transform API ergo, syntax sugar"
+
+Currently, we special-case a handful of properties in the compiler like width and height. To make this more robust and to offer a declarative API for the "80%-case" of transform declarations (i.e. vs. the 20% case where custom sequencing is desired,)
+we can:
+
+1. introduce a CommonProperties struct, which includes: transform and each individual sugared transform operation (x, y, width, height, scale_x, scale_y, rotate, shear_x, shear_y, anchor_x, anchor_y — or possibly nested versions of these e.g. scale: {x:...y:...}) 
+2. introduce a trait method on dyn RenderNode to get_common_properties.  likely refactor get_size and get_transform across the board, perhaps to fetch these values, or perhaps retiring them in favor of get_common_properties().size and ....transform
+3. in the workhorse rendering loop, combine declarative transforms into a matrix (we choose the sequence to match ergo expectations) and multiply that matrix with a transform property, if specified (a user should be able to specify both a transform matrix and individual properties; again we choose the best order in which to combine these)
+4. consider retiring Transform::align, and make Transform::translate accept Size values instead of floats (make it bounds-aware)
+5. where we special-case certain fields in the compiler when parsing element K/V declarations, now make sure that list of special-case properties meshes with the properties/types of `CommonProperties`.  Perhaps impl CommonProperties to return an ad-hoc, manually maintained "reflection" manifest of its properties (.reflect_on_properties)
 
 ### On porting to 3D
 
 By porting our 2D, CPU-bottlenecked rendering to 3D, we should relieve a significant compute burden on client devices.
 This should be particularly helpful for e.g. iOS Safari, where we seem to be hitting perf limitations with canvas, but
-should also raise the ceiling across the board on how much we can render.
+should also raise the ceiling across the board on how much (e.g. how many elements) we can render.
 
 Broadly, to draw 2D vector shapes in 3D we will need to:
-
-1. tessellate _fills_ and _strokes_, using a library like `lyon`
-2. handle clipping, likely with the GPU stencil buffer and our own clipping stack
-3. handle gradient fills, likely with custom shaders
-4. handle antialiasing, either at the renderer config level or as a screenspace shader
-5. port our existing logic (can probably do this by introducing a new struct/trait that is API compatible with the current subset of the `rc` that we use, e.g. `save/restore` (clipping stack), `clip`, `bez_path`
-6. test rigorously across devices, especially mobile, and polyfill (or fall back to 2D canvas) as necessary
+ 
+[ ] Get "hello world" 3d canvas rendering on screen, in browser, via `wgpu`
+    [ ] Achieve "hello world", perhaps in a stand-alone dev harness / codebase
+[ ] tessellate _fills_ and _strokes_, using a library like `lyon`
+    [ ] render triangles to wgpu
+    [ ] port our existing logic (can probably do this by introducing a new struct/trait that is API compatible with the current subset of the `rc` that we use, e.g. `save/restore` (clipping stack), `clip`, `bez_path`
+[ ] handle clipping, likely with the GPU stencil buffer and our own clipping stack 
+    [ ]  manage state of clip stack (push / pop, mapped to our current save / restore situation)
+[ ] handle solid & gradient fills, likely with custom shaders
+    [ ] Pipeline for running / including shaders
+    [ ] Solid color API, incl. alpha
+        [ ] Refactor our use of colors throughout
+    [ ] Linear
+        [ ] Refactor our use of gradients throughout
+    [ ] Radial 
+        [ ] Refactor our use of gradients throughout
+[ ] handle antialiasing, either at the renderer config level or as a screenspace shader
+    [ ] Try config level
+    [ ] Check out screenspace shader, but likely not a good fit for precision vector rendering
+[ ] test rigorously across devices, especially mobile, and polyfill (or fall back to 2D canvas) as necessary
