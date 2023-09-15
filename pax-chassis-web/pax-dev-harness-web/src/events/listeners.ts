@@ -18,9 +18,6 @@ function getMouseButton(event: MouseEvent) {
 
 
 export function setupEventListeners(chassis: any, layer: any) {
-    // Need to make the layer focusable it can receive keyboard events
-    layer.setAttribute('tabindex', '1000');
-    layer.focus();
 
     let lastPositions = new Map<number, {x: number, y: number}>();
     // @ts-ignore
