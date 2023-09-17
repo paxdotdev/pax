@@ -3294,3 +3294,35 @@ Broadly, to draw 2D vector shapes in 3D we will need to:
     [ ] Try config level
     [ ] Check out screenspace shader, but likely not a good fit for precision vector rendering
 [ ] test rigorously across devices, especially mobile, and polyfill (or fall back to 2D canvas) as necessary
+
+
+### On mounting components rather than entire apps
+
+Illuminated through the process of shipping our own site with pax
+
+For a given chassis, we can implement component mounts in addition to our existing full-app mounts.
+
+This will make it possible, for example, to mount a Pax component in a React app, or for us to create our own HTML
+template (e.g. including Google Analytics snippet) and then to mount the Pax app inside that template.
+
+What will it take to do this?
+
+[ ] Chassis
+    [ ] Introduce a harness-component and rename pax-dev-harness-web to harness-app (or just harness) (or interface?)
+[ ] Compiler
+    [ ] When running `run`, use `harness-app`
+    [ ] When building, either (a) build all builds, or (b) allow user to specify
+    
+[ ] Attaching to codebase, design
+    [ ] Figure out a smooth workflow for importing a Pax component
+    [ ] API for init, config
+    [ ] Figure out module / package setup
+        [ ] Node module? Generated JS / TS bindings in some web codebase? Web component?
+            - Check out StencilJS as a tool for packaging / compiling web components
+            - Maybe conventionally add a `pax_modules` folder to host codebase, version-controlled, where webcomponent bundles are built?  can refer to pax_modules with local fs paths
+                - The alternative to this would be publishing pax components to npm
+            - Probably don't need to use WebComponents at all — just expose a plain ol' JS object with an init command, which accepts a selector or DOM node to mount to
+        [ ] Regarding React/Vue/etc. components, don't want to use `stenciljs` because it has particular Node major-version reqs, which is stochastic churn for folks trying out Pax
+            That said, perhaps we can use StencilJS to build our template, statically swapping in assets instead of requiring stencil to be installed by end-users
+            Also, from a look at the docs, stencil's component API should allow us to patch in Pax properties (Props) from host frameworks (e.g. React) 
+            Need to vet: can patch a generated stencil dist with new assets and not require stencil end-developer install
