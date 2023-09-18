@@ -36,7 +36,7 @@ module.exports = {
     filename: 'index.js',
     library: 'Pax',
     libraryTarget: 'umd',
-    publicPath: '/',
+    publicPath: 'auto',
   },
 
   plugins: [
