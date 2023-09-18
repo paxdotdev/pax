@@ -124,12 +124,6 @@ Use `rustc` 1.70.0 via `rustup`
   nvm use 20 --default
   ```
 
-- Install `yarn`:
-   ```shell
-  # if necessary: sudo chown -R yourusername /usr/local/lib/node_modules 
-  npm i --global yarn
-   ```
-
 ### To build .pax => macOS
 
 - Install xcode `>=14.3` and Xcode command line utils: `xcode-select --install`
