@@ -1022,7 +1022,6 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     build_harness_with_chassis(
         &pax_dir,
         &ctx,
-        &Harness::Development,
         Arc::clone(&ctx.process_child_ids),
     );
 
@@ -1050,15 +1049,9 @@ fn copy_dir_to(src_dir: &Path, dst_dir: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-#[derive(Debug)]
-pub enum Harness {
-    Development,
-}
-
 fn build_harness_with_chassis(
     pax_dir: &PathBuf,
     ctx: &RunContext,
-    harness: &Harness,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
 ) {
     let target_str: &str = ctx.target.borrow().into();
@@ -1067,19 +1060,16 @@ fn build_harness_with_chassis(
     let harness_path = pax_dir
         .join(PAX_DIR_PKG_PATH)
         .join(format!("pax-chassis-{}", target_str_lower))
-        .join({
-            match harness {
-                Harness::Development => {
-                    format!("pax-dev-harness-{}", target_str_lower)
-                }
+        .join(
+            match ctx.target {
+                RunTarget::Web => "interface",
+                RunTarget::MacOS => "pax-dev-harness-macos",
             }
-        });
+        );
 
-    let script = match harness {
-        Harness::Development => match ctx.target {
-            RunTarget::Web => "./run-web.sh",
-            RunTarget::MacOS => "./run-debuggable-mac-app.sh",
-        },
+    let script =  match ctx.target {
+        RunTarget::Web => "./run-web.sh",
+        RunTarget::MacOS => "./run-debuggable-mac-app.sh",
     };
 
     let is_web = if let RunTarget::Web = ctx.target {
@@ -1218,7 +1208,7 @@ pub fn build_chassis_with_cartridge(
                 .arg("--out-dir")
                 .arg(
                     chassis_path
-                        .join("pax-dev-harness-web")
+                        .join("interface")
                         .join("dist")
                         .to_str()
                         .unwrap(),

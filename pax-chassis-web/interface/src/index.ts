@@ -16,13 +16,10 @@ import {FrameUpdatePatch} from "./classes/messages/frame-update-patch";
 import {ImageLoadPatch} from "./classes/messages/image-load-patch";
 import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
 import {setupEventListeners} from "./events/listeners";
+import "./styles/pax-web.css";
+
 let initializedChassis = false;
 let is_mobile_device = false;
-
-// var stats = new Stats();
-// stats.showPanel( 0 ); // 0: fps, 1: ms, 2: mb, 3+: custom
-// document.body.appendChild( stats.dom );
-
 
 // Init-once globals for garbage collector optimization
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
@@ -31,16 +28,9 @@ let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
 
 
-//handle {click, mouseover, ...} on {canvas element, native elements}
-//for both virtual and native events, pass:
-//  - global (screen) coordinates
-//  - local (canvas) coordinates
-//  - element offset (where within element, top-left-0,0)
-//for native events, pass also an ID for the native element (e.g. DOM node) that
-//can be used by engine to resolve virtual element
-//This ID mechanism will also likely knock out most of the work for DOM element pooling/recycling
+
 // @ts-ignore
-async function main(wasmMod: typeof import('../dist/pax_chassis_web')) {
+async function startRenderLoop(wasmMod: typeof import('../dist/pax_chassis_web')) {
 
     is_mobile_device = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
 
@@ -138,8 +128,18 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
 
 
 // Wasm + TS Bootstrapping boilerplate
-async function load() {
+async function bootstrap(element: Element) {
     // @ts-ignore
-    main(await import('../dist/pax_chassis_web'));
+    startRenderLoop(await import('../dist/pax_chassis_web'));
 }
-load().then();
+
+export function mount(selector_or_element: string | Element) {
+    let element : Element;
+    if (typeof selector_or_element == typeof "foo") {
+        element = document.querySelector(selector_or_element as string) as Element;
+    } else {
+        element = selector_or_element as Element;
+    }
+    bootstrap(element).then();
+}
+

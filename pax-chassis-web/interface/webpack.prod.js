@@ -1,4 +1,6 @@
 const path = require('path');
+const HtmlWebpackPlugin = require('html-webpack-plugin');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 
 module.exports = {
   module: {
@@ -16,6 +18,10 @@ module.exports = {
         test: /\.(jpe?g|svg|png|gif|ico|eot|ttf|otf|woff2?)(\?v=\d+\.\d+\.\d+)?$/i,
         type: 'asset/resource',
       },
+      {
+        test: /\.css$/,
+        use: ['style-loader', 'css-loader']
+      },
     ],
   },
 
@@ -23,22 +29,34 @@ module.exports = {
     extensions: ['.tsx', '.html', '.ts', '.js', '.wasm', '.css'],
   },
 
-  devServer: {
-    host: '0.0.0.0',
-    static: {
-      directory: path.resolve(__dirname, 'public'),
-    },
-  },
-
   entry: './src/index.ts',
 
   output: {
     path: path.join(path.resolve(__dirname), 'dist'),
     filename: 'index.js',
+    library: 'Pax',
+    libraryTarget: 'umd',
     publicPath: '/',
   },
 
-  plugins: [],
+  plugins: [
+    new HtmlWebpackPlugin({
+      template: path.resolve(__dirname, 'public/index.html'),
+      inject: false
+    }),
+    new CopyWebpackPlugin({
+      patterns: [
+        {
+          context: path.resolve(__dirname, 'public'),
+          from: '**/*',
+          to: path.resolve(__dirname, 'dist'),
+          globOptions: {
+            ignore: [path.resolve(__dirname, 'public', 'index.html')],
+          },
+        },
+      ],
+    }),
+  ],
 
   experiments: {
     asyncWebAssembly: true,
