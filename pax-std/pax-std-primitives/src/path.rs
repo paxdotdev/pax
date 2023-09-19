@@ -3,10 +3,10 @@ use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext,
 };
-use pax_runtime_api::Size;
+use pax_runtime_api::{Size, CommonProperties};
 use pax_std::primitives::Path;
 use pax_std::types::PathSegment;
 

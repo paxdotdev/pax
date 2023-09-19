@@ -2,11 +2,11 @@ use std::cell::RefCell;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{Layer, SizePixels};
+use pax_runtime_api::{Layer, SizePixels, CommonProperties};
 use pax_std::primitives::Text;
 use piet::RenderContext;
 use std::collections::HashMap;

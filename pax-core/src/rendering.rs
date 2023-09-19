@@ -5,11 +5,11 @@ use std::rc::Rc;
 
 use kurbo::{Affine, Point};
 use pax_properties_coproduct::PropertiesCoproduct;
-use pax_runtime_api::{Axis, Transform2D};
+use pax_runtime_api::{Axis, Transform2D, CommonProperties};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
-use pax_runtime_api::{ArgsScroll, Layer, Rotation, Size};
+use pax_runtime_api::{ArgsScroll, Layer, Size};
 
 use crate::{HandlerRegistry, InstanceRegistry, RenderTreeContext};
 
@@ -166,42 +166,6 @@ impl TransformAndBounds {
     }
 }
 
-/// Struct containing fields shared by all RenderNodes.
-/// Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
-/// Retrieved via <dyn RenderNode>#get_common_properties
-pub struct CommonProperties {
-    pub x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub width: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub height: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub skew_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub skew_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub rotate: Option<Rc<RefCell<dyn PropertyInstance<Rotation>>>>,
-    pub anchor_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub anchor_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<pax_runtime_api::Transform2D>>>,
-}
-
-impl Default for CommonProperties {
-    fn default() -> Self {
-        Self {
-            x: Default::default(),
-            y: Default::default(),
-            width: Default::default(),
-            height: Default::default(),
-            scale_x: Default::default(),
-            scale_y: Default::default(),
-            skew_x: Default::default(),
-            skew_y: Default::default(),
-            rotate: Default::default(),
-            anchor_x: Default::default(),
-            anchor_y: Default::default(),
-            transform: Transform2D::default_wrapped(),
-        }
-    }
-}
 
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.

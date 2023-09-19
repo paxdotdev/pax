@@ -9,11 +9,11 @@ use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::TypesCoproduct;
 use pax_core::{
-    CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, FramePatch};
-use pax_runtime_api::{Layer, Size};
+use pax_runtime_api::{Layer, Size, CommonProperties};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
 /// like [`Group`], except [`Frame`] has the option of clipping rendering outside

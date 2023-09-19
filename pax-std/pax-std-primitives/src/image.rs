@@ -4,10 +4,10 @@ use std::collections::HashMap;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext,
 };
-
+use pax_runtime_api::CommonProperties;
 use pax_message::ImagePatch;
 use std::cell::RefCell;
 use std::rc::Rc;

@@ -3,11 +3,13 @@ use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, Color, CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode,
+    unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, RenderNode,
     RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
 use pax_std::primitives::Ellipse;
 use pax_std::types::ColorVariant;
+
+use pax_runtime_api::CommonProperties;
 
 use std::cell::RefCell;
 use std::rc::Rc;
