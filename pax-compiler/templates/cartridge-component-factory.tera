@@ -28,8 +28,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
             handler_registry
         }))),
         instance_registry: Rc::clone(&instance_registry),
-        transform: Transform2D::default_wrapped(),
-        size: None,
+        common_properties: CommonProperties::default(),
         children: None,
         component_template: Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}]))),
         scroller_args: None,
