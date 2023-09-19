@@ -7,6 +7,8 @@ pub mod manifest;
 pub mod parsing;
 pub mod templating;
 
+use pax_runtime_api::CommonProperties;
+
 use manifest::PaxManifest;
 use rust_format::Formatter;
 
@@ -18,6 +20,8 @@ use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::io::Write;
 use std::str::FromStr;
+use std::sync::{Arc, Mutex};
+
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt; // For the .pre_exec() method
@@ -301,8 +305,8 @@ fn generate_and_overwrite_cartridge(
         "pax_runtime_api::PropertyInstance",
         "pax_runtime_api::PropertyLiteral",
         "pax_runtime_api::Transform2D",
+        "pax_runtime_api::CommonProperties",
         "pax_core::ComponentInstance",
-        "pax_core::CommonProperties",
         "pax_core::RenderNodePtr",
         "pax_core::PropertyExpression",
         "pax_core::RenderNodePtrList",
@@ -523,8 +527,7 @@ fn recurse_generate_render_nodes_literal(
         })
         .collect();
 
-    const DEFAULT_PROPERTY_LITERAL: &str = "None";
-    const DEFAULT_TRANSFORM_LITERAL: &str = "PropertyLiteral::new(Default::default())";
+    const DEFAULT_PROPERTY_LITERAL: &str = "PropertyLiteral::new(Default::default())";
 
     //pull inline event binding and store into map
     let events = generate_bound_events(tnd.settings.clone());
@@ -584,7 +587,7 @@ fn recurse_generate_render_nodes_literal(
             .condition_expression_vtable_id
             .unwrap();
 
-        let common_properties_literal = todo!();
+        let common_properties_literal = CommonProperties::get_default_properties_literal();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -620,7 +623,7 @@ fn recurse_generate_render_nodes_literal(
             .slot_index_expression_vtable_id
             .unwrap();
 
-        let common_properties_literal = todo!();
+        let common_properties_literal = CommonProperties::get_default_properties_literal();
 
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
@@ -706,49 +709,64 @@ fn recurse_generate_render_nodes_literal(
             })
             .collect();
 
-        //handle size: "width" and "height"
-        //TODO:  expand built-ins to all of our sugared affine transform values
-        //       patch into template as RIL, similar to current width/height logic
-        //       consider whether we can simplify width/height logic, now that they are the same as other sugared values
-        //       handle the `Option`al nature of these values, refactoring `width` and `height` to support missing values
-        //       probably handle transform the same way we currently are
-        // let keys = ["width", "height", "transform"];
-
-
         let keys = pax_runtime_api::CommonProperties::get_property_identifiers();
-        todo!("special-case transform vis-a-vis Option");
-        let builtins_ril: Vec<String> = keys
+
+        fn default_common_property_value(identifier: &str) -> String {
+            if identifier == "transform" {
+                "Transform2D::default_wrapped()".to_string()
+            } else if identifier == "width" || identifier == "height" {
+                "Rc::new(RefCell::new(PropertyLiteral::new(Size::default())))".to_string()
+            } else {
+                "Default::default()".to_string()
+            }
+        }
+
+        fn is_optional(identifier: &str) -> bool {
+            identifier != "transform" && identifier != "width" && identifier != "height"
+        }
+
+        let common_properties_literal: Vec<(String, String)> = keys
             .iter()
-            .map(|builtin_key| {
+            .map(|common_property_identifier| {
                 if let Some(inline_settings) = &tnd.settings {
                     if let Some(matched_setting) =
-                        inline_settings.iter().find(|vd| vd.0 == *builtin_key)
+                        inline_settings.iter().find(|vd| vd.0 == *common_property_identifier)
                     {
-                        match &matched_setting.1 {
-                            ValueDefinition::LiteralValue(lv) => {
-                                format!("PropertyLiteral::new({})", lv)
+                        (
+                            common_property_identifier.to_string(),
+                            match &matched_setting.1 {
+                                ValueDefinition::LiteralValue(lv) => {
+                                    let mut literal_value = format!("Rc::new(RefCell::new(PropertyLiteral::new({})))", lv);
+                                    if is_optional(common_property_identifier) {
+                                        literal_value = format!("Some({})", literal_value);
+                                    }
+                                    literal_value
+                                }
+                                ValueDefinition::Expression(_, id)
+                                | ValueDefinition::Identifier(_, id) => {
+                                    let mut literal_value = format!(
+                                        "Rc::new(RefCell::new(PropertyExpression::new({})))",
+                                        id.expect("Tried to use expression but it wasn't compiled")
+                                    );
+
+                                    if is_optional(common_property_identifier) {
+                                        literal_value = format!("Some({})", literal_value);
+                                    }
+                                    literal_value
+                                }
+                                _ => {
+                                    panic!("Incorrect value bound to attribute")
+                                }
                             }
-                            ValueDefinition::Expression(_, id)
-                            | ValueDefinition::Identifier(_, id) => {
-                                format!(
-                                    "PropertyExpression::new({})",
-                                    id.expect("Tried to use expression but it wasn't compiled")
-                                )
-                            }
-                            _ => {
-                                panic!("Incorrect value bound to attribute")
-                            }
-                        }
+                        )
                     } else {
-                        DEFAULT_PROPERTY_LITERAL.to_string()
+                        (common_property_identifier.to_string(), default_common_property_value(common_property_identifier))
                     }
                 } else {
-                    DEFAULT_PROPERTY_LITERAL.to_string()
+                    (common_property_identifier.to_string(), default_common_property_value(common_property_identifier))
                 }
             })
             .collect();
-
-        let common_properties_literal = todo!();
         //then, on the post-order traversal, press template string and return
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: component_for_current_node.is_primitive,
@@ -1136,10 +1154,6 @@ pub fn perform_clean(path: &str) {
     //Sledgehammer approach: nuke the .pax directory
     fs::remove_dir_all(&pax_dir).ok();
 }
-
-use std::sync::{Arc, Mutex};
-use pest::unicode::COMMON;
-use pax_runtime_api::CommonProperties;
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir

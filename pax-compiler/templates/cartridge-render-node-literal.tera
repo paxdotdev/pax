@@ -6,19 +6,9 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
 {% endif %}
  InstantiationArgs {
     common_properties: CommonProperties {
-        width: Some(Rc::new(RefCell::new({{size_ril[0]}}))),
-        height: Some(Rc::new(RefCell::new({{size_ril[1]}}))),
-        transform: Rc::new(RefCell::new({{ transform_ril }})),
-        //TODO: hook these up
-        scale_x: None,
-        scale_y: None,
-        anchor_x: None,
-        anchor_y: None,
-        rotate: None,
-        x: None,
-        y: None,
-        skew_x: None,
-        skew_y: None,
+        {% for cpl_tuple in common_properties_literal %}
+            {{cpl_tuple.0}}: {{cpl_tuple.1}},
+        {% endfor %}
     },
     properties: PropertiesCoproduct::{{ properties_coproduct_variant }}
     {% if properties_coproduct_variant != "None" %}

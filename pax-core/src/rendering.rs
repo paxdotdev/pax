@@ -236,14 +236,12 @@ pub trait RenderNode<R: 'static + RenderContext> {
             self.get_common_properties()
                 .width
                 .as_ref()
-                .unwrap()
                 .borrow()
                 .get()
                 .clone(),
             self.get_common_properties()
                 .height
                 .as_ref()
-                .unwrap()
                 .borrow()
                 .get()
                 .clone(),
