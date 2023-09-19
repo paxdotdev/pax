@@ -5,6 +5,21 @@
 instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
 {% endif %}
  InstantiationArgs {
+    common_properties: CommonProperties {
+        width: Some(Rc::new(RefCell::new({{size_ril[0]}}))),
+        height: Some(Rc::new(RefCell::new({{size_ril[1]}}))),
+        transform: Rc::new(RefCell::new({{ transform_ril }})),
+        //TODO: hook these up
+        scale_x: None,
+        scale_y: None,
+        anchor_x: None,
+        anchor_y: None,
+        rotate: None,
+        x: None,
+        y: None,
+        shear_x: None,
+        shear_y: None,
+    },
     properties: PropertiesCoproduct::{{ properties_coproduct_variant }}
     {% if properties_coproduct_variant != "None" %}
         ( {{component_properties_struct}} {
@@ -37,10 +52,6 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
         handler_registry
     }))),
     instance_registry: Rc::clone(&instance_registry),
-    transform: Rc::new(RefCell::new({{ transform_ril }})),
-    size: Some(Rc::new(RefCell::new(
-        [Box::new({{size_ril[0]}}),Box::new({{size_ril[1]}})]
-    ))),
     children: Some(Rc::new(RefCell::new(vec![
         {% for child_literal in children_literal %}
             {{ child_literal }},

@@ -185,7 +185,6 @@ fn recurse_compile_literal_block<'a>(
 
                 let builtin_types = HashMap::from([
                     ("transform", "Transform2D".to_string()),
-                    ("size", "Size2D".to_string()),
                     ("width", "Size".to_string()),
                     ("height", "Size".to_string()),
                     // ("x","Size".to_string()),

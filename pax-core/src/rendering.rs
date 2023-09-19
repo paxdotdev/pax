@@ -198,7 +198,7 @@ impl Default for CommonProperties {
             rotate: Default::default(),
             anchor_x: Default::default(),
             anchor_y: Default::default(),
-            transform: Rc::new(RefCell::new(pax_runtime_api::PropertyLiteral::new(pax_runtime_api::Transform2D::default()))),
+            transform: Transform2D::default_wrapped(),
         }
     }
 }
