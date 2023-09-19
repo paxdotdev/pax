@@ -394,6 +394,12 @@ impl ComputableTransform for Transform2D {
         node_size: (f64, f64),
         container_bounds: (f64, f64),
     ) -> Affine {
+        //Three broad strokes:
+        // a.) compute anchor
+        // b.) decompose "vanilla" affine matrix
+        // c.) combine with previous transform chain (assembled via multiplication of two Transform2Ds, e.g. in PAXEL)
+
+        // Compute anchor
         let anchor_transform = match &self.anchor {
             Some(anchor) => Affine::translate((
                 match anchor[0] {
@@ -409,17 +415,48 @@ impl ComputableTransform for Transform2D {
             None => Affine::default(),
         };
 
-        let mut transform = Affine::default();
-        if let Some(rotate) = &self.rotate {
-            transform = transform * Affine::rotate(*rotate);
-        }
-        if let Some(scale) = &self.scale {
-            transform = transform * Affine::scale_non_uniform(scale[0], scale[1]);
-        }
-        if let Some(translate) = &self.translate {
-            transform = transform * Affine::translate((translate[0].evaluate(container_bounds, Axis::X), translate[1].evaluate(container_bounds, Axis::Y)));
-        }
+        //decompose vanilla affine matrix and pack into Affine
+        let (scale_x, scale_y) = if let Some(scale) = self.scale {
+            (scale[0], scale[1])
+        } else {
+            (1.0, 1.0)
+        };
 
+        let (skew_x, skew_y) = if let Some(skew) = self.skew {
+            (skew[0], skew[1])
+        } else {
+            (0.0, 0.0)
+        };
+
+        let rotate = if let Some(rotate) = self.rotate {
+            rotate
+        } else {
+            0.0
+        };
+
+        let (translate_x, translate_y) = if let Some(translate) = &self.translate {
+            (translate[0].evaluate(container_bounds, Axis::X), translate[1].evaluate(container_bounds, Axis::Y))
+        } else {
+            (0.0, 0.0)
+        };
+
+        let cos_theta = rotate.cos();
+        let sin_theta = rotate.sin();
+
+        // Elements for a combined scale and rotation
+        let a = scale_x * cos_theta - scale_y * skew_x * sin_theta;
+        let b = scale_x * sin_theta + scale_y * skew_x * cos_theta;
+        let c = -scale_y * sin_theta + scale_x * skew_y * cos_theta;
+        let d = scale_y * cos_theta + scale_x * skew_y * sin_theta;
+
+        // Translation
+        let e = translate_x;
+        let f = translate_y;
+
+        let coeffs =  [a, b, c, d, e, f];
+        let mut transform = Affine::new(coeffs);
+
+        // Compute and combine previous_transform
         let previous_transform = match &self.previous {
             Some(previous) => (*previous).compute_transform2d_matrix(node_size, container_bounds),
             None => Affine::default(),

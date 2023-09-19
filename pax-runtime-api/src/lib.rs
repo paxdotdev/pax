@@ -346,8 +346,8 @@ expose_property_identifiers! { // creates an impl `get_property_identifiers()`
         pub y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
         pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
         pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-        pub skew_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-        pub skew_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub skew_x: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
+        pub skew_y: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
         pub rotate: Option<Rc<RefCell<dyn PropertyInstance<Rotation>>>>,
         pub anchor_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
         pub anchor_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
@@ -543,12 +543,14 @@ impl Mul for Size {
 ///             for each of (x,y)
 #[derive(Default, Clone)]
 pub struct Transform2D {
+    /// Keeps track of a linked list of previous Transform2Ds, assembled e.g. via multiplication
     pub previous: Option<Box<Transform2D>>,
     /// Rotation is single-dimensional for 2D rendering, representing rotation over z axis
     pub rotate: Option<f64>,
     pub translate: Option<[Size; 2]>,
     pub anchor: Option<[Size; 2]>,
     pub scale: Option<[f64; 2]>,
+    pub skew: Option<[f64; 2]>,
 }
 
 impl Mul for Transform2D {
