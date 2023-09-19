@@ -224,7 +224,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     }
 
     fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
-        self.get_size()
+        Some((
+            self.common_properties.width.as_ref().unwrap().borrow().get().clone(),
+            self.common_properties.height.as_ref().unwrap().borrow().get().clone(),
+        ))
     }
 
     fn get_size(&self) -> Option<(Size, Size)> {
