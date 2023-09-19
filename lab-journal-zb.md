@@ -3360,18 +3360,18 @@ A.k.a. "Transform API ergo, syntax sugar"
 Currently, we special-case a handful of properties in the compiler like width and height. To make this more robust and to offer a declarative API for the "80%-case" of transform declarations (i.e. vs. the 20% case where custom sequencing is desired,)
 we can:
 
-[ ] introduce a CommonProperties struct, which includes: transform and each individual sugared transform operation (x, y, width, height, scale_x, scale_y, rotate, skew_x, skew_y, anchor_x, anchor_y — or possibly nested versions of these e.g. scale: {x:...y:...})
-    [ ] Refactor size: get_size to return Option<(Size, Size)>
-    [ ] Introduce Size#evaluate to DRY evaluation-given-bounds
-    [ ] Refactor get_clipping_bounds to match type of get_size
-    [ ] Default-impl get_size to call self.get_common_properties and to pull out `width` and `height` (also decide based on usage whether to pass `bounds` into `get_size(bounds)`
-    [ ] Do the same as the above for `get_transform` — note that get_transform is currently called exactly once, so we have leeway to change the interface substantially, easily
-    [ ] Refactor every impl of RenderNode (primitives + component primitive) to keep some state representing common_properties, and to return an Rc::clone of it when called
-        [ ] Remove the locally stored `transform` and `size` along the way
-    [ ] introduce a trait method on dyn RenderNode to get_common_properties.  likely refactor get_size and get_transform across the board, perhaps to fetch these values, or perhaps retiring them in favor of get_common_properties().size and ....transform [
-    [ ] update cartridge codegen to accommodate InstantiationArgs#common_properties
-[ ] in the workhorse rendering loop, combine declarative transforms into a matrix (we choose the sequence to match ergo expectations) and multiply that matrix with a transform property, if specified (a user should be able to specify both a transform matrix and individual properties; again we choose the best order in which to combine these)
-[ ] consider retiring Transform::align, and make Transform::translate accept Size values instead of floats (make it bounds-aware)
-[ ] where we special-case certain fields in the compiler when parsing element K/V declarations, now make sure that list of special-case properties meshes with the properties/types of `CommonProperties`.  Perhaps impl CommonProperties to return an ad-hoc, manually maintained "reflection" manifest of its properties (.reflect_on_properties)
-
+[x] introduce a CommonProperties struct, which includes: transform and each individual sugared transform operation (x, y, width, height, scale_x, scale_y, rotate, skew_x, skew_y, anchor_x, anchor_y — or possibly nested versions of these e.g. scale: {x:...y:...})
+    [x] Refactor size: get_size to return Option<(Size, Size)>
+    [x] Introduce Size#evaluate to DRY evaluation-given-bounds
+    [x] Refactor get_clipping_bounds to match type of get_size
+    [x] Default-impl get_size to call self.get_common_properties and to pull out `width` and `height` (also decide based on usage whether to pass `bounds` into `get_size(bounds)`
+    [x] Do the same as the above for `get_transform` — note that get_transform is currently called exactly once, so we have leeway to change the interface substantially, easily
+    [x] Refactor every impl of RenderNode (primitives + component primitive) to keep some state representing common_properties, and to return an Rc::clone of it when called
+        [x] Remove the locally stored `transform` and `size` along the way
+    [x] introduce a trait method on dyn RenderNode to get_common_properties.  likely refactor get_size and get_transform across the board, perhaps to fetch these values, or perhaps retiring them in favor of get_common_properties().size and ....transform [
+    [x] update cartridge codegen to accommodate InstantiationArgs#common_properties
+[ ] in the workhorse rendering loop, combine declarative transforms into a matrix (we choose the sequence to match ergo expectations) and multiply that matrix with a transform property, if specified (a user should be able to specify both a transform matrix and individual properties; again we choose the best order in which to combine these) 
+    [x] along the way, retire Transform::align and make Transform::translate accept Size values instead of floats (make it bounds-aware)
+    [x] where we special-case certain fields in the compiler when parsing element K/V declarations, now make sure that list of special-case properties meshes with the properties/types of `CommonProperties`.  Perhaps impl CommonProperties to return an ad-hoc, manually maintained "reflection" manifest of its properties (.reflect_on_properties)
+[ ] update website example to use updated APIs
 
