@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::{CommonProperties, ComponentInstance, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{Layer, PropertyInstance, PropertyLiteral, Size, Transform2D};
+use pax_runtime_api::{Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive associated with the `for` statement.

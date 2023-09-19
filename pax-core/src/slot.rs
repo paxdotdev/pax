@@ -7,7 +7,7 @@ use pax_properties_coproduct::TypesCoproduct;
 use piet_common::RenderContext;
 
 use crate::{CommonProperties, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
-use pax_runtime_api::{Layer, PropertyInstance, Size, Transform2D};
+use pax_runtime_api::{Layer, PropertyInstance, Size};
 
 /// A special "control-flow" primitive (a la `yield`) — represents a slot into which
 /// an adoptee can be rendered.  Slot relies on `adoptees` being present

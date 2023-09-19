@@ -752,7 +752,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         #[allow(unused)]
         let mut node_size: (f64, f64) = (0.0, 0.0);
         let node_computed_transform = {
-            let mut node_borrowed = rtc.node.borrow_mut();
+            let node_borrowed = rtc.node.borrow_mut();
             node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
             let components = node_borrowed
                 .get_common_properties()

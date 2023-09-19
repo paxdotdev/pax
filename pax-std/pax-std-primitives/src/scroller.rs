@@ -11,7 +11,7 @@ use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, CommonProperties};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 use pax_runtime_api::{
-    ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size, Transform2D,
+    ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size,
 };
 use pax_std::primitives::Scroller;
 
