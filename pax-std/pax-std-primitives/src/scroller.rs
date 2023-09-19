@@ -229,14 +229,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             self.common_properties
                 .width
                 .as_ref()
-                .unwrap()
                 .borrow()
                 .get()
                 .clone(),
             self.common_properties
                 .height
                 .as_ref()
-                .unwrap()
                 .borrow()
                 .get()
                 .clone(),
@@ -277,7 +275,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
-        let width = &mut *self.common_properties.width.as_ref().unwrap().borrow_mut();
+        let width = &mut *self.common_properties.width.as_ref().borrow_mut();
 
         if let Some(new_size) = rtc.compute_vtable_value(width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size {
@@ -288,7 +286,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             width.set(new_value);
         }
 
-        let height = &mut *self.common_properties.height.as_ref().unwrap().borrow_mut();
+        let height = &mut *self.common_properties.height.as_ref().borrow_mut();
         if let Some(new_size) = rtc.compute_vtable_value(height._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size {
                 v

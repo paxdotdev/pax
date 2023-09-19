@@ -344,8 +344,6 @@ expose_property_identifiers! { // creates an impl `get_property_identifiers()`
     pub struct CommonProperties {
         pub x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
         pub y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-        pub width: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-        pub height: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
         pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
         pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
         pub skew_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
@@ -354,6 +352,8 @@ expose_property_identifiers! { // creates an impl `get_property_identifiers()`
         pub anchor_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
         pub anchor_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
         pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+        pub width: Rc<RefCell<dyn PropertyInstance<Size>>>,
+        pub height:Rc<RefCell<dyn PropertyInstance<Size>>>,
     }
 }
 
@@ -362,8 +362,10 @@ impl CommonProperties {
         Self::get_property_identifiers().iter().map(|id|{
             if id == "transform" {
                 (id.to_string(), "Transform2D::default_wrapped()".to_string())
+            } else if id == "width" || id == "height" {
+                (id.to_string(), "Rc::new(RefCell::new(PropertyLiteral::new(Size::default())))".to_string())
             } else {
-                (id.to_string(), "None".to_string())
+                (id.to_string(), "Default::default()".to_string())
             }
         }).collect()
     }
@@ -374,8 +376,6 @@ impl Default for CommonProperties {
         Self {
             x: Default::default(),
             y: Default::default(),
-            width: Default::default(),
-            height: Default::default(),
             scale_x: Default::default(),
             scale_y: Default::default(),
             skew_x: Default::default(),
@@ -383,6 +383,10 @@ impl Default for CommonProperties {
             rotate: Default::default(),
             anchor_x: Default::default(),
             anchor_y: Default::default(),
+
+            width: Rc::new(RefCell::new(PropertyLiteral::new(Size::default()))),
+            height: Rc::new(RefCell::new(PropertyLiteral::new(Size::default()))),
+
             transform: Transform2D::default_wrapped(),
         }
     }
@@ -436,6 +440,7 @@ impl Default for Size {
         Self::Percent(100.0.into())
     }
 }
+
 
 impl From<Size> for SizePixels {
     fn from(value: Size) -> Self {
