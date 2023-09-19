@@ -4,12 +4,12 @@ use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::{
-    CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext, Runtime,
 };
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{Layer, Size, Timeline};
+use pax_runtime_api::{Layer, Size, Timeline, CommonProperties};
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `adoptees` and

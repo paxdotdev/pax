@@ -1,13 +1,13 @@
 use pax_core::pax_properties_coproduct::TypesCoproduct;
 use pax_core::{
-    CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext, TransformAndBounds,
 };
 use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pax_runtime_api::{Layer, Size};
+use pax_runtime_api::{Layer, Size, CommonProperties};
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.

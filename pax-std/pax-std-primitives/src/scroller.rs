@@ -9,11 +9,11 @@ use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, ScrollerPatch};
-use pax_runtime_api::{ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size};
+use pax_runtime_api::{ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size, CommonProperties};
 use pax_std::primitives::Scroller;
 
 /// A combination of a clipping area (nearly identical to a `Frame`,) and an

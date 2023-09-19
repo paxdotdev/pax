@@ -57,8 +57,8 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub properties_coproduct_variant: String,
     pub component_properties_struct: String,
     pub properties: Vec<(String, String)>,
-    pub size_ril: [String; 2],
-    pub transform_ril: String,
+    //0: property id (e.g. "width"), 1: property value literal RIL (e.g. "None" or "Some(Rc::new(...))"
+    pub common_properties_literal: Vec<(String, String)>,
     pub children_literal: Vec<String>,
     pub slot_index_literal: String,
     pub repeat_source_expression_literal_vec: String,

@@ -523,7 +523,8 @@ fn recurse_generate_render_nodes_literal(
         })
         .collect();
 
-    const DEFAULT_PROPERTY_LITERAL: &str = "PropertyLiteral::new(Default::default())";
+    const DEFAULT_PROPERTY_LITERAL: &str = "None";
+    const DEFAULT_TRANSFORM_LITERAL: &str = "PropertyLiteral::new(Default::default())";
 
     //pull inline event binding and store into map
     let events = generate_bound_events(tnd.settings.clone());
@@ -550,6 +551,8 @@ fn recurse_generate_render_nodes_literal(
             "None".into()
         };
 
+        let common_properties_literal = CommonProperties::get_default_properties_literal();
+
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
             snake_case_type_id: "UNREACHABLE".into(),
@@ -557,11 +560,7 @@ fn recurse_generate_render_nodes_literal(
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
             properties: vec![],
-            transform_ril: DEFAULT_PROPERTY_LITERAL.to_string(),
-            size_ril: [
-                DEFAULT_PROPERTY_LITERAL.to_string(),
-                DEFAULT_PROPERTY_LITERAL.to_string(),
-            ],
+            common_properties_literal,
             children_literal,
             slot_index_literal: "None".to_string(),
             conditional_boolean_expression_literal: "None".to_string(),
@@ -585,6 +584,8 @@ fn recurse_generate_render_nodes_literal(
             .condition_expression_vtable_id
             .unwrap();
 
+        let common_properties_literal = todo!();
+
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
             snake_case_type_id: "UNREACHABLE".into(),
@@ -592,11 +593,7 @@ fn recurse_generate_render_nodes_literal(
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
             properties: vec![],
-            transform_ril: DEFAULT_PROPERTY_LITERAL.to_string(),
-            size_ril: [
-                DEFAULT_PROPERTY_LITERAL.to_string(),
-                DEFAULT_PROPERTY_LITERAL.to_string(),
-            ],
+            common_properties_literal,
             children_literal,
             slot_index_literal: "None".to_string(),
             repeat_source_expression_literal_vec: "None".to_string(),
@@ -623,6 +620,8 @@ fn recurse_generate_render_nodes_literal(
             .slot_index_expression_vtable_id
             .unwrap();
 
+        let common_properties_literal = todo!();
+
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: true,
             snake_case_type_id: "UNREACHABLE".into(),
@@ -630,11 +629,7 @@ fn recurse_generate_render_nodes_literal(
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
             properties: vec![],
-            transform_ril: DEFAULT_PROPERTY_LITERAL.to_string(),
-            size_ril: [
-                DEFAULT_PROPERTY_LITERAL.to_string(),
-                DEFAULT_PROPERTY_LITERAL.to_string(),
-            ],
+            common_properties_literal,
             children_literal,
             slot_index_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
             repeat_source_expression_literal_vec: "None".to_string(),
@@ -712,7 +707,16 @@ fn recurse_generate_render_nodes_literal(
             .collect();
 
         //handle size: "width" and "height"
-        let keys = ["width", "height", "transform"];
+        //TODO:  expand built-ins to all of our sugared affine transform values
+        //       patch into template as RIL, similar to current width/height logic
+        //       consider whether we can simplify width/height logic, now that they are the same as other sugared values
+        //       handle the `Option`al nature of these values, refactoring `width` and `height` to support missing values
+        //       probably handle transform the same way we currently are
+        // let keys = ["width", "height", "transform"];
+
+
+        let keys = pax_runtime_api::CommonProperties::get_property_identifiers();
+        todo!("special-case transform vis-a-vis Option");
         let builtins_ril: Vec<String> = keys
             .iter()
             .map(|builtin_key| {
@@ -744,6 +748,7 @@ fn recurse_generate_render_nodes_literal(
             })
             .collect();
 
+        let common_properties_literal = todo!();
         //then, on the post-order traversal, press template string and return
         TemplateArgsCodegenCartridgeRenderNodeLiteral {
             is_primitive: component_for_current_node.is_primitive,
@@ -754,8 +759,7 @@ fn recurse_generate_render_nodes_literal(
             properties_coproduct_variant: component_for_current_node.type_id_escaped.to_string(),
             component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
             properties: property_ril_tuples,
-            transform_ril: builtins_ril[2].clone(),
-            size_ril: [builtins_ril[0].clone(), builtins_ril[1].clone()],
+            common_properties_literal,
             children_literal,
             slot_index_literal: "None".to_string(),
             repeat_source_expression_literal_vec: "None".to_string(),
@@ -1134,6 +1138,8 @@ pub fn perform_clean(path: &str) {
 }
 
 use std::sync::{Arc, Mutex};
+use pest::unicode::COMMON;
+use pax_runtime_api::CommonProperties;
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir

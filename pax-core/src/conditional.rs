@@ -2,11 +2,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{
-    CommonProperties, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
+    InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
     RenderTreeContext,
 };
 use pax_properties_coproduct::TypesCoproduct;
-use pax_runtime_api::{Layer, PropertyInstance, Size};
+use pax_runtime_api::{Layer, PropertyInstance, Size, CommonProperties};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a

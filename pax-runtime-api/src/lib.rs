@@ -294,6 +294,8 @@ pub enum Axis {
 }
 
 impl Size {
+    //Evaluate a Size in the context of `bounds` and a target `axis`.
+    //Returns a `Pixel` value as a simple f64; calculates `Percent` with respect to `bounds` & `axis`
     pub fn evaluate(&self, bounds: (f64, f64), axis: Axis) -> f64 {
         let target_bound = match axis {
             Axis::X => bounds.0,
@@ -305,6 +307,88 @@ impl Size {
         }
     }
 }
+
+
+
+
+macro_rules! expose_property_identifiers {
+    (
+        pub struct $name:ident {
+            $(
+                pub $field:ident : $ftype:ty,
+            )+
+        }
+    ) => {
+        pub struct $name {
+            $(
+                pub $field: $ftype,
+            )+
+        }
+
+        impl $name {
+            pub fn get_property_identifiers() -> Vec<String> {
+                vec![
+                    $(
+                        stringify!($field).to_string(),
+                    )+
+                ]
+            }
+        }
+    };
+}
+
+// Struct containing fields shared by all RenderNodes.
+// Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
+// Retrieved via <dyn RenderNode>#get_common_properties
+expose_property_identifiers! { // creates an impl `get_property_identifiers()`
+    pub struct CommonProperties {
+        pub x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub width: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub height: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub skew_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub skew_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub rotate: Option<Rc<RefCell<dyn PropertyInstance<Rotation>>>>,
+        pub anchor_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub anchor_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    }
+}
+
+impl CommonProperties {
+    pub fn get_default_properties_literal() -> Vec<(String, String)> {
+        Self::get_property_identifiers().iter().map(|id|{
+            if id == "transform" {
+                (id.to_string(), "Transform2D::default_wrapped()".to_string())
+            } else {
+                (id.to_string(), "None".to_string())
+            }
+        }).collect()
+    }
+}
+
+impl Default for CommonProperties {
+    fn default() -> Self {
+        Self {
+            x: Default::default(),
+            y: Default::default(),
+            width: Default::default(),
+            height: Default::default(),
+            scale_x: Default::default(),
+            scale_y: Default::default(),
+            skew_x: Default::default(),
+            skew_y: Default::default(),
+            rotate: Default::default(),
+            anchor_x: Default::default(),
+            anchor_y: Default::default(),
+            transform: Transform2D::default_wrapped(),
+        }
+    }
+}
+
+
 
 pub enum Rotation {
     Radians(Numeric),
