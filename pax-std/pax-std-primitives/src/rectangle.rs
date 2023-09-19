@@ -6,7 +6,6 @@ use pax_core::{
     unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext, CommonProperties,
 };
-use pax_runtime_api::{PropertyInstance};
 use pax_std::primitives::Rectangle;
 use pax_std::types::{Fill, RectangleCornerRadii};
 
