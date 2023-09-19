@@ -50,7 +50,6 @@ pub trait PropertyInstance<T: Default + Clone> {
     // ease_to_default: set back to default value via interpolation
 }
 
-
 impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
     fn default() -> Box<dyn PropertyInstance<T>> {
         Box::new(PropertyLiteral::new(Default::default()))
@@ -302,7 +301,6 @@ pub enum Rotation {
     Radians(Numeric),
     Degrees(Numeric),
 }
-
 
 impl Size {
     pub fn get_pixels(&self, parent: f64) -> f64 {

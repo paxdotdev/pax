@@ -1,7 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{CommonProperties, ComponentInstance, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use crate::{
+    CommonProperties, ComponentInstance, InstantiationArgs, RenderNode, RenderNodePtr,
+    RenderNodePtrList, RenderTreeContext,
+};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
@@ -23,7 +26,6 @@ pub struct RepeatInstance<R: 'static + RenderContext> {
     cached_old_value_vec: Option<Vec<Rc<PropertiesCoproduct>>>,
     cached_old_value_range: Option<std::ops::Range<isize>>,
     cached_old_bounds: (f64, f64),
-
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {

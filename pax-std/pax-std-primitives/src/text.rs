@@ -1,7 +1,10 @@
 use std::cell::RefCell;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, CommonProperties};
+use pax_core::{
+    unsafe_unwrap, CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    RenderNodePtrList, RenderTreeContext,
+};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{Layer, SizePixels};
 use pax_std::primitives::Text;
@@ -26,7 +29,6 @@ pub struct TextInstance<R: 'static + RenderContext> {
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
-
     fn get_common_properties(&self) -> &CommonProperties {
         &self.common_properties
     }

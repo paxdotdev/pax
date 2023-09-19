@@ -8,7 +8,10 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::TypesCoproduct;
-use pax_core::{CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use pax_core::{
+    CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    RenderNodePtrList, RenderTreeContext,
+};
 use pax_message::{AnyCreatePatch, FramePatch};
 use pax_runtime_api::{Layer, Size};
 
@@ -136,7 +139,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let width = &mut *self.common_properties.width.as_ref().unwrap().as_ref().borrow_mut();
+        let width = &mut *self
+            .common_properties
+            .width
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .borrow_mut();
         if let Some(new_width) = rtc.compute_vtable_value(width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_width {
                 v
@@ -146,7 +155,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
             width.set(new_value);
         }
 
-        let height = &mut *self.common_properties.height.as_ref().unwrap().as_ref().borrow_mut();
+        let height = &mut *self
+            .common_properties
+            .height
+            .as_ref()
+            .unwrap()
+            .as_ref()
+            .borrow_mut();
         if let Some(new_height) = rtc.compute_vtable_value(height._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_height {
                 v

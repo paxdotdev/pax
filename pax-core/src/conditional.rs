@@ -1,7 +1,10 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{CommonProperties, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use crate::{
+    CommonProperties, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
+    RenderTreeContext,
+};
 use pax_properties_coproduct::TypesCoproduct;
 use pax_runtime_api::{Layer, PropertyInstance, Size};
 use piet_common::RenderContext;

@@ -1,5 +1,8 @@
 use pax_core::pax_properties_coproduct::TypesCoproduct;
-use pax_core::{CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, TransformAndBounds};
+use pax_core::{
+    CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    RenderNodePtrList, RenderTreeContext, TransformAndBounds,
+};
 use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;

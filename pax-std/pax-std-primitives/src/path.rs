@@ -2,8 +2,11 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, CommonProperties};
-use pax_runtime_api::{Size};
+use pax_core::{
+    unsafe_unwrap, CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    RenderNodePtrList, RenderTreeContext,
+};
+use pax_runtime_api::Size;
 use pax_std::primitives::Path;
 use pax_std::types::PathSegment;
 
@@ -22,7 +25,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for PathInstance<R> {
     fn get_common_properties(&self) -> &CommonProperties {
         &self.common_properties
     }
-    
+
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
