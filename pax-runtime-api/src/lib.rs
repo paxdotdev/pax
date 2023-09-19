@@ -50,6 +50,7 @@ pub trait PropertyInstance<T: Default + Clone> {
     // ease_to_default: set back to default value via interpolation
 }
 
+
 impl<T: Default + Clone + 'static> Default for Box<dyn PropertyInstance<T>> {
     fn default() -> Box<dyn PropertyInstance<T>> {
         Box::new(PropertyLiteral::new(Default::default()))
@@ -289,6 +290,21 @@ pub enum Size {
 }
 
 impl Size {
+    pub fn evaluate(&self, bounds: (f64, f64)) -> f64 {
+        match &self {
+            Size::Pixels(num) => num.get_as_float(),
+            Size::Percent(num) => bounds.0 * (*num / 100.0),
+        }
+    }
+}
+
+pub enum Rotation {
+    Radians(Numeric),
+    Degrees(Numeric),
+}
+
+
+impl Size {
     pub fn get_pixels(&self, parent: f64) -> f64 {
         match &self {
             Self::Pixels(p) => p.get_as_float(),
@@ -418,11 +434,6 @@ impl Mul for Size {
         }
     }
 }
-
-// More than just a tuble of (Size, Size),
-// Size2D wraps up Properties as well to make it easy
-// to declare expressable Size properties
-pub type Size2D = Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>;
 
 /// A sugary representation of an Affine transform+, including
 /// `anchor` and `align` as layout-computed properties.

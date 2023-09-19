@@ -1,12 +1,9 @@
 use std::cell::RefCell;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
-};
+use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, CommonProperties};
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{Layer, PropertyInstance, Size2D, SizePixels, Transform2D};
+use pax_runtime_api::{Layer, PropertyInstance, SizePixels, Transform2D};
 use pax_std::primitives::Text;
 use piet::RenderContext;
 use std::collections::HashMap;
@@ -20,10 +17,7 @@ pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
     pub properties: Rc<RefCell<Text>>,
-
-    pub size: Size2D,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-
+    pub common_properties: CommonProperties,
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
@@ -32,6 +26,11 @@ pub struct TextInstance<R: 'static + RenderContext> {
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
+
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
+    }
+
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -46,9 +45,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(TextInstance {
             instance_id,
-            transform: args.transform,
             properties: Rc::new(RefCell::new(properties)),
-            size: args.size.expect("Text requires a size"),
+            common_properties: args.common_properties,
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
         }));
@@ -60,13 +58,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
-    fn get_size(&self) -> Option<Size2D> {
-        Some(Rc::clone(&self.size))
-    }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
-    }
-
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
@@ -179,29 +170,28 @@ impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
             style_link.align_horizontal.set(new_value);
         }
 
-        let size = &mut *self.size.as_ref().borrow_mut();
+        let width = &mut *self.common_properties.width.as_ref().unwrap().borrow_mut();
 
-        if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
+        if let Some(new_size) = rtc.compute_vtable_value(width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size {
                 v
             } else {
                 unreachable!()
             };
-
-            size[0].set(new_value);
+            width.set(new_value);
         }
 
-        if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
+        let height = &mut *self.common_properties.height.as_ref().unwrap().borrow_mut();
+        if let Some(new_size) = rtc.compute_vtable_value(height._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size {
                 v
             } else {
                 unreachable!()
             };
-
-            size[1].set(new_value);
+            height.set(new_value);
         }
 
-        let transform = &mut *self.transform.as_ref().borrow_mut();
+        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
                 v

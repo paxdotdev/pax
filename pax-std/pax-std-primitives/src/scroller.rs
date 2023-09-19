@@ -8,13 +8,10 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
-};
+use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, CommonProperties};
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 use pax_runtime_api::{
-    ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size, Size2D, Transform2D,
+    ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size, Transform2D,
 };
 use pax_std::primitives::Scroller;
 
@@ -27,8 +24,7 @@ use pax_std::primitives::Scroller;
 pub struct ScrollerInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub children: RenderNodePtrList<R>,
-    pub size: Size2D,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub common_properties: CommonProperties,
     pub properties: Rc<RefCell<Scroller>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub scroll_x: f64,
@@ -39,6 +35,10 @@ pub struct ScrollerInstance<R: 'static + RenderContext> {
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
+    }
+
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -64,8 +64,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             children: args
                 .children
                 .expect("Scroller expects primitive_children, even if empty Vec"),
-            size: args.size.expect("Scroller requires size"),
-            transform: args.transform,
+            common_properties: args.common_properties,
             properties: Rc::new(RefCell::new(properties)),
             last_patches: HashMap::new(),
             handler_registry: args.handler_registry,
@@ -224,19 +223,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         Rc::clone(&self.children)
     }
 
-    fn get_clipping_bounds(&self) -> Option<Size2D> {
-        Some(Rc::clone(&self.size))
+    fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
+        self.get_size()
     }
 
-    fn get_size(&self) -> Option<Size2D> {
-        Some(Rc::new(RefCell::new([
-            self.properties.as_ref().borrow().size_inner_pane_x.clone(),
-            self.properties.as_ref().borrow().size_inner_pane_y.clone(),
-        ])))
-    }
-
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
+    fn get_size(&self) -> Option<(Size, Size)> {
+        Some((
+            self.properties.as_ref().borrow().size_inner_pane_x.get().clone(),
+            self.properties.as_ref().borrow().size_inner_pane_y.get().clone(),
+        ))
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
@@ -256,24 +251,25 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
-        let size = &mut *self.size.as_ref().borrow_mut();
+        let width = &mut *self.common_properties.width.as_ref().unwrap().borrow_mut();
 
-        if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
+        if let Some(new_size) = rtc.compute_vtable_value(width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size {
                 v
             } else {
                 unreachable!()
             };
-            size[0].set(new_value);
+            width.set(new_value);
         }
 
-        if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
+        let height = &mut *self.common_properties.height.as_ref().unwrap().borrow_mut();
+        if let Some(new_size) = rtc.compute_vtable_value(height._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size {
                 v
             } else {
                 unreachable!()
             };
-            size[1].set(new_value);
+            height.set(new_value);
         }
 
         if let Some(new_size) =
@@ -320,7 +316,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             properties.scroll_enabled_y.set(new_value);
         }
 
-        let transform = &mut *self.transform.as_ref().borrow_mut();
+        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
                 v

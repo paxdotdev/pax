@@ -1,12 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{
-    ComponentInstance, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
-    RenderTreeContext,
-};
+use crate::{CommonProperties, ComponentInstance, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{Layer, PropertyInstance, PropertyLiteral, Size2D, Transform2D};
+use pax_runtime_api::{Layer, PropertyInstance, PropertyLiteral, Size, Transform2D};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive associated with the `for` statement.
@@ -17,20 +14,25 @@ use piet_common::RenderContext;
 pub struct RepeatInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub repeated_template: RenderNodePtrList<R>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub source_expression_vec: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
     pub source_expression_range: Option<Box<dyn PropertyInstance<std::ops::Range<isize>>>>,
     pub active_children: RenderNodePtrList<R>,
     pub cleanup_children: RenderNodePtrList<R>,
+    pub common_properties: CommonProperties,
     /// Used for hacked dirty-checking, in the absence of our centralized dirty-checker
     cached_old_value_vec: Option<Vec<Rc<PropertiesCoproduct>>>,
     cached_old_value_range: Option<std::ops::Range<isize>>,
     cached_old_bounds: (f64, f64),
+
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
+    }
+
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
@@ -45,7 +47,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 None => Rc::new(RefCell::new(vec![])),
                 Some(children) => children,
             },
-            transform: args.transform,
+            common_properties: args.common_properties,
             source_expression_vec: args.repeat_source_expression_vec,
             source_expression_range: args.repeat_source_expression_range,
             active_children: Rc::new(RefCell::new(vec![])),
@@ -149,15 +151,14 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                     .enumerate()
                     .map(|(i, datum)| {
                         let instance_id = instance_registry.mint_id();
+                        let common_properties = CommonProperties::default();
 
                         let render_node: RenderNodePtr<R> =
                             Rc::new(RefCell::new(ComponentInstance {
                                 instance_id,
                                 children: Rc::clone(&forwarded_children),
                                 template: Rc::clone(&self.repeated_template),
-                                transform: Rc::new(RefCell::new(PropertyLiteral::new(
-                                    Transform2D::default(),
-                                ))),
+                                common_properties,
                                 properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(
                                     Rc::clone(datum),
                                     i,
@@ -194,14 +195,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         self.cleanup_children = Rc::new(RefCell::new(vec![]));
         ret
     }
-    fn get_size(&self) -> Option<Size2D> {
+    fn get_size(&self) -> Option<(Size, Size)> {
         None
     }
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         bounds
-    }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
     }
     fn get_layer_type(&mut self) -> Layer {
         Layer::DontCare

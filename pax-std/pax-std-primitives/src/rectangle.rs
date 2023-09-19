@@ -4,9 +4,9 @@ use piet::{LinearGradient, RadialGradient, RenderContext};
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
     unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
+    RenderNodePtrList, RenderTreeContext, CommonProperties,
 };
-use pax_runtime_api::{PropertyInstance, Size, Size2D, Transform2D};
+use pax_runtime_api::{PropertyInstance, Size, Transform2D};
 use pax_std::primitives::Rectangle;
 use pax_std::types::{Fill, RectangleCornerRadii};
 
@@ -19,11 +19,14 @@ pub struct RectangleInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
     pub properties: Rc<RefCell<Rectangle>>,
-    pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub common_properties: CommonProperties,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
+    }
+
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -41,10 +44,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(RectangleInstance {
             instance_id,
-            transform: args.transform,
             properties: Rc::new(RefCell::new(properties)),
-            size: args.size.expect("Rectangle requires a size"),
             handler_registry: args.handler_registry,
+            common_properties: args.common_properties,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -57,12 +59,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
             _ => None,
         }
     }
-    fn get_size(&self) -> Option<Size2D> {
-        Some(Rc::clone(&self.size))
-    }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
-    }
+
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
@@ -89,15 +86,25 @@ impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
             properties.fill.set(new_value);
         }
 
-        let size = &mut *self.size.as_ref().borrow_mut();
+        let width = &mut *self.common_properties.width.as_ref().unwrap().borrow_mut();
 
-        if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
+        if let Some(new_size) = rtc.compute_vtable_value(width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size {
                 v
             } else {
                 unreachable!()
             };
-            size[0].set(new_value);
+            width.set(new_value);
+        }
+
+        let height = &mut *self.common_properties.height.as_ref().unwrap().borrow_mut();
+        if let Some(new_size) = rtc.compute_vtable_value(height._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_size {
+                v
+            } else {
+                unreachable!()
+            };
+            height.set(new_value);
         }
 
         if let Some(top_right) =
@@ -139,16 +146,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
             properties.corner_radii.set(new_value);
         }
 
-        if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            size[1].set(new_value);
-        }
-
-        let transform = &mut *self.transform.as_ref().borrow_mut();
+        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
                 v

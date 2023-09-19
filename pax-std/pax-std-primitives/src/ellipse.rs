@@ -2,11 +2,8 @@ use kurbo::{Ellipse as KurboEllipse, Rect, Shape};
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{
-    unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
-};
-use pax_runtime_api::{PropertyInstance, Size, Size2D, Transform2D};
+use pax_core::{unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, CommonProperties};
+use pax_runtime_api::{PropertyInstance, Size, Transform2D};
 use pax_std::primitives::Ellipse;
 use pax_std::types::ColorVariant;
 
@@ -19,13 +16,16 @@ pub struct EllipseInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
     pub properties: Rc<RefCell<Ellipse>>,
-    pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub common_properties: CommonProperties,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for EllipseInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
+    }
+
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
     }
 
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
@@ -41,10 +41,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for EllipseInstance<R> {
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(EllipseInstance {
             instance_id,
-            transform: args.transform,
             properties: Rc::new(RefCell::new(properties)),
-            size: args.size.expect("Ellipse requires a size"),
             handler_registry: args.handler_registry,
+            common_properties: args.common_properties,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -56,12 +55,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for EllipseInstance<R> {
             Some(registry) => Some(Rc::clone(registry)),
             _ => None,
         }
-    }
-    fn get_size(&self) -> Option<Size2D> {
-        Some(Rc::clone(&self.size))
-    }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
     }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let properties = &mut *self.properties.as_ref().borrow_mut();
@@ -89,27 +82,28 @@ impl<R: 'static + RenderContext> RenderNode<R> for EllipseInstance<R> {
             properties.fill.set(new_value);
         }
 
-        let size = &mut *self.size.as_ref().borrow_mut();
+        let width = &mut *self.common_properties.width.as_ref().unwrap().borrow_mut();
 
-        if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
+        if let Some(new_size) = rtc.compute_vtable_value(width._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size {
                 v
             } else {
                 unreachable!()
             };
-            size[0].set(new_value);
+            width.set(new_value);
         }
 
-        if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
+        let height = &mut *self.common_properties.height.as_ref().unwrap().borrow_mut();
+        if let Some(new_size) = rtc.compute_vtable_value(height._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Size(v) = new_size {
                 v
             } else {
                 unreachable!()
             };
-            size[1].set(new_value);
+            height.set(new_value);
         }
 
-        let transform = &mut *self.transform.as_ref().borrow_mut();
+        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
                 v

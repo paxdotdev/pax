@@ -1,9 +1,9 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use crate::{CommonProperties, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_properties_coproduct::TypesCoproduct;
-use pax_runtime_api::{Layer, PropertyInstance, Size2D, Transform2D};
+use pax_runtime_api::{Layer, PropertyInstance, Size, Transform2D};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive, Conditional (`if`) allows for a
@@ -18,13 +18,16 @@ pub struct ConditionalInstance<R: 'static + RenderContext> {
     pub true_branch_children: RenderNodePtrList<R>,
     pub false_branch_children: RenderNodePtrList<R>,
     pub cleanup_children: RenderNodePtrList<R>,
-
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub common_properties: CommonProperties,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
+    }
+
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
@@ -39,7 +42,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
                 None => Rc::new(RefCell::new(vec![])),
                 Some(children) => children,
             },
-            transform: args.transform,
+            common_properties: args.common_properties,
             boolean_expression: args
                 .conditional_boolean_expression
                 .expect("Conditional requires boolean_expression"),
@@ -93,14 +96,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
         self.cleanup_children = Rc::new(RefCell::new(vec![]));
         ret
     }
-    fn get_size(&self) -> Option<Size2D> {
+    fn get_size(&self) -> Option<(Size, Size)> {
         None
     }
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         bounds
-    }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
     }
 
     fn get_layer_type(&mut self) -> Layer {

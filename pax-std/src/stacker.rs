@@ -1,7 +1,7 @@
 use crate::primitives::Frame;
 use crate::types::{StackerCell, StackerDirection};
 use pax_lang::api::numeric::Numeric;
-use pax_lang::api::{Property, Size, Size2D, Transform2D};
+use pax_lang::api::{Property, Size, Transform2D};
 use pax_lang::*;
 use pax_runtime_api::RuntimeContext;
 
