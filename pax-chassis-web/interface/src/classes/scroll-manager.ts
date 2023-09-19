@@ -35,17 +35,23 @@ export class ScrollManager {
         });
     }
 
-      getScrollDelta(){
+    getScrollDelta() {
         let ret;
-        if(this.touching) {
+        if (this.touching) {
             ret = this.lastScrollTop - this.lastInterruptScrollTop;
             this.lastInterruptScrollTop = this.lastScrollTop;
         } else {
             const predictedScrollTop = this.interpolator.predict(Date.now());
-            ret = predictedScrollTop - this.lastInterruptScrollTop;
-            this.lastInterruptScrollTop = predictedScrollTop;
+            const lerpFactor = 0.95; 
+            const smoothedScrollTop = this.lerp(this.lastInterruptScrollTop, predictedScrollTop, lerpFactor);
+            ret = smoothedScrollTop - this.lastInterruptScrollTop;
+            this.lastInterruptScrollTop = smoothedScrollTop;
         }
         return ret;
+    }
+
+    private lerp(start: number, end: number, factor: number): number {
+        return start + factor * (end - start);
     }
 }
 
@@ -58,6 +64,7 @@ interface ScrollData {
 class HermiteInterpolator {
     private buffer: ScrollData[] = [];
     private initialTimestamp: number | null = null;
+    
 
     private normalizeTimestamp(timestamp: number): number {
         if (this.initialTimestamp === null) {
@@ -106,18 +113,15 @@ class HermiteInterpolator {
         const h11 = m * m * m - m * m;
 
         const predictedPosition = h00 * y0 + h10 * (t1 - t0) * this.buffer[this.buffer.length - 2].velocity + h01 * y1 + h11 * (t1 - t0) * this.buffer[this.buffer.length - 1].velocity;
-
-        // Calculate predicted velocity
+        
         let predictedVelocity = 0;
+
         if (this.buffer.length >= 2) {
-            predictedVelocity = (predictedPosition - this.buffer[this.buffer.length - 1].position) / (timestamp - t1);
+            predictedVelocity = (predictedPosition - y1) / (timestamp - t1);
         }
-        if(predictedVelocity < 5){
+        if (predictedVelocity < 10){
             return y1;
         }
-
-        // Store the predicted value in the buffer
-        this.buffer.push({ timestamp, position: predictedPosition, velocity: predictedVelocity });
 
         return predictedPosition;
     }
