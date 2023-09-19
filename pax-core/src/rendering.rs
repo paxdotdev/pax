@@ -378,22 +378,22 @@ pub trait RenderNode<R: 'static + RenderContext> {
 pub trait LifecycleNode {}
 
 pub trait ComputableTransform {
-    fn compute_transform_matrix(
+    fn compute_transform2d_matrix(
         &self,
         node_size: (f64, f64),
         container_bounds: (f64, f64),
-    ) -> (Affine, Affine);
+    ) -> Affine;
 }
 
 impl ComputableTransform for Transform2D {
     //Distinction of note: scale, translate, rotate, anchor, and align are all AUTHOR-TIME properties
     //                     node_size and container_bounds are (computed) RUNTIME properties
     //Returns (Base affine transform, align component)
-    fn compute_transform_matrix(
+    fn compute_transform2d_matrix(
         &self,
         node_size: (f64, f64),
         container_bounds: (f64, f64),
-    ) -> (Affine, Affine) {
+    ) -> Affine {
         let anchor_transform = match &self.anchor {
             Some(anchor) => Affine::translate((
                 match anchor[0] {
@@ -417,43 +417,16 @@ impl ComputableTransform for Transform2D {
             transform = transform * Affine::scale_non_uniform(scale[0], scale[1]);
         }
         if let Some(translate) = &self.translate {
-            transform = transform * Affine::translate((translate[0], translate[1]));
+            transform = transform * Affine::translate((translate[0].evaluate(container_bounds, Axis::X), translate[1].evaluate(container_bounds, Axis::Y)));
         }
 
-        //if this has an align component, return it.else {if previous has an align component, return it }
-
-        let (previous_transform, previous_align_component) = match &self.previous {
-            Some(previous) => (*previous).compute_transform_matrix(node_size, container_bounds),
-            None => (Affine::default(), Affine::default()),
+        let previous_transform = match &self.previous {
+            Some(previous) => (*previous).compute_transform2d_matrix(node_size, container_bounds),
+            None => Affine::default(),
         };
 
-        let align_component = match &self.align {
-            Some(align) => {
-                let x_percent = if let Size::Percent(x) = align[0] {
-                    x / 100.0
-                } else {
-                    panic!("Align requires a Size::Percent value")
-                };
-                let y_percent = if let Size::Percent(y) = align[1] {
-                    y / 100.0
-                } else {
-                    panic!("Align requires a Size::Percent value")
-                };
-                Affine::translate((
-                    x_percent * container_bounds.0,
-                    y_percent * container_bounds.1,
-                ))
-            }
-            None => {
-                previous_align_component //which defaults to identity
-            }
-        };
+        anchor_transform * transform * previous_transform
 
-        //align component is passed separately because it is global for a given sequence of Transform operations
-        (
-            anchor_transform * transform * previous_transform,
-            align_component,
-        )
     }
 }
 

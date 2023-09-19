@@ -541,22 +541,13 @@ impl Mul for Size {
 ///             By default that's the top-left of the element, but `anchor` allows that
 ///             to be offset either by a pixel or percentage-of-element-size
 ///             for each of (x,y)
-/// `align`     the offset of this element's `anchor` as it relates to the element's parent.
-///             By default this is the top-left corner of the parent container,
-///             but can be set to be any value [0,1] for each of (x,y), representing
-///             the percentage (between 0.0 and 1.0) multiplied by the parent container size.
-///             For example, an align of (0.5, 0.5) will center an element's `anchor` point both vertically
-///             and horizontally within the parent container.  Combined with an anchor of (Size::Percent(50.0), Size::Percent(50.0)),
-///             an element will appear fully centered within its parent.
 #[derive(Default, Clone)]
 pub struct Transform2D {
-    //Literal
     pub previous: Option<Box<Transform2D>>,
+    /// Rotation is single-dimensional for 2D rendering, representing rotation over z axis
     pub rotate: Option<f64>,
-    ///over z axis
-    pub translate: Option<[f64; 2]>,
+    pub translate: Option<[Size; 2]>,
     pub anchor: Option<[Size; 2]>,
-    pub align: Option<[Size; 2]>,
     pub scale: Option<[f64; 2]>,
 }
 
@@ -584,16 +575,9 @@ impl Transform2D {
         ret
     }
     ///Translation across x-y plane, pixels
-    pub fn translate(x: Numeric, y: Numeric) -> Self {
+    pub fn translate(x: Size, y: Size) -> Self {
         let mut ret = Transform2D::default();
-        ret.translate = Some([x.get_as_float(), y.get_as_float()]);
-        ret
-    }
-    ///Describe alignment within parent bounding box, as a starting point before
-    /// affine transformations are applied
-    pub fn align(x: Size, y: Size) -> Self {
-        let mut ret = Transform2D::default();
-        ret.align = Some([x, y]);
+        ret.translate = Some([x, y]);
         ret
     }
     ///Describe alignment of the (0,0) position of this element as it relates to its own bounding box
