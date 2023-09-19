@@ -17,8 +17,8 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
         rotate: None,
         x: None,
         y: None,
-        shear_x: None,
-        shear_y: None,
+        skew_x: None,
+        skew_y: None,
     },
     properties: PropertiesCoproduct::{{ properties_coproduct_variant }}
     {% if properties_coproduct_variant != "None" %}

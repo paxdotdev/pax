@@ -3360,7 +3360,7 @@ A.k.a. "Transform API ergo, syntax sugar"
 Currently, we special-case a handful of properties in the compiler like width and height. To make this more robust and to offer a declarative API for the "80%-case" of transform declarations (i.e. vs. the 20% case where custom sequencing is desired,)
 we can:
 
-[ ] introduce a CommonProperties struct, which includes: transform and each individual sugared transform operation (x, y, width, height, scale_x, scale_y, rotate, shear_x, shear_y, anchor_x, anchor_y — or possibly nested versions of these e.g. scale: {x:...y:...})
+[ ] introduce a CommonProperties struct, which includes: transform and each individual sugared transform operation (x, y, width, height, scale_x, scale_y, rotate, skew_x, skew_y, anchor_x, anchor_y — or possibly nested versions of these e.g. scale: {x:...y:...})
     [ ] Refactor size: get_size to return Option<(Size, Size)>
     [ ] Introduce Size#evaluate to DRY evaluation-given-bounds
     [ ] Refactor get_clipping_bounds to match type of get_size
