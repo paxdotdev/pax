@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, CommonProperties};
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{Layer, PropertyInstance, SizePixels, Transform2D};
+use pax_runtime_api::{Layer, PropertyInstance, SizePixels};
 use pax_std::primitives::Text;
 use piet::RenderContext;
 use std::collections::HashMap;

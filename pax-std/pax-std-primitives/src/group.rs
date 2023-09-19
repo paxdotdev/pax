@@ -4,7 +4,7 @@ use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pax_runtime_api::{Layer, PropertyInstance, Size, Transform2D};
+use pax_runtime_api::{Layer, PropertyInstance, Size};
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
