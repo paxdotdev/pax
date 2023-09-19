@@ -288,11 +288,20 @@ pub enum Size {
     Percent(Numeric),
 }
 
+pub enum Axis {
+    X,
+    Y,
+}
+
 impl Size {
-    pub fn evaluate(&self, bounds: (f64, f64)) -> f64 {
+    pub fn evaluate(&self, bounds: (f64, f64), axis: Axis) -> f64 {
+        let target_bound = match axis {
+            Axis::X => bounds.0,
+            Axis::Y => bounds.1,
+        };
         match &self {
             Size::Pixels(num) => num.get_as_float(),
-            Size::Percent(num) => bounds.0 * (*num / 100.0),
+            Size::Percent(num) => target_bound * (*num / 100.0),
         }
     }
 }
