@@ -5,10 +5,11 @@ use std::rc::Rc;
 
 use kurbo::{Affine, Point};
 use pax_properties_coproduct::PropertiesCoproduct;
+use pax_runtime_api::Transform2D;
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
-use pax_runtime_api::{ArgsScroll, Layer, Size, Size2D};
+use pax_runtime_api::{ArgsScroll, Layer, Size, Rotation};
 
 use crate::{HandlerRegistry, InstanceRegistry, RenderTreeContext};
 
@@ -25,16 +26,13 @@ pub struct ScrollerArgs {
 }
 
 pub struct InstantiationArgs<R: 'static + RenderContext> {
+    pub common_properties: CommonProperties,
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub size: Option<Size2D>,
     pub children: Option<RenderNodePtrList<R>>,
     pub component_template: Option<RenderNodePtrList<R>>,
-
     pub scroller_args: Option<ScrollerArgs>,
-
     /// used by Slot
     pub slot_index: Option<Box<dyn PropertyInstance<pax_runtime_api::Numeric>>>,
 
@@ -168,6 +166,43 @@ impl TransformAndBounds {
     }
 }
 
+/// Struct containing fields shared by all RenderNodes.
+/// Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
+/// Retrieved via <dyn RenderNode>#get_common_properties
+pub struct CommonProperties {
+    pub x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub width: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub height: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub shear_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub shear_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub rotate: Option<Rc<RefCell<dyn PropertyInstance<Rotation>>>>,
+    pub anchor_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub anchor_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub transform: Rc<RefCell<dyn PropertyInstance<pax_runtime_api::Transform2D>>>,
+}
+
+impl Default for CommonProperties {
+    fn default() -> Self {
+        Self {
+            x: Default::default(),
+            y: Default::default(),
+            width: Default::default(),
+            height: Default::default(),
+            scale_x: Default::default(),
+            scale_y: Default::default(),
+            shear_x: Default::default(),
+            shear_y: Default::default(),
+            rotate: Default::default(),
+            anchor_x: Default::default(),
+            anchor_y: Default::default(),
+            transform: Rc::new(RefCell::new(pax_runtime_api::PropertyLiteral::new(pax_runtime_api::Transform2D::default()))),
+        }
+    }
+}
+
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
 /// T: a member of PropertiesCoproduct, representing the type of the set of properites
@@ -218,19 +253,23 @@ pub trait RenderNode<R: 'static + RenderContext> {
             && transformed_ray.y < relevant_bounds.1
     }
 
+    fn get_common_properties(&self) -> &CommonProperties;
+
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         None //default no-op
     }
 
     /// Used at least by ray-casting; only nodes that clip content (and thus should
     /// not allow outside content to respond to ray-casting) should return true
-    fn get_clipping_bounds(&self) -> Option<Size2D> {
+    fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
         None
     }
 
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
-    fn get_size(&self) -> Option<Size2D>;
+    fn get_size(&self) -> Option<(Size, Size)> {
+        Some((self.get_common_properties().width.as_ref().unwrap().borrow().get().clone(),self.get_common_properties().height.as_ref().unwrap().borrow().get().clone()))
+    }
 
     /// Returns unique integer ID of this RenderNode instance.  Note that
     /// individual rendered elements may share an instance_id, for example
@@ -258,14 +297,8 @@ pub trait RenderNode<R: 'static + RenderContext> {
         match self.get_size() {
             None => bounds,
             Some(size_raw) => (
-                match size_raw.borrow()[0].get() {
-                    Size::Pixels(width) => width.get_as_float(),
-                    Size::Percent(width) => bounds.0 * (*width / 100.0),
-                },
-                match size_raw.borrow()[1].get() {
-                    Size::Pixels(height) => height.get_as_float(),
-                    Size::Percent(height) => bounds.1 * (*height / 100.0),
-                },
+                size_raw.0.evaluate(bounds),
+                size_raw.1.evaluate(bounds),
             ),
         }
     }
@@ -276,20 +309,11 @@ pub trait RenderNode<R: 'static + RenderContext> {
         match self.get_clipping_bounds() {
             None => bounds,
             Some(size_raw) => (
-                match size_raw.borrow()[0].get() {
-                    Size::Pixels(width) => width.get_as_float(),
-                    Size::Percent(width) => bounds.0 * (*width / 100.0),
-                },
-                match size_raw.borrow()[1].get() {
-                    Size::Pixels(height) => height.get_as_float(),
-                    Size::Percent(height) => bounds.1 * (*height / 100.0),
-                },
+                size_raw.0.evaluate(bounds),
+                size_raw.1.evaluate(bounds),
             ),
         }
     }
-
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>>;
-
     /// First lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.
     /// Occurs in a pre-order traversal of the render tree.
@@ -382,7 +406,6 @@ pub trait RenderNode<R: 'static + RenderContext> {
 
 pub trait LifecycleNode {}
 
-use pax_runtime_api::Transform2D;
 
 pub trait ComputableTransform {
     fn compute_transform_matrix(

@@ -1,26 +1,27 @@
 use pax_core::pax_properties_coproduct::TypesCoproduct;
-use pax_core::{
-    HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
-    RenderTreeContext, TransformAndBounds,
-};
+use pax_core::{CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, TransformAndBounds};
 use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use pax_runtime_api::{Layer, PropertyInstance, Size2D, Transform2D};
+use pax_runtime_api::{Layer, PropertyInstance, Size, Transform2D};
 
 /// Gathers a set of children underneath a single render node:
 /// useful for composing transforms and simplifying render trees.
 pub struct GroupInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub primitive_children: RenderNodePtrList<R>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
+    pub common_properties: CommonProperties,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
+    }
+
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
     }
 
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
@@ -39,8 +40,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
                 None => Rc::new(RefCell::new(vec![])),
                 Some(children) => children,
             },
-            transform: args.transform,
             handler_registry: args.handler_registry,
+            common_properties: args.common_properties,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -64,18 +65,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
         Layer::DontCare
     }
 
-    fn get_size(&self) -> Option<Size2D> {
+    fn get_size(&self) -> Option<(Size, Size)> {
         None
     }
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         bounds
     }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
-    }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let transform = &mut *self.transform.as_ref().borrow_mut();
+        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
                 v

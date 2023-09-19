@@ -8,12 +8,9 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::TypesCoproduct;
-use pax_core::{
-    HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
-    RenderTreeContext,
-};
+use pax_core::{CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_message::{AnyCreatePatch, FramePatch};
-use pax_runtime_api::{Layer, PropertyInstance, Size2D, Transform2D};
+use pax_runtime_api::{Layer, PropertyInstance, Size, Transform2D};
 
 /// A primitive that gathers children underneath a single render node with a shared base transform,
 /// like [`Group`], except [`Frame`] has the option of clipping rendering outside
@@ -25,10 +22,9 @@ use pax_runtime_api::{Layer, PropertyInstance, Size2D, Transform2D};
 pub struct FrameInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub children: RenderNodePtrList<R>,
-    pub size: Size2D,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
 
+    pub common_properties: CommonProperties,
     last_patches: HashMap<Vec<u32>, FramePatch>,
 }
 
@@ -40,6 +36,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         }
     }
 
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
+    }
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -53,17 +52,16 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
             children: args.children.unwrap(), //Frame expects primitive_children, even if empty Vec
-            size: args.size.unwrap(),
-            transform: args.transform,
             last_patches: HashMap::new(),
             handler_registry: args.handler_registry,
+            common_properties: args.common_properties,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
         ret
     }
 
-    fn get_clipping_bounds(&self) -> Option<Size2D> {
+    fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
         self.get_size()
     }
 
@@ -137,36 +135,28 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         Rc::clone(&self.children)
     }
 
-    fn get_size(&self) -> Option<Size2D> {
-        Some(Rc::clone(&self.size))
-    }
-
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
-    }
-
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let size = &mut *self.size.as_ref().borrow_mut();
-
-        if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
+        let width = &mut *self.common_properties.width.as_ref().unwrap().as_ref().borrow_mut();
+        if let Some(new_width) = rtc.compute_vtable_value(width._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_width {
                 v
             } else {
                 unreachable!()
             };
-            size[0].set(new_value);
+            width.set(new_value);
         }
 
-        if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
+        let height = &mut *self.common_properties.height.as_ref().unwrap().as_ref().borrow_mut();
+        if let Some(new_height) = rtc.compute_vtable_value(height._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::Size(v) = new_height {
                 v
             } else {
                 unreachable!()
             };
-            size[1].set(new_value);
+            height.set(new_value);
         }
 
-        let transform = &mut *self.transform.as_ref().borrow_mut();
+        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
         if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
                 v

@@ -755,7 +755,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let mut node_borrowed = rtc.node.borrow_mut();
             node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
             let components = node_borrowed
-                .get_transform()
+                .get_common_properties()
+                .transform
                 .borrow_mut()
                 .get()
                 .compute_transform_matrix(node_size, accumulated_bounds);
