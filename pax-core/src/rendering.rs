@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use kurbo::{Affine, Point};
 use pax_properties_coproduct::PropertiesCoproduct;
-use pax_runtime_api::Transform2D;
+use pax_runtime_api::{Axis, Transform2D};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
@@ -311,7 +311,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         match self.get_size() {
             None => bounds,
-            Some(size_raw) => (size_raw.0.evaluate(bounds), size_raw.1.evaluate(bounds)),
+            Some(size_raw) => (size_raw.0.evaluate(bounds, Axis::X), size_raw.1.evaluate(bounds, Axis::Y)),
         }
     }
 
@@ -320,7 +320,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
     fn compute_clipping_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         match self.get_clipping_bounds() {
             None => bounds,
-            Some(size_raw) => (size_raw.0.evaluate(bounds), size_raw.1.evaluate(bounds)),
+            Some(size_raw) => (size_raw.0.evaluate(bounds, Axis::X), size_raw.1.evaluate(bounds, Axis::Y)),
         }
     }
     /// First lifecycle method during each render loop, used to compute
