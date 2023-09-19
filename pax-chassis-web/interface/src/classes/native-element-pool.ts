@@ -68,10 +68,10 @@ export class NativeElementPool {
     sendScrollerValues(){
         this.scrollers.forEach((scroller, id) => {
             // @ts-ignore
-            let deltaX = scroller.unsentX;
+            let deltaX = 0;
             // @ts-ignore
-            let deltaY = scroller.unsentY;
-            if(Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0){
+            let deltaY = scroller.getTickScrollDelta();
+            if(deltaY && Math.abs(deltaY) > 0){
                 const scrollEvent = this.objectManager.getFromPool(OBJECT);
                 const deltas: object = this.objectManager.getFromPool(OBJECT);
                 // @ts-ignore
@@ -85,8 +85,6 @@ export class NativeElementPool {
                 this.chassis.interrupt(scrollEventStringified, []);
                 this.objectManager.returnToPool(OBJECT, deltas);
                 this.objectManager.returnToPool(OBJECT, scrollEvent);
-                scroller.unsentX = 0;
-                scroller.unsentY = 0;
             }
         });
     }
