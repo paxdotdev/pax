@@ -13,7 +13,7 @@ use pax_runtime_api::RuntimeContext;
 #[inlined(
     for (cell_spec, i) in self._cell_specs {
         <Frame
-            transform={Transform2D::translate(cell_spec.x_px, cell_spec.y_px)}
+            transform={Transform2D::translate((cell_spec.x_px)px, (cell_spec.y_px)px)}
             width={(cell_spec.width_px)px}
             height={(cell_spec.height_px)px}
         >

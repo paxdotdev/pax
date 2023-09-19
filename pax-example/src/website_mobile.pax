@@ -2,11 +2,11 @@
     // Nav fixed overlay
     <Frame width=80% height=75px transform={
        Transform2D::anchor(50%, 0%) *
-       Transform2D::align(50%, 0%) *
-       Transform2D::translate(0.0, 25.0)
+       Transform2D::translate(50%, 0%) *
+       Transform2D::translate(0.0px, 25.0px)
     }>
          <Stacker cells=3 height=75px direction=StackerDirection::Horizontal gutter=8px>
-            <Image path="assets/images/pax-logo-light.png" width=75px height=25px transform={Transform2D::align(0%, 50%) * Transform2D::anchor(0%, 50%) * Transform2D::translate(20, 0)}/>
+            <Image path="assets/images/pax-logo-light.png" width=75px height=25px transform={Transform2D::translate(0%, 50%) * Transform2D::anchor(0%, 50%) * Transform2D::translate(20px, 0px)}/>
             <Text text="<a href='https://www.github.com/pax-lang/pax' target='_blank'>Github</a>" class=link />
             <Text text="<a href='https://developing.pax.rs' target='_blank'>Blog</a>" class=link />
          </Stacker>
@@ -119,7 +119,7 @@
         }
         width: 80px,
         height: 50px,
-        transform: {Transform2D::align(0%, 50%) * Transform2D::anchor(0%, 50%)}
+        transform: {Transform2D::translate(0%, 50%) * Transform2D::anchor(0%, 50%)}
     }
     #f0 {
         width: 100%,
@@ -129,21 +129,21 @@
         width: 85%,
         height: 90%,
         transform: {
-           Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 60%)
+           Transform2D::anchor(50%, 50%) * Transform2D::translate(50%, 60%)
         }
     }
     #f2 {
         width: 75%,
         height: 60%,
         transform: {
-           Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 40%)
+           Transform2D::anchor(50%, 50%) * Transform2D::translate(50%, 40%)
         }
     }
     #f3 {
         width: 75%,
         height: 70%,
         transform: {
-           Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 40%)
+           Transform2D::anchor(50%, 50%) * Transform2D::translate(50%, 40%)
         }
     }
     .h1 {
