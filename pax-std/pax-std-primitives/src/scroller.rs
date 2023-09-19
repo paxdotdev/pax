@@ -8,11 +8,12 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, CommonProperties};
-use pax_message::{AnyCreatePatch, ScrollerPatch};
-use pax_runtime_api::{
-    ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size,
+use pax_core::{
+    unsafe_unwrap, CommonProperties, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
+    RenderNodePtrList, RenderTreeContext,
 };
+use pax_message::{AnyCreatePatch, ScrollerPatch};
+use pax_runtime_api::{ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size};
 use pax_std::primitives::Scroller;
 
 /// A combination of a clipping area (nearly identical to a `Frame`,) and an
@@ -225,15 +226,37 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
     fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
         Some((
-            self.common_properties.width.as_ref().unwrap().borrow().get().clone(),
-            self.common_properties.height.as_ref().unwrap().borrow().get().clone(),
+            self.common_properties
+                .width
+                .as_ref()
+                .unwrap()
+                .borrow()
+                .get()
+                .clone(),
+            self.common_properties
+                .height
+                .as_ref()
+                .unwrap()
+                .borrow()
+                .get()
+                .clone(),
         ))
     }
 
     fn get_size(&self) -> Option<(Size, Size)> {
         Some((
-            self.properties.as_ref().borrow().size_inner_pane_x.get().clone(),
-            self.properties.as_ref().borrow().size_inner_pane_y.get().clone(),
+            self.properties
+                .as_ref()
+                .borrow()
+                .size_inner_pane_x
+                .get()
+                .clone(),
+            self.properties
+                .as_ref()
+                .borrow()
+                .size_inner_pane_y
+                .get()
+                .clone(),
         ))
     }
 

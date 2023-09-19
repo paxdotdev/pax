@@ -1018,11 +1018,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
             <&RunTarget as Into<&str>>::into(&ctx.target)
         );
     }
-    build_harness_with_chassis(
-        &pax_dir,
-        &ctx,
-        Arc::clone(&ctx.process_child_ids),
-    );
+    build_harness_with_chassis(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
 
     Ok(())
 }
@@ -1059,14 +1055,12 @@ fn build_harness_with_chassis(
     let harness_path = pax_dir
         .join(PAX_DIR_PKG_PATH)
         .join(format!("pax-chassis-{}", target_str_lower))
-        .join(
-            match ctx.target {
-                RunTarget::Web => "interface",
-                RunTarget::MacOS => "pax-dev-harness-macos",
-            }
-        );
+        .join(match ctx.target {
+            RunTarget::Web => "interface",
+            RunTarget::MacOS => "pax-dev-harness-macos",
+        });
 
-    let script =  match ctx.target {
+    let script = match ctx.target {
         RunTarget::Web => "./run-web.sh",
         RunTarget::MacOS => "./run-debuggable-mac-app.sh",
     };
@@ -1149,7 +1143,6 @@ pub fn build_chassis_with_cartridge(
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
 ) -> Output {
-
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();

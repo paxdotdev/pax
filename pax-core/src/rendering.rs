@@ -9,7 +9,7 @@ use pax_runtime_api::Transform2D;
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
-use pax_runtime_api::{ArgsScroll, Layer, Size, Rotation};
+use pax_runtime_api::{ArgsScroll, Layer, Rotation, Size};
 
 use crate::{HandlerRegistry, InstanceRegistry, RenderTreeContext};
 
@@ -268,7 +268,22 @@ pub trait RenderNode<R: 'static + RenderContext> {
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
     fn get_size(&self) -> Option<(Size, Size)> {
-        Some((self.get_common_properties().width.as_ref().unwrap().borrow().get().clone(),self.get_common_properties().height.as_ref().unwrap().borrow().get().clone()))
+        Some((
+            self.get_common_properties()
+                .width
+                .as_ref()
+                .unwrap()
+                .borrow()
+                .get()
+                .clone(),
+            self.get_common_properties()
+                .height
+                .as_ref()
+                .unwrap()
+                .borrow()
+                .get()
+                .clone(),
+        ))
     }
 
     /// Returns unique integer ID of this RenderNode instance.  Note that
@@ -296,10 +311,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         match self.get_size() {
             None => bounds,
-            Some(size_raw) => (
-                size_raw.0.evaluate(bounds),
-                size_raw.1.evaluate(bounds),
-            ),
+            Some(size_raw) => (size_raw.0.evaluate(bounds), size_raw.1.evaluate(bounds)),
         }
     }
 
@@ -308,10 +320,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
     fn compute_clipping_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         match self.get_clipping_bounds() {
             None => bounds,
-            Some(size_raw) => (
-                size_raw.0.evaluate(bounds),
-                size_raw.1.evaluate(bounds),
-            ),
+            Some(size_raw) => (size_raw.0.evaluate(bounds), size_raw.1.evaluate(bounds)),
         }
     }
     /// First lifecycle method during each render loop, used to compute
@@ -405,7 +414,6 @@ pub trait RenderNode<R: 'static + RenderContext> {
 }
 
 pub trait LifecycleNode {}
-
 
 pub trait ComputableTransform {
     fn compute_transform_matrix(
