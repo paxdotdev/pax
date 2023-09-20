@@ -82,7 +82,7 @@ selector = {("." | "#") ~ identifier}
 //Describes a key-value pair in a settings block, which supports a number of formats,
 //included recursive nesting via `property_block`
 settings_key_value_pair = { settings_key ~ settings_value ~ ","? }
-settings_key = { identifier ~ ":" }
+settings_key = { identifier ~ (":" | "=") } //Offer some grace here, since our borrowing of HTML/CSS semantics means we inherit the mismatch between xml-like `=` and json-like `:`.  Let's allow both and let linters deal with cleaning up mismatches.
 settings_value = { literal_value | literal_object | expression_wrapped }
 
 
