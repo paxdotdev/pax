@@ -36,7 +36,7 @@ async function startRenderLoop(wasmMod: typeof import('../dist/pax_chassis_web')
 
     let chassis = await wasmMod.PaxChassisWeb.new();
 
-    nativePool.build(chassis);
+    nativePool.build(chassis, is_mobile_device);
 
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
 }

@@ -1,59 +1,69 @@
-export class ScrollManager {
+interface PredictedTrajectory {
+    initialPosition: number;
+    initialVelocity: number;
+    startTime: number;
+}
 
+export class ScrollManager {
     private scrollContainer: HTMLDivElement;
     private interpolator: HermiteInterpolator;
+
     lastInterruptScrollTop: number = 0;
     lastScrollTop: number = 0;
-    touching: boolean = false;
+    predicting: boolean = false;
     count = 0;
+    stopped = false;
 
 
-    constructor(parent: HTMLDivElement){
+    constructor(parent: HTMLDivElement, isMobile: boolean) {
         this.scrollContainer = parent;
+
         this.interpolator = new HermiteInterpolator();
-
-        setInterval(() => {
-            // @ts-ignore
-            let currentScrollTop = this.scrollContainer.scrollTop;
-            if (currentScrollTop == this.lastScrollTop){
-                this.count++;
-            } else {
-                this.count = 0;
-            }
-            if(this.count < 3){
+        console.log(isMobile);
+        if (isMobile) {
+            setInterval(() => {
+                let currentScrollTop = this.scrollContainer.scrollTop;
                 this.interpolator.update(Date.now(), currentScrollTop);
-            }
-            this.lastScrollTop = currentScrollTop;
-        }, 0);
+                if (currentScrollTop == this.lastScrollTop) {
+                    this.count++;
+                } else {
+                    this.count = 0;
+                    this.stopped = false;
+                }
+                if (this.count > 3) {
+                    this.stopped = true;
+                }
+                this.lastScrollTop = currentScrollTop;
+            }, 1);
 
-        this.scrollContainer.addEventListener('touchstart', ()=>{
-            this.touching = true;
-        });
+            this.scrollContainer.addEventListener('touchstart', () => {
+                this.predicting = false;
+            });
 
-        this.scrollContainer.addEventListener('touchend', ()=>{
-            this.touching = false;
-        });
+            this.scrollContainer.addEventListener('touchend', () => {
+                this.predicting = true;
+            });
+        } else {
+            setInterval(() => {
+                this.lastScrollTop = this.scrollContainer.scrollTop;
+            }, 0);
+        }
     }
 
     getScrollDelta() {
         let ret;
-        if (this.touching) {
+        if (!this.predicting || this.stopped) {
             ret = this.lastScrollTop - this.lastInterruptScrollTop;
             this.lastInterruptScrollTop = this.lastScrollTop;
         } else {
-            const predictedScrollTop = this.interpolator.predict(Date.now());
-            const lerpFactor = 0.95; 
-            const smoothedScrollTop = this.lerp(this.lastInterruptScrollTop, predictedScrollTop, lerpFactor);
-            ret = smoothedScrollTop - this.lastInterruptScrollTop;
-            this.lastInterruptScrollTop = smoothedScrollTop;
-        }
+            const predictedScrollTop =  this.interpolator.predict(Date.now());
+            ret = predictedScrollTop - this.lastInterruptScrollTop;
+            this.lastInterruptScrollTop = predictedScrollTop;
+       }
         return ret;
     }
-
-    private lerp(start: number, end: number, factor: number): number {
-        return start + factor * (end - start);
-    }
 }
+
 
 interface ScrollData {
     timestamp: number;
@@ -64,7 +74,6 @@ interface ScrollData {
 class HermiteInterpolator {
     private buffer: ScrollData[] = [];
     private initialTimestamp: number | null = null;
-    
 
     private normalizeTimestamp(timestamp: number): number {
         if (this.initialTimestamp === null) {
@@ -113,15 +122,15 @@ class HermiteInterpolator {
         const h11 = m * m * m - m * m;
 
         const predictedPosition = h00 * y0 + h10 * (t1 - t0) * this.buffer[this.buffer.length - 2].velocity + h01 * y1 + h11 * (t1 - t0) * this.buffer[this.buffer.length - 1].velocity;
-        
-        let predictedVelocity = 0;
 
+        // Calculate predicted velocity
+        let predictedVelocity = 0;
         if (this.buffer.length >= 2) {
-            predictedVelocity = (predictedPosition - y1) / (timestamp - t1);
+            predictedVelocity = (predictedPosition - this.buffer[this.buffer.length - 1].position) / (timestamp - t1);
         }
-        if (predictedVelocity < 10){
-            return y1;
-        }
+
+        // Store the predicted value in the buffer
+        //this.buffer.push({ timestamp, position: predictedPosition, velocity: predictedVelocity });
 
         return predictedPosition;
     }
