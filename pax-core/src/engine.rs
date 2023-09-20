@@ -16,12 +16,7 @@ use crate::{
 };
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{
-    ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
-    ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
-    ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Interpolatable, Layer, RuntimeContext,
-    TransitionManager, ZIndex,
-};
+use pax_runtime_api::{ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -751,7 +746,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             .compute_size_within_bounds(accumulated_bounds);
         #[allow(unused)]
         let mut node_size: (f64, f64) = (0.0, 0.0);
-        let node_computed_transform = {
+
+        // From the `transform` property
+        let node_transform_property_computed = {
             let node_borrowed = rtc.node.borrow_mut();
             node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
             let computed_transform2d_matrix = node_borrowed
@@ -764,9 +761,91 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             computed_transform2d_matrix
         };
 
-        let new_accumulated_transform = accumulated_transform * node_computed_transform;
+        // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
+        let desugared_transform = {
+            //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
+            let node_borrowed = rtc.node.borrow();
+            let cp = node_borrowed.get_common_properties();
+            let mut synthesized_transform2d = Transform2D::default();
+
+            let translate = [
+                if let Some(ref val) = cp.x {
+                    val.borrow().get().clone()
+                }else{
+                    Size::ZERO()
+                }
+                ,
+                if let Some(ref val) = cp.y {
+                    val.borrow().get().clone()
+                }else{
+                    Size::ZERO()
+                }
+            ];
+            synthesized_transform2d.translate = Some(translate);
+
+            let anchor = [
+                if let Some(ref val) = cp.anchor_x {
+                    val.borrow().get().clone()
+                }else{
+                    Size::ZERO()
+                }
+                ,
+                if let Some(ref val) = cp.anchor_y {
+                    val.borrow().get().clone()
+                }else{
+                    Size::ZERO()
+                }
+            ];
+            synthesized_transform2d.anchor = Some(anchor);
+
+            let scale = [
+                if let Some(ref val) = cp.scale_x {
+                    val.borrow().get().get_as_float()
+                }else{
+                    1.0
+                }
+                ,
+                if let Some(ref val) = cp.scale_y {
+                    val.borrow().get().get_as_float()
+                }else{
+                    1.0
+                }
+            ];
+            synthesized_transform2d.scale = Some(scale);
+
+            let skew = [
+                if let Some(ref val) = cp.skew_x {
+                    val.borrow().get().get_as_float()
+                }else{
+                    0.0
+                }
+                ,
+                if let Some(ref val) = cp.skew_y {
+                    val.borrow().get().get_as_float()
+                }else{
+                    0.0
+                }
+            ];
+
+            synthesized_transform2d.skew = Some(skew);
+
+            let rotate = if let Some(ref val) = cp.rotate {
+                val.borrow().get().clone()
+            } else {
+                Rotation::ZERO()
+            };
+            synthesized_transform2d.rotate = Some(rotate);
+            
+
+            node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
+            synthesized_transform2d.compute_transform2d_matrix(node_size, accumulated_bounds)
+        };
+
+        let new_accumulated_transform = accumulated_transform * desugared_transform * node_transform_property_computed;
+
         let new_scroller_normalized_accumulated_transform =
-            accumulated_scroller_normalized_transform * node_computed_transform;
+            accumulated_scroller_normalized_transform * desugared_transform * node_transform_property_computed;
+
         rtc.bounds = new_accumulated_bounds.clone();
         rtc.transform_global = new_accumulated_transform.clone();
         rtc.transform_scroller_reset = new_scroller_normalized_accumulated_transform.clone();
