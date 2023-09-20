@@ -403,12 +403,14 @@ impl ComputableTransform for Transform2D {
         let anchor_transform = match &self.anchor {
             Some(anchor) => Affine::translate((
                 match anchor[0] {
-                    Size::Pixels(x) => -x.get_as_float(),
-                    Size::Percent(x) => -node_size.0 * (x / 100.0),
+                    Size::Pixels(pix) => -pix.get_as_float(),
+                    Size::Percent(per) => -node_size.0 * (per / 100.0),
+                    Size::Combined(pix, per) => -pix.get_as_float() + (-node_size.0 * (per / 100.0)),
                 },
                 match anchor[1] {
-                    Size::Pixels(y) => -y.get_as_float(),
-                    Size::Percent(y) => -node_size.1 * (y / 100.0),
+                    Size::Pixels(pix) => -pix.get_as_float(),
+                    Size::Percent(per) => -node_size.1 * (per / 100.0),
+                    Size::Combined(pix, per) => -pix.get_as_float() + (-node_size.0 * (per / 100.0)),
                 },
             )),
             //No anchor applied: treat as 0,0; identity matrix

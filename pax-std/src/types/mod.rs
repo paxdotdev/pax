@@ -99,11 +99,13 @@ impl Fill {
         let normalized_x = match x {
             Size::Pixels(val) => val.get_as_float() / width,
             Size::Percent(val) => val.get_as_float() / 100.0,
+            Size::Combined(pix, per) => (pix.get_as_float() / width) + (per.get_as_float() / 100.0),
         };
 
         let normalized_y = match y {
             Size::Pixels(val) => val.get_as_float() / height,
             Size::Percent(val) => val.get_as_float() / 100.0,
+            Size::Combined(pix, per) => (pix.get_as_float() / width) + (per.get_as_float() / 100.0),
         };
         UnitPoint::new(normalized_x, normalized_y)
     }
@@ -113,13 +115,16 @@ impl Fill {
         for gradient_stop in stops {
             match gradient_stop.position {
                 Size::Pixels(_) => {
-                    unreachable!("Gradient stops must be specified in percentages");
+                    panic!("Gradient stops must be specified in percentages");
                 }
                 Size::Percent(p) => {
                     ret.push(piet::GradientStop {
                         pos: (p.get_as_float() / 100.0) as f32,
                         color: gradient_stop.color.to_piet_color(),
                     });
+                },
+                Size::Combined(_,_)=> {
+                    panic!("Gradient stops must be specified in percentages");
                 }
             }
         }

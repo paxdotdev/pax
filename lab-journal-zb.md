@@ -3347,7 +3347,8 @@ Let's determine what needs to be done via three channels:
         [ ] Hot reloading
         [ ] Robust standard library (e.g. form controls)
 [ ] Empirical, personal
-    [ ] TODO
+    [ ] Want auto-complete or obvious documentation re: the function signatures for event handlers
+    [ ] Want a built-in $ticks for use in PAXEL
 [ ] Empirical, external
     [ ] TODO
 
@@ -3374,4 +3375,16 @@ we can:
     [x] along the way, retire Transform::align and make Transform::translate accept Size values instead of floats (make it bounds-aware)
     [x] where we special-case certain fields in the compiler when parsing element K/V declarations, now make sure that list of special-case properties meshes with the properties/types of `CommonProperties`.  Perhaps impl CommonProperties to return an ad-hoc, manually maintained "reflection" manifest of its properties (.reflect_on_properties)
 [x] update website example to use updated APIs
-
+[ ] finish-line
+    [x] finish Rotation refactor, ensure we can use an expression e2e (may require special-handling in pratt parser like with Numeric)
+        [x] make sure we handle the unit `deg` (and {no unit, `rad`} => `rad`) in codegen, both for property literals and in PAXEL
+        [x] for kicks, handle `%`, too
+    [-] stretch: support {50% + 35px}, updating Size to support combined values
+    [ ] e2e test that we can bind an expression to each of our sugared properties 
+    [ ] QA
+        [ ] Can't yet bind an expression to `rotate` (compiles but silently fails)
+        [ ] Can't combine % and px, namely because of `into()` coercion.  Deserves more digging to find a potential mitigation
+        [ ] Can't apply a negative sign to a literal, for other (or the same) `into()` vs. type annotation reasons
+            - Are there cases where we know the desired, or some higher level type, and might we be able to call an explicit typecast
+              somewhere in codegen?
+    [ ] final cleaning & review

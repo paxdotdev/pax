@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::ffi::CString;
 use std::rc::Rc;
 
-use std::ops::{Deref, Mul};
+use std::ops::{Add, Deref, Mul, Neg};
 
 #[macro_use]
 extern crate lazy_static;
@@ -286,7 +286,59 @@ pub struct ArgsContextMenu {
 pub enum Size {
     Pixels(Numeric),
     Percent(Numeric),
+    ///Pixel component, Percent component
+    Combined(Numeric, Numeric)
 }
+
+impl Neg for Size {
+    type Output = Size;
+    fn neg(self) -> Self::Output {
+        match self {
+            Size::Pixels(pix) => {Size::Pixels(-pix)},
+            Size::Percent(per) => {Size::Percent(-per)},
+            Size::Combined(pix, per) => {Size::Combined(-pix,-per)},
+        }
+    }
+}
+
+// impl Into<Rotation> for Size {
+//     fn into(self) -> Rotation {
+//         match self {
+//             Size::Pixels(_) => {
+//                 panic!("Cannot convert from pixel to rotational value.  Try `deg` or `rad` instead of `px`.");
+//             }
+//             Size::Percent(per) => {
+//                 Rotation::Percent(per)
+//             }
+//             Size::Combined(_, _) => {
+//                 panic!("Cannot convert from pixel to rotational value.  Try `deg` or `rad` instead of `px`.");
+//             }
+//         }
+//     }
+// }
+
+
+impl Add for Size {
+    type Output = Size;
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut pixel_component : Numeric = Default::default();
+        let mut percent_component : Numeric = Default::default();
+
+        [self, rhs].iter().for_each(|size|{
+            match size {
+                Size::Pixels(s) => pixel_component = pixel_component + *s,
+                Size::Percent(s) => percent_component = percent_component + *s,
+                Size::Combined(s0, s1) => {
+                    pixel_component = pixel_component + *s0;
+                    percent_component = percent_component + *s1;
+                }
+            }
+        });
+
+        Size::Combined(pixel_component, percent_component)
+    }
+}
+
 impl Size {
     #[allow(non_snake_case)]
     pub fn ZERO() -> Self {
@@ -310,6 +362,10 @@ impl Size {
         match &self {
             Size::Pixels(num) => num.get_as_float(),
             Size::Percent(num) => target_bound * (*num / 100.0),
+            Size::Combined(pixel_component, percent_component) => {
+                //first calc percent, then add pixel
+                (target_bound * (percent_component.get_as_float() / 100.0)) + pixel_component.get_as_float()
+            },
         }
     }
 }
@@ -403,6 +459,7 @@ impl Default for CommonProperties {
 pub enum Rotation {
     Radians(Numeric),
     Degrees(Numeric),
+    Percent(Numeric),
 }
 impl Rotation {
     #[allow(non_snake_case)]
@@ -415,9 +472,36 @@ impl Rotation {
             num.get_as_float()
         } else if let Self::Degrees(num) = self {
             num.get_as_float() * std::f64::consts::PI * 2.0 / 360.0
+        } else if let Self::Percent(num) = self {
+            num.get_as_float() * std::f64::consts::PI * 2.0
         } else { unreachable!() }
     }
 }
+impl Neg for Rotation {
+    type Output = Rotation;
+    fn neg(self) -> Self::Output {
+        match self {
+            Rotation::Degrees(deg) => {Rotation::Degrees(-deg)},
+            Rotation::Radians(rad) => {Rotation::Radians(-rad)},
+            Rotation::Percent(per) => {Rotation::Percent(-per)},
+        }
+    }
+}
+impl Into<Rotation> for Numeric {
+    fn into(self) -> Rotation {
+        Rotation::Radians(self)
+    }
+}
+// impl Into<Rotation> for Size {
+//     fn into(self) -> Rotation {
+//         if let Size::Percent(pix) = self {
+//             Rotation::Percent(pix)
+//         } else {
+//             panic!("Tried to coerce a pixel value into a rotation value; try `%` or `rad` instead of `px`.")
+//         }
+//     }
+// }
+
 
 impl Default for Rotation {
     fn default() -> Self {
@@ -431,6 +515,9 @@ impl Size {
         match &self {
             Self::Pixels(p) => p.get_as_float(),
             Self::Percent(p) => parent * (p.get_as_float() / 100.0),
+            Self::Combined(pix, per) => {
+                (parent * (per.get_as_float() / 100.0)) + pix.get_as_float()
+            },
         }
     }
 }
@@ -441,10 +528,35 @@ impl Interpolatable for Size {
             Self::Pixels(sp) => match other {
                 Self::Pixels(op) => Self::Pixels(*sp + ((*op - *sp) * Numeric::from(t))),
                 Self::Percent(op) => Self::Percent(*op),
+                Self::Combined(pix,per) => {
+                    let pix = *sp + ((*pix - *sp) * Numeric::from(t));
+                    let per = *per;
+                    Self::Combined(pix, per)
+                },
             },
             Self::Percent(sp) => match other {
-                Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::from(t))),
                 Self::Pixels(op) => Self::Pixels(*op),
+                Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::from(t))),
+                Self::Combined(pix,per) => {
+                    let pix = *pix;
+                    let per = *sp + ((*per - *sp) * Numeric::from(t));
+                    Self::Combined(pix, per)
+                },
+            },
+            Self::Combined(pix, per) => match other {
+                Self::Pixels(op) => {
+                    let pix = *pix + ((*op - *pix) * Numeric::from(t));
+                    Self::Combined(pix, *per)
+                },
+                Self::Percent(op) => {
+                    let per = *per + ((*op - *per) * Numeric::from(t));
+                    Self::Combined(*pix, per)
+                },
+                Self::Combined(pix0,per0) => {
+                    let pix = *pix + ((*pix0 - *pix) * Numeric::from(t));
+                    let per = *per + ((*per0 - *per) * Numeric::from(t));
+                    Self::Combined(pix, per)
+                },
             },
         }
     }
@@ -540,19 +652,26 @@ impl Mul for Size {
 
     fn mul(self, rhs: Self) -> Self::Output {
         match self {
-            Size::Pixels(px0) => {
+            Size::Pixels(pix0) => {
                 match rhs {
                     //multiplying two pixel values adds them,
                     //in the sense of multiplying two affine translations.
                     //this might be wildly unexpected in some cases, so keep an eye on this and
                     //revisit whether to support Percent values in anchor calcs (could rescind)
-                    Size::Pixels(px1) => Size::Pixels(px0 + px1),
-                    Size::Percent(pc1) => Size::Pixels(px0 * pc1),
+                    Size::Pixels(pix1) => Size::Pixels(pix0 + pix1),
+                    Size::Percent(per1) => Size::Pixels(pix0 * per1),
+                    Size::Combined(pix1, per1) => Size::Pixels((pix0 * per1) + pix0 + pix1),
                 }
             }
-            Size::Percent(pc0) => match rhs {
-                Size::Pixels(px1) => Size::Pixels(pc0 * px1),
-                Size::Percent(pc1) => Size::Percent(pc0 * pc1),
+            Size::Percent(per0) => match rhs {
+                Size::Pixels(pix1) => Size::Pixels(per0 * pix1),
+                Size::Percent(per1) => Size::Percent(per0 * per1),
+                Size::Combined(pix1, per1) => Size::Pixels((per0 * pix1) + (per0 * per1)),
+            },
+            Size::Combined(pix0, per0) => match rhs {
+                Size::Pixels(pix1) => Size::Pixels((pix0 * per0) + pix1),
+                Size::Percent(per1) => Size::Percent(pix0 * per0 * per1),
+                Size::Combined(pix1, per1) => Size::Pixels((pix0 * per0) + (pix1 * per1)),
             },
         }
     }

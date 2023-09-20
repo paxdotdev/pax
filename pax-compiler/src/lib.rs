@@ -242,6 +242,7 @@ fn generate_and_overwrite_properties_coproduct(
         ("Transform2D", "pax_runtime_api::Transform2D"),
         ("stdCOCOopsCOCORangeLABRisizeRABR", "std::ops::Range<isize>"),
         ("Size", "pax_runtime_api::Size"),
+        ("Rotation", "pax_runtime_api::Rotation"),
         ("SizePixels", "pax_runtime_api::SizePixels"),
         ("Numeric", "pax_runtime_api::Numeric"),
     ];
@@ -296,7 +297,7 @@ fn generate_and_overwrite_cartridge(
     )
     .unwrap();
 
-    const IMPORTS_BUILTINS: [&str; 27] = [
+    const IMPORTS_BUILTINS: [&str; 28] = [
         "std::cell::RefCell",
         "std::collections::HashMap",
         "std::collections::VecDeque",
@@ -305,6 +306,7 @@ fn generate_and_overwrite_cartridge(
         "pax_runtime_api::PropertyInstance",
         "pax_runtime_api::PropertyLiteral",
         "pax_runtime_api::Transform2D",
+        "pax_runtime_api::Rotation",
         "pax_runtime_api::CommonProperties",
         "pax_core::ComponentInstance",
         "pax_core::RenderNodePtr",

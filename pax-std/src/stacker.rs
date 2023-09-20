@@ -21,7 +21,7 @@ use pax_runtime_api::RuntimeContext;
         </Frame>
     }
 
-    @events {
+    @handlers {
         will_render: handle_will_render
     }
 
@@ -47,8 +47,11 @@ impl Stacker {
         };
 
         let gutter_calc = match *self.gutter.get() {
-            Size::Pixels(px) => px,
-            Size::Percent(pct) => Numeric::from(active_bound) * (pct / Numeric::from(100.0)),
+            Size::Pixels(pix) => pix,
+            Size::Percent(per) => Numeric::from(active_bound) * (per / Numeric::from(100.0)),
+            Size::Combined(pix, per) => {
+                pix + (Numeric::from(active_bound) * (per / Numeric::from(100.0)))
+            },
         };
 
         let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc.get_as_float();
@@ -70,9 +73,12 @@ impl Stacker {
             for (i, size) in self.sizes.get().iter().enumerate() {
                 if let Some(s) = size {
                     let space = match s {
-                        Size::Pixels(px) => px.clone(),
-                        Size::Percent(pct) => {
-                            Numeric::from(active_bound) * (pct.clone() / Numeric::from(100.0))
+                        Size::Pixels(pix) => *pix,
+                        Size::Percent(per) => {
+                            Numeric::from(active_bound) * (*per / Numeric::from(100.0))
+                        },
+                        Size::Combined(pix, per) => {
+                            *pix + (Numeric::from(active_bound) * (per.clone() / Numeric::from(100.0)))
                         }
                     }
                     .get_as_float();
