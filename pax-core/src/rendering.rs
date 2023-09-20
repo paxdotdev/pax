@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use kurbo::{Affine, Point};
 use pax_properties_coproduct::PropertiesCoproduct;
-use pax_runtime_api::{Axis, Transform2D, CommonProperties};
+use pax_runtime_api::{Axis, Transform2D, CommonProperties, Rotation};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
@@ -415,7 +415,7 @@ impl ComputableTransform for Transform2D {
             None => Affine::default(),
         };
 
-        //decompose vanilla affine matrix and pack into Affine
+        //decompose vanilla affine matrix and pack into `Affine`
         let (scale_x, scale_y) = if let Some(scale) = self.scale {
             (scale[0], scale[1])
         } else {
@@ -428,20 +428,20 @@ impl ComputableTransform for Transform2D {
             (0.0, 0.0)
         };
 
-        let rotate = if let Some(rotate) = self.rotate {
-            rotate
-        } else {
-            0.0
-        };
-
         let (translate_x, translate_y) = if let Some(translate) = &self.translate {
             (translate[0].evaluate(container_bounds, Axis::X), translate[1].evaluate(container_bounds, Axis::Y))
         } else {
             (0.0, 0.0)
         };
 
-        let cos_theta = rotate.cos();
-        let sin_theta = rotate.sin();
+        let rotate_rads = if let Some(rotate) = &self.rotate {
+            rotate.get_as_radians()
+        } else {
+            0.0
+        };
+
+        let cos_theta = rotate_rads.cos();
+        let sin_theta = rotate_rads.sin();
 
         // Elements for a combined scale and rotation
         let a = scale_x * cos_theta - scale_y * skew_x * sin_theta;
@@ -454,7 +454,7 @@ impl ComputableTransform for Transform2D {
         let f = translate_y;
 
         let coeffs =  [a, b, c, d, e, f];
-        let mut transform = Affine::new(coeffs);
+        let transform = Affine::new(coeffs);
 
         // Compute and combine previous_transform
         let previous_transform = match &self.previous {
@@ -463,7 +463,6 @@ impl ComputableTransform for Transform2D {
         };
 
         anchor_transform * transform * previous_transform
-
     }
 }
 

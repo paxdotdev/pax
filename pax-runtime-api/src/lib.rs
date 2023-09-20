@@ -287,6 +287,12 @@ pub enum Size {
     Pixels(Numeric),
     Percent(Numeric),
 }
+impl Size {
+    #[allow(non_snake_case)]
+    pub fn ZERO() -> Self {
+        Size::Pixels(Numeric::from(0.0))
+    }
+}
 
 pub enum Axis {
     X,
@@ -344,8 +350,8 @@ expose_property_identifiers! { // creates an impl `get_property_identifiers()`
     pub struct CommonProperties {
         pub x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
         pub y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-        pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-        pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
+        pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
         pub skew_x: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
         pub skew_y: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
         pub rotate: Option<Rc<RefCell<dyn PropertyInstance<Rotation>>>>,
@@ -393,11 +399,32 @@ impl Default for CommonProperties {
 }
 
 
-
+#[derive(Clone)]
 pub enum Rotation {
     Radians(Numeric),
     Degrees(Numeric),
 }
+impl Rotation {
+    #[allow(non_snake_case)]
+    pub fn ZERO() -> Self {
+        Self::Radians(Numeric::from(0.0))
+    }
+
+    pub fn get_as_radians(&self) -> f64 {
+        if let Self::Radians(num) = self {
+            num.get_as_float()
+        } else if let Self::Degrees(num) = self {
+            num.get_as_float() * std::f64::consts::PI * 2.0 / 360.0
+        } else { unreachable!() }
+    }
+}
+
+impl Default for Rotation {
+    fn default() -> Self {
+        Self::ZERO()
+    }
+}
+
 
 impl Size {
     pub fn get_pixels(&self, parent: f64) -> f64 {
@@ -546,7 +573,7 @@ pub struct Transform2D {
     /// Keeps track of a linked list of previous Transform2Ds, assembled e.g. via multiplication
     pub previous: Option<Box<Transform2D>>,
     /// Rotation is single-dimensional for 2D rendering, representing rotation over z axis
-    pub rotate: Option<f64>,
+    pub rotate: Option<Rotation>,
     pub translate: Option<[Size; 2]>,
     pub anchor: Option<[Size; 2]>,
     pub scale: Option<[f64; 2]>,
@@ -571,9 +598,9 @@ impl Transform2D {
         ret
     }
     ///Rotation over z axis
-    pub fn rotate(z: Numeric) -> Self {
+    pub fn rotate(z: Rotation) -> Self {
         let mut ret = Transform2D::default();
-        ret.rotate = Some(z.get_as_float());
+        ret.rotate = Some(z);
         ret
     }
     ///Translation across x-y plane, pixels
