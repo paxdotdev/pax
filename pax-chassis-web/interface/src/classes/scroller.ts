@@ -30,6 +30,7 @@ export class Scroller {
     private subtreeDepth?: number;
     private objectManager: ObjectManager;
     private scrollManager?: ScrollManager;
+    private isMobile = false;
 
 
     constructor(objectManager: ObjectManager) {
@@ -37,7 +38,8 @@ export class Scroller {
     }
 
     build(idChain: number[], zIndex: number, scrollerId: number[] | undefined, chassis: PaxChassisWeb,
-          scrollers: Map<string, Scroller>, baseOcclusionContext: OcclusionContext, canvasMap: Map<string, HTMLCanvasElement>) {
+          scrollers: Map<string, Scroller>, baseOcclusionContext: OcclusionContext, canvasMap: Map<string, HTMLCanvasElement>, isMobile: boolean) {
+        this.isMobile = isMobile;
         this.idChain = idChain;
         this.parentScrollerId = scrollerId;
         this.zIndex = zIndex;
@@ -51,8 +53,7 @@ export class Scroller {
         this.container = this.objectManager.getFromPool(DIV);
         this.container.className = SCROLLER_CONTAINER;
         NativeElementPool.addNativeElement(this.container, baseOcclusionContext, scrollers, idChain, scrollerId, zIndex);
-
-        this.scrollManager = new ScrollManager(this.container);
+        this.scrollManager = new ScrollManager(this.container, isMobile);
 
         this.innerPane = this.objectManager.getFromPool(DIV);
         this.innerPane.className = INNER_PANE;

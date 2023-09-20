@@ -23,6 +23,7 @@ export class NativeElementPool {
     private objectManager: ObjectManager;
     registeredFontFaces: Set<string>;
     messageList:string[] = [];
+    private isMobile = false;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -32,7 +33,8 @@ export class NativeElementPool {
         this.registeredFontFaces = new Set<string>();
     }
 
-    build(chassis: PaxChassisWeb){
+    build(chassis: PaxChassisWeb, isMobile: boolean){
+        this.isMobile = isMobile;
         this.chassis = chassis;
         let mount = document.querySelector("#" + MOUNT_ID)!;
         this.baseOcclusionContext.build(mount, undefined, chassis, this.canvases);
@@ -302,7 +304,7 @@ export class NativeElementPool {
         }
         let scroller: Scroller = this.objectManager.getFromPool(SCROLLER, this.objectManager);
         scroller.build(patch.idChain!, patch.zIndex!, scroller_id, this.chassis, this.scrollers,
-            this.baseOcclusionContext, this.canvases)
+            this.baseOcclusionContext, this.canvases, this.isMobile)
         // @ts-ignore
         this.scrollers.set(arrayToKey(patch.idChain),scroller);
     }
