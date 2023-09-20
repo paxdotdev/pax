@@ -3370,8 +3370,8 @@ we can:
         [x] Remove the locally stored `transform` and `size` along the way
     [x] introduce a trait method on dyn RenderNode to get_common_properties.  likely refactor get_size and get_transform across the board, perhaps to fetch these values, or perhaps retiring them in favor of get_common_properties().size and ....transform [
     [x] update cartridge codegen to accommodate InstantiationArgs#common_properties
-[ ] in the workhorse rendering loop, combine declarative transforms into a matrix (we choose the sequence to match ergo expectations) and multiply that matrix with a transform property, if specified (a user should be able to specify both a transform matrix and individual properties; again we choose the best order in which to combine these) 
+[x] in the workhorse rendering loop, combine declarative transforms into a matrix (we choose the sequence to match ergo expectations) and multiply that matrix with a transform property, if specified (a user should be able to specify both a transform matrix and individual properties; again we choose the best order in which to combine these) 
     [x] along the way, retire Transform::align and make Transform::translate accept Size values instead of floats (make it bounds-aware)
     [x] where we special-case certain fields in the compiler when parsing element K/V declarations, now make sure that list of special-case properties meshes with the properties/types of `CommonProperties`.  Perhaps impl CommonProperties to return an ad-hoc, manually maintained "reflection" manifest of its properties (.reflect_on_properties)
-[ ] update website example to use updated APIs
+[x] update website example to use updated APIs
 
