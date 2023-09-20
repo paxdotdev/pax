@@ -19,7 +19,7 @@ fill={Fill::linearGradient(
     }
 }
 
-@events {
+@handlers {
     did_mount: handle_did_mount,
     jab: handle_jab,
     scroll: handle_scroll,

@@ -1,6 +1,6 @@
 <Ellipse @scroll=self.handle_scroll @click=self.handle_click id=id_test class=class_a class=class_b />
 
-@events {
+@handlers {
         click: [self.handle_global_click],
         scroll: self.handle_global_scroll,
 }

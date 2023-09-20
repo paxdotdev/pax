@@ -187,6 +187,13 @@ fn recurse_compile_literal_block<'a>(
                     ("transform", "Transform2D".to_string()),
                     ("width", "Size".to_string()),
                     ("height", "Size".to_string()),
+                    ("x", "Size".to_string()),
+                    ("y", "Size".to_string()),
+                    ("anchor_x", "Size".to_string()),
+                    ("anchor_y", "Size".to_string()),
+                    ("skew_x", "Numeric".to_string()),
+                    ("skew_y", "Numeric".to_string()),
+                    ("rotate", "Rotation".to_string()),
                     // ("x","Size".to_string()),
                     // ("y","Size".to_string()),
                 ]);

@@ -766,7 +766,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
             let node_borrowed = rtc.node.borrow();
             let cp = node_borrowed.get_common_properties();
-            let mut synthesized_transform2d = Transform2D::default();
+            let mut desugared_transform2d = Transform2D::default();
 
             let translate = [
                 if let Some(ref val) = cp.x {
@@ -781,7 +781,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     Size::ZERO()
                 }
             ];
-            synthesized_transform2d.translate = Some(translate);
+            desugared_transform2d.translate = Some(translate);
 
             let anchor = [
                 if let Some(ref val) = cp.anchor_x {
@@ -796,7 +796,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     Size::ZERO()
                 }
             ];
-            synthesized_transform2d.anchor = Some(anchor);
+            desugared_transform2d.anchor = Some(anchor);
 
             let scale = [
                 if let Some(ref val) = cp.scale_x {
@@ -811,7 +811,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     1.0
                 }
             ];
-            synthesized_transform2d.scale = Some(scale);
+            desugared_transform2d.scale = Some(scale);
 
             let skew = [
                 if let Some(ref val) = cp.skew_x {
@@ -827,18 +827,18 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 }
             ];
 
-            synthesized_transform2d.skew = Some(skew);
+            desugared_transform2d.skew = Some(skew);
 
             let rotate = if let Some(ref val) = cp.rotate {
                 val.borrow().get().clone()
             } else {
                 Rotation::ZERO()
             };
-            synthesized_transform2d.rotate = Some(rotate);
+            desugared_transform2d.rotate = Some(rotate);
             
 
             node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
-            synthesized_transform2d.compute_transform2d_matrix(node_size, accumulated_bounds)
+            desugared_transform2d.compute_transform2d_matrix(node_size, accumulated_bounds)
         };
 
         let new_accumulated_transform = accumulated_transform * desugared_transform * node_transform_property_computed;
