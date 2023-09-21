@@ -27,22 +27,15 @@ let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
 
-
-
 // @ts-ignore
-async function startRenderLoop(wasmMod: typeof import('../dist/pax_chassis_web')) {
-
+async function startRenderLoop(wasmMod: typeof import('../dist/pax_chassis_web'), mount: Element) {
     is_mobile_device = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-
     let chassis = await wasmMod.PaxChassisWeb.new();
-
     nativePool.build(chassis, is_mobile_device);
-
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
+    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount));
 }
 
-
-function renderLoop (chassis: PaxChassisWeb) {
+function renderLoop (chassis: PaxChassisWeb, mount: Element) {
 
     //stats.begin();
     nativePool.sendScrollerValues();
@@ -57,7 +50,6 @@ function renderLoop (chassis: PaxChassisWeb) {
     messages = JSON.parse(jsonString);
 
      if(!initializedChassis){
-         let mount = document.querySelector("#" + MOUNT_ID)!;
          window.addEventListener('resize', () => {
              let width = window.innerWidth;
              let height = window.innerHeight;
@@ -73,7 +65,7 @@ function renderLoop (chassis: PaxChassisWeb) {
     // //necessary manual cleanup
     chassis.deallocate(memorySlice);
     //stats.end();
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis))
+    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount))
 }
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
@@ -128,18 +120,18 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
 
 
 // Wasm + TS Bootstrapping boilerplate
-async function bootstrap(element: Element) {
+async function bootstrap(mount: Element) {
     // @ts-ignore
-    startRenderLoop(await import('../dist/pax_chassis_web'));
+    startRenderLoop(await import('../dist/pax_chassis_web'), mount);
 }
 
 export function mount(selector_or_element: string | Element) {
-    let element : Element;
-    if (typeof selector_or_element == typeof "foo") {
-        element = document.querySelector(selector_or_element as string) as Element;
+    let mount : Element;
+    if (typeof selector_or_element === "string") {
+        mount = document.querySelector(selector_or_element as string) as Element;
     } else {
-        element = selector_or_element as Element;
+        mount = selector_or_element as Element;
     }
-    bootstrap(element).then();
+    bootstrap(mount).then();
 }
 
