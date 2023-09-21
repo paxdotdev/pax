@@ -64,7 +64,6 @@ export let SUPPORTED_OBJECTS = [{
             return canvas
         },
         cleanUp: (canvas: HTMLCanvasElement) => {
-            console.log("returned canvas");
             let ctx = canvas.getContext('2d');
             ctx && ctx.clearRect(0, 0, canvas.width, canvas.height);
             canvas.width = 0;

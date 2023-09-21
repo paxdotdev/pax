@@ -23,6 +23,7 @@ export class NativeElementPool {
     private objectManager: ObjectManager;
     registeredFontFaces: Set<string>;
     messageList:string[] = [];
+    private isMobile = false;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -32,7 +33,8 @@ export class NativeElementPool {
         this.registeredFontFaces = new Set<string>();
     }
 
-    build(chassis: PaxChassisWeb){
+    build(chassis: PaxChassisWeb, isMobile: boolean){
+        this.isMobile = isMobile;
         this.chassis = chassis;
         let mount = document.querySelector("#" + MOUNT_ID)!;
         this.baseOcclusionContext.build(mount, undefined, chassis, this.canvases);
@@ -68,10 +70,10 @@ export class NativeElementPool {
     sendScrollerValues(){
         this.scrollers.forEach((scroller, id) => {
             // @ts-ignore
-            let deltaX = scroller.unsentX;
+            let deltaX = 0;
             // @ts-ignore
-            let deltaY = scroller.unsentY;
-            if(Math.abs(deltaX) > 0 || Math.abs(deltaY) > 0){
+            let deltaY = scroller.getTickScrollDelta();
+            if(deltaY && Math.abs(deltaY) > 0){
                 const scrollEvent = this.objectManager.getFromPool(OBJECT);
                 const deltas: object = this.objectManager.getFromPool(OBJECT);
                 // @ts-ignore
@@ -85,8 +87,6 @@ export class NativeElementPool {
                 this.chassis.interrupt(scrollEventStringified, []);
                 this.objectManager.returnToPool(OBJECT, deltas);
                 this.objectManager.returnToPool(OBJECT, scrollEvent);
-                scroller.unsentX = 0;
-                scroller.unsentY = 0;
             }
         });
     }
@@ -304,7 +304,7 @@ export class NativeElementPool {
         }
         let scroller: Scroller = this.objectManager.getFromPool(SCROLLER, this.objectManager);
         scroller.build(patch.idChain!, patch.zIndex!, scroller_id, this.chassis, this.scrollers,
-            this.baseOcclusionContext, this.canvases)
+            this.baseOcclusionContext, this.canvases, this.isMobile)
         // @ts-ignore
         this.scrollers.set(arrayToKey(patch.idChain),scroller);
     }
