@@ -108,7 +108,7 @@ at your option.
 Use `rustc` 1.70.0 via `rustup`
 
 
-### To build .pax => Web
+### To build Pax projects for WebAssembly
 
 - Install 'wasm-pack' via:
    ```shell
@@ -124,7 +124,7 @@ Use `rustc` 1.70.0 via `rustup`
   nvm use 20 --default
   ```
 
-### To build .pax => macOS
+### To build Pax projects as native macOS apps
 
 - Install xcode `>=14.3` and Xcode command line utils: `xcode-select --install`
 - SDK Version `macosx13.3`, Xcode version `>=14.3`
@@ -151,14 +151,3 @@ git submodule update --init --recursive
 ```
 
 As needed, review the [git submodule docs.](https://git-scm.com/docs/gitsubmodules)
-
-
-### Architectural Reference
-
-<img src="runtime-arch.png" />
-<div style="text-align: center; font-style: italic;">Runtime dependency & codegen graph</div>
-<br /><br /><br />
-<img src="compiler-sequence.png" />
-<div style="text-align: center; font-style: italic;">
-Pax compiler sequence diagram | <a href="https://www.github.com/pax-lang/pax/blob/master/pax-compiler/">Compiler source</a>
-</div>
