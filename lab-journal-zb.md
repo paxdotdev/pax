@@ -3332,3 +3332,33 @@ What will it take to do this?
             Need to vet: can patch a generated stencil dist with new assets and not require stencil end-developer install
             - Decided to come back for this later.
     [x] Package CSS (webpack + TS import)
+
+
+### On polishing the New User Experience (NUX)
+
+Let's determine what needs to be done via three channels:
+
+1. predictive (based on intuition and experience, what should be improved?)
+2. empirical, personal experience (simulating a new user's experience, e.g. on a fresh VM, take notes of what should be improved)
+3. empirical, user observation & feedback (observing a new user's experience or based on their account, determine what should be improved)
+
+[ ] Predictive, idealized
+    [ ] Installation
+        [ ] Install script + one-liner
+        [ ] Alias pax-cli as `pax` and ensure presence in PATH
+        [ ] Figure out cross-platform pre-built binaries or cargo/rustc-based build flow
+    [ ] Starter project, something interesting & instructive (layout tutorial?)
+    [ ] Docs — clean up Github readme, website content, and docs.pax.dev (take a pass on the latter to make up-to-date; last publish was one year ago)
+    [ ] Using a project
+        [ ] Full-app use-case: build & publish static site (for web target, natch)
+        [ ] Component use-case: build & inject Pax onto a div (for web target, natch)
+    [ ] Authoring experience
+        [ ] Helpful error messages
+        [ ] Fast build times & feedback loops
+        [ ] Auto-complete, go-to-definition, inline error highlighting, syntax highlight (language server + plugin)
+        [ ] Hot reloading
+        [ ] Robust standard library (e.g. form controls)
+[ ] Empirical, personal
+    [ ] TODO
+[ ] Empirical, external
+    [ ] TODO

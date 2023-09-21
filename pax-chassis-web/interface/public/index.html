@@ -4,7 +4,7 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Pax Web</title>
-        <!-- Note that styles are bundled via Webpack into the index.js bundle -->
+        <!-- Note that styles are bundled via Webpack into the index.js bundle.  Refer to `@/src/styles/` -->
     </head>
     <body>
         <div id="mount">
@@ -14,7 +14,7 @@
             if (window.Pax instanceof Promise) {
                 window.Pax.then(PaxModule => {
                     if (typeof PaxModule.mount === 'function') {
-                        PaxModule.mount();
+                        PaxModule.mount("#mount");
                     } else {
                         console.error("mount function is missing from the Pax module.");
                     }
