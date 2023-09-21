@@ -155,8 +155,20 @@ fn clone_all_dependencies_to_tmp(
                 // Pass the GzDecoder to tar::Archive.
                 let mut archive = Archive::new(gz);
 
-                // Unpack the tarball.
-                archive.unpack(&dest).expect(&format!("Failed to unpack tarball for {}", pkg));
+                // Iterate over the entries in the archive and modify the paths before extracting.
+                for entry_result in archive.entries().expect("Failed to read entries") {
+                    let mut entry = entry_result.expect("Failed to read entry");
+                    let path = match entry.path().expect("Failed to get path").components().skip(1).collect::<PathBuf>().as_path().to_owned() {
+                        path if path.to_string_lossy() == "" => continue, // Skip the root folder
+                        path => dest.join(path),
+                    };
+                    if entry.header().entry_type().is_dir() {
+                        fs::create_dir_all(&path).expect("Failed to create directory");
+                    } else {
+                        entry.unpack(&path).expect("Failed to unpack file");
+                    }
+                }
+
             }
         }
     }
