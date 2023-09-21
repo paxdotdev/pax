@@ -301,22 +301,6 @@ impl Neg for Size {
     }
 }
 
-// impl Into<Rotation> for Size {
-//     fn into(self) -> Rotation {
-//         match self {
-//             Size::Pixels(_) => {
-//                 panic!("Cannot convert from pixel to rotational value.  Try `deg` or `rad` instead of `px`.");
-//             }
-//             Size::Percent(per) => {
-//                 Rotation::Percent(per)
-//             }
-//             Size::Combined(_, _) => {
-//                 panic!("Cannot convert from pixel to rotational value.  Try `deg` or `rad` instead of `px`.");
-//             }
-//         }
-//     }
-// }
-
 impl Add for Size {
     type Output = Size;
     fn add(self, rhs: Self) -> Self::Output {

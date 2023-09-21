@@ -194,8 +194,6 @@ fn recurse_compile_literal_block<'a>(
                     ("skew_x", "Numeric".to_string()),
                     ("skew_y", "Numeric".to_string()),
                     ("rotate", "Rotation".to_string()),
-                    // ("x","Size".to_string()),
-                    // ("y","Size".to_string()),
                 ]);
 
                 let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*pair.0)
