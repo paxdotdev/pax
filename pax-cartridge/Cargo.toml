@@ -1,6 +1,6 @@
 [package]
 name = "pax-cartridge"
-version = "0.7.1"
+version = "0.7.2"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -10,8 +10,8 @@ description = "Static program definition container for Pax programs, intended to
 
 [dependencies]
 piet-common = "0.6.0"
-pax-core = {path = "../pax-core", version = "0.7.1"}
-pax-runtime-api = {path = "../pax-runtime-api", version = "0.7.1"}
-pax-properties-coproduct = {path = "../pax-properties-coproduct", version="0.7.1"}
-pax-std-primitives = {path = "../pax-std/pax-std-primitives", version = "0.7.1"}
+pax-core = {path = "../pax-core", version = "0.7.2"}
+pax-runtime-api = {path = "../pax-runtime-api", version = "0.7.2"}
+pax-properties-coproduct = {path = "../pax-properties-coproduct", version="0.7.2"}
+pax-std-primitives = {path = "../pax-std/pax-std-primitives", version = "0.7.2"}
 
