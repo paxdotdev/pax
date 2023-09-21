@@ -22,6 +22,9 @@ use std::io::Write;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
+use flate2::read::GzDecoder;
+use tar::Archive;
+
 #[cfg(unix)]
 use std::os::unix::process::CommandExt; // For the .pre_exec() method
 
@@ -142,9 +145,18 @@ fn clone_all_dependencies_to_tmp(
                 ));
 
                 let tarball_bytes = resp.bytes().expect("Failed to read tarball bytes");
-                let mut tar = tar::Archive::new(&tarball_bytes[..]);
-                tar.unpack(&dest)
-                    .expect(&format!("Failed to unpack tarball for {}", pkg));
+
+                // Wrap the byte slice in a Cursor, so it can be used as a Read trait object.
+                let cursor = std::io::Cursor::new(&tarball_bytes[..]);
+
+                // Create a GzDecoder to handle the gzip layer.
+                let gz = GzDecoder::new(cursor);
+
+                // Pass the GzDecoder to tar::Archive.
+                let mut archive = Archive::new(gz);
+
+                // Unpack the tarball.
+                archive.unpack(&dest).expect(&format!("Failed to unpack tarball for {}", pkg));
             }
         }
     }
