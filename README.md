@@ -103,9 +103,14 @@ at your option.
 
 ## Library Development
 
-### Environment setup
+### Setup, macOS workstation
 
 Use `rustc` 1.70.0 via `rustup`
+
+### Setup, Linux (Debian / Ubuntu) workstation
+
+Use `rustc` 1.70.0 via `rustup`
+Install development dependencies: `apt install pkg-config libssl-dev`
 
 
 ### To build Pax projects for WebAssembly
@@ -131,7 +136,9 @@ Use `rustc` 1.70.0 via `rustup`
 - Current Minimum Deployment `13.0`
 
 
-### Running Development Environment
+
+
+### Running Monorepo Development Environment
 
 First, refer to [the latest project status](https://docs.pax.dev/status-sept-2022.html)
 

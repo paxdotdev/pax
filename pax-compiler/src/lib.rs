@@ -158,7 +158,15 @@ fn clone_all_dependencies_to_tmp(
                 // Iterate over the entries in the archive and modify the paths before extracting.
                 for entry_result in archive.entries().expect("Failed to read entries") {
                     let mut entry = entry_result.expect("Failed to read entry");
-                    let path = match entry.path().expect("Failed to get path").components().skip(1).collect::<PathBuf>().as_path().to_owned() {
+                    let path = match entry
+                        .path()
+                        .expect("Failed to get path")
+                        .components()
+                        .skip(1)
+                        .collect::<PathBuf>()
+                        .as_path()
+                        .to_owned()
+                    {
                         path if path.to_string_lossy() == "" => continue, // Skip the root folder
                         path => dest.join(path),
                     };
@@ -171,7 +179,6 @@ fn clone_all_dependencies_to_tmp(
                         entry.unpack(&path).expect("Failed to unpack file");
                     }
                 }
-
             }
         }
     }
@@ -1034,7 +1041,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     };
     clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &ctx);
 
-    println!("{} 🛠 Running `cargo build`...", &PAX_BADGE);
+    println!("{} 🛠️  Running `cargo build`...", &PAX_BADGE);
     // Run parser bin from host project with `--features parser`
     let output = run_parser_binary(&ctx.path, Arc::clone(&ctx.process_child_ids));
 
@@ -1220,18 +1227,22 @@ pub fn build_chassis_with_cartridge(
     let mut existing_cargo_toml =
         toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap())
             .unwrap();
-    let mut patch_table = toml_edit::table();
-    for pkg in ALL_PKGS {
-        patch_table[pkg]["path"] = toml_edit::value(format!("../{}", pkg));
+
+    if !existing_cargo_toml.contains_key("patch.crates-io") {
+        let mut patch_table = toml_edit::table();
+        for pkg in ALL_PKGS {
+            patch_table[pkg]["path"] = toml_edit::value(format!("../{}", pkg));
+        }
+
+        existing_cargo_toml.insert("patch.crates-io", patch_table);
+        fs::write(
+            existing_cargo_toml_path,
+            existing_cargo_toml
+                .to_string()
+                .replace("\"patch.crates-io\"", "patch.crates-io"),
+        )
+        .unwrap();
     }
-    existing_cargo_toml.insert("patch.crates-io", patch_table);
-    fs::write(
-        existing_cargo_toml_path,
-        existing_cargo_toml
-            .to_string()
-            .replace("\"patch.crates-io\"", "patch.crates-io"),
-    )
-    .unwrap();
 
     //string together a shell call like the following:
     match target {
