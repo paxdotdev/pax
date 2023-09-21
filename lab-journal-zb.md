@@ -3348,7 +3348,7 @@ Let's determine what needs to be done via three channels:
         [ ] Robust standard library (e.g. form controls)
 [ ] Empirical, personal
     [ ] Want auto-complete or obvious documentation re: the function signatures for event handlers
-    [ ] Want a built-in $ticks for use in PAXEL
+    [ ] Want a built-in $tick for use in PAXEL
 [ ] Empirical, external
     [ ] TODO
 
