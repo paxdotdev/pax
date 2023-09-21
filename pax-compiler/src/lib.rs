@@ -1228,6 +1228,8 @@ pub fn build_chassis_with_cartridge(
         toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap())
             .unwrap();
 
+    //In builds where we don't wipe out the `pkg` directory (e.g. those installed from crates.io),
+    //the Cargo.toml may already have been patched.  Additional an additional patch would break cargo.
     if !existing_cargo_toml.contains_key("patch.crates-io") {
         let mut patch_table = toml_edit::table();
         for pkg in ALL_PKGS {
@@ -1244,7 +1246,7 @@ pub fn build_chassis_with_cartridge(
         .unwrap();
     }
 
-    //string together a shell call like the following:
+    //string together a shell call to build our chassis, with cartridge inserted via `patch`
     match target {
         RunTarget::MacOS => {
             let mut cmd = Command::new("cargo");
