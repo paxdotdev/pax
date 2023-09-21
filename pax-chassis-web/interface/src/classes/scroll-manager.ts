@@ -1,9 +1,3 @@
-interface PredictedTrajectory {
-    initialPosition: number;
-    initialVelocity: number;
-    startTime: number;
-}
-
 export class ScrollManager {
     private scrollContainer: HTMLDivElement;
     private interpolator: HermiteInterpolator;
@@ -19,7 +13,6 @@ export class ScrollManager {
         this.scrollContainer = parent;
 
         this.interpolator = new HermiteInterpolator();
-        console.log(isMobile);
         if (isMobile) {
             setInterval(() => {
                 let currentScrollTop = this.scrollContainer.scrollTop;
@@ -122,15 +115,6 @@ class HermiteInterpolator {
         const h11 = m * m * m - m * m;
 
         const predictedPosition = h00 * y0 + h10 * (t1 - t0) * this.buffer[this.buffer.length - 2].velocity + h01 * y1 + h11 * (t1 - t0) * this.buffer[this.buffer.length - 1].velocity;
-
-        // Calculate predicted velocity
-        let predictedVelocity = 0;
-        if (this.buffer.length >= 2) {
-            predictedVelocity = (predictedPosition - this.buffer[this.buffer.length - 1].position) / (timestamp - t1);
-        }
-
-        // Store the predicted value in the buffer
-        //this.buffer.push({ timestamp, position: predictedPosition, velocity: predictedVelocity });
 
         return predictedPosition;
     }
