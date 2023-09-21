@@ -6,25 +6,20 @@
 
 import os
 import subprocess
-import sys
 import tomlkit
 import time
 import argparse
 from collections import defaultdict
 
-if len(sys.argv) != 2:
-    print("Usage (from monorepo root): `python3 scripts/release.py new_version`")
-    sys.exit(1)
-
-NEW_VERSION = sys.argv[1]
-
 parser = argparse.ArgumentParser(description='My Script')
 parser.add_argument('--turbo', action='store_true', help='Enable turbo mode')
+parser.add_argument('new_version', help='The new version string')
 args = parser.parse_args()
-turbo = False
-if args.turbo:
-    turbo = True
 
+NEW_VERSION = args.new_version
+# Use NEW_VERSION as needed
+print('New version is:', NEW_VERSION)
+print('Turbo mode is:', args.turbo)
 
 
 PACKAGES = [
@@ -122,9 +117,13 @@ for root in root_packages:
             subprocess.run(["cargo", "publish", "--no-verify"], cwd=os.path.join(os.getcwd(), elem), check=True)
             # Mark this package as published
             published.add(elem)
-            # Wait one minute, to satisfy crates.io's throttling mechanism
-            time.sleep(60)
-
+            # Wait one minute, to satisfy crates.io's throttling mechanism.
+            # This can be overridden with the --turbo flag, as we have some burst
+            # allowance with crates.io.  Once the burst allowance is used, the publish
+            # script may fail with some crates left unpublished, which breaks the entire
+            # publish (all crates must be published together.) Thus, turbo is off by default.
+            if not args.turbo:
+                time.sleep(60)
 
 
 # Build for macos in order to update Cargo.lock
