@@ -3,8 +3,8 @@ use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, RenderNode,
-    RenderNodePtr, RenderNodePtrList, RenderTreeContext, PropertiesComputable
+    unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
 use pax_std::primitives::Ellipse;
 use pax_std::types::ColorVariant;
@@ -61,9 +61,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for EllipseInstance<R> {
         }
     }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-
         self.common_properties.compute_properties(rtc);
-
 
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
@@ -89,7 +87,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for EllipseInstance<R> {
             let new_value = unsafe_unwrap!(fill, TypesCoproduct, pax_std::types::Color);
             properties.fill.set(new_value);
         }
-
     }
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let transform = rtc.transform_scroller_reset;

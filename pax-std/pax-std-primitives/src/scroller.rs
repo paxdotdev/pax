@@ -9,11 +9,13 @@ use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext, PropertiesComputable,
+    unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, ScrollerPatch};
-use pax_runtime_api::{ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size, CommonProperties};
+use pax_runtime_api::{
+    ArgsScroll, CommonProperties, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size,
+};
 use pax_std::primitives::Scroller;
 
 /// A combination of a clipping area (nearly identical to a `Frame`,) and an
@@ -226,12 +228,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
     fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
         Some((
-            self.common_properties
-                .width
-                .as_ref()
-                .borrow()
-                .get()
-                .clone(),
+            self.common_properties.width.as_ref().borrow().get().clone(),
             self.common_properties
                 .height
                 .as_ref()
@@ -259,7 +256,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-
         self.common_properties.compute_properties(rtc);
 
         let mut scroll_x_offset_borrowed = (*self.scroll_x_offset).borrow_mut();
@@ -277,7 +273,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         }
 
         let properties = &mut *self.properties.as_ref().borrow_mut();
-
 
         if let Some(new_size) =
             rtc.compute_vtable_value(properties.size_inner_pane_x._get_vtable_id())
@@ -323,9 +318,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             properties.scroll_enabled_y.set(new_value);
         }
 
-
         self.common_properties.compute_properties(rtc);
-
     }
 
     fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String, R>) {

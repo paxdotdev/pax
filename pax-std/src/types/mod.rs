@@ -122,8 +122,8 @@ impl Fill {
                         pos: (p.get_as_float() / 100.0) as f32,
                         color: gradient_stop.color.to_piet_color(),
                     });
-                },
-                Size::Combined(_,_)=> {
+                }
+                Size::Combined(_, _) => {
                     panic!("Gradient stops must be specified in percentages");
                 }
             }

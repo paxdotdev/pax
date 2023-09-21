@@ -16,7 +16,12 @@ use crate::{
 };
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex};
+use pax_runtime_api::{
+    ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
+    ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
+    ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable,
+    Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex,
+};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -41,9 +46,23 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
 }
 
 macro_rules! handle_vtable_update {
-    ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {
-        {
-            let current_prop = &mut *$var.$field.as_ref().borrow_mut();
+    ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {{
+        let current_prop = &mut *$var.$field.as_ref().borrow_mut();
+        if let Some(new_value) = $rtc.compute_vtable_value(current_prop._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
+                val
+            } else {
+                unreachable!()
+            };
+            current_prop.set(new_value);
+        }
+    }};
+}
+
+macro_rules! handle_vtable_update_optional {
+    ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {{
+        if let Some(_) = $var.$field {
+            let current_prop = &mut *$var.$field.as_ref().unwrap().borrow_mut();
             if let Some(new_value) = $rtc.compute_vtable_value(current_prop._get_vtable_id()) {
                 let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
                     val
@@ -53,25 +72,7 @@ macro_rules! handle_vtable_update {
                 current_prop.set(new_value);
             }
         }
-    };
-}
-
-macro_rules! handle_vtable_update_optional {
-    ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {
-        {
-            if let Some(_) = $var.$field {
-                let current_prop = &mut *$var.$field.as_ref().unwrap().borrow_mut();
-                if let Some(new_value) = $rtc.compute_vtable_value(current_prop._get_vtable_id()) {
-                    let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
-                        val
-                    } else {
-                        unreachable!()
-                    };
-                    current_prop.set(new_value);
-                }
-        }
-        }
-    };
+    }};
 }
 
 //This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
@@ -829,60 +830,56 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let translate = [
                 if let Some(ref val) = cp.x {
                     val.borrow().get().clone()
-                }else{
+                } else {
                     Size::ZERO()
-                }
-                ,
+                },
                 if let Some(ref val) = cp.y {
                     val.borrow().get().clone()
-                }else{
+                } else {
                     Size::ZERO()
-                }
+                },
             ];
             desugared_transform2d.translate = Some(translate);
 
             let anchor = [
                 if let Some(ref val) = cp.anchor_x {
                     val.borrow().get().clone()
-                }else{
+                } else {
                     Size::ZERO()
-                }
-                ,
+                },
                 if let Some(ref val) = cp.anchor_y {
                     val.borrow().get().clone()
-                }else{
+                } else {
                     Size::ZERO()
-                }
+                },
             ];
             desugared_transform2d.anchor = Some(anchor);
 
             let scale = [
                 if let Some(ref val) = cp.scale_x {
                     val.borrow().get().get_as_float()
-                }else{
+                } else {
                     1.0
-                }
-                ,
+                },
                 if let Some(ref val) = cp.scale_y {
                     val.borrow().get().get_as_float()
-                }else{
+                } else {
                     1.0
-                }
+                },
             ];
             desugared_transform2d.scale = Some(scale);
 
             let skew = [
                 if let Some(ref val) = cp.skew_x {
                     val.borrow().get().get_as_float()
-                }else{
+                } else {
                     0.0
-                }
-                ,
+                },
                 if let Some(ref val) = cp.skew_y {
                     val.borrow().get().get_as_float()
-                }else{
+                } else {
                     0.0
-                }
+                },
             ];
             desugared_transform2d.skew = Some(skew);
 
@@ -897,10 +894,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             desugared_transform2d.compute_transform2d_matrix(node_size, accumulated_bounds)
         };
 
-        let new_accumulated_transform = accumulated_transform * desugared_transform * node_transform_property_computed;
+        let new_accumulated_transform =
+            accumulated_transform * desugared_transform * node_transform_property_computed;
 
         let new_scroller_normalized_accumulated_transform =
-            accumulated_scroller_normalized_transform * desugared_transform * node_transform_property_computed;
+            accumulated_scroller_normalized_transform
+                * desugared_transform
+                * node_transform_property_computed;
 
         rtc.bounds = new_accumulated_bounds.clone();
         rtc.transform_global = new_accumulated_transform.clone();
