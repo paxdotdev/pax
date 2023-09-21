@@ -85,6 +85,7 @@ fn recurse_pratt_parse_to_string<'a>(
             Rule::expression_grouped => {
                 /* expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? } */
                 let mut inner = primary.into_inner();
+
                 let exp_bod = recurse_pratt_parse_to_string(inner.next().unwrap().into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
                 if let Some(literal_number_unit) = inner.next() {
                     let unit = literal_number_unit.as_str();
@@ -93,6 +94,10 @@ fn recurse_pratt_parse_to_string<'a>(
                         format!("Size::Pixels({}.into()).into()", exp_bod)
                     } else if unit == "%" {
                         format!("Size::Percent({}.into()).into()", exp_bod)
+                    } else if unit == "deg" {
+                        format!("Rotation::Degrees({}.into()).into()", exp_bod)
+                    } else if unit == "rad" {
+                        format!("Rotation::Radians({}.into()).into()", exp_bod)
                     } else {
                         unreachable!()
                     }
@@ -178,6 +183,10 @@ fn recurse_pratt_parse_to_string<'a>(
                             format!("Size::Pixels({}.into()).into()", value)
                         } else if unit == "%" {
                             format!("Size::Percent({}.into()).into()", value)
+                        } else if unit == "deg" {
+                            format!("Rotation::Degrees({}.into()).into()", value)
+                        } else if unit == "rad" {
+                            format!("Rotation::Radians({}.into()).into()", value)
                         } else {
                             unreachable!()
                         }
@@ -760,11 +769,11 @@ fn parse_events_from_component_definition_string(pax: &str) -> Option<Vec<EventD
     pax_component_definition
         .into_inner()
         .for_each(|top_level_pair| match top_level_pair.as_rule() {
-            Rule::events_block_declaration => {
+            Rule::handlers_block_declaration => {
                 let event_definitions: Vec<EventDefinition> = top_level_pair
                     .into_inner()
-                    .map(|events_key_value_pair| {
-                        let mut pairs = events_key_value_pair.into_inner();
+                    .map(|handlers_key_value_pair| {
+                        let mut pairs = handlers_key_value_pair.into_inner();
                         let key = pairs
                             .next()
                             .unwrap()

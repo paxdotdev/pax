@@ -4,12 +4,11 @@ use std::collections::HashMap;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
+    unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
-use pax_runtime_api::{PropertyInstance, Size, Size2D, Transform2D};
-
 use pax_message::ImagePatch;
+use pax_runtime_api::CommonProperties;
 use std::cell::RefCell;
 use std::rc::Rc;
 /// An Image (decoded by chassis), drawn to the bounds specified
@@ -18,8 +17,7 @@ pub struct ImageInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
     pub properties: Rc<RefCell<Image>>,
-    pub size: Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub common_properties: CommonProperties,
     last_patches: HashMap<Vec<u32>, pax_message::ImagePatch>,
     pub image: Option<<R as RenderContext>::Image>,
 }
@@ -27,6 +25,9 @@ pub struct ImageInstance<R: 'static + RenderContext> {
 impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
+    }
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
     }
 
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
@@ -42,9 +43,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(ImageInstance {
             instance_id,
-            transform: args.transform,
             properties: Rc::new(RefCell::new(properties)),
-            size: args.size.expect("Image requires a size"),
+            common_properties: args.common_properties,
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
             image: None,
@@ -60,12 +60,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
             _ => None,
         }
     }
-    fn get_size(&self) -> Option<Size2D> {
-        Some(Rc::clone(&self.size))
-    }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
-    }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
@@ -78,35 +72,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
             properties.path.set(new_value);
         }
 
-        let size = &mut *self.size.as_ref().borrow_mut();
-
-        if let Some(new_size) = rtc.compute_vtable_value(size[0]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            size[0].set(new_value);
-        }
-
-        if let Some(new_size) = rtc.compute_vtable_value(size[1]._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            size[1].set(new_value);
-        }
-
-        let transform = &mut *self.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
-                v
-            } else {
-                unreachable!()
-            };
-            transform.set(new_value);
-        }
+        self.common_properties.compute_properties(rtc);
     }
 
     fn compute_native_patches(

@@ -12,7 +12,7 @@ COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NE
 
 //A component definition requires at least one element in its template; a `@settings` block may also be included, and any future relevant blocks like `@defaults`
 //The parser will willingly _parse_ multiple @settings/@template blocks per component definition, but the compiler won't presently support them
-pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration | events_block_declaration)+ ~ EOI }
+pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration | handlers_block_declaration)+ ~ EOI }
 root_tag_pair = { any_tag_pair }
 any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag}
 
@@ -82,30 +82,30 @@ selector = {("." | "#") ~ identifier}
 //Describes a key-value pair in a settings block, which supports a number of formats,
 //included recursive nesting via `property_block`
 settings_key_value_pair = { settings_key ~ settings_value ~ ","? }
-settings_key = { identifier ~ ":" }
+settings_key = { identifier ~ (":" | "=") } //Offer some grace here, since our borrowing of HTML/CSS semantics means we inherit the mismatch between xml-like `=` and json-like `:`.  Let's allow both and let linters deal with cleaning up mismatches.
 settings_value = { literal_value | literal_object | expression_wrapped }
 
 
 ////// ////// //////
-/// BEGIN EVENTS
+/// BEGIN HANDLERS
 //////
 
-events_block_declaration = {"@" ~ "events" ~ "{" ~ events_key_value_pair* ~ "}"}
+handlers_block_declaration = {"@" ~ "handlers" ~ "{" ~ handlers_key_value_pair* ~ "}"}
 
-//Describes a key-value pair in a events block;
+//Describes a key-value pair in a event handlers block;
 //keys are event names and values are functions to call
-events_key_value_pair = { events_key ~ events_value ~ ","? }
-events_key = { identifier ~ ":" }
-events_value = { literal_function | function_list }
+handlers_key_value_pair = { handlers_key ~ handlers_value ~ ","? }
+handlers_key = { identifier ~ ":" }
+handlers_value = { literal_function | function_list }
 literal_function = { "self."? ~ identifier ~ ","? }
 function_list = {"[" ~ literal_function* ~ "]"}
 
 literal_value = { literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
 literal_number_with_unit = { literal_number ~ literal_number_unit }
-literal_number = {literal_number_float | literal_number_integer}
+literal_number = {"-"? ~ (literal_number_float | literal_number_integer)}
 literal_number_integer = {(!(".") ~ ASCII_DIGIT)+ }
 literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
-literal_number_unit = {("%" | "px")}
+literal_number_unit = {("%" | "px" | "deg" | "rad")}
 literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
 literal_boolean = {("true" | "false")}
 

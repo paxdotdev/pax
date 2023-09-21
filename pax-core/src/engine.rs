@@ -19,8 +19,8 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{
     ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
     ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
-    ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Interpolatable, Layer, RuntimeContext,
-    TransitionManager, ZIndex,
+    ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable,
+    Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex,
 };
 
 pub struct PaxEngine<R: 'static + RenderContext> {
@@ -43,6 +43,60 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
     pub timeline_playhead_position: usize,
     pub inherited_adoptees: Option<RenderNodePtrList<R>>,
+}
+
+macro_rules! handle_vtable_update {
+    ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {{
+        let current_prop = &mut *$var.$field.as_ref().borrow_mut();
+        if let Some(new_value) = $rtc.compute_vtable_value(current_prop._get_vtable_id()) {
+            let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
+                val
+            } else {
+                unreachable!()
+            };
+            current_prop.set(new_value);
+        }
+    }};
+}
+
+macro_rules! handle_vtable_update_optional {
+    ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {{
+        if let Some(_) = $var.$field {
+            let current_prop = &mut *$var.$field.as_ref().unwrap().borrow_mut();
+            if let Some(new_value) = $rtc.compute_vtable_value(current_prop._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
+                    val
+                } else {
+                    unreachable!()
+                };
+                current_prop.set(new_value);
+            }
+        }
+    }};
+}
+
+//This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
+//so that it can use the type RenderTreeContext (defined in pax_core, which depends on pax_runtime_api, which
+//defines CommonProperties, and which can thus not depend on pax_core due to a would-be circular dependency.)
+pub trait PropertiesComputable<R: 'static + RenderContext> {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>);
+}
+
+impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+        handle_vtable_update!(rtc, self.width, Size);
+        handle_vtable_update!(rtc, self.height, Size);
+        handle_vtable_update!(rtc, self.transform, Transform2D);
+        handle_vtable_update_optional!(rtc, self.rotate, Rotation);
+        handle_vtable_update_optional!(rtc, self.scale_x, Numeric);
+        handle_vtable_update_optional!(rtc, self.scale_y, Numeric);
+        handle_vtable_update_optional!(rtc, self.skew_x, Numeric);
+        handle_vtable_update_optional!(rtc, self.skew_y, Numeric);
+        handle_vtable_update_optional!(rtc, self.anchor_x, Size);
+        handle_vtable_update_optional!(rtc, self.anchor_y, Size);
+        handle_vtable_update_optional!(rtc, self.x, Size);
+        handle_vtable_update_optional!(rtc, self.y, Size);
+    }
 }
 
 impl<'a, R: 'static + RenderContext> RenderTreeContext<'a, R> {
@@ -751,21 +805,103 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             .compute_size_within_bounds(accumulated_bounds);
         #[allow(unused)]
         let mut node_size: (f64, f64) = (0.0, 0.0);
-        let node_computed_transform = {
-            let mut node_borrowed = rtc.node.borrow_mut();
+
+        // From the `transform` property
+        let node_transform_property_computed = {
+            let node_borrowed = rtc.node.borrow_mut();
             node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
-            let components = node_borrowed
-                .get_transform()
+            let computed_transform2d_matrix = node_borrowed
+                .get_common_properties()
+                .transform
                 .borrow_mut()
                 .get()
-                .compute_transform_matrix(node_size, accumulated_bounds);
-            //combine align transformation exactly once per element per frame
-            components.1 * components.0
+                .compute_transform2d_matrix(node_size, accumulated_bounds);
+
+            computed_transform2d_matrix
         };
 
-        let new_accumulated_transform = accumulated_transform * node_computed_transform;
+        // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
+        let desugared_transform = {
+            //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
+            let node_borrowed = rtc.node.borrow();
+            let cp = node_borrowed.get_common_properties();
+            let mut desugared_transform2d = Transform2D::default();
+
+            let translate = [
+                if let Some(ref val) = cp.x {
+                    val.borrow().get().clone()
+                } else {
+                    Size::ZERO()
+                },
+                if let Some(ref val) = cp.y {
+                    val.borrow().get().clone()
+                } else {
+                    Size::ZERO()
+                },
+            ];
+            desugared_transform2d.translate = Some(translate);
+
+            let anchor = [
+                if let Some(ref val) = cp.anchor_x {
+                    val.borrow().get().clone()
+                } else {
+                    Size::ZERO()
+                },
+                if let Some(ref val) = cp.anchor_y {
+                    val.borrow().get().clone()
+                } else {
+                    Size::ZERO()
+                },
+            ];
+            desugared_transform2d.anchor = Some(anchor);
+
+            let scale = [
+                if let Some(ref val) = cp.scale_x {
+                    val.borrow().get().get_as_float()
+                } else {
+                    1.0
+                },
+                if let Some(ref val) = cp.scale_y {
+                    val.borrow().get().get_as_float()
+                } else {
+                    1.0
+                },
+            ];
+            desugared_transform2d.scale = Some(scale);
+
+            let skew = [
+                if let Some(ref val) = cp.skew_x {
+                    val.borrow().get().get_as_float()
+                } else {
+                    0.0
+                },
+                if let Some(ref val) = cp.skew_y {
+                    val.borrow().get().get_as_float()
+                } else {
+                    0.0
+                },
+            ];
+            desugared_transform2d.skew = Some(skew);
+
+            let rotate = if let Some(ref val) = cp.rotate {
+                val.borrow().get().clone()
+            } else {
+                Rotation::ZERO()
+            };
+            desugared_transform2d.rotate = Some(rotate);
+
+            node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
+            desugared_transform2d.compute_transform2d_matrix(node_size, accumulated_bounds)
+        };
+
+        let new_accumulated_transform =
+            accumulated_transform * desugared_transform * node_transform_property_computed;
+
         let new_scroller_normalized_accumulated_transform =
-            accumulated_scroller_normalized_transform * node_computed_transform;
+            accumulated_scroller_normalized_transform
+                * desugared_transform
+                * node_transform_property_computed;
+
         rtc.bounds = new_accumulated_bounds.clone();
         rtc.transform_global = new_accumulated_transform.clone();
         rtc.transform_scroller_reset = new_scroller_normalized_accumulated_transform.clone();

@@ -747,7 +747,7 @@ MED
         [ ] code-behind & decorator syntax
     [ ] Bindings to `runtime` API, plus IPC mechanism for triggering
 [ ] Language server, syntax highlighting, IDE errors (VSCode, JetBrains)
-[ ] Transform.shear
+[ ] Transform.skew
 [ ] 3D renderers
 [ ] Audio/video components
     [ ] "headless" components?

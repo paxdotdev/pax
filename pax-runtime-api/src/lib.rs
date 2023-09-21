@@ -6,7 +6,7 @@ use std::collections::VecDeque;
 use std::ffi::CString;
 use std::rc::Rc;
 
-use std::ops::{Deref, Mul};
+use std::ops::{Add, Deref, Mul, Neg};
 
 #[macro_use]
 extern crate lazy_static;
@@ -286,6 +286,212 @@ pub struct ArgsContextMenu {
 pub enum Size {
     Pixels(Numeric),
     Percent(Numeric),
+    ///Pixel component, Percent component
+    Combined(Numeric, Numeric),
+}
+
+impl Neg for Size {
+    type Output = Size;
+    fn neg(self) -> Self::Output {
+        match self {
+            Size::Pixels(pix) => Size::Pixels(-pix),
+            Size::Percent(per) => Size::Percent(-per),
+            Size::Combined(pix, per) => Size::Combined(-pix, -per),
+        }
+    }
+}
+
+impl Add for Size {
+    type Output = Size;
+    fn add(self, rhs: Self) -> Self::Output {
+        let mut pixel_component: Numeric = Default::default();
+        let mut percent_component: Numeric = Default::default();
+
+        [self, rhs].iter().for_each(|size| match size {
+            Size::Pixels(s) => pixel_component = pixel_component + *s,
+            Size::Percent(s) => percent_component = percent_component + *s,
+            Size::Combined(s0, s1) => {
+                pixel_component = pixel_component + *s0;
+                percent_component = percent_component + *s1;
+            }
+        });
+
+        Size::Combined(pixel_component, percent_component)
+    }
+}
+
+impl Size {
+    #[allow(non_snake_case)]
+    pub fn ZERO() -> Self {
+        Size::Pixels(Numeric::from(0.0))
+    }
+}
+
+pub enum Axis {
+    X,
+    Y,
+}
+
+impl Size {
+    //Evaluate a Size in the context of `bounds` and a target `axis`.
+    //Returns a `Pixel` value as a simple f64; calculates `Percent` with respect to `bounds` & `axis`
+    pub fn evaluate(&self, bounds: (f64, f64), axis: Axis) -> f64 {
+        let target_bound = match axis {
+            Axis::X => bounds.0,
+            Axis::Y => bounds.1,
+        };
+        match &self {
+            Size::Pixels(num) => num.get_as_float(),
+            Size::Percent(num) => target_bound * (*num / 100.0),
+            Size::Combined(pixel_component, percent_component) => {
+                //first calc percent, then add pixel
+                (target_bound * (percent_component.get_as_float() / 100.0))
+                    + pixel_component.get_as_float()
+            }
+        }
+    }
+}
+
+macro_rules! expose_property_identifiers {
+    (
+        pub struct $name:ident {
+            $(
+                pub $field:ident : $ftype:ty,
+            )+
+        }
+    ) => {
+        pub struct $name {
+            $(
+                pub $field: $ftype,
+            )+
+        }
+
+        impl $name {
+            pub fn get_property_identifiers() -> Vec<String> {
+                vec![
+                    $(
+                        stringify!($field).to_string(),
+                    )+
+                ]
+            }
+        }
+    };
+}
+
+// Struct containing fields shared by all RenderNodes.
+// Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
+// Retrieved via <dyn RenderNode>#get_common_properties
+expose_property_identifiers! { // creates an impl `get_property_identifiers()`
+    pub struct CommonProperties {
+        pub x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
+        pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
+        pub skew_x: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
+        pub skew_y: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
+        pub rotate: Option<Rc<RefCell<dyn PropertyInstance<Rotation>>>>,
+        pub anchor_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub anchor_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+        pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+        pub width: Rc<RefCell<dyn PropertyInstance<Size>>>,
+        pub height:Rc<RefCell<dyn PropertyInstance<Size>>>,
+    }
+}
+
+impl CommonProperties {
+    pub fn get_default_properties_literal() -> Vec<(String, String)> {
+        Self::get_property_identifiers()
+            .iter()
+            .map(|id| {
+                if id == "transform" {
+                    (id.to_string(), "Transform2D::default_wrapped()".to_string())
+                } else if id == "width" || id == "height" {
+                    (
+                        id.to_string(),
+                        "Rc::new(RefCell::new(PropertyLiteral::new(Size::default())))".to_string(),
+                    )
+                } else {
+                    (id.to_string(), "Default::default()".to_string())
+                }
+            })
+            .collect()
+    }
+}
+
+impl Default for CommonProperties {
+    fn default() -> Self {
+        Self {
+            x: Default::default(),
+            y: Default::default(),
+            scale_x: Default::default(),
+            scale_y: Default::default(),
+            skew_x: Default::default(),
+            skew_y: Default::default(),
+            rotate: Default::default(),
+            anchor_x: Default::default(),
+            anchor_y: Default::default(),
+
+            width: Rc::new(RefCell::new(PropertyLiteral::new(Size::default()))),
+            height: Rc::new(RefCell::new(PropertyLiteral::new(Size::default()))),
+
+            transform: Transform2D::default_wrapped(),
+        }
+    }
+}
+
+#[derive(Clone)]
+pub enum Rotation {
+    Radians(Numeric),
+    Degrees(Numeric),
+    Percent(Numeric),
+}
+impl Rotation {
+    #[allow(non_snake_case)]
+    pub fn ZERO() -> Self {
+        Self::Radians(Numeric::from(0.0))
+    }
+
+    pub fn get_as_radians(&self) -> f64 {
+        if let Self::Radians(num) = self {
+            num.get_as_float()
+        } else if let Self::Degrees(num) = self {
+            num.get_as_float() * std::f64::consts::PI * 2.0 / 360.0
+        } else if let Self::Percent(num) = self {
+            num.get_as_float() * std::f64::consts::PI * 2.0 / 100.0
+        } else {
+            unreachable!()
+        }
+    }
+}
+impl Neg for Rotation {
+    type Output = Rotation;
+    fn neg(self) -> Self::Output {
+        match self {
+            Rotation::Degrees(deg) => Rotation::Degrees(-deg),
+            Rotation::Radians(rad) => Rotation::Radians(-rad),
+            Rotation::Percent(per) => Rotation::Percent(-per),
+        }
+    }
+}
+impl Into<Rotation> for Numeric {
+    fn into(self) -> Rotation {
+        Rotation::Radians(self)
+    }
+}
+impl Into<Rotation> for Size {
+    fn into(self) -> Rotation {
+        if let Size::Percent(pix) = self {
+            Rotation::Percent(pix)
+        } else {
+            panic!("Tried to coerce a pixel value into a rotation value; try `%` or `rad` instead of `px`.")
+        }
+    }
+}
+
+impl Default for Rotation {
+    fn default() -> Self {
+        Self::ZERO()
+    }
 }
 
 impl Size {
@@ -293,6 +499,9 @@ impl Size {
         match &self {
             Self::Pixels(p) => p.get_as_float(),
             Self::Percent(p) => parent * (p.get_as_float() / 100.0),
+            Self::Combined(pix, per) => {
+                (parent * (per.get_as_float() / 100.0)) + pix.get_as_float()
+            }
         }
     }
 }
@@ -303,10 +512,35 @@ impl Interpolatable for Size {
             Self::Pixels(sp) => match other {
                 Self::Pixels(op) => Self::Pixels(*sp + ((*op - *sp) * Numeric::from(t))),
                 Self::Percent(op) => Self::Percent(*op),
+                Self::Combined(pix, per) => {
+                    let pix = *sp + ((*pix - *sp) * Numeric::from(t));
+                    let per = *per;
+                    Self::Combined(pix, per)
+                }
             },
             Self::Percent(sp) => match other {
-                Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::from(t))),
                 Self::Pixels(op) => Self::Pixels(*op),
+                Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::from(t))),
+                Self::Combined(pix, per) => {
+                    let pix = *pix;
+                    let per = *sp + ((*per - *sp) * Numeric::from(t));
+                    Self::Combined(pix, per)
+                }
+            },
+            Self::Combined(pix, per) => match other {
+                Self::Pixels(op) => {
+                    let pix = *pix + ((*op - *pix) * Numeric::from(t));
+                    Self::Combined(pix, *per)
+                }
+                Self::Percent(op) => {
+                    let per = *per + ((*op - *per) * Numeric::from(t));
+                    Self::Combined(*pix, per)
+                }
+                Self::Combined(pix0, per0) => {
+                    let pix = *pix + ((*pix0 - *pix) * Numeric::from(t));
+                    let per = *per + ((*per0 - *per) * Numeric::from(t));
+                    Self::Combined(pix, per)
+                }
             },
         }
     }
@@ -401,28 +635,30 @@ impl Mul for Size {
 
     fn mul(self, rhs: Self) -> Self::Output {
         match self {
-            Size::Pixels(px0) => {
+            Size::Pixels(pix0) => {
                 match rhs {
                     //multiplying two pixel values adds them,
                     //in the sense of multiplying two affine translations.
                     //this might be wildly unexpected in some cases, so keep an eye on this and
                     //revisit whether to support Percent values in anchor calcs (could rescind)
-                    Size::Pixels(px1) => Size::Pixels(px0 + px1),
-                    Size::Percent(pc1) => Size::Pixels(px0 * pc1),
+                    Size::Pixels(pix1) => Size::Pixels(pix0 + pix1),
+                    Size::Percent(per1) => Size::Pixels(pix0 * per1),
+                    Size::Combined(pix1, per1) => Size::Pixels((pix0 * per1) + pix0 + pix1),
                 }
             }
-            Size::Percent(pc0) => match rhs {
-                Size::Pixels(px1) => Size::Pixels(pc0 * px1),
-                Size::Percent(pc1) => Size::Percent(pc0 * pc1),
+            Size::Percent(per0) => match rhs {
+                Size::Pixels(pix1) => Size::Pixels(per0 * pix1),
+                Size::Percent(per1) => Size::Percent(per0 * per1),
+                Size::Combined(pix1, per1) => Size::Pixels((per0 * pix1) + (per0 * per1)),
+            },
+            Size::Combined(pix0, per0) => match rhs {
+                Size::Pixels(pix1) => Size::Pixels((pix0 * per0) + pix1),
+                Size::Percent(per1) => Size::Percent(pix0 * per0 * per1),
+                Size::Combined(pix1, per1) => Size::Pixels((pix0 * per0) + (pix1 * per1)),
             },
         }
     }
 }
-
-// More than just a tuble of (Size, Size),
-// Size2D wraps up Properties as well to make it easy
-// to declare expressable Size properties
-pub type Size2D = Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>;
 
 /// A sugary representation of an Affine transform+, including
 /// `anchor` and `align` as layout-computed properties.
@@ -434,23 +670,16 @@ pub type Size2D = Rc<RefCell<[Box<dyn PropertyInstance<Size>>; 2]>>;
 ///             By default that's the top-left of the element, but `anchor` allows that
 ///             to be offset either by a pixel or percentage-of-element-size
 ///             for each of (x,y)
-/// `align`     the offset of this element's `anchor` as it relates to the element's parent.
-///             By default this is the top-left corner of the parent container,
-///             but can be set to be any value [0,1] for each of (x,y), representing
-///             the percentage (between 0.0 and 1.0) multiplied by the parent container size.
-///             For example, an align of (0.5, 0.5) will center an element's `anchor` point both vertically
-///             and horizontally within the parent container.  Combined with an anchor of (Size::Percent(50.0), Size::Percent(50.0)),
-///             an element will appear fully centered within its parent.
 #[derive(Default, Clone)]
 pub struct Transform2D {
-    //Literal
+    /// Keeps track of a linked list of previous Transform2Ds, assembled e.g. via multiplication
     pub previous: Option<Box<Transform2D>>,
-    pub rotate: Option<f64>,
-    ///over z axis
-    pub translate: Option<[f64; 2]>,
+    /// Rotation is single-dimensional for 2D rendering, representing rotation over z axis
+    pub rotate: Option<Rotation>,
+    pub translate: Option<[Size; 2]>,
     pub anchor: Option<[Size; 2]>,
-    pub align: Option<[Size; 2]>,
     pub scale: Option<[f64; 2]>,
+    pub skew: Option<[f64; 2]>,
 }
 
 impl Mul for Transform2D {
@@ -471,22 +700,15 @@ impl Transform2D {
         ret
     }
     ///Rotation over z axis
-    pub fn rotate(z: Numeric) -> Self {
+    pub fn rotate(z: Rotation) -> Self {
         let mut ret = Transform2D::default();
-        ret.rotate = Some(z.get_as_float());
+        ret.rotate = Some(z);
         ret
     }
     ///Translation across x-y plane, pixels
-    pub fn translate(x: Numeric, y: Numeric) -> Self {
+    pub fn translate(x: Size, y: Size) -> Self {
         let mut ret = Transform2D::default();
-        ret.translate = Some([x.get_as_float(), y.get_as_float()]);
-        ret
-    }
-    ///Describe alignment within parent bounding box, as a starting point before
-    /// affine transformations are applied
-    pub fn align(x: Size, y: Size) -> Self {
-        let mut ret = Transform2D::default();
-        ret.align = Some([x, y]);
+        ret.translate = Some([x, y]);
         ret
     }
     ///Describe alignment of the (0,0) position of this element as it relates to its own bounding box

@@ -15,11 +15,11 @@ fill={Fill::linearGradient(
             align_horizontal: TextAlignHorizontal::Center,
         }
         width: 500px,
-        transform: {Transform2D::align(50%, 50%) * Transform2D::anchor(50%, 50%)}
+        transform: {Transform2D::translate(50%, 50%) * Transform2D::anchor(50%, 50%)}
     }
 }
 
-@events {
+@handlers {
     did_mount: handle_did_mount,
     jab: handle_jab,
     scroll: handle_scroll,

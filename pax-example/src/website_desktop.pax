@@ -1,12 +1,8 @@
 <Frame width=100% height=100%>
     // Nav fixed overlay
-    <Frame width=80% height=75px transform={
-       Transform2D::anchor(50%, 0%) *
-       Transform2D::align(50%, 0%) *
-       Transform2D::translate(0.0, 25.0)
-    }>
+    <Frame x=50% y=90px width=80% height=75px anchor_x=50% anchor_y=50% >
          <Stacker cells=5 height=75px direction=StackerDirection::Horizontal gutter=8px>
-            <Image path="assets/images/pax-logo-light.png" width=125px height=42px transform={Transform2D::align(0%, 50%) * Transform2D::anchor(0%, 50%) * Transform2D::translate(20, 0)}/>
+            <Image path="assets/images/pax-logo-light.png" width=125px height=42px y=50% anchor_y=50% x=20px />
             <Text text="<a href='https://docs.pax.rs' target='_blank'>Docs</a>" class=link />
             <Text text="<a href='https://www.github.com/pax-lang/pax' target='_blank'>Github</a>" class=link />
             <Text text="<a href='https://discord.gg/Eq8KWAUc6b' target='_blank'>Discord</a>" class=link />
@@ -119,28 +115,32 @@
         }
         width: 80px,
         height: 50px,
-        transform: {Transform2D::align(0%, 50%) * Transform2D::anchor(0%, 50%)}
+        y: 50%,
+        anchor_y: 50%,
     }
     #f1 {
         width: 80%,
         height: 800px,
-        transform: {
-           Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 50%)
-        }
+        x: 50%,
+        y: 50%,
+        anchor_x: 50%,
+        anchor_y: 50%,
     }
     #f2 {
         width: 75%,
         height: 600px,
-        transform: {
-           Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 40%)
-        }
+        x: 50%,
+        y: 40%,
+        anchor_x: 50%,
+        anchor_y: 50%,
     }
     #f3 {
         width: 75%,
         height: 300px,
-        transform: {
-           Transform2D::anchor(50%, 50%) * Transform2D::align(50%, 40%)
-        }
+        x: 50%,
+        y: 40%,
+        anchor_x: 50%,
+        anchor_y: 50%,
     }
     .h1 {
         width: 100%,
@@ -221,4 +221,9 @@
             align_multiline: TextAlignHorizontal::Left,
         }
     }
+}
+
+@handlers {
+    did_mount: self.handle_did_mount,
+    will_render: self.handle_will_render
 }
