@@ -3,10 +3,10 @@ use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
+    unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
-use pax_runtime_api::{PropertyInstance, Size2D, Transform2D};
+use pax_runtime_api::{CommonProperties, Size};
 use pax_std::primitives::Path;
 use pax_std::types::PathSegment;
 
@@ -18,10 +18,14 @@ pub struct PathInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
     pub properties: Rc<RefCell<Path>>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub common_properties: CommonProperties,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for PathInstance<R> {
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
+    }
+
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -42,7 +46,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for PathInstance<R> {
             instance_id,
             properties: Rc::new(RefCell::new(properties)),
             handler_registry: args.handler_registry,
-            transform: args.transform,
+            common_properties: args.common_properties,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -56,11 +60,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for PathInstance<R> {
         }
     }
 
-    fn get_size(&self) -> Option<Size2D> {
+    fn get_size(&self) -> Option<(Size, Size)> {
         None
-    }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
@@ -90,6 +91,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for PathInstance<R> {
             let new_value = unsafe_unwrap!(segments, TypesCoproduct, Vec<PathSegment>);
             properties.segments.set(new_value);
         }
+
+        self.common_properties.compute_properties(rtc);
     }
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let transform = rtc.transform_scroller_reset;

@@ -3254,18 +3254,6 @@ Split out: Merge the above, tackle the following separately
 
 
 
-### On common properties like `x`, `y`, `width`, and `height`
-
-A.k.a. "Transform API ergo, syntax sugar"
-
-Currently, we special-case a handful of properties in the compiler like width and height. To make this more robust and to offer a declarative API for the "80%-case" of transform declarations (i.e. vs. the 20% case where custom sequencing is desired,)
-we can:
-
-1. introduce a CommonProperties struct, which includes: transform and each individual sugared transform operation (x, y, width, height, scale_x, scale_y, rotate, shear_x, shear_y, anchor_x, anchor_y — or possibly nested versions of these e.g. scale: {x:...y:...}) 
-2. introduce a trait method on dyn RenderNode to get_common_properties.  likely refactor get_size and get_transform across the board, perhaps to fetch these values, or perhaps retiring them in favor of get_common_properties().size and ....transform
-3. in the workhorse rendering loop, combine declarative transforms into a matrix (we choose the sequence to match ergo expectations) and multiply that matrix with a transform property, if specified (a user should be able to specify both a transform matrix and individual properties; again we choose the best order in which to combine these)
-4. consider retiring Transform::align, and make Transform::translate accept Size values instead of floats (make it bounds-aware)
-5. where we special-case certain fields in the compiler when parsing element K/V declarations, now make sure that list of special-case properties meshes with the properties/types of `CommonProperties`.  Perhaps impl CommonProperties to return an ad-hoc, manually maintained "reflection" manifest of its properties (.reflect_on_properties)
 
 ### On porting to 3D
 
@@ -3359,6 +3347,48 @@ Let's determine what needs to be done via three channels:
         [ ] Hot reloading
         [ ] Robust standard library (e.g. form controls)
 [ ] Empirical, personal
-    [ ] TODO
+    [ ] Want auto-complete or obvious documentation re: the function signatures for event handlers
+    [ ] Want a built-in $ticks for use in PAXEL
 [ ] Empirical, external
     [ ] TODO
+
+
+
+### On common properties like `x`, `y`, `width`, and `height`
+
+A.k.a. "Transform API ergo, syntax sugar"
+
+Currently, we special-case a handful of properties in the compiler like width and height. To make this more robust and to offer a declarative API for the "80%-case" of transform declarations (i.e. vs. the 20% case where custom sequencing is desired,)
+we can:
+
+[x] introduce a CommonProperties struct, which includes: transform and each individual sugared transform operation (x, y, width, height, scale_x, scale_y, rotate, skew_x, skew_y, anchor_x, anchor_y — or possibly nested versions of these e.g. scale: {x:...y:...})
+    [x] Refactor size: get_size to return Option<(Size, Size)>
+    [x] Introduce Size#evaluate to DRY evaluation-given-bounds
+    [x] Refactor get_clipping_bounds to match type of get_size
+    [x] Default-impl get_size to call self.get_common_properties and to pull out `width` and `height` (also decide based on usage whether to pass `bounds` into `get_size(bounds)`
+    [x] Do the same as the above for `get_transform` — note that get_transform is currently called exactly once, so we have leeway to change the interface substantially, easily
+    [x] Refactor every impl of RenderNode (primitives + component primitive) to keep some state representing common_properties, and to return an Rc::clone of it when called
+        [x] Remove the locally stored `transform` and `size` along the way
+    [x] introduce a trait method on dyn RenderNode to get_common_properties.  likely refactor get_size and get_transform across the board, perhaps to fetch these values, or perhaps retiring them in favor of get_common_properties().size and ....transform [
+    [x] update cartridge codegen to accommodate InstantiationArgs#common_properties
+[x] in the workhorse rendering loop, combine declarative transforms into a matrix (we choose the sequence to match ergo expectations) and multiply that matrix with a transform property, if specified (a user should be able to specify both a transform matrix and individual properties; again we choose the best order in which to combine these) 
+    [x] along the way, retire Transform::align and make Transform::translate accept Size values instead of floats (make it bounds-aware)
+    [x] where we special-case certain fields in the compiler when parsing element K/V declarations, now make sure that list of special-case properties meshes with the properties/types of `CommonProperties`.  Perhaps impl CommonProperties to return an ad-hoc, manually maintained "reflection" manifest of its properties (.reflect_on_properties)
+[x] update website example to use updated APIs
+[x] finish-line
+    [x] finish Rotation refactor, ensure we can use an expression e2e (may require special-handling in pratt parser like with Numeric)
+        [x] make sure we handle the unit `deg` (and {no unit, `rad`} => `rad`) in codegen, both for property literals and in PAXEL
+        [x] for kicks, handle `%`, too
+    [-] stretch: support {50% + 35px}, updating Size to support combined values
+    [-] e2e test that we can bind an expression to each of our sugared properties
+        (Note: didn't manually test all properties, just tested `rotate`)
+    [x] QA
+        [x] Can't yet bind an expression to `rotate` (compiles but silently fails)
+            [x] We need to `compute_properties` — perhaps can build a helper for this inside `impl CommonProperties`
+        [-] Can't combine % and px, namely because of `into()` coercion.  Deserves more digging to find a potential mitigation
+            Decided to treat as a separate feature
+        [-] Can't apply a negative sign to a literal, for other (or the same) `into()` vs. type annotation reasons
+            - Are there cases where we know the desired, or some higher level type, and might we be able to call an explicit typecast
+              somewhere in codegen?
+            Decided to treat as a separate feature
+    [x] final cleaning & review

@@ -5,10 +5,11 @@ use std::rc::Rc;
 
 use kurbo::{Affine, Point};
 use pax_properties_coproduct::PropertiesCoproduct;
+use pax_runtime_api::{Axis, CommonProperties, Transform2D};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
-use pax_runtime_api::{ArgsScroll, Layer, Size, Size2D};
+use pax_runtime_api::{ArgsScroll, Layer, Size};
 
 use crate::{HandlerRegistry, InstanceRegistry, RenderTreeContext};
 
@@ -25,16 +26,13 @@ pub struct ScrollerArgs {
 }
 
 pub struct InstantiationArgs<R: 'static + RenderContext> {
+    pub common_properties: CommonProperties,
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-    pub size: Option<Size2D>,
     pub children: Option<RenderNodePtrList<R>>,
     pub component_template: Option<RenderNodePtrList<R>>,
-
     pub scroller_args: Option<ScrollerArgs>,
-
     /// used by Slot
     pub slot_index: Option<Box<dyn PropertyInstance<pax_runtime_api::Numeric>>>,
 
@@ -218,19 +216,36 @@ pub trait RenderNode<R: 'static + RenderContext> {
             && transformed_ray.y < relevant_bounds.1
     }
 
+    fn get_common_properties(&self) -> &CommonProperties;
+
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         None //default no-op
     }
 
     /// Used at least by ray-casting; only nodes that clip content (and thus should
     /// not allow outside content to respond to ray-casting) should return true
-    fn get_clipping_bounds(&self) -> Option<Size2D> {
+    fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
         None
     }
 
     /// Returns the size of this node, or `None` if this node
     /// doesn't have a size (e.g. `Group`)
-    fn get_size(&self) -> Option<Size2D>;
+    fn get_size(&self) -> Option<(Size, Size)> {
+        Some((
+            self.get_common_properties()
+                .width
+                .as_ref()
+                .borrow()
+                .get()
+                .clone(),
+            self.get_common_properties()
+                .height
+                .as_ref()
+                .borrow()
+                .get()
+                .clone(),
+        ))
+    }
 
     /// Returns unique integer ID of this RenderNode instance.  Note that
     /// individual rendered elements may share an instance_id, for example
@@ -258,14 +273,8 @@ pub trait RenderNode<R: 'static + RenderContext> {
         match self.get_size() {
             None => bounds,
             Some(size_raw) => (
-                match size_raw.borrow()[0].get() {
-                    Size::Pixels(width) => width.get_as_float(),
-                    Size::Percent(width) => bounds.0 * (*width / 100.0),
-                },
-                match size_raw.borrow()[1].get() {
-                    Size::Pixels(height) => height.get_as_float(),
-                    Size::Percent(height) => bounds.1 * (*height / 100.0),
-                },
+                size_raw.0.evaluate(bounds, Axis::X),
+                size_raw.1.evaluate(bounds, Axis::Y),
             ),
         }
     }
@@ -276,20 +285,11 @@ pub trait RenderNode<R: 'static + RenderContext> {
         match self.get_clipping_bounds() {
             None => bounds,
             Some(size_raw) => (
-                match size_raw.borrow()[0].get() {
-                    Size::Pixels(width) => width.get_as_float(),
-                    Size::Percent(width) => bounds.0 * (*width / 100.0),
-                },
-                match size_raw.borrow()[1].get() {
-                    Size::Pixels(height) => height.get_as_float(),
-                    Size::Percent(height) => bounds.1 * (*height / 100.0),
-                },
+                size_raw.0.evaluate(bounds, Axis::X),
+                size_raw.1.evaluate(bounds, Axis::Y),
             ),
         }
     }
-
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>>;
-
     /// First lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.
     /// Occurs in a pre-order traversal of the render tree.
@@ -382,85 +382,101 @@ pub trait RenderNode<R: 'static + RenderContext> {
 
 pub trait LifecycleNode {}
 
-use pax_runtime_api::Transform2D;
-
 pub trait ComputableTransform {
-    fn compute_transform_matrix(
+    fn compute_transform2d_matrix(
         &self,
         node_size: (f64, f64),
         container_bounds: (f64, f64),
-    ) -> (Affine, Affine);
+    ) -> Affine;
 }
 
 impl ComputableTransform for Transform2D {
     //Distinction of note: scale, translate, rotate, anchor, and align are all AUTHOR-TIME properties
     //                     node_size and container_bounds are (computed) RUNTIME properties
     //Returns (Base affine transform, align component)
-    fn compute_transform_matrix(
+    fn compute_transform2d_matrix(
         &self,
         node_size: (f64, f64),
         container_bounds: (f64, f64),
-    ) -> (Affine, Affine) {
+    ) -> Affine {
+        //Three broad strokes:
+        // a.) compute anchor
+        // b.) decompose "vanilla" affine matrix
+        // c.) combine with previous transform chain (assembled via multiplication of two Transform2Ds, e.g. in PAXEL)
+
+        // Compute anchor
         let anchor_transform = match &self.anchor {
             Some(anchor) => Affine::translate((
                 match anchor[0] {
-                    Size::Pixels(x) => -x.get_as_float(),
-                    Size::Percent(x) => -node_size.0 * (x / 100.0),
+                    Size::Pixels(pix) => -pix.get_as_float(),
+                    Size::Percent(per) => -node_size.0 * (per / 100.0),
+                    Size::Combined(pix, per) => {
+                        -pix.get_as_float() + (-node_size.0 * (per / 100.0))
+                    }
                 },
                 match anchor[1] {
-                    Size::Pixels(y) => -y.get_as_float(),
-                    Size::Percent(y) => -node_size.1 * (y / 100.0),
+                    Size::Pixels(pix) => -pix.get_as_float(),
+                    Size::Percent(per) => -node_size.1 * (per / 100.0),
+                    Size::Combined(pix, per) => {
+                        -pix.get_as_float() + (-node_size.0 * (per / 100.0))
+                    }
                 },
             )),
             //No anchor applied: treat as 0,0; identity matrix
             None => Affine::default(),
         };
 
-        let mut transform = Affine::default();
-        if let Some(rotate) = &self.rotate {
-            transform = transform * Affine::rotate(*rotate);
-        }
-        if let Some(scale) = &self.scale {
-            transform = transform * Affine::scale_non_uniform(scale[0], scale[1]);
-        }
-        if let Some(translate) = &self.translate {
-            transform = transform * Affine::translate((translate[0], translate[1]));
-        }
-
-        //if this has an align component, return it.else {if previous has an align component, return it }
-
-        let (previous_transform, previous_align_component) = match &self.previous {
-            Some(previous) => (*previous).compute_transform_matrix(node_size, container_bounds),
-            None => (Affine::default(), Affine::default()),
+        //decompose vanilla affine matrix and pack into `Affine`
+        let (scale_x, scale_y) = if let Some(scale) = self.scale {
+            (scale[0], scale[1])
+        } else {
+            (1.0, 1.0)
         };
 
-        let align_component = match &self.align {
-            Some(align) => {
-                let x_percent = if let Size::Percent(x) = align[0] {
-                    x / 100.0
-                } else {
-                    panic!("Align requires a Size::Percent value")
-                };
-                let y_percent = if let Size::Percent(y) = align[1] {
-                    y / 100.0
-                } else {
-                    panic!("Align requires a Size::Percent value")
-                };
-                Affine::translate((
-                    x_percent * container_bounds.0,
-                    y_percent * container_bounds.1,
-                ))
-            }
-            None => {
-                previous_align_component //which defaults to identity
-            }
+        let (skew_x, skew_y) = if let Some(skew) = self.skew {
+            (skew[0], skew[1])
+        } else {
+            (0.0, 0.0)
         };
 
-        //align component is passed separately because it is global for a given sequence of Transform operations
-        (
-            anchor_transform * transform * previous_transform,
-            align_component,
-        )
+        let (translate_x, translate_y) = if let Some(translate) = &self.translate {
+            (
+                translate[0].evaluate(container_bounds, Axis::X),
+                translate[1].evaluate(container_bounds, Axis::Y),
+            )
+        } else {
+            (0.0, 0.0)
+        };
+
+        let rotate_rads = if let Some(rotate) = &self.rotate {
+            rotate.get_as_radians()
+        } else {
+            0.0
+        };
+
+        let cos_theta = rotate_rads.cos();
+        let sin_theta = rotate_rads.sin();
+
+        // Elements for a combined scale and rotation
+        let a = scale_x * cos_theta - scale_y * skew_x * sin_theta;
+        let b = scale_x * sin_theta + scale_y * skew_x * cos_theta;
+        let c = -scale_y * sin_theta + scale_x * skew_y * cos_theta;
+        let d = scale_y * cos_theta + scale_x * skew_y * sin_theta;
+
+        // Translation
+        let e = translate_x;
+        let f = translate_y;
+
+        let coeffs = [a, b, c, d, e, f];
+        let transform = Affine::new(coeffs);
+
+        // Compute and combine previous_transform
+        let previous_transform = match &self.previous {
+            Some(previous) => (*previous).compute_transform2d_matrix(node_size, container_bounds),
+            None => Affine::default(),
+        };
+
+        transform * anchor_transform * previous_transform
     }
 }
 

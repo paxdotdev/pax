@@ -185,11 +185,15 @@ fn recurse_compile_literal_block<'a>(
 
                 let builtin_types = HashMap::from([
                     ("transform", "Transform2D".to_string()),
-                    ("size", "Size2D".to_string()),
                     ("width", "Size".to_string()),
                     ("height", "Size".to_string()),
-                    // ("x","Size".to_string()),
-                    // ("y","Size".to_string()),
+                    ("x", "Size".to_string()),
+                    ("y", "Size".to_string()),
+                    ("anchor_x", "Size".to_string()),
+                    ("anchor_y", "Size".to_string()),
+                    ("skew_x", "Numeric".to_string()),
+                    ("skew_y", "Numeric".to_string()),
+                    ("rotate", "Rotation".to_string()),
                 ]);
 
                 let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*pair.0)

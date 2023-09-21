@@ -7,9 +7,11 @@ use crate::{
     HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
     RenderTreeContext, Runtime,
 };
-use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
+use pax_properties_coproduct::{PropertiesCoproduct};
 
-use pax_runtime_api::{Layer, PropertyInstance, Size2D, Timeline, Transform2D};
+use pax_runtime_api::{CommonProperties, Layer, Size, Timeline};
+
+use crate::PropertiesComputable;
 
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `adoptees` and
@@ -22,14 +24,18 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub template: RenderNodePtrList<R>,
     pub children: RenderNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn:
         Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>, &mut RenderTreeContext<R>)>,
+
+    pub common_properties: CommonProperties,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
+    }
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -64,7 +70,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
                 Some(children) => children,
                 None => Rc::new(RefCell::new(vec![])),
             },
-            transform: args.transform,
+            common_properties: args.common_properties,
             properties: Rc::new(RefCell::new(args.properties)),
             compute_properties_fn: args
                 .compute_properties_fn
@@ -77,25 +83,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         ret
     }
 
-    fn get_size(&self) -> Option<Size2D> {
+    fn get_size(&self) -> Option<(Size, Size)> {
         None
     }
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         bounds
     }
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
-    }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let transform = &mut *self.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
-                v
-            } else {
-                unreachable!()
-            };
-            transform.set(new_value);
-        }
+        self.common_properties.compute_properties(rtc);
+
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
 
         //expand adoptees before adding to stack frame.

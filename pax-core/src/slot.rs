@@ -7,7 +7,7 @@ use pax_properties_coproduct::TypesCoproduct;
 use piet_common::RenderContext;
 
 use crate::{InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
-use pax_runtime_api::{Layer, PropertyInstance, Size2D, Transform2D};
+use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 
 /// A special "control-flow" primitive (a la `yield`) — represents a slot into which
 /// an adoptee can be rendered.  Slot relies on `adoptees` being present
@@ -21,12 +21,16 @@ use pax_runtime_api::{Layer, PropertyInstance, Size2D, Transform2D};
 /// is portable and applicable elsewhere via Slot.
 pub struct SlotInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
-    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
+    pub common_properties: CommonProperties,
     cached_computed_children: RenderNodePtrList<R>,
 }
 
 impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
+    fn get_common_properties(&self) -> &CommonProperties {
+        &self.common_properties
+    }
+
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -38,7 +42,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
-            transform: args.transform,
+            common_properties: args.common_properties,
             index: args.slot_index.expect("index required for Slot"),
             cached_computed_children: Rc::new(RefCell::new(vec![])),
         }));
@@ -50,15 +54,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
         Rc::clone(&self.cached_computed_children)
     }
 
-    fn get_size(&self) -> Option<Size2D> {
+    fn get_size(&self) -> Option<(Size, Size)> {
         None
     }
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         bounds
-    }
-
-    fn get_transform(&mut self) -> Rc<RefCell<dyn PropertyInstance<Transform2D>>> {
-        Rc::clone(&self.transform)
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
