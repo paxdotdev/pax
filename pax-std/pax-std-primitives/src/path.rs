@@ -2,10 +2,7 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
-};
+use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, PropertiesComputable};
 use pax_runtime_api::{Size, CommonProperties};
 use pax_std::primitives::Path;
 use pax_std::types::PathSegment;
@@ -91,6 +88,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for PathInstance<R> {
             let new_value = unsafe_unwrap!(segments, TypesCoproduct, Vec<PathSegment>);
             properties.segments.set(new_value);
         }
+
+
+        self.common_properties.compute_properties(rtc);
     }
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let transform = rtc.transform_scroller_reset;

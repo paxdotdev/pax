@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use kurbo::{Affine, Point};
 use pax_properties_coproduct::PropertiesCoproduct;
-use pax_runtime_api::{Axis, Transform2D, CommonProperties, Rotation};
+use pax_runtime_api::{Axis, Transform2D, CommonProperties};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
@@ -464,7 +464,7 @@ impl ComputableTransform for Transform2D {
             None => Affine::default(),
         };
 
-        anchor_transform * transform * previous_transform
+        transform * anchor_transform * previous_transform
     }
 }
 

@@ -4,7 +4,7 @@ use piet::RenderContext;
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
     unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, RenderNode,
-    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
+    RenderNodePtr, RenderNodePtrList, RenderTreeContext, PropertiesComputable
 };
 use pax_std::primitives::Ellipse;
 use pax_std::types::ColorVariant;
@@ -61,6 +61,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for EllipseInstance<R> {
         }
     }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+
+        self.common_properties.compute_properties(rtc);
+
+
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(stroke_width) =
@@ -86,36 +90,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for EllipseInstance<R> {
             properties.fill.set(new_value);
         }
 
-        let width = &mut *self.common_properties.width.as_ref().borrow_mut();
-
-        if let Some(new_size) = rtc.compute_vtable_value(width._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            width.set(new_value);
-        }
-
-        let height = &mut *self.common_properties.height.as_ref().borrow_mut();
-        if let Some(new_size) = rtc.compute_vtable_value(height._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            height.set(new_value);
-        }
-
-        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
-                v
-            } else {
-                unreachable!()
-            };
-            transform.set(new_value);
-        }
     }
     fn handle_render(&mut self, rtc: &mut RenderTreeContext<R>, rc: &mut R) {
         let transform = rtc.transform_scroller_reset;

@@ -473,7 +473,7 @@ impl Rotation {
         } else if let Self::Degrees(num) = self {
             num.get_as_float() * std::f64::consts::PI * 2.0 / 360.0
         } else if let Self::Percent(num) = self {
-            num.get_as_float() * std::f64::consts::PI * 2.0
+            num.get_as_float() * std::f64::consts::PI * 2.0 / 100.0
         } else { unreachable!() }
     }
 }
@@ -492,15 +492,15 @@ impl Into<Rotation> for Numeric {
         Rotation::Radians(self)
     }
 }
-// impl Into<Rotation> for Size {
-//     fn into(self) -> Rotation {
-//         if let Size::Percent(pix) = self {
-//             Rotation::Percent(pix)
-//         } else {
-//             panic!("Tried to coerce a pixel value into a rotation value; try `%` or `rad` instead of `px`.")
-//         }
-//     }
-// }
+impl Into<Rotation> for Size {
+    fn into(self) -> Rotation {
+        if let Size::Percent(pix) = self {
+            Rotation::Percent(pix)
+        } else {
+            panic!("Tried to coerce a pixel value into a rotation value; try `%` or `rad` instead of `px`.")
+        }
+    }
+}
 
 
 impl Default for Rotation {

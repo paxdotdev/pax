@@ -3380,11 +3380,15 @@ we can:
         [x] make sure we handle the unit `deg` (and {no unit, `rad`} => `rad`) in codegen, both for property literals and in PAXEL
         [x] for kicks, handle `%`, too
     [-] stretch: support {50% + 35px}, updating Size to support combined values
-    [ ] e2e test that we can bind an expression to each of our sugared properties 
-    [ ] QA
-        [ ] Can't yet bind an expression to `rotate` (compiles but silently fails)
-        [ ] Can't combine % and px, namely because of `into()` coercion.  Deserves more digging to find a potential mitigation
-        [ ] Can't apply a negative sign to a literal, for other (or the same) `into()` vs. type annotation reasons
+    [-] e2e test that we can bind an expression to each of our sugared properties
+        (Note: didn't manually test all properties, just tested `rotate`)
+    [x] QA
+        [x] Can't yet bind an expression to `rotate` (compiles but silently fails)
+            [x] We need to `compute_properties` — perhaps can build a helper for this inside `impl CommonProperties`
+        [-] Can't combine % and px, namely because of `into()` coercion.  Deserves more digging to find a potential mitigation
+            Decided to treat as a separate feature
+        [-] Can't apply a negative sign to a literal, for other (or the same) `into()` vs. type annotation reasons
             - Are there cases where we know the desired, or some higher level type, and might we be able to call an explicit typecast
               somewhere in codegen?
+            Decided to treat as a separate feature
     [ ] final cleaning & review
