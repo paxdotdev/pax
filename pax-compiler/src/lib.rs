@@ -165,6 +165,9 @@ fn clone_all_dependencies_to_tmp(
                     if entry.header().entry_type().is_dir() {
                         fs::create_dir_all(&path).expect("Failed to create directory");
                     } else {
+                        if let Some(parent) = path.parent() {
+                            fs::create_dir_all(&parent).expect("Failed to create parent directory");
+                        }
                         entry.unpack(&path).expect("Failed to unpack file");
                     }
                 }
