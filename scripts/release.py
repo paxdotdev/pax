@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tomlkit
 import time
+import argparse
 from collections import defaultdict
 
 if len(sys.argv) != 2:
@@ -16,6 +17,15 @@ if len(sys.argv) != 2:
     sys.exit(1)
 
 NEW_VERSION = sys.argv[1]
+
+parser = argparse.ArgumentParser(description='My Script')
+parser.add_argument('--turbo', action='store_true', help='Enable turbo mode')
+args = parser.parse_args()
+turbo = False
+if args.turbo:
+    turbo = True
+
+
 
 PACKAGES = [
     "pax-cartridge",
