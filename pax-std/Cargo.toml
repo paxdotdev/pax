@@ -1,7 +1,7 @@
 
 [package]
 name = "pax-std"
-version = "0.7.0"
+version = "0.7.1"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -16,12 +16,12 @@ primitives_crate = "./pax-std-primitives"
 [dependencies]
 piet = "0.6.0"
 kurbo = "0.9.0"
-pax-lang = {path = "../pax-lang", version="0.7.0"}
-pax-message = {path = "../pax-message", version="0.7.0"}
+pax-lang = {path = "../pax-lang", version="0.7.1"}
+pax-message = {path = "../pax-message", version="0.7.1"}
 lazy_static = "1.4.0"
-pax-compiler = {path="../pax-compiler", optional = true, version="0.7.0"}
+pax-compiler = {path="../pax-compiler", optional = true, version="0.7.1"}
 serde_json = {version="1.0.95", optional = true}
-pax-runtime-api = {version="0.7.0", path="../pax-runtime-api"}
+pax-runtime-api = {version="0.7.1", path="../pax-runtime-api"}
 
 [features]
 parser = ["pax-lang/parser", "dep:pax-compiler", "dep:serde_json"]
