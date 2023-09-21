@@ -36,6 +36,11 @@ module.exports = {
 
   entry: './src/index.ts',
 
+  performance: {
+    maxAssetSize: 10000000,
+    maxEntrypointSize: 10000000,
+  },
+
   output: {
     path: path.join(path.resolve(__dirname), 'dist'),
     filename: 'index.js',

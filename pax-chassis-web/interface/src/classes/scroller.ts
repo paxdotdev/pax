@@ -7,6 +7,7 @@ import {DIV, OBJECT, OCCLUSION_CONTEXT} from "../pools/supported-objects";
 import {packAffineCoeffsIntoMatrix3DString} from "../utils/helpers";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {NativeElementPool} from "./native-element-pool";
+import { ScrollManager } from './scroll-manager';
 
 export class Scroller {
     private idChain?: number[];
@@ -28,13 +29,17 @@ export class Scroller {
     unsentY= 0;
     private subtreeDepth?: number;
     private objectManager: ObjectManager;
+    private scrollManager?: ScrollManager;
+    private isMobile = false;
+
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
     }
 
     build(idChain: number[], zIndex: number, scrollerId: number[] | undefined, chassis: PaxChassisWeb,
-          scrollers: Map<string, Scroller>, baseOcclusionContext: OcclusionContext, canvasMap: Map<string, HTMLCanvasElement>) {
+          scrollers: Map<string, Scroller>, baseOcclusionContext: OcclusionContext, canvasMap: Map<string, HTMLCanvasElement>, isMobile: boolean) {
+        this.isMobile = isMobile;
         this.idChain = idChain;
         this.parentScrollerId = scrollerId;
         this.zIndex = zIndex;
@@ -48,23 +53,7 @@ export class Scroller {
         this.container = this.objectManager.getFromPool(DIV);
         this.container.className = SCROLLER_CONTAINER;
         NativeElementPool.addNativeElement(this.container, baseOcclusionContext, scrollers, idChain, scrollerId, zIndex);
-
-
-        setInterval(() => {
-            // @ts-ignore
-            let currentTop = this.container.scrollTop;
-            // @ts-ignore
-            let currentLeft = this.container.scrollLeft;
-            // @ts-ignore
-            let deltaX = currentLeft - this.scrollOffsetX;
-            // @ts-ignore
-            let deltaY = currentTop - this.scrollOffsetY;
-            this.unsentX += deltaX;
-            this.unsentY += deltaY;
-            this.scrollOffsetX = currentLeft;
-            this.scrollOffsetY = currentTop;
-        }, 1);
-
+        this.scrollManager = new ScrollManager(this.container, isMobile);
 
         this.innerPane = this.objectManager.getFromPool(DIV);
         this.innerPane.className = INNER_PANE;
@@ -72,6 +61,10 @@ export class Scroller {
 
         this.occlusionContext = this.objectManager.getFromPool(OCCLUSION_CONTEXT, this.objectManager);
         this.occlusionContext.build(this.container, idChain, chassis, canvasMap);
+    }
+
+    getTickScrollDelta(){
+        return this.scrollManager?.getScrollDelta();
     }
 
     cleanUp(){

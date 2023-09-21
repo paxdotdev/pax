@@ -31,8 +31,8 @@ let textDecoder = new TextDecoder();
 async function startRenderLoop(wasmMod: typeof import('../dist/pax_chassis_web'), mount: Element) {
     is_mobile_device = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
     let chassis = await wasmMod.PaxChassisWeb.new();
-    nativePool.build(chassis);
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount))
+    nativePool.build(chassis, is_mobile_device);
+    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount));
 }
 
 function renderLoop (chassis: PaxChassisWeb, mount: Element) {
