@@ -3375,7 +3375,7 @@ we can:
     [x] along the way, retire Transform::align and make Transform::translate accept Size values instead of floats (make it bounds-aware)
     [x] where we special-case certain fields in the compiler when parsing element K/V declarations, now make sure that list of special-case properties meshes with the properties/types of `CommonProperties`.  Perhaps impl CommonProperties to return an ad-hoc, manually maintained "reflection" manifest of its properties (.reflect_on_properties)
 [x] update website example to use updated APIs
-[ ] finish-line
+[x] finish-line
     [x] finish Rotation refactor, ensure we can use an expression e2e (may require special-handling in pratt parser like with Numeric)
         [x] make sure we handle the unit `deg` (and {no unit, `rad`} => `rad`) in codegen, both for property literals and in PAXEL
         [x] for kicks, handle `%`, too
@@ -3391,4 +3391,4 @@ we can:
             - Are there cases where we know the desired, or some higher level type, and might we be able to call an explicit typecast
               somewhere in codegen?
             Decided to treat as a separate feature
-    [ ] final cleaning & review
+    [x] final cleaning & review
