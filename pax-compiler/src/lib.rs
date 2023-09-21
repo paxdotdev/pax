@@ -22,7 +22,6 @@ use std::io::Write;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-
 #[cfg(unix)]
 use std::os::unix::process::CommandExt; // For the .pre_exec() method
 
@@ -731,14 +730,18 @@ fn recurse_generate_render_nodes_literal(
             .iter()
             .map(|common_property_identifier| {
                 if let Some(inline_settings) = &tnd.settings {
-                    if let Some(matched_setting) =
-                        inline_settings.iter().find(|vd| vd.0 == *common_property_identifier)
+                    if let Some(matched_setting) = inline_settings
+                        .iter()
+                        .find(|vd| vd.0 == *common_property_identifier)
                     {
                         (
                             common_property_identifier.to_string(),
                             match &matched_setting.1 {
                                 ValueDefinition::LiteralValue(lv) => {
-                                    let mut literal_value = format!("Rc::new(RefCell::new(PropertyLiteral::new({})))", lv);
+                                    let mut literal_value = format!(
+                                        "Rc::new(RefCell::new(PropertyLiteral::new({})))",
+                                        lv
+                                    );
                                     if is_optional(common_property_identifier) {
                                         literal_value = format!("Some({})", literal_value);
                                     }
@@ -759,13 +762,19 @@ fn recurse_generate_render_nodes_literal(
                                 _ => {
                                     panic!("Incorrect value bound to attribute")
                                 }
-                            }
+                            },
                         )
                     } else {
-                        (common_property_identifier.to_string(), default_common_property_value(common_property_identifier))
+                        (
+                            common_property_identifier.to_string(),
+                            default_common_property_value(common_property_identifier),
+                        )
                     }
                 } else {
-                    (common_property_identifier.to_string(), default_common_property_value(common_property_identifier))
+                    (
+                        common_property_identifier.to_string(),
+                        default_common_property_value(common_property_identifier),
+                    )
                 }
             })
             .collect();

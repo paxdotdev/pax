@@ -5,7 +5,7 @@ use std::rc::Rc;
 
 use kurbo::{Affine, Point};
 use pax_properties_coproduct::PropertiesCoproduct;
-use pax_runtime_api::{Axis, Transform2D, CommonProperties};
+use pax_runtime_api::{Axis, CommonProperties, Transform2D};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
@@ -166,7 +166,6 @@ impl TransformAndBounds {
     }
 }
 
-
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
 /// T: a member of PropertiesCoproduct, representing the type of the set of properites
@@ -273,7 +272,10 @@ pub trait RenderNode<R: 'static + RenderContext> {
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         match self.get_size() {
             None => bounds,
-            Some(size_raw) => (size_raw.0.evaluate(bounds, Axis::X), size_raw.1.evaluate(bounds, Axis::Y)),
+            Some(size_raw) => (
+                size_raw.0.evaluate(bounds, Axis::X),
+                size_raw.1.evaluate(bounds, Axis::Y),
+            ),
         }
     }
 
@@ -282,7 +284,10 @@ pub trait RenderNode<R: 'static + RenderContext> {
     fn compute_clipping_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         match self.get_clipping_bounds() {
             None => bounds,
-            Some(size_raw) => (size_raw.0.evaluate(bounds, Axis::X), size_raw.1.evaluate(bounds, Axis::Y)),
+            Some(size_raw) => (
+                size_raw.0.evaluate(bounds, Axis::X),
+                size_raw.1.evaluate(bounds, Axis::Y),
+            ),
         }
     }
     /// First lifecycle method during each render loop, used to compute
@@ -405,12 +410,16 @@ impl ComputableTransform for Transform2D {
                 match anchor[0] {
                     Size::Pixels(pix) => -pix.get_as_float(),
                     Size::Percent(per) => -node_size.0 * (per / 100.0),
-                    Size::Combined(pix, per) => -pix.get_as_float() + (-node_size.0 * (per / 100.0)),
+                    Size::Combined(pix, per) => {
+                        -pix.get_as_float() + (-node_size.0 * (per / 100.0))
+                    }
                 },
                 match anchor[1] {
                     Size::Pixels(pix) => -pix.get_as_float(),
                     Size::Percent(per) => -node_size.1 * (per / 100.0),
-                    Size::Combined(pix, per) => -pix.get_as_float() + (-node_size.0 * (per / 100.0)),
+                    Size::Combined(pix, per) => {
+                        -pix.get_as_float() + (-node_size.0 * (per / 100.0))
+                    }
                 },
             )),
             //No anchor applied: treat as 0,0; identity matrix
@@ -431,7 +440,10 @@ impl ComputableTransform for Transform2D {
         };
 
         let (translate_x, translate_y) = if let Some(translate) = &self.translate {
-            (translate[0].evaluate(container_bounds, Axis::X), translate[1].evaluate(container_bounds, Axis::Y))
+            (
+                translate[0].evaluate(container_bounds, Axis::X),
+                translate[1].evaluate(container_bounds, Axis::Y),
+            )
         } else {
             (0.0, 0.0)
         };
@@ -455,7 +467,7 @@ impl ComputableTransform for Transform2D {
         let e = translate_x;
         let f = translate_y;
 
-        let coeffs =  [a, b, c, d, e, f];
+        let coeffs = [a, b, c, d, e, f];
         let transform = Affine::new(coeffs);
 
         // Compute and combine previous_transform

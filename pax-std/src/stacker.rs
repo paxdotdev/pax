@@ -51,7 +51,7 @@ impl Stacker {
             Size::Percent(per) => Numeric::from(active_bound) * (per / Numeric::from(100.0)),
             Size::Combined(pix, per) => {
                 pix + (Numeric::from(active_bound) * (per / Numeric::from(100.0)))
-            },
+            }
         };
 
         let usable_interior_space = active_bound - (cells - 1.0) * gutter_calc.get_as_float();
@@ -76,9 +76,10 @@ impl Stacker {
                         Size::Pixels(pix) => *pix,
                         Size::Percent(per) => {
                             Numeric::from(active_bound) * (*per / Numeric::from(100.0))
-                        },
+                        }
                         Size::Combined(pix, per) => {
-                            *pix + (Numeric::from(active_bound) * (per.clone() / Numeric::from(100.0)))
+                            *pix + (Numeric::from(active_bound)
+                                * (per.clone() / Numeric::from(100.0)))
                         }
                     }
                     .get_as_float();

@@ -2,7 +2,10 @@ use kurbo::{RoundedRect, Shape};
 use piet::{LinearGradient, RadialGradient, RenderContext};
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, PropertiesComputable};
+use pax_core::{
+    unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
+};
 use pax_std::primitives::Rectangle;
 use pax_std::types::{Fill, RectangleCornerRadii};
 
@@ -83,8 +86,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
             let new_value = unsafe_unwrap!(fill, TypesCoproduct, Fill);
             properties.fill.set(new_value);
         }
-
-
 
         if let Some(top_right) =
             rtc.compute_vtable_value(properties.corner_radii.get().top_right._get_vtable_id())

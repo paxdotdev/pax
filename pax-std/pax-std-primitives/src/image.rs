@@ -3,9 +3,12 @@ use piet::{ImageFormat, InterpolationMode, RenderContext};
 use std::collections::HashMap;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, PropertiesComputable};
-use pax_runtime_api::CommonProperties;
+use pax_core::{
+    unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
+};
 use pax_message::ImagePatch;
+use pax_runtime_api::CommonProperties;
 use std::cell::RefCell;
 use std::rc::Rc;
 /// An Image (decoded by chassis), drawn to the bounds specified

@@ -2,11 +2,11 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{
-    ComponentInstance, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
+    ComponentInstance, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
+    RenderTreeContext,
 };
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_runtime_api::{Layer, PropertyInstance, Size, CommonProperties};
+use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
 
 /// A special "control-flow" primitive associated with the `for` statement.

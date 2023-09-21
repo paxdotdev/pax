@@ -287,16 +287,16 @@ pub enum Size {
     Pixels(Numeric),
     Percent(Numeric),
     ///Pixel component, Percent component
-    Combined(Numeric, Numeric)
+    Combined(Numeric, Numeric),
 }
 
 impl Neg for Size {
     type Output = Size;
     fn neg(self) -> Self::Output {
         match self {
-            Size::Pixels(pix) => {Size::Pixels(-pix)},
-            Size::Percent(per) => {Size::Percent(-per)},
-            Size::Combined(pix, per) => {Size::Combined(-pix,-per)},
+            Size::Pixels(pix) => Size::Pixels(-pix),
+            Size::Percent(per) => Size::Percent(-per),
+            Size::Combined(pix, per) => Size::Combined(-pix, -per),
         }
     }
 }
@@ -317,21 +317,18 @@ impl Neg for Size {
 //     }
 // }
 
-
 impl Add for Size {
     type Output = Size;
     fn add(self, rhs: Self) -> Self::Output {
-        let mut pixel_component : Numeric = Default::default();
-        let mut percent_component : Numeric = Default::default();
+        let mut pixel_component: Numeric = Default::default();
+        let mut percent_component: Numeric = Default::default();
 
-        [self, rhs].iter().for_each(|size|{
-            match size {
-                Size::Pixels(s) => pixel_component = pixel_component + *s,
-                Size::Percent(s) => percent_component = percent_component + *s,
-                Size::Combined(s0, s1) => {
-                    pixel_component = pixel_component + *s0;
-                    percent_component = percent_component + *s1;
-                }
+        [self, rhs].iter().for_each(|size| match size {
+            Size::Pixels(s) => pixel_component = pixel_component + *s,
+            Size::Percent(s) => percent_component = percent_component + *s,
+            Size::Combined(s0, s1) => {
+                pixel_component = pixel_component + *s0;
+                percent_component = percent_component + *s1;
             }
         });
 
@@ -364,14 +361,12 @@ impl Size {
             Size::Percent(num) => target_bound * (*num / 100.0),
             Size::Combined(pixel_component, percent_component) => {
                 //first calc percent, then add pixel
-                (target_bound * (percent_component.get_as_float() / 100.0)) + pixel_component.get_as_float()
-            },
+                (target_bound * (percent_component.get_as_float() / 100.0))
+                    + pixel_component.get_as_float()
+            }
         }
     }
 }
-
-
-
 
 macro_rules! expose_property_identifiers {
     (
@@ -421,15 +416,21 @@ expose_property_identifiers! { // creates an impl `get_property_identifiers()`
 
 impl CommonProperties {
     pub fn get_default_properties_literal() -> Vec<(String, String)> {
-        Self::get_property_identifiers().iter().map(|id|{
-            if id == "transform" {
-                (id.to_string(), "Transform2D::default_wrapped()".to_string())
-            } else if id == "width" || id == "height" {
-                (id.to_string(), "Rc::new(RefCell::new(PropertyLiteral::new(Size::default())))".to_string())
-            } else {
-                (id.to_string(), "Default::default()".to_string())
-            }
-        }).collect()
+        Self::get_property_identifiers()
+            .iter()
+            .map(|id| {
+                if id == "transform" {
+                    (id.to_string(), "Transform2D::default_wrapped()".to_string())
+                } else if id == "width" || id == "height" {
+                    (
+                        id.to_string(),
+                        "Rc::new(RefCell::new(PropertyLiteral::new(Size::default())))".to_string(),
+                    )
+                } else {
+                    (id.to_string(), "Default::default()".to_string())
+                }
+            })
+            .collect()
     }
 }
 
@@ -454,7 +455,6 @@ impl Default for CommonProperties {
     }
 }
 
-
 #[derive(Clone)]
 pub enum Rotation {
     Radians(Numeric),
@@ -474,16 +474,18 @@ impl Rotation {
             num.get_as_float() * std::f64::consts::PI * 2.0 / 360.0
         } else if let Self::Percent(num) = self {
             num.get_as_float() * std::f64::consts::PI * 2.0 / 100.0
-        } else { unreachable!() }
+        } else {
+            unreachable!()
+        }
     }
 }
 impl Neg for Rotation {
     type Output = Rotation;
     fn neg(self) -> Self::Output {
         match self {
-            Rotation::Degrees(deg) => {Rotation::Degrees(-deg)},
-            Rotation::Radians(rad) => {Rotation::Radians(-rad)},
-            Rotation::Percent(per) => {Rotation::Percent(-per)},
+            Rotation::Degrees(deg) => Rotation::Degrees(-deg),
+            Rotation::Radians(rad) => Rotation::Radians(-rad),
+            Rotation::Percent(per) => Rotation::Percent(-per),
         }
     }
 }
@@ -502,13 +504,11 @@ impl Into<Rotation> for Size {
     }
 }
 
-
 impl Default for Rotation {
     fn default() -> Self {
         Self::ZERO()
     }
 }
-
 
 impl Size {
     pub fn get_pixels(&self, parent: f64) -> f64 {
@@ -517,7 +517,7 @@ impl Size {
             Self::Percent(p) => parent * (p.get_as_float() / 100.0),
             Self::Combined(pix, per) => {
                 (parent * (per.get_as_float() / 100.0)) + pix.get_as_float()
-            },
+            }
         }
     }
 }
@@ -528,35 +528,35 @@ impl Interpolatable for Size {
             Self::Pixels(sp) => match other {
                 Self::Pixels(op) => Self::Pixels(*sp + ((*op - *sp) * Numeric::from(t))),
                 Self::Percent(op) => Self::Percent(*op),
-                Self::Combined(pix,per) => {
+                Self::Combined(pix, per) => {
                     let pix = *sp + ((*pix - *sp) * Numeric::from(t));
                     let per = *per;
                     Self::Combined(pix, per)
-                },
+                }
             },
             Self::Percent(sp) => match other {
                 Self::Pixels(op) => Self::Pixels(*op),
                 Self::Percent(op) => Self::Percent(*sp + ((*op - *sp) * Numeric::from(t))),
-                Self::Combined(pix,per) => {
+                Self::Combined(pix, per) => {
                     let pix = *pix;
                     let per = *sp + ((*per - *sp) * Numeric::from(t));
                     Self::Combined(pix, per)
-                },
+                }
             },
             Self::Combined(pix, per) => match other {
                 Self::Pixels(op) => {
                     let pix = *pix + ((*op - *pix) * Numeric::from(t));
                     Self::Combined(pix, *per)
-                },
+                }
                 Self::Percent(op) => {
                     let per = *per + ((*op - *per) * Numeric::from(t));
                     Self::Combined(*pix, per)
-                },
-                Self::Combined(pix0,per0) => {
+                }
+                Self::Combined(pix0, per0) => {
                     let pix = *pix + ((*pix0 - *pix) * Numeric::from(t));
                     let per = *per + ((*per0 - *per) * Numeric::from(t));
                     Self::Combined(pix, per)
-                },
+                }
             },
         }
     }
@@ -579,7 +579,6 @@ impl Default for Size {
         Self::Percent(100.0.into())
     }
 }
-
 
 impl From<Size> for SizePixels {
     fn from(value: Size) -> Self {
