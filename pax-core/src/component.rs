@@ -11,6 +11,8 @@ use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{Layer, Size, Timeline, CommonProperties};
 
+use crate::PropertiesComputable;
+
 /// A render node with its own runtime context.  Will push a frame
 /// to the runtime stack including the specified `adoptees` and
 /// `PropertiesCoproduct` object.  `Component` is used at the root of
@@ -88,15 +90,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         bounds
     }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
-                v
-            } else {
-                unreachable!()
-            };
-            transform.set(new_value);
-        }
+        self.common_properties.compute_properties(rtc);
+
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
 
         //expand adoptees before adding to stack frame.

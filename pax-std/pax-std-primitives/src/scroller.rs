@@ -10,7 +10,7 @@ use piet::RenderContext;
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
     unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
+    RenderNodePtrList, RenderTreeContext, PropertiesComputable,
 };
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 use pax_runtime_api::{ArgsScroll, EasingCurve, Layer, PropertyInstance, PropertyLiteral, Size, CommonProperties};
@@ -259,6 +259,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+
+        self.common_properties.compute_properties(rtc);
+
         let mut scroll_x_offset_borrowed = (*self.scroll_x_offset).borrow_mut();
         if let Some(new_value) =
             rtc.compute_eased_value(scroll_x_offset_borrowed._get_transition_manager())
@@ -275,26 +278,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
-        let width = &mut *self.common_properties.width.as_ref().borrow_mut();
-
-        if let Some(new_size) = rtc.compute_vtable_value(width._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            width.set(new_value);
-        }
-
-        let height = &mut *self.common_properties.height.as_ref().borrow_mut();
-        if let Some(new_size) = rtc.compute_vtable_value(height._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            height.set(new_value);
-        }
 
         if let Some(new_size) =
             rtc.compute_vtable_value(properties.size_inner_pane_x._get_vtable_id())
@@ -340,15 +323,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             properties.scroll_enabled_y.set(new_value);
         }
 
-        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
-                v
-            } else {
-                unreachable!()
-            };
-            transform.set(new_value);
-        }
+
+        self.common_properties.compute_properties(rtc);
+
     }
 
     fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String, R>) {

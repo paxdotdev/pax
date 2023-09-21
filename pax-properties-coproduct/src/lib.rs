@@ -36,6 +36,7 @@ pub enum TypesCoproduct {
     Transform2D(pax_runtime_api::Transform2D),
     SizePixels(pax_runtime_api::SizePixels),
     Size(pax_runtime_api::Size),
+    Rotation(pax_runtime_api::Rotation),
     Numeric(pax_runtime_api::Numeric),
     //generated / userland
 }

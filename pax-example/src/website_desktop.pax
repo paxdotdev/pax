@@ -1,6 +1,6 @@
 <Frame width=100% height=100%>
     // Nav fixed overlay
-    <Frame rotate=45deg x=50% y=45% width=80% height=75px anchor_x=50% anchor_y=50% >
+    <Frame x=50% y=90px width=80% height=75px anchor_x=50% anchor_y=50% >
          <Stacker cells=5 height=75px direction=StackerDirection::Horizontal gutter=8px>
             <Image path="assets/images/pax-logo-light.png" width=125px height=42px y=50% anchor_y=50% x=20px />
             <Text text="<a href='https://docs.pax.rs' target='_blank'>Docs</a>" class=link />
@@ -130,7 +130,7 @@
         width: 75%,
         height: 600px,
         x: 50%,
-        y: 40%
+        y: 40%,
         anchor_x: 50%,
         anchor_y: 50%,
     }

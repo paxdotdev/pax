@@ -16,7 +16,7 @@ use crate::{
 };
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
-use pax_runtime_api::{ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex};
+use pax_runtime_api::{ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex};
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
@@ -38,6 +38,64 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
     pub timeline_playhead_position: usize,
     pub inherited_adoptees: Option<RenderNodePtrList<R>>,
+}
+
+macro_rules! handle_vtable_update {
+    ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {
+        {
+            let current_prop = &mut *$var.$field.as_ref().borrow_mut();
+            if let Some(new_value) = $rtc.compute_vtable_value(current_prop._get_vtable_id()) {
+                let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
+                    val
+                } else {
+                    unreachable!()
+                };
+                current_prop.set(new_value);
+            }
+        }
+    };
+}
+
+macro_rules! handle_vtable_update_optional {
+    ($rtc:expr, $var:ident . $field:ident, $types_coproduct_type:ident) => {
+        {
+            if let Some(_) = $var.$field {
+                let current_prop = &mut *$var.$field.as_ref().unwrap().borrow_mut();
+                if let Some(new_value) = $rtc.compute_vtable_value(current_prop._get_vtable_id()) {
+                    let new_value = if let TypesCoproduct::$types_coproduct_type(val) = new_value {
+                        val
+                    } else {
+                        unreachable!()
+                    };
+                    current_prop.set(new_value);
+                }
+        }
+        }
+    };
+}
+
+//This trait is used strictly to side-load the `compute_properties` function onto CommonProperties,
+//so that it can use the type RenderTreeContext (defined in pax_core, which depends on pax_runtime_api, which
+//defines CommonProperties, and which can thus not depend on pax_core due to a would-be circular dependency.)
+pub trait PropertiesComputable<R: 'static + RenderContext> {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>);
+}
+
+impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
+    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+        handle_vtable_update!(rtc, self.width, Size);
+        handle_vtable_update!(rtc, self.height, Size);
+        handle_vtable_update!(rtc, self.transform, Transform2D);
+        handle_vtable_update_optional!(rtc, self.rotate, Rotation);
+        handle_vtable_update_optional!(rtc, self.scale_x, Numeric);
+        handle_vtable_update_optional!(rtc, self.scale_y, Numeric);
+        handle_vtable_update_optional!(rtc, self.skew_x, Numeric);
+        handle_vtable_update_optional!(rtc, self.skew_y, Numeric);
+        handle_vtable_update_optional!(rtc, self.anchor_x, Size);
+        handle_vtable_update_optional!(rtc, self.anchor_y, Size);
+        handle_vtable_update_optional!(rtc, self.x, Size);
+        handle_vtable_update_optional!(rtc, self.y, Size);
+    }
 }
 
 impl<'a, R: 'static + RenderContext> RenderTreeContext<'a, R> {
@@ -826,7 +884,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     0.0
                 }
             ];
-
             desugared_transform2d.skew = Some(skew);
 
             let rotate = if let Some(ref val) = cp.rotate {
@@ -835,7 +892,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 Rotation::ZERO()
             };
             desugared_transform2d.rotate = Some(rotate);
-            
 
             node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
             desugared_transform2d.compute_transform2d_matrix(node_size, accumulated_bounds)

@@ -1,10 +1,7 @@
 use std::cell::RefCell;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
-use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
-};
+use pax_core::{unsafe_unwrap, HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, PropertiesComputable};
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{Layer, SizePixels, CommonProperties};
 use pax_std::primitives::Text;
@@ -172,37 +169,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
             style_link.align_horizontal.set(new_value);
         }
 
-        let width = &mut *self.common_properties.width.as_ref().borrow_mut();
-
-        if let Some(new_size) = rtc.compute_vtable_value(width._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            width.set(new_value);
-        }
-
-        let height = &mut *self.common_properties.height.as_ref().borrow_mut();
-        if let Some(new_size) = rtc.compute_vtable_value(height._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_size {
-                v
-            } else {
-                unreachable!()
-            };
-            height.set(new_value);
-        }
-
-        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
-                v
-            } else {
-                unreachable!()
-            };
-
-            transform.set(new_value);
-        }
+        self.common_properties.compute_properties(rtc);
     }
 
     fn compute_native_patches(

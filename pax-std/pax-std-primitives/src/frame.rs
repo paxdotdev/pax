@@ -10,7 +10,7 @@ use piet::RenderContext;
 use pax_core::pax_properties_coproduct::TypesCoproduct;
 use pax_core::{
     HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
+    RenderNodePtrList, RenderTreeContext, PropertiesComputable
 };
 use pax_message::{AnyCreatePatch, FramePatch};
 use pax_runtime_api::{Layer, Size, CommonProperties};
@@ -139,43 +139,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let width = &mut *self
-            .common_properties
-            .width
-            .as_ref()
-            .borrow_mut();
-        if let Some(new_width) = rtc.compute_vtable_value(width._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_width {
-                v
-            } else {
-                unreachable!()
-            };
-            width.set(new_value);
-        }
-
-        let height = &mut *self
-            .common_properties
-            .height
-            .as_ref()
-            .borrow_mut();
-        if let Some(new_height) = rtc.compute_vtable_value(height._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Size(v) = new_height {
-                v
-            } else {
-                unreachable!()
-            };
-            height.set(new_value);
-        }
-
-        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
-                v
-            } else {
-                unreachable!()
-            };
-            transform.set(new_value);
-        }
+        self.common_properties.compute_properties(rtc);
     }
 
     fn handle_will_render(

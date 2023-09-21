@@ -1,8 +1,5 @@
 use pax_core::pax_properties_coproduct::TypesCoproduct;
-use pax_core::{
-    HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext, TransformAndBounds,
-};
+use pax_core::{HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, TransformAndBounds};
 use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -76,14 +73,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        let transform = &mut *self.common_properties.transform.as_ref().borrow_mut();
-        if let Some(new_transform) = rtc.compute_vtable_value(transform._get_vtable_id()) {
-            let new_value = if let TypesCoproduct::Transform2D(v) = new_transform {
-                v
-            } else {
-                unreachable!()
-            };
-            transform.set(new_value);
-        }
+        self.common_properties.compute_properties(rtc);
     }
 }
