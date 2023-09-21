@@ -1,4 +1,4 @@
-use pax_core::pax_properties_coproduct::TypesCoproduct;
+
 use pax_core::{
     HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext, TransformAndBounds,
