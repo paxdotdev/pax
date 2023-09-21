@@ -1224,13 +1224,14 @@ pub fn build_chassis_with_cartridge(
     //Inject `patch` directive, which allows userland projects to refer to concrete versions like `0.4.0`, while we
     //swap them for our locally cloned filesystem versions during compilation.
     let existing_cargo_toml_path = chassis_path.join("Cargo.toml");
+    let existing_cargo_toml_string = fs::read_to_string(&existing_cargo_toml_path).unwrap();
     let mut existing_cargo_toml =
-        toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap())
+        toml_edit::Document::from_str(&existing_cargo_toml_string)
             .unwrap();
 
     //In builds where we don't wipe out the `pkg` directory (e.g. those installed from crates.io),
-    //the Cargo.toml may already have been patched.  Additional an additional patch would break cargo.
-    if !existing_cargo_toml.contains_key("patch.crates-io") {
+    //the Cargo.toml may already have been patched.  Injecting an additional patch would break cargo.
+    if !existing_cargo_toml_string.contains("patch.crates-io") {
         let mut patch_table = toml_edit::table();
         for pkg in ALL_PKGS {
             patch_table[pkg]["path"] = toml_edit::value(format!("../{}", pkg));
