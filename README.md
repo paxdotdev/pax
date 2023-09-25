@@ -68,7 +68,7 @@ Read more in [The Pax Docs](https://docs.pax.dev/)
 
  - Install `rustc` 1.70.0 via `rustup`
  - Install the Pax CLI: `cargo install pax-cli`
- - Follow instructions to build for WebAssembly or macOS below
+ - Follow instructions to build for [WebAssembly](#to-build-pax-projects-for-webassembly) or [macOS](#to-build-pax-projects-as-native-macos-apps) below
  - Create a new project `pax-cli new my-first-project`
 
 ### Setup, Linux (Debian / Ubuntu) workstation
@@ -76,14 +76,14 @@ Read more in [The Pax Docs](https://docs.pax.dev/)
  - Install `rustc` 1.70.0 via `rustup`
  - Install development dependencies: `apt install pkg-config libssl-dev`
  - Install the Pax CLI: `cargo install pax-cli`
- - Follow instructions to build for WebAssembly below
+ - Follow instructions to build for [WebAssembly](#to-build-pax-projects-for-webassembly) below
  - Create a new project `pax-cli new my-first-project`
 
 ### Setup, Windows workstation
 
  - Install `rustc` via installer
  - Install the Pax CLI: `cargo install pax-cli`
- - Follow instructions to build for WebAssembly below
+ - Follow instructions to build for [WebAssembly](#to-build-pax-projects-for-webassembly) below
  - Create a new project `pax-cli new my-first-project`
 
 ### To build Pax projects for WebAssembly
