@@ -88,8 +88,8 @@ impl<R: 'static + RenderContext> PropertiesComputable<R> for CommonProperties {
         handle_vtable_update!(rtc, self.height, Size);
         handle_vtable_update!(rtc, self.transform, Transform2D);
         handle_vtable_update_optional!(rtc, self.rotate, Rotation);
-        handle_vtable_update_optional!(rtc, self.scale_x, Numeric);
-        handle_vtable_update_optional!(rtc, self.scale_y, Numeric);
+        handle_vtable_update_optional!(rtc, self.scale_x, Size);
+        handle_vtable_update_optional!(rtc, self.scale_y, Size);
         handle_vtable_update_optional!(rtc, self.skew_x, Numeric);
         handle_vtable_update_optional!(rtc, self.skew_y, Numeric);
         handle_vtable_update_optional!(rtc, self.anchor_x, Size);
@@ -857,14 +857,14 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
             let scale = [
                 if let Some(ref val) = cp.scale_x {
-                    val.borrow().get().get_as_float()
+                    val.borrow().get().clone()
                 } else {
-                    1.0
+                    Size::Percent(pax_runtime_api::Numeric::from(100.0))
                 },
                 if let Some(ref val) = cp.scale_y {
-                    val.borrow().get().get_as_float()
+                    val.borrow().get().clone()
                 } else {
-                    1.0
+                    Size::Percent(pax_runtime_api::Numeric::from(100.0))
                 },
             ];
             desugared_transform2d.scale = Some(scale);
