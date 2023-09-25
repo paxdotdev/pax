@@ -325,6 +325,17 @@ impl Size {
     pub fn ZERO() -> Self {
         Size::Pixels(Numeric::from(0.0))
     }
+
+    /// Returns the wrapped percent value normalized as a float, such that 100% => 1.0.
+    /// Panics if wrapped type is not a percentage.
+    pub fn expect_percent(&self) -> f64 {
+        match &self {
+            Size::Percent(val) => {
+                val.get_as_float() / 100.0
+            },
+            _ => {panic!("Percentage value expected but stored value was not a percentage.")}
+        }
+    }
 }
 
 pub enum Axis {
@@ -352,70 +363,62 @@ impl Size {
     }
 }
 
-macro_rules! expose_property_identifiers {
-    (
-        pub struct $name:ident {
-            $(
-                pub $field:ident : $ftype:ty,
-            )+
-        }
-    ) => {
-        pub struct $name {
-            $(
-                pub $field: $ftype,
-            )+
-        }
-
-        impl $name {
-            pub fn get_property_identifiers() -> Vec<String> {
-                vec![
-                    $(
-                        stringify!($field).to_string(),
-                    )+
-                ]
-            }
-        }
-    };
-}
-
 // Struct containing fields shared by all RenderNodes.
 // Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
 // Retrieved via <dyn RenderNode>#get_common_properties
-expose_property_identifiers! { // creates an impl `get_property_identifiers()`
-    pub struct CommonProperties {
-        pub x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-        pub y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-        pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
-        pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
-        pub skew_x: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
-        pub skew_y: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
-        pub rotate: Option<Rc<RefCell<dyn PropertyInstance<Rotation>>>>,
-        pub anchor_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-        pub anchor_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
-        pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
-        pub width: Rc<RefCell<dyn PropertyInstance<Size>>>,
-        pub height:Rc<RefCell<dyn PropertyInstance<Size>>>,
-    }
+
+pub struct CommonProperties {
+    pub x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub scale_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub scale_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub skew_x: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
+    pub skew_y: Option<Rc<RefCell<dyn PropertyInstance<Numeric>>>>,
+    pub rotate: Option<Rc<RefCell<dyn PropertyInstance<Rotation>>>>,
+    pub anchor_x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub anchor_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
+    pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
+    pub width: Rc<RefCell<dyn PropertyInstance<Size>>>,
+    pub height:Rc<RefCell<dyn PropertyInstance<Size>>>,
 }
+
 
 impl CommonProperties {
     pub fn get_default_properties_literal() -> Vec<(String, String)> {
         Self::get_property_identifiers()
             .iter()
             .map(|id| {
-                if id == "transform" {
-                    (id.to_string(), "Transform2D::default_wrapped()".to_string())
-                } else if id == "width" || id == "height" {
+                if id.0 == "transform" {
+                    (id.0.to_string(), "Transform2D::default_wrapped()".to_string())
+                } else if id.0 == "width" || id.0 == "height" {
                     (
-                        id.to_string(),
+                        id.0.to_string(),
                         "Rc::new(RefCell::new(PropertyLiteral::new(Size::default())))".to_string(),
                     )
                 } else {
-                    (id.to_string(), "Default::default()".to_string())
+                    (id.0.to_string(), "Default::default()".to_string())
                 }
             })
             .collect()
     }
+
+    pub fn get_property_identifiers() -> Vec<(String, String)> {
+        vec![
+            ("x".to_string(), "Size".to_string()),
+            ("y".to_string(), "Size".to_string()),
+            ("scale_x".to_string(), "Size".to_string()),
+            ("scale_y".to_string(), "Size".to_string()),
+            ("skew_x".to_string(), "Numeric".to_string()),
+            ("skew_y".to_string(), "Numeric".to_string()),
+            ("anchor_x".to_string(), "Size".to_string()),
+            ("anchor_y".to_string(), "Size".to_string()),
+            ("rotate".to_string(), "Rotation".to_string()),
+            ("transform".to_string(), "Transform2D".to_string()),
+            ("width".to_string(), "Size".to_string()),
+            ("height".to_string(), "Size".to_string()),
+        ]
+    }
+
 }
 
 impl Default for CommonProperties {
@@ -569,7 +572,7 @@ impl From<Size> for SizePixels {
         match value {
             Size::Pixels(x) => SizePixels(x),
             _ => {
-                panic!("Non pixel Size cannot be coerced into SizePixels");
+                panic!("Non-pixel Size cannot be coerced into SizePixels");
             }
         }
     }
@@ -678,7 +681,7 @@ pub struct Transform2D {
     pub rotate: Option<Rotation>,
     pub translate: Option<[Size; 2]>,
     pub anchor: Option<[Size; 2]>,
-    pub scale: Option<[f64; 2]>,
+    pub scale: Option<[Size; 2]>,
     pub skew: Option<[f64; 2]>,
 }
 
@@ -694,9 +697,9 @@ impl Mul for Transform2D {
 
 impl Transform2D {
     ///Scale coefficients (1.0 == 100%) over x-y plane
-    pub fn scale(x: Numeric, y: Numeric) -> Self {
+    pub fn scale(x: Size, y: Size) -> Self {
         let mut ret = Transform2D::default();
-        ret.scale = Some([x.get_as_float(), y.get_as_float()]);
+        ret.scale = Some([x, y]);
         ret
     }
     ///Rotation over z axis
