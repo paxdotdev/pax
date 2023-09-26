@@ -428,7 +428,7 @@ impl ComputableTransform for Transform2D {
 
         //decompose vanilla affine matrix and pack into `Affine`
         let (scale_x, scale_y) = if let Some(scale) = self.scale {
-            (scale[0], scale[1])
+            (scale[0].expect_percent(), scale[1].expect_percent())
         } else {
             (1.0, 1.0)
         };
