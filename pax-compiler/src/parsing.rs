@@ -91,13 +91,13 @@ fn recurse_pratt_parse_to_string<'a>(
                     let unit = literal_number_unit.as_str();
 
                     if unit == "px" {
-                        format!("Size::Pixels({}.into()).into()", exp_bod)
+                        format!("Size::Pixels({}.into())", exp_bod)
                     } else if unit == "%" {
-                        format!("Size::Percent({}.into()).into()", exp_bod)
+                        format!("Size::Percent({}.into())", exp_bod)
                     } else if unit == "deg" {
-                        format!("Rotation::Degrees({}.into()).into()", exp_bod)
+                        format!("Rotation::Degrees({}.into())", exp_bod)
                     } else if unit == "rad" {
-                        format!("Rotation::Radians({}.into()).into()", exp_bod)
+                        format!("Rotation::Radians({}.into())", exp_bod)
                     } else {
                         unreachable!()
                     }
@@ -180,13 +180,13 @@ fn recurse_pratt_parse_to_string<'a>(
                         let unit = inner.next().unwrap().as_str();
 
                         if unit == "px" {
-                            format!("Size::Pixels({}.into()).into()", value)
+                            format!("Size::Pixels({}.into())", value)
                         } else if unit == "%" {
-                            format!("Size::Percent({}.into()).into()", value)
+                            format!("Size::Percent({}.into())", value)
                         } else if unit == "deg" {
-                            format!("Rotation::Degrees({}.into()).into()", value)
+                            format!("Rotation::Degrees({}.into())", value)
                         } else if unit == "rad" {
-                            format!("Rotation::Radians({}.into()).into()", value)
+                            format!("Rotation::Radians({}.into())", value)
                         } else {
                             unreachable!()
                         }
@@ -195,14 +195,14 @@ fn recurse_pratt_parse_to_string<'a>(
                         let mut inner = literal_kind.into_inner();
                         let value = inner.next().unwrap().as_str();
                         format!("Numeric::from({})", value)
-                    }
-                    // Rule::string => {
-                    //     //TODO: figure out string concatenation.  Might need to introduce another operator?  Or perhaps a higher-level string type, which supports addition-as-concatenation — like we do with Numeric
-                    //     literal_kind.as_str().to_string() + ".to_string()"
-                    // }
+                    },
+                    Rule::string => {
+                        //TODO: figure out string concatenation.  Might need to introduce another operator?  Or perhaps a higher-level string type, which supports addition-as-concatenation — like we do with Numeric
+                        literal_kind.as_str().to_string() + ".to_string()"
+                    },
                     _ => {
                         /* {literal_enum_value | literal_tuple_access | literal_tuple | string } */
-                        literal_kind.as_str().to_string() + ".try_into().unwrap()"
+                        literal_kind.as_str().to_string()
                     }
                 }
             },
