@@ -3392,3 +3392,56 @@ we can:
               somewhere in codegen?
             Decided to treat as a separate feature
     [x] final cleaning & review
+
+
+
+### On a Pax playground, fork of Rust playground
+
+Tasks
+
+[ ] Development environment
+    [ ] Vagrant + idempotent backend provisioning script
+    [ ] Local dev env + setup scripting
+[ ] UI
+    [ ] Rip out unnecessary features
+        [ ] Tools
+        [ ] Run > ... menu
+        [ ] Debug / Release menu
+        [ ] Stable / beta / nightly menu
+        [ ] Stable > ... menu
+        [ ] Config
+        [ ] (?) menu
+        [ ] Streamline "Share" to be a single action
+    [ ] Add Pax pane alongside Rust pane
+        [ ] Pass along with Rust code as a separate param
+        [ ] Rehydrate the editors with the correct content based on permalink
+        [ ] UI treatment
+    [ ] Configure Ace editor (or monaco! or codemirror!)
+        [ ] Rust mode
+        [ ] Pax mode (try ChatGPT)
+[ ] Backend
+    [ ] Manage dependencies, probably same whitelist as RP
+    [ ] Decide additive or subtractive approach; support simple golden path "pax build --target=web"
+[ ] Deployment
+    [ ] Configure ELB & ASG
+        [ ] Declare with Terraform
+        [ ] Script phase-in/phase-out for deployments
+    [ ] Configure S3 + Cloudfront with permalink functionality
+    [ ] Create "AMI-minting" machine
+        [ ] Terraform declaration script
+        [ ] idempotent provisioning script (Terraform + shell?) (decide whether to keep one instance kicking around, or whether to re-init from scratch each time)
+
+Sketch addtl. functionality needed to support "edit this website in playground"
+
+[-] Decision: punt on multiple file support for now; we can link to pre-curated published / shared sandbox sessions with single rs/pax file examples, e.g. a modified version of our website
+    [ ] Multiple files
+        [ ] Security:
+            [ ] Blacklist build.rs
+            [ ] Whitelist available crates
+            [ ] How to deal with proc macros?  Static analysis?
+            [ ] Sandboxed containers — allow the user to perform malicious actions, but firewall their container from other users (e.g. through gVisor + Kubernetes or similar)
+    [ ] UI
+        [ ] Multiple tabs, maybe file tree view
+    [ ] Publish (can start with manual)
+        [ ] Manifest for files
+        [ ] upload relevant files (lib.rs, website_desktop, website_mobile
