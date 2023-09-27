@@ -3399,29 +3399,45 @@ we can:
 
 Tasks
 
-[ ] Development environment
-    [ ] Vagrant + idempotent backend provisioning script
-    [ ] Local dev env + setup scripting
+[x] Development environment
+    [x] Vagrant + idempotent backend provisioning script
+    [x] Local dev env + setup scripting
+[ ] Web chassis
+    [ ] Support runtime wasm loading (instead of static, bundled wasm as per current setup.)
+        This will enable us to introduce path params that override the runtime-loaded wasm file, while falling back to some
+        default when not in the sandbox setting.
+        [ ] In the `mount` method, expose an optional fully qualified path for the wasm file.  We can reasonably assume one file per page session / reload for now,
+            so it's OK to do this only at init time in the `mount` method.
+        [ ] In the playground web app, read path params and pass into the `mount` method.
+        [ ] Handle null case for default loading of some fixed-name file, like `web-cartridge.wasm`.  This should keep e.g. our website working and continue to deliver the "index.html that just works" feature.
+        [ ] Handle bundling / packaging — likely we don't need webpack at all for this; we just need to build the typescript project, and that can be done in libdev
+            [ ] Refactor webpack / node deps; remove from userland if feasible; figure out libdev build process (bundle built TS => JS; ensure this happens when running pax-example and when publishing to crates.io)
 [ ] UI
-    [ ] Rip out unnecessary features
-        [ ] Tools
-        [ ] Run > ... menu
-        [ ] Debug / Release menu
-        [ ] Stable / beta / nightly menu
-        [ ] Stable > ... menu
-        [ ] Config
-        [ ] (?) menu
-        [ ] Streamline "Share" to be a single action
-    [ ] Add Pax pane alongside Rust pane
-        [ ] Pass along with Rust code as a separate param
-        [ ] Rehydrate the editors with the correct content based on permalink
-        [ ] UI treatment
-    [ ] Configure Ace editor (or monaco! or codemirror!)
-        [ ] Rust mode
-        [ ] Pax mode (try ChatGPT)
-[ ] Backend
-    [ ] Manage dependencies, probably same whitelist as RP
-    [ ] Decide additive or subtractive approach; support simple golden path "pax build --target=web"
+    [ ] (A) Subtractive approach:
+        [ ] Rip out unnecessary features
+            [ ] Tools
+            [ ] Run > ... menu
+            [ ] Debug / Release menu
+            [ ] Stable / beta / nightly menu
+            [ ] Stable > ... menu
+            [ ] Config
+            [ ] (?) menu
+            [ ] Streamline "Share" to be a single action
+        [ ] Add Pax pane alongside Rust pane
+            [ ] Pass along with Rust code as a separate param
+            [ ] Rehydrate the editors with the correct content based on permalink
+            [ ] UI treatment
+        [ ] Configure Ace editor (or monaco! or codemirror!)
+            [ ] Rust mode
+            [ ] Pax mode (try ChatGPT)
+    [ ] (B) Additive approach (from scratch) 
+        [ ] Simple React or Pax app, two panes for input, one pane for rendering output, some sort of UI for stdout and stderr
+        [ ] Configure and embed CodeMirror (based on replit assessment)
+[x] Backend
+    [x] Manage dependencies, probably same whitelist as RP
+    [x] Decide additive or subtractive approach; support simple golden path "pax build --target=web"
+    [x] Simple HTTP server + handlers
+    [ ] Script copying of "warmed up" directory, executing `pax build --target=web`, uploading .wasm and text files to CDN
 [ ] Deployment
     [ ] Configure ELB & ASG
         [ ] Declare with Terraform
@@ -3434,14 +3450,14 @@ Tasks
 Sketch addtl. functionality needed to support "edit this website in playground"
 
 [-] Decision: punt on multiple file support for now; we can link to pre-curated published / shared sandbox sessions with single rs/pax file examples, e.g. a modified version of our website
-    [ ] Multiple files
-        [ ] Security:
-            [ ] Blacklist build.rs
-            [ ] Whitelist available crates
-            [ ] How to deal with proc macros?  Static analysis?
-            [ ] Sandboxed containers — allow the user to perform malicious actions, but firewall their container from other users (e.g. through gVisor + Kubernetes or similar)
-    [ ] UI
-        [ ] Multiple tabs, maybe file tree view
-    [ ] Publish (can start with manual)
-        [ ] Manifest for files
-        [ ] upload relevant files (lib.rs, website_desktop, website_mobile
+    [-] Multiple files
+        [-] Security:
+            [-] Blacklist build.rs
+            [-] Whitelist available crates
+            [-] How to deal with proc macros?  Static analysis?
+            [-] Sandboxed containers — allow the user to perform malicious actions, but firewall their container from other users (e.g. through gVisor + Kubernetes or similar)
+    [-] UI
+        [-] Multiple tabs, maybe file tree view
+    [-] Publish (can start with manual)
+        [-] Manifest for files
+        [-] upload relevant files (lib.rs, website_desktop, website_mobile
