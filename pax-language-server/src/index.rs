@@ -1,12 +1,12 @@
 use dashmap::DashMap;
 use lsp_types::Position;
 use proc_macro2::Span;
-use quote::quote;
+use quote::{quote, ToTokens};
 use std::fs;
 use std::path::{Path, PathBuf};
 use syn::visit::Visit;
 use syn::{
-    parse_file, spanned::Spanned, Attribute, ImplItem, Item, ItemImpl, ItemStruct, Meta, NestedMeta,
+    parse_file, spanned::Spanned, Attribute, GenericArgument, ImplItem, Item, ItemImpl, ItemStruct, Meta, NestedMeta, Type,
 };
 use syn::{ItemUse, UseTree};
 
@@ -130,6 +130,7 @@ fn span_to_position(span: Span) -> Position {
         character: (start.column) as u32,
     }
 }
+
 #[derive(Debug, Clone)]
 pub struct Info {
     pub path: String,
@@ -145,17 +146,20 @@ pub enum IdentifierType {
     Method,
     Property,
 }
+
 #[derive(Debug, Clone)]
 pub struct StructProperty {
     pub identifier: String,
     pub rust_type: String,
     pub info: Info,
 }
+
 #[derive(Debug, Clone)]
 pub struct Method {
     pub identifier: String,
     pub info: Info,
 }
+
 #[derive(Debug, Clone)]
 pub struct IdentifierInfo {
     pub ty: IdentifierType,
@@ -173,6 +177,36 @@ pub struct InfoRequest {
     pub identifier: String,
     pub struct_identifier: Option<String>,
     pub info: Info,
+}
+
+fn extract_rust_type(ty: &Type) -> String {
+    match ty {
+        Type::Path(type_path) => {
+            if let Some(segment) = type_path.path.segments.last() {
+                if let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments {
+                    let generics: Vec<String> = angle_bracketed.args.iter()
+                        .map(|arg| {
+                            if let GenericArgument::Type(t) = arg {
+                                t.to_token_stream().to_string()
+                            } else {
+                                arg.to_token_stream().to_string()
+                            }
+                        })
+                        .collect();
+
+                    format!("{}<{}>", segment.ident, generics.join(", "))
+                } else {
+                    segment.ident.to_string()
+                }
+            } else {
+                type_path.path.segments.iter()
+                    .map(|segment| segment.ident.to_string())
+                    .collect::<Vec<_>>()
+                    .join("::")
+            }
+        },
+        _ => ty.to_token_stream().to_string(),
+    }
 }
 
 struct IndexVisitor<'a> {
@@ -206,20 +240,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
             .fields
             .iter()
             .map(|f| {
-                let mut rust_type_string = quote! { #f.ty }.to_string();
-
-                // Extracting the nested type for fields like Property<f64>
-                if let syn::Type::Path(type_path) = &f.ty {
-                    if let Some(segment) = type_path.path.segments.last() {
-                        if let syn::PathArguments::AngleBracketed(angle_bracketed) =
-                            &segment.arguments
-                        {
-                            if let Some(first_arg) = angle_bracketed.args.first() {
-                                rust_type_string = quote! { #first_arg }.to_string();
-                            }
-                        }
-                    }
-                }
+                let rust_type_string = extract_rust_type(&f.ty);
 
                 let prop_info = Info {
                     path: self.file_path.clone(),
