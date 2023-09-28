@@ -1,5 +1,4 @@
 // @ts-ignore
-import {PaxChassisWeb} from '../../dist/pax_chassis_web';
 import {Layer} from "./layer";
 import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, LAYER} from "../pools/supported-objects";
@@ -10,13 +9,13 @@ export class OcclusionContext {
     private zIndex?: number;
     private scrollerId?: number[];
     private objectManager: ObjectManager;
-    private chassis?: PaxChassisWeb;
+    private chassis?: any;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
     }
 
-    build(parent: Element, scrollerId : number[] | undefined, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
+    build(parent: Element, scrollerId : number[] | undefined, chassis: any, canvasMap: Map<string, HTMLCanvasElement>) {
         this.layers = this.objectManager.getFromPool(ARRAY);
         this.parent = parent;
         this.zIndex = -1;
@@ -60,8 +59,7 @@ export class OcclusionContext {
                 this.growTo(zIndex);
             }
             element.style.zIndex = String(1000-zIndex);
-            // @ts-ignore
-            this.layers[zIndex].native.prepend(element);
+            this.layers![zIndex]!.native!.prepend(element);
         }
     }
 

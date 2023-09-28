@@ -6,6 +6,6 @@
     "lib": ["dom", "es2015"],
     "strict": true,
     "esModuleInterop": true,
-    "sourceMap": true,
+    "sourceMap": true
   }
 }
