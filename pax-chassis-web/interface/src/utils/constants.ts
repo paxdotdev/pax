@@ -1,4 +1,3 @@
-export const MOUNT_ID = "mount";
 export const NATIVE_OVERLAY_CLASS = "native-overlay";
 export const CANVAS_CLASS = "canvas";
 export const SCROLLER_CONTAINER = "scroller-container"

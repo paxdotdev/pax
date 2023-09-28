@@ -3412,6 +3412,9 @@ Tasks
         [ ] Handle null case for default loading of some fixed-name file, like `web-cartridge.wasm`.  This should keep e.g. our website working and continue to deliver the "index.html that just works" feature.
         [ ] Handle bundling / packaging — likely we don't need webpack at all for this; we just need to build the typescript project, and that can be done in libdev
             [ ] Refactor webpack / node deps; remove from userland if feasible; figure out libdev build process (bundle built TS => JS; ensure this happens when running pax-example and when publishing to crates.io)
+            [ ] Handle need to bundle CSS like we currently do with Webpack
+            [ ] Ensure that assets are well handled (e.g. images)
+        [ ] Stepping back — loading the wasm dynamically has become a pain in the ass.  The wasm-pack 
 [ ] UI
     [ ] (A) Subtractive approach:
         [ ] Rip out unnecessary features

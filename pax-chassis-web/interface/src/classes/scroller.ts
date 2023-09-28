@@ -1,5 +1,4 @@
 // @ts-ignore
-import {PaxChassisWeb} from '../../dist/pax_chassis_web';
 import {OcclusionContext} from "./occlusion-context";
 import {INNER_PANE, SCROLLER_CONTAINER} from "../utils/constants";
 import {ObjectManager} from "../pools/object-manager";
@@ -37,7 +36,7 @@ export class Scroller {
         this.objectManager = objectManager;
     }
 
-    build(idChain: number[], zIndex: number, scrollerId: number[] | undefined, chassis: PaxChassisWeb,
+    build(idChain: number[], zIndex: number, scrollerId: number[] | undefined, chassis: any,
           scrollers: Map<string, Scroller>, baseOcclusionContext: OcclusionContext, canvasMap: Map<string, HTMLCanvasElement>, isMobile: boolean) {
         this.isMobile = isMobile;
         this.idChain = idChain;

@@ -1,7 +1,7 @@
+import type {PaxChassisWeb, InitOutput, initSync} from "./types/pax-chassis-web";
+
 // @ts-ignore
-import {PaxChassisWeb, wasm_memory} from '../dist/pax_chassis_web';
 import {ObjectManager} from "./pools/object-manager";
-import {MOUNT_ID} from "./utils/constants";
 import {
     ANY_CREATE_PATCH,
     FRAME_UPDATE_PATCH,
@@ -18,6 +18,36 @@ import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
 import {setupEventListeners} from "./events/listeners";
 import "./styles/pax-web.css";
 
+
+
+async function loadWasmModule(extensionless_url: string): Promise<{ chassis: PaxChassisWeb, memory: WebAssembly.Memory }> {
+    try {
+        const glueCodeModule = await import(`${extensionless_url}.js`) as typeof import("./types/pax-chassis-web");
+
+
+        const wasmBinary = await fetch(`${extensionless_url}_bg.wasm`);
+        const wasmArrayBuffer = await wasmBinary.arrayBuffer();
+        let io = glueCodeModule.initSync(wasmArrayBuffer);
+
+        let chassis = glueCodeModule.PaxChassisWeb.new();
+        let memory = glueCodeModule.wasm_memory() as WebAssembly.Memory;
+
+        return { chassis, memory };
+    } catch (err) {
+        throw new Error(`Failed to load WASM module: ${err}`);
+    }
+}
+
+
+async function startRenderLoop(wasmUrl: string, mount: Element) {
+    try {
+        let {chassis, memory} = await loadWasmModule(wasmUrl);
+        requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, memory));
+    } catch (error) {
+        console.error("Failed to load or instantiate Wasm module:", error);
+    }
+}
+
 let initializedChassis = false;
 let is_mobile_device = false;
 
@@ -27,23 +57,14 @@ let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
 
-// @ts-ignore
-async function startRenderLoop(wasmMod: typeof import('../dist/pax_chassis_web'), mount: Element) {
-    is_mobile_device = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    let chassis = await wasmMod.PaxChassisWeb.new();
-    nativePool.build(chassis, is_mobile_device);
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount));
-}
-
-function renderLoop (chassis: PaxChassisWeb, mount: Element) {
+function renderLoop (chassis: any, mount: Element, wasm_memory: WebAssembly.Memory) {
 
     //stats.begin();
     nativePool.sendScrollerValues();
     nativePool.clearCanvases();
 
     const memorySlice = chassis.tick();
-    const memory = wasm_memory();
-    const memoryBuffer = new Uint8Array(memory.buffer);
+    const memoryBuffer = new Uint8Array(wasm_memory.buffer);
 
     // Extract the serialized data directly from memory
     const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySlice.ptr(), memorySlice.ptr() + memorySlice.len()));
@@ -65,10 +86,10 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element) {
     // //necessary manual cleanup
     chassis.deallocate(memorySlice);
     //stats.end();
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount))
+    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, wasm_memory))
 }
 
-export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
+export function processMessages(messages: any[], chassis: any, objectManager: ObjectManager) {
     messages?.forEach((unwrapped_msg) => {
         if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
@@ -120,18 +141,30 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
 
 
 // Wasm + TS Bootstrapping boilerplate
-async function bootstrap(mount: Element) {
-    // @ts-ignore
-    startRenderLoop(await import('../dist/pax_chassis_web'), mount);
+async function bootstrap(wasmUrl: string, mount: Element) {
+    // Start the render loop with the dynamically loaded Wasm module
+    startRenderLoop(wasmUrl, mount);
 }
 
-export function mount(selector_or_element: string | Element) {
-    let mount : Element;
+export function mount(selector_or_element: string | Element, wasmUrl: string) {
+
+    //Inject CSS
+    let link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = 'pax-chassis-web-interface.css'
+    document.head.appendChild(link)
+
+    let mount: Element;
     if (typeof selector_or_element === "string") {
-        mount = document.querySelector(selector_or_element as string) as Element;
+        mount = document.querySelector(selector_or_element) as Element;
     } else {
-        mount = selector_or_element as Element;
+        mount = selector_or_element;
     }
-    bootstrap(mount).then();
-}
 
+    // Update to pass wasmUrl to bootstrap function
+    if(mount) {
+        bootstrap(wasmUrl, mount).then();
+    } else {
+        console.error("Unable to find mount element");
+    }
+}

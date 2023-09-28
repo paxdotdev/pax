@@ -1274,6 +1274,10 @@ pub fn build_chassis_with_cartridge(
             let mut cmd = Command::new("wasm-pack");
             cmd.current_dir(&chassis_path)
                 .arg("build")
+                .arg("--target")
+                .arg("web")
+                .arg("--out-name")
+                .arg("pax-chassis-web")
                 .arg("--out-dir")
                 .arg(
                     chassis_path

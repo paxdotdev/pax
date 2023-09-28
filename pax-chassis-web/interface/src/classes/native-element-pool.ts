@@ -1,6 +1,6 @@
 // @ts-ignore
-import {PaxChassisWeb} from '../dist/pax_chassis_web';import {Scroller} from "./scroller";
-import {MOUNT_ID, NATIVE_LEAF_CLASS} from "../utils/constants";
+import {Scroller} from "./scroller";
+import {NATIVE_LEAF_CLASS} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 // @ts-ignore
 import snarkdown from 'snarkdown';
@@ -19,7 +19,7 @@ export class NativeElementPool {
     private scrollers: Map<string, Scroller>;
     baseOcclusionContext: OcclusionContext;
     private textNodes = {};
-    private chassis? : PaxChassisWeb;
+    private chassis? : any;
     private objectManager: ObjectManager;
     registeredFontFaces: Set<string>;
     messageList:string[] = [];
@@ -31,13 +31,6 @@ export class NativeElementPool {
         this.scrollers = new Map();
         this.baseOcclusionContext = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
         this.registeredFontFaces = new Set<string>();
-    }
-
-    build(chassis: PaxChassisWeb, isMobile: boolean){
-        this.isMobile = isMobile;
-        this.chassis = chassis;
-        let mount = document.querySelector("#" + MOUNT_ID)!;
-        this.baseOcclusionContext.build(mount, undefined, chassis, this.canvases);
     }
 
     static addNativeElement(elem: HTMLElement, baseOcclusionContext: OcclusionContext, scrollers: Map<string, Scroller>,
@@ -293,7 +286,7 @@ export class NativeElementPool {
         // nativeLayer?.removeChild(oldNode);
     }
 
-    scrollerCreate(patch: AnyCreatePatch, chassis: PaxChassisWeb){
+    scrollerCreate(patch: AnyCreatePatch, chassis: any){
         //console.log(patch);
         let scroller_id;
         if(patch.scrollerIds != null){
@@ -322,7 +315,7 @@ export class NativeElementPool {
 
 
 
-    async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
+    async imageLoad(patch: ImageLoadPatch, chassis: any) {
 
         //Check the full path of our index.js; use the prefix of this path also for our image assets
         function getScriptBasePath(scriptName: string) {
