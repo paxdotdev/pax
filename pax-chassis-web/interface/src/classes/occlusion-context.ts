@@ -2,6 +2,9 @@
 import {Layer} from "./layer";
 import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, LAYER} from "../pools/supported-objects";
+
+import type {PaxChassisWeb} from "../types/pax-chassis-web";
+
 export class OcclusionContext {
     private layers?: Layer[];
     private canvasMap?: Map<string, HTMLCanvasElement>;
@@ -15,7 +18,7 @@ export class OcclusionContext {
         this.objectManager = objectManager;
     }
 
-    build(parent: Element, scrollerId : number[] | undefined, chassis: any, canvasMap: Map<string, HTMLCanvasElement>) {
+    build(parent: Element, scrollerId : number[] | undefined, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
         this.layers = this.objectManager.getFromPool(ARRAY);
         this.parent = parent;
         this.zIndex = -1;
@@ -59,6 +62,9 @@ export class OcclusionContext {
                 this.growTo(zIndex);
             }
             element.style.zIndex = String(1000-zIndex);
+            console.log("Layers", this.layers);
+            console.log("zIndex", zIndex);
+            console.log("Element", element);
             this.layers![zIndex]!.native!.prepend(element);
         }
     }

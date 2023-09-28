@@ -13,6 +13,7 @@ import {ObjectManager} from "../pools/object-manager";
 import {DIV, OBJECT, OCCLUSION_CONTEXT, SCROLLER} from "../pools/supported-objects";
 import {arrayToKey, packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
 import {getAlignItems, getJustifyContent, getTextAlign} from "./text";
+import type {PaxChassisWeb} from "../types/pax-chassis-web";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -286,7 +287,7 @@ export class NativeElementPool {
         // nativeLayer?.removeChild(oldNode);
     }
 
-    scrollerCreate(patch: AnyCreatePatch, chassis: any){
+    scrollerCreate(patch: AnyCreatePatch, chassis: PaxChassisWeb){
         //console.log(patch);
         let scroller_id;
         if(patch.scrollerIds != null){
@@ -315,7 +316,7 @@ export class NativeElementPool {
 
 
 
-    async imageLoad(patch: ImageLoadPatch, chassis: any) {
+    async imageLoad(patch: ImageLoadPatch, chassis: PaxChassisWeb) {
 
         //Check the full path of our index.js; use the prefix of this path also for our image assets
         function getScriptBasePath(scriptName: string) {
