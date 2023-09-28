@@ -312,9 +312,6 @@ impl LanguageServer for Backend {
     async fn did_open(&self, did_open_params: DidOpenTextDocumentParams) {
         let language_id = &did_open_params.text_document.language_id;
         let uri = &did_open_params.text_document.uri;
-        self.client
-            .log_message(MessageType::INFO, format!("Received URI: {}", uri))
-            .await;
 
         if language_id == "rust" {
             //thread::sleep(Duration::from_secs(10));
@@ -434,24 +431,57 @@ impl LanguageServer for Backend {
         //     .await;
     }
 
+    // async fn did_save(&self, did_save_params: DidSaveTextDocumentParams) {
+    //     self.client
+    //         .log_message(MessageType::INFO, "File saved!")
+    //         .await;
+
+    //     let uri = &did_save_params.text_document.uri;
+    //     let path_str = uri
+    //         .to_file_path()
+    //         .expect("Failed to convert URI to path")
+    //         .to_string_lossy()
+    //         .to_string();
+    //     for e in self.pax_map.iter() {
+    //         let component = e.value();
+    //         let key = e.key();
+    //         self.client
+    //             .log_message(
+    //                 MessageType::INFO,
+    //                 format!("Fetching data for file: {}", key),
+    //             )
+    //             .await;
+    //         for entry in component.identifier_map.iter() {
+    //             let identifier = entry.key();
+    //             let info = entry.value();
+    //             self.client
+    //                 .log_message(
+    //                     MessageType::INFO,
+    //                     format!("Identifier: {}\nInfo: {:?}", identifier, info),
+    //                 )
+    //                 .await;
+    //         }
+    //     }
+    // }
+
     async fn did_save(&self, did_save_params: DidSaveTextDocumentParams) {
         self.client
             .log_message(MessageType::INFO, "File saved!")
             .await;
-
+    
         let uri = &did_save_params.text_document.uri;
-        let path_str = uri
+        let saved_file_path = uri
             .to_file_path()
             .expect("Failed to convert URI to path")
             .to_string_lossy()
             .to_string();
-        for e in self.pax_map.iter() {
-            let component = e.value();
-            let key = e.key();
+    
+        // Check if the file from pax_map matches the saved file
+        if let Some(component) = self.pax_map.get(&saved_file_path) {
             self.client
                 .log_message(
                     MessageType::INFO,
-                    format!("Fetching data for file: {}", key),
+                    format!("Fetching data for file: {}", saved_file_path),
                 )
                 .await;
             for entry in component.identifier_map.iter() {
@@ -466,6 +496,7 @@ impl LanguageServer for Backend {
             }
         }
     }
+    
 
     async fn goto_definition(
         &self,
