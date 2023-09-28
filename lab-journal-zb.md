@@ -3414,7 +3414,23 @@ Tasks
             [ ] Refactor webpack / node deps; remove from userland if feasible; figure out libdev build process (bundle built TS => JS; ensure this happens when running pax-example and when publishing to crates.io)
             [ ] Handle need to bundle CSS like we currently do with Webpack
             [ ] Ensure that assets are well handled (e.g. images)
-        [ ] Stepping back — loading the wasm dynamically has become a pain in the ass.  The wasm-pack 
+        [ ] Stepping back: Loading the _wasm_ separately, as opposed to loading the _glue code js_ separately, feels like the wrong tack.  We need to load some sort of js to manage the wasm glue, and that js may evolve over time, which means we'd be introducing version brittleness if we load _strictly_ the wasm on e.g. the playground.
+            Thus, we should load both the wasm and the accompanying glue code dynamically, based on playground path/url params.
+            In good news, this is still applicable to our "don't foist a bundler on the end-developer" strategy, as wasm-pack outputs both artifacts.  Essentially, we (1) bundle our TS chassis project using esbuild/tsc, then (2) dynamically load the wasm-pack module via glue code based on a passed param (default to a local file; allow overriding for e.g. sandbox loading.)
+            In light of this, an assessment of build tool options:
+            [ ] ESBuild — requires either a node dependency to `npm i` binaries, or managing our own pre-built binaries, or requiring a Go dependency to use the Go API, or managing pre-built Go-based dependencies (e.g. with a Rust / FFI wrapper.)
+                    Alt: pre-built binaries are available!  Main drawbacks are (1) need for unix or WSL, and (2) no plugin support.  See https://esbuild.github.io/getting-started/#other-ways-to-install
+                Strengths — can inline wasm into a single JS file, simplifying consumption (especially downstream) — note that this may preclude "pre-bundling" as an alternative to foisting a build tool dependency onto the end-user
+                Weaknesses — doesn't inline CSS out-of-the-box, complicating consumption downstream (could fix with a hacked script or a plugin)
+            [ ] Vercel Turbopack
+                Appears somewhat coupled to next.js?  Also appears unfortunately webpack-like, in bad ways (e.g. the config)
+                Built in Rust, which is promising for API consumption — but doesn't appear to have a documented API?
+            [ ] SWC - bundle feature appears to be alpha and unsupported (creator was bought by Vercel)
+            [ ] bun - threw an error bundling wasm last time we tried; maybe it will get there
+            [ ] no userland bundler — the idea is to build a bundle statically at libdev time, including that "built template" in the Pax compiler+CLI, and to splice out the .wasm (assuming an unchanging glue interface)
+                for userland builds.  We would still upload both glue + wasm to CDN, so solve the version problem, and this would sidestep
+                the need for 
+
 [ ] UI
     [ ] (A) Subtractive approach:
         [ ] Rip out unnecessary features

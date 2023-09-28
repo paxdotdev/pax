@@ -4,6 +4,8 @@ import {CANVAS_CLASS, NATIVE_OVERLAY_CLASS} from '../utils/constants';
 import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, CANVAS, DIV, UINT32ARRAY} from "../pools/supported-objects";
 import {generateLocationId} from "../utils/helpers";
+import type {PaxChassisWeb} from "../types/pax-chassis-web";
+
 
 export class Layer {
     canvas?: HTMLCanvasElement;
@@ -19,7 +21,7 @@ export class Layer {
         this.objectManager = objectManager;
     }
 
-    build(parent: Element, zIndex: number, scroller_id: number[] | undefined, chassis: any, canvasMap: Map<string, HTMLCanvasElement>) {
+    build(parent: Element, zIndex: number, scroller_id: number[] | undefined, chassis: PaxChassisWeb, canvasMap: Map<string, HTMLCanvasElement>) {
         this.zIndex = zIndex;
         this.scrollerId = scroller_id;
         this.chassis = chassis;

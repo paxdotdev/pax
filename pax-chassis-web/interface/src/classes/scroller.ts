@@ -2,11 +2,13 @@
 import {OcclusionContext} from "./occlusion-context";
 import {INNER_PANE, SCROLLER_CONTAINER} from "../utils/constants";
 import {ObjectManager} from "../pools/object-manager";
-import {DIV, OBJECT, OCCLUSION_CONTEXT} from "../pools/supported-objects";
+import {DIV, OCCLUSION_CONTEXT} from "../pools/supported-objects";
 import {packAffineCoeffsIntoMatrix3DString} from "../utils/helpers";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {NativeElementPool} from "./native-element-pool";
 import { ScrollManager } from './scroll-manager';
+
+import type {PaxChassisWeb} from "../types/pax-chassis-web";
 
 export class Scroller {
     private idChain?: number[];
@@ -36,7 +38,7 @@ export class Scroller {
         this.objectManager = objectManager;
     }
 
-    build(idChain: number[], zIndex: number, scrollerId: number[] | undefined, chassis: any,
+    build(idChain: number[], zIndex: number, scrollerId: number[] | undefined, chassis: PaxChassisWeb,
           scrollers: Map<string, Scroller>, baseOcclusionContext: OcclusionContext, canvasMap: Map<string, HTMLCanvasElement>, isMobile: boolean) {
         this.isMobile = isMobile;
         this.idChain = idChain;

@@ -18,38 +18,33 @@ import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
 import {setupEventListeners} from "./events/listeners";
 import "./styles/pax-web.css";
 
-
-
-async function loadWasmModule(extensionless_url: string): Promise<{ chassis: PaxChassisWeb, memory: WebAssembly.Memory }> {
+async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxChassisWeb, get_latest_memory: ()=>any }> {
     try {
-        const glueCodeModule = await import(`${extensionless_url}.js`) as typeof import("./types/pax-chassis-web");
+        const glueCodeModule = await import(`${extensionlessUrl}.js`) as typeof import("./types/pax-chassis-web");
 
-
-        const wasmBinary = await fetch(`${extensionless_url}_bg.wasm`);
+        const wasmBinary = await fetch(`${extensionlessUrl}_bg.wasm`);
         const wasmArrayBuffer = await wasmBinary.arrayBuffer();
-        let io = glueCodeModule.initSync(wasmArrayBuffer);
+        let _io = glueCodeModule.initSync(wasmArrayBuffer);
 
         let chassis = glueCodeModule.PaxChassisWeb.new();
-        let memory = glueCodeModule.wasm_memory() as WebAssembly.Memory;
+        let get_latest_memory = glueCodeModule.wasm_memory;
 
-        return { chassis, memory };
+        return { chassis, get_latest_memory };
     } catch (err) {
         throw new Error(`Failed to load WASM module: ${err}`);
     }
 }
 
-
-async function startRenderLoop(wasmUrl: string, mount: Element) {
+async function startRenderLoop(extensionlessUrl: string, mount: Element) {
     try {
-        let {chassis, memory} = await loadWasmModule(wasmUrl);
-        requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, memory));
+        let {chassis, get_latest_memory} = await loadWasmModule(extensionlessUrl);
+        requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
     } catch (error) {
         console.error("Failed to load or instantiate Wasm module:", error);
     }
 }
 
 let initializedChassis = false;
-let is_mobile_device = false;
 
 // Init-once globals for garbage collector optimization
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
@@ -57,39 +52,43 @@ let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
 
-function renderLoop (chassis: any, mount: Element, wasm_memory: WebAssembly.Memory) {
+function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
 
     //stats.begin();
     nativePool.sendScrollerValues();
     nativePool.clearCanvases();
 
-    const memorySlice = chassis.tick();
-    const memoryBuffer = new Uint8Array(wasm_memory.buffer);
+    const memorySliceSpec = chassis.tick();
+    const latestMemory : WebAssembly.Memory = get_latest_memory();
+    const memoryBuffer = new Uint8Array(latestMemory.buffer);
 
     // Extract the serialized data directly from memory
-    const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySlice.ptr(), memorySlice.ptr() + memorySlice.len()));
+    const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySliceSpec.ptr(), memorySliceSpec.ptr() + memorySliceSpec.len()));
+    console.log("latest jsonString", jsonString);
     messages = JSON.parse(jsonString);
 
-     if(!initializedChassis){
-         window.addEventListener('resize', () => {
-             let width = window.innerWidth;
-             let height = window.innerHeight;
-             chassis.send_viewport_update(width, height);
-             nativePool.baseOcclusionContext.updateCanvases(width, height);
-         });
-         setupEventListeners(chassis, mount);
-         initializedChassis = true;
-     }
-     //@ts-ignore
+    if(!initializedChassis){
+        let resizeHandler = () => {
+            let width = mount.clientWidth;
+            let height = mount.clientHeight;
+            chassis.send_viewport_update(width, height);
+            nativePool.baseOcclusionContext.updateCanvases(width, height);
+        };
+        window.addEventListener('resize', resizeHandler);
+        resizeHandler();//Fire once manually to init viewport size & occlusion context
+        setupEventListeners(chassis, mount);
+        initializedChassis = true;
+    }
+    //@ts-ignore
     processMessages(messages, chassis, objectManager);
 
-    // //necessary manual cleanup
-    chassis.deallocate(memorySlice);
-    //stats.end();
+    //necessary manual cleanup
+    chassis.deallocate(memorySliceSpec);
+
     requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, wasm_memory))
 }
 
-export function processMessages(messages: any[], chassis: any, objectManager: ObjectManager) {
+export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
     messages?.forEach((unwrapped_msg) => {
         if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
@@ -139,14 +138,13 @@ export function processMessages(messages: any[], chassis: any, objectManager: Ob
     })
 }
 
-
 // Wasm + TS Bootstrapping boilerplate
-async function bootstrap(wasmUrl: string, mount: Element) {
+async function bootstrap(extensionlessUrl: string, mount: Element) {
     // Start the render loop with the dynamically loaded Wasm module
-    startRenderLoop(wasmUrl, mount);
+    startRenderLoop(extensionlessUrl, mount);
 }
 
-export function mount(selector_or_element: string | Element, wasmUrl: string) {
+export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
 
     //Inject CSS
     let link = document.createElement('link')
@@ -162,9 +160,10 @@ export function mount(selector_or_element: string | Element, wasmUrl: string) {
     }
 
     // Update to pass wasmUrl to bootstrap function
-    if(mount) {
-        bootstrap(wasmUrl, mount).then();
+    if (mount) {
+        bootstrap(extensionlessUrl, mount).then();
     } else {
         console.error("Unable to find mount element");
     }
+
 }
