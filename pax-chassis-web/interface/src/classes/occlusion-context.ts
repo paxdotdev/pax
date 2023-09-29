@@ -12,7 +12,7 @@ export class OcclusionContext {
     private zIndex?: number;
     private scrollerId?: number[];
     private objectManager: ObjectManager;
-    private chassis?: any;
+    private chassis?: PaxChassisWeb;
 
     constructor(objectManager: ObjectManager) {
         this.objectManager = objectManager;
@@ -62,9 +62,6 @@ export class OcclusionContext {
                 this.growTo(zIndex);
             }
             element.style.zIndex = String(1000-zIndex);
-            console.log("Layers", this.layers);
-            console.log("zIndex", zIndex);
-            console.log("Element", element);
             this.layers![zIndex]!.native!.prepend(element);
         }
     }

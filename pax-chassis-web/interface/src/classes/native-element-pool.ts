@@ -20,7 +20,7 @@ export class NativeElementPool {
     private scrollers: Map<string, Scroller>;
     baseOcclusionContext: OcclusionContext;
     private textNodes = {};
-    private chassis? : any;
+    private chassis? : PaxChassisWeb;
     private objectManager: ObjectManager;
     registeredFontFaces: Set<string>;
     messageList:string[] = [];
@@ -32,6 +32,13 @@ export class NativeElementPool {
         this.scrollers = new Map();
         this.baseOcclusionContext = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
         this.registeredFontFaces = new Set<string>();
+    }
+
+
+    build(chassis: PaxChassisWeb, isMobile: boolean, mount: Element){
+        this.isMobile = isMobile;
+        this.chassis = chassis;
+        this.baseOcclusionContext.build(mount, undefined, chassis, this.canvases);
     }
 
     static addNativeElement(elem: HTMLElement, baseOcclusionContext: OcclusionContext, scrollers: Map<string, Scroller>,
@@ -78,7 +85,7 @@ export class NativeElementPool {
                 scrollEvent.Scroll = deltas;
                 const scrollEventStringified = JSON.stringify(scrollEvent);
                 this.messageList.push(scrollEventStringified);
-                this.chassis.interrupt(scrollEventStringified, []);
+                this.chassis!.interrupt(scrollEventStringified, []);
                 this.objectManager.returnToPool(OBJECT, deltas);
                 this.objectManager.returnToPool(OBJECT, scrollEvent);
             }
@@ -297,7 +304,7 @@ export class NativeElementPool {
             }
         }
         let scroller: Scroller = this.objectManager.getFromPool(SCROLLER, this.objectManager);
-        scroller.build(patch.idChain!, patch.zIndex!, scroller_id, this.chassis, this.scrollers,
+        scroller.build(patch.idChain!, patch.zIndex!, scroller_id, this.chassis!, this.scrollers,
             this.baseOcclusionContext, this.canvases, this.isMobile)
         // @ts-ignore
         this.scrollers.set(arrayToKey(patch.idChain),scroller);
