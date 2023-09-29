@@ -845,6 +845,68 @@ impl Default for ParsingContext {
     }
 }
 
+
+#[derive(Debug)]
+pub struct ParsingError {
+    pub error_name: String,
+    pub error_message: String,
+    pub matched_string: String,
+    pub start: (usize, usize),
+    pub end: (usize, usize),  
+}
+
+/// Extract all errors from a Pax parse result
+pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>, pax: &str) -> Vec<ParsingError> {
+    let mut errors = vec![];
+
+
+    for pair in pairs {
+        let error = match pair.as_rule() {
+            Rule::block_level_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Unexpected template structure encountered.".to_string(),
+            )),
+            Rule::attribute_key_value_pair_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Attribute key-value pair is malformed.".to_string(),
+            )),
+            Rule::inner_tag_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Inner tag structure doesn't match any expected format.".to_string(),
+            )),
+            Rule::selector_block_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Selector block structure is not well-defined.".to_string(),
+            )),
+            Rule::handler_key_value_pair_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Event handler key-value pair is incorrectly formatted.".to_string(),
+            )),
+            Rule::expression_body_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Expression inside curly braces has an unexpected format.".to_string(),
+            )),
+            _ => None,
+        };
+        if let Some((error_name, error_message)) = error {
+            let span = pair.as_span();
+            let ((line_start, start_col), (line_end, end_col)) = (pair.line_col(),span.end_pos().line_col());
+            let error = ParsingError {
+                error_name,
+                error_message,
+                matched_string: span.as_str().to_string(),
+                start: (line_start, start_col),
+                end: (line_end, end_col),
+            };
+            errors.push(error);
+        }
+        errors.extend(extract_errors(pair.into_inner(), pax)); 
+    }
+
+    errors
+}
+
+
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
 pub fn assemble_component_definition(
     mut ctx: ParsingContext,
@@ -859,7 +921,27 @@ pub fn assemble_component_definition(
         .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
         .next()
         .unwrap(); // get and unwrap the `pax_component_definition` rule
-
+    
+        let errors = extract_errors(_ast.clone().into_inner(), pax.clone());
+        if !errors.is_empty() {
+            let mut error_messages = String::new();
+            
+            for error in &errors {
+                let msg = format!(
+                    "error: {}\n   --> {}:{}\n    |\n{}  | {}\n    |{}\n\n",
+                    error.error_message,
+                    error.start.0,
+                    error.start.1,
+                    error.start.0,
+                    error.matched_string,
+                    "^".repeat(error.matched_string.len())
+                );
+                error_messages.push_str(&msg);
+            }
+            
+            panic!("{}", error_messages);
+        }
+    
     if is_main_component {
         ctx.main_component_type_id = self_type_id.to_string();
     }

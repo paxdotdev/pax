@@ -1,9 +1,10 @@
 use core::panic;
 use std::fs;
 use std::path::PathBuf;
-
+use pest::Parser;
 use dashmap::DashMap;
 use lsp_types::request::Request;
+use pax_compiler::parsing::{PaxParser, Rule};
 use serde::*;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -17,6 +18,13 @@ use index::{
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::Duration;
+
+extern crate pest;
+use pest::iterators::{Pair, Pairs};
+use pest_derive::Parser;
+
+use pest::pratt_parser::{Assoc, Op, PrattParser};
+
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SymbolLocationParams {
@@ -343,92 +351,15 @@ impl LanguageServer for Backend {
         }
     }
 
-    // async fn did_opens(&self, did_open_params: DidOpenTextDocumentParams) {
-    //     let language_id = &did_open_params.text_document.language_id;
-    //     if language_id != "pax" {
-    //         return;
-    //     }
-
-    //     let uri = &did_open_params.text_document.uri;
-    //     let path = uri.to_file_path().expect("Failed to convert URI to path");
-    //     let directory = path.parent().expect("Failed to get parent directory");
-    //     let path_str = path.to_string_lossy().to_string();
-
-    //     if let Some((rust_file_path, component_name)) =
-    //         find_rust_file_with_macro(directory, &path_str)
-    //     {
-    //         self.client
-    //             .log_message(MessageType::INFO, format!("{} is new. indexing", &path_str))
-    //             .await;
-
-    //         // Create an empty identifier_map for the new component
-    //         let identifier_map: DashMap<String, IdentifierInfo> = DashMap::new();
-
-    //         // Index the found Rust file and populate the identifier_map
-    //         let rust_file_path_str = rust_file_path.to_string_lossy().to_string();
-    //         index_rust_file(&rust_file_path_str, &identifier_map)
-    //             .expect("Failed to index the Rust file");
-
-    //         // Update the pax_map with the new component
-    //         self.pax_map.insert(
-    //             path_str.clone(),
-    //             PaxComponent {
-    //                 component_name,
-    //                 identifier_map,
-    //             },
-    //         );
-
-    //         self.rs_to_pax_map
-    //             .insert(rust_file_path_str, path_str.clone());
-
-    //         // Extract import positions
-    //         let positions = extract_import_positions(&rust_file_path);
-
-    //         for position in positions {
-    //             let symbol_data = SymbolData {
-    //                 uri: rust_file_path.to_string_lossy().to_string(),
-    //                 position,
-    //             };
-
-    //             let params = SymbolLocationParams {
-    //                 symbol: symbol_data,
-    //             };
-
-    //             // Send the request and log the response
-    //             match self
-    //                 .client
-    //                 .send_request::<GetDefinitionRequest>(params)
-    //                 .await
-    //             {
-    //                 Ok(response) => {
-    //                     for location_link in response.locations {
-    //                         let target_uri = location_link.target_uri;
-    //                         let target_file = target_uri
-    //                             .to_file_path()
-    //                             .expect("Failed to convert URI to path")
-    //                             .to_string_lossy()
-    //                             .to_string();
-    //                         let path = path_str.clone();
-    //                         let backend_clone = self.clone();
-    //                         tokio::spawn(async move {
-    //                             backend_clone.handle_file(path, target_file).await;
-    //                         });
-    //                     }
-    //                 }
-    //                 Err(e) => {
-    //                     eprintln!("Error sending request: {:?}", e);
-    //                 }
-    //             }
-    //         }
-    //     } else {
-    //         eprintln!("No matching Rust file found for {}", path.display());
-    //     }
-    // }
-
-    async fn did_change(&self, did: DidChangeTextDocumentParams) {
+    async fn did_change(&self, did_change_params: DidChangeTextDocumentParams) {
         // self.client
         //     .log_message(MessageType::INFO, "file changed!")
         //     .await;
+        // let _ast = PaxParser::parse(Rule::pax_component_definition, pax)
+        // .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
+        // .next()
+        // .unwrap(); // get and unwrap the `pax_component_definition` rule
+
     }
 
     // async fn did_save(&self, did_save_params: DidSaveTextDocumentParams) {

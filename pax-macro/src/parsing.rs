@@ -11,14 +11,97 @@ use std::rc::Rc;
 #[grammar = "pax.pest"]
 pub struct PaxMacroParser;
 
+
+#[derive(Debug)]
+pub struct ParsingError {
+    pub error_name: String,
+    pub error_message: String,
+    pub matched_string: String,
+    pub start: (usize, usize),
+    pub end: (usize, usize),  
+}
+
+/// Extract all errors from a Pax parse result
+pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>, pax: &str) -> Vec<ParsingError> {
+    let mut errors = vec![];
+
+
+    for pair in pairs {
+        let error = match pair.as_rule() {
+            Rule::block_level_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Unexpected template structure encountered.".to_string(),
+            )),
+            Rule::attribute_key_value_pair_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Attribute key-value pair is malformed.".to_string(),
+            )),
+            Rule::inner_tag_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Inner tag structure doesn't match any expected format.".to_string(),
+            )),
+            Rule::selector_block_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Selector block structure is not well-defined.".to_string(),
+            )),
+            Rule::handler_key_value_pair_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Event handler key-value pair is incorrectly formatted.".to_string(),
+            )),
+            Rule::expression_body_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Expression inside curly braces has an unexpected format.".to_string(),
+            )),
+            _ => None,
+        };
+        if let Some((error_name, error_message)) = error {
+            let span = pair.as_span();
+            let ((line_start, start_col), (line_end, end_col)) = (pair.line_col(),span.end_pos().line_col());
+            let error = ParsingError {
+                error_name,
+                error_message,
+                matched_string: span.as_str().to_string(),
+                start: (line_start, start_col),
+                end: (line_end, end_col),
+            };
+            errors.push(error);
+        }
+        errors.extend(extract_errors(pair.into_inner(), pax)); 
+    }
+
+    errors
+}
+
+
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
     let pax_component_definition = PaxMacroParser::parse(Rule::pax_component_definition, pax)
-        .expect(&format!("unsuccessful parse from {}", &pax)) // unwrap the parse result
+        .expect(&format!("unsuccessful parse from {}", &pax))
         .next()
-        .unwrap(); // get and unwrap the `pax_component_definition` rule
+        .unwrap();
+
+        let errors = extract_errors(pax_component_definition.clone().into_inner(), pax.clone());
+        if !errors.is_empty() {
+            let mut error_messages = String::new();
+            
+            for error in &errors {
+                let msg = format!(
+                    "error: {}\n   --> {}:{}\n    |\n{}  | {}\n    |{}\n\n",
+                    error.error_message,
+                    error.start.0,
+                    error.start.1,
+                    error.start.0,
+                    error.matched_string,
+                    "^".repeat(error.matched_string.len())
+                );
+                error_messages.push_str(&msg);
+            }
+            
+            panic!("{}", error_messages);
+        }
+        
+    
 
     let pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
-
     pax_component_definition
         .into_inner()
         .for_each(|pair| match pair.as_rule() {
@@ -30,6 +113,7 @@ pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> V
             }
             _ => {}
         });
+ 
     let unwrapped_hashmap = Rc::try_unwrap(pascal_identifiers).unwrap().into_inner();
     unwrapped_hashmap.into_iter().collect()
 }

@@ -305,7 +305,6 @@ fn pax_full_component(
     } else {
         "".to_string()
     };
-
     let output = TemplateArgsDerivePax {
         args_primitive: None,
         args_struct_only_component: None,
@@ -640,9 +639,8 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let file = File::open(path);
         let mut content = String::new();
         let _ = file.unwrap().read_to_string(&mut content);
-        let stream: proc_macro::TokenStream = content.parse().unwrap();
         pax_full_component(
-            stream.to_string(),
+            content,
             input.clone(),
             is_main_component,
             Some(include_fix),
@@ -656,14 +654,17 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             unreachable!()
         };
 
-        pax_full_component(
-            contents,
+        let ret = pax_full_component(
+            contents.clone(),
             input.clone(),
             is_main_component,
             None,
             include_imports,
             is_custom_interpolatable,
-        )
+        );
+
+    //println!("{:#?}", contents);
+    ret
     } else if is_primitive {
         pax_primitive(
             input.clone(),
@@ -680,7 +681,6 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         #clone_impl
         #default_impl
     };
-
     output.into()
 }
 
