@@ -11,7 +11,8 @@
         <script src="pax-chassis-web-interface.js"></script>
         <script>
             if (typeof window.Pax.mount === 'function') {
-                window.Pax.mount("#mount", "/pax-chassis-web");
+                const basePath = window.location.origin + window.location.pathname;
+                window.Pax.mount("#mount", basePath + "pax-chassis-web");
             } else {
                 console.error("Pax cartridge failed to load or was malformed.");
             }
