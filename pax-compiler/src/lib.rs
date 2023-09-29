@@ -1088,7 +1088,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     if ctx.should_also_run {
         //8a::run: compile and run `interface`, with freshly built chassis plugged in
         println!(
-            "{} 🏃‍ Running fully compiled {} app...",
+            "{} 🪽‍ Running fully compiled {} app...",
             *PAX_BADGE,
             <&RunTarget as Into<&str>>::into(&ctx.target)
         );
@@ -1132,7 +1132,7 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
         .format(|buf, record| {
-            writeln!(buf, "Served {}", record.args())
+            writeln!(buf, "{} 🍛 Served {}", *PAX_BADGE, record.args())
         })
         .init();
 
@@ -1143,8 +1143,10 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
             // Check if the port is available
             if TcpListener::bind(("127.0.0.1", port)).is_ok() {
                 // Log the server details
-                println!("{} 🗂️  Serving files from {}", *PAX_BADGE, &fs_path.to_str().unwrap());
-                println!("{} 📠 Server running at http://127.0.0.1:{}", *PAX_BADGE, port);
+                println!("{} 🗂️ Serving files from {}", *PAX_BADGE, &fs_path.to_str().unwrap());
+                let address_msg = format!("http://127.0.0.1:{}", port).blue();
+                let server_running_at_msg = format!("Server running at {}", address_msg).bold();
+                println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
                 break HttpServer::new(move || {
                     App::new()
                         .wrap(Logger::new("%U %s"))
@@ -1203,21 +1205,22 @@ fn build_interface_with_chassis(
         "arm64"
     };
     if is_web {
-        //TODO: Copy assets:
-        /*
-        assets_dir="../../../../assets"
-        new_dir="./public/assets"
-        mkdir -p "$new_dir"
+        let asset_src = pax_dir.join("..").join("assets");
+        let asset_dest = interface_path.join("public").join("assets");
 
-        if [ -d "$assets_dir" ]; then
-          cp -r "$assets_dir"/ * "$new_dir"
-        fi
-        */
+        // Create target assets directory
+        if let Err(e) = fs::create_dir_all(&asset_dest) {
+            eprintln!("Error creating directory {:?}: {}", asset_dest, e);
+        }
+        // Perform recursive copy from userland `assets/` to built `assets/`
+        if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest) {
+            eprintln!("Error copying assets: {}", e);
+        }
 
+        // Start local server if this is a `run` rather than a `build`
         if ctx.should_also_run {
             let _ = start_static_http_server(interface_path.join("public"));
         }
-
     } else {
         let script = "./run-debuggable-mac-app.sh";
         let should_also_run = &format!("{}", ctx.should_also_run);
@@ -1243,6 +1246,24 @@ fn build_interface_with_chassis(
         // child.stdin.take().map(drop);
         let _output = wait_with_output(&process_child_ids, child);
     }
+}
+
+fn copy_dir_recursively(src: &Path, dest: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    if src.is_dir() {
+        // If source is a directory, create the corresponding directory in the destination,
+        // and copy its contents recursively
+        fs::create_dir_all(dest)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let path = entry.path();
+            let dest_child = dest.join(path.file_name().ok_or("Invalid file name")?);
+            copy_dir_recursively(&path, &dest_child)?;
+        }
+    } else {
+        // If source is a file, just copy it to the destination
+        fs::copy(src, dest)?;
+    }
+    Ok(())
 }
 
 pub fn perform_clean(path: &str) {
