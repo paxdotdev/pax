@@ -7,7 +7,6 @@
     "strict": true,
     "esModuleInterop": true,
     "sourceMap": true,
-    "outDir": "tsbuild/",
     "skipLibCheck": true,
   }
 }
