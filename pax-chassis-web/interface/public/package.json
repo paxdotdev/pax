@@ -1,0 +1,24 @@
+{
+  "name": "pax-chassis-web",
+  "collaborators": [
+    "Zack Brown <zack@pax.dev>"
+  ],
+  "description": "Platform-specific chassis allowing Pax cartridges to be executed as Web apps",
+  "version": "0.7.4",
+  "license": "MIT OR Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "https://www.github.com/pax-lang/pax"
+  },
+  "files": [
+    "pax-chassis-web_bg.wasm",
+    "pax-chassis-web.js",
+    "pax-chassis-web.d.ts"
+  ],
+  "module": "pax-chassis-web.js",
+  "homepage": "https://pax.dev/",
+  "types": "pax-chassis-web.d.ts",
+  "sideEffects": [
+    "./snippets/*"
+  ]
+}
