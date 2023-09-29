@@ -13,7 +13,7 @@ export class Layer {
     native?: HTMLDivElement;
     scrollerId?: number[];
     zIndex?: number;
-    chassis?: any;
+    chassis?: PaxChassisWeb;
     objectManager: ObjectManager;
 
 

@@ -18,6 +18,36 @@ import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
 import {setupEventListeners} from "./events/listeners";
 import "./styles/pax-web.css";
 
+let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
+let messages : any[];
+let nativePool = new NativeElementPool(objectManager);
+let textDecoder = new TextDecoder();
+let isMobile = false;
+let initializedChassis = false;
+
+export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
+
+    //Inject CSS
+    let link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = 'pax-chassis-web-interface.css'
+    document.head.appendChild(link)
+
+    let mount: Element;
+    if (typeof selector_or_element === "string") {
+        mount = document.querySelector(selector_or_element) as Element;
+    } else {
+        mount = selector_or_element;
+    }
+
+    // Update to pass wasmUrl to bootstrap function
+    if (mount) {
+        startRenderLoop(extensionlessUrl, mount).then();
+    } else {
+        console.error("Unable to find mount element");
+    }
+}
+
 async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxChassisWeb, get_latest_memory: ()=>any }> {
     try {
         const glueCodeModule = await import(`${extensionlessUrl}.js`) as typeof import("./types/pax-chassis-web");
@@ -38,23 +68,15 @@ async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxC
 async function startRenderLoop(extensionlessUrl: string, mount: Element) {
     try {
         let {chassis, get_latest_memory} = await loadWasmModule(extensionlessUrl);
+        isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        nativePool.build(chassis, isMobile, mount);
         requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
     } catch (error) {
         console.error("Failed to load or instantiate Wasm module:", error);
     }
 }
 
-let initializedChassis = false;
-
-// Init-once globals for garbage collector optimization
-let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
-let messages : any[];
-let nativePool = new NativeElementPool(objectManager);
-let textDecoder = new TextDecoder();
-
 function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
-
-    //stats.begin();
     nativePool.sendScrollerValues();
     nativePool.clearCanvases();
 
@@ -64,7 +86,6 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 
     // Extract the serialized data directly from memory
     const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySliceSpec.ptr(), memorySliceSpec.ptr() + memorySliceSpec.len()));
-    console.log("latest jsonString", jsonString);
     messages = JSON.parse(jsonString);
 
     if(!initializedChassis){
@@ -85,7 +106,7 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
     //necessary manual cleanup
     chassis.deallocate(memorySliceSpec);
 
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, wasm_memory))
+    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory))
 }
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
@@ -138,32 +159,3 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
     })
 }
 
-// Wasm + TS Bootstrapping boilerplate
-async function bootstrap(extensionlessUrl: string, mount: Element) {
-    // Start the render loop with the dynamically loaded Wasm module
-    startRenderLoop(extensionlessUrl, mount);
-}
-
-export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
-
-    //Inject CSS
-    let link = document.createElement('link')
-    link.rel = 'stylesheet'
-    link.href = 'pax-chassis-web-interface.css'
-    document.head.appendChild(link)
-
-    let mount: Element;
-    if (typeof selector_or_element === "string") {
-        mount = document.querySelector(selector_or_element) as Element;
-    } else {
-        mount = selector_or_element;
-    }
-
-    // Update to pass wasmUrl to bootstrap function
-    if (mount) {
-        bootstrap(extensionlessUrl, mount).then();
-    } else {
-        console.error("Unable to find mount element");
-    }
-
-}
