@@ -24,12 +24,12 @@ use std::io::Write;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
-use flate2::read::GzDecoder;
-use tar::Archive;
-use actix_web::{App, HttpServer};
 use actix_web::middleware::Logger;
-use std::net::TcpListener;
+use actix_web::{App, HttpServer};
 use env_logger;
+use flate2::read::GzDecoder;
+use std::net::TcpListener;
+use tar::Archive;
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt; // For the .pre_exec() method
@@ -523,12 +523,23 @@ fn recurse_literal_block(
 
     // Iterating through each (key, value) pair in the settings_key_value_pairs
     for (key, value_definition) in block.settings_key_value_pairs.iter() {
-
-        let fully_qualified_type = host_crate_info.import_prefix.to_string() + &type_definition.property_definitions.iter().find(|pd| {&pd.name == key}).expect(&format!("Property {} not found on type {}",key,type_definition.type_id)).type_id;
+        let fully_qualified_type = host_crate_info.import_prefix.to_string()
+            + &type_definition
+                .property_definitions
+                .iter()
+                .find(|pd| &pd.name == key)
+                .expect(&format!(
+                    "Property {} not found on type {}",
+                    key, type_definition.type_id
+                ))
+                .type_id;
 
         let value_string = match value_definition {
             ValueDefinition::LiteralValue(value) => {
-                format!("ret.{} = Box::new(PropertyLiteral::new(Into::<{}>::into({})));", key, fully_qualified_type, value)
+                format!(
+                    "ret.{} = Box::new(PropertyLiteral::new(Into::<{}>::into({})));",
+                    key, fully_qualified_type, value
+                )
             }
             ValueDefinition::Expression(_, id) | ValueDefinition::Identifier(_, id) => {
                 format!(
@@ -971,7 +982,7 @@ pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) ->
     output
 }
 
-use colored::{Colorize, ColoredString};
+use colored::{ColoredString, Colorize};
 
 use crate::parsing::escape_identifier;
 
@@ -1034,7 +1045,6 @@ lazy_static! {
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
-
     //First we clone dependencies into the .pax/pkg directory.  We must do this before running
     //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
     //dependency paths are `.pax/pkg/*`.
@@ -1129,9 +1139,7 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
 
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
-        .format(|buf, record| {
-            writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args())
-        })
+        .format(|buf, record| writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args()))
         .init();
 
     // Create a Runtime
@@ -1141,20 +1149,22 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
             // Check if the port is available
             if TcpListener::bind(("127.0.0.1", port)).is_ok() {
                 // Log the server details
-                println!("{} 🗂️ Serving static files from {}", *PAX_BADGE, &fs_path.to_str().unwrap());
+                println!(
+                    "{} 🗂️ Serving static files from {}",
+                    *PAX_BADGE,
+                    &fs_path.to_str().unwrap()
+                );
                 let address_msg = format!("http://127.0.0.1:{}", port).blue();
                 let server_running_at_msg = format!("Server running at {}", address_msg).bold();
                 println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
                 break HttpServer::new(move || {
-                    App::new()
-                        .wrap(Logger::new("| %s | %U"))
-                        .service(
-                            actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"),
-                        )
+                    App::new().wrap(Logger::new("| %s | %U")).service(
+                        actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"),
+                    )
                 })
-                    .bind(("127.0.0.1", port))
-                    .expect("Error binding to address")
-                    .workers(2);
+                .bind(("127.0.0.1", port))
+                .expect("Error binding to address")
+                .workers(2);
             } else {
                 port += 1; // Try the next port
             }
@@ -1181,7 +1191,6 @@ fn build_interface_with_chassis(
             RunTarget::Web => "interface",
             RunTarget::MacOS => "pax-dev-harness-macos",
         });
-
 
     let is_web = if let RunTarget::Web = ctx.target {
         true
@@ -1293,8 +1302,7 @@ pub fn build_chassis_with_cartridge(
     let existing_cargo_toml_path = chassis_path.join("Cargo.toml");
     let existing_cargo_toml_string = fs::read_to_string(&existing_cargo_toml_path).unwrap();
     let mut existing_cargo_toml =
-        toml_edit::Document::from_str(&existing_cargo_toml_string)
-            .unwrap();
+        toml_edit::Document::from_str(&existing_cargo_toml_string).unwrap();
 
     //In builds where we don't wipe out the `pkg` directory (e.g. those installed from crates.io),
     //the Cargo.toml may already have been patched.  Injecting an additional patch would break cargo.
