@@ -1025,7 +1025,6 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
     tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in your project's dependency graph.  Add e.g. `pax-lang` to your Cargo.toml to resolve this error.")
 }
 
-
 lazy_static! {
     #[allow(non_snake_case)]
     static ref PAX_BADGE: ColoredString = "[Pax]".bold().on_black().white();
@@ -1051,7 +1050,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     };
     clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &ctx);
 
-    println!("{} 🛠️  Running `cargo build`...", *PAX_BADGE);
+    println!("{} 🛠️ Building parser binary with `cargo`...", *PAX_BADGE);
     // Run parser bin from host project with `--features parser`
     let output = run_parser_binary(&ctx.path, Arc::clone(&ctx.process_child_ids));
 
@@ -1081,21 +1080,20 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
-    println!("{} 🧱 Building cartridge with cargo", *PAX_BADGE);
-
+    println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
     build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
 
     if ctx.should_also_run {
         //8a::run: compile and run `interface`, with freshly built chassis plugged in
         println!(
-            "{} 🪽‍ Running fully compiled {} app...",
+            "{} 🐇 Running Pax {}...",
             *PAX_BADGE,
             <&RunTarget as Into<&str>>::into(&ctx.target)
         );
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
         println!(
-            "{} 🛠 Building fully compiled {} app...",
+            "{} 🛠 Compiling executable package for {}...",
             *PAX_BADGE,
             <&RunTarget as Into<&str>>::into(&ctx.target)
         );
@@ -1132,7 +1130,7 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
     std::env::set_var("RUST_LOG", "actix_web=info");
     env_logger::Builder::from_env(env_logger::Env::default())
         .format(|buf, record| {
-            writeln!(buf, "{} 🍛 Served {}", *PAX_BADGE, record.args())
+            writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args())
         })
         .init();
 
@@ -1143,13 +1141,13 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
             // Check if the port is available
             if TcpListener::bind(("127.0.0.1", port)).is_ok() {
                 // Log the server details
-                println!("{} 🗂️ Serving files from {}", *PAX_BADGE, &fs_path.to_str().unwrap());
+                println!("{} 🗂️ Serving static files from {}", *PAX_BADGE, &fs_path.to_str().unwrap());
                 let address_msg = format!("http://127.0.0.1:{}", port).blue();
                 let server_running_at_msg = format!("Server running at {}", address_msg).bold();
                 println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
                 break HttpServer::new(move || {
                     App::new()
-                        .wrap(Logger::new("%U %s"))
+                        .wrap(Logger::new("| %s | %U"))
                         .service(
                             actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"),
                         )
