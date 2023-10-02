@@ -1060,7 +1060,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     };
     clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &ctx);
 
-    println!("{} 🛠️ Building parser binary with `cargo`...", *PAX_BADGE);
+    println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
     // Run parser bin from host project with `--features parser`
     let output = run_parser_binary(&ctx.path, Arc::clone(&ctx.process_child_ids));
 
@@ -1150,7 +1150,7 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
             if TcpListener::bind(("127.0.0.1", port)).is_ok() {
                 // Log the server details
                 println!(
-                    "{} 🗂️ Serving static files from {}",
+                    "{} 🗂️  Serving static files from {}",
                     *PAX_BADGE,
                     &fs_path.to_str().unwrap()
                 );
