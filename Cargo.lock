@@ -1703,7 +1703,7 @@ checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
 
 [[package]]
 name = "pax-cli"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "clap",
  "colored",
@@ -1717,7 +1717,7 @@ dependencies = [
 
 [[package]]
 name = "pax-compiler"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "actix-files",
  "actix-rt",
@@ -1757,7 +1757,7 @@ dependencies = [
 
 [[package]]
 name = "pax-core"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "kurbo",
  "pax-message",
@@ -1770,7 +1770,7 @@ dependencies = [
 
 [[package]]
 name = "pax-lang"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "pax-compiler",
  "pax-macro",
@@ -1780,7 +1780,7 @@ dependencies = [
 
 [[package]]
 name = "pax-macro"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "litrs",
  "pest",
@@ -1796,7 +1796,7 @@ dependencies = [
 
 [[package]]
 name = "pax-message"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -1805,14 +1805,14 @@ dependencies = [
 
 [[package]]
 name = "pax-properties-coproduct"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "pax-runtime-api",
 ]
 
 [[package]]
 name = "pax-runtime-api"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -1823,7 +1823,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "kurbo",
  "lazy_static",
@@ -1837,7 +1837,7 @@ dependencies = [
 
 [[package]]
 name = "pax-std-primitives"
-version = "0.7.4"
+version = "0.8.0"
 dependencies = [
  "kurbo",
  "pax-core",
