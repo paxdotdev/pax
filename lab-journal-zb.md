@@ -3402,8 +3402,8 @@ Tasks
 [x] Development environment
     [x] Vagrant + idempotent backend provisioning script
     [x] Local dev env + setup scripting
-[ ] Web chassis
-    [ ] Support runtime wasm loading (instead of static, bundled wasm as per current setup.)
+[x] Web chassis
+    [x] Support runtime wasm loading (instead of static, bundled wasm as per current setup.)
         This will enable us to introduce path params that override the runtime-loaded wasm file, while falling back to some
         default when not in the sandbox setting.
         [x] In the `mount` method, expose an optional fully qualified path for the wasm file.  We can reasonably assume one file per page session / reload for now,
@@ -3413,7 +3413,7 @@ Tasks
             [x] Refactor webpack / node deps; remove from userland if feasible; figure out libdev build process (bundle built TS => JS; ensure this happens when running pax-example and when publishing to crates.io)
             [x] Handle need to bundle CSS like we currently do with Webpack
                 Note: not bundling, but assuming a shared-name file and loading it async at init time
-            [ ] Ensure that assets are well handled (e.g. images)
+            [x] Ensure that assets are well handled (e.g. images)
         [x] Stepping back: Loading the _wasm_ separately, as opposed to loading the _glue code js_ separately, feels like the wrong tack.  We need to load some sort of js to manage the wasm glue, and that js may evolve over time, which means we'd be introducing version brittleness if we load _strictly_ the wasm on e.g. the playground.
             Thus, we should load both the wasm and the accompanying glue code dynamically, based on playground path/url params.
             In good news, this is still applicable to our "don't foist a bundler on the end-developer" strategy, as wasm-pack outputs both artifacts.  Essentially, we (1) bundle our TS chassis project using esbuild/tsc, then (2) dynamically load the wasm-pack module via glue code based on a passed param (default to a local file; allow overriding for e.g. sandbox loading.)
@@ -3450,7 +3450,7 @@ Tasks
             [ ] Rust mode
             [ ] Pax mode (try ChatGPT)
     [ ] (B) Additive approach (from scratch) 
-        [ ] Simple React or Pax app, two panes for input, one pane for rendering output, some sort of UI for stdout and stderr
+        [ ] Simple React or Pax app (or Svelte app?) —  two panes for input, one pane for rendering output, some sort of UI for stdout and stderr
         [ ] Configure and embed CodeMirror (based on replit assessment)
         [ ] In the playground web app, read path params and pass into the pax-chassis-web `mount` method.
 [x] Backend
