@@ -7,15 +7,16 @@
 
 import Foundation
 import SwiftUI
+import FlexBuffers
 
 
 /// Agnostic of the type of element, this patch contains only an `id_chain` field, suitable for looking up a NativeElement (e.g. for deletion)
-class AnyCreatePatch {
-    var id_chain: [UInt64]
+public class AnyCreatePatch {
+    public var id_chain: [UInt64]
     /// Used for clipping -- each `[UInt64]` is an `id_chain` for an associated clipping mask (`Frame`)
-    var clipping_ids: [[UInt64]]
+    public var clipping_ids: [[UInt64]]
     
-    init(fb:FlxbReference) {
+    public init(fb:FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
             fb.asUInt64!
         })
@@ -29,10 +30,10 @@ class AnyCreatePatch {
 }
 
 
-class AnyDeletePatch {
-    var id_chain: [UInt64]
+public class AnyDeletePatch {
+    public var id_chain: [UInt64]
     
-    init(fb:FlxbReference) {
+    public init(fb:FlxbReference) {
         self.id_chain = fb.asVector!.makeIterator().map({ fb in
             fb.asUInt64!
         })
@@ -40,15 +41,15 @@ class AnyDeletePatch {
     }
 }
 
-class TextStyle {
-    var font: PaxFont
-    var fill: Color
-    var alignmentMultiline: TextAlignment
-    var alignment: Alignment
-    var font_size: CGFloat
-    var underline: Bool
+public class TextStyle {
+    public var font: PaxFont
+    public var fill: Color
+    public var alignmentMultiline: TextAlignment
+    public var alignment: Alignment
+    public var font_size: CGFloat
+    public var underline: Bool
     
-    init(font: PaxFont, fill: Color, alignmentMultiline: TextAlignment, alignment: Alignment, font_size: CGFloat, underline: Bool) {
+    public init(font: PaxFont, fill: Color, alignmentMultiline: TextAlignment, alignment: Alignment, font_size: CGFloat, underline: Bool) {
         self.font = font
         self.fill = fill
         self.alignmentMultiline = alignmentMultiline
@@ -57,7 +58,7 @@ class TextStyle {
         self.underline = underline
     }
     
-    func applyPatch(from patch: TextStyleMessage) {
+    public func applyPatch(from patch: TextStyleMessage) {
         
         self.font.applyPatch(fb: patch.font)
 
@@ -84,18 +85,18 @@ class TextStyle {
     }
 }
 
-class TextElement {
-    var id_chain: [UInt64]
-    var clipping_ids: [[UInt64]]
-    var content: String
-    var transform: [Float]
-    var size_x: Float
-    var size_y: Float
-    var textStyle: TextStyle
-    var depth: UInt?
-    var style_link: TextStyle?
+public class TextElement {
+    public var id_chain: [UInt64]
+    public var clipping_ids: [[UInt64]]
+    public var content: String
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
+    public var textStyle: TextStyle
+    public var depth: UInt?
+    public var style_link: TextStyle?
     
-    init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, textStyle: TextStyle, depth: UInt?, style_link: TextStyle?) {
+    public init(id_chain: [UInt64], clipping_ids: [[UInt64]], content: String, transform: [Float], size_x: Float, size_y: Float, textStyle: TextStyle, depth: UInt?, style_link: TextStyle?) {
         self.id_chain = id_chain
         self.clipping_ids = clipping_ids
         self.content = content
@@ -107,12 +108,12 @@ class TextElement {
         self.style_link = style_link
     }
     
-    static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
+    public static func makeDefault(id_chain: [UInt64], clipping_ids: [[UInt64]]) -> TextElement {
         let defaultTextStyle = TextStyle(font: PaxFont.makeDefault(), fill: Color(.black), alignmentMultiline: .leading, alignment: .topLeading, font_size: 5.0, underline: false)
         return TextElement(id_chain: id_chain, clipping_ids: clipping_ids, content: "", transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0, textStyle: defaultTextStyle, depth: nil, style_link: nil)
     }
     
-    func applyPatch(patch: TextUpdatePatch) {
+    public func applyPatch(patch: TextUpdatePatch) {
         //no-op to ID, as it is primary key
         
         if let content = patch.content {
@@ -143,14 +144,14 @@ class TextElement {
     }
 }
 
-enum TextAlignHorizontal {
+public enum TextAlignHorizontal {
     case center
     case left
     case right
 }
 
-extension TextAlignHorizontal {
-    func toTextAlignment() -> TextAlignment {
+public extension TextAlignHorizontal {
+    public func toTextAlignment() -> TextAlignment {
         switch self {
         case .center:
             return .center
@@ -162,14 +163,14 @@ extension TextAlignHorizontal {
     }
 }
 
-enum TextAlignVertical {
+public enum TextAlignVertical {
     case top
     case center
     case bottom
 }
 
 
-func toAlignment(horizontalAlignment: TextAlignHorizontal, verticalAlignment: TextAlignVertical) -> Alignment {
+public func toAlignment(horizontalAlignment: TextAlignHorizontal, verticalAlignment: TextAlignVertical) -> Alignment {
     let horizontal: HorizontalAlignment
     let vertical: VerticalAlignment
     
@@ -195,11 +196,11 @@ func toAlignment(horizontalAlignment: TextAlignHorizontal, verticalAlignment: Te
 
 
 /// A patch representing an image load request from a given id_chain
-class ImageLoadPatch {
-    var id_chain: [UInt64]
-    var path: String?
+public class ImageLoadPatch {
+    public var id_chain: [UInt64]
+    public var path: String?
     
-    init(fb:FlxbReference) {
+    public init(fb:FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
             fb.asUInt64!
         })
@@ -208,16 +209,16 @@ class ImageLoadPatch {
 }
 
 
-class TextStyleMessage {
-    var font: FlxbReference
-    var fill: Color?
-    var font_size: CGFloat?
-    var underline: Bool?
-    var align_multiline: TextAlignHorizontal?
-    var align_horizontal: TextAlignHorizontal?
-    var align_vertical: TextAlignVertical?
+public class TextStyleMessage {
+    public var font: FlxbReference
+    public var fill: Color?
+    public var font_size: CGFloat?
+    public var underline: Bool?
+    public var align_multiline: TextAlignHorizontal?
+    public var align_horizontal: TextAlignHorizontal?
+    public var align_vertical: TextAlignVertical?
     
-    init(_ buffer: FlxbReference) {
+    public init(_ buffer: FlxbReference) {
         self.font =  buffer["font"]!
         
         self.font_size = buffer["font_size"]?.asFloat.map { CGFloat($0) }
@@ -269,17 +270,17 @@ class TextStyleMessage {
 }
 
 
-class TextUpdatePatch {
-    var id_chain: [UInt64]
-    var content: String?
-    var transform: [Float]?
-    var size_x: Float?
-    var size_y: Float?
-    var depth: UInt?
-    var style: TextStyleMessage?
-    var style_link: TextStyleMessage?
+public class TextUpdatePatch {
+    public var id_chain: [UInt64]
+    public var content: String?
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
+    public var depth: UInt?
+    public var style: TextStyleMessage?
+    public var style_link: TextStyleMessage?
 
-    init(fb: FlxbReference) {
+    public init(fb: FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
             fb.asUInt64!
         })
@@ -302,20 +303,20 @@ class TextUpdatePatch {
 }
 
 ///// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
-//class TextUpdatePatch {
-//    var id_chain: [UInt64]
-//    var content: String?
-//    var transform: [Float]?
-//    var size_x: Float?
-//    var size_y: Float?
-//    var fontBuffer: FlxbReference
-//    var fill: Color?
-//    var align_multiline: TextAlignHorizontal?
-//    var align_vertical: TextAlignVertical?
-//    var align_horizontal: TextAlignHorizontal?
+//public class TextUpdatePatch {
+//    public var id_chain: [UInt64]
+//    public var content: String?
+//    public var transform: [Float]?
+//    public var size_x: Float?
+//    public var size_y: Float?
+//    public var fontBuffer: FlxbReference
+//    public var fill: Color?
+//    public var align_multiline: TextAlignHorizontal?
+//    public var align_vertical: TextAlignVertical?
+//    public var align_horizontal: TextAlignHorizontal?
 //    // New properties
-//    var size: CGFloat?
-//    var style_link: LinkStyle?
+//    public var size: CGFloat?
+//    public var style_link: LinkStyle?
 //
 //    init(fb: FlxbReference) {
 //        self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
@@ -382,7 +383,7 @@ class TextUpdatePatch {
 //}
 
 
-func extractColorFromBuffer(_ fillBuffer: FlxbReference) -> Color {
+public func extractColorFromBuffer(_ fillBuffer: FlxbReference) -> Color {
     if let rgba = fillBuffer["Rgba"], !rgba.isNull {
         let stub = fillBuffer["Rgba"]!
         return Color(
@@ -404,18 +405,18 @@ func extractColorFromBuffer(_ fillBuffer: FlxbReference) -> Color {
     }
 }
 
-enum TextAlignHorizontalMessage: String {
+public enum TextAlignHorizontalMessage: String {
     case Left, Center, Right
 }
 
-enum FontStyle: String {
+public enum FontStyle: String {
     case normal = "Normal"
     case italic = "Italic"
     case oblique = "Oblique"
 }
 
 extension FontWeight {
-    func fontWeight() -> Font.Weight {
+    public func fontWeight() -> Font.Weight {
         switch self {
         case .thin: return .thin
         case .extraLight: return .ultraLight
@@ -430,7 +431,7 @@ extension FontWeight {
     }
 }
 
-enum FontWeight: String {
+public enum FontWeight: String {
     case thin = "Thin"
     case extraLight = "ExtraLight"
     case light = "Light"
@@ -442,48 +443,48 @@ enum FontWeight: String {
     case black = "Black"
 }
 
-class PaxFont {
-    enum PaxFontType {
+public class PaxFont {
+    public enum PaxFontType {
         case system(SystemFont)
         case web(WebFont)
         case local(LocalFont)
     }
 
-    struct SystemFont {
+    public struct SystemFont {
         let family: String
         let style: FontStyle
         let weight: FontWeight
     }
 
-    struct WebFont {
+    public struct WebFont {
         let family: String
         let url: URL
         let style: FontStyle
         let weight: FontWeight
     }
 
-    struct LocalFont {
+    public struct LocalFont {
         let family: String
         let path: URL
         let style: FontStyle
         let weight: FontWeight
     }
 
-    var type: PaxFontType
-    var cachedFont: Font?
-    var currentSize: CGFloat
+    public var type: PaxFontType
+    public var cachedFont: Font?
+    public var currentSize: CGFloat
 
-    init(type: PaxFontType) {
+    public init(type: PaxFontType) {
         self.type = type
         self.currentSize = 12
     }
     
-    static func makeDefault() -> PaxFont {
+    public static func makeDefault() -> PaxFont {
         let defaultSystemFont = SystemFont(family: "Helvetica", style: .normal, weight: .normal)
         return PaxFont(type: .system(defaultSystemFont))
     }
     
-    func getFont(size: CGFloat) -> Font {
+    public func getFont(size: CGFloat) -> Font {
         if let cachedFont = cachedFont, currentSize == size {
             return cachedFont
         }
@@ -534,7 +535,7 @@ class PaxFont {
 
 
 
-    func applyPatch(fb: FlxbReference) {
+    public func applyPatch(fb: FlxbReference) {
         if let systemFontMessage = fb["System"] {
             if let family = systemFontMessage["family"]?.asString {
                 let styleMessage = FontStyle(rawValue: systemFontMessage["style"]?.asString ?? "normal") ?? .normal
@@ -562,7 +563,7 @@ class PaxFont {
         }
     }
 
-    static func isFontRegistered(fontFamily: String) -> Bool {
+    public static func isFontRegistered(fontFamily: String) -> Bool {
         let fontFamilies = CTFontManagerCopyAvailableFontFamilyNames() as! [String]
 
         if fontFamilies.contains(fontFamily) {
@@ -588,10 +589,10 @@ class PaxFont {
     }
 }
 //
-//class FontFactory {
-////    var family: String
-////    var variant: String
-////    var size: Float
+//public class FontFactory {
+////    public var family: String
+////    public var public variant: String
+////    public var size: Float
 //
 //    func applyPatch(fb: FlxbReference) -> Font {
 //        print("MAKING FONT")
@@ -640,24 +641,24 @@ class PaxFont {
 
 
 
-class FrameElement {
-    var id_chain: [UInt64]
-    var transform: [Float]
-    var size_x: Float
-    var size_y: Float
+public class FrameElement {
+    public var id_chain: [UInt64]
+    public var transform: [Float]
+    public var size_x: Float
+    public var size_y: Float
     
-    init(id_chain: [UInt64], transform: [Float], size_x: Float, size_y: Float) {
+    public init(id_chain: [UInt64], transform: [Float], size_x: Float, size_y: Float) {
         self.id_chain = id_chain
         self.transform = transform
         self.size_x = size_x
         self.size_y = size_y
     }
     
-    static func makeDefault(id_chain: [UInt64]) -> FrameElement {
+    public static func makeDefault(id_chain: [UInt64]) -> FrameElement {
         FrameElement(id_chain: id_chain, transform: [1,0,0,1,0,0], size_x: 0.0, size_y: 0.0)
     }
     
-    func applyPatch(patch: FrameUpdatePatch) {
+    public func applyPatch(patch: FrameUpdatePatch) {
         //no-op to ID, as it is primary key
         
         if patch.transform != nil {
@@ -675,13 +676,13 @@ class FrameElement {
 
 
 /// A patch containing optional fields, representing an update action for the NativeElement of the given id_chain
-class FrameUpdatePatch {
-    var id_chain: [UInt64]
-    var transform: [Float]?
-    var size_x: Float?
-    var size_y: Float?
+public class FrameUpdatePatch {
+    public var id_chain: [UInt64]
+    public var transform: [Float]?
+    public var size_x: Float?
+    public var size_y: Float?
     
-    init(fb: FlxbReference) {
+    public init(fb: FlxbReference) {
         self.id_chain = fb["id_chain"]!.asVector!.makeIterator().map({ fb in
             fb.asUInt64!
         })
