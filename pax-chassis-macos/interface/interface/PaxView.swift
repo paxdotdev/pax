@@ -1,12 +1,14 @@
 //
 //  ContentView.swift
-//  pax-dev-harness-macos
+//  interface
 //
 //  Created by Zachary Brown on 4/6/22.
 //
 
 import SwiftUI
 import Foundation
+import FlexBuffers
+import Messages
 
 class TextElements: ObservableObject {
     static let singleton : TextElements = TextElements()

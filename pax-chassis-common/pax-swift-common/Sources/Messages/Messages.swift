@@ -1,6 +1,6 @@
 //
 //  Messages.swift
-//  pax-dev-harness-macos
+//  interface
 //
 //  Created by Zachary Brown on 5/7/22.
 //

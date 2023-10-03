@@ -1,6 +1,6 @@
 //
 //  Paxchassismacos-Bridging-Header.h
-//  pax-dev-harness-macos
+//  interface
 //
 //  Created by Zachary Brown on 4/12/22.
 //

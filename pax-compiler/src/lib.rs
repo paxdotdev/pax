@@ -52,8 +52,9 @@ pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
 
 //whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
 //or for looking up package IDs from a userland Cargo.lock.
-const ALL_PKGS: [&'static str; 12] = [
+const ALL_PKGS: [&'static str; 13] = [
     "pax-cartridge",
+    "pax-chassis-common",
     "pax-chassis-macos",
     "pax-chassis-web",
     "pax-cli",
@@ -1196,7 +1197,7 @@ fn build_interface_with_chassis(
         .join(format!("pax-chassis-{}", target_str_lower))
         .join(match ctx.target {
             RunTarget::Web => "interface",
-            RunTarget::MacOS => "pax-dev-harness-macos",
+            RunTarget::MacOS => "interface",
         });
 
     let is_web = if let RunTarget::Web = ctx.target {
