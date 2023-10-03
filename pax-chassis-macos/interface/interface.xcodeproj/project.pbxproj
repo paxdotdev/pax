@@ -7,9 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		140C6AF92825C99C003BACE3 /* FlexBufferBuilder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140C6AF62825C99B003BACE3 /* FlexBufferBuilder.swift */; };
-		140C6AFA2825C99C003BACE3 /* FlexBuffers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140C6AF72825C99B003BACE3 /* FlexBuffers.swift */; };
-		140C6AFE28276BCD003BACE3 /* Messages.swift in Sources */ = {isa = PBXBuildFile; fileRef = 140C6AFD28276BCD003BACE3 /* Messages.swift */; };
 		1459D7E4280F2922006391F8 /* libpaxchassismacos.dylib in Frameworks */ = {isa = PBXBuildFile; fileRef = 1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */; };
 		1459D7E5280F2922006391F8 /* libpaxchassismacos.dylib in Embed Libraries */ = {isa = PBXBuildFile; fileRef = 1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */; settings = {ATTRIBUTES = (CodeSignOnCopy, ); }; };
 		1459D7E8280F2933006391F8 /* libpaxchassismacos.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 1459D7E7280F2922006391F8 /* libpaxchassismacos.a */; };
@@ -35,10 +32,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		140C6AF62825C99B003BACE3 /* FlexBufferBuilder.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FlexBufferBuilder.swift; sourceTree = "<group>"; };
-		140C6AF72825C99B003BACE3 /* FlexBuffers.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = FlexBuffers.swift; sourceTree = "<group>"; };
-		140C6AF82825C99C003BACE3 /* FlexBuffers.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = FlexBuffers.h; sourceTree = "<group>"; };
-		140C6AFD28276BCD003BACE3 /* Messages.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Messages.swift; sourceTree = "<group>"; };
 		1459D7E1280F2902006391F8 /* libpaxchassismacos.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libpaxchassismacos.dylib; path = ../target/debug/libpaxchassismacos.dylib; sourceTree = "<group>"; };
 		1459D7E7280F2922006391F8 /* libpaxchassismacos.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpaxchassismacos.a; path = ../target/debug/libpaxchassismacos.a; sourceTree = "<group>"; };
 		14619AC429C505180024805D /* Pax macOSDebug.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Pax macOSDebug.entitlements"; sourceTree = "<group>"; };
@@ -54,6 +47,7 @@
 		14965C172805EA3B00A38CA1 /* libpaxchassismacos.a */ = {isa = PBXFileReference; lastKnownFileType = archive.ar; name = libpaxchassismacos.a; path = ../../target/release/libpaxchassismacos.a; sourceTree = "<group>"; };
 		14965C192805EAA700A38CA1 /* libpaxchassismacos.dylib */ = {isa = PBXFileReference; lastKnownFileType = "compiled.mach-o.dylib"; name = libpaxchassismacos.dylib; path = ../../target/release/libpaxchassismacos.dylib; sourceTree = "<group>"; };
 		14965C1D2805EAF500A38CA1 /* libresolv.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libresolv.tbd; path = usr/lib/libresolv.tbd; sourceTree = SDKROOT; };
+		14BD30232ACB92DC0072A294 /* pax-swift-common */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "pax-swift-common"; path = "../../pax-chassis-common/pax-swift-common"; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -70,23 +64,14 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		140C6AFB28276B89003BACE3 /* FlexBuffers */ = {
-			isa = PBXGroup;
-			children = (
-				140C6AF62825C99B003BACE3 /* FlexBufferBuilder.swift */,
-				140C6AF82825C99C003BACE3 /* FlexBuffers.h */,
-				140C6AF72825C99B003BACE3 /* FlexBuffers.swift */,
-			);
-			path = FlexBuffers;
-			sourceTree = "<group>";
-		};
 		14965BF827FE3D0F00A38CA1 = {
 			isa = PBXGroup;
 			children = (
+				14BD30222ACB92DC0072A294 /* Packages */,
 				14619AC429C505180024805D /* Pax macOSDebug.entitlements */,
 				14965C162805E4EF00A38CA1 /* Paxchassismacos-Bridging-Header.h */,
 				14965C152805E4BF00A38CA1 /* paxchassismacos.h */,
-				14965C0327FE3D0F00A38CA1 /* pax-dev-harness-macos */,
+				14965C0327FE3D0F00A38CA1 /* interface */,
 				14965C0227FE3D0F00A38CA1 /* Products */,
 				14965C132805E47D00A38CA1 /* Frameworks */,
 			);
@@ -100,18 +85,16 @@
 			name = Products;
 			sourceTree = "<group>";
 		};
-		14965C0327FE3D0F00A38CA1 /* pax-dev-harness-macos */ = {
+		14965C0327FE3D0F00A38CA1 /* interface */ = {
 			isa = PBXGroup;
 			children = (
-				140C6AFB28276B89003BACE3 /* FlexBuffers */,
 				14965C0427FE3D0F00A38CA1 /* Main.swift */,
-				140C6AFD28276BCD003BACE3 /* Messages.swift */,
 				14965C0627FE3D0F00A38CA1 /* PaxView.swift */,
 				14965C0827FE3D1100A38CA1 /* Assets.xcassets */,
 				14965C0D27FE3D1100A38CA1 /* pax_dev_harness_macos.entitlements */,
 				14965C0A27FE3D1100A38CA1 /* Preview Content */,
 			);
-			path = "pax-dev-harness-macos";
+			path = interface;
 			sourceTree = "<group>";
 		};
 		14965C0A27FE3D1100A38CA1 /* Preview Content */ = {
@@ -135,6 +118,14 @@
 			name = Frameworks;
 			sourceTree = "<group>";
 		};
+		14BD30222ACB92DC0072A294 /* Packages */ = {
+			isa = PBXGroup;
+			children = (
+				14BD30232ACB92DC0072A294 /* pax-swift-common */,
+			);
+			name = Packages;
+			sourceTree = "<group>";
+		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
@@ -155,7 +146,7 @@
 			name = "Pax macOS";
 			packageProductDependencies = (
 			);
-			productName = "pax-dev-harness-macos";
+			productName = interface;
 			productReference = 14965C0127FE3D0F00A38CA1 /* Pax macOS.app */;
 			productType = "com.apple.product-type.application";
 		};
@@ -174,7 +165,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 14965BFC27FE3D0F00A38CA1 /* Build configuration list for PBXProject "pax-dev-harness-macos" */;
+			buildConfigurationList = 14965BFC27FE3D0F00A38CA1 /* Build configuration list for PBXProject "interface" */;
 			compatibilityVersion = "Xcode 13.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -234,11 +225,8 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				140C6AFA2825C99C003BACE3 /* FlexBuffers.swift in Sources */,
 				14965C0727FE3D0F00A38CA1 /* PaxView.swift in Sources */,
-				140C6AFE28276BCD003BACE3 /* Messages.swift in Sources */,
 				14965C0527FE3D0F00A38CA1 /* Main.swift in Sources */,
-				140C6AF92825C99C003BACE3 /* FlexBufferBuilder.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -381,7 +369,7 @@
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "\"pax-dev-harness-macos/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"interface/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
@@ -394,7 +382,7 @@
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../target/debug";
 				MACOSX_DEPLOYMENT_TARGET = 13.3;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "org.pax-lang.pax-dev-harness-macos";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.pax-lang.interface";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx13.3;
@@ -409,14 +397,14 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "pax-dev-harness-macos/pax_dev_harness_macos.entitlements";
+				CODE_SIGN_ENTITLEMENTS = interface/pax_dev_harness_macos.entitlements;
 				CODE_SIGN_IDENTITY = "";
 				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
 				DEAD_CODE_STRIPPING = YES;
-				DEVELOPMENT_ASSET_PATHS = "\"pax-dev-harness-macos/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "\"interface/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_PREVIEWS = YES;
@@ -429,7 +417,7 @@
 				LIBRARY_SEARCH_PATHS = "$(PROJECT_DIR)/../target/debug";
 				MACOSX_DEPLOYMENT_TARGET = 13.3;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "org.pax-lang.pax-dev-harness-macos";
+				PRODUCT_BUNDLE_IDENTIFIER = "org.pax-lang.interface";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SDKROOT = macosx13.3;
@@ -442,7 +430,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		14965BFC27FE3D0F00A38CA1 /* Build configuration list for PBXProject "pax-dev-harness-macos" */ = {
+		14965BFC27FE3D0F00A38CA1 /* Build configuration list for PBXProject "interface" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				14965C0E27FE3D1100A38CA1 /* Debug */,

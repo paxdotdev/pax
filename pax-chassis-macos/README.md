@@ -9,7 +9,7 @@ Handles:
 
 This directory also includes:
 
-## pax-dev-harness-macos
+## interface
 
 Simple macOS app for developing Pax projects.  
 Also usable as a template for packaging full-window Pax apps for macOS

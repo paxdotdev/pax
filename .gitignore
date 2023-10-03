@@ -2,7 +2,7 @@ node_modules
 target/
 vendor/
 
-pax-chassis-macos/pax-dev-harness-macos/build
+pax-chassis-macos/interface/build
 pax-example/build
 pax-example/.pax/
 pax-create-sandbox/
@@ -16,5 +16,5 @@ Cargo.lock
 ## VScode project configuration files
 .vscode/
 
-pax-chassis-macos/pax-dev-harness-macos/pax-dev-harness-macos.xcodeproj/project.xcworkspace/xcuserdata/**/*
-pax-chassis-macos/pax-dev-harness-macos/pax-dev-harness-macos.xcodeproj/xcuserdata/**/*
+pax-chassis-macos/interface/interface.xcodeproj/project.xcworkspace/xcuserdata/**/*
+pax-chassis-macos/interface/interface.xcodeproj/xcuserdata/**/*

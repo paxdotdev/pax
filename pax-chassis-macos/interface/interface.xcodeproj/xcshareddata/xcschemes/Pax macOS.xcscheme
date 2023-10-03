@@ -17,7 +17,7 @@
                BlueprintIdentifier = "14965C0027FE3D0F00A38CA1"
                BuildableName = "Pax macOS.app"
                BlueprintName = "Pax macOS"
-               ReferencedContainer = "container:pax-dev-harness-macos.xcodeproj">
+               ReferencedContainer = "container:interface.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -47,7 +47,7 @@
             BlueprintIdentifier = "14965C0027FE3D0F00A38CA1"
             BuildableName = "Pax macOS.app"
             BlueprintName = "Pax macOS"
-            ReferencedContainer = "container:pax-dev-harness-macos.xcodeproj">
+            ReferencedContainer = "container:interface.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -64,7 +64,7 @@
             BlueprintIdentifier = "14965C0027FE3D0F00A38CA1"
             BuildableName = "Pax macOS.app"
             BlueprintName = "Pax macOS"
-            ReferencedContainer = "container:pax-dev-harness-macos.xcodeproj">
+            ReferencedContainer = "container:interface.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>
