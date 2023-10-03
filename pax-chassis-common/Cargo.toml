@@ -1,0 +1,19 @@
+[package]
+name = "pax-chassis-shared"
+version = "0.8.0"
+authors = ["Zack Brown <zack@pax.dev>"]
+edition = "2021"
+description = "Shared resources for Pax Chassis"
+license = "MIT OR Apache-2.0"
+homepage = "https://pax.dev/"
+repository = "https://www.github.com/pax-lang/pax"
+exclude = ["*"]
+include = ["pax-swift-common/**/*"]
+
+# Since there's no actual Rust library or binary in this crate, we make it a "virtual" workspace.
+# This prevents Cargo from expecting any Rust source files.
+[workspace]
+
+
+[lib]
+path = "lib.rs"
