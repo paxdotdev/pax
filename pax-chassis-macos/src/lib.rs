@@ -21,20 +21,20 @@ use pax_cartridge;
 use pax_core::{InstanceRegistry, PaxEngine};
 
 //Re-export all native message types; used by Swift via FFI.
-//Note that any types exposed by pax_message must ALSO be added to `paxchassismacos.h`
+//Note that any types exposed by pax_message must ALSO be added to `PaxRustCartridge.h`
 //in order to be visible to Swift
 pub use pax_message::*;
 use pax_runtime_api::{ArgsClick, ArgsScroll, ModifierKey, MouseButton, MouseEventArgs};
 
 /// Container data structure for PaxEngine, aggregated to support passing across C bridge
-#[repr(C)] //Exposed to Swift via paxchassismacos.h
+#[repr(C)] //Exposed to Swift via PaxRustCartridge.h
 pub struct PaxEngineContainer {
     _engine: *mut PaxEngine<CoreGraphicsContext<'static>>,
     //NOTE: since that has become a single field, this data structure may be be retired and `*mut PaxEngine` could be passed directly.
 }
 
 /// Allocate an instance of the Pax engine, with a specified root/main component from the loaded `pax_cartridge`.
-#[no_mangle] //Exposed to Swift via paxchassismacos.h
+#[no_mangle] //Exposed to Swift via PaxRustCartridge.h
 pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngineContainer {
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
     //engine can be passed back to Swift via the C (FFI) bridge
@@ -117,8 +117,7 @@ pub extern "C" fn pax_interrupt(
                 }
                 _ => {}
             };
-        }
-
+        },
         NativeInterrupt::Scroll(args) => {
             let prospective_hit = engine.get_focused_element();
             match prospective_hit {
@@ -131,7 +130,7 @@ pub extern "C" fn pax_interrupt(
                 }
                 _ => {}
             };
-        }
+        },
         NativeInterrupt::Image(args) => match args {
             ImageLoadInterruptArgs::Reference(ref_args) => {
                 let ptr = ref_args.image_data as *const u8;
@@ -155,7 +154,7 @@ pub extern "C" fn pax_interrupt(
 /// Perform full tick of engine, including property computation, lifecycle event handling, and rendering side-effects.
 /// Returns a message queue of native rendering actions encoded as a Flexbuffer via FFI to Swift.
 /// The returned message queue requires explicit deallocation: `pax_deallocate_message_queue`
-#[no_mangle] //Exposed to Swift via paxchassismacos.h
+#[no_mangle] //Exposed to Swift via PaxRustCartridge.h
 pub extern "C" fn pax_tick(
     engine_container: *mut PaxEngineContainer,
     cgContext: *mut c_void,
@@ -201,7 +200,7 @@ pub extern "C" fn pax_tick(
 
 /// Required manual cleanup callback from Swift after reading a frame's message queue.
 /// If this is not called after `pax_tick` is invoked, we will have a memory leak.
-#[no_mangle] //Exposed to Swift via paxchassismacos.h
+#[no_mangle] //Exposed to Swift via PaxRustCartridge.h
 pub extern "C" fn pax_dealloc_message_queue(queue: *mut NativeMessageQueue) {
     unsafe {
         let queue_container = Box::from_raw(queue);

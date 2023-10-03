@@ -3,6 +3,7 @@
   <component name="VcsDirectoryMappings">
     <mapping directory="$PROJECT_DIR$" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/docs" vcs="Git" />
+    <mapping directory="$PROJECT_DIR$/pax-chassis-macos/interface/pax-app-macos" vcs="Git" />
     <mapping directory="$PROJECT_DIR$/www.pax.dev" vcs="Git" />
   </component>
 </project>
