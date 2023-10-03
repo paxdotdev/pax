@@ -483,9 +483,12 @@ fn recurse_literal_block(
 
     // Iterating through each (key, value) pair in the settings_key_value_pairs
     for (key, value_definition) in block.settings_key_value_pairs.iter() {
+
+        let fully_qualified_type = host_crate_info.import_prefix.to_string() + &type_definition.property_definitions.iter().find(|pd| {&pd.name == key}).expect(&format!("Property {} not found on type {}",key,type_definition.type_id)).type_id;
+
         let value_string = match value_definition {
             ValueDefinition::LiteralValue(value) => {
-                format!("ret.{} = Box::new(PropertyLiteral::new({}));", key, value)
+                format!("ret.{} = Box::new(PropertyLiteral::new(Into::<{}>::into({})));", key, fully_qualified_type, value)
             }
             ValueDefinition::Expression(_, id) | ValueDefinition::Identifier(_, id) => {
                 format!(
@@ -495,9 +498,10 @@ fn recurse_literal_block(
                 )
             }
             ValueDefinition::Block(inner_block) => format!(
-                "ret.{} = Box::new(PropertyLiteral::new({}));",
+                "ret.{} = Box::new(PropertyLiteral::new(Into::<{}>::into({})));",
                 key,
-                recurse_literal_block(inner_block.clone(), type_definition, host_crate_info)
+                fully_qualified_type,
+                recurse_literal_block(inner_block.clone(), type_definition, host_crate_info),
             ),
             _ => {
                 panic!("Incorrect value bound to inline setting")
@@ -710,7 +714,7 @@ fn recurse_generate_render_nodes_literal(
             })
             .collect();
 
-        let keys = pax_runtime_api::CommonProperties::get_property_identifiers();
+        let identifiers_and_types = pax_runtime_api::CommonProperties::get_property_identifiers();
 
         fn default_common_property_value(identifier: &str) -> String {
             if identifier == "transform" {
@@ -726,23 +730,24 @@ fn recurse_generate_render_nodes_literal(
             identifier != "transform" && identifier != "width" && identifier != "height"
         }
 
-        let common_properties_literal: Vec<(String, String)> = keys
+        let common_properties_literal: Vec<(String, String)> = identifiers_and_types
             .iter()
-            .map(|common_property_identifier| {
+            .map(|identifier_and_type| {
                 if let Some(inline_settings) = &tnd.settings {
                     if let Some(matched_setting) = inline_settings
                         .iter()
-                        .find(|vd| vd.0 == *common_property_identifier)
+                        .find(|vd| vd.0 == *identifier_and_type.0)
                     {
                         (
-                            common_property_identifier.to_string(),
+                            identifier_and_type.0.to_string(),
                             match &matched_setting.1 {
                                 ValueDefinition::LiteralValue(lv) => {
                                     let mut literal_value = format!(
-                                        "Rc::new(RefCell::new(PropertyLiteral::new({})))",
-                                        lv
+                                        "Rc::new(RefCell::new(PropertyLiteral::new(Into::<{}>::into({}))))",
+                                        identifier_and_type.1,
+                                        lv,
                                     );
-                                    if is_optional(common_property_identifier) {
+                                    if is_optional(&identifier_and_type.0) {
                                         literal_value = format!("Some({})", literal_value);
                                     }
                                     literal_value
@@ -754,7 +759,7 @@ fn recurse_generate_render_nodes_literal(
                                         id.expect("Tried to use expression but it wasn't compiled")
                                     );
 
-                                    if is_optional(common_property_identifier) {
+                                    if is_optional(&identifier_and_type.0) {
                                         literal_value = format!("Some({})", literal_value);
                                     }
                                     literal_value
@@ -766,14 +771,14 @@ fn recurse_generate_render_nodes_literal(
                         )
                     } else {
                         (
-                            common_property_identifier.to_string(),
-                            default_common_property_value(common_property_identifier),
+                            identifier_and_type.0.to_string(),
+                            default_common_property_value(&identifier_and_type.0),
                         )
                     }
                 } else {
                     (
-                        common_property_identifier.to_string(),
-                        default_common_property_value(common_property_identifier),
+                        identifier_and_type.0.to_string(),
+                        default_common_property_value(&identifier_and_type.0),
                     )
                 }
             })
