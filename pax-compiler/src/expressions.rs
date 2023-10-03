@@ -193,6 +193,8 @@ fn recurse_compile_literal_block<'a>(
                     ("anchor_y", "Size".to_string()),
                     ("skew_x", "Numeric".to_string()),
                     ("skew_y", "Numeric".to_string()),
+                    ("scale_x", "Size".to_string()),
+                    ("scale_y", "Size".to_string()),
                     ("rotate", "Rotation".to_string()),
                 ]);
 
