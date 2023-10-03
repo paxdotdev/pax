@@ -1,5 +1,5 @@
 // @ts-ignore
-import {PaxChassisWeb} from '../../dist/pax_chassis_web';
+
 
 export function getStringIdFromClippingId(prefix: string, id_chain: number[]) {
     return prefix + "_" + id_chain.join("_");

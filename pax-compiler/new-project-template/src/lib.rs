@@ -1,8 +1,10 @@
+#![allow(unused_imports)]
+
 use pax_lang::*;
 use pax_lang::api::*;
 use pax_std::primitives::{Group, Text};
 use pax_std::types::{Color};
-use pax_std::components::{Stacker, Sidebar};
+use pax_std::components::{Stacker};
 
 #[derive(Pax)]
 #[main]

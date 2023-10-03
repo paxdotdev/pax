@@ -1,3 +1,5 @@
+import type {PaxChassisWeb} from "../types/pax-chassis-web";
+
 function convertModifiers(event: MouseEvent | KeyboardEvent) {
     let modifiers = [];
     if (event.shiftKey) modifiers.push('Shift');
@@ -17,7 +19,7 @@ function getMouseButton(event: MouseEvent) {
 }
 
 
-export function setupEventListeners(chassis: any, layer: any) {
+export function setupEventListeners(chassis: PaxChassisWeb, layer: any) {
 
     let lastPositions = new Map<number, {x: number, y: number}>();
     // @ts-ignore
