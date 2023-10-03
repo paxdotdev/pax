@@ -142,6 +142,8 @@
 			buildRules = (
 			);
 			dependencies = (
+				14BD30252ACB9D610072A294 /* PBXTargetDependency */,
+				14BD30272ACB9D610072A294 /* PBXTargetDependency */,
 			);
 			name = "Pax macOS";
 			packageProductDependencies = (
@@ -231,6 +233,17 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		14BD30252ACB9D610072A294 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 14BD30242ACB9D610072A294 /* FlexBuffers */;
+		};
+		14BD30272ACB9D610072A294 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			productRef = 14BD30262ACB9D610072A294 /* Messages */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		14965C0E27FE3D1100A38CA1 /* Debug */ = {
@@ -449,6 +462,17 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		14BD30242ACB9D610072A294 /* FlexBuffers */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FlexBuffers;
+		};
+		14BD30262ACB9D610072A294 /* Messages */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Messages;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 14965BF927FE3D0F00A38CA1 /* Project object */;
 }

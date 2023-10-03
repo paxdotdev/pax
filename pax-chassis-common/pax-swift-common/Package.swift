@@ -5,6 +5,9 @@ import PackageDescription
 
 let package = Package(
     name: "PaxSwiftCommon",
+    platforms: [
+        .macOS(.v10_15)
+    ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
@@ -21,6 +24,7 @@ let package = Package(
         .target(
             name: "FlexBuffers"),
         .target(
-                name: "Messages"),
+                name: "Messages",
+                dependencies: ["FlexBuffers"]),
     ]
 )
