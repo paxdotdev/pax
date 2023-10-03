@@ -13,6 +13,6 @@ tokio = { version = "1.32.0", features = ["full"] }
 tower-lsp = "0.20.0"
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 quote = "1.0.33"
-pax-compiler = "0.7.4"
+pax-compiler = {version = "0.6.17", path="../pax-compiler"}
 pest = "2.7.4"
 pest_derive = "2.7.4"
