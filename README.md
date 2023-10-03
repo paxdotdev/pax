@@ -49,7 +49,6 @@ Any Pax component like the example above may be included inside other Pax compon
 
 See a more thorough, [running example](https://docs.pax.dev/intro-example.html).
 
-
 ## Features
 
  - **Fast** — 240fps animations, compiles to machine code
@@ -60,14 +59,57 @@ See a more thorough, [running example](https://docs.pax.dev/intro-example.html).
  - **Expressive** — Free-form drawing and animation toolkit, plus GUI form elements and responsive layouts.  Blur the lines between work & play, function & art.
  - **Extensible** — UI component system built around Rust structs enables modular application building and publication of reusable components through cargo and crates.io.  Pax's standard library (`pax-std`) is a canonical example, publishing modular primitives like `<Group />`, drawing elements like `<Rectangle />`, form elements like `<Text />`, and layout elements like `<Stacker />`.
 
-
 ## Docs
 Read more in [The Pax Docs](https://docs.pax.dev/)
 
-
 ## Getting Started
-**Pax is being developed in the open in an unstable _alpha preview._** You cannot yet, without pain, create an app.  If you want to collaborate on library development at this stage, [reach out on Discord](https://discord.gg/P6vTntC6fr).
 
+### Setup, macOS workstation
+
+ - Install `rustc` 1.70.0 via `rustup`
+ - Install the Pax CLI: `cargo install pax-cli`
+ - Follow instructions to build for [WebAssembly](#to-build-pax-projects-for-webassembly) or [macOS](#to-build-pax-projects-as-native-macos-apps) below
+ - Create a new project `pax-cli new my-first-project`
+
+### Setup, Linux (Debian / Ubuntu) workstation
+
+ - Install `rustc` 1.70.0 via `rustup`
+ - Install development dependencies: `apt install pkg-config libssl-dev`
+ - Install the Pax CLI: `cargo install pax-cli`
+ - Follow instructions to build for [WebAssembly](#to-build-pax-projects-for-webassembly) below
+ - Create a new project `pax-cli new my-first-project`
+
+### Setup, Windows workstation
+
+ - Install `rustc` via installer
+ - Install the Pax CLI: `cargo install pax-cli`
+ - Follow instructions to build for [WebAssembly](#to-build-pax-projects-for-webassembly) below
+ - Create a new project `pax-cli new my-first-project`
+
+### To build Pax projects for WebAssembly
+
+- Install 'wasm-pack' via:
+   ```shell
+    curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh 
+   ```
+  For Windows, follow instructions to use installer [here.](https://rustwasm.github.io/wasm-pack/installer/)
+
+- Install `node` v20 LTS, recommended via [`nvm`](https://github.com/nvm-sh/nvm#installing-and-updating)
+  ```shell
+  # For macOS / Linux:  first install nvm
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
+  # After restarting terminal:
+  nvm install 20
+  nvm use 20 --default
+  ```
+  For Windows, install [`nvm-windows`](https://github.com/coreybutler/nvm-windows) and install Node v20 LTS.
+
+### To build Pax projects as native macOS apps
+
+- Building macOS apps requires running a Mac with macOS.  This is a constraint enforced technically and legally by Apple.
+- Install xcode `>=14.3` and Xcode command line utils: `xcode-select --install`
+- SDK Version `macosx13.3`, Xcode version `>=14.3`
+- Current Minimum Deployment `13.0`
 
 #### Support matrix:
 
@@ -101,37 +143,8 @@ This project is licensed under either of:
 
 at your option.
 
-## Library Development
 
-### Environment setup
-
-Use `rustc` 1.70.0 via `rustup`
-
-
-### To build .pax => Web
-
-- Install 'wasm-pack' via:
-   ```shell
-    curl https://rustwasm.github.io/wasm-pack/installer/init.sh -sSf | sh 
-   ```
-
-- Install `node` v20 LTS, recommended via [`nvm`](https://github.com/nvm-sh/nvm#installing-and-updating)
-  ```shell
-  # First install nvm
-  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.3/install.sh | bash
-  # After restarting terminal:
-  nvm install 20
-  nvm use 20 --default
-  ```
-
-### To build .pax => macOS
-
-- Install xcode `>=14.3` and Xcode command line utils: `xcode-select --install`
-- SDK Version `macosx13.3`, Xcode version `>=14.3`
-- Current Minimum Deployment `13.0`
-
-
-### Running Development Environment
+### Running Monorepo Development Environment
 
 First, refer to [the latest project status](https://docs.pax.dev/status-sept-2022.html)
 
@@ -151,14 +164,3 @@ git submodule update --init --recursive
 ```
 
 As needed, review the [git submodule docs.](https://git-scm.com/docs/gitsubmodules)
-
-
-### Architectural Reference
-
-<img src="runtime-arch.png" />
-<div style="text-align: center; font-style: italic;">Runtime dependency & codegen graph</div>
-<br /><br /><br />
-<img src="compiler-sequence.png" />
-<div style="text-align: center; font-style: italic;">
-Pax compiler sequence diagram | <a href="https://www.github.com/pax-lang/pax/blob/master/pax-compiler/">Compiler source</a>
-</div>

@@ -1,5 +1,7 @@
 extern crate core;
 
+use lazy_static::lazy_static;
+
 use include_dir::{include_dir, Dir};
 
 pub mod expressions;
@@ -21,6 +23,13 @@ use std::fs;
 use std::io::Write;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+
+use actix_web::middleware::Logger;
+use actix_web::{App, HttpServer};
+use env_logger;
+use flate2::read::GzDecoder;
+use std::net::TcpListener;
+use tar::Archive;
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt; // For the .pre_exec() method
@@ -142,9 +151,40 @@ fn clone_all_dependencies_to_tmp(
                 ));
 
                 let tarball_bytes = resp.bytes().expect("Failed to read tarball bytes");
-                let mut tar = tar::Archive::new(&tarball_bytes[..]);
-                tar.unpack(&dest)
-                    .expect(&format!("Failed to unpack tarball for {}", pkg));
+
+                // Wrap the byte slice in a Cursor, so it can be used as a Read trait object.
+                let cursor = std::io::Cursor::new(&tarball_bytes[..]);
+
+                // Create a GzDecoder to handle the gzip layer.
+                let gz = GzDecoder::new(cursor);
+
+                // Pass the GzDecoder to tar::Archive.
+                let mut archive = Archive::new(gz);
+
+                // Iterate over the entries in the archive and modify the paths before extracting.
+                for entry_result in archive.entries().expect("Failed to read entries") {
+                    let mut entry = entry_result.expect("Failed to read entry");
+                    let path = match entry
+                        .path()
+                        .expect("Failed to get path")
+                        .components()
+                        .skip(1)
+                        .collect::<PathBuf>()
+                        .as_path()
+                        .to_owned()
+                    {
+                        path if path.to_string_lossy() == "" => continue, // Skip the root folder
+                        path => dest.join(path),
+                    };
+                    if entry.header().entry_type().is_dir() {
+                        fs::create_dir_all(&path).expect("Failed to create directory");
+                    } else {
+                        if let Some(parent) = path.parent() {
+                            fs::create_dir_all(&parent).expect("Failed to create parent directory");
+                        }
+                        entry.unpack(&path).expect("Failed to unpack file");
+                    }
+                }
             }
         }
     }
@@ -483,12 +523,23 @@ fn recurse_literal_block(
 
     // Iterating through each (key, value) pair in the settings_key_value_pairs
     for (key, value_definition) in block.settings_key_value_pairs.iter() {
-
-        let fully_qualified_type = host_crate_info.import_prefix.to_string() + &type_definition.property_definitions.iter().find(|pd| {&pd.name == key}).expect(&format!("Property {} not found on type {}",key,type_definition.type_id)).type_id;
+        let fully_qualified_type = host_crate_info.import_prefix.to_string()
+            + &type_definition
+                .property_definitions
+                .iter()
+                .find(|pd| &pd.name == key)
+                .expect(&format!(
+                    "Property {} not found on type {}",
+                    key, type_definition.type_id
+                ))
+                .type_id;
 
         let value_string = match value_definition {
             ValueDefinition::LiteralValue(value) => {
-                format!("ret.{} = Box::new(PropertyLiteral::new(Into::<{}>::into({})));", key, fully_qualified_type, value)
+                format!(
+                    "ret.{} = Box::new(PropertyLiteral::new(Into::<{}>::into({})));",
+                    key, fully_qualified_type, value
+                )
             }
             ValueDefinition::Expression(_, id) | ValueDefinition::Identifier(_, id) => {
                 format!(
@@ -931,7 +982,7 @@ pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) ->
     output
 }
 
-use colored::Colorize;
+use colored::{ColoredString, Colorize};
 
 use crate::parsing::escape_identifier;
 
@@ -985,13 +1036,15 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
     tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in your project's dependency graph.  Add e.g. `pax-lang` to your Cargo.toml to resolve this error.")
 }
 
+lazy_static! {
+    #[allow(non_snake_case)]
+    static ref PAX_BADGE: ColoredString = "[Pax]".bold().on_black().white();
+}
+
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
-    #[allow(non_snake_case)]
-    let PAX_BADGE = "[Pax]".bold().on_black().white();
-
     //First we clone dependencies into the .pax/pkg directory.  We must do this before running
     //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
     //dependency paths are `.pax/pkg/*`.
@@ -1007,7 +1060,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     };
     clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &ctx);
 
-    println!("{} 🛠 Running `cargo build`...", &PAX_BADGE);
+    println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
     // Run parser bin from host project with `--features parser`
     let output = run_parser_binary(&ctx.path, Arc::clone(&ctx.process_child_ids));
 
@@ -1028,35 +1081,34 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     let host_crate_info = get_host_crate_info(&host_cargo_toml_path);
     update_property_prefixes_in_place(&mut manifest, &host_crate_info);
 
-    println!("{} 🧮 Compiling expressions", &PAX_BADGE);
+    println!("{} 🧮 Compiling expressions", *PAX_BADGE);
     expressions::compile_all_expressions(&mut manifest);
 
-    println!("{} 🦀 Generating Rust", &PAX_BADGE);
+    println!("{} 🦀 Generating Rust", *PAX_BADGE);
     generate_reexports_partial_rs(&pax_dir, &manifest);
     generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
     generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
-    println!("{} 🧱 Building cartridge with cargo", &PAX_BADGE);
-
+    println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
     build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
 
     if ctx.should_also_run {
-        //8a::run: compile and run dev harness, with freshly built chassis plugged in
+        //8a::run: compile and run `interface`, with freshly built chassis plugged in
         println!(
-            "{} 🏃‍ Running fully compiled {} app...",
-            &PAX_BADGE,
+            "{} 🐇 Running Pax {}...",
+            *PAX_BADGE,
             <&RunTarget as Into<&str>>::into(&ctx.target)
         );
     } else {
         //8b::compile: compile and write executable binary / package to disk at specified or implicit path
         println!(
-            "{} 🛠 Building fully compiled {} app...",
-            &PAX_BADGE,
+            "{} 🛠 Compiling executable package for {}...",
+            *PAX_BADGE,
             <&RunTarget as Into<&str>>::into(&ctx.target)
         );
     }
-    build_harness_with_chassis(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
+    build_interface_with_chassis(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
 
     Ok(())
 }
@@ -1082,7 +1134,49 @@ fn copy_dir_to(src_dir: &Path, dst_dir: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-fn build_harness_with_chassis(
+fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
+    // Initialize logging
+
+    std::env::set_var("RUST_LOG", "actix_web=info");
+    env_logger::Builder::from_env(env_logger::Env::default())
+        .format(|buf, record| writeln!(buf, "{} 🍱 Served {}", *PAX_BADGE, record.args()))
+        .init();
+
+    // Create a Runtime
+    let runtime = actix_rt::System::new().block_on(async {
+        let mut port = 8080;
+        let server = loop {
+            // Check if the port is available
+            if TcpListener::bind(("127.0.0.1", port)).is_ok() {
+                // Log the server details
+                println!(
+                    "{} 🗂️  Serving static files from {}",
+                    *PAX_BADGE,
+                    &fs_path.to_str().unwrap()
+                );
+                let address_msg = format!("http://127.0.0.1:{}", port).blue();
+                let server_running_at_msg = format!("Server running at {}", address_msg).bold();
+                println!("{} 📠 {}", *PAX_BADGE, server_running_at_msg);
+                break HttpServer::new(move || {
+                    App::new().wrap(Logger::new("| %s | %U")).service(
+                        actix_files::Files::new("/*", fs_path.clone()).index_file("index.html"),
+                    )
+                })
+                .bind(("127.0.0.1", port))
+                .expect("Error binding to address")
+                .workers(2);
+            } else {
+                port += 1; // Try the next port
+            }
+        };
+
+        server.run().await
+    });
+
+    runtime
+}
+
+fn build_interface_with_chassis(
     pax_dir: &PathBuf,
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
@@ -1090,7 +1184,7 @@ fn build_harness_with_chassis(
     let target_str: &str = ctx.target.borrow().into();
     let target_str_lower: &str = &target_str.to_lowercase();
 
-    let harness_path = pax_dir
+    let interface_path = pax_dir
         .join(PAX_DIR_PKG_PATH)
         .join(format!("pax-chassis-{}", target_str_lower))
         .join(match ctx.target {
@@ -1098,16 +1192,12 @@ fn build_harness_with_chassis(
             RunTarget::MacOS => "pax-dev-harness-macos",
         });
 
-    let script = match ctx.target {
-        RunTarget::Web => "./run-web.sh",
-        RunTarget::MacOS => "./run-debuggable-mac-app.sh",
-    };
-
     let is_web = if let RunTarget::Web = ctx.target {
         true
     } else {
         false
     };
+
     let target_folder: &str = ctx.target.borrow().into();
 
     let output_path = pax_dir.join("build").join(target_folder);
@@ -1121,26 +1211,28 @@ fn build_harness_with_chassis(
     } else {
         "arm64"
     };
-    let should_also_run = &format!("{}", ctx.should_also_run);
     if is_web {
-        let mut cmd = Command::new(script);
-        cmd.current_dir(&harness_path)
-            .arg(should_also_run)
-            .arg(output_path_str)
-            .stdout(std::process::Stdio::inherit())
-            .stderr(std::process::Stdio::inherit());
+        let asset_src = pax_dir.join("..").join("assets");
+        let asset_dest = interface_path.join("public").join("assets");
 
-        #[cfg(unix)]
-        unsafe {
-            cmd.pre_exec(pre_exec_hook);
+        // Create target assets directory
+        if let Err(e) = fs::create_dir_all(&asset_dest) {
+            eprintln!("Error creating directory {:?}: {}", asset_dest, e);
+        }
+        // Perform recursive copy from userland `assets/` to built `assets/`
+        if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest) {
+            eprintln!("Error copying assets: {}", e);
         }
 
-        let child = cmd.spawn().expect("failed to spawn child");
-        // child.stdin.take().map(drop);
-        let _output = wait_with_output(&process_child_ids, child);
+        // Start local server if this is a `run` rather than a `build`
+        if ctx.should_also_run {
+            let _ = start_static_http_server(interface_path.join("public"));
+        }
     } else {
+        let script = "./run-debuggable-mac-app.sh";
+        let should_also_run = &format!("{}", ctx.should_also_run);
         let mut cmd = Command::new(script);
-        cmd.current_dir(&harness_path)
+        cmd.current_dir(&interface_path)
             .arg(verbose_val)
             .arg(exclude_arch_val)
             .arg(should_also_run)
@@ -1161,6 +1253,24 @@ fn build_harness_with_chassis(
         // child.stdin.take().map(drop);
         let _output = wait_with_output(&process_child_ids, child);
     }
+}
+
+fn copy_dir_recursively(src: &Path, dest: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    if src.is_dir() {
+        // If source is a directory, create the corresponding directory in the destination,
+        // and copy its contents recursively
+        fs::create_dir_all(dest)?;
+        for entry in fs::read_dir(src)? {
+            let entry = entry?;
+            let path = entry.path();
+            let dest_child = dest.join(path.file_name().ok_or("Invalid file name")?);
+            copy_dir_recursively(&path, &dest_child)?;
+        }
+    } else {
+        // If source is a file, just copy it to the destination
+        fs::copy(src, dest)?;
+    }
+    Ok(())
 }
 
 pub fn perform_clean(path: &str) {
@@ -1190,23 +1300,29 @@ pub fn build_chassis_with_cartridge(
     //Inject `patch` directive, which allows userland projects to refer to concrete versions like `0.4.0`, while we
     //swap them for our locally cloned filesystem versions during compilation.
     let existing_cargo_toml_path = chassis_path.join("Cargo.toml");
+    let existing_cargo_toml_string = fs::read_to_string(&existing_cargo_toml_path).unwrap();
     let mut existing_cargo_toml =
-        toml_edit::Document::from_str(&fs::read_to_string(&existing_cargo_toml_path).unwrap())
-            .unwrap();
-    let mut patch_table = toml_edit::table();
-    for pkg in ALL_PKGS {
-        patch_table[pkg]["path"] = toml_edit::value(format!("../{}", pkg));
-    }
-    existing_cargo_toml.insert("patch.crates-io", patch_table);
-    fs::write(
-        existing_cargo_toml_path,
-        existing_cargo_toml
-            .to_string()
-            .replace("\"patch.crates-io\"", "patch.crates-io"),
-    )
-    .unwrap();
+        toml_edit::Document::from_str(&existing_cargo_toml_string).unwrap();
 
-    //string together a shell call like the following:
+    //In builds where we don't wipe out the `pkg` directory (e.g. those installed from crates.io),
+    //the Cargo.toml may already have been patched.  Injecting an additional patch would break cargo.
+    if !existing_cargo_toml_string.contains("patch.crates-io") {
+        let mut patch_table = toml_edit::table();
+        for pkg in ALL_PKGS {
+            patch_table[pkg]["path"] = toml_edit::value(format!("../{}", pkg));
+        }
+
+        existing_cargo_toml.insert("patch.crates-io", patch_table);
+        fs::write(
+            existing_cargo_toml_path,
+            existing_cargo_toml
+                .to_string()
+                .replace("\"patch.crates-io\"", "patch.crates-io"),
+        )
+        .unwrap();
+    }
+
+    //string together a shell call to build our chassis, with cartridge inserted via `patch`
     match target {
         RunTarget::MacOS => {
             let mut cmd = Command::new("cargo");
@@ -1233,11 +1349,15 @@ pub fn build_chassis_with_cartridge(
             let mut cmd = Command::new("wasm-pack");
             cmd.current_dir(&chassis_path)
                 .arg("build")
+                .arg("--target")
+                .arg("web")
+                .arg("--out-name")
+                .arg("pax-chassis-web")
                 .arg("--out-dir")
                 .arg(
                     chassis_path
                         .join("interface")
-                        .join("dist")
+                        .join("public")
                         .to_str()
                         .unwrap(),
                 )

@@ -7,7 +7,6 @@ use std::rc::Rc;
 use kurbo::BezPath;
 use piet::RenderContext;
 
-
 use pax_core::{
     HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode, RenderNodePtr,
     RenderNodePtrList, RenderTreeContext,

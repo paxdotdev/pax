@@ -1,6 +1,6 @@
 // @ts-ignore
-import {PaxChassisWeb} from '../dist/pax_chassis_web';import {Scroller} from "./scroller";
-import {MOUNT_ID, NATIVE_LEAF_CLASS} from "../utils/constants";
+import {Scroller} from "./scroller";
+import {NATIVE_LEAF_CLASS} from "../utils/constants";
 import {AnyCreatePatch} from "./messages/any-create-patch";
 // @ts-ignore
 import snarkdown from 'snarkdown';
@@ -13,6 +13,7 @@ import {ObjectManager} from "../pools/object-manager";
 import {DIV, OBJECT, OCCLUSION_CONTEXT, SCROLLER} from "../pools/supported-objects";
 import {arrayToKey, packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
 import {getAlignItems, getJustifyContent, getTextAlign} from "./text";
+import type {PaxChassisWeb} from "../types/pax-chassis-web";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -33,10 +34,10 @@ export class NativeElementPool {
         this.registeredFontFaces = new Set<string>();
     }
 
-    build(chassis: PaxChassisWeb, isMobile: boolean){
+
+    build(chassis: PaxChassisWeb, isMobile: boolean, mount: Element){
         this.isMobile = isMobile;
         this.chassis = chassis;
-        let mount = document.querySelector("#" + MOUNT_ID)!;
         this.baseOcclusionContext.build(mount, undefined, chassis, this.canvases);
     }
 
@@ -84,7 +85,7 @@ export class NativeElementPool {
                 scrollEvent.Scroll = deltas;
                 const scrollEventStringified = JSON.stringify(scrollEvent);
                 this.messageList.push(scrollEventStringified);
-                this.chassis.interrupt(scrollEventStringified, []);
+                this.chassis!.interrupt(scrollEventStringified, []);
                 this.objectManager.returnToPool(OBJECT, deltas);
                 this.objectManager.returnToPool(OBJECT, scrollEvent);
             }
@@ -303,7 +304,7 @@ export class NativeElementPool {
             }
         }
         let scroller: Scroller = this.objectManager.getFromPool(SCROLLER, this.objectManager);
-        scroller.build(patch.idChain!, patch.zIndex!, scroller_id, this.chassis, this.scrollers,
+        scroller.build(patch.idChain!, patch.zIndex!, scroller_id, this.chassis!, this.scrollers,
             this.baseOcclusionContext, this.canvases, this.isMobile)
         // @ts-ignore
         this.scrollers.set(arrayToKey(patch.idChain),scroller);
