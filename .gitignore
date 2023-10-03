@@ -2,6 +2,8 @@ node_modules
 target/
 vendor/
 
+.swiftpm
+
 pax-chassis-macos/interface/build
 pax-example/build
 pax-example/.pax/
