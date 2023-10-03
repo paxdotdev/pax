@@ -11,7 +11,7 @@ import SwiftUI
 struct pax_app_macosApp: App {
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            PaxViewMacos()
         }
     }
 }

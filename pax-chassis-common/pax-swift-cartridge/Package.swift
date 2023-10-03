@@ -18,7 +18,7 @@ let package = Package(
     targets: [
         .binaryTarget(
             name: "PaxRustCartridge",
-            path: "PaxRustCartridge.framework"
+            path: "PaxRustCartridge.xcframework"
         ),
         .target(
             name: "PaxSwiftCartridge",

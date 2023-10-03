@@ -1,7 +1,20 @@
 {
   "object" : {
     "artifacts" : [
-
+      {
+        "kind" : "xcframework",
+        "packageRef" : {
+          "identity" : "pax-swift-cartridge",
+          "kind" : "root",
+          "location" : "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge",
+          "name" : "pax-swift-cartridge"
+        },
+        "path" : "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/PaxRustCartridge.xcframework",
+        "source" : {
+          "type" : "local"
+        },
+        "targetName" : "PaxRustCartridge"
+      }
     ],
     "dependencies" : [
 
