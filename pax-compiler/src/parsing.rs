@@ -856,9 +856,8 @@ pub struct ParsingError {
 }
 
 /// Extract all errors from a Pax parse result
-pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>, pax: &str) -> Vec<ParsingError> {
+pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>) -> Vec<ParsingError> {
     let mut errors = vec![];
-
 
     for pair in pairs {
         let error = match pair.as_rule() {
@@ -872,7 +871,7 @@ pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>, pax: &str) -> Vec<Par
             )),
             Rule::inner_tag_error => Some((
                 format!("{:?}", pair.as_rule()),
-                "Inner tag structure doesn't match any expected format.".to_string(),
+                "Inner tag doesn't match any expected format.".to_string(),
             )),
             Rule::selector_block_error => Some((
                 format!("{:?}", pair.as_rule()),
@@ -880,11 +879,19 @@ pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>, pax: &str) -> Vec<Par
             )),
             Rule::handler_key_value_pair_error => Some((
                 format!("{:?}", pair.as_rule()),
-                "Event handler key-value pair is incorrectly formatted.".to_string(),
+                "Event handler key-value pair is malformed.".to_string(),
             )),
             Rule::expression_body_error => Some((
                 format!("{:?}", pair.as_rule()),
-                "Expression inside curly braces has an unexpected format.".to_string(),
+                "Expression inside curly braces is not well defined.".to_string(),
+            )),
+            Rule::open_tag_error => Some((
+                format!("{:?}", pair.as_rule()),
+                "Open tag is malformed".to_string(),
+            )),
+            Rule::tag_error => Some((       
+                format!("{:?}", pair.as_rule()),
+                "Tag structure is unexpected.".to_string(),
             )),
             _ => None,
         };
@@ -900,12 +907,11 @@ pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>, pax: &str) -> Vec<Par
             };
             errors.push(error);
         }
-        errors.extend(extract_errors(pair.into_inner(), pax)); 
+        errors.extend(extract_errors(pair.into_inner())); 
     }
 
     errors
 }
-
 
 /// From a raw string of Pax representing a single component, parse a complete ComponentDefinition
 pub fn assemble_component_definition(
@@ -922,7 +928,7 @@ pub fn assemble_component_definition(
         .next()
         .unwrap(); // get and unwrap the `pax_component_definition` rule
     
-        let errors = extract_errors(_ast.clone().into_inner(), pax.clone());
+        let errors = extract_errors(_ast.clone().into_inner());
         if !errors.is_empty() {
             let mut error_messages = String::new();
             

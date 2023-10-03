@@ -16,22 +16,23 @@ pax_component_definition = { SOI ~ (root_tag_pair | settings_block_declaration |
 empty = {SOI}
 block_level_error = { (!(root_tag_pair | settings_block_declaration | handlers_block_declaration) ~ ANY)+}
 root_tag_pair = { any_tag_pair }
-any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag}
-
-//This duo describes an XML-style open-tag, like <SomeElement id="...">
+any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | tag_error}
+tag_error = { "<" ~ pascal_identifier ~ (!("<" ~ pascal_identifier | "@handlers" | "@settings") ~ ANY)*}
+//This duo describes an XML-style open-tag, like <SomeElement id="..."> 
 //and matching close-tag, like </SomeElement>.  Note the use of Pest's stack feature, `PUSH`
 //and `POP`, to match closing & opening tags
 open_tag = {"<" ~ PUSH(pascal_identifier) ~ (attribute_key_value_pair| attribute_key_value_pair_error) * ~ ">"}
+open_tag_error = {"<" ~ PUSH(pascal_identifier) ~ (attribute_key_value_pair| attribute_key_value_pair_error)*}
 closing_tag = {"<" ~ "/" ~ POP ~ ">"}
 
 //Describes a (leaf-node) self-closing element, like <SomeElement />
 self_closing_tag = {"<" ~ pascal_identifier ~ (attribute_key_value_pair | attribute_key_value_pair_error)* ~ "/" ~ ">"}
 
-attribute_key_value_pair_error = { (!(attribute_key_value_pair | "/" | ">")  ~ ANY)+}
+attribute_key_value_pair_error = { (!(attribute_key_value_pair | "/" | ">" | "<")  ~ ANY)+}
 
 //Describes an XML subtree surrounded by a pair of matching tags, like
 //<SomeElement>...</SomeElement>
-matched_tag = {open_tag ~ inner_nodes ~ closing_tag}
+matched_tag = {(open_tag | open_tag_error) ~ inner_nodes ~ closing_tag}
 inner_nodes = { node_inner_content | (any_tag_pair | inner_tag_error)* }
 inner_tag_error = {(!(any_tag_pair| "}" | ("<"~"/")  ) ~ ANY)+}
 
