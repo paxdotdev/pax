@@ -1,4 +1,4 @@
-// swift-tools-version: 5.8
+// swift-tools-version: 5.9
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -6,13 +6,17 @@ import PackageDescription
 let package = Package(
     name: "PaxSwiftCommon",
     platforms: [
-        .macOS(.v10_15)
+        .macOS(.v12),
+        .iOS(.v13)
     ],
     products: [
         // Products define the executables and libraries a package produces, making them visible to other packages.
         .library(
             name: "Messages",
             targets: ["Messages"]),
+        .library(
+            name: "Rendering",
+            targets: ["Rendering"]),
         .library(
             name: "FlexBuffers",
             targets: ["FlexBuffers"]),
@@ -24,7 +28,10 @@ let package = Package(
         .target(
             name: "FlexBuffers"),
         .target(
-                name: "Messages",
-                dependencies: ["FlexBuffers"]),
+            name: "Rendering",
+            dependencies: ["Messages"]),
+        .target(
+            name: "Messages",
+            dependencies: ["FlexBuffers"]),
     ]
 )

@@ -9,8 +9,6 @@ homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 include = ["src/**/*","pax-swift-common/**/*"]
 
-# Since there's no actual Rust library or binary in this crate, we make it a "virtual" workspace.
-# This prevents Cargo from expecting any Rust source files.
 [workspace]
 
 [lib]
