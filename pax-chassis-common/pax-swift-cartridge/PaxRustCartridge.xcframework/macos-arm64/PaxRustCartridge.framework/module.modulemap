@@ -1,0 +1,4 @@
+module PaxRustCartridge {
+    header "Headers/PaxRustCartridge.h"
+    export *
+}
