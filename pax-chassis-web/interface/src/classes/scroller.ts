@@ -1,13 +1,14 @@
 // @ts-ignore
-import {PaxChassisWeb} from '../../dist/pax_chassis_web';
 import {OcclusionContext} from "./occlusion-context";
 import {INNER_PANE, SCROLLER_CONTAINER} from "../utils/constants";
 import {ObjectManager} from "../pools/object-manager";
-import {DIV, OBJECT, OCCLUSION_CONTEXT} from "../pools/supported-objects";
+import {DIV, OCCLUSION_CONTEXT} from "../pools/supported-objects";
 import {packAffineCoeffsIntoMatrix3DString} from "../utils/helpers";
 import {ScrollerUpdatePatch} from "./messages/scroller-update-patch";
 import {NativeElementPool} from "./native-element-pool";
 import { ScrollManager } from './scroll-manager';
+
+import type {PaxChassisWeb} from "../types/pax-chassis-web";
 
 export class Scroller {
     private idChain?: number[];

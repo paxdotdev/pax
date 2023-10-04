@@ -1,7 +1,7 @@
+import type {PaxChassisWeb, InitOutput, initSync} from "./types/pax-chassis-web";
+
 // @ts-ignore
-import {PaxChassisWeb, wasm_memory} from '../dist/pax_chassis_web';
 import {ObjectManager} from "./pools/object-manager";
-import {MOUNT_ID} from "./utils/constants";
 import {
     ANY_CREATE_PATCH,
     FRAME_UPDATE_PATCH,
@@ -18,54 +18,95 @@ import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
 import {setupEventListeners} from "./events/listeners";
 import "./styles/pax-web.css";
 
-let initializedChassis = false;
-let is_mobile_device = false;
-
-// Init-once globals for garbage collector optimization
 let objectManager = new ObjectManager(SUPPORTED_OBJECTS);
 let messages : any[];
 let nativePool = new NativeElementPool(objectManager);
 let textDecoder = new TextDecoder();
+let isMobile = false;
+let initializedChassis = false;
 
-// @ts-ignore
-async function startRenderLoop(wasmMod: typeof import('../dist/pax_chassis_web'), mount: Element) {
-    is_mobile_device = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-    let chassis = await wasmMod.PaxChassisWeb.new();
-    nativePool.build(chassis, is_mobile_device);
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount));
+export function mount(selector_or_element: string | Element, extensionlessUrl: string) {
+
+    //Inject CSS
+    let link = document.createElement('link')
+    link.rel = 'stylesheet'
+    link.href = 'pax-chassis-web-interface.css'
+    document.head.appendChild(link)
+
+    let mount: Element;
+    if (typeof selector_or_element === "string") {
+        mount = document.querySelector(selector_or_element) as Element;
+    } else {
+        mount = selector_or_element;
+    }
+
+    // Update to pass wasmUrl to bootstrap function
+    if (mount) {
+        startRenderLoop(extensionlessUrl, mount).then();
+    } else {
+        console.error("Unable to find mount element");
+    }
 }
 
-function renderLoop (chassis: PaxChassisWeb, mount: Element) {
+async function loadWasmModule(extensionlessUrl: string): Promise<{ chassis: PaxChassisWeb, get_latest_memory: ()=>any }> {
+    try {
+        const glueCodeModule = await import(`${extensionlessUrl}.js`) as typeof import("./types/pax-chassis-web");
 
-    //stats.begin();
+        const wasmBinary = await fetch(`${extensionlessUrl}_bg.wasm`);
+        const wasmArrayBuffer = await wasmBinary.arrayBuffer();
+        let _io = glueCodeModule.initSync(wasmArrayBuffer);
+
+        let chassis = glueCodeModule.PaxChassisWeb.new();
+        let get_latest_memory = glueCodeModule.wasm_memory;
+
+        return { chassis, get_latest_memory };
+    } catch (err) {
+        throw new Error(`Failed to load WASM module: ${err}`);
+    }
+}
+
+async function startRenderLoop(extensionlessUrl: string, mount: Element) {
+    try {
+        let {chassis, get_latest_memory} = await loadWasmModule(extensionlessUrl);
+        isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+        nativePool.build(chassis, isMobile, mount);
+        requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory));
+    } catch (error) {
+        console.error("Failed to load or instantiate Wasm module:", error);
+    }
+}
+
+function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: ()=>any) {
     nativePool.sendScrollerValues();
     nativePool.clearCanvases();
 
-    const memorySlice = chassis.tick();
-    const memory = wasm_memory();
-    const memoryBuffer = new Uint8Array(memory.buffer);
+    const memorySliceSpec = chassis.tick();
+    const latestMemory : WebAssembly.Memory = get_latest_memory();
+    const memoryBuffer = new Uint8Array(latestMemory.buffer);
 
     // Extract the serialized data directly from memory
-    const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySlice.ptr(), memorySlice.ptr() + memorySlice.len()));
+    const jsonString = textDecoder.decode(memoryBuffer.subarray(memorySliceSpec.ptr(), memorySliceSpec.ptr() + memorySliceSpec.len()));
     messages = JSON.parse(jsonString);
 
-     if(!initializedChassis){
-         window.addEventListener('resize', () => {
-             let width = window.innerWidth;
-             let height = window.innerHeight;
-             chassis.send_viewport_update(width, height);
-             nativePool.baseOcclusionContext.updateCanvases(width, height);
-         });
-         setupEventListeners(chassis, mount);
-         initializedChassis = true;
-     }
-     //@ts-ignore
+    if(!initializedChassis){
+        let resizeHandler = () => {
+            let width = mount.clientWidth;
+            let height = mount.clientHeight;
+            chassis.send_viewport_update(width, height);
+            nativePool.baseOcclusionContext.updateCanvases(width, height);
+        };
+        window.addEventListener('resize', resizeHandler);
+        resizeHandler();//Fire once manually to init viewport size & occlusion context
+        setupEventListeners(chassis, mount);
+        initializedChassis = true;
+    }
+    //@ts-ignore
     processMessages(messages, chassis, objectManager);
 
-    // //necessary manual cleanup
-    chassis.deallocate(memorySlice);
-    //stats.end();
-    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount))
+    //necessary manual cleanup
+    chassis.deallocate(memorySliceSpec);
+
+    requestAnimationFrame(renderLoop.bind(renderLoop, chassis, mount, get_latest_memory))
 }
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
@@ -116,22 +157,5 @@ export function processMessages(messages: any[], chassis: PaxChassisWeb, objectM
             nativePool.scrollerDelete(msg)
         }
     })
-}
-
-
-// Wasm + TS Bootstrapping boilerplate
-async function bootstrap(mount: Element) {
-    // @ts-ignore
-    startRenderLoop(await import('../dist/pax_chassis_web'), mount);
-}
-
-export function mount(selector_or_element: string | Element) {
-    let mount : Element;
-    if (typeof selector_or_element === "string") {
-        mount = document.querySelector(selector_or_element as string) as Element;
-    } else {
-        mount = selector_or_element as Element;
-    }
-    bootstrap(mount).then();
 }
 

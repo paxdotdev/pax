@@ -7,7 +7,7 @@ use crate::{
     HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
     RenderTreeContext, Runtime,
 };
-use pax_properties_coproduct::{PropertiesCoproduct};
+use pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{CommonProperties, Layer, Size, Timeline};
 

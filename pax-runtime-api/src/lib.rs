@@ -330,10 +330,10 @@ impl Size {
     /// Panics if wrapped type is not a percentage.
     pub fn expect_percent(&self) -> f64 {
         match &self {
-            Size::Percent(val) => {
-                val.get_as_float() / 100.0
-            },
-            _ => {panic!("Percentage value expected but stored value was not a percentage.")}
+            Size::Percent(val) => val.get_as_float() / 100.0,
+            _ => {
+                panic!("Percentage value expected but stored value was not a percentage.")
+            }
         }
     }
 }
@@ -379,9 +379,8 @@ pub struct CommonProperties {
     pub anchor_y: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,
     pub transform: Rc<RefCell<dyn PropertyInstance<Transform2D>>>,
     pub width: Rc<RefCell<dyn PropertyInstance<Size>>>,
-    pub height:Rc<RefCell<dyn PropertyInstance<Size>>>,
+    pub height: Rc<RefCell<dyn PropertyInstance<Size>>>,
 }
-
 
 impl CommonProperties {
     pub fn get_default_properties_literal() -> Vec<(String, String)> {
@@ -389,7 +388,10 @@ impl CommonProperties {
             .iter()
             .map(|id| {
                 if id.0 == "transform" {
-                    (id.0.to_string(), "Transform2D::default_wrapped()".to_string())
+                    (
+                        id.0.to_string(),
+                        "Transform2D::default_wrapped()".to_string(),
+                    )
                 } else if id.0 == "width" || id.0 == "height" {
                     (
                         id.0.to_string(),
@@ -418,7 +420,6 @@ impl CommonProperties {
             ("height".to_string(), "Size".to_string()),
         ]
     }
-
 }
 
 impl Default for CommonProperties {
