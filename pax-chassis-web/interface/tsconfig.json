@@ -7,5 +7,6 @@
     "strict": true,
     "esModuleInterop": true,
     "sourceMap": true,
+    "skipLibCheck": true,
   }
 }

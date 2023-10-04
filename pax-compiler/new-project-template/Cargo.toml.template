@@ -16,7 +16,3 @@ required-features = ["parser"]
 
 [features]
 parser = ["pax-std/parser", "pax-lang/parser", "dep:serde_json", "dep:pax-compiler"]
-
-# The following empty [workspace] directive is a workaround to satisfy
-# a cargo workspace bug, as documented: https://github.com/rust-lang/cargo/issues/6745
-[workspace]

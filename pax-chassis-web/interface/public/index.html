@@ -4,25 +4,17 @@
         <meta charset="utf-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Pax Web</title>
-        <!-- Note that styles are bundled via Webpack into the index.js bundle.  Refer to `@/src/styles/` -->
     </head>
     <body>
         <div id="mount">
         </div>
-        <script src="index.js"></script>
+        <script src="pax-chassis-web-interface.js"></script>
         <script>
-            if (window.Pax instanceof Promise) {
-                window.Pax.then(PaxModule => {
-                    if (typeof PaxModule.mount === 'function') {
-                        PaxModule.mount("#mount");
-                    } else {
-                        console.error("mount function is missing from the Pax module.");
-                    }
-                }).catch(error => {
-                    console.error("Error initializing Pax module:", error);
-                });
+            if (typeof window.Pax.mount === 'function') {
+                const basePath = window.location.origin + window.location.pathname;
+                window.Pax.mount("#mount", basePath + "pax-chassis-web");
             } else {
-                console.error("Pax module failed to load.");
+                console.error("Pax cartridge failed to load or was malformed.");
             }
         </script>
     </body>

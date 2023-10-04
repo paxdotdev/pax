@@ -17,6 +17,10 @@
 
         let (mut ctx, _) = <%= pascal_identifier %>::parse_to_manifest(ctx);
 
+        //Special-case Size, ensure it's imported at least once because it's a built-in but must be surfaced through
+        //the userland project in order to ensure deduping
+        ctx.import_paths.insert(pax_lang::api::Size::get_import_path());
+
         let manifest = pax_compiler::manifest::PaxManifest {
             components: ctx.component_definitions,
             main_component_type_id: ctx.main_component_type_id,

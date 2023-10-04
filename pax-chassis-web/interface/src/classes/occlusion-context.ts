@@ -1,8 +1,10 @@
 // @ts-ignore
-import {PaxChassisWeb} from '../../dist/pax_chassis_web';
 import {Layer} from "./layer";
 import {ObjectManager} from "../pools/object-manager";
 import {ARRAY, LAYER} from "../pools/supported-objects";
+
+import type {PaxChassisWeb} from "../types/pax-chassis-web";
+
 export class OcclusionContext {
     private layers?: Layer[];
     private canvasMap?: Map<string, HTMLCanvasElement>;
@@ -60,8 +62,7 @@ export class OcclusionContext {
                 this.growTo(zIndex);
             }
             element.style.zIndex = String(1000-zIndex);
-            // @ts-ignore
-            this.layers[zIndex].native.prepend(element);
+            this.layers![zIndex]!.native!.prepend(element);
         }
     }
 

@@ -3348,7 +3348,7 @@ Let's determine what needs to be done via three channels:
         [ ] Robust standard library (e.g. form controls)
 [ ] Empirical, personal
     [ ] Want auto-complete or obvious documentation re: the function signatures for event handlers
-    [ ] Want a built-in $ticks for use in PAXEL
+    [ ] Want a built-in $tick for use in PAXEL
 [ ] Empirical, external
     [ ] TODO
 
@@ -3392,3 +3392,92 @@ we can:
               somewhere in codegen?
             Decided to treat as a separate feature
     [x] final cleaning & review
+
+
+
+### On a Pax playground, fork of Rust playground
+
+Tasks
+
+[x] Development environment
+    [x] Vagrant + idempotent backend provisioning script
+    [x] Local dev env + setup scripting
+[x] Web chassis
+    [x] Support runtime wasm loading (instead of static, bundled wasm as per current setup.)
+        This will enable us to introduce path params that override the runtime-loaded wasm file, while falling back to some
+        default when not in the sandbox setting.
+        [x] In the `mount` method, expose an optional fully qualified path for the wasm file.  We can reasonably assume one file per page session / reload for now,
+            so it's OK to do this only at init time in the `mount` method.
+        [x] Handle null case for default loading of some fixed-name file, like `web-cartridge.wasm`.  This should keep e.g. our website working and continue to deliver the "index.html that just works" feature.
+        [x] Handle bundling / packaging — likely we don't need webpack at all for this; we just need to build the typescript project, and that can be done in libdev
+            [x] Refactor webpack / node deps; remove from userland if feasible; figure out libdev build process (bundle built TS => JS; ensure this happens when running pax-example and when publishing to crates.io)
+            [x] Handle need to bundle CSS like we currently do with Webpack
+                Note: not bundling, but assuming a shared-name file and loading it async at init time
+            [x] Ensure that assets are well handled (e.g. images)
+        [x] Stepping back: Loading the _wasm_ separately, as opposed to loading the _glue code js_ separately, feels like the wrong tack.  We need to load some sort of js to manage the wasm glue, and that js may evolve over time, which means we'd be introducing version brittleness if we load _strictly_ the wasm on e.g. the playground.
+            Thus, we should load both the wasm and the accompanying glue code dynamically, based on playground path/url params.
+            In good news, this is still applicable to our "don't foist a bundler on the end-developer" strategy, as wasm-pack outputs both artifacts.  Essentially, we (1) bundle our TS chassis project using esbuild/tsc, then (2) dynamically load the wasm-pack module via glue code based on a passed param (default to a local file; allow overriding for e.g. sandbox loading.)
+            In light of this, an assessment of build tool options:
+            [-] ESBuild — requires either a node dependency to `npm i` binaries, or managing our own pre-built binaries, or requiring a Go dependency to use the Go API, or managing pre-built Go-based dependencies (e.g. with a Rust / FFI wrapper.)
+                    Alt: pre-built binaries are available!  Main drawbacks are (1) need for unix or WSL, and (2) no plugin support.  See https://esbuild.github.io/getting-started/#other-ways-to-install
+                Strengths — can inline wasm into a single JS file, simplifying consumption (especially downstream) — note that this may preclude "pre-bundling" as an alternative to foisting a build tool dependency onto the end-user
+                Weaknesses — doesn't inline CSS out-of-the-box, complicating consumption downstream (could fix with a hacked script or a plugin)
+                Note: we can use ESBuild at libdev time for typescript bundling; see "no userland bundler"
+            [-] Vercel Turbopack
+                Appears somewhat coupled to next.js?  Also appears unfortunately webpack-like, in bad ways (e.g. the config)
+                Built in Rust, which is promising for API consumption — but doesn't appear to have a documented API?
+            [-] SWC - bundle feature appears to be alpha and unsupported (creator was bought by Vercel)
+            [-] bun - threw an error bundling wasm last time we tried; maybe it will get there
+            [x] no userland bundler — the idea is to build a bundle statically at libdev time, including that "built template" in the Pax compiler+CLI, and to splice out the .wasm (assuming an unchanging glue interface)
+                for userland builds.  We would still upload both glue + wasm to CDN, so solve the version problem
+[ ] UI
+    [-] (A) Subtractive approach:
+        [ ] Rip out unnecessary features
+            [ ] Tools
+            [ ] Run > ... menu
+            [ ] Debug / Release menu
+            [ ] Stable / beta / nightly menu
+            [ ] Stable > ... menu
+            [ ] Config
+            [ ] (?) menu
+            [ ] Streamline "Share" to be a single action
+        [ ] Add Pax pane alongside Rust pane
+            [ ] Pass along with Rust code as a separate param
+            [ ] Rehydrate the editors with the correct content based on permalink
+            [ ] UI treatment
+        [ ] Configure CodeMirror (or monaco! or ace!)
+            [x] Decided CodeMirror per replit's published assessment
+            [ ] Rust mode
+            [ ] Pax mode (try ChatGPT)
+    [ ] (B) Additive approach (from scratch) 
+        [ ] Simple React or Pax app (or Svelte app?) —  two panes for input, one pane for rendering output, some sort of UI for stdout and stderr
+        [ ] Configure and embed CodeMirror (based on replit assessment)
+        [ ] In the playground web app, read path params and pass into the pax-chassis-web `mount` method.
+[x] Backend
+    [x] Manage dependencies, probably same whitelist as RP
+    [x] Decide additive or subtractive approach; support simple golden path "pax build --target=web"
+    [x] Simple HTTP server + handlers
+    [ ] Script copying of "warmed up" directory, executing `pax build --target=web`, uploading .wasm and text files to CDN
+[ ] Deployment
+    [ ] Configure ELB & ASG
+        [ ] Declare with Terraform
+        [ ] Script phase-in/phase-out for deployments
+    [ ] Configure S3 + Cloudfront with permalink functionality
+    [ ] Create "AMI-minting" machine
+        [ ] Terraform declaration script
+        [ ] idempotent provisioning script (Terraform + shell?) (decide whether to keep one instance kicking around, or whether to re-init from scratch each time)
+
+Sketch addtl. functionality needed to support "edit this website in playground"
+
+[-] Decision: punt on multiple file support for now; we can link to pre-curated published / shared sandbox sessions with single rs/pax file examples, e.g. a modified version of our website
+    [-] Multiple files
+        [-] Security:
+            [-] Blacklist build.rs
+            [-] Whitelist available crates
+            [-] How to deal with proc macros?  Static analysis?
+            [-] Sandboxed containers — allow the user to perform malicious actions, but firewall their container from other users (e.g. through gVisor + Kubernetes or similar)
+    [-] UI
+        [-] Multiple tabs, maybe file tree view
+    [-] Publish (can start with manual)
+        [-] Manifest for files
+        [-] upload relevant files (lib.rs, website_desktop, website_mobile
