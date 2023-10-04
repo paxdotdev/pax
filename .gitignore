@@ -3,6 +3,7 @@ target/
 vendor/
 
 .swiftpm
+.build
 
 pax-chassis-macos/interface/build
 pax-example/build
