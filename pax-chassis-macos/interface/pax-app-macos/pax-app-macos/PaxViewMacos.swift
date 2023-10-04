@@ -10,7 +10,7 @@ import Foundation
 import FlexBuffers
 import Messages
 import Rendering
-
+import PaxSwiftCartridge
 
 struct PaxViewMacos: View {
 
