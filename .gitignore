@@ -5,6 +5,9 @@ vendor/
 .swiftpm
 .build
 
+
+xcuserdata
+
 pax-chassis-macos/interface/build
 pax-example/build
 pax-example/.pax/

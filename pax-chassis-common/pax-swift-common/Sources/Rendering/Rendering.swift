@@ -2,6 +2,8 @@ import SwiftUI
 import Messages
 
 public struct NativeRenderingLayer: View {
+    
+    public init() {}
 
     @ObservedObject var textElements : TextElements = TextElements.singleton
     @ObservedObject var frameElements : FrameElements = FrameElements.singleton

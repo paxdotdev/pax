@@ -15,12 +15,6 @@ nodes:
     is-directory-structure: true
     content-exclusion-patterns: [".git",".build"]
 commands:
-  "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxRustCartridge.framework":
-    tool: copy-tool
-    inputs: ["/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/PaxRustCartridge.xcframework/macos-arm64/PaxRustCartridge.framework/"]
-    outputs: ["/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxRustCartridge.framework/"]
-    description: "Copying /Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/PaxRustCartridge.xcframework/macos-arm64/PaxRustCartridge.framework"
-
   "<PaxSwiftCartridge-debug.module>":
     tool: phony
     inputs: ["/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.build/Empty.swift.o","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.swiftmodule"]
@@ -28,7 +22,7 @@ commands:
 
   "C.PaxSwiftCartridge-debug.module":
     tool: swift-compiler
-    inputs: ["/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/Sources/PaxSwiftCartridge/Empty.swift","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxRustCartridge.framework/"]
+    inputs: ["/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/Sources/PaxSwiftCartridge/Empty.swift"]
     outputs: ["/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.build/Empty.swift.o","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.swiftmodule"]
     executable: "/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/swiftc"
     module-name: "PaxSwiftCartridge"
@@ -36,7 +30,7 @@ commands:
     import-paths: ["/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug"]
     temps-path: "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.build"
     objects: ["/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.build/Empty.swift.o"]
-    other-args: ["-target","arm64-apple-macosx12.0","-swift-version","5","-enable-batch-mode","-index-store-path","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-g","-j12","-DSWIFT_PACKAGE","-DDEBUG","-I","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/PaxRustCartridge.xcframework/macos-arm64","-Xcc","-I","-Xcc","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/PaxRustCartridge.xcframework/macos-arm64","-module-cache-path","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-F","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug","-emit-objc-header","-emit-objc-header-path","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.build/PaxSwiftCartridge-Swift.h","-color-diagnostics","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.0.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.0.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-fPIC","-package-name","pax_swift_cartridge"]
+    other-args: ["-target","arm64-apple-macosx12.0","-swift-version","5","-enable-batch-mode","-index-store-path","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/index/store","-Onone","-enable-testing","-g","-j12","-DSWIFT_PACKAGE","-DDEBUG","-module-cache-path","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/ModuleCache","-parseable-output","-parse-as-library","-emit-objc-header","-emit-objc-header-path","/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.build/PaxSwiftCartridge-Swift.h","-color-diagnostics","-sdk","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.0.sdk","-F","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-I","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-L","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/usr/lib","-Xcc","-isysroot","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX14.0.sdk","-Xcc","-F","-Xcc","/Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/Library/Frameworks","-Xcc","-fPIC","-package-name","pax_swift_cartridge"]
     sources: ["/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/Sources/PaxSwiftCartridge/Empty.swift"]
     is-library: true
     enable-whole-module-optimization: false

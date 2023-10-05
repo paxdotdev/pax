@@ -12,7 +12,7 @@ let package = Package(
     products: [
         .library(
             name: "PaxSwiftCartridge",
-            targets: ["PaxSwiftCartridge"]
+            targets: ["PaxRustCartridge"]
         ),
     ],
     targets: [
@@ -21,9 +21,7 @@ let package = Package(
             path: "PaxRustCartridge.xcframework"
         ),
         .target(
-            name: "PaxSwiftCartridge",
-//            resources: [.process("Resources")],
-            dependencies: ["PaxRustCartridge"]
+            name: "PaxSwiftCartridge"
         )
     ]
 )
