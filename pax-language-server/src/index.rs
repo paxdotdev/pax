@@ -6,7 +6,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use syn::visit::Visit;
 use syn::{
-    parse_file, spanned::Spanned, Attribute, GenericArgument, ImplItem, Item, ItemImpl, ItemStruct, Meta, NestedMeta, Type,
+    parse_file, spanned::Spanned, Attribute, GenericArgument, ImplItem, Item, ItemImpl, ItemStruct,
+    Meta, NestedMeta, Type,
 };
 use syn::{ItemUse, UseTree};
 
@@ -184,7 +185,9 @@ fn extract_rust_type(ty: &Type) -> String {
         Type::Path(type_path) => {
             if let Some(segment) = type_path.path.segments.last() {
                 if let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments {
-                    let generics: Vec<String> = angle_bracketed.args.iter()
+                    let generics: Vec<String> = angle_bracketed
+                        .args
+                        .iter()
                         .map(|arg| {
                             if let GenericArgument::Type(t) = arg {
                                 t.to_token_stream().to_string()
@@ -199,12 +202,15 @@ fn extract_rust_type(ty: &Type) -> String {
                     segment.ident.to_string()
                 }
             } else {
-                type_path.path.segments.iter()
+                type_path
+                    .path
+                    .segments
+                    .iter()
                     .map(|segment| segment.ident.to_string())
                     .collect::<Vec<_>>()
                     .join("::")
             }
-        },
+        }
         _ => ty.to_token_stream().to_string(),
     }
 }
@@ -218,13 +224,6 @@ struct IndexVisitor<'a> {
 impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
     fn visit_item_struct(&mut self, i: &'ast ItemStruct) {
         let attributes = &i.attrs;
-        let is_pax = attributes
-            .iter()
-            .any(|attr| attr.path.is_ident("derive") && attr.tokens.to_string().contains("Pax"));
-
-        if !is_pax {
-            return;
-        }
 
         let ty = if attributes.iter().any(|attr| {
             attr.path.is_ident("primitive")
@@ -240,27 +239,40 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
             .fields
             .iter()
             .map(|f| {
-                let rust_type_string = extract_rust_type(&f.ty);
-
-                let prop_info = Info {
-                    path: self.file_path.clone(),
-                    position: span_to_position(f.ident.clone().unwrap().span()),
-                    definition_id: None,
-                    hover_id: None,
-                };
-
-                self.requests.push(InfoRequest {
-                    identifier_type: IdentifierType::Property,
-                    identifier: f.ident.clone().unwrap().to_string(),
-                    struct_identifier: Some(i.ident.to_string()),
-                    info: prop_info.clone(),
-                });
-
-                StructProperty {
-                    identifier: f.ident.clone().unwrap().to_string(),
-                    rust_type: rust_type_string,
-                    info: prop_info,
+                let rust_type_string = extract_rust_type(&(f.clone()).ty);
+                if let Some(_) = f.ident.clone() {
+                    let prop_info = Info {
+                        path: self.file_path.clone(),
+                        position: span_to_position(f.ident.clone().unwrap().span()),
+                        definition_id: None,
+                        hover_id: None,
+                    };
+    
+                    self.requests.push(InfoRequest {
+                        identifier_type: IdentifierType::Property,
+                        identifier: f.ident.clone().unwrap().to_string(),
+                        struct_identifier: Some(i.ident.to_string()),
+                        info: prop_info.clone(),
+                    });
+    
+                    StructProperty {
+                        identifier: f.ident.clone().unwrap().to_string(),
+                        rust_type: rust_type_string,
+                        info: prop_info,
+                    }
+                } else {
+                    StructProperty {
+                        identifier: rust_type_string.clone(),
+                        rust_type: rust_type_string.clone(),
+                        info: Info {
+                            path: self.file_path.clone(),
+                            position: span_to_position(f.ty.span()),
+                            definition_id: None,
+                            hover_id: None,
+                        },
+                    }
                 }
+                
             })
             .collect::<Vec<_>>();
 
@@ -287,7 +299,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
             struct_identifier: None,
             info: Info {
                 path: self.file_path.clone(),
-                position: span_to_position(i.span()),
+                position: span_to_position(i.ident.span()),
                 definition_id: None,
                 hover_id: None,
             },
@@ -346,6 +358,5 @@ pub fn index_rust_file(
     };
 
     visitor.visit_file(&parsed_file);
-
     Ok(visitor.requests)
 }
