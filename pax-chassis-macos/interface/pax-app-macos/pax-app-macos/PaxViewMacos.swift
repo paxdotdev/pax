@@ -10,7 +10,8 @@ import Foundation
 import FlexBuffers
 import Messages
 import Rendering
-import PaxRustCartridge
+import PaxCartridgeAssets
+import PaxCartridge
 
 struct PaxViewMacos: View {
 
@@ -239,8 +240,8 @@ struct PaxViewMacos: View {
                     let fileNameWithExtension = url.lastPathComponent
                     let fileExtension = url.pathExtension
                     let fileName = String(fileNameWithExtension.prefix(fileNameWithExtension.count - fileExtension.count - 1))
-
-                    guard let bundleURL = Bundle.main.url(forResource: fileName, withExtension: fileExtension) else {
+                    
+                    guard let bundleURL = Bundle.allBundles.last?.url(forResource: fileName, withExtension: fileExtension) else {
                         throw NSError(domain: "", code: 100, userInfo: [NSLocalizedDescriptionKey : "Image file not found in bundle"])
                     }
 

@@ -11,17 +11,22 @@ let package = Package(
     ],
     products: [
         .library(
-            name: "PaxSwiftCartridge",
-            targets: ["PaxRustCartridge"]
+            name: "PaxCartridge",
+            targets: ["PaxCartridge", "PaxCartridgeAssets"]
+        ),
+        .library(
+            name: "PaxCartridgeAssets",
+            targets: ["PaxCartridgeAssets"]
         ),
     ],
     targets: [
         .binaryTarget(
-            name: "PaxRustCartridge",
-            path: "PaxRustCartridge.xcframework"
+            name: "PaxCartridge",
+            path: "PaxCartridge.xcframework"
         ),
         .target(
-            name: "PaxSwiftCartridge"
+            name: "PaxCartridgeAssets",
+            resources: [.process("Resources")]
         )
     ]
 )

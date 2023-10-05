@@ -1,4 +1,0 @@
-module PaxSwiftCartridge {
-    header "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.build/PaxSwiftCartridge-Swift.h"
-    requires objc
-}
