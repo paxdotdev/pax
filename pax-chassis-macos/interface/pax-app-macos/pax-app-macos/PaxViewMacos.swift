@@ -43,7 +43,13 @@ struct PaxViewMacos: View {
     }
 
     func registerFonts() {
-        guard let resourceURL = Bundle.main.resourceURL else { return }
+
+        let nestedBundleURL = Bundle.main.url(forResource: "PaxSwiftCartridge_PaxCartridgeAssets", withExtension: "bundle")!
+
+        let resourceBundle = Bundle(url: nestedBundleURL)!
+        
+        let resourceURL = resourceBundle.resourceURL!
+        
         let fontFileExtensions = ["ttf", "otf"]
 
         do {
@@ -235,17 +241,23 @@ struct PaxViewMacos: View {
         func handleImageLoad(patch: ImageLoadPatch) {
             Task {
                 do {
-                    let path = patch.path!
-                    let url = URL(fileURLWithPath: path)
+                    let fullPatchPath = patch.path!
+                    let url = URL(fileURLWithPath: fullPatchPath)
                     let fileNameWithExtension = url.lastPathComponent
                     let fileExtension = url.pathExtension
                     let fileName = String(fileNameWithExtension.prefix(fileNameWithExtension.count - fileExtension.count - 1))
-                    
-                    guard let bundleURL = Bundle.allBundles.last?.url(forResource: fileName, withExtension: fileExtension) else {
-                        throw NSError(domain: "", code: 100, userInfo: [NSLocalizedDescriptionKey : "Image file not found in bundle"])
+
+                    guard let nestedBundleURL = Bundle.main.url(forResource: "PaxSwiftCartridge_PaxCartridgeAssets", withExtension: "bundle") else {
+                        throw NSError(domain: "", code: 99, userInfo: [NSLocalizedDescriptionKey : "PaxCartridgeAssets bundle not found in main bundle.  Make sure you have imported PaxCartridgeAssets in Swift."])
                     }
 
-                    guard let image = NSImage(contentsOf: bundleURL) else {
+                    let assetsBundle = Bundle(url: nestedBundleURL)
+                    
+                    guard let imageURL = assetsBundle?.url(forResource: fileName, withExtension: fileExtension) else {
+                        throw NSError(domain: "", code: 100, userInfo: [NSLocalizedDescriptionKey : "Image file not found in nested bundle"])
+                    }
+
+                    guard let image = NSImage(contentsOf: imageURL) else {
                         throw NSError(domain: "", code: 101, userInfo: [NSLocalizedDescriptionKey : "Could not create NSImage from data"])
                     }
 
