@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1417FCA12ACE3EB7002864C9 /* PaxSwiftCartridge in Frameworks */ = {isa = PBXBuildFile; productRef = 1417FCA02ACE3EB7002864C9 /* PaxSwiftCartridge */; };
 		14FDCD492ACC9D690060F532 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD482ACC9D690060F532 /* Main.swift */; };
 		14FDCD4B2ACC9D690060F532 /* PaxViewMacos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */; };
 		14FDCD4D2ACC9D6A0060F532 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */; };
@@ -30,6 +31,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1417FCA12ACE3EB7002864C9 /* PaxSwiftCartridge in Frameworks */,
 				14FDCD5B2ACC9E7B0060F532 /* Messages in Frameworks */,
 				14FDCD592ACC9E7B0060F532 /* FlexBuffers in Frameworks */,
 				14FDCD5D2ACC9E7B0060F532 /* Rendering in Frameworks */,
@@ -95,6 +97,7 @@
 				14FDCD582ACC9E7B0060F532 /* FlexBuffers */,
 				14FDCD5A2ACC9E7B0060F532 /* Messages */,
 				14FDCD5C2ACC9E7B0060F532 /* Rendering */,
+				1417FCA02ACE3EB7002864C9 /* PaxSwiftCartridge */,
 			);
 			productName = "pax-app-macos";
 			productReference = 14FDCD452ACC9D690060F532 /* pax-app-macos.app */;
@@ -369,6 +372,10 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
+		1417FCA02ACE3EB7002864C9 /* PaxSwiftCartridge */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = PaxSwiftCartridge;
+		};
 		14FDCD582ACC9E7B0060F532 /* FlexBuffers */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = FlexBuffers;

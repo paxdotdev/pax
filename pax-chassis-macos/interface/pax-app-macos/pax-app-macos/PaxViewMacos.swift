@@ -10,7 +10,7 @@ import Foundation
 import FlexBuffers
 import Messages
 import Rendering
-import PaxSwiftCartridge
+import PaxRustCartridge
 
 struct PaxViewMacos: View {
 
@@ -27,16 +27,16 @@ struct PaxViewMacos: View {
         }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
                     //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
             let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y);
-                    let buffer = try! FlexBufferBuilder.fromJSON(json)
+                let buffer = try! FlexBufferBuilder.fromJSON(json)
 
-                    //Send `Click` interrupt
-                    buffer.data.withUnsafeBytes({ptr in
-                        var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
+                //Send `Click` interrupt
+                buffer.data.withUnsafeBytes({ptr in
+                    var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
 
-                        withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
-                            pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
-                        }
-                    })
+                    withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
+                        pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+                    }
+                })
         })
 
     }
@@ -69,8 +69,6 @@ struct PaxViewMacos: View {
             print("Error reading font files from resources: \(error)")
         }
     }
-
-
 
 
     class PaxEngineContainer {

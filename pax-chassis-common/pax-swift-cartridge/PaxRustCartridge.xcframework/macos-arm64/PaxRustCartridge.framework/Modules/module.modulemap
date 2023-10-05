@@ -1,0 +1,5 @@
+framework module PaxRustCartridge {
+    umbrella header "../Headers/PaxRustCartridge.h"
+    export *
+    module * { export * }
+}

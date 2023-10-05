@@ -3,20 +3,7 @@
 
   ],
   "copyCommands" : {
-    "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxRustCartridge.framework" : {
-      "inputs" : [
-        {
-          "kind" : "directory",
-          "name" : "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/PaxRustCartridge.xcframework/macos-arm64/PaxRustCartridge.framework"
-        }
-      ],
-      "outputs" : [
-        {
-          "kind" : "directory",
-          "name" : "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxRustCartridge.framework"
-        }
-      ]
-    }
+
   },
   "explicitTargetDependencyImportCheckingMode" : {
     "none" : {
@@ -37,10 +24,6 @@
         {
           "kind" : "file",
           "name" : "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/Sources/PaxSwiftCartridge/Empty.swift"
-        },
-        {
-          "kind" : "directory",
-          "name" : "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxRustCartridge.framework"
         }
       ],
       "isLibrary" : true,
@@ -63,18 +46,10 @@
         "-j12",
         "-DSWIFT_PACKAGE",
         "-DDEBUG",
-        "-I",
-        "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/PaxRustCartridge.xcframework/macos-arm64",
-        "-Xcc",
-        "-I",
-        "-Xcc",
-        "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/PaxRustCartridge.xcframework/macos-arm64",
         "-module-cache-path",
         "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/ModuleCache",
         "-parseable-output",
         "-parse-as-library",
-        "-F",
-        "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug",
         "-emit-objc-header",
         "-emit-objc-header-path",
         "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.build/PaxSwiftCartridge-Swift.h",
@@ -145,18 +120,10 @@
       "-j12",
       "-DSWIFT_PACKAGE",
       "-DDEBUG",
-      "-I",
-      "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/PaxRustCartridge.xcframework/macos-arm64",
-      "-Xcc",
-      "-I",
-      "-Xcc",
-      "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/PaxRustCartridge.xcframework/macos-arm64",
       "-module-cache-path",
       "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/ModuleCache",
       "-parseable-output",
       "-parse-as-library",
-      "-F",
-      "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug",
       "-emit-objc-header",
       "-emit-objc-header-path",
       "/Users/zack/code/pax/pax-chassis-common/pax-swift-cartridge/.build/arm64-apple-macosx/debug/PaxSwiftCartridge.build/PaxSwiftCartridge-Swift.h",
@@ -187,7 +154,7 @@
   },
   "targetDependencyMap" : {
     "PaxSwiftCartridge" : [
-      "PaxRustCartridge"
+
     ]
   },
   "testDiscoveryCommands" : {
