@@ -1240,8 +1240,8 @@ pub fn build_chassis_with_cartridge(
                     .arg("--target")
                     .arg(target_mapping.0)
                     .env("PAX_DIR", &pax_dir)
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::piped());
+                    .stdout(std::process::Stdio::inherit())
+                    .stderr(std::process::Stdio::inherit());
 
                 #[cfg(unix)]
                 unsafe {
@@ -1272,15 +1272,37 @@ pub fn build_chassis_with_cartridge(
                 let _ = fs::copy(&dylib_src, &dylib_dest_pkg);
             }
 
-            //TODO! execute xcodebuild inside pkg/pax-chassis-macos
+            let xcodeproj_path = pax_dir.join(PKG_DIR_NAME)
+                .join("pax-chassis-macos")
+                .join("interface")
+                .join("pax-app-macos")
+                .join("pax-app-macos.xcodeproj");
+
+            let scheme = "pax-app-macos";
+            let configuration = if IS_RELEASE {"Release"} else {"Debug"};
+
+            let build_dest_base = pax_dir.join(BUILD_DIR_NAME).join(BUILD_MODE_NAME);
+            let executable_output_path = build_dest_base.join("app");
+            let _ = fs::create_dir_all(&executable_output_path);
+
+            let mut cmd = Command::new("xcodebuild");
+            cmd.arg("-project")
+                .arg(xcodeproj_path)
+                .arg("-configuration")
+                .arg(configuration)
+                .arg("-scheme")
+                .arg(scheme)
+                .arg(&format!("CONFIGURATION_BUILD_DIR={}", executable_output_path.to_str().unwrap()))
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit());
+
+            let _output = cmd.output().expect("Failed to execute command");
 
             //Copy build artifacts & packages into `build`
             let swift_cart_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-common").join("pax-swift-cartridge");
             let swift_common_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-common").join("pax-swift-common");
             let app_xcodeproj_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-macos").join("interface").join("pax-app-macos");
-            let executable_src = ();
 
-            let build_dest_base = pax_dir.join(BUILD_DIR_NAME).join(BUILD_MODE_NAME);
             let swift_cart_build_dest = build_dest_base.join("pax-chassis-common").join("pax-swift-cartridge");
             let swift_common_build_dest = build_dest_base.join("pax-chassis-common").join("pax-swift-common");
             let app_xcodeproj_build_dest = build_dest_base.join("pax-chassis-macos").join("interface").join("pax-app-macos");
@@ -1299,7 +1321,14 @@ pub fn build_chassis_with_cartridge(
             // Start  `run` rather than a `build`
             if ctx.should_also_run {
                 println!("{} 🐇 Running Pax macOS...", *PAX_BADGE);
-                //TODO: run archive, possibly just the one "precision-copied" into build
+                let executable_path = executable_output_path.join("pax-app-macos.app").join("Contents/MacOS/pax-app-macos");let executable_path = executable_output_path.join("pax-app-macos.app");
+                let binary_path = executable_path.join("Contents/MacOS/pax-app-macos");
+
+                let status = Command::new(binary_path)
+                    .status() // This will wait for the process to complete
+                    .expect("failed to execute the app");
+
+                println!("App exited with: {:?}", status);
             } else {
                 println!("{} 🗂️ Done: {} build available at {}", *PAX_BADGE, BUILD_MODE_NAME, app_xcodeproj_build_dest.to_str().unwrap());
             }
@@ -1323,8 +1352,8 @@ pub fn build_chassis_with_cartridge(
                         .unwrap(),
                 )
                 .env("PAX_DIR", &pax_dir)
-                .stdout(std::process::Stdio::piped())
-                .stderr(std::process::Stdio::piped());
+                .stdout(std::process::Stdio::inherit())
+                .stderr(std::process::Stdio::inherit());
 
             if IS_RELEASE {
                 cmd.arg("--release");
@@ -1368,7 +1397,6 @@ pub fn build_chassis_with_cartridge(
             } else {
                 println!("{} 🗂️ Done: {} build available at {}", *PAX_BADGE, BUILD_MODE_NAME, build_dest.to_str().unwrap());
             }
-
         }
     }
 }
