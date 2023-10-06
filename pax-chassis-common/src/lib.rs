@@ -1,2 +1,1 @@
-// Dummy Rust library for packaging purposes.
-// No-op.
+pub mod core_graphics_c_bridge;

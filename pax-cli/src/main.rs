@@ -227,19 +227,19 @@ fn perform_nominal_action(
                         process_child_ids: Arc::new(Mutex::new(vec![])),
                     };
 
-                    let output = pax_compiler::build_chassis_with_cartridge(
+                    pax_compiler::build_chassis_with_cartridge(
                         &pax_dir,
                         &ctx,
                         process_child_ids,
                     );
 
                     // Forward both stdout and stderr
-                    std::io::stderr()
-                        .write_all(output.stderr.as_slice())
-                        .unwrap();
-                    std::io::stdout()
-                        .write_all(output.stdout.as_slice())
-                        .unwrap();
+                    // std::io::stderr()
+                    //     .write_all(output.stderr.as_slice())
+                    //     .unwrap();
+                    // std::io::stdout()
+                    //     .write_all(output.stdout.as_slice())
+                    //     .unwrap();
 
                     Ok(())
                 }
