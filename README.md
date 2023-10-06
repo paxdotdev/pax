@@ -110,6 +110,18 @@ Read more in [The Pax Docs](https://docs.pax.dev/)
 - Install xcode `>=14.3` and Xcode command line utils: `xcode-select --install`
 - SDK Version `macosx13.3`, Xcode version `>=14.3`
 - Current Minimum Deployment `13.0`
+- Install all necessary build architectures for Rust, so that binaries can be built for both Intel and Apple Silicon macs
+  ```
+  rustup target add aarch64-apple-darwin x86_64-apple-darwin
+  ```
+
+### To build Pax projects as native iOS apps
+
+- Follow instructions for building native macOS apps, above
+- Install all necessary build architectures for Rust, so that binaries can be built for iOS and simulator targets:
+  ```
+  rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim
+  ```
 
 #### Support matrix:
 

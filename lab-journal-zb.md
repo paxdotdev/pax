@@ -3488,16 +3488,25 @@ Sketch addtl. functionality needed to support "edit this website in playground"
 
 We are 90% of the way to supporting iOS, given the shared Swift + CoreGraphics layers with macOS.  Speccing out what's needed to achieve alpha iOS support:
 
-[ ] Split out shared logic into SPM packages
-    [ ] Configure macOS project to consume shared packages; get build working
-[ ] For proactive cleanliness, break out the cartridge (dylib) into a SPM package, so that consuming it is streamlined and simple across macOS / iOS
-    [ ] Wrap all the way from .dylib -> SwiftUI View; this includes creating a .Framework
-    [ ] Consume that exposed View in both macOS & iOS
-[ ] Refactor (or redo, as needed) macos project to consume new deps
+[x] Split out shared logic into SPM packages
+    [x] Configure macOS project to consume shared packages; get build working
+[x] For proactive cleanliness, break out the cartridge (dylib) into a SPM package, so that consuming it is streamlined and simple across macOS / iOS
+    [x] Wrap all the way from .dylib -> SwiftUI View; this includes creating a .Framework
+    [x] Consume that exposed View in both macOS & iOS
+[x] Refactor (or redo, as needed) macos project to consume new deps
 [ ] Extend pax CLI + compiler to support --target=ios, firing up simulator if present on machine
     [ ] Refactor compiler internals to adapt to new cartridge / framework / swift package structure: macOS
-        [ ] Configure pax-chassis-macos/interface/pax-app-macos to load the swift packages as relative dirs
-        [ ] Get e2e build working in-place with pax-chassis-macos (no codegen); embed a placeholder cartridge + resources (bouncing logo?)
-        [ ] After copying everything into .pax, patch (1) resources and (2) the dylib into pax-chassis-common/pax-swift-cartridge, then
+        [x] Configure pax-chassis-macos/interface/pax-app-macos to load the swift packages as relative dirs
+        [x] Get e2e build working in-place with pax-chassis-macos (no codegen); embed a placeholder cartridge + resources (bouncing logo?)
+        [x] After copying everything into .pax, patch (1) resources and (2) the dylib into pax-chassis-common/pax-swift-cartridge, then
         [ ] Build the resulting, patched, codegenned macOS project
+            [ ] Handle architectures: aarch64 and x86_64; bundle into .pax/pkg/pax-chassis-common/pax-swift-cartridge/PaxCartridge.xcframework/
+            [ ] Multi-thread the builds
+            [ ] Handle release vs. debug 
+        [ ] Handle changes in assets; bundle into pax-swift-cartridge Resources
     [ ] Rinse & repeat the above with an iOS container app
+        [ ] Refactor macOS-specific deps, e.g. NS* and CVDisplayLink
+        [ ] Handle build architectures: aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim
+        [ ] Multi-thread the builds
+        [ ] Handle release vs debug
+[ ] Make better default cartridge for default bundling (e.g. bouncing Pax logo)

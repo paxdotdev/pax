@@ -1,21 +1,12 @@
 extern crate core;
 
-use lazy_static::lazy_static;
-
-use include_dir::{include_dir, Dir};
-
 pub mod expressions;
 pub mod manifest;
 pub mod parsing;
 pub mod templating;
 
-use pax_runtime_api::CommonProperties;
-
 use manifest::PaxManifest;
-use rust_format::Formatter;
-
-use fs_extra::dir::{self, CopyOptions};
-use itertools::Itertools;
+use pax_runtime_api::CommonProperties;
 use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
@@ -24,31 +15,53 @@ use std::io::Write;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
 
+use fs_extra::dir::{self, CopyOptions};
+use itertools::Itertools;
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
 use env_logger;
 use flate2::read::GzDecoder;
 use std::net::TcpListener;
 use tar::Archive;
+use rust_format::Formatter;
+
+use lazy_static::lazy_static;
+use include_dir::{include_dir, Dir};
 
 #[cfg(unix)]
-use std::os::unix::process::CommandExt; // For the .pre_exec() method
+use std::os::unix::process::CommandExt;
 
 use crate::manifest::{
     ComponentDefinition, EventDefinition, ExpressionSpec, LiteralBlockDefinition,
     TemplateNodeDefinition, TypeDefinition, TypeTable, ValueDefinition,
 };
+
 use crate::templating::{
     press_template_codegen_cartridge_component_factory,
     press_template_codegen_cartridge_render_node_literal,
     TemplateArgsCodegenCartridgeComponentFactory, TemplateArgsCodegenCartridgeRenderNodeLiteral,
 };
+
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
 use toml_edit::Item;
 
-//relative to pax_dir
-pub const REEXPORTS_PARTIAL_RS_PATH: &str = "reexports.partial.rs";
+lazy_static! {
+    #[allow(non_snake_case)]
+    static ref PAX_BADGE: ColoredString = "[Pax]".bold().on_black().white();
+
+    static ref DIR_IGNORE_LIST_MACOS : Vec<&'static str> = vec!["target", ".build", ".git"];
+    static ref DIR_IGNORE_LIST_WEB : Vec<&'static str> = vec![".git"];
+}
+
+static PAX_CREATE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/new-project-template");
+
+const PAX_CREATE_TEMPLATE_DIR_NAME: &str = "new-project-template";
+const PKG_DIR_NAME: &str = "pkg";
+const BUILD_DIR_NAME : &str = "build";
+const PUBLIC_DIR_NAME: &str = "public";
+const ASSETS_DIR_NAME: &str = "assets";
+const REEXPORTS_PARTIAL_FILE_NAME: &str = "reexports.partial.rs";
 
 //whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
 //or for looking up package IDs from a userland Cargo.lock.
@@ -68,73 +81,24 @@ const ALL_PKGS: [&'static str; 13] = [
     "pax-std",
 ];
 
-/// Returns a sorted and de-duped list of combined_reexports.
-fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
-    let imports = manifest.import_paths.clone().into_iter().sorted().collect();
 
-    let file_contents = &bundle_reexports_into_namespace_string(&imports);
 
-    let path = pax_dir.join(Path::new(REEXPORTS_PARTIAL_RS_PATH));
-    fs::write(path, file_contents).unwrap();
-}
-
-fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
-    let mut root = NamespaceTrieNode {
-        node_string: None,
-        children: Default::default(),
-    };
-
-    for s in sorted_reexports {
-        root.insert(s);
-    }
-
-    root.serialize_to_reexports()
-}
-
-fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
-    let mut updated_type_table = HashMap::new();
-    manifest.type_table.iter_mut().for_each(|t| {
-        t.1.type_id_escaped = t.1.type_id_escaped.replace("{PREFIX}", "");
-        t.1.type_id =
-            t.1.type_id
-                .replace("{PREFIX}", &host_crate_info.import_prefix);
-        t.1.property_definitions.iter_mut().for_each(|pd| {
-            pd.type_id = pd
-                .type_id
-                .replace("{PREFIX}", &host_crate_info.import_prefix);
-        });
-        updated_type_table.insert(
-            t.0.replace("{PREFIX}", &host_crate_info.import_prefix),
-            t.1.clone(),
-        );
-    });
-    std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
-}
-
-// The stable output directory for generated / copied files
-const PAX_DIR_PKG_PATH: &str = "pkg";
 
 fn clone_all_dependencies_to_tmp(
     pax_dir: &PathBuf,
     pax_version: &Option<String>,
     ctx: &RunContext,
 ) {
-    let dest_pkg_root = pax_dir.join(PAX_DIR_PKG_PATH);
+    let dest_pkg_root = pax_dir.join(PKG_DIR_NAME);
     for pkg in ALL_PKGS {
         if ctx.is_libdev_mode {
             //Copy all packages from monorepo root on every build.  this allows us to propagate changes
             //to a libdev build without "sticky caches."
-            //
-            //Note that this may incur a penalty on libdev build times,
-            //since cargo will want to rebuild the whole workspace from scratch on every build.  If we want to optimize this,
-            //consider a "double buffered" approach, where we copy everything into a fresh new buffer (B), call it `.pax/pkg-tmp`, while leaving (A) `.pax/pkg`
-            //unchanged on disk.  Bytewise check each file found in B against a prospective match in A, and copy only if different.  (B) could also be stored on a virtual
-            //FS in memory, to reduce disk churn.
             let pax_workspace_root = pax_dir.parent().unwrap().parent().unwrap();
             let src = pax_workspace_root.join(pkg);
             let dest = dest_pkg_root.join(pkg);
 
-            copy_dir_to(&src, &dest)
+            copy_dir_recursively(&src, &dest, &DIR_IGNORE_LIST_MACOS)
                 .expect(&format!("Failed to copy from {:?} to {:?}", src, dest));
         } else {
             let dest = dest_pkg_root.join(pkg);
@@ -191,13 +155,56 @@ fn clone_all_dependencies_to_tmp(
     }
 }
 
+/// Returns a sorted and de-duped list of combined_reexports.
+fn generate_reexports_partial_rs(pax_dir: &PathBuf, manifest: &PaxManifest) {
+    let imports = manifest.import_paths.clone().into_iter().sorted().collect();
+
+    let file_contents = &bundle_reexports_into_namespace_string(&imports);
+
+    let path = pax_dir.join(Path::new(REEXPORTS_PARTIAL_FILE_NAME));
+    fs::write(path, file_contents).unwrap();
+}
+
+fn bundle_reexports_into_namespace_string(sorted_reexports: &Vec<String>) -> String {
+    let mut root = NamespaceTrieNode {
+        node_string: None,
+        children: Default::default(),
+    };
+
+    for s in sorted_reexports {
+        root.insert(s);
+    }
+
+    root.serialize_to_reexports()
+}
+
+fn update_property_prefixes_in_place(manifest: &mut PaxManifest, host_crate_info: &HostCrateInfo) {
+    let mut updated_type_table = HashMap::new();
+    manifest.type_table.iter_mut().for_each(|t| {
+        t.1.type_id_escaped = t.1.type_id_escaped.replace("{PREFIX}", "");
+        t.1.type_id =
+            t.1.type_id
+                .replace("{PREFIX}", &host_crate_info.import_prefix);
+        t.1.property_definitions.iter_mut().for_each(|pd| {
+            pd.type_id = pd
+                .type_id
+                .replace("{PREFIX}", &host_crate_info.import_prefix);
+        });
+        updated_type_table.insert(
+            t.0.replace("{PREFIX}", &host_crate_info.import_prefix),
+            t.1.clone(),
+        );
+    });
+    std::mem::swap(&mut manifest.type_table, &mut updated_type_table);
+}
+
 fn generate_and_overwrite_properties_coproduct(
     pax_dir: &PathBuf,
     manifest: &PaxManifest,
     host_crate_info: &HostCrateInfo,
 ) {
     let target_dir = pax_dir
-        .join(PAX_DIR_PKG_PATH)
+        .join(PKG_DIR_NAME)
         .join("pax-properties-coproduct");
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
@@ -315,7 +322,7 @@ fn generate_and_overwrite_cartridge(
     manifest: &PaxManifest,
     host_crate_info: &HostCrateInfo,
 ) {
-    let target_dir = pax_dir.join(PAX_DIR_PKG_PATH).join("pax-cartridge");
+    let target_dir = pax_dir.join(PKG_DIR_NAME).join("pax-cartridge");
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents =
@@ -392,38 +399,6 @@ fn generate_and_overwrite_cartridge(
 
     let consts = vec![]; //TODO!
 
-    //Traverse component tree starting at root
-    //build a N/PIT in memory for each component (maybe this can be automatically serialized for component factories?)
-    // handle each kind of attribute:
-    //   Literal(String),
-    //      inline into N/PIT
-    //   Expression(String),
-    //      pencil in the ID; handle the expression separately (build ExpressionSpec & friends)
-    //   Identifier(String),
-    //      syntactic sugar for an expression with a single dependency, returning that dependency
-    //   EventBindingTarget(String),
-    //      ensure this gets added to the HandlerRegistry for this component; rely on ugly error messages for now
-    //
-    // for serialization to RIL, generate InstantiationArgs for each node, special-casing built-ins like Repeat, Slot
-    //
-    // Also decide whether to join settings blocks in this work
-    //
-    // Compile expressions during traversal, keeping track of "compile-time stack" for symbol resolution
-    //   If `const` is bit off for this work, must first populate symbols via pax_const => PaxManifest
-    //     -- must also choose scoping rules; probably just component-level scoping for now
-    //
-    // Throw errors when symbols in expressions cannot be resolved; ensure path forward to developer-friendly error messages
-    //     For reference, Rust's message is:
-    //  error[E0425]: cannot find value `not_defined` in this scope
-    //         --> pax-compiler/src/main.rs:404:13
-    //          |
-    //      404 |     let y = not_defined + 6;
-    //          |             ^^^^^^^^^^^ not found in this scope
-    //     Python uses:
-    // NameError: name 'z' is not defined
-    //     JavaScript uses:
-    // Uncaught ReferenceError: not_defined is not defined
-
     let mut expression_specs: Vec<ExpressionSpec> = manifest
         .expression_specs
         .as_ref()
@@ -451,8 +426,7 @@ fn generate_and_overwrite_cartridge(
         },
     );
 
-    // Re: formatting the generated output, see prior art at `_format_generated_lib_rs`
-    //write String to file
+    // Re: formatting the generated Rust code, see prior art at `_format_generated_lib_rs`
     fs::write(target_dir.join("src/lib.rs"), generated_lib_rs).unwrap();
 }
 
@@ -1044,11 +1018,6 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
     tracked_version.ok_or("Cannot build a Pax project without a `pax-*` dependency somewhere in your project's dependency graph.  Add e.g. `pax-lang` to your Cargo.toml to resolve this error.")
 }
 
-lazy_static! {
-    #[allow(non_snake_case)]
-    static ref PAX_BADGE: ColoredString = "[Pax]".bold().on_black().white();
-}
-
 /// For the specified file path or current working directory, first compile Pax project,
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
@@ -1101,44 +1070,6 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
     build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
 
-    if ctx.should_also_run {
-        //8a::run: compile and run `interface`, with freshly built chassis plugged in
-        println!(
-            "{} 🐇 Running Pax {}...",
-            *PAX_BADGE,
-            <&RunTarget as Into<&str>>::into(&ctx.target)
-        );
-    } else {
-        //8b::compile: compile and write executable binary / package to disk at specified or implicit path
-        println!(
-            "{} 🛠 Compiling executable package for {}...",
-            *PAX_BADGE,
-            <&RunTarget as Into<&str>>::into(&ctx.target)
-        );
-    }
-    build_interface_with_chassis(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
-
-    Ok(())
-}
-
-fn copy_dir_to(src_dir: &Path, dst_dir: &Path) -> std::io::Result<()> {
-    if !dst_dir.exists() {
-        fs::create_dir_all(dst_dir)?;
-    }
-
-    for entry_result in fs::read_dir(src_dir)? {
-        let entry = entry_result?;
-        let file_type = entry.file_type()?;
-        let src_path = entry.path();
-        let dst_path = dst_dir.join(entry.file_name());
-
-        if file_type.is_dir() {
-            copy_dir_to(&src_path, &dst_path)?;
-        } else {
-            fs::copy(&src_path, &dst_path)?;
-        }
-    }
-
     Ok(())
 }
 
@@ -1184,95 +1115,21 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
     runtime
 }
 
-fn build_interface_with_chassis(
-    pax_dir: &PathBuf,
-    ctx: &RunContext,
-    process_child_ids: Arc<Mutex<Vec<u64>>>,
-) {
-    let target_str: &str = ctx.target.borrow().into();
-    let target_str_lower: &str = &target_str.to_lowercase();
-
-    let interface_path = pax_dir
-        .join(PAX_DIR_PKG_PATH)
-        .join(format!("pax-chassis-{}", target_str_lower))
-        .join(match ctx.target {
-            RunTarget::Web => "interface",
-            RunTarget::MacOS => "interface",
-        });
-
-    let is_web = if let RunTarget::Web = ctx.target {
-        true
-    } else {
-        false
-    };
-
-    let target_folder: &str = ctx.target.borrow().into();
-
-    let output_path = pax_dir.join("build").join(target_folder);
-    let output_path_str = output_path.to_str().unwrap();
-
-    std::fs::create_dir_all(&output_path).ok();
-
-    let verbose_val = format!("{}", ctx.verbose);
-    let exclude_arch_val = if std::env::consts::ARCH == "aarch64" {
-        "x86_64"
-    } else {
-        "arm64"
-    };
-    if is_web {
-        let asset_src = pax_dir.join("..").join("assets");
-        let asset_dest = interface_path.join("public").join("assets");
-
-        // Create target assets directory
-        if let Err(e) = fs::create_dir_all(&asset_dest) {
-            eprintln!("Error creating directory {:?}: {}", asset_dest, e);
-        }
-        // Perform recursive copy from userland `assets/` to built `assets/`
-        if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest) {
-            eprintln!("Error copying assets: {}", e);
-        }
-
-        // Start local server if this is a `run` rather than a `build`
-        if ctx.should_also_run {
-            let _ = start_static_http_server(interface_path.join("public"));
-        }
-    } else {
-        let script = "./run-debuggable-mac-app.sh";
-        let should_also_run = &format!("{}", ctx.should_also_run);
-        let mut cmd = Command::new(script);
-        cmd.current_dir(&interface_path)
-            .arg(verbose_val)
-            .arg(exclude_arch_val)
-            .arg(should_also_run)
-            .arg(output_path_str)
-            .stdout(std::process::Stdio::inherit())
-            .stderr(if ctx.verbose {
-                std::process::Stdio::inherit()
-            } else {
-                std::process::Stdio::piped()
-            });
-
-        #[cfg(unix)]
-        unsafe {
-            cmd.pre_exec(pre_exec_hook);
-        }
-
-        let child = cmd.spawn().expect("failed to spawn child");
-        // child.stdin.take().map(drop);
-        let _output = wait_with_output(&process_child_ids, child);
-    }
-}
-
-fn copy_dir_recursively(src: &Path, dest: &Path) -> Result<(), Box<dyn std::error::Error>> {
+fn copy_dir_recursively(src: &Path, dest: &Path, ignore_list: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
     if src.is_dir() {
-        // If source is a directory, create the corresponding directory in the destination,
+        // If the directory name is in the ignore list, we skip this directory
+        if ignore_list.contains(&src.file_name().unwrap().to_str().unwrap()) {
+            return Ok(());
+        }
+
+        // Create the corresponding directory in the destination,
         // and copy its contents recursively
         fs::create_dir_all(dest)?;
         for entry in fs::read_dir(src)? {
             let entry = entry?;
             let path = entry.path();
             let dest_child = dest.join(path.file_name().ok_or("Invalid file name")?);
-            copy_dir_recursively(&path, &dest_child)?;
+            copy_dir_recursively(&path, &dest_child, ignore_list)?;
         }
     } else {
         // If source is a file, just copy it to the destination
@@ -1296,14 +1153,37 @@ pub fn build_chassis_with_cartridge(
     pax_dir: &PathBuf,
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
-) -> Output {
+) {
+
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
     let pax_dir = PathBuf::from(pax_dir.to_str().unwrap());
     let chassis_path = pax_dir
-        .join(PAX_DIR_PKG_PATH)
+        .join(PKG_DIR_NAME)
         .join(format!("pax-chassis-{}", target_str_lower));
+
+
+    //approximate `should_also_run` as "dev build," `!should_also_run` as prod.
+    //we can improve this with an explicit `--release` flag in the Pax CLI
+    #[allow(non_snake_case)]
+    let IS_RELEASE: bool = !ctx.should_also_run;
+    #[allow(non_snake_case)]
+    let BUILD_MODE_NAME : &str = if IS_RELEASE {"release"} else {"debug"};
+
+    let interface_path = pax_dir
+        .join(PKG_DIR_NAME)
+        .join(format!("pax-chassis-{}", target_str_lower))
+        .join(match ctx.target {
+            RunTarget::Web => "interface",
+            RunTarget::MacOS => "interface",
+        });
+
+    let is_web = if let RunTarget::Web = ctx.target {
+        true
+    } else {
+        false
+    };
 
     //Inject `patch` directive, which allows userland projects to refer to concrete versions like `0.4.0`, while we
     //swap them for our locally cloned filesystem versions during compilation.
@@ -1330,30 +1210,103 @@ pub fn build_chassis_with_cartridge(
         .unwrap();
     }
 
+    let target_folder: &str = ctx.target.borrow().into();
+
+    let output_path = pax_dir.join("build").join(target_folder);
+    let output_path_str = output_path.to_str().unwrap();
+
+    std::fs::create_dir_all(&output_path).ok();
+
     //string together a shell call to build our chassis, with cartridge inserted via `patch`
     match target {
         RunTarget::MacOS => {
-            let mut cmd = Command::new("cargo");
-            cmd.current_dir(&chassis_path)
-                .arg("build")
-                .arg("--color")
-                .arg("always")
-                .env("PAX_DIR", &pax_dir)
-                .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit());
 
-            #[cfg(unix)]
-            unsafe {
-                cmd.pre_exec(pre_exec_hook);
+            //0: Rust arch string, for passing to cargo
+            //1: Apple arch string, for addressing xcframework
+            const TARGET_MAPPINGS: &[(&str, &str)] = &[
+                ("aarch64-apple-darwin", "macos-arm64"),
+                ("x86_64-apple-darwin", "macos-x86_64"),
+                // ("aarch64-apple-ios", "ios-arm64"),
+                // ("x86_64-apple-ios", "ios-x86_64"),
+                // ("aarch64-apple-ios-sim", "ios-simulator-arm64"),
+            ];
+
+            for target_mapping in TARGET_MAPPINGS {
+                let mut cmd = Command::new("cargo");
+                cmd.current_dir(&chassis_path)
+                    .arg("build")
+                    .arg("--color")
+                    .arg("always")
+                    .arg("--target")
+                    .arg(target_mapping.0)
+                    .env("PAX_DIR", &pax_dir)
+                    .stdout(std::process::Stdio::piped())
+                    .stderr(std::process::Stdio::piped());
+
+                #[cfg(unix)]
+                unsafe {
+                    cmd.pre_exec(pre_exec_hook);
+                }
+
+                let child = cmd.spawn().expect("failed to spawn child");
+
+                //Execute `cargo build`, which generates our dylib
+                let _output = wait_with_output(&process_child_ids, child);
+
+                //Copy architecture-specific dylib from Cargo build dir into
+                //SPM>xcframework>framework architecture-specific bundle for Swift
+                let dylib_src = chassis_path.join("target")
+                    .join(target_mapping.0)
+                    .join(BUILD_MODE_NAME)
+                    .join("libpaxchassismacos.dylib");
+
+                let dylib_dest_pkg = pax_dir
+                    .join(PKG_DIR_NAME)
+                    .join("pax-chassis-common")
+                    .join("pax-swift-cartridge")
+                    .join("PaxCartridge.xcframework")
+                    .join(target_mapping.1)
+                    .join("PaxCartridge.framework")
+                    .join("PaxCartridge");
+
+                let _ = fs::copy(&dylib_src, &dylib_dest_pkg);
             }
 
-            let child = cmd.spawn().expect("failed to spawn child");
-            // child.stdin.take().map(drop);
-            let output = wait_with_output(&process_child_ids, child);
+            //TODO! execute xcodebuild inside pkg/pax-chassis-macos
 
-            output
+            //Copy build artifacts & packages into `build`
+            let swift_cart_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-common").join("pax-swift-cartridge");
+            let swift_common_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-common").join("pax-swift-common");
+            let app_xcodeproj_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-macos").join("interface").join("pax-app-macos");
+            let executable_src = ();
+
+            let build_dest_base = pax_dir.join(BUILD_DIR_NAME).join(BUILD_MODE_NAME);
+            let swift_cart_build_dest = build_dest_base.join("pax-chassis-common").join("pax-swift-cartridge");
+            let swift_common_build_dest = build_dest_base.join("pax-chassis-common").join("pax-swift-common");
+            let app_xcodeproj_build_dest = build_dest_base.join("pax-chassis-macos").join("interface").join("pax-app-macos");
+            let executable_dest = build_dest_base.clone();
+
+            let _ = fs::create_dir_all(&swift_cart_build_dest);
+            let _ = fs::create_dir_all(&swift_common_build_dest);
+            let _ = fs::create_dir_all(&app_xcodeproj_build_dest);
+
+            let _ = copy_dir_recursively(&swift_cart_src, &swift_cart_build_dest, &DIR_IGNORE_LIST_MACOS);
+            let _ = copy_dir_recursively(&swift_common_src, &swift_common_build_dest, &DIR_IGNORE_LIST_MACOS);
+            let _ = copy_dir_recursively(&app_xcodeproj_src, &app_xcodeproj_build_dest, &DIR_IGNORE_LIST_MACOS);
+            //TODO! precision-copy the built mac executable into the build_dest_base
+            // let _ = fs::copy(&executable_src, &executable_dest)
+
+            // Start  `run` rather than a `build`
+            if ctx.should_also_run {
+                println!("{} 🐇 Running Pax macOS...", *PAX_BADGE);
+                //TODO: run archive, possibly just the one "precision-copied" into build
+            } else {
+                println!("{} 🗂️ Done: {} build available at {}", *PAX_BADGE, BUILD_MODE_NAME, app_xcodeproj_build_dest.to_str().unwrap());
+            }
+
         }
         RunTarget::Web => {
+
             let mut cmd = Command::new("wasm-pack");
             cmd.current_dir(&chassis_path)
                 .arg("build")
@@ -1370,14 +1323,13 @@ pub fn build_chassis_with_cartridge(
                         .unwrap(),
                 )
                 .env("PAX_DIR", &pax_dir)
-                .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit());
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped());
 
-            //approximate `should_also_run` as "dev build," `!should_also_run` as prod
-            if ctx.should_also_run {
-                cmd.arg("--dev");
-            } else {
+            if IS_RELEASE {
                 cmd.arg("--release");
+            } else {
+                cmd.arg("--dev");
             }
 
             #[cfg(unix)]
@@ -1386,16 +1338,40 @@ pub fn build_chassis_with_cartridge(
             }
 
             let child = cmd.spawn().expect("failed to spawn child");
-            // child.stdin.take().map(drop);
-            let output = wait_with_output(&process_child_ids, child);
 
-            output
+            // Execute wasm-pack build
+            let _output = wait_with_output(&process_child_ids, child);
+
+            // Copy assets
+            let asset_src = pax_dir.join("..").join(ASSETS_DIR_NAME);
+            let asset_dest = interface_path.join(PUBLIC_DIR_NAME).join(ASSETS_DIR_NAME);
+
+            // Create target assets directory
+            if let Err(e) = fs::create_dir_all(&asset_dest) {
+                eprintln!("Error creating directory {:?}: {}", asset_dest, e);
+            }
+
+            // Perform recursive copy from userland `assets/` to built `assets/`
+            if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest, &vec![]) {
+                eprintln!("Error copying assets: {}", e);
+            }
+
+            //Copy fully built project into .pax/build/web, ready for e.g. publishing
+            let build_src = interface_path.join(PUBLIC_DIR_NAME).join(BUILD_MODE_NAME);
+            let build_dest = pax_dir.join(BUILD_DIR_NAME).join(BUILD_MODE_NAME).join("web");
+            let _ = copy_dir_recursively(&build_src, &build_dest, &DIR_IGNORE_LIST_WEB);
+
+            // Start local server if this is a `run` rather than a `build`
+            if ctx.should_also_run {
+                println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
+                let _ = start_static_http_server(interface_path.join(PUBLIC_DIR_NAME));
+            } else {
+                println!("{} 🗂️ Done: {} build available at {}", *PAX_BADGE, BUILD_MODE_NAME, build_dest.to_str().unwrap());
+            }
+
         }
     }
 }
-
-static PAX_CREATE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/new-project-template");
-const PAX_CREATE_TEMPLATE_DIR_NAME: &str = "new-project-template";
 
 pub fn perform_create(ctx: &CreateContext) {
     let full_path = Path::new(&ctx.path);
