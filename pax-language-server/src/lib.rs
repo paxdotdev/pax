@@ -4,14 +4,15 @@ use lsp_types::request::Request;
 use pax_compiler::parsing::{self, PaxParser, Rule};
 use pest::Parser;
 use positional::{
-    extract_positional_nodes, find_nodes_at_position, find_priority_node, find_relevant_tag,
-    NodeType, PositionalNode, find_relevant_ident,
+    extract_positional_nodes, find_nodes_at_position, find_priority_node, find_relevant_ident,
+    find_relevant_tag, NodeType, PositionalNode,
 };
 use serde::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
 use syn::parse;
+use tower_lsp::jsonrpc::Error;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
@@ -19,20 +20,20 @@ use tower_lsp::{Client, LanguageServer, LspService, Server};
 mod index;
 use index::{
     extract_import_positions, find_rust_file_with_macro, index_rust_file, IdentifierInfo,
-    IdentifierType, InfoRequest, Info,
+    IdentifierType, Info, InfoRequest,
 };
 
 mod positional;
 
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::time::Duration;
 
 extern crate pest;
 use pest::iterators::{Pair, Pairs};
 use pest_derive::Parser;
 
 use pest::pratt_parser::{Assoc, Op, PrattParser};
+use tokio::time::{sleep, Duration};
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SymbolLocationParams {
@@ -103,6 +104,8 @@ struct Backend {
     workspace_root: Arc<Mutex<Option<Url>>>,
     rust_file_opened: Arc<Mutex<bool>>,
     pax_ast_cache: Arc<DashMap<String, Vec<PositionalNode>>>,
+    debounce_last_change: Arc<Mutex<std::time::Instant>>,
+    debounce_last_save: Arc<Mutex<std::time::Instant>>,
 }
 
 impl Backend {
@@ -159,7 +162,7 @@ impl Backend {
             }
 
             match &info_request.identifier_type {
-                IdentifierType::Component | IdentifierType::PaxType => {
+                IdentifierType::Component | IdentifierType::PaxType | IdentifierType::Enum => {
                     if let Some(mut identifier_info) =
                         component.identifier_map.remove(&info_request.identifier)
                     {
@@ -172,7 +175,7 @@ impl Backend {
                 IdentifierType::Property => {
                     if let Some(mut struct_info) = component
                         .identifier_map
-                        .remove(&(&info_request).struct_identifier.clone().unwrap())
+                        .remove(&(&info_request).owner_identifier.clone().unwrap())
                     {
                         if let Some(property) = struct_info
                             .1
@@ -183,7 +186,7 @@ impl Backend {
                             property.info = new_info;
                         }
                         component.identifier_map.insert(
-                            (&info_request).struct_identifier.clone().unwrap().clone(),
+                            (&info_request).owner_identifier.clone().unwrap().clone(),
                             struct_info.1,
                         );
                     }
@@ -191,7 +194,7 @@ impl Backend {
                 IdentifierType::Method => {
                     if let Some(mut struct_info) = component
                         .identifier_map
-                        .remove(&(&info_request).struct_identifier.clone().unwrap())
+                        .remove(&(&info_request).owner_identifier.clone().unwrap())
                     {
                         if let Some(method) = struct_info
                             .1
@@ -202,8 +205,27 @@ impl Backend {
                             method.info = new_info;
                         }
                         component.identifier_map.insert(
-                            (&info_request).struct_identifier.clone().unwrap().clone(),
+                            (&info_request).owner_identifier.clone().unwrap().clone(),
                             struct_info.1,
+                        );
+                    }
+                }
+                IdentifierType::EnumVariant => {
+                    if let Some(mut enum_info) = component
+                        .identifier_map
+                        .remove(&(&info_request).owner_identifier.clone().unwrap())
+                    {
+                        if let Some(variant) = enum_info
+                            .1
+                            .variants
+                            .iter_mut()
+                            .find(|prop| prop.identifier == info_request.identifier)
+                        {
+                            variant.info = new_info;
+                        }
+                        component.identifier_map.insert(
+                            (&info_request).owner_identifier.clone().unwrap().clone(),
+                            enum_info.1,
                         );
                     }
                 }
@@ -217,7 +239,6 @@ impl Backend {
         rust_file_path: PathBuf,
         component_name: String,
     ) {
-
         // Create an empty identifier_map for the new component
         let identifier_map: DashMap<String, IdentifierInfo> = DashMap::new();
 
@@ -256,9 +277,6 @@ impl Backend {
 
         // Extract import positions
         let positions = extract_import_positions(&rust_file_path);
-        self.client
-        .log_message(MessageType::INFO, format!("{:?}", positions))
-        .await;
         for position in positions {
             let symbol_data = SymbolData {
                 uri: rust_file_path.to_string_lossy().to_string(),
@@ -269,44 +287,22 @@ impl Backend {
                 symbol: symbol_data,
             };
 
-            // Send the request and log the response
+            // Get import locations and index files
             match self
                 .client
                 .send_request::<GetDefinitionRequest>(params)
                 .await
             {
                 Ok(response) => {
-                    let mut unique_uris = HashSet::new();
                     for location_link in response.locations {
                         let target_uri = location_link.target_uri;
                         let path = target_uri.clone().path().to_string();
-                        if unique_uris.contains(&path) {
-                            self.client.log_message(MessageType::INFO, format!("Duplicate path found: {}", path)).await;
-                            continue;
-                        } else {
-                            self.client.log_message(MessageType::INFO, format!("non dup path found: {}", path)).await;
-                            unique_uris.insert(path.clone());
-                        }
-                        
-                        self.client
-                            .log_message(
-                                MessageType::INFO,
-                                format!("new path: {:?}", path),
-                            )
-                            .await;
-                        self.client
-                            .log_message(
-                                MessageType::INFO,
-                                format!("import uri: {:?}", target_uri),
-                            )
-                            .await;
-                    
                         let target_file = target_uri
                             .to_file_path()
-                            .expect("Failed to convert URI to path chill")
+                            .expect("Failed to convert URI to path")
                             .to_string_lossy()
                             .to_string();
-                    
+
                         let path = pax_file.to_string();
                         let backend_clone = self.clone();
                         tokio::spawn(async move {
@@ -316,8 +312,8 @@ impl Backend {
                 }
                 Err(e) => {
                     self.client
-                    .log_message(MessageType::INFO, format!("error couldnt look up imports"))
-                    .await;
+                        .log_message(MessageType::INFO, format!("Error couldnt look up imports"))
+                        .await;
                     eprintln!("Error sending request: {:?}", e);
                 }
             }
@@ -388,29 +384,37 @@ impl Backend {
             }
         }
     }
-
     async fn hover_id(&self, params: HoverParams) -> Result<Option<u32>> {
-        let uri = params
-            .text_document_position_params
-            .text_document
-            .uri
-            .path();
+        let uri_obj = &params.text_document_position_params.text_document.uri;
+        let uri_path = uri_obj.path();
         let pos = &params.text_document_position_params.position;
 
-        if let Some(info) = self.get_info(uri, pos) {
+        if uri_path.ends_with(".pax") && !self.pax_map.contains_key(uri_path) {
+            self.process_pax_file(uri_obj).await;
+
+            // Convert the Url to a file path and read its contents
+            let file_path = uri_obj
+                .to_file_path()
+                .map_err(|_| Error::invalid_params(format!("Invalid URI: {}", uri_obj)))?;
+            let file_content = std::fs::read_to_string(&file_path).map_err(|err| {
+                Error::invalid_params(format!("Failed to read {}: {}", file_path.display(), err))
+            })?;
+
+            let _ = self.parse_and_cache_pax_file(&file_content, uri_obj.clone());
+        }
+
+        if let Some(info) = self.get_info(uri_path, pos) {
             if let Some(id) = info.hover_id {
                 return Ok(Some(id as u32));
             }
         }
+
         Ok(None)
     }
 
-
-
-    fn get_info(&self, uri: &str, pos: &Position) -> Option<Info>{
+    fn get_info(&self, uri: &str, pos: &Position) -> Option<Info> {
         if let Some(component) = self.pax_map.get(uri) {
             if let Some(cached_nodes) = self.pax_ast_cache.get(uri) {
-                
                 let relevant_nodes = find_nodes_at_position(pos.clone(), &cached_nodes);
                 let priority_node = find_priority_node(&relevant_nodes);
                 let tag_node = find_relevant_tag(&relevant_nodes);
@@ -433,76 +437,104 @@ impl Backend {
                             match &node.node_type {
                                 NodeType::Identifier(data) => {
                                     let ident = data.identifier.clone();
-                                    if let Some(ident_info) = component.identifier_map.get(ident.as_str()) {
+                                    if let Some(ident_info) =
+                                        component.identifier_map.get(ident.as_str())
+                                    {
                                         return Some(ident_info.info.clone());
                                     }
-                                },
+                                }
                                 NodeType::LiteralFunction(data) => {
-                                    if let Some(ident_info) = component.identifier_map.get(component.component_name.clone().as_str()) {
-                                        if let Some(method) = ident_info.methods.iter().find(|m| m.identifier == data.function_name) {
+                                    if let Some(ident_info) = component
+                                        .identifier_map
+                                        .get(component.component_name.clone().as_str())
+                                    {
+                                        if let Some(method) = ident_info
+                                            .methods
+                                            .iter()
+                                            .find(|m| m.identifier == data.function_name)
+                                        {
                                             return Some(method.info.clone());
                                         }
                                     }
-                                },
+                                }
                                 NodeType::LiteralEnumValue(data) => {
                                     let mut struct_id = data.enum_name.clone();
                                     if &struct_id == "Self" {
                                         struct_id = component.component_name.clone();
                                     }
-                                    if let Some(ident_info) = component.identifier_map.get(struct_id.as_str()) {
+                                    if let Some(ident_info) =
+                                        component.identifier_map.get(struct_id.as_str())
+                                    {
                                         if ident_name == data.enum_name {
                                             return Some(ident_info.info.clone());
                                         }
-                                        if let Some(property) = ident_info.properties.iter().find(|p| p.identifier == data.property_name) {
-                                            return Some(property.info.clone());
+                                        if let Some(variant) = ident_info
+                                            .variants
+                                            .iter()
+                                            .find(|p| p.identifier == data.property_name)
+                                        {
+                                            return Some(variant.info.clone());
                                         }
                                     }
-                                },
+                                }
                                 NodeType::XoFunctionCall(data) => {
                                     let mut struct_id = data.struct_name.clone();
                                     if struct_id == "Self" {
                                         struct_id = component.component_name.clone();
                                     }
-                                    if let Some(ident_info) = component.identifier_map.get(data.struct_name.as_str()) {
-                                        if let Some(method) = ident_info.methods.iter().find(|m| m.identifier == data.function_name) {
+                                    if let Some(ident_info) =
+                                        component.identifier_map.get(data.struct_name.as_str())
+                                    {
+                                        if ident_name == data.struct_name {
+                                            return Some(ident_info.info.clone());
+                                        }
+                                        if let Some(method) = ident_info
+                                            .methods
+                                            .iter()
+                                            .find(|m| m.identifier == data.function_name)
+                                        {
                                             return Some(method.info.clone());
                                         }
                                     }
-                                },
+                                }
                                 NodeType::AttributeKeyValuePair(data) => {
-
-                                    let property_names = vec!["x",
-                                                                        "y",
-                                                                        "scale_x",
-                                                                        "scale_y",
-                                                                         "skew_x",
-                                                                        "skew_y",
-                                                                        "rotate",
-                                                                        "anchor_x",
-                                                                        "anchor_y",
-                                                                        "transform",
-                                                                        "width",
-                                                                        "height",
-                                                                        ];
+                                    let property_names = vec![
+                                        "x",
+                                        "y",
+                                        "scale_x",
+                                        "scale_y",
+                                        "skew_x",
+                                        "skew_y",
+                                        "rotate",
+                                        "anchor_x",
+                                        "anchor_y",
+                                        "transform",
+                                        "width",
+                                        "height",
+                                    ];
 
                                     if let Some(struct_ident) = struct_name {
                                         let mut struct_id = struct_ident.clone();
                                         if property_names.contains(&data.identifier.as_str()) {
                                             struct_id = "CommonProperties".to_string();
                                         }
-                                        if let Some(ident_info) = component.identifier_map.get(struct_id.as_str()) {
-                                            if let Some(property) = ident_info.properties.iter().find(|p| p.identifier == data.identifier) {
+                                        if let Some(ident_info) =
+                                            component.identifier_map.get(struct_id.as_str())
+                                        {
+                                            if let Some(property) = ident_info
+                                                .properties
+                                                .iter()
+                                                .find(|p| p.identifier == data.identifier)
+                                            {
                                                 return Some(property.info.clone());
                                             }
                                         }
                                     }
-                                },
+                                }
                                 _ => {}
                             };
                         }
-
                     }
-
                 }
             }
         }
@@ -522,8 +554,48 @@ impl Backend {
                 return Ok(Some(id as u32));
             }
         }
-        
+
         Ok(None)
+    }
+
+    async fn process_pax_file(&self, uri: &Url) {
+        let rust_file_opened = { self.rust_file_opened.lock().unwrap().clone() };
+        let file_path = uri.path();
+
+        if !rust_file_opened || self.pax_map.contains_key(file_path) {
+            return;
+        }
+
+        let path = uri.clone().to_file_path().expect("Failed to get file path");
+        let directory = path.parent().expect("Failed to get parent directory");
+
+        if let Some((rust_file_path, component_name)) =
+            find_rust_file_with_macro(directory, &file_path)
+        {
+            // Create a backend clone and use it within tokio::spawn to handle the indexing
+            let backend_clone = self.clone();
+            let path_str = file_path.to_string();
+            tokio::spawn(async move {
+                backend_clone
+                    .index_file(&path_str, rust_file_path, component_name)
+                    .await;
+            });
+        } else {
+            eprintln!("No matching Rust file found for {}", file_path);
+        }
+    }
+
+    async fn debounce_and_process_changes(&self, text: &str, uri: Url) {
+        *self.debounce_last_change.lock().unwrap() = std::time::Instant::now();
+
+        sleep(Duration::from_millis(500)).await;
+
+        if self.debounce_last_change.lock().unwrap().elapsed() >= Duration::from_millis(500) {
+            let diagnostics = self.parse_and_cache_pax_file(text, uri.clone());
+            self.client
+                .publish_diagnostics(uri, diagnostics, None)
+                .await;
+        }
     }
 }
 
@@ -559,33 +631,12 @@ impl LanguageServer for Backend {
         let uri = did_open_params.text_document.uri.clone();
         let language_id = &did_open_params.text_document.language_id;
         if language_id == "rust" {
-            //thread::sleep(Duration::from_secs(10));
+            // To ensure rust-analyzer had time to index the workspace
+            thread::sleep(Duration::from_secs(30));
             let mut rust_file_opened_guard = self.rust_file_opened.lock().unwrap();
             *rust_file_opened_guard = true;
         } else if language_id == "pax" {
-            let rust_file_opened = { self.rust_file_opened.lock().unwrap().clone() };
-            let file_path = uri.path();
-            if !rust_file_opened || self.pax_map.contains_key(file_path) {
-                return;
-            }
-            let path = uri.clone().to_file_path().expect("Failed to get file path");
-            let directory = path.parent().expect("Failed to get parent directory");
-
-            if let Some((rust_file_path, component_name)) =
-                find_rust_file_with_macro(directory, &file_path)
-            {
-                // Create a backend clone and use it within tokio::spawn to handle the indexing
-                let backend_clone = self.clone();
-                let path_str = file_path.to_string();
-                tokio::spawn(async move {
-                    backend_clone
-                        .index_file(&path_str, rust_file_path, component_name)
-                        .await;
-                });
-            } else {
-                eprintln!("No matching Rust file found for {}", file_path);
-            }
-
+            self.process_pax_file(&uri).await;
             let diagnostics = self
                 .parse_and_cache_pax_file(did_open_params.text_document.text.as_str(), uri.clone());
             self.client
@@ -595,81 +646,38 @@ impl LanguageServer for Backend {
     }
 
     async fn did_change(&self, did_change_params: DidChangeTextDocumentParams) {
-        if !did_change_params.content_changes.is_empty()
-            && did_change_params.text_document.uri.path().ends_with(".pax")
-        {
-            let uri = did_change_params.text_document.uri.clone();
-            let diagnostics = self.parse_and_cache_pax_file(
-                did_change_params.content_changes[0].text.as_str(),
-                uri.clone(),
-            );
-            self.client
-                .publish_diagnostics(uri, diagnostics, None)
-                .await;
-        }
-    }
+        let uri = did_change_params.text_document.uri.clone();
+        if did_change_params.text_document.uri.path().ends_with(".pax") {
+            self.process_pax_file(&uri).await;
 
-    async fn did_save(&self, did_save_params: DidSaveTextDocumentParams) {
-        self.client
-            .log_message(MessageType::INFO, "File saved!")
-            .await;
-
-        let uri = &did_save_params.text_document.uri;
-        let saved_file_path = uri
-            .to_file_path()
-            .expect("Failed to convert URI to path")
-            .to_string_lossy()
-            .to_string();
-
-        // Check if the file from pax_map matches the saved file
-        if let Some(component) = self.pax_map.get(&saved_file_path) {
-            self.client
-                .log_message(
-                    MessageType::INFO,
-                    format!("Fetching data for file: {}", saved_file_path),
+            if !did_change_params.content_changes.is_empty() {
+                self.debounce_and_process_changes(
+                    did_change_params.content_changes[0].text.as_str(),
+                    uri,
                 )
                 .await;
-            for entry in component.identifier_map.iter() {
-                let identifier = entry.key();
-                let info = entry.value();
-                self.client
-                    .log_message(
-                        MessageType::INFO,
-                        format!("Identifier: {}\nInfo: {:?}", identifier, info),
-                    )
-                    .await;
             }
         }
     }
 
-    // async fn did_save(&self, did_save_params: DidSaveTextDocumentParams) {
-    //     self.client
-    //         .log_message(MessageType::INFO, "File saved!")
-    //         .await;
+    async fn did_save(&self, did_save_params: DidSaveTextDocumentParams) {
+        let uri_path = did_save_params.text_document.uri.path();
 
-    //     let uri = &did_save_params.text_document.uri;
-    //     let saved_file_path = uri
-    //         .to_file_path()
-    //         .expect("Failed to convert URI to path")
-    //         .to_string_lossy()
-    //         .to_string();
+        if uri_path.ends_with(".rs") {
+            if self.debounce_last_save.lock().unwrap().elapsed() < Duration::from_secs(300) {
+                // 5 minutes
+                return;
+            }
+            *self.debounce_last_save.lock().unwrap() = std::time::Instant::now();
 
-    //     // Check if the file from pax_ast_cache matches the saved file
-    //     if let Some(ast_nodes) = self.pax_ast_cache.get(&saved_file_path) {
-    //         self.client
-    //             .log_message(
-    //                 MessageType::INFO,
-    //                 format!("Fetching AST nodes for file: {}", saved_file_path),
-    //             )
-    //             .await;
+            if let Some(pax_file_path) = self.rs_to_pax_map.get(uri_path) {
+                self.pax_map.remove(pax_file_path.value());
 
-    //         for node in ast_nodes.iter() {
-    //             self.client
-    //                 .log_message(MessageType::INFO, format!("AST Node: {:?}", node))
-    //                 .await;
-    //         }
-    //     }
-    // }
+                let pax_uri = Url::from_file_path(pax_file_path.value()).unwrap();
+                self.process_pax_file(&pax_uri).await;
+            }
+        }
+    }
 
     async fn goto_definition(
         &self,
@@ -683,8 +691,7 @@ impl LanguageServer for Backend {
     }
 }
 
-#[tokio::main]
-async fn main() {
+pub async fn start_server() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
@@ -695,6 +702,8 @@ async fn main() {
         workspace_root: Arc::new(Mutex::new(None)),
         rust_file_opened: Arc::new(Mutex::new(false)),
         pax_ast_cache: Arc::new(DashMap::new()),
+        debounce_last_change: Arc::new(Mutex::new(std::time::Instant::now())),
+        debounce_last_save: Arc::new(Mutex::new(std::time::Instant::now())),
     })
     .custom_method("pax/getHoverId", Backend::hover_id)
     .custom_method("pax/getDefinitionId", Backend::definition_id)

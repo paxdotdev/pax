@@ -9,7 +9,7 @@ use syn::{
     parse_file, spanned::Spanned, Attribute, GenericArgument, ImplItem, Item, ItemImpl, ItemStruct,
     Meta, NestedMeta, Type,
 };
-use syn::{ItemUse, UseTree};
+use syn::{ItemEnum, ItemUse, UseTree};
 
 fn contains_pax_file_macro(attrs: &[Attribute], target_file_path: &str) -> Option<String> {
     let has_pax_derive = attrs
@@ -146,6 +146,8 @@ pub enum IdentifierType {
     PaxType,
     Method,
     Property,
+    Enum,
+    EnumVariant,
 }
 
 #[derive(Debug, Clone)]
@@ -162,12 +164,19 @@ pub struct Method {
 }
 
 #[derive(Debug, Clone)]
+pub struct VariantData {
+    pub identifier: String,
+    pub info: Info,
+}
+
+#[derive(Debug, Clone)]
 pub struct IdentifierInfo {
     pub ty: IdentifierType,
     pub identifier: String,
     pub info: Info,
     pub properties: Vec<StructProperty>,
     pub methods: Vec<Method>,
+    pub variants: Vec<VariantData>,
 }
 
 type Index = DashMap<String, IdentifierInfo>;
@@ -176,7 +185,7 @@ type Index = DashMap<String, IdentifierInfo>;
 pub struct InfoRequest {
     pub identifier_type: IdentifierType,
     pub identifier: String,
-    pub struct_identifier: Option<String>,
+    pub owner_identifier: Option<String>,
     pub info: Info,
 }
 
@@ -247,14 +256,14 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
                         definition_id: None,
                         hover_id: None,
                     };
-    
+
                     self.requests.push(InfoRequest {
                         identifier_type: IdentifierType::Property,
                         identifier: f.ident.clone().unwrap().to_string(),
-                        struct_identifier: Some(i.ident.to_string()),
+                        owner_identifier: Some(i.ident.to_string()),
                         info: prop_info.clone(),
                     });
-    
+
                     StructProperty {
                         identifier: f.ident.clone().unwrap().to_string(),
                         rust_type: rust_type_string,
@@ -272,7 +281,6 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
                         },
                     }
                 }
-                
             })
             .collect::<Vec<_>>();
 
@@ -290,13 +298,14 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
                 },
                 properties,
                 methods: Vec::new(),
+                variants: Vec::new(),
             },
         );
 
         self.requests.push(InfoRequest {
             identifier_type: ty,
             identifier: struct_name,
-            struct_identifier: None,
+            owner_identifier: None,
             info: Info {
                 path: self.file_path.clone(),
                 position: span_to_position(i.ident.span()),
@@ -334,12 +343,70 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
                     self.requests.push(InfoRequest {
                         identifier_type: IdentifierType::Method,
                         identifier: method_name,
-                        struct_identifier: Some(struct_name.clone()),
+                        owner_identifier: Some(struct_name.clone()),
                         info: method_info.info,
                     });
                 }
             }
         }
+    }
+
+    fn visit_item_enum(&mut self, i: &'ast ItemEnum) {
+        let enum_name = i.ident.to_string();
+
+        let variants = i
+            .variants
+            .iter()
+            .map(|variant| {
+                let variant_info = VariantData {
+                    identifier: variant.ident.to_string(),
+                    info: Info {
+                        path: self.file_path.clone(),
+                        position: span_to_position(variant.ident.span()),
+                        definition_id: None,
+                        hover_id: None,
+                    },
+                };
+
+                self.requests.push(InfoRequest {
+                    identifier_type: IdentifierType::EnumVariant,
+                    identifier: variant_info.identifier.clone(),
+                    owner_identifier: Some(enum_name.clone()),
+                    info: variant_info.info.clone(),
+                });
+
+                variant_info
+            })
+            .collect();
+
+        self.index.insert(
+            enum_name.clone(),
+            IdentifierInfo {
+                ty: IdentifierType::Enum,
+                identifier: enum_name.clone(),
+                info: Info {
+                    path: self.file_path.clone(),
+                    position: span_to_position(i.ident.span()),
+                    definition_id: None,
+                    hover_id: None,
+                },
+                properties: Vec::new(),
+                methods: Vec::new(),
+                variants,
+            },
+        );
+
+        self.requests.push(InfoRequest {
+            identifier_type: IdentifierType::Enum,
+            identifier: enum_name,
+            owner_identifier: None,
+            info: Info {
+                path: self.file_path.clone(),
+                position: span_to_position(i.ident.span()),
+                definition_id: None,
+                hover_id: None,
+            },
+        });
     }
 }
 

@@ -101,7 +101,13 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
             }
         }
         Rule::closing_tag => {
-            let identifier = pair.clone().as_str().to_string().replace("<", "").replace("/", "").replace(">", "");
+            let identifier = pair
+                .clone()
+                .as_str()
+                .to_string()
+                .replace("<", "")
+                .replace("/", "")
+                .replace(">", "");
             nodes.push(PositionalNode {
                 start,
                 end,
@@ -112,7 +118,10 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
             nodes.push(PositionalNode {
                 start,
                 end,
-                node_type: NodeType::Identifier(IdentifierData { identifier, is_pascal_identifier: true })
+                node_type: NodeType::Identifier(IdentifierData {
+                    identifier,
+                    is_pascal_identifier: true,
+                }),
             });
         }
         Rule::pascal_identifier => {
@@ -138,7 +147,12 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
             });
         }
         Rule::literal_function => {
-            let function_name = pair.clone().as_str().to_string().replace("self.","").replace(",", "");
+            let function_name = pair
+                .clone()
+                .as_str()
+                .to_string()
+                .replace("self.", "")
+                .replace(",", "");
             nodes.push(PositionalNode {
                 start,
                 end,
@@ -150,11 +164,35 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
             let mut enum_name = "".to_string();
             let mut property_name = "".to_string();
             if inner_pairs.len() < 3 {
-                enum_name = inner_pairs.clone().nth_back(1).unwrap().as_str().to_string().replace("::", "");
-                property_name = inner_pairs.clone().nth_back(0).unwrap().as_str().to_string().replace("::", "");
+                enum_name = inner_pairs
+                    .clone()
+                    .nth_back(1)
+                    .unwrap()
+                    .as_str()
+                    .to_string()
+                    .replace("::", "");
+                property_name = inner_pairs
+                    .clone()
+                    .nth_back(0)
+                    .unwrap()
+                    .as_str()
+                    .to_string()
+                    .replace("::", "");
             } else {
-                enum_name = inner_pairs.clone().nth_back(2).unwrap().as_str().to_string().replace("::", "");
-                property_name = inner_pairs.clone().nth_back(1).unwrap().as_str().to_string().replace("::", "");
+                enum_name = inner_pairs
+                    .clone()
+                    .nth_back(2)
+                    .unwrap()
+                    .as_str()
+                    .to_string()
+                    .replace("::", "");
+                property_name = inner_pairs
+                    .clone()
+                    .nth_back(1)
+                    .unwrap()
+                    .as_str()
+                    .to_string()
+                    .replace("::", "");
             }
             nodes.push(PositionalNode {
                 start,
@@ -171,7 +209,9 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
                 .as_str()
                 .to_string()
                 .split_once("=")
-                .unwrap().0.to_string();
+                .unwrap()
+                .0
+                .to_string();
             nodes.push(PositionalNode {
                 start,
                 end,
@@ -183,10 +223,28 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
             let mut struct_name = "Self".to_string();
             let mut secondary_name = "".to_string();
             if inner_pairs.len() < 3 {
-                secondary_name = inner_pairs.clone().nth_back(1).unwrap().as_str().to_string().replace("::", "");
+                secondary_name = inner_pairs
+                    .clone()
+                    .nth_back(1)
+                    .unwrap()
+                    .as_str()
+                    .to_string()
+                    .replace("::", "");
             } else {
-                struct_name = inner_pairs.clone().nth_back(2).unwrap().as_str().to_string().replace("::", "");
-                secondary_name = inner_pairs.clone().nth_back(1).unwrap().as_str().to_string().replace("::", "");
+                struct_name = inner_pairs
+                    .clone()
+                    .nth_back(2)
+                    .unwrap()
+                    .as_str()
+                    .to_string()
+                    .replace("::", "");
+                secondary_name = inner_pairs
+                    .clone()
+                    .nth_back(1)
+                    .unwrap()
+                    .as_str()
+                    .to_string()
+                    .replace("::", "");
             }
             nodes.push(PositionalNode {
                 start,
@@ -234,11 +292,11 @@ pub fn find_priority_node(nodes: &Vec<PositionalNode>) -> Option<&PositionalNode
             NodeType::LiteralFunction(_) => {
                 found_literal_function = Some(node);
             }
-            NodeType::XoFunctionCall(_) => {
-                found_xo_function_call = Some(node);
-            }
             NodeType::LiteralEnumValue(_) => {
                 found_literal_enum_value = Some(node);
+            }
+            NodeType::XoFunctionCall(_) => {
+                found_xo_function_call = Some(node);
             }
             NodeType::AttributeKeyValuePair(_) => {
                 found_attribute_key_value_pair = Some(node);
@@ -274,4 +332,3 @@ pub fn find_relevant_ident(nodes: &Vec<PositionalNode>) -> Option<&PositionalNod
     }
     None
 }
-
