@@ -3503,7 +3503,7 @@ We are 90% of the way to supporting iOS, given the shared Swift + CoreGraphics l
             [x] Handle architectures: aarch64 and x86_64; 
             [ ] Bundle targets into xcframework
                 [ ] Create default carts for xcframework along the way
-            [ ] Multithread the dylib builds
+            [x] Multithread the dylib builds
             [x] Handle release vs. debug 
         [ ] Handle updates to assets; bundle into pax-swift-cartridge Resources
     [ ] Rinse & repeat the above with an iOS container app

@@ -18,6 +18,20 @@
 			<key>SupportedPlatform</key>
 			<string>macos</string>
 		</dict>
+		<dict>
+            <key>BinaryPath</key>
+            <string>PaxCartridge.framework/PaxCartridge</string>
+            <key>LibraryIdentifier</key>
+            <string>macos-x86_64</string>
+            <key>LibraryPath</key>
+            <string>PaxCartridge.framework</string>
+            <key>SupportedArchitectures</key>
+            <array>
+                <string>x86_64</string>
+            </array>
+            <key>SupportedPlatform</key>
+            <string>macos</string>
+        </dict>
 	</array>
 	<key>CFBundlePackageType</key>
 	<string>XFWK</string>
