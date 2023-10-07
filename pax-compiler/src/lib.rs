@@ -1508,7 +1508,7 @@ pub fn perform_create(ctx: &CreateContext) {
         .expect("Failed to write modified Cargo.toml");
 
     println!(
-        "\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax run --target=web`",
+        "\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax-cli run --target=web`",
         full_path.to_str().unwrap(),
         full_path.to_str().unwrap()
     );
