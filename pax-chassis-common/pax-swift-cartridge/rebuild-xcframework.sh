@@ -9,12 +9,9 @@ set -e
 archs=("macos-arm64" "macos-x86_64")
 
 # Iterate over each architecture and perform the operations
-
-
-
 for arch in "${archs[@]}"; do
     mkdir -p $arch/PaxCartridge.framework
-    cp -r PaxCartridge.xcframework/$arch/PaxCartridge.framework $arch/PaxCartridge.framework
+    cp -r PaxCartridge.xcframework/$arch/PaxCartridge.framework $arch/
 done
 
 rm -rf PaxCartridge.xcframework/
