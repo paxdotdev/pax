@@ -11,6 +11,7 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fs;
+use std::thread;
 use std::io::Write;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
@@ -1174,10 +1175,7 @@ pub fn build_chassis_with_cartridge(
     let interface_path = pax_dir
         .join(PKG_DIR_NAME)
         .join(format!("pax-chassis-{}", target_str_lower))
-        .join(match ctx.target {
-            RunTarget::Web => "interface",
-            RunTarget::MacOS => "interface",
-        });
+        .join("interface");
 
     let is_web = if let RunTarget::Web = ctx.target {
         true
@@ -1231,46 +1229,103 @@ pub fn build_chassis_with_cartridge(
                 // ("aarch64-apple-ios-sim", "ios-simulator-arm64"),
             ];
 
+
+
+            let mut handles = Vec::new();
+
+            let build_results : Arc<Mutex<HashMap<u32, (String, Output)>>> = Arc::new(Mutex::new(HashMap::new()));
+
+            let targets_single_string = TARGET_MAPPINGS.iter().map(|tm|{tm.1.to_string()}).collect::<Vec<String>>().join(",");
+            println!("{} ⚙️ Compiling targets {{{}}} across {} threads...\n", *PAX_BADGE, &targets_single_string, TARGET_MAPPINGS.len());
+
+            let mut index = 0;
             for target_mapping in TARGET_MAPPINGS {
-                let mut cmd = Command::new("cargo");
-                cmd.current_dir(&chassis_path)
-                    .arg("build")
-                    .arg("--color")
-                    .arg("always")
-                    .arg("--target")
-                    .arg(target_mapping.0)
-                    .env("PAX_DIR", &pax_dir)
-                    .stdout(std::process::Stdio::inherit())
-                    .stderr(std::process::Stdio::inherit());
+                let chassis_path = chassis_path.clone();
+                let pax_dir = pax_dir.clone();
 
-                #[cfg(unix)]
-                unsafe {
-                    cmd.pre_exec(pre_exec_hook);
-                }
 
-                let child = cmd.spawn().expect("failed to spawn child");
 
-                //Execute `cargo build`, which generates our dylib
-                let _output = wait_with_output(&process_child_ids, child);
+                let process_child_ids_threadsafe = process_child_ids.clone();
+                let build_results_threadsafe = build_results.clone();
 
-                //Copy architecture-specific dylib from Cargo build dir into
-                //SPM>xcframework>framework architecture-specific bundle for Swift
-                let dylib_src = chassis_path.join("target")
-                    .join(target_mapping.0)
-                    .join(BUILD_MODE_NAME)
-                    .join("libpaxchassismacos.dylib");
+                let handle = thread::spawn(move || {
+                    let mut cmd = Command::new("cargo");
+                    cmd.current_dir(&chassis_path)
+                        .arg("build")
+                        .arg("--color")
+                        .arg("always")
+                        .arg("--target")
+                        .arg(target_mapping.0)
+                        .env("PAX_DIR", &pax_dir)
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped());
 
-                let dylib_dest_pkg = pax_dir
-                    .join(PKG_DIR_NAME)
-                    .join("pax-chassis-common")
-                    .join("pax-swift-cartridge")
-                    .join("PaxCartridge.xcframework")
-                    .join(target_mapping.1)
-                    .join("PaxCartridge.framework")
-                    .join("PaxCartridge");
+                    #[cfg(unix)]
+                    unsafe {
+                        cmd.pre_exec(pre_exec_hook);
+                    }
 
-                let _ = fs::copy(&dylib_src, &dylib_dest_pkg);
+                    let child = cmd.spawn().expect("failed to spawn child");
+
+                    //Execute `cargo build`, which generates our dylib
+                    let output = wait_with_output(&process_child_ids_threadsafe, child);
+
+                    //Copy architecture-specific dylib from Cargo build dir into
+                    //SPM>xcframework>framework architecture-specific bundle for Swift
+                    let dylib_src = chassis_path.join("target")
+                        .join(target_mapping.0)
+                        .join(BUILD_MODE_NAME)
+                        .join("libpaxchassismacos.dylib");
+
+                    let dylib_dest_pkg = pax_dir
+                        .join(PKG_DIR_NAME)
+                        .join("pax-chassis-common")
+                        .join("pax-swift-cartridge")
+                        .join("PaxCartridge.xcframework")
+                        .join(target_mapping.1)
+                        .join("PaxCartridge.framework")
+                        .join("PaxCartridge");
+
+                    let _ = fs::copy(&dylib_src, &dylib_dest_pkg);
+
+                    let new_val = (target_mapping.1.to_string(), output);
+                    build_results_threadsafe.lock().unwrap().insert(index, new_val);
+
+                });
+                index = index + 1;
+                handles.push(handle);
             }
+
+            let mut index = 0;
+            // Wait for all threads to complete and print their outputs
+            for handle in handles {
+                handle.join().unwrap();
+            }
+
+            let results = build_results.lock().unwrap();
+            for i in 0..TARGET_MAPPINGS.len() {
+                let result = results.get(&(i as u32)).unwrap();
+                let target = &result.0;
+                let output = &result.1;
+
+                let stdout = String::from_utf8_lossy(&output.stdout).to_string();
+                let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+
+                if stdout != "" || stderr != "" {
+                    println!("-THREAD-{}-OUTPUT--------------------------------------------", index);
+                }
+                if stdout != "" {
+                    println!("STDERR for target {}: \n\n{}", &target, &stdout);
+                }
+                if stderr != "" {
+                    eprintln!("STDERR for target {}: \n\n{}", &target, &stderr);
+                }
+                if stdout != "" || stderr != "" {
+                    println!("------------------------------------------------------------\n");
+                }
+                index = index + 1;
+            }
+
 
             let xcodeproj_path = pax_dir.join(PKG_DIR_NAME)
                 .join("pax-chassis-macos")
@@ -1285,6 +1340,7 @@ pub fn build_chassis_with_cartridge(
             let executable_output_path = build_dest_base.join("app");
             let _ = fs::create_dir_all(&executable_output_path);
 
+            println!("{} 💻 Building xcodeproject...", *PAX_BADGE);
             let mut cmd = Command::new("xcodebuild");
             cmd.arg("-project")
                 .arg(xcodeproj_path)
@@ -1293,7 +1349,7 @@ pub fn build_chassis_with_cartridge(
                 .arg("-scheme")
                 .arg(scheme)
                 .arg(&format!("CONFIGURATION_BUILD_DIR={}", executable_output_path.to_str().unwrap()))
-                .stdout(std::process::Stdio::inherit())
+                .stdout(if ctx.verbose { std::process::Stdio::inherit() } else { std::process::Stdio::piped() })
                 .stderr(std::process::Stdio::inherit());
 
             let _output = cmd.output().expect("Failed to execute command");
@@ -1597,21 +1653,23 @@ impl Ord for NamespaceTrieNode {
     }
 }
 
-const ERR_ASYNC: &str = "Expected synchronous execution; encountered async execution";
+const ERR_LOCK: &str = "Failed to lock process_child_ids mutex";
+
 pub fn wait_with_output(
     process_child_ids: &Arc<Mutex<Vec<u64>>>,
     child: std::process::Child,
 ) -> std::process::Output {
     let child_id: u64 = child.id().into();
-    process_child_ids.lock().expect(ERR_ASYNC).push(child_id);
-    let output = child
-        .wait_with_output()
-        .expect("Failed to wait for child process");
-    assert!(
-        process_child_ids.lock().expect(ERR_ASYNC).pop().unwrap() == child_id,
-        "{}",
-        ERR_ASYNC
-    );
+
+    // Push the child_id to the shared process_child_ids vector
+    process_child_ids.lock().expect(ERR_LOCK).push(child_id);
+
+    // Wait for the child process to complete
+    let output = child.wait_with_output().expect("Failed to wait for child process");
+
+    // Ensure the child ID is removed after completion
+    process_child_ids.lock().expect(ERR_LOCK).retain(|&id| id != child_id);
+
     output
 }
 
