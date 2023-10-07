@@ -1312,16 +1312,13 @@ pub fn build_chassis_with_cartridge(
                 let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
                 if stdout != "" || stderr != "" {
-                    println!("-THREAD-{}-OUTPUT--------------------------------------------", index);
+                    println!("{} build finished with output:", &target);
                 }
                 if stdout != "" {
-                    println!("STDERR for target {}: \n\n{}", &target, &stdout);
+                    println!("{}", &stdout);
                 }
                 if stderr != "" {
-                    eprintln!("STDERR for target {}: \n\n{}", &target, &stderr);
-                }
-                if stdout != "" || stderr != "" {
-                    println!("------------------------------------------------------------\n");
+                    eprintln!("{}", &stderr);
                 }
                 index = index + 1;
             }
@@ -1349,10 +1346,12 @@ pub fn build_chassis_with_cartridge(
                 .arg("-scheme")
                 .arg(scheme)
                 .arg(&format!("CONFIGURATION_BUILD_DIR={}", executable_output_path.to_str().unwrap()))
-                .stdout(if ctx.verbose { std::process::Stdio::inherit() } else { std::process::Stdio::piped() })
+                .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit());
 
             let _output = cmd.output().expect("Failed to execute command");
+
+            //TODO: copy arch-specific dylibs into pax-chassis-common/pax-swift-cartridge
 
             //Copy build artifacts & packages into `build`
             let swift_cart_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-common").join("pax-swift-cartridge");
@@ -1371,13 +1370,11 @@ pub fn build_chassis_with_cartridge(
             let _ = copy_dir_recursively(&swift_cart_src, &swift_cart_build_dest, &DIR_IGNORE_LIST_MACOS);
             let _ = copy_dir_recursively(&swift_common_src, &swift_common_build_dest, &DIR_IGNORE_LIST_MACOS);
             let _ = copy_dir_recursively(&app_xcodeproj_src, &app_xcodeproj_build_dest, &DIR_IGNORE_LIST_MACOS);
-            //TODO! precision-copy the built mac executable into the build_dest_base
-            // let _ = fs::copy(&executable_src, &executable_dest)
 
             // Start  `run` rather than a `build`
             if ctx.should_also_run {
                 println!("{} 🐇 Running Pax macOS...", *PAX_BADGE);
-                let executable_path = executable_output_path.join("pax-app-macos.app").join("Contents/MacOS/pax-app-macos");let executable_path = executable_output_path.join("pax-app-macos.app");
+                let executable_path = executable_output_path.join("pax-app-macos.app");
                 let binary_path = executable_path.join("Contents/MacOS/pax-app-macos");
 
                 let status = Command::new(binary_path)
