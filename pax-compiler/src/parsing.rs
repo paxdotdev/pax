@@ -1169,13 +1169,13 @@ impl Reflectable for pax_runtime_api::Size {
     }
 }
 
-impl Reflectable for pax_runtime_api::SizePixels {
+impl Reflectable for pax_runtime_api::Rotation {
     fn get_import_path() -> String {
-        "pax_lang::api::SizePixels".to_string()
+        "pax_lang::api::Rotation".to_string()
     }
 
     fn get_self_pascal_identifier() -> String {
-        "SizePixels".to_string()
+        "Rotation".to_string()
     }
 }
 
@@ -1189,6 +1189,17 @@ impl Reflectable for pax_runtime_api::Numeric {
     }
 }
 
+
+impl Reflectable for pax_runtime_api::SizePixels {
+    fn get_import_path() -> String {
+        "pax_lang::api::SizePixels".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "SizePixels".to_string()
+    }
+}
+
 impl Reflectable for kurbo::Point {
     fn get_import_path() -> String {
         "kurbo::Point".to_string()
@@ -1196,6 +1207,16 @@ impl Reflectable for kurbo::Point {
 
     fn get_self_pascal_identifier() -> String {
         "Point".to_string()
+    }
+}
+
+impl Reflectable for pax_runtime_api::Transform2D {
+    fn get_import_path() -> String {
+        "pax_lang::api::Transform2D".to_string()
+    }
+
+    fn get_self_pascal_identifier() -> String {
+        "Transform2D".to_string()
     }
 }
 
