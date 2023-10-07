@@ -336,12 +336,13 @@ fn generate_and_overwrite_cartridge(
     )
     .unwrap();
 
-    const IMPORTS_BUILTINS: [&str; 28] = [
+    const IMPORTS_BUILTINS: [&str; 29] = [
         "std::cell::RefCell",
         "std::collections::HashMap",
         "std::collections::VecDeque",
         "std::ops::Deref",
         "std::rc::Rc",
+        "pax_runtime_api::Numeric",
         "pax_runtime_api::PropertyInstance",
         "pax_runtime_api::PropertyLiteral",
         "pax_runtime_api::Transform2D",
