@@ -76,6 +76,19 @@ def topological_sort(source):
     dfs(source)
     return order[::-1]
 
+for root in root_packages:
+    order = topological_sort(root)
+    print(order)
+
+print(graph)
+
+# The output
+'''
+['pax-chassis-macos', 'pax-cartridge', 'pax-std/pax-std-primitives', 'pax-std', 'pax-lang', 'pax-compiler', 'pax-macro', 'pax-core', 'pax-properties-coproduct', 'pax-runtime-api', 'pax-message']
+['pax-chassis-web', 'pax-cartridge', 'pax-std/pax-std-primitives', 'pax-std', 'pax-lang', 'pax-compiler', 'pax-macro', 'pax-core', 'pax-properties-coproduct', 'pax-runtime-api', 'pax-message']
+['pax-cli', 'pax-language-server', 'pax-compiler', 'pax-runtime-api', 'pax-message']
+['pax-example', 'pax-std', 'pax-lang', 'pax-compiler', 'pax-runtime-api', 'pax-message', 'pax-macro']
+'''
 
 # First pass to update the versions
 for root in root_packages:
@@ -109,7 +122,7 @@ subprocess.run(["git", "commit", "-am", "Release " + NEW_VERSION], check=True)
 
 # Second pass to publish the crates
 for root in root_packages:
-    order = topological_sort(root)
+    order = topological_sort(root).reverse()
 
     for elem in order:
         # Only publish the package if it has not been published in this run
