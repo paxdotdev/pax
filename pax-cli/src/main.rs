@@ -7,6 +7,8 @@ use std::time::Duration;
 use std::{fs, process, thread};
 
 use pax_compiler::{CreateContext, RunContext, RunTarget};
+extern crate pax_language_server;
+
 mod http;
 
 use signal_hook::consts::{SIGINT, SIGTERM};
@@ -69,6 +71,11 @@ fn main() -> Result<(), ()> {
         .help("Signal to the compiler to run certain operations in libdev mode, offering certain ergonomic affordances for Pax library developers.")
         .hidden(true); //hidden because this is of negative value to end-users; things are expected to break when invoked outside of the pax monorepo
 
+    #[allow(non_snake_case)]
+    let ARG_LSP = App::new("lsp")
+        .about("Start the Pax LSP server");
+        
+
     let matches = App::new("pax")
         .name("pax")
         .bin_name("pax")
@@ -122,6 +129,7 @@ fn main() -> Result<(), ()> {
                 )
                 .about("Collection of tools for internal library development")
         )
+        .subcommand(ARG_LSP.clone())
         .get_matches();
 
     let _ = perform_nominal_action(matches, Arc::clone(&process_child_ids));
@@ -239,6 +247,10 @@ fn perform_nominal_action(
                     unreachable!()
                 }
             }
+        }
+        ("lsp", Some(_)) => {
+            tokio::runtime::Runtime::new().unwrap().block_on(pax_language_server::start_server());
+            Ok(())
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable
     }
