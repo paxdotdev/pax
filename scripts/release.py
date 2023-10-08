@@ -31,6 +31,7 @@ PACKAGES = [
     "pax-core",
     "pax-example",
     "pax-lang",
+    "pax-language-server",
     "pax-macro",
     "pax-message",
     "pax-properties-coproduct",
