@@ -1,6 +1,6 @@
 [package]
 name = "pax-chassis-web"
-version = "0.8.5"
+version = "0.8.6"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -17,11 +17,11 @@ default = ["console_error_panic_hook"]
 [dependencies]
 piet = "0.6.0"
 piet-web = "0.6.0"
-pax-core = { path = "../pax-core", version="0.8.5" }
-pax-properties-coproduct = {path="../pax-properties-coproduct", version="0.8.5"}
-pax-cartridge = {path="../pax-cartridge", version="0.8.5"}
-pax-runtime-api = {path = "../pax-runtime-api", version="0.8.5"}
-pax-message = {path = "../pax-message", version="0.8.5"}
+pax-core = { path = "../pax-core", version="0.8.6" }
+pax-properties-coproduct = {path="../pax-properties-coproduct", version="0.8.6"}
+pax-cartridge = {path="../pax-cartridge", version="0.8.6"}
+pax-runtime-api = {path = "../pax-runtime-api", version="0.8.6"}
+pax-message = {path = "../pax-message", version="0.8.6"}
 
 wasm-bindgen = {version = "0.2.80", features=["serde-serialize"]}
 serde = "1.0.159"
