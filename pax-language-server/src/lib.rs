@@ -102,7 +102,6 @@ struct Backend {
     pax_map: Arc<DashMap<String, PaxComponent>>,
     rs_to_pax_map: Arc<DashMap<String, String>>,
     workspace_root: Arc<Mutex<Option<Url>>>,
-    rust_file_opened: Arc<Mutex<bool>>,
     pax_ast_cache: Arc<DashMap<String, Vec<PositionalNode>>>,
     debounce_last_change: Arc<Mutex<std::time::Instant>>,
     debounce_last_save: Arc<Mutex<std::time::Instant>>,
@@ -559,10 +558,9 @@ impl Backend {
     }
 
     async fn process_pax_file(&self, uri: &Url) {
-        let rust_file_opened = { self.rust_file_opened.lock().unwrap().clone() };
         let file_path = uri.path();
 
-        if !rust_file_opened || self.pax_map.contains_key(file_path) {
+        if self.pax_map.contains_key(file_path) {
             return;
         }
 
@@ -630,10 +628,7 @@ impl LanguageServer for Backend {
     async fn did_open(&self, did_open_params: DidOpenTextDocumentParams) {
         let uri = did_open_params.text_document.uri.clone();
         let language_id = &did_open_params.text_document.language_id;
-        if language_id == "rust" {
-            let mut rust_file_opened_guard = self.rust_file_opened.lock().unwrap();
-            *rust_file_opened_guard = true;
-        } else if language_id == "pax" {
+        if language_id == "pax" {
             self.process_pax_file(&uri).await;
             let diagnostics = self
                 .parse_and_cache_pax_file(did_open_params.text_document.text.as_str(), uri.clone());
@@ -689,28 +684,6 @@ impl LanguageServer for Backend {
     }
 }
 
-// #[tokio::main]
-// async fn main() {
-//     let stdin = tokio::io::stdin();
-//     let stdout = tokio::io::stdout();
-
-//     let (service, socket) = LspService::build(|client| Backend {
-//         client: Arc::new(client),
-//         pax_map: Arc::new(DashMap::new()),
-//         rs_to_pax_map: Arc::new(DashMap::new()),
-//         workspace_root: Arc::new(Mutex::new(None)),
-//         rust_file_opened: Arc::new(Mutex::new(false)),
-//         pax_ast_cache: Arc::new(DashMap::new()),
-//         debounce_last_change: Arc::new(Mutex::new(std::time::Instant::now())),
-//         debounce_last_save: Arc::new(Mutex::new(std::time::Instant::now())),
-//     })
-//     .custom_method("pax/getHoverId", Backend::hover_id)
-//     .custom_method("pax/getDefinitionId", Backend::definition_id)
-//     .finish();
-
-//     Server::new(stdin, stdout, socket).serve(service).await;
-// }
-
 pub async fn start_server() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
@@ -720,7 +693,6 @@ pub async fn start_server() {
         pax_map: Arc::new(DashMap::new()),
         rs_to_pax_map: Arc::new(DashMap::new()),
         workspace_root: Arc::new(Mutex::new(None)),
-        rust_file_opened: Arc::new(Mutex::new(false)),
         pax_ast_cache: Arc::new(DashMap::new()),
         debounce_last_change: Arc::new(Mutex::new(std::time::Instant::now())),
         debounce_last_save: Arc::new(Mutex::new(std::time::Instant::now())),
