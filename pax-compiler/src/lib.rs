@@ -1436,7 +1436,8 @@ pub fn build_chassis_with_cartridge(
 
                 println!("App exited with: {:?}", status);
             } else {
-                println!("{} 🗂️ Done: {} build available at {}", *PAX_BADGE, BUILD_MODE_NAME, app_xcodeproj_build_dest.to_str().unwrap());
+                let build_path = executable_output_path.to_str().unwrap().bold();
+                println!("{} 🗂️  Done: {} build available at {}", *PAX_BADGE, BUILD_MODE_NAME, build_path);
             }
 
         }
