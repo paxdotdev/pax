@@ -630,9 +630,10 @@ impl LanguageServer for Backend {
     async fn did_open(&self, did_open_params: DidOpenTextDocumentParams) {
         let uri = did_open_params.text_document.uri.clone();
         let language_id = &did_open_params.text_document.language_id;
+        self.client
+        .log_message(MessageType::INFO, format!("did_open: {}", uri.path()))
+        .await;
         if language_id == "rust" {
-            // To ensure rust-analyzer had time to index the workspace
-            thread::sleep(Duration::from_secs(30));
             let mut rust_file_opened_guard = self.rust_file_opened.lock().unwrap();
             *rust_file_opened_guard = true;
         } else if language_id == "pax" {
@@ -664,7 +665,7 @@ impl LanguageServer for Backend {
         let uri_path = did_save_params.text_document.uri.path();
 
         if uri_path.ends_with(".rs") {
-            if self.debounce_last_save.lock().unwrap().elapsed() < Duration::from_secs(300) {
+            if self.debounce_last_save.lock().unwrap().elapsed() < Duration::from_secs(1) {
                 // 5 minutes
                 return;
             }
@@ -690,6 +691,28 @@ impl LanguageServer for Backend {
         Ok(None)
     }
 }
+
+// #[tokio::main]
+// async fn main() {
+//     let stdin = tokio::io::stdin();
+//     let stdout = tokio::io::stdout();
+
+//     let (service, socket) = LspService::build(|client| Backend {
+//         client: Arc::new(client),
+//         pax_map: Arc::new(DashMap::new()),
+//         rs_to_pax_map: Arc::new(DashMap::new()),
+//         workspace_root: Arc::new(Mutex::new(None)),
+//         rust_file_opened: Arc::new(Mutex::new(false)),
+//         pax_ast_cache: Arc::new(DashMap::new()),
+//         debounce_last_change: Arc::new(Mutex::new(std::time::Instant::now())),
+//         debounce_last_save: Arc::new(Mutex::new(std::time::Instant::now())),
+//     })
+//     .custom_method("pax/getHoverId", Backend::hover_id)
+//     .custom_method("pax/getDefinitionId", Backend::definition_id)
+//     .finish();
+
+//     Server::new(stdin, stdout, socket).serve(service).await;
+// }
 
 pub async fn start_server() {
     let stdin = tokio::io::stdin();
