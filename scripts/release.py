@@ -124,7 +124,7 @@ subprocess.run(["git", "commit", "-am", "Release " + NEW_VERSION], check=True)
 for root in root_packages:
     order = topological_sort(root)
 
-    for elem in order.reverse():
+    for elem in order:
         # Only publish the package if it has not been published in this run
         if elem not in published:
             # Run `cargo publish` within the current package directory
