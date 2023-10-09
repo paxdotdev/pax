@@ -24,13 +24,13 @@
     <!-- This key specifies the required platform for the framework -->
     <key>CFBundleSupportedPlatforms</key>
     <array>
-        <string>macOS</string>
+        <string>iOS</string>
         <!-- Add any other platforms as necessary, like "macOS", "tvOS", etc. -->
     </array>
 
     <!-- Minimum OS version required by the framework -->
     <key>MinimumOSVersion</key>
-    <string>12.0</string>  <!-- Adjust based on your requirements -->
+    <string>15.0</string>
 
     <!-- Specifies the executable file inside the framework -->
     <key>CFBundleExecutable</key>

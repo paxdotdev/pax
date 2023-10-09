@@ -25,21 +25,28 @@ struct PaxViewIos: View {
         }
         .onAppear {
             registerFonts()
-        }.gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onEnded { dragGesture in
-                    //FUTURE: especially if parsing is a bottleneck, could use a different encoding than JSON
-            let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y);
-                let buffer = try! FlexBufferBuilder.fromJSON(json)
-
-                //Send `Click` interrupt
-                buffer.data.withUnsafeBytes({ptr in
-                    var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
-
-                    withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
-                        pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
-                    }
-                })
+        }
+        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onChanged { dragGesture in
+            // Handle "Scroll" (Pan) events
+            let translation = dragGesture.translation
+            let json = String(format: "{\"Scroll\": {\"x\": %f, \"y\": %f, \"delta_x\": %f, \"delta_y\": %f} }", dragGesture.location.x, dragGesture.location.y, translation.width, -translation.height)
+            sendInterrupt(with: json)
+        }
+        .onEnded { dragGesture in
+            // Handle "Click" events
+            let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y)
+            sendInterrupt(with: json)
         })
+    }
 
+    func sendInterrupt(with json: String) {
+        let buffer = try! FlexBufferBuilder.fromJSON(json)
+        buffer.data.withUnsafeBytes { ptr in
+            var ffi_container = InterruptBuffer(data_ptr: ptr.baseAddress!, length: UInt64(ptr.count))
+            withUnsafePointer(to: &ffi_container) { ffi_container_ptr in
+                pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
+            }
+        }
     }
 
     func registerFonts() {
@@ -84,36 +91,36 @@ struct PaxViewIos: View {
 
     
 
-    struct PaxCanvasViewRepresentable: NSViewRepresentable {
-        typealias NSViewType = PaxCanvasViewMacos
+    struct PaxCanvasViewRepresentable: UIViewRepresentable {
+        typealias UIViewType = PaxCanvasViewIos
 
-        func makeNSView(context: Context) -> PaxCanvasViewMacos {
-            let view = PaxCanvasViewMacos()
+        func makeUIView(context: Context) -> PaxCanvasViewIos {
+            let view = PaxCanvasViewIos()
             return view
         }
 
-        func updateNSView(_ canvas: PaxCanvasViewMacos, context: Context) { }
+        func updateUIView(_ uiView: PaxCanvasViewIos, context: Context) {
+        }
     }
 
 
-    class PaxCanvasViewMacos: NSView {
+    class PaxCanvasViewIos: UIView {
 
         @ObservedObject var textElements = TextElements.singleton
         @ObservedObject var frameElements = FrameElements.singleton
+        private var displayLink: CADisplayLink?
 
-        private var displayLink: CVDisplayLink?
-
-        override init(frame frameRect: NSRect) {
-            super.init(frame: frameRect)
-            self.wantsLayer = true
-            self.layer?.drawsAsynchronously = true
-            createDisplayLink()
+        override init(frame: CGRect) {
+            super.init(frame: frame)
+            // self.layer.drawsAsynchronously = true // This property doesn't exist for CALayer in iOS.
+             createDisplayLink() // Commenting out for now since CVDisplayLink is not handled yet.
         }
 
         required init?(coder: NSCoder) {
             super.init(coder: coder)
-            createDisplayLink()
+             createDisplayLink() // Commenting out for now since CVDisplayLink is not handled yet.
         }
+
 
         private var requestAnimationFrameQueue: [() -> Void] = []
 
@@ -128,28 +135,27 @@ struct PaxViewIos: View {
         func requestAnimationFrame(_ closure: @escaping () -> Void) {
             requestAnimationFrameQueue.append(closure)
         }
+        
 
         private func createDisplayLink() {
-            CVDisplayLinkCreateWithActiveCGDisplays(&displayLink)
-            CVDisplayLinkSetOutputHandler(displayLink!) { [weak self] (_, _, _, _, _) -> CVReturn in
-                DispatchQueue.main.async {
-                    self?.setNeedsDisplay(self?.bounds ?? NSRect.zero)
-                    self?.processRequestAnimationFrameQueue()
-                }
-                return kCVReturnSuccess
+            displayLink = CADisplayLink(target: self, selector: #selector(handleDisplayLink))
+            displayLink?.add(to: .current, forMode: .common)
+        }
+
+        @objc private func handleDisplayLink() {
+            DispatchQueue.main.async {
+                self.setNeedsDisplay()
+                self.processRequestAnimationFrameQueue()
             }
-            CVDisplayLinkStart(displayLink!)
         }
 
         deinit {
-            CVDisplayLinkStop(displayLink!)
+            displayLink?.invalidate()
         }
-
-        override func draw(_ dirtyRect: NSRect) {
-
-            super.draw(dirtyRect)
-            guard let context = NSGraphicsContext.current else { return }
-            var cgContext = context.cgContext
+        
+        override func draw(_ rect: CGRect) {
+            super.draw(rect)
+            guard let cgContext = UIGraphicsGetCurrentContext() else { return }
 
             if PaxEngineContainer.paxEngineContainer == nil {
                 let swiftLoggerCallback : @convention(c) (UnsafePointer<CChar>?) -> () = {
@@ -160,26 +166,23 @@ struct PaxViewIos: View {
 
                 PaxEngineContainer.paxEngineContainer = pax_init(swiftLoggerCallback)
             } else {
-
-                let nativeMessageQueue = pax_tick(PaxEngineContainer.paxEngineContainer!, &cgContext, CFloat(dirtyRect.width), CFloat(dirtyRect.height))
+                guard var mutableCGContext = UIGraphicsGetCurrentContext() else { return }
+                let nativeMessageQueue = pax_tick(PaxEngineContainer.paxEngineContainer!, &mutableCGContext, Float(rect.width), Float(rect.height))
                 processNativeMessageQueue(queue: nativeMessageQueue.unsafelyUnwrapped.pointee)
                 pax_dealloc_message_queue(nativeMessageQueue)
             }
 
-            //This DispatchWorkItem `cancel()` is required because sometimes `draw` will be triggered externally from this loop, which
-            //would otherwise create new families of continuously reproducing DispatchWorkItems, each ticking up a frenzy, well past the bounds of our target FPS.
-            //This cancellation + shared singleton (`tickWorkItem`) ensures that only one DispatchWorkItem is enqueued at a time.
             if currentTickWorkItem != nil {
                 currentTickWorkItem!.cancel()
             }
 
             currentTickWorkItem = DispatchWorkItem {
-                self.setNeedsDisplay(dirtyRect)
-                self.displayIfNeeded()
+                self.setNeedsDisplay(rect)
+                self.setNeedsLayout()
             }
 
         }
-
+        
         var currentTickWorkItem : DispatchWorkItem? = nil
 
         func handleTextCreate(patch: AnyCreatePatch) {
@@ -240,12 +243,12 @@ struct PaxViewIos: View {
                         throw NSError(domain: "", code: 100, userInfo: [NSLocalizedDescriptionKey : "Image file not found in nested bundle"])
                     }
 
-                    guard let image = NSImage(contentsOf: imageURL) else {
-                        throw NSError(domain: "", code: 101, userInfo: [NSLocalizedDescriptionKey : "Could not create NSImage from data"])
+                    guard let image = UIImage(contentsOfFile: imageURL.path) else {
+                        throw NSError(domain: "", code: 101, userInfo: [NSLocalizedDescriptionKey : "Could not create UIImage from data"])
                     }
 
-                    guard let cgImage = image.cgImage(forProposedRect: nil, context: nil, hints: nil) else {
-                        throw NSError(domain: "", code: 102, userInfo: [NSLocalizedDescriptionKey : "Could not create CGImage from NSImage"])
+                    guard let cgImage = image.cgImage else {
+                        throw NSError(domain: "", code: 102, userInfo: [NSLocalizedDescriptionKey : "Could not retrieve CGImage from UIImage"])
                     }
 
                     let width = cgImage.width
@@ -342,23 +345,6 @@ struct PaxViewIos: View {
                 //^ Add new message-receive handlers here ^
             })
 
-        }
-
-        override func scrollWheel(with event: NSEvent){
-            let deltaX = event.scrollingDeltaX
-            let deltaY = -event.scrollingDeltaY
-            let x = event.locationInWindow.x;
-            let y = event.locationInWindow.y;
-            let json = String(format: "{\"Scroll\": {\"x\": %f, \"y\": %f, \"delta_x\": %f, \"delta_y\": %f} }", x, y, deltaX, deltaY);
-            let buffer = try! FlexBufferBuilder.fromJSON(json)
-
-            //Send `Scroll` interrupt
-            buffer.data.withUnsafeBytes({ptr in
-                var ffi_container = InterruptBuffer( data_ptr: ptr.baseAddress!, length: UInt64(ptr.count) )
-                withUnsafePointer(to: &ffi_container) {ffi_container_ptr in
-                    pax_interrupt(PaxEngineContainer.paxEngineContainer!, ffi_container_ptr)
-                }
-            })
         }
 
     }
