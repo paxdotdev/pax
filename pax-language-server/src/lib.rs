@@ -630,9 +630,6 @@ impl LanguageServer for Backend {
     async fn did_open(&self, did_open_params: DidOpenTextDocumentParams) {
         let uri = did_open_params.text_document.uri.clone();
         let language_id = &did_open_params.text_document.language_id;
-        self.client
-        .log_message(MessageType::INFO, format!("did_open: {}", uri.path()))
-        .await;
         if language_id == "rust" {
             let mut rust_file_opened_guard = self.rust_file_opened.lock().unwrap();
             *rust_file_opened_guard = true;
