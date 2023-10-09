@@ -5,7 +5,7 @@
             <Image path="assets/images/pax-logo-light.png" x=20px y=50% width=75px height=25px anchor_y=50% />
             <Text text="<a href='https://www.github.com/pax-lang/pax' target='_blank'>Github</a>" class=link />
             <Text text="<a href='https://developing.pax.rs' target='_blank'>Blog</a>" class=link />
-         </Frame>
+         </Stacker>
         <Rectangle
             fill={Fill::linearGradient(
                 (0%, 50%),
