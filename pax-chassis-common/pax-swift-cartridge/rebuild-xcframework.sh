@@ -6,7 +6,7 @@
 set -e
 
 # An array of architectures
-archs=("macos-arm64" "macos-x86_64")
+archs=("ios-arm64" "iossimulator-multiarch" "macos-multiarch")
 
 # Iterate over each architecture and perform the operations
 for arch in "${archs[@]}"; do
