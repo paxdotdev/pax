@@ -63,6 +63,8 @@ const BUILD_DIR_NAME : &str = "build";
 const PUBLIC_DIR_NAME: &str = "public";
 const ASSETS_DIR_NAME: &str = "assets";
 const REEXPORTS_PARTIAL_FILE_NAME: &str = "reexports.partial.rs";
+const MACOS_MULTIARCH_PACKAGE_ID : &str = "macos-multiarch";
+const ERR_SPAWN : &str = "failed to spawn child";
 
 //whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
 //or for looking up package IDs from a userland Cargo.lock.
@@ -958,7 +960,7 @@ pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) ->
         cmd.pre_exec(pre_exec_hook);
     }
 
-    let child = cmd.spawn().expect("failed to spawn child");
+    let child = cmd.spawn().expect(ERR_SPAWN);
 
     // child.stdin.take().map(drop);
     let output = wait_with_output(&process_child_ids, child);
@@ -1177,12 +1179,6 @@ pub fn build_chassis_with_cartridge(
         .join(format!("pax-chassis-{}", target_str_lower))
         .join("interface");
 
-    let is_web = if let RunTarget::Web = ctx.target {
-        true
-    } else {
-        false
-    };
-
     //Inject `patch` directive, which allows userland projects to refer to concrete versions like `0.4.0`, while we
     //swap them for our locally cloned filesystem versions during compilation.
     let existing_cargo_toml_path = chassis_path.join("Cargo.toml");
@@ -1211,7 +1207,6 @@ pub fn build_chassis_with_cartridge(
     let target_folder: &str = ctx.target.borrow().into();
 
     let output_path = pax_dir.join("build").join(target_folder);
-    let output_path_str = output_path.to_str().unwrap();
 
     std::fs::create_dir_all(&output_path).ok();
 
@@ -1233,10 +1228,11 @@ pub fn build_chassis_with_cartridge(
 
             let mut handles = Vec::new();
 
-            let build_results : Arc<Mutex<HashMap<u32, (String, Output)>>> = Arc::new(Mutex::new(HashMap::new()));
+            //(arch id, single-platform .dylib path, stdout/stderr from build)
+            let build_results : Arc<Mutex<HashMap<u32, (String, String, Output)>>> = Arc::new(Mutex::new(HashMap::new()));
 
-            let targets_single_string = TARGET_MAPPINGS.iter().map(|tm|{tm.1.to_string()}).collect::<Vec<String>>().join(",");
-            println!("{} ⚙️ Compiling targets {{{}}} across {} threads...\n", *PAX_BADGE, &targets_single_string, TARGET_MAPPINGS.len());
+            let targets_single_string = TARGET_MAPPINGS.iter().map(|tm|{tm.1.to_string()}).collect::<Vec<String>>().join(", ").bold();
+            println!("{} 🧶 Compiling targets {{{}}} across {} threads...\n", *PAX_BADGE, &targets_single_string, TARGET_MAPPINGS.len());
 
             let mut index = 0;
             for target_mapping in TARGET_MAPPINGS {
@@ -1265,7 +1261,7 @@ pub fn build_chassis_with_cartridge(
                         cmd.pre_exec(pre_exec_hook);
                     }
 
-                    let child = cmd.spawn().expect("failed to spawn child");
+                    let child = cmd.spawn().expect(ERR_SPAWN);
 
                     //Execute `cargo build`, which generates our dylib
                     let output = wait_with_output(&process_child_ids_threadsafe, child);
@@ -1277,18 +1273,11 @@ pub fn build_chassis_with_cartridge(
                         .join(BUILD_MODE_NAME)
                         .join("libpaxchassismacos.dylib");
 
-                    let dylib_dest_pkg = pax_dir
-                        .join(PKG_DIR_NAME)
-                        .join("pax-chassis-common")
-                        .join("pax-swift-cartridge")
-                        .join("PaxCartridge.xcframework")
-                        .join(target_mapping.1)
-                        .join("PaxCartridge.framework")
-                        .join("PaxCartridge");
 
-                    let _ = fs::copy(&dylib_src, &dylib_dest_pkg);
 
-                    let new_val = (target_mapping.1.to_string(), output);
+                    // let _ = fs::copy(&dylib_src, &dylib_dest_pkg);
+
+                    let new_val = (target_mapping.1.to_string(), dylib_src.to_str().unwrap().to_string(), output);
                     build_results_threadsafe.lock().unwrap().insert(index, new_val);
 
                 });
@@ -1303,10 +1292,12 @@ pub fn build_chassis_with_cartridge(
             }
 
             let results = build_results.lock().unwrap();
+
+            //Print stdout/stderr
             for i in 0..TARGET_MAPPINGS.len() {
                 let result = results.get(&(i as u32)).unwrap();
                 let target = &result.0;
-                let output = &result.1;
+                let output = &result.2;
 
                 let stdout = String::from_utf8_lossy(&output.stdout).to_string();
                 let stderr = String::from_utf8_lossy(&output.stderr).to_string();
@@ -1323,6 +1314,38 @@ pub fn build_chassis_with_cartridge(
                 index = index + 1;
             }
 
+            // Merge platform-specific binaries with `lipo` (this is an undocumented requirement
+            // of multi-arch builds + xcframeworks for the Apple toolchain; we cannot bundle two
+            // macos arch .frameworks in an xcframework; they must lipo'd into a single .framework + dylib)
+            println!("{} 🖇️  Combining architecture-specific binaries with `lipo`...", *PAX_BADGE);
+            let multiarch_dylib_dest = pax_dir
+                .join(PKG_DIR_NAME)
+                .join("pax-chassis-common")
+                .join("pax-swift-cartridge")
+                .join("PaxCartridge.xcframework")
+                .join(MACOS_MULTIARCH_PACKAGE_ID)
+                .join("PaxCartridge.framework")
+                .join("PaxCartridge");
+
+            let lipo_input_paths = results.iter().map(|res|{res.1.1.clone()}).collect::<Vec<String>>();
+
+            // Construct the lipo command
+            let mut lipo_command = Command::new("lipo");
+            lipo_command
+                .arg("-create")
+                .stdout(std::process::Stdio::piped())
+                .stderr(std::process::Stdio::piped());
+
+            // Add each input path to the command
+            for path in &lipo_input_paths {
+                lipo_command.arg(path);
+            }
+
+            // Specify the output path
+            lipo_command.arg("-output").arg(multiarch_dylib_dest);
+
+            let child = lipo_command.spawn().expect(ERR_SPAWN);
+            let _output = wait_with_output(&process_child_ids, child);
 
             let xcodeproj_path = pax_dir.join(PKG_DIR_NAME)
                 .join("pax-chassis-macos")
@@ -1347,11 +1370,42 @@ pub fn build_chassis_with_cartridge(
                 .arg(scheme)
                 .arg(&format!("CONFIGURATION_BUILD_DIR={}", executable_output_path.to_str().unwrap()))
                 .stdout(std::process::Stdio::inherit())
-                .stderr(std::process::Stdio::inherit());
+                .stderr(std::process::Stdio::piped());
 
-            let _output = cmd.output().expect("Failed to execute command");
+            if !ctx.verbose {
+                cmd.arg("-quiet");
+                cmd.arg("GCC_WARN_INHIBIT_ALL_WARNINGS=YES");
+            }
 
-            //TODO: copy arch-specific dylibs into pax-chassis-common/pax-swift-cartridge
+            let output = cmd.output().expect("Failed to execute command");
+
+            // Crudely prune out noisy xcodebuild warnings due to an apparent xcode-internal bug at time of authoring, spitting out:
+            //   Details:  createItemModels creation requirements should not create capability item model for a capability item model that already exists.
+            //       Function: createItemModels(for:itemModelSource:)
+            //   Thread:   <_NSMainThread: 0x600000be02c0>{number = 1, name = main}
+            //   Please file a bug at https://feedbackassistant.apple.com with this warning message and any useful information you can provide.
+            // If we get to a point where xcodebuild isn't spitting these errors, we can drop this block of code and just `.inherit` stderr in
+            // the command above.
+            let stderr = String::from_utf8_lossy(&output.stderr).to_string();
+            if ctx.verbose {
+                println!("{}", stderr);
+            } else {
+                let mut skip_lines = 0;
+                for line in stderr.lines() {
+                    // Check if this line starts a blacklisted message
+                    if line.starts_with("Details:  createItemModels") {
+                        skip_lines = 5;  // There are 5 lines to skip, including this one
+                    }
+
+                    // If skip_lines is non-zero, skip printing and decrement the counter
+                    if skip_lines > 0 {
+                        skip_lines -= 1;
+                        continue;
+                    }
+
+                    println!("{}", line);
+                }
+            }
 
             //Copy build artifacts & packages into `build`
             let swift_cart_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-common").join("pax-swift-cartridge");
@@ -1361,7 +1415,6 @@ pub fn build_chassis_with_cartridge(
             let swift_cart_build_dest = build_dest_base.join("pax-chassis-common").join("pax-swift-cartridge");
             let swift_common_build_dest = build_dest_base.join("pax-chassis-common").join("pax-swift-common");
             let app_xcodeproj_build_dest = build_dest_base.join("pax-chassis-macos").join("interface").join("pax-app-macos");
-            let executable_dest = build_dest_base.clone();
 
             let _ = fs::create_dir_all(&swift_cart_build_dest);
             let _ = fs::create_dir_all(&swift_common_build_dest);
@@ -1419,7 +1472,7 @@ pub fn build_chassis_with_cartridge(
                 cmd.pre_exec(pre_exec_hook);
             }
 
-            let child = cmd.spawn().expect("failed to spawn child");
+            let child = cmd.spawn().expect(ERR_SPAWN);
 
             // Execute wasm-pack build
             let _output = wait_with_output(&process_child_ids, child);
