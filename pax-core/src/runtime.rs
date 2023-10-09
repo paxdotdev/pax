@@ -1,7 +1,5 @@
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::VecDeque;
-use std::ops::Deref;
 use std::rc::{Rc, Weak};
 
 use pax_properties_coproduct::PropertiesCoproduct;
@@ -43,7 +41,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
 
         self.stack.iter().for_each(|frame_wrapped| {
             if let PropertiesCoproduct::RepeatItem(_datum, i) =
-                &*(*(*(*frame_wrapped).borrow_mut()).borrow().properties).borrow()
+                &*(*(*(*frame_wrapped).borrow_mut()).properties).borrow()
             {
                 indices.push(*i as u32)
             }
@@ -217,7 +215,7 @@ impl<R: 'static + RenderContext> StackFrame<R> {
         if new_depth == n {
             return Some(parent.upgrade().unwrap());
         }
-        (*parent.deref().upgrade().unwrap())
+        (*parent.upgrade().unwrap())
             .borrow()
             .recurse_peek_nth(n, new_depth)
     }

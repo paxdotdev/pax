@@ -230,14 +230,14 @@ fn recurse_pratt_parse_to_string<'a>(
                 } else {
                     //no explicit type declaration, like `{...}`
                     // -- this token is the first k/v pair of object declaration; handle as such
-                    let ril = handle_xoskvp(maybe_identifier, pratt_parser.clone(), Rc::clone(&symbolic_ids));
+                    let ril = handle_xoskvp(maybe_identifier, pratt_parser, Rc::clone(&symbolic_ids));
                     output += &ril;
                 }
 
                 let mut remaining_kvps = inner.into_iter();
 
                 while let Some(xoskkvp) = remaining_kvps.next() {
-                    let ril =  handle_xoskvp(xoskkvp, pratt_parser.clone(), Rc::clone(&symbolic_ids));
+                    let ril =  handle_xoskvp(xoskkvp, pratt_parser, Rc::clone(&symbolic_ids));
                     output += &ril;
                 }
 
@@ -266,7 +266,7 @@ fn recurse_pratt_parse_to_string<'a>(
                 format!("vec![{}]", vec.join(","))
             },
             Rule::expression_body => {
-                recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser.clone(), Rc::clone(&symbolic_ids))
+                recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser, Rc::clone(&symbolic_ids))
             },
             _ => unreachable!("{}",primary.as_str()),
         })
@@ -405,7 +405,7 @@ fn recurse_visit_tag_pairs_for_template(
                 control_flow_settings: None,
                 type_id: ctx
                     .pascal_identifier_to_type_id_map
-                    .get(pascal_identifier.clone())
+                    .get(pascal_identifier)
                     .expect(&format!("Template key not found {}", &pascal_identifier))
                     .to_string(),
                 settings: parse_inline_attribute_from_final_pairs_of_tag(open_tag),
