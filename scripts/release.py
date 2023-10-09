@@ -76,19 +76,6 @@ def topological_sort(source):
     dfs(source)
     return order[::-1]
 
-for root in root_packages:
-    order = topological_sort(root)
-    print(order)
-
-print(graph)
-
-# The output
-'''
-['pax-chassis-macos', 'pax-cartridge', 'pax-std/pax-std-primitives', 'pax-std', 'pax-lang', 'pax-compiler', 'pax-macro', 'pax-core', 'pax-properties-coproduct', 'pax-runtime-api', 'pax-message']
-['pax-chassis-web', 'pax-cartridge', 'pax-std/pax-std-primitives', 'pax-std', 'pax-lang', 'pax-compiler', 'pax-macro', 'pax-core', 'pax-properties-coproduct', 'pax-runtime-api', 'pax-message']
-['pax-cli', 'pax-language-server', 'pax-compiler', 'pax-runtime-api', 'pax-message']
-['pax-example', 'pax-std', 'pax-lang', 'pax-compiler', 'pax-runtime-api', 'pax-message', 'pax-macro']
-'''
 
 # First pass to update the versions
 for root in root_packages:
@@ -128,8 +115,7 @@ for root in root_packages:
         # Only publish the package if it has not been published in this run
         if elem not in published:
             # Run `cargo publish` within the current package directory
-            print("Publishing " + elem)
-            #subprocess.run(["cargo", "publish", "--no-verify"], cwd=os.path.join(os.getcwd(), elem), check=True)
+            subprocess.run(["cargo", "publish", "--no-verify"], cwd=os.path.join(os.getcwd(), elem), check=True)
             # Mark this package as published
             published.add(elem)
             # Wait one minute, to satisfy crates.io's throttling mechanism.
@@ -145,7 +131,7 @@ for root in root_packages:
 subprocess.run(['cargo', 'build'])
 
 # Fixup git commit, to include updates to Cargo.lock
-#subprocess.run(["git", "commit", "-a", "--amend", "--no-edit"], check=True)
+subprocess.run(["git", "commit", "-a", "--amend", "--no-edit"], check=True)
 
 # Perform git tag
 # subprocess.run(["git", "tag", "-a", "v" + NEW_VERSION, "-m", "Release v" + NEW_VERSION], check=True)
