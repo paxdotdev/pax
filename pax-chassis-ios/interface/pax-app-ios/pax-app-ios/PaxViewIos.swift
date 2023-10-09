@@ -11,7 +11,7 @@ import FlexBuffers
 import Messages
 import Rendering
 import PaxCartridgeAssets
-//import PaxCartridge
+import PaxCartridge
 
 struct PaxViewIos: View {
 
