@@ -122,13 +122,14 @@ subprocess.run(["git", "commit", "-am", "Release " + NEW_VERSION], check=True)
 
 # Second pass to publish the crates
 for root in root_packages:
-    order = topological_sort(root).reverse()
+    order = topological_sort(root)
 
     for elem in order:
         # Only publish the package if it has not been published in this run
         if elem not in published:
             # Run `cargo publish` within the current package directory
-            subprocess.run(["cargo", "publish", "--no-verify"], cwd=os.path.join(os.getcwd(), elem), check=True)
+            print("Publishing " + elem)
+            #subprocess.run(["cargo", "publish", "--no-verify"], cwd=os.path.join(os.getcwd(), elem), check=True)
             # Mark this package as published
             published.add(elem)
             # Wait one minute, to satisfy crates.io's throttling mechanism.
@@ -144,7 +145,7 @@ for root in root_packages:
 subprocess.run(['cargo', 'build'])
 
 # Fixup git commit, to include updates to Cargo.lock
-subprocess.run(["git", "commit", "-a", "--amend", "--no-edit"], check=True)
+#subprocess.run(["git", "commit", "-a", "--amend", "--no-edit"], check=True)
 
 # Perform git tag
 # subprocess.run(["git", "tag", "-a", "v" + NEW_VERSION, "-m", "Release v" + NEW_VERSION], check=True)
