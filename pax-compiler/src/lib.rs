@@ -1204,12 +1204,6 @@ pub fn build_chassis_with_cartridge(
         .unwrap();
     }
 
-    let target_folder: &str = ctx.target.borrow().into();
-
-    let output_path = pax_dir.join("build").join(target_folder);
-
-    std::fs::create_dir_all(&output_path).ok();
-
     //string together a shell call to build our chassis, with cartridge inserted via `patch`
     match target {
         RunTarget::MacOS => {

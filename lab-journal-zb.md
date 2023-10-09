@@ -3495,17 +3495,17 @@ We are 90% of the way to supporting iOS, given the shared Swift + CoreGraphics l
     [x] Consume that exposed View in both macOS & iOS
 [x] Refactor (or redo, as needed) macos project to consume new deps
 [ ] Extend pax CLI + compiler to support --target=ios, firing up simulator if present on machine
-    [ ] Refactor compiler internals to adapt to new cartridge / framework / swift package structure: macOS
+    [x] Refactor compiler internals to adapt to new cartridge / framework / swift package structure: macOS
         [x] Configure pax-chassis-macos/interface/pax-app-macos to load the swift packages as relative dirs
         [x] Get e2e build working in-place with pax-chassis-macos (no codegen); embed a placeholder cartridge + resources (bouncing logo?)
         [x] After copying everything into .pax, patch (1) resources and (2) the dylib into pax-chassis-common/pax-swift-cartridge, then
-        [ ] Build the resulting, patched, codegenned macOS project
+        [x] Build the resulting, patched, codegenned macOS project
             [x] Handle architectures: aarch64 and x86_64; 
-            [ ] Bundle targets into xcframework
-                [ ] Create default carts for xcframework along the way
+            [x] Bundle targets into xcframework
+                [x] Create default carts for xcframework along the way
             [x] Multithread the dylib builds
             [x] Handle release vs. debug 
-        [ ] Handle updates to assets; bundle into pax-swift-cartridge Resources
+        [x] Handle updates to assets; bundle into pax-swift-cartridge Resources
     [ ] Rinse & repeat the above with an iOS container app
         [ ] Refactor macOS-specific deps, e.g. NS* and CVDisplayLink
         [ ] Handle build architectures: aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim
