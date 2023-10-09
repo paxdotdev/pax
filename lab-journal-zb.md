@@ -3512,3 +3512,12 @@ We are 90% of the way to supporting iOS, given the shared Swift + CoreGraphics l
         [ ] Multi-thread the builds
         [ ] Handle release vs debug
 [ ] Make better default cartridge for default bundling (e.g. bouncing Pax logo)
+
+From Apple developer forums:
+```
+If you want to build a framework that supports iOS and the iOS Simulator, construct an XCFramework with:
+
+One element for iOS containing just the arm64 architecture
+
+Another element for the iOS Simulator containing both arm64 and x86_64 architectures
+```

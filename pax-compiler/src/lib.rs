@@ -1214,8 +1214,8 @@ pub fn build_chassis_with_cartridge(
                 ("aarch64-apple-darwin", "macos-arm64"),
                 ("x86_64-apple-darwin", "macos-x86_64"),
                 // ("aarch64-apple-ios", "ios-arm64"),
-                // ("x86_64-apple-ios", "ios-x86_64"),
-                // ("aarch64-apple-ios-sim", "ios-simulator-arm64"),
+                // ("x86_64-apple-ios", "iossimulator-x86_64"),
+                // ("aarch64-apple-ios-sim", "iossimulator-arm64"),
             ];
 
 
