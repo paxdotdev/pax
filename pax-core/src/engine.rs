@@ -129,9 +129,9 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
         &self,
         transition_manager: Option<&mut TransitionManager<T>>,
     ) -> Option<T> {
-        if let Some(mut tm) = transition_manager {
+        if let Some(tm) = transition_manager {
             if tm.queue.len() > 0 {
-                let mut current_transition = tm.queue.get_mut(0).unwrap();
+                let current_transition = tm.queue.get_mut(0).unwrap();
                 if let None = current_transition.global_frame_started {
                     current_transition.global_frame_started = Some(self.engine.frames_elapsed);
                 }

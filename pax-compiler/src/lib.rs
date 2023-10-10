@@ -336,7 +336,7 @@ fn generate_and_overwrite_cartridge(
     )
     .unwrap();
 
-    const IMPORTS_BUILTINS: [&str; 28] = [
+    const IMPORTS_BUILTINS: [&str; 26] = [
         "std::cell::RefCell",
         "std::collections::HashMap",
         "std::collections::VecDeque",
@@ -344,8 +344,6 @@ fn generate_and_overwrite_cartridge(
         "std::rc::Rc",
         "pax_runtime_api::PropertyInstance",
         "pax_runtime_api::PropertyLiteral",
-        "pax_runtime_api::Transform2D",
-        "pax_runtime_api::Rotation",
         "pax_runtime_api::CommonProperties",
         "pax_core::ComponentInstance",
         "pax_core::RenderNodePtr",
@@ -1508,7 +1506,7 @@ pub fn perform_create(ctx: &CreateContext) {
         .expect("Failed to write modified Cargo.toml");
 
     println!(
-        "\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax run --target=web`",
+        "\nCreated new Pax project at {}.\nTo run:\n  `cd {} && pax-cli run --target=web`",
         full_path.to_str().unwrap(),
         full_path.to_str().unwrap()
     );
