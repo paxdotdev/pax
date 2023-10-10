@@ -3,6 +3,7 @@
 members = [
     "pax-lang",
     "pax-core",
+    "pax-examples/*",
     "pax-macro",
     "pax-message",
     "pax-compiler",
@@ -15,7 +16,6 @@ members = [
 exclude = [
     "pax-cartridge",
     "pax-compiler/new-project-template",
-    "pax-example",
     "pax-properties-coproduct",
     "pax-chassis-macos/pax-dev-harness-macos",
     "pax-create-sandbox",

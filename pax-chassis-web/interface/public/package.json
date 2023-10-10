@@ -12,12 +12,12 @@
   },
   "files": [
     "pax-chassis-web_bg.wasm",
-    "pax-chassis-web.js",
-    "pax-chassis-web.d.ts"
+    "pax-chassis-web-interface.js",
+    "pax-chassis-web-interface.d.ts"
   ],
-  "module": "pax-chassis-web.js",
+  "module": "pax-chassis-web-interface.js",
   "homepage": "https://pax.dev/",
-  "types": "pax-chassis-web.d.ts",
+  "types": "pax-chassis-web-interface.d.ts",
   "sideEffects": [
     "./snippets/*"
   ]

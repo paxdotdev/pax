@@ -8,9 +8,6 @@ use pax_std::types::{Color, Fill, LinearGradient, StackerDirection};
 
 #[derive(Pax)]
 #[file("website_mobile.pax")]
-pub struct WebsiteMobile {
-}
+pub struct WebsiteMobile {}
 
-
-impl WebsiteMobile {
-}
+impl WebsiteMobile {}

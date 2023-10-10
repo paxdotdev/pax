@@ -192,6 +192,7 @@ fn clone_all_dependencies_to_tmp(
 
 fn generate_and_overwrite_properties_coproduct(
     pax_dir: &PathBuf,
+    project_dir: &Path,
     manifest: &PaxManifest,
     host_crate_info: &HostCrateInfo,
 ) {
@@ -209,7 +210,7 @@ fn generate_and_overwrite_properties_coproduct(
         target_cargo_toml_contents["dependencies"]
             .get_mut(&host_crate_info.name)
             .unwrap(),
-        &mut Item::from_str("{ path=\"../../..\" }").unwrap(),
+        &mut Item::from_str(&format!("{{ path=\"{}\" }}", project_dir.display())).unwrap(),
     );
 
     //write patched Cargo.toml
@@ -311,6 +312,7 @@ fn generate_and_overwrite_properties_coproduct(
 
 fn generate_and_overwrite_cartridge(
     pax_dir: &PathBuf,
+    project_dir: &Path,
     manifest: &PaxManifest,
     host_crate_info: &HostCrateInfo,
 ) {
@@ -326,7 +328,7 @@ fn generate_and_overwrite_cartridge(
         target_cargo_toml_contents["dependencies"]
             .get_mut(&host_crate_info.name)
             .unwrap(),
-        &mut Item::from_str("{ path=\"../../..\" }").unwrap(),
+        &mut Item::from_str(&format!("{{ path=\"{}\" }}", project_dir.display())).unwrap(),
     );
 
     //write patched Cargo.toml
@@ -916,9 +918,9 @@ fn generate_cartridge_component_factory_literal(
     press_template_codegen_cartridge_component_factory(args)
 }
 
-fn get_or_create_pax_directory(working_dir: &str) -> PathBuf {
-    let working_path = std::path::Path::new(working_dir).join(".pax");
-    std::fs::create_dir_all(&working_path).unwrap();
+fn get_or_create_pax_directory() -> PathBuf {
+    let working_path = std::env::temp_dir().join(".pax");
+    fs::create_dir_all(&working_path).unwrap();
     fs::canonicalize(working_path).unwrap()
 }
 
@@ -1046,7 +1048,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     //First we clone dependencies into the .pax/pkg directory.  We must do this before running
     //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
     //dependency paths are `.pax/pkg/*`.
-    let pax_dir = get_or_create_pax_directory(&ctx.path);
+    let pax_dir = get_or_create_pax_directory();
 
     //Inspect Cargo.lock to find declared pax lib versions.  Note that this is moot for
     //libdev, where we don't care about a crates.io version (and where `cargo metadata` won't work
@@ -1083,9 +1085,10 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     expressions::compile_all_expressions(&mut manifest);
 
     println!("{} 🦀 Generating Rust", *PAX_BADGE);
+    let project_dir = fs::canonicalize(&ctx.path).unwrap();
     generate_reexports_partial_rs(&pax_dir, &manifest);
-    generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
-    generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info);
+    generate_and_overwrite_properties_coproduct(&pax_dir, &project_dir, &manifest, &host_crate_info);
+    generate_and_overwrite_cartridge(&pax_dir, &project_dir, &manifest, &host_crate_info);
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
@@ -1106,7 +1109,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
             <&RunTarget as Into<&str>>::into(&ctx.target)
         );
     }
-    build_interface_with_chassis(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
+    build_interface_with_chassis(&pax_dir, &project_dir, &ctx, Arc::clone(&ctx.process_child_ids));
 
     Ok(())
 }
@@ -1176,6 +1179,7 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
 
 fn build_interface_with_chassis(
     pax_dir: &PathBuf,
+    project_dir: &Path,
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
 ) {
@@ -1201,7 +1205,7 @@ fn build_interface_with_chassis(
     let output_path = pax_dir.join("build").join(target_folder);
     let output_path_str = output_path.to_str().unwrap();
 
-    std::fs::create_dir_all(&output_path).ok();
+    fs::create_dir_all(&output_path).ok();
 
     let verbose_val = format!("{}", ctx.verbose);
     let exclude_arch_val = if std::env::consts::ARCH == "aarch64" {
@@ -1210,7 +1214,7 @@ fn build_interface_with_chassis(
         "arm64"
     };
     if is_web {
-        let asset_src = pax_dir.join("..").join("assets");
+        let asset_src = project_dir.join("assets");
         let asset_dest = interface_path.join("public").join("assets");
 
         // Create target assets directory
@@ -1271,10 +1275,8 @@ fn copy_dir_recursively(src: &Path, dest: &Path) -> Result<(), Box<dyn std::erro
     Ok(())
 }
 
-pub fn perform_clean(path: &str) {
-    let path = PathBuf::from(path);
-    let pax_dir = path.join(".pax");
-
+pub fn perform_clean() {
+    let pax_dir = std::env::temp_dir().join(".pax");
     //Sledgehammer approach: nuke the .pax directory
     fs::remove_dir_all(&pax_dir).ok();
 }
@@ -1407,7 +1409,7 @@ pub fn perform_create(ctx: &CreateContext) {
         let mut options = CopyOptions::new();
         options.overwrite = true;
 
-        for entry in std::fs::read_dir(&template_src).expect("Failed to read template directory") {
+        for entry in fs::read_dir(&template_src).expect("Failed to read template directory") {
             let entry_path = entry.expect("Failed to read entry").path();
             if entry_path.is_dir() {
                 dir::copy(&entry_path, &full_path, &options).expect("Failed to copy directory");

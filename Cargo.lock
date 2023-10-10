@@ -1708,7 +1708,7 @@ dependencies = [
  "clap",
  "colored",
  "nix",
- "pax-compiler",
+ "pax-compiler 0.8.0",
  "reqwest",
  "rustc_version",
  "signal-hook",
@@ -1735,8 +1735,50 @@ dependencies = [
  "libc",
  "log",
  "nix",
- "pax-message",
- "pax-runtime-api",
+ "pax-message 0.8.0",
+ "pax-runtime-api 0.8.0",
+ "pest",
+ "pest_derive",
+ "portpicker",
+ "rand",
+ "reqwest",
+ "rust-format",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "tar",
+ "tera",
+ "tokio",
+ "toml_edit 0.14.4",
+ "uuid",
+ "walkdir",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "pax-compiler"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ab32f84d2ae167d247dc0d1502c6b9ac517818960cec1b90e1911b6d9769dcd"
+dependencies = [
+ "actix-files",
+ "actix-rt",
+ "actix-web",
+ "colored",
+ "console_error_panic_hook",
+ "env_logger",
+ "flate2",
+ "fs_extra",
+ "futures",
+ "include_dir",
+ "itertools",
+ "kurbo",
+ "lazy_static",
+ "libc",
+ "log",
+ "nix",
+ "pax-message 0.8.6",
+ "pax-runtime-api 0.8.6",
  "pest",
  "pest_derive",
  "portpicker",
@@ -1760,27 +1802,67 @@ name = "pax-core"
 version = "0.8.0"
 dependencies = [
  "kurbo",
- "pax-message",
+ "pax-message 0.8.0",
  "pax-properties-coproduct",
- "pax-runtime-api",
+ "pax-runtime-api 0.8.0",
  "piet",
  "piet-common",
  "wasm-bindgen",
 ]
 
 [[package]]
+name = "pax-example"
+version = "0.8.0"
+dependencies = [
+ "pax-compiler 0.8.6",
+ "pax-lang 0.8.6",
+ "pax-std 0.8.6",
+ "serde_json",
+]
+
+[[package]]
 name = "pax-lang"
 version = "0.8.0"
 dependencies = [
- "pax-compiler",
- "pax-macro",
- "pax-message",
- "pax-runtime-api",
+ "pax-compiler 0.8.0",
+ "pax-macro 0.8.0",
+ "pax-message 0.8.0",
+ "pax-runtime-api 0.8.0",
+]
+
+[[package]]
+name = "pax-lang"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfb092ef33e3d3fa7c80b17dea23fa9f5cd32e9f08cec15115a1b471d064be11"
+dependencies = [
+ "pax-compiler 0.8.6",
+ "pax-macro 0.8.6",
+ "pax-message 0.8.6",
+ "pax-runtime-api 0.8.6",
 ]
 
 [[package]]
 name = "pax-macro"
 version = "0.8.0"
+dependencies = [
+ "litrs",
+ "pest",
+ "pest_derive",
+ "proc-macro2",
+ "quote",
+ "sailfish",
+ "serde",
+ "serde_derive",
+ "serde_json",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "pax-macro"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0cbee51ceca397885ec51fd0390e57ea5c46b8890ecca4aa9c49e78baa80fb43"
 dependencies = [
  "litrs",
  "pest",
@@ -1804,10 +1886,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "pax-message"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e7129062119be3c4c92af5c0ec12bdcd19717c8c08b775a4a4875cd785e41e28"
+dependencies = [
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+]
+
+[[package]]
 name = "pax-properties-coproduct"
 version = "0.8.0"
 dependencies = [
- "pax-runtime-api",
+ "pax-runtime-api 0.8.0",
 ]
 
 [[package]]
@@ -1817,7 +1910,20 @@ dependencies = [
  "kurbo",
  "lazy_static",
  "mut_static",
- "pax-message",
+ "pax-message 0.8.0",
+ "uuid",
+]
+
+[[package]]
+name = "pax-runtime-api"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "636e0b8548c5d91f7fdf0380e4c5a89cd369f3615f130356519e7c90c4cabaeb"
+dependencies = [
+ "kurbo",
+ "lazy_static",
+ "mut_static",
+ "pax-message 0.8.6",
  "uuid",
 ]
 
@@ -1827,10 +1933,26 @@ version = "0.8.0"
 dependencies = [
  "kurbo",
  "lazy_static",
- "pax-compiler",
- "pax-lang",
- "pax-message",
- "pax-runtime-api",
+ "pax-compiler 0.8.0",
+ "pax-lang 0.8.0",
+ "pax-message 0.8.0",
+ "pax-runtime-api 0.8.0",
+ "piet",
+ "serde_json",
+]
+
+[[package]]
+name = "pax-std"
+version = "0.8.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "62b11b4ed35d3d1146a0c1f45e5211585eb63767c36ecdc9a461223422a2e4b5"
+dependencies = [
+ "kurbo",
+ "lazy_static",
+ "pax-compiler 0.8.6",
+ "pax-lang 0.8.6",
+ "pax-message 0.8.6",
+ "pax-runtime-api 0.8.6",
  "piet",
  "serde_json",
 ]
@@ -1841,10 +1963,10 @@ version = "0.8.0"
 dependencies = [
  "kurbo",
  "pax-core",
- "pax-lang",
- "pax-message",
- "pax-runtime-api",
- "pax-std",
+ "pax-lang 0.8.0",
+ "pax-message 0.8.0",
+ "pax-runtime-api 0.8.0",
+ "pax-std 0.8.0",
  "piet",
  "piet-common",
 ]

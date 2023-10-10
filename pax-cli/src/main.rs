@@ -1,7 +1,6 @@
 use clap::{crate_version, App, AppSettings, Arg, ArgMatches};
 use colored::{ColoredString, Colorize};
 use std::io::Write;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use std::{fs, process, thread};
@@ -165,11 +164,9 @@ fn perform_nominal_action(
                 process_child_ids,
             })
         }
-        ("clean", Some(args)) => {
+        ("clean", Some(_)) => {
             println!("🧹 Cleaning cached & temporary files...");
-            let path = args.value_of("path").unwrap().to_string(); //default value "."
-
-            pax_compiler::perform_clean(&path);
+            pax_compiler::perform_clean();
             thread::sleep(Duration::from_millis(1000)); //Sleep for 1s to let update check finish
 
             println!("Done.");
@@ -207,7 +204,7 @@ fn perform_nominal_action(
                     let target = args.value_of("target").unwrap().to_lowercase();
                     let path = args.value_of("path").unwrap().to_string(); //default value "."
 
-                    let working_path = Path::new(&path).join(".pax");
+                    let working_path = std::env::temp_dir().join(".pax");
                     let pax_dir = fs::canonicalize(working_path).unwrap();
 
                     let ctx = RunContext {

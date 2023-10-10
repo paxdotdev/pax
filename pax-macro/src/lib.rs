@@ -3,9 +3,9 @@ extern crate proc_macro2;
 
 mod parsing;
 mod templating;
-use std::fs;
 use std::io::Read;
 use std::str::FromStr;
+use std::{fs, path::PathBuf};
 
 use std::fs::File;
 
@@ -630,7 +630,9 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         } else {
             unreachable!()
         };
-        let current_dir = std::env::current_dir().expect("Unable to get current directory");
+        let current_dir = PathBuf::from(
+            std::env::var("CARGO_MANIFEST_DIR").expect("Unable to get current directory"),
+        );
         let path = current_dir.join(Path::new("src").join(Path::new(&filename)));
 
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
