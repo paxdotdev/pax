@@ -654,17 +654,15 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             unreachable!()
         };
 
-        let ret = pax_full_component(
+        pax_full_component(
             contents.clone(),
             input.clone(),
             is_main_component,
             None,
             include_imports,
             is_custom_interpolatable,
-        );
+        )
 
-    //println!("{:#?}", contents);
-    ret
     } else if is_primitive {
         pax_primitive(
             input.clone(),

@@ -258,7 +258,6 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
         _ => {}
     }
 
-    // Recursively process inner nodes
     for inner_pair in pair.into_inner() {
         extract_positional_nodes(inner_pair, nodes);
     }
