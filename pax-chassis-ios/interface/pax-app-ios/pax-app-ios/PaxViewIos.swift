@@ -17,6 +17,8 @@ struct PaxViewIos: View {
 
     var canvasView : some View = PaxCanvasViewRepresentable()
             .frame(minWidth: 300, maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+    
+    @State private var previousScrollLocation: CGPoint? = nil
 
     var body: some View {
         ZStack {
@@ -26,17 +28,32 @@ struct PaxViewIos: View {
         .onAppear {
             registerFonts()
         }
-        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .global).onChanged { dragGesture in
-            // Handle "Scroll" (Pan) events
-            let translation = dragGesture.translation
-            let json = String(format: "{\"Scroll\": {\"x\": %f, \"y\": %f, \"delta_x\": %f, \"delta_y\": %f} }", dragGesture.location.x, dragGesture.location.y, translation.width, -translation.height)
-            sendInterrupt(with: json)
-        }
-        .onEnded { dragGesture in
-            // Handle "Click" events
-            let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y)
-            sendInterrupt(with: json)
-        })
+        .gesture(DragGesture(minimumDistance: 0, coordinateSpace: .local)
+            .onChanged { dragGesture in
+                if let previous = self.previousScrollLocation {
+                    let deltaX = dragGesture.location.x - previous.x
+                    let deltaY = dragGesture.location.y - previous.y
+                    
+                    let json = String(format: "{\"Scroll\": {\"x\": %f, \"y\": %f, \"delta_x\": %f, \"delta_y\": %f} }",
+                                      dragGesture.location.x,
+                                      dragGesture.location.y,
+                                      -deltaX,
+                                      -deltaY)
+                    sendInterrupt(with: json)
+                }
+                
+                self.previousScrollLocation = dragGesture.location
+            }
+            .onEnded { dragGesture in
+                //Reset scroll tracking position
+                self.previousScrollLocation = nil
+                
+                // Handle "Click" events — note that we should probably check to ensure that a maximum distance has not been crossed
+                // to rightly handle this as a "click".  Currently this is more of a `touchend`.
+                let json = String(format: "{\"Click\": {\"x\": %f, \"y\": %f, \"button\": \"Left\", \"modifiers\":[] } }", dragGesture.location.x, dragGesture.location.y)
+                sendInterrupt(with: json)
+            }
+        )
     }
 
     func sendInterrupt(with json: String) {
@@ -112,13 +129,12 @@ struct PaxViewIos: View {
 
         override init(frame: CGRect) {
             super.init(frame: frame)
-            // self.layer.drawsAsynchronously = true // This property doesn't exist for CALayer in iOS.
-             createDisplayLink() // Commenting out for now since CVDisplayLink is not handled yet.
+             createDisplayLink()
         }
 
         required init?(coder: NSCoder) {
             super.init(coder: coder)
-             createDisplayLink() // Commenting out for now since CVDisplayLink is not handled yet.
+             createDisplayLink()
         }
 
 
@@ -156,6 +172,10 @@ struct PaxViewIos: View {
         override func draw(_ rect: CGRect) {
             super.draw(rect)
             guard let cgContext = UIGraphicsGetCurrentContext() else { return }
+            
+            // Apply affine transform to cgContext to emulate macOS's "y-up" coordinate space.
+            cgContext.translateBy(x: 0, y: rect.height) // Move the origin to the bottom-left
+            cgContext.scaleBy(x: 1.0, y: -1.0) // Reflect over x axis
 
             if PaxEngineContainer.paxEngineContainer == nil {
                 let swiftLoggerCallback : @convention(c) (UnsafePointer<CChar>?) -> () = {

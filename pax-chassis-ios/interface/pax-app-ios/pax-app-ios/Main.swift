@@ -11,7 +11,7 @@ import SwiftUI
 struct pax_app_iosApp: App {
     var body: some Scene {
         WindowGroup {
-            PaxViewIos()
+            PaxViewIos().edgesIgnoringSafeArea(.all)
         }
     }
 }
