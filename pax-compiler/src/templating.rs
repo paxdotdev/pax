@@ -4,7 +4,8 @@ use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 use std::collections::HashMap;
-use tera::Tera;
+use tera::{Tera, Context};
+
 
 use crate::manifest::{ExpressionSpec, PropertyDefinition};
 
@@ -56,7 +57,7 @@ pub struct TemplateArgsCodegenCartridgeRenderNodeLiteral {
     pub primitive_instance_import_path: Option<String>,
     pub properties_coproduct_variant: String,
     pub component_properties_struct: String,
-    pub properties: Vec<(String, String)>,
+    pub defined_properties: Vec<(String, String)>,
     //0: property id (e.g. "width"), 1: property value literal RIL (e.g. "None" or "Some(Rc::new(...))"
     pub common_properties_literal: Vec<(String, String)>,
     pub children_literal: Vec<String>,
@@ -134,10 +135,14 @@ pub fn press_template_codegen_cartridge_render_node_literal(
         .unwrap()
         .contents_utf8()
         .unwrap();
-    Tera::one_off(
-        template.into(),
-        &tera::Context::from_serialize(args).unwrap(),
-        false,
+
+    let mut tera = Tera::default();
+    tera.add_raw_template("cartridge-render-node-literal", template).unwrap();
+
+    tera.render(
+        "cartridge-render-node-literal",
+        &Context::from_serialize(args).unwrap(),
     )
-    .unwrap()
+        .unwrap()
 }
+
