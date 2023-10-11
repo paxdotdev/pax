@@ -31,6 +31,7 @@ PACKAGES = [
     "pax-core",
     "pax-example",
     "pax-lang",
+    "pax-language-server",
     "pax-macro",
     "pax-message",
     "pax-properties-coproduct",
@@ -70,7 +71,7 @@ def topological_sort(source):
         for neighbor in graph[node]:
             if neighbor not in visited:
                 dfs(neighbor)
-        order.append(node)
+        order.insert(0,node)
 
     dfs(source)
     return order[::-1]

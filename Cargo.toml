@@ -19,6 +19,7 @@ exclude = [
     "pax-properties-coproduct",
     "pax-chassis-macos/pax-dev-harness-macos",
     "pax-create-sandbox",
+    "pax-language-server",
 ]
 
 [profile.release]
