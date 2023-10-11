@@ -20,7 +20,7 @@
 
     // Scrolling content pane
     <Scroller width=100% height=100% size_inner_pane_x=100% size_inner_pane_y=500% scroll_enabled_x=false scroll_enabled_y=true>
-        <Stacker cells=5 direction=StackerDirection::Vertical gutter=0px>
+        <Stacker cells=5 direction=StackerDirection::Vertical >
         <Frame id=f0>
             <Frame id=f1>
                 <Stacker cells=2 direction=StackerDirection::Vertical gutter=10px sizes={[Option::Some(70%), Option::None]} >
@@ -37,7 +37,7 @@
         </Frame>
         <Frame id=f0>
             <Frame id=f2>
-            <Stacker cells=3 direction=StackerDirection::Vertical gutter=0px sizes={[Option::None, Option::Some(40%), Option::None]}>
+            <Stacker cells=3 direction=StackerDirection::Vertical sizes={[Option::None, Option::Some(40%), Option::None]}>
                 <Text text="BUILD CREATIVELY" class=h2/>
                 <Text text="Pax renders in the same coordinate space as a tool like Photoshop or Figma, with the addition of responsive positioning & sizing, as well as a fine-grained animation engine." class=p2 />
                 <Text text="Create and compose custom components into apps. Write application logic in Rust, while describing content & style in Pax’s declarative UI language." class=p2 />
