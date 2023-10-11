@@ -3,13 +3,15 @@ use crate::types::{StackerCell, StackerDirection};
 use pax_lang::api::numeric::Numeric;
 use pax_lang::api::{Property, Size, Transform2D};
 use pax_lang::*;
-use pax_runtime_api::RuntimeContext;
+use pax_runtime_api::{RuntimeContext, PropertyLiteral};
+
 
 /// Stacker lays out a series of nodes either
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
 /// each node.  `Stacker`s can be stacked inside of each other, horizontally
 /// and vertically, along with `Transform.align` and `Transform.anchor` to compose any rectilinear 2D layout.
 #[derive(Pax)]
+#[custom(Default)]
 #[inlined(
     for (cell_spec, i) in self._cell_specs {
         <Frame
@@ -35,6 +37,18 @@ pub struct Stacker {
     /// For for specifying sizes of each cell.  None-values (or array-index out-of-bounds values)
     /// will fall back to computed, equal-sizing
     pub sizes: Property<Vec<Option<Size>>>,
+}
+
+impl Default for Stacker {
+    fn default() -> Self {
+        Self {
+            cells: Box::new(PropertyLiteral::new(1.into())),
+            direction: Box::new(PropertyLiteral::new(StackerDirection::Horizontal)),
+            _cell_specs: Box::new(PropertyLiteral::new(vec![])),
+            gutter: Box::new(PropertyLiteral::new(Size::Pixels(Numeric::Integer(0)))),
+            sizes: Box::new(PropertyLiteral::new(vec![])),
+        }
+    }
 }
 
 impl Stacker {
