@@ -581,8 +581,6 @@ fn recurse_generate_render_nodes_literal(
         })
         .collect();
 
-    const DEFAULT_PROPERTY_LITERAL: &str = "PropertyLiteral::new(Default::default())";
-
     //pull inline event binding and store into map
     let events = generate_bound_events(tnd.settings.clone());
     let args = if tnd.type_id == parsing::TYPE_ID_REPEAT {
@@ -616,7 +614,7 @@ fn recurse_generate_render_nodes_literal(
             primitive_instance_import_path: Some("RepeatInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
-            properties: vec![],
+            defined_properties: vec![],
             common_properties_literal,
             children_literal,
             slot_index_literal: "None".to_string(),
@@ -649,7 +647,7 @@ fn recurse_generate_render_nodes_literal(
             primitive_instance_import_path: Some("ConditionalInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
-            properties: vec![],
+            defined_properties: vec![],
             common_properties_literal,
             children_literal,
             slot_index_literal: "None".to_string(),
@@ -685,7 +683,7 @@ fn recurse_generate_render_nodes_literal(
             primitive_instance_import_path: Some("SlotInstance".into()),
             properties_coproduct_variant: "None".to_string(),
             component_properties_struct: "None".to_string(),
-            properties: vec![],
+            defined_properties: vec![],
             common_properties_literal,
             children_literal,
             slot_index_literal: format!("Some(Box::new(PropertyExpression::new({})))", id),
@@ -716,7 +714,7 @@ fn recurse_generate_render_nodes_literal(
         //    stage for any `Properties` that are bound to something other than an expression / literal)
 
         // Tuple of property_id, RIL literal string (e.g. `PropertyLiteral::new(...`_
-        let property_ril_tuples: Vec<(String, String)> = component_for_current_node
+        let property_ril_tuples: Vec<Option<(String, String)>> = component_for_current_node
             .get_property_definitions(rngc.type_table)
             .iter()
             .map(|pd| {
@@ -727,40 +725,51 @@ fn recurse_generate_render_nodes_literal(
                         {
                             match &matched_setting.1 {
                                 ValueDefinition::LiteralValue(lv) => {
-                                    format!("PropertyLiteral::new({})", lv)
+                                    Some(format!("PropertyLiteral::new({})", lv))
                                 }
                                 ValueDefinition::Expression(_, id)
                                 | ValueDefinition::Identifier(_, id) => {
-                                    format!(
+                                    Some(format!(
                                         "PropertyExpression::new({})",
                                         id.expect("Tried to use expression but it wasn't compiled")
-                                    )
+                                    ))
                                 }
                                 ValueDefinition::Block(block) => {
-                                    format!(
+                                    Some(format!(
                                         "PropertyLiteral::new({})",
                                         recurse_literal_block(
                                             block.clone(),
                                             pd.get_type_definition(&rngc.type_table),
                                             host_crate_info
                                         )
-                                    )
+                                    ))
                                 }
                                 _ => {
                                     panic!("Incorrect value bound to inline setting")
                                 }
                             }
                         } else {
-                            DEFAULT_PROPERTY_LITERAL.to_string()
+                            None
                         }
                     } else {
                         //no inline attributes at all; everything will be default
-                        DEFAULT_PROPERTY_LITERAL.to_string()
+                        None
                     }
                 };
 
-                (pd.name.clone(), ril_literal_string)
+
+                if let Some(ril_literal_string) = ril_literal_string {
+                    Some((pd.name.clone(), ril_literal_string))
+                } else {
+                    None
+                }
             })
+            .collect();
+
+        let defined_properties: Vec<(String, String)> = property_ril_tuples
+            .iter()
+            .filter_map(|p| p.as_ref())
+            .cloned()
             .collect();
 
         let identifiers_and_types = pax_runtime_api::CommonProperties::get_property_identifiers();
@@ -841,7 +850,7 @@ fn recurse_generate_render_nodes_literal(
                 .clone(),
             properties_coproduct_variant: component_for_current_node.type_id_escaped.to_string(),
             component_properties_struct: component_for_current_node.pascal_identifier.to_string(),
-            properties: property_ril_tuples,
+            defined_properties,
             common_properties_literal,
             children_literal,
             slot_index_literal: "None".to_string(),
