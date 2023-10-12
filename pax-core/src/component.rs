@@ -90,9 +90,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         bounds
     }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        self.common_properties.compute_properties(rtc);
-
-        (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
 
         //expand adoptees before adding to stack frame.
         //NOTE: this requires *evaluating properties* for `should_flatten` nodes like Repeat and Conditional, whose
@@ -109,10 +106,13 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         ));
 
         (*rtc.runtime).borrow_mut().push_stack_frame(
-            flattened_adoptees,
+            Rc::clone(&flattened_adoptees),
             Rc::clone(&self.properties),
             self.timeline.clone(),
         );
+
+        self.common_properties.compute_properties(rtc);
+        (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
     }
 
     fn get_layer_type(&mut self) -> Layer {

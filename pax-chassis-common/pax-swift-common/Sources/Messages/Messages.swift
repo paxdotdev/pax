@@ -151,7 +151,7 @@ public enum TextAlignHorizontal {
 }
 
 public extension TextAlignHorizontal {
-    public func toTextAlignment() -> TextAlignment {
+    func toTextAlignment() -> TextAlignment {
         switch self {
         case .center:
             return .center
@@ -563,11 +563,38 @@ public class PaxFont {
         }
     }
 
+    #if os(macOS)
+    public static func isFontRegistered(fontFamily: String) -> Bool {
+        let fontFamilies = CTFontManagerCopyAvailableFontFamilyNames() as! [String]
+
+        if fontFamilies.contains(fontFamily) {
+            return true
+        }
+
+        // Check if the font is installed on the system using CTFontManager
+        let installedFontURLs = CTFontManagerCopyAvailableFontURLs() as? [URL] ?? []
+
+        for url in installedFontURLs {
+            if let fontDescriptors = CTFontManagerCreateFontDescriptorsFromURL(url as CFURL) as? [CTFontDescriptor] {
+                for descriptor in fontDescriptors {
+                    if let fontFamilyName = CTFontDescriptorCopyAttribute(descriptor, kCTFontFamilyNameAttribute) as? String {
+                        if fontFamilyName == fontFamily {
+                            return true
+                        }
+                    }
+                }
+            }
+        }
+        return false
+
+    }
+    #elseif  os(iOS) || os(tvOS) || os(watchOS)
     public static func isFontRegistered(fontFamily: String) -> Bool {
         let availableFontFamilies = UIFont.familyNames
         
         return availableFontFamilies.contains(fontFamily)
     }
+    #endif
 }
 //
 //public class FontFactory {
