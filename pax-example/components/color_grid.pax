@@ -1,0 +1,9 @@
+for i in 0..10 {
+    <Frame x={(i*10)%} width=10%>
+        for j in 0..10 {
+            <Frame y = {(j*10)%} height=10%>
+                <Rectangle fill={Fill::Solid(Color::rgb(i * 0.1, 0.2, j * 0.1))} />
+            </Frame>
+        }
+    </Frame>
+}
