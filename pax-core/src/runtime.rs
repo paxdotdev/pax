@@ -119,7 +119,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
     /// Handles special-cases like `for`/`Repeat`, where properties for the
     /// control flow primitive need to be computed out-of-lifecycle, and where nested child elements
     /// need to be treated as top-level elements.
-    /// For example, for `<Stacker><Ellipse />for i in (0..3){ <Rectangle /> }</Stacker>`,
+    /// For example, given `<Stacker><Ellipse />for i in (0..3){ <Rectangle /> }</Stacker>`,
     /// without this special handling `Stacker` will receive only two adoptees: the `Ellipse` and the `Repeat` node
     /// created by `for`.  In other words `for`s children need to be treated as `<Stacker>`s children,
     /// and this processing allows that to happpen.
@@ -131,8 +131,8 @@ impl<R: 'static + RenderContext> Runtime<R> {
     ) -> Vec<RenderNodePtr<R>> {
         let mut adoptee_borrowed = (**adoptee).borrow_mut();
         if adoptee_borrowed.should_flatten() {
-            //1. this is an `if` or `for` (etc.) — it needs its properties computed
-            //   in order for its children to be correct
+            // //1. this is an `if` or `for` (etc.) — it needs its properties computed
+            // //   in order for its children to be correct
             adoptee_borrowed.compute_properties(rtc);
             //2. recurse into top-level should_flatten() nodes
             (*adoptee_borrowed.get_rendering_children())
@@ -143,13 +143,12 @@ impl<R: 'static + RenderContext> Runtime<R> {
                 })
                 .flatten()
                 .collect()
-            //NOTE: probably worth optimizing (pending profiling.)  Lots of allocation happening here -- flattening and collecting `Vec`s is probably not
-            //the most efficient possible approach, and this is fairly hot-running code.
         } else {
             vec![Rc::clone(adoptee)]
         }
     }
 }
+
 
 /// Data structure for a single frame of our runtime stack, including
 /// a reference to its parent frame, a list of `adoptees` for

@@ -11,6 +11,26 @@ import CoreGraphics
 
 // MARK: FlexBuffers Builder logic
 
+
+protocol WritableValueType {}
+
+extension Int: WritableValueType {}
+extension Int8: WritableValueType {}
+extension Int16: WritableValueType {}
+extension Int32: WritableValueType {}
+extension Int64: WritableValueType {}
+
+extension UInt: WritableValueType {}
+extension UInt8: WritableValueType {}
+extension UInt16: WritableValueType {}
+extension UInt32: WritableValueType {}
+extension UInt64: WritableValueType {}
+
+extension Float32: WritableValueType {}
+extension Float64: WritableValueType {}
+
+extension Bool: WritableValueType {}
+
 public class FlexBuffer {
     
     let initialSize : Int
@@ -250,7 +270,8 @@ public class FlexBuffer {
             write(value: length, size: byteWidth)
             sloc = offset
             for c in buffer {
-                write(value: c, size: 1)
+                let ci = UInt8(c)
+                write(value: ci, size: 1)
             }
             write(value: UInt8(0), size: 1)
             return bitWidth
@@ -414,8 +435,10 @@ public class FlexBuffer {
         offset += paddingSize(bufSize: offset, scalarSize: UInt8(byteWidth))
         return UInt8(byteWidth)
     }
+
+
     
-    fileprivate func write<T>(value : T, size : UInt8) {
+    fileprivate func write<T: WritableValueType>(value : T, size : UInt8) {
         var v = value
         let newOffest = offset + Int(size)
         let prevSize = currentSize
@@ -1099,7 +1122,8 @@ public extension FlexBuffer {
 
         _ = value.withUnsafeBytes { (byte) -> Bool in
             for i in 0..<length {
-                write(value: byte.baseAddress?.assumingMemoryBound(to: UInt8.self).advanced(by: i).pointee, size: 1)
+                let valueToWrite = byte.baseAddress?.assumingMemoryBound(to: UInt8.self).advanced(by: i).pointee ?? 0
+                write(value: valueToWrite, size: 1)
             }
             return true
         }
@@ -2366,7 +2390,7 @@ extension FlexBuffer {
                             tokenNamePointerStart = UnsafeMutablePointer<UInt8>.allocate(capacity: tokenPointerCurrent)
                             tokenNamePointerCapacity = tokenPointerCurrent
                         }
-                        tokenNamePointerStart.moveAssign(from: tokenPointerStart, count: tokenPointerCurrent)
+                        tokenNamePointerStart.moveUpdate(from: tokenPointerStart, count: tokenPointerCurrent)
                         tokenNamePointerCurrent = tokenPointerCurrent
                         tokenPointerCurrent = 0
                         keyIsPresent = true

@@ -1061,6 +1061,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             }
         }
 
+        //lifecycle: did_render
+        node.borrow_mut().handle_did_render(rtc, rcs);
+
         //Handle node unmounting
         if marked_for_unmount {
             //lifecycle: will_unmount
@@ -1070,11 +1073,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             self.instance_registry
                 .borrow_mut()
                 .mounted_set
-                .remove(&id_chain); //, "Tried to unmount a node, but it was not mounted");
+                .remove(&id_chain);
         }
-
-        //lifecycle: did_render
-        node.borrow_mut().handle_did_render(rtc, rcs);
     }
 
     /// Simple 2D raycasting: the coordinates of the ray represent a
