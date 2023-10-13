@@ -20,7 +20,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		1405D11C2ACF5B1C006EBEF1 /* pax-app-ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "pax-app-ios.app"; sourceTree = BUILT_PRODUCTS_DIR; };
+		1405D11C2ACF5B1C006EBEF1 /* Pax iOS (Development).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pax iOS (Development).app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1405D11F2ACF5B1C006EBEF1 /* PaxViewIos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaxViewIos.swift; sourceTree = "<group>"; };
 		1405D1212ACF5B1C006EBEF1 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		1405D1232ACF5B1D006EBEF1 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -55,7 +55,7 @@
 		1405D11D2ACF5B1C006EBEF1 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				1405D11C2ACF5B1C006EBEF1 /* pax-app-ios.app */,
+				1405D11C2ACF5B1C006EBEF1 /* Pax iOS (Development).app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -83,9 +83,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		1405D11B2ACF5B1C006EBEF1 /* pax-app-ios */ = {
+		1405D11B2ACF5B1C006EBEF1 /* Pax iOS (Development) */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1405D12A2ACF5B1D006EBEF1 /* Build configuration list for PBXNativeTarget "pax-app-ios" */;
+			buildConfigurationList = 1405D12A2ACF5B1D006EBEF1 /* Build configuration list for PBXNativeTarget "Pax iOS (Development)" */;
 			buildPhases = (
 				1405D1182ACF5B1C006EBEF1 /* Sources */,
 				1405D1192ACF5B1C006EBEF1 /* Frameworks */,
@@ -95,7 +95,7 @@
 			);
 			dependencies = (
 			);
-			name = "pax-app-ios";
+			name = "Pax iOS (Development)";
 			packageProductDependencies = (
 				141DEF6C2AD4E82D000EFF82 /* PaxCartridge */,
 				141DEF6E2AD4E82D000EFF82 /* PaxCartridgeAssets */,
@@ -104,7 +104,7 @@
 				141DEF752AD4E83E000EFF82 /* Rendering */,
 			);
 			productName = "pax-app-ios";
-			productReference = 1405D11C2ACF5B1C006EBEF1 /* pax-app-ios.app */;
+			productReference = 1405D11C2ACF5B1C006EBEF1 /* Pax iOS (Development).app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -139,7 +139,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				1405D11B2ACF5B1C006EBEF1 /* pax-app-ios */,
+				1405D11B2ACF5B1C006EBEF1 /* Pax iOS (Development) */,
 			);
 		};
 /* End PBXProject section */
@@ -294,6 +294,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_IDENTITY = "Don't Code Sign";
 				CODE_SIGN_STYLE = Manual;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"pax-app-ios/Preview Content\"";
@@ -325,7 +326,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_STYLE = Manual;
+				CODE_SIGN_IDENTITY = "Don't Code Sign";
+				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"pax-app-ios/Preview Content\"";
 				DEVELOPMENT_TEAM = "";
@@ -363,7 +365,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1405D12A2ACF5B1D006EBEF1 /* Build configuration list for PBXNativeTarget "pax-app-ios" */ = {
+		1405D12A2ACF5B1D006EBEF1 /* Build configuration list for PBXNativeTarget "Pax iOS (Development)" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1405D12B2ACF5B1D006EBEF1 /* Debug */,

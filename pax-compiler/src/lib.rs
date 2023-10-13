@@ -63,7 +63,12 @@ const BUILD_DIR_NAME : &str = "build";
 const PUBLIC_DIR_NAME: &str = "public";
 const ASSETS_DIR_NAME: &str = "assets";
 const REEXPORTS_PARTIAL_FILE_NAME: &str = "reexports.partial.rs";
-const RUST_APPLE_DYLIB_FILE_NAME : &str = "libpaxchassisapple.dylib";
+const RUST_IOS_DYLIB_FILE_NAME : &str = "libpaxchassisios.dylib";
+const RUST_MACOS_DYLIB_FILE_NAME : &str = "libpaxchassismacos.dylib";
+const PORTABLE_DYLIB_INSTALL_NAME : &str = "@rpath/PaxCartridge.framework/PaxCartridge";
+
+const XCODE_MACOS_TARGET_DEBUG : &str = "Pax macOS (Development)";
+const XCODE_IOS_TARGET_DEBUG : &str = "Pax iOS (Development)";
 
 // These package IDs represent the directory / package names inside the xcframework,
 const MACOS_MULTIARCH_PACKAGE_ID : &str = "macos-arm64_x86_64";
@@ -1053,11 +1058,11 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     std::io::stderr()
         .write_all(output.stderr.as_slice())
         .unwrap();
-    assert_eq!(
-        output.status.code().unwrap(),
-        0,
-        "Parsing failed — there is likely a syntax error in the provided pax"
-    );
+
+    if ! output.status.success() {
+        println!("Parsing failed — there is likely a syntax error in the provided pax");
+        return Err(())
+    }
 
     let out = String::from_utf8(output.stdout).unwrap();
     let mut manifest: PaxManifest =
@@ -1076,7 +1081,10 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
 
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
-    build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
+    let res = build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids));
+    if let Err(()) = res {
+        return Err(());
+    }
 
     Ok(())
 }
@@ -1161,7 +1169,7 @@ pub fn build_chassis_with_cartridge(
     pax_dir: &PathBuf,
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
-) {
+) -> Result<(), ()> {
 
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
@@ -1228,13 +1236,19 @@ pub fn build_chassis_with_cartridge(
                 ]
             };
 
+            let dylib_file_name = if let RunTarget::macOS = target {
+                RUST_MACOS_DYLIB_FILE_NAME
+            } else {
+                RUST_IOS_DYLIB_FILE_NAME
+            };
+
             let mut handles = Vec::new();
 
             //(arch id, single-platform .dylib path, stdout/stderr from build)
             let build_results : Arc<Mutex<HashMap<u32, (String, String, Output)>>> = Arc::new(Mutex::new(HashMap::new()));
 
             let targets_single_string = target_mappings.iter().map(|tm|{tm.1.to_string()}).collect::<Vec<String>>().join(", ").bold();
-            println!("{} 🧶 Compiling targets {{{}}} across {} threads...\n", *PAX_BADGE, &targets_single_string, target_mappings.len());
+            println!("{} 🧶 Compiling targets {{{}}} in {} mode using {} threads...\n", *PAX_BADGE, &targets_single_string, &BUILD_MODE_NAME.to_string().bold() , target_mappings.len());
 
             let mut index = 0;
             for target_mapping in target_mappings {
@@ -1256,6 +1270,10 @@ pub fn build_chassis_with_cartridge(
                         .stdout(std::process::Stdio::piped())
                         .stderr(std::process::Stdio::piped());
 
+                    if IS_RELEASE {
+                        cmd.arg("--release");
+                    }
+
                     #[cfg(unix)]
                     unsafe {
                         cmd.pre_exec(pre_exec_hook);
@@ -1269,7 +1287,7 @@ pub fn build_chassis_with_cartridge(
                     let dylib_src = chassis_path.join("target")
                         .join(target_mapping.0)
                         .join(BUILD_MODE_NAME)
-                        .join(RUST_APPLE_DYLIB_FILE_NAME);
+                        .join(dylib_file_name);
 
                     let new_val = (target_mapping.1.to_string(), dylib_src.to_str().unwrap().to_string(), output);
                     build_results_threadsafe.lock().unwrap().insert(index, new_val);
@@ -1287,6 +1305,7 @@ pub fn build_chassis_with_cartridge(
 
             let results = build_results.lock().unwrap();
 
+            let mut should_abort = false;
             //Print stdout/stderr
             for i in 0..target_mappings.len() {
                 let result = results.get(&(i as u32)).unwrap();
@@ -1305,8 +1324,45 @@ pub fn build_chassis_with_cartridge(
                 if stderr != "" {
                     eprintln!("{}", &stderr);
                 }
+
+                if !output.status.success() {
+                    should_abort = true;
+                }
+
                 index = index + 1;
             }
+
+            if should_abort {
+                eprintln!("Failed to build one or more targets with Cargo. Aborting.");
+                return Err(())
+            }
+
+            // Update the `install name` of each Rust-built .dylib, instead of the default-output absolute file paths
+            // embedded in each .dylib.  This allows our .dylibs to be portably embedded into an SPM module.
+            let result = results.iter().try_for_each(|res| {
+                let dylib_path = &res.1.1;
+                let mut cmd = Command::new("install_name_tool");
+                cmd
+                    .arg("-id")
+                    .arg(PORTABLE_DYLIB_INSTALL_NAME)
+                    .arg(dylib_path);
+
+                let child = cmd.spawn().unwrap();
+                let output = wait_with_output(&process_child_ids, child);
+                if !output.status.success() {
+                    println!("Failed to rewrite dynamic library install name with install_name_tool.  Aborting.");
+                    return Err(());
+                }
+
+                Ok(())
+            });
+
+            match result {
+                Err(_) => {
+                    return Err(());
+                },
+                _ => {},
+            };
 
             // Merge architecture-specific binaries with `lipo` (this is an undocumented requirement
             // of multi-arch builds + xcframeworks for the Apple toolchain; we cannot bundle two
@@ -1344,7 +1400,13 @@ pub fn build_chassis_with_cartridge(
                 lipo_command.arg("-output").arg(multiarch_dylib_dest);
 
                 let child = lipo_command.spawn().expect(ERR_SPAWN);
-                let _output = wait_with_output(&process_child_ids, child);
+                let output = wait_with_output(&process_child_ids, child);
+
+                if !output.status.success() {
+                    println!("Failed to combine packages with lipo. Aborting.");
+                    return Err(())
+                }
+
             } else {
                 // For iOS, we want to:
                 // 1. lipo together both simulator build architectures
@@ -1379,7 +1441,11 @@ pub fn build_chassis_with_cartridge(
                 lipo_command.arg("-output").arg(multiarch_dylib_dest);
 
                 let child = lipo_command.spawn().expect(ERR_SPAWN);
-                let _output = wait_with_output(&process_child_ids, child);
+                let output = wait_with_output(&process_child_ids, child);
+                if !output.status.success() {
+                    eprintln!("Failed to combine dylibs with lipo. Aborting.");
+                    return Err(())
+                }
 
                 //Copy singular device build (iOS, not simulator)
                 let device_dylib_src = &device_build[0].1.1;
@@ -1401,7 +1467,7 @@ pub fn build_chassis_with_cartridge(
                     .join("interface")
                     .join("pax-app-macos")
                     .join("pax-app-macos.xcodeproj"),
-                    "pax-app-macos"
+                    XCODE_MACOS_TARGET_DEBUG,
                 )
 
             } else {
@@ -1410,7 +1476,8 @@ pub fn build_chassis_with_cartridge(
                     .join("interface")
                     .join("pax-app-ios")
                     .join("pax-app-ios.xcodeproj"),
-                "pax-app-ios")
+                    XCODE_IOS_TARGET_DEBUG,
+                )
             };
 
             let configuration = if IS_RELEASE {"Release"} else {"Debug"};
@@ -1466,6 +1533,11 @@ pub fn build_chassis_with_cartridge(
                 }
             }
 
+            if !output.status.success() {
+                eprintln!("Failed to build project with xcodebuild. Aborting.");
+                return Err(())
+            }
+
             //Copy build artifacts & packages into `build`
             let swift_cart_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-common").join("pax-swift-cartridge");
             let swift_common_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-common").join("pax-swift-common");
@@ -1497,9 +1569,15 @@ pub fn build_chassis_with_cartridge(
             let target_str : &str = target.into();
             if ctx.should_also_run {
 
+                let xcode_target_name = if let RunTarget::macOS = target {
+                    XCODE_MACOS_TARGET_DEBUG
+                }else{
+                    XCODE_IOS_TARGET_DEBUG
+                };
+
                 println!("{} 🐇 Running Pax {}...", *PAX_BADGE, target_str);
-                let executable_path = executable_output_path.join("pax-app-macos.app");
-                let binary_path = executable_path.join("Contents/MacOS/pax-app-macos");
+                let executable_path = executable_output_path.join(&format!("{}.app", xcode_target_name));
+                let binary_path = executable_path.join(&format!("Contents/MacOS/{}", xcode_target_name));
 
                 let status = Command::new(binary_path)
                     .status() // This will wait for the process to complete
@@ -1547,7 +1625,11 @@ pub fn build_chassis_with_cartridge(
             let child = cmd.spawn().expect(ERR_SPAWN);
 
             // Execute wasm-pack build
-            let _output = wait_with_output(&process_child_ids, child);
+            let output = wait_with_output(&process_child_ids, child);
+            if !output.status.success() {
+                eprintln!("Failed to build project with wasm-pack. Aborting.");
+                return Err(())
+            }
 
             // Copy assets
             let asset_src = pax_dir.join("..").join(ASSETS_DIR_NAME);
@@ -1577,6 +1659,7 @@ pub fn build_chassis_with_cartridge(
             }
         }
     }
+    Ok(())
 }
 
 pub fn perform_create(ctx: &CreateContext) {

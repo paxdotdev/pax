@@ -3506,13 +3506,18 @@ We are 90% of the way to supporting iOS, given the shared Swift + CoreGraphics l
             [x] Multithread the dylib builds
             [x] Handle release vs. debug 
         [x] Handle updates to assets; bundle into pax-swift-cartridge Resources
-    [ ] Extend pax CLI + compiler to support --target=ios, firing up simulator if present on machine
+    [X] Extend pax CLI + compiler to support --target=ios, firing up simulator if present on machine
         [x] Refactor macOS-specific deps, e.g. NS* and CVDisplayLink
         [x] set up xcframework manually and achieve hello world build of xcodeproject
-        [ ] add ios target
-        [ ] Handle build architectures: aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim
-        [ ] automate copying & lipo of dylibs
-        [ ] manage xcodebuild shell command + firing up simulator
+        [x] add ios target
+        [x] Handle build architectures: aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim
+        [x] automate copying & lipo of dylibs
+        [x] manage xcodebuild shell command + firing up simulator
+    [ ] Handle relative paths + inter-dylib deps
+        [ ] Manually update xcframework structure
+            [ ] use `install_name_tool` to change Rust-generated absolute paths into relative paths
+            [ ] get iOS project building with manual changes
+        [ ] 
 [ ] Make better default cartridge for default bundling (e.g. bouncing Pax logo)
     [ ] Clean xcframework binaries from git history for leaner clones; replace with lighter-weight release builds if straight-forward
 [ ] Fix undefined out-of-canvas pixels on iOS (either lock scrolling into bounds with a simple check, or handle canvas clearing ?)
