@@ -1,10 +1,9 @@
 use clap::{crate_version, App, AppSettings, Arg, ArgMatches};
 use colored::{ColoredString, Colorize};
 use std::io::Write;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use std::{fs, process, thread};
+use std::{process, thread};
 
 use pax_compiler::{CreateContext, RunContext, RunTarget};
 extern crate pax_language_server;
@@ -132,10 +131,9 @@ fn main() -> Result<(), ()> {
         .subcommand(ARG_LSP.clone())
         .get_matches();
 
-    let _ = perform_nominal_action(matches, Arc::clone(&process_child_ids));
+    let res = perform_nominal_action(matches, Arc::clone(&process_child_ids));
     perform_cleanup(new_version_info, process_child_ids);
-
-    Ok(())
+    res
 }
 
 fn perform_nominal_action(
@@ -208,38 +206,6 @@ fn perform_nominal_action(
                     std::io::stdout()
                         .write_all(output.stdout.as_slice())
                         .unwrap();
-
-                    Ok(())
-                }
-                ("build-chassis", Some(args)) => {
-                    let target = args.value_of("target").unwrap().to_lowercase();
-                    let path = args.value_of("path").unwrap().to_string(); //default value "."
-
-                    let working_path = Path::new(&path).join(".pax");
-                    let pax_dir = fs::canonicalize(working_path).unwrap();
-
-                    let ctx = RunContext {
-                        target: RunTarget::from(target.as_str()),
-                        path,
-                        verbose: true,
-                        should_also_run: false,
-                        is_libdev_mode: true,
-                        process_child_ids: Arc::new(Mutex::new(vec![])),
-                    };
-
-                    pax_compiler::build_chassis_with_cartridge(
-                        &pax_dir,
-                        &ctx,
-                        process_child_ids,
-                    );
-
-                    // Forward both stdout and stderr
-                    // std::io::stderr()
-                    //     .write_all(output.stderr.as_slice())
-                    //     .unwrap();
-                    // std::io::stdout()
-                    //     .write_all(output.stdout.as_slice())
-                    //     .unwrap();
 
                     Ok(())
                 }

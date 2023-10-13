@@ -9,8 +9,8 @@ repository = "https://www.github.com/pax-lang/pax"
 description = "Platform-specific chassis allowing Pax cartridges to be executed as native macOS apps"
 
 [lib]
-name = "paxchassisapple"
-crate-type = ["staticlib", "cdylib"]
+name = "paxchassismacos"
+crate-type = ["cdylib"]
 
 [dependencies]
 piet = "0.6.0"
