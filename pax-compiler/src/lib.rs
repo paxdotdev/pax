@@ -73,7 +73,7 @@ const XCODE_IOS_TARGET_DEBUG : &str = "Pax iOS (Development)";
 // These package IDs represent the directory / package names inside the xcframework,
 const MACOS_MULTIARCH_PACKAGE_ID : &str = "macos-arm64_x86_64";
 const IOS_SIMULATOR_MULTIARCH_PACKAGE_ID : &str = "ios-arm64_x86_64-simulator";
-const IOS_PACKAGE_ID : &str = "ios-arm64_x86_64-simulator";
+const IOS_PACKAGE_ID : &str = "ios-arm64";
 
 
 const ERR_SPAWN : &str = "failed to spawn child";
