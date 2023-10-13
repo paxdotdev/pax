@@ -1,16 +1,15 @@
-use core::panic;
 use dashmap::DashMap;
 use lsp_types::Position;
 use proc_macro2::Span;
-use quote::{quote, ToTokens};
+use quote::ToTokens;
 use std::fs;
 use std::path::{Path, PathBuf};
 use syn::visit::Visit;
 use syn::{
-    parse_file, spanned::Spanned, Attribute, GenericArgument, ImplItem, Item, ItemImpl, ItemStruct,
-    Meta, NestedMeta, Type,
+    parse_file, spanned::Spanned, Attribute, ImplItem, Item, ItemImpl, ItemStruct, Meta,
+    NestedMeta, Type,
 };
-use syn::{ItemEnum, ItemUse, TypeParamBound, UseTree};
+use syn::{ItemEnum, ItemUse, UseTree};
 
 fn contains_pax_file_macro(attrs: &[Attribute], target_file_path: &str) -> bool {
     let has_pax_derive = attrs
@@ -187,7 +186,7 @@ fn extract_rust_type(ty: &Type) -> String {
     ty_str
 }
 
-fn extract_between(source: &str, start: &str, end: &str) -> Option<String> {
+fn extract_between(source: &str, start: &str, _end: &str) -> Option<String> {
     let mut start_idx = source.find(start)?;
 
     start_idx += start.len();
