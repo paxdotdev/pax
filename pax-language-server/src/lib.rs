@@ -9,11 +9,9 @@ use positional::{
     find_relevant_tag, has_attribute_error, NodeType, PositionalNode,
 };
 use serde::*;
-use std::collections::{HashMap, HashSet};
-use std::fs;
+
 use std::path::PathBuf;
-use std::time::SystemTime;
-use syn::parse;
+
 use tower_lsp::jsonrpc::Error;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
@@ -30,14 +28,10 @@ mod positional;
 mod completion;
 
 use std::sync::{Arc, Mutex};
-use std::thread;
 
 extern crate pest;
-use pest::iterators::{Pair, Pairs};
-use pest_derive::Parser;
 
-use pest::pratt_parser::{Assoc, Op, PrattParser};
-use tokio::time::{sleep, Duration};
+use tokio::time::Duration;
 
 use ropey::Rope;
 
@@ -302,7 +296,7 @@ impl Backend {
                 Ok(response) => {
                     for location_link in response.locations {
                         let target_uri = location_link.target_uri;
-                        let path = target_uri.clone().path().to_string();
+                        let _path = target_uri.clone().path().to_string();
                         let target_file = target_uri
                             .to_file_path()
                             .expect("Failed to convert URI to path")
@@ -431,7 +425,7 @@ impl Backend {
                 let tag_node = find_relevant_tag(&relevant_nodes);
                 let relevant_ident = find_relevant_ident(&relevant_nodes);
                 if let Some(node) = priority_node {
-                    let mut struct_name = if let Some(tag) = tag_node {
+                    let struct_name = if let Some(tag) = tag_node {
                         if let NodeType::Tag(tag_data) = &tag.node_type {
                             Some(tag_data.pascal_identifier.clone())
                         } else {
@@ -833,7 +827,7 @@ impl LanguageServer for Backend {
                             }
                         }
                     } else if trigger_char == "@" {
-                        if let Some(tag) = tag_node {
+                        if let Some(_tag) = tag_node {
                             completions.extend(get_event_completions());
                         } else {
                             let mut completion = CompletionItem::new_simple(
@@ -1068,7 +1062,7 @@ impl LanguageServer for Backend {
 //     Server::new(stdin, stdout, socket).serve(service).await;
 // }
 
- pub async fn start_server() {
+pub async fn start_server() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 

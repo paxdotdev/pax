@@ -164,7 +164,7 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
             });
         }
         Rule::literal_enum_value => {
-            let mut inner_pairs = &inner;
+            let inner_pairs = &inner;
             let mut enum_name = "".to_string();
             let mut property_name = "".to_string();
             if inner_pairs.len() < 3 {
