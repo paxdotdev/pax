@@ -22,7 +22,7 @@
 
     // Scrolling content pane
     <Scroller width=100% height=100% size_inner_pane_x=100% size_inner_pane_y=5000px scroll_enabled_x=false scroll_enabled_y=true>
-        <Stacker cells=5 direction=StackerDirection::Vertical gutter=0px>
+        <Stacker cells=5 direction=StackerDirection::Vertical>
         <Group>
             <Frame id=f1>
                 <Stacker cells=2 direction=StackerDirection::Vertical gutter=20px sizes={[Option::Some(70%), Option::None]} >

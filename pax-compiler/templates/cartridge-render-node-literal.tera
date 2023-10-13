@@ -12,11 +12,17 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
     },
     properties: PropertiesCoproduct::{{ properties_coproduct_variant }}
     {% if properties_coproduct_variant != "None" %}
-        ( {{component_properties_struct}} {
-            {% for property in properties %}
-                {{ property.0 }}: Box::new( {{ property.1 }} ),
-            {% endfor %}
-        })
+        (
+            {
+                let mut cps = {{component_properties_struct}}::default();
+
+                {% for property in defined_properties %}
+                    cps.{{ property.0 }} = Box::new( {{ property.1 }} );
+                {% endfor %}
+
+                cps
+            }
+        )
     {% endif %},
     handler_registry:  Some(Rc::new(RefCell::new({
         #[allow(unused_mut)]
