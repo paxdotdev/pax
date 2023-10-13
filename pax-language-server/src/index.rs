@@ -1,3 +1,4 @@
+use core::panic;
 use dashmap::DashMap;
 use lsp_types::Position;
 use proc_macro2::Span;
@@ -9,9 +10,9 @@ use syn::{
     parse_file, spanned::Spanned, Attribute, GenericArgument, ImplItem, Item, ItemImpl, ItemStruct,
     Meta, NestedMeta, Type,
 };
-use syn::{ItemEnum, ItemUse, UseTree};
+use syn::{ItemEnum, ItemUse, TypeParamBound, UseTree};
 
-fn contains_pax_file_macro(attrs: &[Attribute], target_file_path: &str) -> Option<String> {
+fn contains_pax_file_macro(attrs: &[Attribute], target_file_path: &str) -> bool {
     let has_pax_derive = attrs
         .iter()
         .any(|attr| attr.path.is_ident("derive") && attr.tokens.to_string().contains("Pax"));
@@ -31,20 +32,7 @@ fn contains_pax_file_macro(attrs: &[Attribute], target_file_path: &str) -> Optio
             }
     });
 
-    if has_pax_derive && has_file_attr {
-        Some(
-            attrs
-                .iter()
-                .find(|attr| attr.path.is_ident("file"))
-                .unwrap()
-                .path
-                .segments[0]
-                .ident
-                .to_string(),
-        )
-    } else {
-        None
-    }
+    has_pax_derive && has_file_attr
 }
 
 pub fn find_rust_file_with_macro<P: AsRef<Path>>(
@@ -69,10 +57,8 @@ pub fn find_rust_file_with_macro<P: AsRef<Path>>(
             let parsed = parse_file(&content).expect("Failed to parse file");
             for item in &parsed.items {
                 if let Item::Struct(item_struct) = item {
-                    if let Some(component_name) =
-                        contains_pax_file_macro(&item_struct.attrs, file_path)
-                    {
-                        return Some((path.clone(), component_name));
+                    if contains_pax_file_macro(&item_struct.attrs, file_path) {
+                        return Some((path.clone(), item_struct.ident.to_string()));
                     }
                 }
             }
@@ -190,37 +176,40 @@ pub struct InfoRequest {
 }
 
 fn extract_rust_type(ty: &Type) -> String {
-    match ty {
-        Type::Path(type_path) => {
-            if let Some(segment) = type_path.path.segments.last() {
-                if let syn::PathArguments::AngleBracketed(angle_bracketed) = &segment.arguments {
-                    let generics: Vec<String> = angle_bracketed
-                        .args
-                        .iter()
-                        .map(|arg| {
-                            if let GenericArgument::Type(t) = arg {
-                                t.to_token_stream().to_string()
-                            } else {
-                                arg.to_token_stream().to_string()
-                            }
-                        })
-                        .collect();
+    let ty_str = ty.to_token_stream().to_string();
 
-                    format!("{}<{}>", segment.ident, generics.join(", "))
-                } else {
-                    segment.ident.to_string()
-                }
-            } else {
-                type_path
-                    .path
-                    .segments
-                    .iter()
-                    .map(|segment| segment.ident.to_string())
-                    .collect::<Vec<_>>()
-                    .join("::")
-            }
+    if let Some(inner) = extract_between(&ty_str, "Property <", ">") {
+        return inner.replace(" ", "");
+    } else if let Some(inner) = extract_between(&ty_str, "PropertyInstance <", ">") {
+        return inner.replace(" ", "");
+    }
+
+    ty_str
+}
+
+fn extract_between(source: &str, start: &str, end: &str) -> Option<String> {
+    let mut start_idx = source.find(start)?;
+
+    start_idx += start.len();
+
+    let mut end_idx = start_idx;
+    let mut bracket_count = 1;
+    while end_idx < source.len() {
+        match &source[end_idx..=end_idx] {
+            "<" => bracket_count += 1,
+            ">" => bracket_count -= 1,
+            _ => {}
         }
-        _ => ty.to_token_stream().to_string(),
+        if bracket_count == 0 {
+            break;
+        }
+        end_idx += 1;
+    }
+
+    if bracket_count == 0 {
+        Some(source[start_idx..end_idx].to_string())
+    } else {
+        None
     }
 }
 
