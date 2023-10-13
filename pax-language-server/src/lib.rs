@@ -1,3 +1,4 @@
+use completion::{get_event_completions, get_struct_completion, get_type_completion};
 use core::panic;
 use dashmap::DashMap;
 use lsp_types::request::Request;
@@ -5,12 +6,13 @@ use pax_compiler::parsing::{self, PaxParser, Rule};
 use pest::Parser;
 use positional::{
     extract_positional_nodes, find_nodes_at_position, find_priority_node, find_relevant_ident,
-    find_relevant_tag, NodeType, PositionalNode,
+    find_relevant_tag, has_attribute_error, NodeType, PositionalNode,
 };
 use serde::*;
 use std::collections::{HashMap, HashSet};
 use std::fs;
 use std::path::PathBuf;
+use std::time::SystemTime;
 use syn::parse;
 use tower_lsp::jsonrpc::Error;
 use tower_lsp::jsonrpc::Result;
@@ -25,6 +27,8 @@ use index::{
 
 mod positional;
 
+mod completion;
+
 use std::sync::{Arc, Mutex};
 use std::thread;
 
@@ -34,6 +38,8 @@ use pest_derive::Parser;
 
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 use tokio::time::{sleep, Duration};
+
+use ropey::Rope;
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct SymbolLocationParams {
@@ -103,8 +109,9 @@ struct Backend {
     rs_to_pax_map: Arc<DashMap<String, String>>,
     workspace_root: Arc<Mutex<Option<Url>>>,
     pax_ast_cache: Arc<DashMap<String, Vec<PositionalNode>>>,
-    debounce_last_change: Arc<Mutex<std::time::Instant>>,
+    pending_changes: Arc<DashMap<String, DidChangeTextDocumentParams>>,
     debounce_last_save: Arc<Mutex<std::time::Instant>>,
+    document_content: Arc<DashMap<String, Rope>>,
 }
 
 impl Backend {
@@ -330,12 +337,17 @@ impl Backend {
         match parse_result {
             Ok(pax_component_definition) => {
                 //cache_guard.insert(path_str.clone(), Some(parsed_ast.clone()));
+
                 let mut nodes = Vec::new();
-                for pair in pax_component_definition.clone() {
-                    extract_positional_nodes(pair.clone(), &mut nodes);
-                }
+
+                extract_positional_nodes(
+                    pax_component_definition.clone().next().unwrap(),
+                    &mut nodes,
+                );
+
                 self.pax_ast_cache
                     .insert(path_str.clone().to_string(), nodes.clone());
+
                 let errors = parsing::extract_errors(
                     pax_component_definition
                         .clone()
@@ -418,7 +430,6 @@ impl Backend {
                 let priority_node = find_priority_node(&relevant_nodes);
                 let tag_node = find_relevant_tag(&relevant_nodes);
                 let relevant_ident = find_relevant_ident(&relevant_nodes);
-
                 if let Some(node) = priority_node {
                     let mut struct_name = if let Some(tag) = tag_node {
                         if let NodeType::Tag(tag_data) = &tag.node_type {
@@ -583,16 +594,69 @@ impl Backend {
         }
     }
 
-    async fn debounce_and_process_changes(&self, text: &str, uri: Url) {
-        *self.debounce_last_change.lock().unwrap() = std::time::Instant::now();
+    // async fn process_changes(&self, text: &str, uri: Url) {
+    //     // send client timestamp right now
+    //     //self.client.log_message(MessageType::INFO, format!("time:{}", )).await;
+    //     let diagnostics = self.parse_and_cache_pax_file(text, uri.clone());
+    //     // self.client
+    //     //     .publish_diagnostics(uri, diagnostics, None)
+    //     //     .await;
+    // }
 
-        sleep(Duration::from_millis(500)).await;
+    async fn process_changes(&self, text: &str, uri: Url) {
+        // Send client the current timestamp
+        // let start_time = SystemTime::now()
+        //     .duration_since(SystemTime::UNIX_EPOCH)
+        //     .expect("Time went backwards")
+        //     .as_millis();
 
-        if self.debounce_last_change.lock().unwrap().elapsed() >= Duration::from_millis(500) {
-            let diagnostics = self.parse_and_cache_pax_file(text, uri.clone());
-            self.client
-                .publish_diagnostics(uri, diagnostics, None)
-                .await;
+        let diagnostics = self.parse_and_cache_pax_file(text, uri.clone());
+
+        self.client
+            .publish_diagnostics(uri, diagnostics, None)
+            .await;
+        // Get and send client the current timestamp after processing
+        // let end_time = SystemTime::now()
+        //     .duration_since(SystemTime::UNIX_EPOCH)
+        //     .expect("Time went backwards")
+        //     .as_millis();
+        // self.client
+        //     .log_message(MessageType::INFO, format!("Delta: {}", end_time-start_time))
+        //     .await;
+
+        // // Uncomment if you still want to publish diagnostics later
+    }
+
+    fn get_word_before_position(&self, uri: &str, pos: &Position) -> Option<String> {
+        if let Some(rope) = self.document_content.get(uri) {
+            let char_pos = rope.line_to_char(pos.line as usize) + pos.character as usize;
+
+            // Fetch 50 chars before current position as a naive boundary for a word
+            let start = char_pos.saturating_sub(50);
+            let text_before_pos = rope.slice(start..char_pos).to_string();
+
+            let words: Vec<&str> = text_before_pos.split_whitespace().collect();
+            words.last().map(|&word| word.to_string())
+        } else {
+            None
+        }
+    }
+
+    fn get_char_before_position(&self, uri: &str, pos: &Position) -> Option<char> {
+        if let Some(rope) = self.document_content.get(uri) {
+            let char_pos = rope.line_to_char(pos.line as usize) + pos.character as usize;
+
+            // Ensure we are not at the very beginning of the document
+            if char_pos == 0 {
+                return None;
+            }
+
+            let last_char_pos = char_pos.saturating_sub(1);
+            let last_char = rope.char(last_char_pos);
+
+            Some(last_char)
+        } else {
+            None
         }
     }
 }
@@ -607,6 +671,52 @@ impl LanguageServer for Backend {
                 format!("workspace root: {:?}", self.workspace_root),
             )
             .await;
+
+        let pending_changes_clone = self.pending_changes.clone();
+        let self_clone = self.clone();
+
+        tokio::spawn(async move {
+            loop {
+                tokio::time::sleep(Duration::from_millis(500)).await;
+
+                let mut processed_keys = Vec::new();
+
+                for entry in pending_changes_clone.iter() {
+                    let uri_path = entry.key().clone();
+                    let change_params = entry.value().clone();
+
+                    let uri = change_params.text_document.uri.clone();
+
+                    if uri_path.ends_with(".pax") {
+                        self_clone.process_pax_file(&uri).await;
+                        if !change_params.content_changes.is_empty() {
+                            // let start_time = std::time::SystemTime::now()
+                            // .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                            // .expect("Time went backwards")
+                            // .as_millis();
+                            self_clone
+                                .process_changes(
+                                    &change_params.content_changes[0].text,
+                                    change_params.text_document.uri.clone(),
+                                )
+                                .await;
+                            // let end_time = std::time::SystemTime::now()
+                            // .duration_since(std::time::SystemTime::UNIX_EPOCH)
+                            // .expect("Time went backwards")
+                            // .as_millis();
+                            // eprintln!("delta: {}", end_time-start_time);
+                        }
+                    }
+
+                    processed_keys.push(uri_path);
+                }
+
+                // Remove processed entries
+                for key in processed_keys {
+                    pending_changes_clone.remove(&key);
+                }
+            }
+        });
 
         Ok(InitializeResult {
             server_info: None,
@@ -638,27 +748,36 @@ impl LanguageServer for Backend {
         }
     }
 
-    async fn did_change(&self, did_change_params: DidChangeTextDocumentParams) {
-        let uri = did_change_params.text_document.uri.clone();
-        if did_change_params.text_document.uri.path().ends_with(".pax") {
-            self.process_pax_file(&uri).await;
+    // async fn did_change(&self, did_change_params: DidChangeTextDocumentParams) {
+    //     let uri = did_change_params.text_document.uri.clone();
+    //     let uri_path = uri.path().to_string();
 
-            if !did_change_params.content_changes.is_empty() {
-                self.debounce_and_process_changes(
-                    did_change_params.content_changes[0].text.as_str(),
-                    uri,
-                )
-                .await;
-            }
-        }
+    //     if uri_path.ends_with(".pax") {
+    //         self.process_pax_file(&uri).await;
+    //         if !did_change_params.content_changes.is_empty() {
+    //             let new_content = did_change_params.content_changes[0].text.clone();
+    //             self.document_content
+    //                 .insert(uri_path, Rope::from_str(&new_content));
+
+    //                 self.process_changes(&new_content, uri).await;
+    //     }
+    // }
+
+    // }
+    async fn did_change(&self, did_change_params: DidChangeTextDocumentParams) {
+        let uri_path = did_change_params.text_document.uri.path().to_string();
+        // Store the latest change for this URI
+        let new_content = did_change_params.content_changes[0].text.clone();
+        self.document_content
+            .insert(uri_path.clone(), Rope::from_str(&new_content));
+        self.pending_changes.insert(uri_path, did_change_params);
     }
 
     async fn did_save(&self, did_save_params: DidSaveTextDocumentParams) {
         let uri_path = did_save_params.text_document.uri.path();
 
         if uri_path.ends_with(".rs") {
-            if self.debounce_last_save.lock().unwrap().elapsed() < Duration::from_secs(1) {
-                // 5 minutes
+            if self.debounce_last_save.lock().unwrap().elapsed() < Duration::from_secs(10) {
                 return;
             }
             *self.debounce_last_save.lock().unwrap() = std::time::Instant::now();
@@ -672,19 +791,284 @@ impl LanguageServer for Backend {
         }
     }
 
-    async fn goto_definition(
+    async fn completion(
         &self,
-        _: GotoDefinitionParams,
-    ) -> Result<Option<GotoDefinitionResponse>> {
-        Ok(None)
-    }
+        completion_params: CompletionParams,
+    ) -> Result<Option<CompletionResponse>> {
+        let uri = &completion_params.text_document_position.text_document.uri;
+        let pos = &completion_params.text_document_position.position;
+        let prior_word = self.get_word_before_position(uri.clone().path(), pos);
+        let prior_character = self.get_char_before_position(uri.clone().path(), pos);
 
-    async fn completion(&self, _: CompletionParams) -> Result<Option<CompletionResponse>> {
-        Ok(None)
+        let mut completions = Vec::new();
+        if let Some(cached_nodes) = self.pax_ast_cache.get(&uri.path().to_string()) {
+            let relevant_nodes = find_nodes_at_position(pos.clone(), &cached_nodes);
+            let tag_node = find_relevant_tag(&relevant_nodes);
+            let has_attribute_error = has_attribute_error(&relevant_nodes);
+            if let Some(component) = self.pax_map.get(&uri.path().to_string()) {
+                if let Some(trigger_char) = &completion_params
+                    .context
+                    .and_then(|ctx| ctx.trigger_character)
+                {
+                    if trigger_char == "<" {
+                        for entry in component.identifier_map.iter() {
+                            if entry.ty == IdentifierType::Component
+                                && entry.identifier != component.component_name
+                            {
+                                let mut completion = CompletionItem::new_simple(
+                                    entry.identifier.clone(),
+                                    String::from(""),
+                                );
+                                completion.kind = Some(CompletionItemKind::CLASS);
+                                completion.insert_text =
+                                    Some(format!("{} $0 />", entry.identifier.clone()));
+                                completion.insert_text_format =
+                                    Some(lsp_types::InsertTextFormat::SNIPPET);
+                                if let Some(prepared_completion) =
+                                    get_struct_completion(&entry.identifier)
+                                {
+                                    completion = prepared_completion;
+                                }
+                                completions.push(completion);
+                            }
+                        }
+                    } else if trigger_char == "@" {
+                        if let Some(tag) = tag_node {
+                            completions.extend(get_event_completions());
+                        } else {
+                            let mut completion = CompletionItem::new_simple(
+                                String::from("settings"),
+                                String::from("Define classes and id selectors"),
+                            );
+                            completion.kind = Some(CompletionItemKind::CLASS);
+                            completion.insert_text = Some("settings {\n\t $0 \n}".to_string());
+                            completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
+                            completions.push(completion);
+                            let mut completion = CompletionItem::new_simple(
+                                String::from("handlers"),
+                                String::from("Define root component event handlers"),
+                            );
+                            completion.kind = Some(CompletionItemKind::CLASS);
+                            completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
+                            completion.insert_text = Some("handlers {\n\t $0 \n}".to_string());
+                            completions.push(completion);
+                        }
+                    } else if trigger_char == "=" {
+                        if let Some(word) = prior_word {
+                            if word.contains("@") {
+                                if let Some(c) =
+                                    component.identifier_map.get(&component.component_name)
+                                {
+                                    for entry in &c.methods {
+                                        let mut completion = CompletionItem::new_simple(
+                                            entry.identifier.clone(),
+                                            entry.identifier.clone(),
+                                        );
+                                        completion.kind = Some(CompletionItemKind::METHOD);
+                                        completion.insert_text =
+                                            Some(format!("{}", entry.identifier.clone()));
+                                        completions.push(completion);
+                                    }
+                                }
+                            } else {
+                                if let Some(tag) = tag_node {
+                                    if let NodeType::Tag(tag_data) = &tag.node_type {
+                                        let requested_property = word.clone().replace("=", "");
+                                        if let Some(struct_ident) = component
+                                            .identifier_map
+                                            .get(&tag_data.pascal_identifier)
+                                        {
+                                            if let Some(property) = struct_ident
+                                                .properties
+                                                .iter()
+                                                .find(|p| p.identifier == requested_property)
+                                            {
+                                                self.client
+                                                    .log_message(
+                                                        MessageType::INFO,
+                                                        format!(
+                                                            "rust_type: {:?}",
+                                                            property.rust_type
+                                                        ),
+                                                    )
+                                                    .await;
+                                                if let Some(type_completions) =
+                                                    get_type_completion(&property.rust_type)
+                                                {
+                                                    completions.extend(type_completions.clone());
+                                                }
+                                            }
+                                        }
+                                        if let Some(struct_ident) =
+                                            component.identifier_map.get("CommonProperties")
+                                        {
+                                            if let Some(property) = struct_ident
+                                                .properties
+                                                .iter()
+                                                .find(|p| p.identifier == requested_property)
+                                            {
+                                                self.client
+                                                    .log_message(
+                                                        MessageType::INFO,
+                                                        format!(
+                                                            "rust_type: {:?}",
+                                                            property.rust_type
+                                                        ),
+                                                    )
+                                                    .await;
+                                                if let Some(type_completions) =
+                                                    get_type_completion(&property.rust_type)
+                                                {
+                                                    completions.extend(type_completions.clone());
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    if let Some(tag) = tag_node {
+                        if let NodeType::Tag(tag_data) = &tag.node_type {
+                            if let Some(char) = prior_character {
+                                if char == '=' {
+                                    if let Some(word) = prior_word {
+                                        if word.contains("@") {
+                                            if let Some(c) = component
+                                                .identifier_map
+                                                .get(&component.component_name)
+                                            {
+                                                for entry in &c.methods {
+                                                    let mut completion = CompletionItem::new_simple(
+                                                        entry.identifier.clone(),
+                                                        entry.identifier.clone(),
+                                                    );
+                                                    completion.kind =
+                                                        Some(CompletionItemKind::METHOD);
+                                                    completion.insert_text = Some(format!(
+                                                        "{}",
+                                                        entry.identifier.clone()
+                                                    ));
+                                                    completions.push(completion);
+                                                }
+                                            }
+                                        } else {
+                                            let requested_property = word.clone().replace("=", "");
+                                            if let Some(struct_ident) = component
+                                                .identifier_map
+                                                .get(&tag_data.pascal_identifier)
+                                            {
+                                                if let Some(property) = struct_ident
+                                                    .properties
+                                                    .iter()
+                                                    .find(|p| p.identifier == requested_property)
+                                                {
+                                                    self.client
+                                                        .log_message(
+                                                            MessageType::INFO,
+                                                            format!(
+                                                                "rust_type: {:?}",
+                                                                property.rust_type
+                                                            ),
+                                                        )
+                                                        .await;
+                                                    if let Some(type_completions) =
+                                                        get_type_completion(&property.rust_type)
+                                                    {
+                                                        completions
+                                                            .extend(type_completions.clone());
+                                                    }
+                                                }
+                                            }
+                                            if let Some(struct_ident) =
+                                                component.identifier_map.get("CommonProperties")
+                                            {
+                                                if let Some(property) = struct_ident
+                                                    .properties
+                                                    .iter()
+                                                    .find(|p| p.identifier == requested_property)
+                                                {
+                                                    self.client
+                                                        .log_message(
+                                                            MessageType::INFO,
+                                                            format!(
+                                                                "rust_type: {:?}",
+                                                                property.rust_type
+                                                            ),
+                                                        )
+                                                        .await;
+                                                    if let Some(type_completions) =
+                                                        get_type_completion(&property.rust_type)
+                                                    {
+                                                        completions
+                                                            .extend(type_completions.clone());
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            if !has_attribute_error {
+                                if let Some(info) =
+                                    component.identifier_map.get(&tag_data.pascal_identifier)
+                                {
+                                    for entry in info.properties.iter() {
+                                        let mut completion = CompletionItem::new_simple(
+                                            entry.identifier.clone(),
+                                            entry.identifier.clone(),
+                                        );
+                                        completion.kind = Some(CompletionItemKind::FIELD);
+                                        completion.insert_text =
+                                            Some(format!("{}=", entry.identifier.clone()));
+                                        completions.push(completion);
+                                    }
+                                }
+                                if let Some(info) = component.identifier_map.get("CommonProperties")
+                                {
+                                    for entry in info.properties.iter() {
+                                        let mut completion = CompletionItem::new_simple(
+                                            entry.identifier.clone(),
+                                            entry.identifier.clone(),
+                                        );
+                                        completion.kind = Some(CompletionItemKind::FIELD);
+                                        completion.insert_text =
+                                            Some(format!("{}=", entry.identifier.clone()));
+                                        completions.push(completion);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        return Ok(Some(CompletionResponse::Array(completions)));
     }
 }
 
-pub async fn start_server() {
+// pub async fn start_server() {
+//     let stdin = tokio::io::stdin();
+//     let stdout = tokio::io::stdout();
+
+//     let (service, socket) = LspService::build(|client| Backend {
+//         client: Arc::new(client),
+//         pax_map: Arc::new(DashMap::new()),
+//         rs_to_pax_map: Arc::new(DashMap::new()),
+//         workspace_root: Arc::new(Mutex::new(None)),
+//         pax_ast_cache: Arc::new(DashMap::new()),
+//         debounce_last_change: Arc::new(Mutex::new(std::time::Instant::now())),
+//         debounce_last_save: Arc::new(Mutex::new(std::time::Instant::now())),
+//     })
+//     .custom_method("pax/getHoverId", Backend::hover_id)
+//     .custom_method("pax/getDefinitionId", Backend::definition_id)
+//     .finish();
+
+//     Server::new(stdin, stdout, socket).serve(service).await;
+// }
+
+ pub async fn start_server() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
@@ -694,8 +1078,9 @@ pub async fn start_server() {
         rs_to_pax_map: Arc::new(DashMap::new()),
         workspace_root: Arc::new(Mutex::new(None)),
         pax_ast_cache: Arc::new(DashMap::new()),
-        debounce_last_change: Arc::new(Mutex::new(std::time::Instant::now())),
+        pending_changes: Arc::new(DashMap::new()),
         debounce_last_save: Arc::new(Mutex::new(std::time::Instant::now())),
+        document_content: Arc::new(DashMap::new()),
     })
     .custom_method("pax/getHoverId", Backend::hover_id)
     .custom_method("pax/getDefinitionId", Backend::definition_id)

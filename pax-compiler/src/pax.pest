@@ -17,7 +17,8 @@ empty = {SOI}
 block_level_error = { (!(root_tag_pair | settings_block_declaration | handlers_block_declaration) ~ ANY)+}
 root_tag_pair = { any_tag_pair }
 any_tag_pair = _{statement_control_flow | matched_tag | self_closing_tag | tag_error}
-tag_error = { "<" ~ pascal_identifier ~ (!("<" ~ pascal_identifier | "@handlers" | "@settings") ~ ANY)*}
+tag_error = { "<" ~ pascal_identifier ~ (!("<" ~ pascal_identifier | "@handlers" | "@settings") ~ ANY)* ~ WHITESPACE* }
+
 //This duo describes an XML-style open-tag, like <SomeElement id="..."> 
 //and matching close-tag, like </SomeElement>.  Note the use of Pest's stack feature, `PUSH`
 //and `POP`, to match closing & opening tags
