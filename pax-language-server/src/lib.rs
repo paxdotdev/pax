@@ -192,60 +192,61 @@ impl Backend {
                     }
                 }
                 IdentifierType::Property => {
-                    if let Some(mut struct_info) = component
-                        .identifier_map
-                        .remove(&(&info_request).owner_identifier.clone().unwrap())
-                    {
-                        if let Some(property) = struct_info
-                            .1
-                            .properties
-                            .iter_mut()
-                            .find(|prop| prop.identifier == info_request.identifier)
+                    if let Some(owner_identifier) = &info_request.owner_identifier {
+                        if let Some(mut struct_info) =
+                            component.identifier_map.remove(owner_identifier)
                         {
-                            property.info = new_info;
+                            if let Some(property) = struct_info
+                                .1
+                                .properties
+                                .iter_mut()
+                                .find(|prop| prop.identifier == info_request.identifier)
+                            {
+                                property.info = new_info;
+                            }
+                            component
+                                .identifier_map
+                                .insert(owner_identifier.clone(), struct_info.1);
                         }
-                        component.identifier_map.insert(
-                            (&info_request).owner_identifier.clone().unwrap().clone(),
-                            struct_info.1,
-                        );
                     }
                 }
                 IdentifierType::Method => {
-                    if let Some(mut struct_info) = component
-                        .identifier_map
-                        .remove(&(&info_request).owner_identifier.clone().unwrap())
-                    {
-                        if let Some(method) = struct_info
-                            .1
-                            .methods
-                            .iter_mut()
-                            .find(|m| m.identifier == info_request.identifier)
+                    if let Some(owner_identifier) = &info_request.owner_identifier {
+                        if let Some(mut struct_info) =
+                            component.identifier_map.remove(owner_identifier)
                         {
-                            method.info = new_info;
+                            if let Some(method) = struct_info
+                                .1
+                                .methods
+                                .iter_mut()
+                                .find(|m| m.identifier == info_request.identifier)
+                            {
+                                method.info = new_info;
+                            }
+                            component
+                                .identifier_map
+                                .insert(owner_identifier.clone(), struct_info.1);
                         }
-                        component.identifier_map.insert(
-                            (&info_request).owner_identifier.clone().unwrap().clone(),
-                            struct_info.1,
-                        );
                     }
                 }
+
                 IdentifierType::EnumVariant => {
-                    if let Some(mut enum_info) = component
-                        .identifier_map
-                        .remove(&(&info_request).owner_identifier.clone().unwrap())
-                    {
-                        if let Some(variant) = enum_info
-                            .1
-                            .variants
-                            .iter_mut()
-                            .find(|prop| prop.identifier == info_request.identifier)
+                    if let Some(owner_identifier) = &info_request.owner_identifier {
+                        if let Some(mut enum_info) =
+                            component.identifier_map.remove(owner_identifier)
                         {
-                            variant.info = new_info;
+                            if let Some(variant) = enum_info
+                                .1
+                                .variants
+                                .iter_mut()
+                                .find(|prop| prop.identifier == info_request.identifier)
+                            {
+                                variant.info = new_info;
+                            }
+                            component
+                                .identifier_map
+                                .insert(owner_identifier.clone(), enum_info.1);
                         }
-                        component.identifier_map.insert(
-                            (&info_request).owner_identifier.clone().unwrap().clone(),
-                            enum_info.1,
-                        );
                     }
                 }
             }
@@ -442,8 +443,93 @@ impl Backend {
                         } else {
                             panic!("Expected NodeType::Tag, found {:?}", tag.node_type);
                         }
-                    } else {
-                        None
+                        NodeType::LiteralFunction(data) => {
+                            if let Some(ident_info) = component
+                                .identifier_map
+                                .get(component.component_name.clone().as_str())
+                            {
+                                return ident_info.methods.iter().find_map(|m| {
+                                    if m.identifier == data.function_name {
+                                        Some(m.info.clone())
+                                    } else {
+                                        None
+                                    }
+                                });
+                            }
+                        }
+                        NodeType::LiteralEnumValue(data) => {
+                            let mut struct_id = data.enum_name.clone();
+                            if &struct_id == "Self" {
+                                struct_id = component.component_name.clone();
+                            }
+                            if let Some(ident_info) =
+                                component.identifier_map.get(struct_id.as_str())
+                            {
+                                if ident_name == &data.enum_name {
+                                    return Some(ident_info.info.clone());
+                                }
+                                return ident_info.variants.iter().find_map(|p| {
+                                    if p.identifier == data.property_name {
+                                        Some(p.info.clone())
+                                    } else {
+                                        None
+                                    }
+                                });
+                            }
+                        }
+                        NodeType::XoFunctionCall(data) => {
+                            if let Some(ident_info) =
+                                component.identifier_map.get(data.struct_name.as_str())
+                            {
+                                if ident_name == &data.struct_name {
+                                    return Some(ident_info.info.clone());
+                                }
+                                return ident_info.methods.iter().find_map(|m| {
+                                    if m.identifier == data.function_name {
+                                        Some(m.info.clone())
+                                    } else {
+                                        None
+                                    }
+                                });
+                            }
+                        }
+                        NodeType::AttributeKeyValuePair(data) => {
+                            const PROPERTY_NAMES: &[&str] = &[
+                                "x",
+                                "y",
+                                "scale_x",
+                                "scale_y",
+                                "skew_x",
+                                "skew_y",
+                                "rotate",
+                                "anchor_x",
+                                "anchor_y",
+                                "transform",
+                                "width",
+                                "height",
+                            ];
+
+                            if let Some(struct_ident) = struct_name {
+                                let struct_id =
+                                    if PROPERTY_NAMES.contains(&&data.identifier.as_str()) {
+                                        "CommonProperties".to_string()
+                                    } else {
+                                        struct_ident
+                                    };
+                                if let Some(ident_info) =
+                                    component.identifier_map.get(struct_id.as_str())
+                                {
+                                    if let Some(property) = ident_info
+                                        .properties
+                                        .iter()
+                                        .find(|p| p.identifier == data.identifier)
+                                    {
+                                        return Some(property.info.clone());
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
                     };
 
                     if let Some(ident) = relevant_ident {
@@ -553,6 +639,7 @@ impl Backend {
                 }
             }
         }
+
         return None;
     }
 
@@ -580,7 +667,7 @@ impl Backend {
             return;
         }
 
-        let path = uri.clone().to_file_path().expect("Failed to get file path");
+        let path = uri.to_file_path().expect("Failed to get file path");
         let directory = path.parent().expect("Failed to get parent directory");
 
         if let Some((rust_file_path, component_name)) =

@@ -58,6 +58,64 @@ pub struct FunctionCallData {
     pub function_name: String,
 }
 
+fn push_node(nodes: &mut Vec<PositionalNode>, start: Position, end: Position, node_type: NodeType) {
+    nodes.push(PositionalNode {
+        start,
+        end,
+        node_type,
+    });
+}
+
+fn handle_literal_enum_value(
+    pair: Pair<'_, Rule>,
+    nodes: &mut Vec<PositionalNode>,
+    start: Position,
+    end: Position,
+) {
+    let inner_pairs = pair.into_inner();
+    let mut enum_name = "".to_string();
+    let mut property_name = "".to_string();
+    if inner_pairs.clone().count() < 3 {
+        enum_name = inner_pairs
+            .clone()
+            .nth_back(1)
+            .unwrap()
+            .as_str()
+            .to_string()
+            .replace("::", "");
+        property_name = inner_pairs
+            .clone()
+            .nth_back(0)
+            .unwrap()
+            .as_str()
+            .to_string()
+            .replace("::", "");
+    } else {
+        enum_name = inner_pairs
+            .clone()
+            .nth_back(2)
+            .unwrap()
+            .as_str()
+            .to_string()
+            .replace("::", "");
+        property_name = inner_pairs
+            .clone()
+            .nth_back(1)
+            .unwrap()
+            .as_str()
+            .to_string()
+            .replace("::", "");
+    }
+    push_node(
+        nodes,
+        start,
+        end,
+        NodeType::LiteralEnumValue(EnumValueData {
+            enum_name,
+            property_name,
+        }),
+    );
+}
 fn pair_to_positions(pair: &Pair<Rule>) -> (Position, Position) {
     let span = pair.as_span();
     let start = Position {
@@ -92,11 +150,7 @@ pub fn extract_positional_nodes(
             return;
         }
         Rule::settings_block_declaration => {
-            nodes.push(PositionalNode {
-                start,
-                end,
-                node_type: NodeType::Settings,
-            });
+            push_node(nodes, start, end, NodeType::Settings);
         }
         Rule::selector_block => {
             let selector = &inner.clone().next().unwrap().as_str().to_string();
@@ -115,7 +169,8 @@ pub fn extract_positional_nodes(
         Rule::open_tag | Rule::open_tag_error | Rule::tag_error | Rule::self_closing_tag => {
             if let Some(inner_pair) = inner.find(|p| p.as_rule() == Rule::pascal_identifier) {
                 let identifier = inner_pair.as_str().to_string();
-                nodes.push(PositionalNode {
+                push_node(
+                    nodes,
                     start,
                     end,
                     node_type: NodeType::Tag(TagData {
@@ -129,7 +184,7 @@ pub fn extract_positional_nodes(
                         identifier,
                         is_pascal_identifier: true,
                     }),
-                });
+                );
             }
         }
         Rule::closing_tag => {
@@ -138,43 +193,45 @@ pub fn extract_positional_nodes(
                 .replace("<", "")
                 .replace("/", "")
                 .replace(">", "");
-            nodes.push(PositionalNode {
+            push_node(
+                nodes,
                 start,
                 end,
-                node_type: NodeType::Tag(TagData {
+                NodeType::Tag(TagData {
                     pascal_identifier: identifier.clone(),
                 }),
-            });
-            nodes.push(PositionalNode {
+            );
+            push_node(
+                nodes,
                 start,
                 end,
-                node_type: NodeType::Identifier(IdentifierData {
+                NodeType::Identifier(IdentifierData {
                     identifier,
                     is_pascal_identifier: true,
                 }),
-            });
+            );
         }
         Rule::pascal_identifier => {
             let identifier = as_str.to_string();
             nodes.push(PositionalNode {
                 start,
                 end,
-                node_type: NodeType::Identifier(IdentifierData {
+                NodeType::Identifier(IdentifierData {
                     identifier,
                     is_pascal_identifier: true,
                 }),
-            });
+            );
         }
         Rule::identifier => {
             let identifier = as_str.to_string();
             nodes.push(PositionalNode {
                 start,
                 end,
-                node_type: NodeType::Identifier(IdentifierData {
+                NodeType::Identifier(IdentifierData {
                     identifier,
-                    is_pascal_identifier: false,
+                    is_pascal_identifier: true,
                 }),
-            });
+            );
         }
         Rule::literal_function => {
             let function_name = as_str.to_string().replace("self.", "").replace(",", "");
@@ -225,8 +282,9 @@ pub fn extract_positional_nodes(
                     enum_name,
                     property_name,
                 }),
-            });
+            );
         }
+        Rule::literal_enum_value => handle_literal_enum_value(pair.clone(), nodes, start, end),
         Rule::attribute_key_value_pair => {
             let pair_as_string = as_str.to_string();
             let kv_pair = pair_as_string.split_once("=");
@@ -289,6 +347,8 @@ pub fn extract_positional_nodes(
                 }),
             });
         }
+        Rule::xo_function_call => handle_xo_function_call(pair.clone(), nodes, start, end),
+
         _ => {}
     }
 
