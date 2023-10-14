@@ -52,14 +52,16 @@ fn main() -> Result<(), ()> {
         .long("verbose")
         .takes_value(false);
 
+    //Default to web -- perhaps the ideal would be to discover host
+    //platform and run appropriate native harness.  Web is a suitable,
+    //sane default for now.
+    const DEFAULT_TARGET : &str = "web";
+
     #[allow(non_snake_case)]
     let ARG_TARGET = Arg::with_name("target")
         .short("t")
         .long("target")
-        //Default to web -- perhaps the ideal would be to discover host
-        //platform and run appropriate native harness.  Web is a suitable,
-        //sane default for now.
-        .default_value("web")
+        .default_value(DEFAULT_TARGET)
         .help("Specify the target platform on which to run.  Will run in platform-specific demo harness.")
         .takes_value(true);
 
@@ -115,12 +117,6 @@ fn main() -> Result<(), ()> {
         )
         .subcommand(
             App::new("libdev")
-                .subcommand(
-                    App::new("build-chassis")
-                        .arg( ARG_PATH.clone() )
-                        .arg( ARG_TARGET.clone() )
-                        .about("Runs cargo build on the codegenned chassis, within the .pax folder contained within the specified `path`.  Useful for core development, e.g. building compiler features or compiler debugging.  Expected to fail if the whole compiler has not run at least once.")
-                )
                 .subcommand(
                     App::new("parse")
                         .arg( ARG_PATH.clone() )

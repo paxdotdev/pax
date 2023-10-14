@@ -11,23 +11,23 @@ use std::borrow::Borrow;
 use std::cmp::Ordering;
 use std::collections::{HashMap, HashSet};
 use std::fs;
-use std::thread;
 use std::io::Write;
 use std::str::FromStr;
 use std::sync::{Arc, Mutex};
+use std::thread;
 
-use fs_extra::dir::{self, CopyOptions};
-use itertools::Itertools;
 use actix_web::middleware::Logger;
 use actix_web::{App, HttpServer};
 use env_logger;
 use flate2::read::GzDecoder;
+use fs_extra::dir::{self, CopyOptions};
+use itertools::Itertools;
+use rust_format::Formatter;
 use std::net::TcpListener;
 use tar::Archive;
-use rust_format::Formatter;
 
-use lazy_static::lazy_static;
 use include_dir::{include_dir, Dir};
+use lazy_static::lazy_static;
 
 #[cfg(unix)]
 use std::os::unix::process::CommandExt;
@@ -59,24 +59,23 @@ static PAX_CREATE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/new-proj
 
 const PAX_CREATE_TEMPLATE_DIR_NAME: &str = "new-project-template";
 const PKG_DIR_NAME: &str = "pkg";
-const BUILD_DIR_NAME : &str = "build";
+const BUILD_DIR_NAME: &str = "build";
 const PUBLIC_DIR_NAME: &str = "public";
 const ASSETS_DIR_NAME: &str = "assets";
 const REEXPORTS_PARTIAL_FILE_NAME: &str = "reexports.partial.rs";
-const RUST_IOS_DYLIB_FILE_NAME : &str = "libpaxchassisios.dylib";
-const RUST_MACOS_DYLIB_FILE_NAME : &str = "libpaxchassismacos.dylib";
-const PORTABLE_DYLIB_INSTALL_NAME : &str = "@rpath/PaxCartridge.framework/PaxCartridge";
+const RUST_IOS_DYLIB_FILE_NAME: &str = "libpaxchassisios.dylib";
+const RUST_MACOS_DYLIB_FILE_NAME: &str = "libpaxchassismacos.dylib";
+const PORTABLE_DYLIB_INSTALL_NAME: &str = "@rpath/PaxCartridge.framework/PaxCartridge";
 
-const XCODE_MACOS_TARGET_DEBUG : &str = "Pax macOS (Development)";
-const XCODE_IOS_TARGET_DEBUG : &str = "Pax iOS (Development)";
+const XCODE_MACOS_TARGET_DEBUG: &str = "Pax macOS (Development)";
+const XCODE_IOS_TARGET_DEBUG: &str = "Pax iOS (Development)";
 
 // These package IDs represent the directory / package names inside the xcframework,
-const MACOS_MULTIARCH_PACKAGE_ID : &str = "macos-arm64_x86_64";
-const IOS_SIMULATOR_MULTIARCH_PACKAGE_ID : &str = "ios-arm64_x86_64-simulator";
-const IOS_PACKAGE_ID : &str = "ios-arm64";
+const MACOS_MULTIARCH_PACKAGE_ID: &str = "macos-arm64_x86_64";
+const IOS_SIMULATOR_MULTIARCH_PACKAGE_ID: &str = "ios-arm64_x86_64-simulator";
+const IOS_PACKAGE_ID: &str = "ios-arm64";
 
-
-const ERR_SPAWN : &str = "failed to spawn child";
+const ERR_SPAWN: &str = "failed to spawn child";
 
 //whitelist of package ids that are relevant to the compiler, e.g. for cloning & patching, for assembling FS paths,
 //or for looking up package IDs from a userland Cargo.lock.
@@ -216,9 +215,7 @@ fn generate_and_overwrite_properties_coproduct(
     manifest: &PaxManifest,
     host_crate_info: &HostCrateInfo,
 ) {
-    let target_dir = pax_dir
-        .join(PKG_DIR_NAME)
-        .join("pax-properties-coproduct");
+    let target_dir = pax_dir.join(PKG_DIR_NAME).join("pax-properties-coproduct");
 
     let target_cargo_full_path = fs::canonicalize(target_dir.join("Cargo.toml")).unwrap();
     let mut target_cargo_toml_contents =
@@ -1059,9 +1056,9 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
         .write_all(output.stderr.as_slice())
         .unwrap();
 
-    if ! output.status.success() {
+    if !output.status.success() {
         println!("Parsing failed — there is likely a syntax error in the provided pax");
-        return Err(())
+        return Err(());
     }
 
     let out = String::from_utf8(output.stdout).unwrap();
@@ -1131,7 +1128,11 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
     runtime
 }
 
-fn copy_dir_recursively(src: &Path, dest: &Path, ignore_list: &[&str]) -> Result<(), Box<dyn std::error::Error>> {
+fn copy_dir_recursively(
+    src: &Path,
+    dest: &Path,
+    ignore_list: &[&str],
+) -> Result<(), Box<dyn std::error::Error>> {
     if src.is_dir() {
         // If the directory name is in the ignore list, we skip this directory
         if ignore_list.contains(&src.file_name().unwrap().to_str().unwrap()) {
@@ -1170,7 +1171,6 @@ pub fn build_chassis_with_cartridge(
     ctx: &RunContext,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
 ) -> Result<(), ()> {
-
     let target: &RunTarget = &ctx.target;
     let target_str: &str = target.into();
     let target_str_lower = &target_str.to_lowercase();
@@ -1179,13 +1179,12 @@ pub fn build_chassis_with_cartridge(
         .join(PKG_DIR_NAME)
         .join(format!("pax-chassis-{}", target_str_lower));
 
-
     //approximate `should_also_run` as "dev build," `!should_also_run` as prod.
     //we can improve this with an explicit `--release` flag in the Pax CLI
     #[allow(non_snake_case)]
     let IS_RELEASE: bool = !ctx.should_also_run;
     #[allow(non_snake_case)]
-    let BUILD_MODE_NAME : &str = if IS_RELEASE {"release"} else {"debug"};
+    let BUILD_MODE_NAME: &str = if IS_RELEASE { "release" } else { "debug" };
 
     let interface_path = pax_dir
         .join(PKG_DIR_NAME)
@@ -1220,7 +1219,6 @@ pub fn build_chassis_with_cartridge(
     //string together a shell call to build our chassis, with cartridge inserted via `patch`
     match target {
         RunTarget::macOS | RunTarget::iOS => {
-
             //0: Rust arch string, for passing to cargo
             //1: Apple arch string, for addressing xcframework
             let target_mappings: &[(&str, &str)] = if let RunTarget::macOS = target {
@@ -1245,10 +1243,22 @@ pub fn build_chassis_with_cartridge(
             let mut handles = Vec::new();
 
             //(arch id, single-platform .dylib path, stdout/stderr from build)
-            let build_results : Arc<Mutex<HashMap<u32, (String, String, Output)>>> = Arc::new(Mutex::new(HashMap::new()));
+            let build_results: Arc<Mutex<HashMap<u32, (String, String, Output)>>> =
+                Arc::new(Mutex::new(HashMap::new()));
 
-            let targets_single_string = target_mappings.iter().map(|tm|{tm.1.to_string()}).collect::<Vec<String>>().join(", ").bold();
-            println!("{} 🧶 Compiling targets {{{}}} in {} mode using {} threads...\n", *PAX_BADGE, &targets_single_string, &BUILD_MODE_NAME.to_string().bold() , target_mappings.len());
+            let targets_single_string = target_mappings
+                .iter()
+                .map(|tm| tm.1.to_string())
+                .collect::<Vec<String>>()
+                .join(", ")
+                .bold();
+            println!(
+                "{} 🧶 Compiling targets {{{}}} in {} mode using {} threads...\n",
+                *PAX_BADGE,
+                &targets_single_string,
+                &BUILD_MODE_NAME.to_string().bold(),
+                target_mappings.len()
+            );
 
             let mut index = 0;
             for target_mapping in target_mappings {
@@ -1284,14 +1294,21 @@ pub fn build_chassis_with_cartridge(
                     //Execute `cargo build`, which generates our dylibs
                     let output = wait_with_output(&process_child_ids_threadsafe, child);
 
-                    let dylib_src = chassis_path.join("target")
+                    let dylib_src = chassis_path
+                        .join("target")
                         .join(target_mapping.0)
                         .join(BUILD_MODE_NAME)
                         .join(dylib_file_name);
 
-                    let new_val = (target_mapping.1.to_string(), dylib_src.to_str().unwrap().to_string(), output);
-                    build_results_threadsafe.lock().unwrap().insert(index, new_val);
-
+                    let new_val = (
+                        target_mapping.1.to_string(),
+                        dylib_src.to_str().unwrap().to_string(),
+                        output,
+                    );
+                    build_results_threadsafe
+                        .lock()
+                        .unwrap()
+                        .insert(index, new_val);
                 });
                 index = index + 1;
                 handles.push(handle);
@@ -1334,7 +1351,7 @@ pub fn build_chassis_with_cartridge(
 
             if should_abort {
                 eprintln!("Failed to build one or more targets with Cargo. Aborting.");
-                return Err(())
+                return Err(());
             }
 
             // Update the `install name` of each Rust-built .dylib, instead of the default-output absolute file paths
@@ -1360,15 +1377,18 @@ pub fn build_chassis_with_cartridge(
             match result {
                 Err(_) => {
                     return Err(());
-                },
-                _ => {},
+                }
+                _ => {}
             };
 
             // Merge architecture-specific binaries with `lipo` (this is an undocumented requirement
             // of multi-arch builds + xcframeworks for the Apple toolchain; we cannot bundle two
             // macos arch .frameworks in an xcframework; they must lipo'd into a single .framework + dylib.
             // Similarly, iOS binaries require a particular bundling for simulator & device builds.)
-            println!("{} 🖇️  Combining architecture-specific binaries with `lipo`...", *PAX_BADGE);
+            println!(
+                "{} 🖇️  Combining architecture-specific binaries with `lipo`...",
+                *PAX_BADGE
+            );
 
             if let RunTarget::macOS = target {
                 // For macOS, we want to lipo both our arm64 and x86_64 dylibs into a single binary,
@@ -1382,7 +1402,10 @@ pub fn build_chassis_with_cartridge(
                     .join("PaxCartridge.framework")
                     .join("PaxCartridge");
 
-                let lipo_input_paths = results.iter().map(|res|{res.1.1.clone()}).collect::<Vec<String>>();
+                let lipo_input_paths = results
+                    .iter()
+                    .map(|res| res.1 .1.clone())
+                    .collect::<Vec<String>>();
 
                 // Construct the lipo command
                 let mut lipo_command = Command::new("lipo");
@@ -1404,15 +1427,20 @@ pub fn build_chassis_with_cartridge(
 
                 if !output.status.success() {
                     println!("Failed to combine packages with lipo. Aborting.");
-                    return Err(())
+                    return Err(());
                 }
-
             } else {
                 // For iOS, we want to:
                 // 1. lipo together both simulator build architectures
                 // 2. copy (a) the lipo'd simulator binary, and (b) the vanilla arm64 iOS binary into the framework
-                let simulator_builds = results.iter().filter(|res|{res.1.0.starts_with("iossimulator-")}).collect::<Vec<_>>();
-                let device_build = results.iter().filter(|res|{res.1.0.starts_with("ios-")}).collect::<Vec<_>>();
+                let simulator_builds = results
+                    .iter()
+                    .filter(|res| res.1 .0.starts_with("iossimulator-"))
+                    .collect::<Vec<_>>();
+                let device_build = results
+                    .iter()
+                    .filter(|res| res.1 .0.starts_with("ios-"))
+                    .collect::<Vec<_>>();
 
                 let multiarch_dylib_dest = pax_dir
                     .join(PKG_DIR_NAME)
@@ -1423,7 +1451,10 @@ pub fn build_chassis_with_cartridge(
                     .join("PaxCartridge.framework")
                     .join("PaxCartridge");
 
-                let lipo_input_paths = simulator_builds.iter().map(|res|{res.1.1.clone()}).collect::<Vec<String>>();
+                let lipo_input_paths = simulator_builds
+                    .iter()
+                    .map(|res| res.1 .1.clone())
+                    .collect::<Vec<String>>();
 
                 // Construct the lipo command
                 let mut lipo_command = Command::new("lipo");
@@ -1444,11 +1475,11 @@ pub fn build_chassis_with_cartridge(
                 let output = wait_with_output(&process_child_ids, child);
                 if !output.status.success() {
                     eprintln!("Failed to combine dylibs with lipo. Aborting.");
-                    return Err(())
+                    return Err(());
                 }
 
                 //Copy singular device build (iOS, not simulator)
-                let device_dylib_src = &device_build[0].1.1;
+                let device_dylib_src = &device_build[0].1 .1;
                 let device_dylib_dest = pax_dir
                     .join(PKG_DIR_NAME)
                     .join("pax-chassis-common")
@@ -1462,29 +1493,32 @@ pub fn build_chassis_with_cartridge(
 
             let (xcodeproj_path, scheme) = if let RunTarget::macOS = target {
                 (
-                    pax_dir.join(PKG_DIR_NAME)
-                    .join("pax-chassis-macos")
-                    .join("interface")
-                    .join("pax-app-macos")
-                    .join("pax-app-macos.xcodeproj"),
+                    pax_dir
+                        .join(PKG_DIR_NAME)
+                        .join("pax-chassis-macos")
+                        .join("interface")
+                        .join("pax-app-macos")
+                        .join("pax-app-macos.xcodeproj"),
                     XCODE_MACOS_TARGET_DEBUG,
                 )
-
             } else {
-                (pax_dir.join(PKG_DIR_NAME)
-                    .join("pax-chassis-ios")
-                    .join("interface")
-                    .join("pax-app-ios")
-                    .join("pax-app-ios.xcodeproj"),
+                (
+                    pax_dir
+                        .join(PKG_DIR_NAME)
+                        .join("pax-chassis-ios")
+                        .join("interface")
+                        .join("pax-app-ios")
+                        .join("pax-app-ios.xcodeproj"),
                     XCODE_IOS_TARGET_DEBUG,
                 )
             };
 
-            let configuration = if IS_RELEASE {"Release"} else {"Debug"};
+            let configuration = if IS_RELEASE { "Release" } else { "Debug" };
 
             let build_dest_base = pax_dir.join(BUILD_DIR_NAME).join(BUILD_MODE_NAME);
             let executable_output_dir_path = build_dest_base.join("app");
-            let executable_dot_app_path = executable_output_dir_path.join(&format!("{}.app", &scheme));
+            let executable_dot_app_path =
+                executable_output_dir_path.join(&format!("{}.app", &scheme));
             let _ = fs::create_dir_all(&executable_output_dir_path);
 
             println!("{} 💻 Building xcodeproject...", *PAX_BADGE);
@@ -1495,12 +1529,16 @@ pub fn build_chassis_with_cartridge(
                 .arg(configuration)
                 .arg("-scheme")
                 .arg(scheme)
-                .arg(&format!("CONFIGURATION_BUILD_DIR={}", executable_output_dir_path.to_str().unwrap()))
+                .arg(&format!(
+                    "CONFIGURATION_BUILD_DIR={}",
+                    executable_output_dir_path.to_str().unwrap()
+                ))
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::piped());
 
             if !IS_RELEASE {
-                cmd.arg("CODE_SIGNING_REQUIRED=NO").arg("CODE_SIGN_IDENTITY=");
+                cmd.arg("CODE_SIGNING_REQUIRED=NO")
+                    .arg("CODE_SIGN_IDENTITY=");
             }
 
             if !ctx.verbose {
@@ -1526,7 +1564,7 @@ pub fn build_chassis_with_cartridge(
                 for line in stderr.lines() {
                     // Check if this line starts a blacklisted message
                     if line.starts_with("Details:  createItemModels") {
-                        skip_lines = 5;  // There are 5 lines to skip, including this one
+                        skip_lines = 5; // There are 5 lines to skip, including this one
                     }
 
                     // If skip_lines is non-zero, skip printing and decrement the counter
@@ -1541,25 +1579,49 @@ pub fn build_chassis_with_cartridge(
 
             if !output.status.success() {
                 eprintln!("Failed to build project with xcodebuild. Aborting.");
-                return Err(())
+                return Err(());
             }
 
             //Copy build artifacts & packages into `build`
-            let swift_cart_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-common").join("pax-swift-cartridge");
-            let swift_common_src = pax_dir.join(PKG_DIR_NAME).join("pax-chassis-common").join("pax-swift-common");
+            let swift_cart_src = pax_dir
+                .join(PKG_DIR_NAME)
+                .join("pax-chassis-common")
+                .join("pax-swift-cartridge");
+            let swift_common_src = pax_dir
+                .join(PKG_DIR_NAME)
+                .join("pax-chassis-common")
+                .join("pax-swift-common");
 
-            let swift_cart_build_dest = build_dest_base.join("pax-chassis-common").join("pax-swift-cartridge");
-            let swift_common_build_dest = build_dest_base.join("pax-chassis-common").join("pax-swift-common");
+            let swift_cart_build_dest = build_dest_base
+                .join("pax-chassis-common")
+                .join("pax-swift-cartridge");
+            let swift_common_build_dest = build_dest_base
+                .join("pax-chassis-common")
+                .join("pax-swift-common");
 
             let (app_xcodeproj_src, app_xcodeproj_build_dest) = if let RunTarget::macOS = target {
                 (
-                    pax_dir.join(PKG_DIR_NAME).join("pax-chassis-macos").join("interface").join("pax-app-macos"),
-                    build_dest_base.join("pax-chassis-macos").join("interface").join("pax-app-macos")
+                    pax_dir
+                        .join(PKG_DIR_NAME)
+                        .join("pax-chassis-macos")
+                        .join("interface")
+                        .join("pax-app-macos"),
+                    build_dest_base
+                        .join("pax-chassis-macos")
+                        .join("interface")
+                        .join("pax-app-macos"),
                 )
             } else {
                 (
-                    pax_dir.join(PKG_DIR_NAME).join("pax-chassis-ios").join("interface").join("pax-app-ios"),
-                    build_dest_base.join("pax-chassis-ios").join("interface").join("pax-app-ios")
+                    pax_dir
+                        .join(PKG_DIR_NAME)
+                        .join("pax-chassis-ios")
+                        .join("interface")
+                        .join("pax-app-ios"),
+                    build_dest_base
+                        .join("pax-chassis-ios")
+                        .join("interface")
+                        .join("pax-app-ios"),
                 )
             };
 
@@ -1567,14 +1629,25 @@ pub fn build_chassis_with_cartridge(
             let _ = fs::create_dir_all(&swift_common_build_dest);
             let _ = fs::create_dir_all(&app_xcodeproj_build_dest);
 
-            let _ = copy_dir_recursively(&swift_cart_src, &swift_cart_build_dest, &DIR_IGNORE_LIST_MACOS);
-            let _ = copy_dir_recursively(&swift_common_src, &swift_common_build_dest, &DIR_IGNORE_LIST_MACOS);
-            let _ = copy_dir_recursively(&app_xcodeproj_src, &app_xcodeproj_build_dest, &DIR_IGNORE_LIST_MACOS);
+            let _ = copy_dir_recursively(
+                &swift_cart_src,
+                &swift_cart_build_dest,
+                &DIR_IGNORE_LIST_MACOS,
+            );
+            let _ = copy_dir_recursively(
+                &swift_common_src,
+                &swift_common_build_dest,
+                &DIR_IGNORE_LIST_MACOS,
+            );
+            let _ = copy_dir_recursively(
+                &app_xcodeproj_src,
+                &app_xcodeproj_build_dest,
+                &DIR_IGNORE_LIST_MACOS,
+            );
 
             // Start  `run` rather than a `build`
-            let target_str : &str = target.into();
+            let target_str: &str = target.into();
             if ctx.should_also_run {
-
                 println!("{} 🐇 Running Pax {}...", *PAX_BADGE, target_str);
 
                 if let RunTarget::macOS = target {
@@ -1582,14 +1655,14 @@ pub fn build_chassis_with_cartridge(
                     // Handle macOS `run`
                     //
 
-                    let system_binary_path = executable_dot_app_path.join(&format!("Contents/MacOS/{}", scheme));
+                    let system_binary_path =
+                        executable_dot_app_path.join(&format!("Contents/MacOS/{}", scheme));
 
                     let status = Command::new(system_binary_path)
                         .status() // This will wait for the process to complete
                         .expect("failed to execute the app");
 
                     println!("App exited with: {:?}", status);
-
                 } else {
                     //
                     // Handle iOS `run`
@@ -1606,7 +1679,8 @@ pub fn build_chassis_with_cartridge(
                     let output = wait_with_output(&process_child_ids, child);
 
                     let output_str = std::str::from_utf8(&output.stdout).map_err(|_| ())?;
-                    let mut devices: Vec<&str> = output_str.lines()
+                    let mut devices: Vec<&str> = output_str
+                        .lines()
                         .filter(|line| line.contains("iPhone"))
                         .collect();
 
@@ -1614,15 +1688,18 @@ pub fn build_chassis_with_cartridge(
                     devices.sort_by(|a, b| b.cmp(a));
 
                     // Extract UDID
-                    let device_udid_opt = devices.get(0)
+                    let device_udid_opt = devices
+                        .get(0)
                         .and_then(|device| device.split('(').nth(1))
                         .and_then(|udid_with_paren| udid_with_paren.split(')').next());
 
                     let device_udid = match device_udid_opt {
                         Some(udid) => udid.trim(),
-                        None => return {
-                            eprintln!("No installed iOS simulators found on this system.  Install at least one iPhone simulator through xcode and try again.");
-                            Err(())
+                        None => {
+                            return {
+                                eprintln!("No installed iOS simulators found on this system.  Install at least one iPhone simulator through xcode and try again.");
+                                Err(())
+                            }
                         }
                     };
 
@@ -1666,22 +1743,30 @@ pub fn build_chassis_with_cartridge(
                     let retry_period_secs = 5;
                     let mut retries = 0;
 
-                    while !is_simulator_booted(device_udid, &process_child_ids) && retries < max_retries {
+                    while !is_simulator_booted(device_udid, &process_child_ids)
+                        && retries < max_retries
+                    {
                         println!("{} 💤 Waiting for simulator to boot...", *PAX_BADGE);
                         std::thread::sleep(std::time::Duration::from_secs(retry_period_secs));
                         retries = retries + 1;
                     }
 
                     if retries == max_retries {
-                        eprintln!("Failed to boot the simulator within the expected time. Aborting.");
+                        eprintln!(
+                            "Failed to boot the simulator within the expected time. Aborting."
+                        );
                         return Err(());
                     }
 
                     // Install and run app on simulator
-                    println!("{} 📤 Installing and running app from {} on simulator...", *PAX_BADGE, executable_output_dir_path.to_str().unwrap());
+                    println!(
+                        "{} 📤 Installing and running app from {} on simulator...",
+                        *PAX_BADGE,
+                        executable_output_dir_path.to_str().unwrap()
+                    );
 
                     let mut cmd = Command::new("xcrun");
-                        cmd.arg("simctl")
+                    cmd.arg("simctl")
                         .arg("install")
                         .arg(device_udid)
                         .arg(executable_dot_app_path)
@@ -1715,12 +1800,13 @@ pub fn build_chassis_with_cartridge(
                 }
             } else {
                 let build_path = executable_output_dir_path.to_str().unwrap().bold();
-                println!("{} 🗂️  Done: {} {} build available at {}", *PAX_BADGE, target_str, BUILD_MODE_NAME, build_path);
+                println!(
+                    "{} 🗂️  Done: {} {} build available at {}",
+                    *PAX_BADGE, target_str, BUILD_MODE_NAME, build_path
+                );
             }
-
         }
         RunTarget::Web => {
-
             let mut cmd = Command::new("wasm-pack");
             cmd.current_dir(&chassis_path)
                 .arg("build")
@@ -1757,7 +1843,7 @@ pub fn build_chassis_with_cartridge(
             let output = wait_with_output(&process_child_ids, child);
             if !output.status.success() {
                 eprintln!("Failed to build project with wasm-pack. Aborting.");
-                return Err(())
+                return Err(());
             }
 
             // Copy assets
@@ -1776,7 +1862,10 @@ pub fn build_chassis_with_cartridge(
 
             //Copy fully built project into .pax/build/web, ready for e.g. publishing
             let build_src = interface_path.join(PUBLIC_DIR_NAME).join(BUILD_MODE_NAME);
-            let build_dest = pax_dir.join(BUILD_DIR_NAME).join(BUILD_MODE_NAME).join("web");
+            let build_dest = pax_dir
+                .join(BUILD_DIR_NAME)
+                .join(BUILD_MODE_NAME)
+                .join("web");
             let _ = copy_dir_recursively(&build_src, &build_dest, &DIR_IGNORE_LIST_WEB);
 
             // Start local server if this is a `run` rather than a `build`
@@ -1784,13 +1873,17 @@ pub fn build_chassis_with_cartridge(
                 println!("{} 🐇 Running Pax Web...", *PAX_BADGE);
                 let _ = start_static_http_server(interface_path.join(PUBLIC_DIR_NAME));
             } else {
-                println!("{} 🗂️ Done: {} build available at {}", *PAX_BADGE, BUILD_MODE_NAME, build_dest.to_str().unwrap());
+                println!(
+                    "{} 🗂️ Done: {} build available at {}",
+                    *PAX_BADGE,
+                    BUILD_MODE_NAME,
+                    build_dest.to_str().unwrap()
+                );
             }
         }
     }
     Ok(())
 }
-
 
 // This function checks if the simulator with the given UDID is booted
 fn is_simulator_booted(device_udid: &str, process_child_ids: &Arc<Mutex<Vec<u64>>>) -> bool {
@@ -1808,7 +1901,9 @@ fn is_simulator_booted(device_udid: &str, process_child_ids: &Arc<Mutex<Vec<u64>
     }
 
     let output_str = String::from_utf8(output.stdout).expect("Failed to convert to string");
-    output_str.lines().any(|line| line.contains(device_udid) && line.contains("Booted"))
+    output_str
+        .lines()
+        .any(|line| line.contains(device_udid) && line.contains("Booted"))
 }
 
 pub fn perform_create(ctx: &CreateContext) {
@@ -2024,10 +2119,15 @@ pub fn wait_with_output(
     process_child_ids.lock().expect(ERR_LOCK).push(child_id);
 
     // Wait for the child process to complete
-    let output = child.wait_with_output().expect("Failed to wait for child process");
+    let output = child
+        .wait_with_output()
+        .expect("Failed to wait for child process");
 
     // Ensure the child ID is removed after completion
-    process_child_ids.lock().expect(ERR_LOCK).retain(|&id| id != child_id);
+    process_child_ids
+        .lock()
+        .expect(ERR_LOCK)
+        .retain(|&id| id != child_id);
 
     output
 }
