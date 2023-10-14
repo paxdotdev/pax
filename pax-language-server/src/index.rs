@@ -211,6 +211,15 @@ fn extract_between(source: &str, start: &str, _end: &str) -> Option<String> {
     }
 }
 
+fn create_info(file_path: &str, span: Span) -> Info {
+    Info {
+        path: file_path.to_string(),
+        position: span_to_position(span),
+        definition_id: None,
+        hover_id: None,
+    }
+}
+
 struct IndexVisitor<'a> {
     index: &'a DashMap<String, IdentifierInfo>,
     file_path: String,
@@ -221,11 +230,12 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
     fn visit_item_struct(&mut self, i: &'ast ItemStruct) {
         let attributes = &i.attrs;
 
-        let ty = if attributes.iter().any(|attr| {
+        let is_special = |attr: &Attribute| {
             attr.path.is_ident("primitive")
                 || attr.path.is_ident("inlined")
                 || attr.path.is_ident("file")
-        }) {
+        };
+        let ty = if attributes.iter().any(is_special) {
             IdentifierType::Component
         } else {
             IdentifierType::PaxType
@@ -237,12 +247,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
             .map(|f| {
                 let rust_type_string = extract_rust_type(&(f.clone()).ty);
                 if let Some(_) = f.ident.clone() {
-                    let prop_info = Info {
-                        path: self.file_path.clone(),
-                        position: span_to_position(f.ident.clone().unwrap().span()),
-                        definition_id: None,
-                        hover_id: None,
-                    };
+                    let prop_info = create_info(&self.file_path.clone(), f.ident.span());
 
                     self.requests.push(InfoRequest {
                         identifier_type: IdentifierType::Property,
@@ -260,12 +265,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
                     StructProperty {
                         identifier: rust_type_string.clone(),
                         rust_type: rust_type_string.clone(),
-                        info: Info {
-                            path: self.file_path.clone(),
-                            position: span_to_position(f.ty.span()),
-                            definition_id: None,
-                            hover_id: None,
-                        },
+                        info: create_info(&self.file_path.clone(), f.ty.span()),
                     }
                 }
             })
@@ -277,12 +277,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
             IdentifierInfo {
                 ty: ty.clone(),
                 identifier: struct_name.clone(),
-                info: Info {
-                    path: self.file_path.clone(),
-                    position: span_to_position(i.span()),
-                    definition_id: None,
-                    hover_id: None,
-                },
+                info: create_info(&self.file_path, i.span()),
                 properties,
                 methods: Vec::new(),
                 variants: Vec::new(),
@@ -293,12 +288,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
             identifier_type: ty,
             identifier: struct_name,
             owner_identifier: None,
-            info: Info {
-                path: self.file_path.clone(),
-                position: span_to_position(i.ident.span()),
-                definition_id: None,
-                hover_id: None,
-            },
+            info: create_info(&self.file_path, i.ident.span()),
         });
     }
 
