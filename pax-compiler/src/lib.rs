@@ -1483,8 +1483,9 @@ pub fn build_chassis_with_cartridge(
             let configuration = if IS_RELEASE {"Release"} else {"Debug"};
 
             let build_dest_base = pax_dir.join(BUILD_DIR_NAME).join(BUILD_MODE_NAME);
-            let executable_output_path = build_dest_base.join("app");
-            let _ = fs::create_dir_all(&executable_output_path);
+            let executable_output_dir_path = build_dest_base.join("app");
+            let executable_dot_app_path = executable_output_dir_path.join(&format!("{}.app", &scheme));
+            let _ = fs::create_dir_all(&executable_output_dir_path);
 
             println!("{} 💻 Building xcodeproject...", *PAX_BADGE);
             let mut cmd = Command::new("xcodebuild");
@@ -1494,16 +1495,21 @@ pub fn build_chassis_with_cartridge(
                 .arg(configuration)
                 .arg("-scheme")
                 .arg(scheme)
-                .arg(&format!("CONFIGURATION_BUILD_DIR={}", executable_output_path.to_str().unwrap()))
+                .arg(&format!("CONFIGURATION_BUILD_DIR={}", executable_output_dir_path.to_str().unwrap()))
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::piped());
+
+            if !IS_RELEASE {
+                cmd.arg("CODE_SIGNING_REQUIRED=NO").arg("CODE_SIGN_IDENTITY=");
+            }
 
             if !ctx.verbose {
                 cmd.arg("-quiet");
                 cmd.arg("GCC_WARN_INHIBIT_ALL_WARNINGS=YES");
             }
 
-            let output = cmd.output().expect("Failed to execute command");
+            let child = cmd.spawn().expect(ERR_SPAWN);
+            let output = wait_with_output(&process_child_ids, child);
 
             // Crudely prune out noisy xcodebuild warnings due to an apparent xcode-internal bug at time of authoring, spitting out:
             //   Details:  createItemModels creation requirements should not create capability item model for a capability item model that already exists.
@@ -1569,23 +1575,146 @@ pub fn build_chassis_with_cartridge(
             let target_str : &str = target.into();
             if ctx.should_also_run {
 
-                let xcode_target_name = if let RunTarget::macOS = target {
-                    XCODE_MACOS_TARGET_DEBUG
-                }else{
-                    XCODE_IOS_TARGET_DEBUG
-                };
-
                 println!("{} 🐇 Running Pax {}...", *PAX_BADGE, target_str);
-                let executable_path = executable_output_path.join(&format!("{}.app", xcode_target_name));
-                let binary_path = executable_path.join(&format!("Contents/MacOS/{}", xcode_target_name));
 
-                let status = Command::new(binary_path)
-                    .status() // This will wait for the process to complete
-                    .expect("failed to execute the app");
+                if let RunTarget::macOS = target {
+                    //
+                    // Handle macOS `run`
+                    //
 
-                println!("App exited with: {:?}", status);
+                    let system_binary_path = executable_dot_app_path.join(&format!("Contents/MacOS/{}", scheme));
+
+                    let status = Command::new(system_binary_path)
+                        .status() // This will wait for the process to complete
+                        .expect("failed to execute the app");
+
+                    println!("App exited with: {:?}", status);
+
+                } else {
+                    //
+                    // Handle iOS `run`
+                    //
+
+                    // Get list of devices
+                    let mut cmd = Command::new("xcrun");
+                    cmd.arg("simctl")
+                        .arg("list")
+                        .arg("devices")
+                        .arg("available")
+                        .stdout(std::process::Stdio::piped());
+                    let child = cmd.spawn().expect(ERR_SPAWN);
+                    let output = wait_with_output(&process_child_ids, child);
+
+                    let output_str = std::str::from_utf8(&output.stdout).map_err(|_| ())?;
+                    let mut devices: Vec<&str> = output_str.lines()
+                        .filter(|line| line.contains("iPhone"))
+                        .collect();
+
+                    // Sort to get the newest version
+                    devices.sort_by(|a, b| b.cmp(a));
+
+                    // Extract UDID
+                    let device_udid_opt = devices.get(0)
+                        .and_then(|device| device.split('(').nth(1))
+                        .and_then(|udid_with_paren| udid_with_paren.split(')').next());
+
+                    let device_udid = match device_udid_opt {
+                        Some(udid) => udid.trim(),
+                        None => return {
+                            eprintln!("No installed iOS simulators found on this system.  Install at least one iPhone simulator through xcode and try again.");
+                            Err(())
+                        }
+                    };
+
+                    // Open the Simulator app
+                    let mut cmd = Command::new("open");
+                    cmd.arg("-a")
+                        .arg("Simulator")
+                        .arg("--args")
+                        .arg("-CurrentDeviceUDID")
+                        .arg(device_udid)
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped());
+
+                    let child = cmd.spawn().expect(ERR_SPAWN);
+                    let output = wait_with_output(&process_child_ids, child);
+                    if !output.status.success() {
+                        eprintln!("Error opening iOS simulator. Aborting.");
+                        return Err(());
+                    }
+
+                    // Boot the relevant simulator
+                    let mut cmd = Command::new("xcrun");
+                    cmd.arg("simctl")
+                        .arg("spawn")
+                        .arg(device_udid)
+                        .arg("launchctl")
+                        .arg("print")
+                        .arg("system")
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped());
+
+                    let child = cmd.spawn().expect(ERR_SPAWN);
+                    let output = wait_with_output(&process_child_ids, child);
+                    if !output.status.success() {
+                        eprintln!("Error booting iOS simulator. Aborting.");
+                        return Err(());
+                    }
+
+                    // After opening the simulator, wait for the simulator to be booted
+                    let max_retries = 5;
+                    let retry_period_secs = 5;
+                    let mut retries = 0;
+
+                    while !is_simulator_booted(device_udid, &process_child_ids) && retries < max_retries {
+                        println!("{} 💤 Waiting for simulator to boot...", *PAX_BADGE);
+                        std::thread::sleep(std::time::Duration::from_secs(retry_period_secs));
+                        retries = retries + 1;
+                    }
+
+                    if retries == max_retries {
+                        eprintln!("Failed to boot the simulator within the expected time. Aborting.");
+                        return Err(());
+                    }
+
+                    // Install and run app on simulator
+                    println!("{} 📤 Installing and running app from {} on simulator...", *PAX_BADGE, executable_output_dir_path.to_str().unwrap());
+
+                    let mut cmd = Command::new("xcrun");
+                        cmd.arg("simctl")
+                        .arg("install")
+                        .arg(device_udid)
+                        .arg(executable_dot_app_path)
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped());
+
+                    let child = cmd.spawn().expect(ERR_SPAWN);
+                    let output = wait_with_output(&process_child_ids, child);
+                    if !output.status.success() {
+                        eprintln!("Error installing app on iOS simulator. Aborting.");
+                        return Err(());
+                    }
+
+                    let mut cmd = Command::new("xcrun");
+                    cmd.arg("simctl")
+                        .arg("launch")
+                        .arg(device_udid)
+                        .arg("dev.pax.pax-app-ios")
+                        .stdout(std::process::Stdio::inherit())
+                        .stderr(std::process::Stdio::inherit());
+
+                    let child = cmd.spawn().expect(ERR_SPAWN);
+                    let output = wait_with_output(&process_child_ids, child);
+                    if !output.status.success() {
+                        eprintln!("Error launching app on iOS simulator. Aborting.");
+                        return Err(());
+                    }
+                    let status = output.status.code().unwrap();
+
+                    println!("App exited with: {:?}", status);
+                }
             } else {
-                let build_path = executable_output_path.to_str().unwrap().bold();
+                let build_path = executable_output_dir_path.to_str().unwrap().bold();
                 println!("{} 🗂️  Done: {} {} build available at {}", *PAX_BADGE, target_str, BUILD_MODE_NAME, build_path);
             }
 
@@ -1660,6 +1789,26 @@ pub fn build_chassis_with_cartridge(
         }
     }
     Ok(())
+}
+
+
+// This function checks if the simulator with the given UDID is booted
+fn is_simulator_booted(device_udid: &str, process_child_ids: &Arc<Mutex<Vec<u64>>>) -> bool {
+    let mut cmd = Command::new("xcrun");
+    cmd.arg("simctl")
+        .arg("list")
+        .arg("devices")
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::piped());
+
+    let child = cmd.spawn().expect(ERR_SPAWN);
+    let output = wait_with_output(&process_child_ids, child);
+    if !output.status.success() {
+        panic!("Error checking simulator status. This is an unhandled error and may leave orphaned processes.");
+    }
+
+    let output_str = String::from_utf8(output.stdout).expect("Failed to convert to string");
+    output_str.lines().any(|line| line.contains(device_udid) && line.contains("Booted"))
 }
 
 pub fn perform_create(ctx: &CreateContext) {
