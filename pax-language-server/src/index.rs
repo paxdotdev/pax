@@ -367,12 +367,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
             IdentifierInfo {
                 ty: IdentifierType::Enum,
                 identifier: enum_name.clone(),
-                info: Info {
-                    path: self.file_path.clone(),
-                    position: span_to_position(i.ident.span()),
-                    definition_id: None,
-                    hover_id: None,
-                },
+                info: create_info(&self.file_path, i.span()),
                 properties: Vec::new(),
                 methods: Vec::new(),
                 variants,
@@ -383,12 +378,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
             identifier_type: IdentifierType::Enum,
             identifier: enum_name,
             owner_identifier: None,
-            info: Info {
-                path: self.file_path.clone(),
-                position: span_to_position(i.ident.span()),
-                definition_id: None,
-                hover_id: None,
-            },
+            info: create_info(&self.file_path, i.ident.span()),
         });
     }
 }
