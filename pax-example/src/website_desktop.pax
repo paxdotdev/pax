@@ -3,14 +3,7 @@
     <Frame x=50% y=90px width=80% height=75px anchor_x=50% anchor_y=50% >
          <Stacker cells=5 height=75px direction=StackerDirection::Horizontal gutter=8px>
             <Image path="assets/images/pax-logo-light.png" width=125px height=42px y=50% anchor_y=50% x=20px />
-            <Text text="<a href='https://docs.pax.rs' target='_blank'>Docs</a>" style_link={
-            font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
-            font_size: 100px,
-            fill: {Color::rgba(1.0,1.0,1.0,1.0)}
-            align_vertical: TextAlignVertical::Center,
-            align_horizontal: TextAlignHorizontal::Center,
-            underline: true
-        } />
+            <Text text="<a href='https://docs.pax.rs' target='_blank'>Docs</a>" class=link />
             <Text text="<a href='https://www.github.com/pax-lang/pax' target='_blank'>Github</a>" class=link />
             <Text text="<a href='https://discord.gg/Eq8KWAUc6b' target='_blank'>Discord</a>" class=link />
             <Text text="<a href='https://developing.pax.rs' target='_blank'>Blog</a>" class=link />
@@ -19,8 +12,8 @@
             fill={Fill::linearGradient(
                 (0%, 50%),
                 (100%, 50%),
-                [GradientStop::get(Color::rgba(0.0,0.0,0.0,1.0), 0%), GradientStop::get(Color::rgba(0.0,0.0,0.0,0.5), 100%)])}  
-            stroke={color:{Color::rgba(1.0,0.0,0.0,1.0)}, width: 10px}
+                [GradientStop::get(Color::rgba(0.0,0.0,0.0,1.0), 0%), GradientStop::get(Color::rgba(0.0,0.0,0.0,0.5), 100%)])}
+
             corner_radii={
                 RectangleCornerRadii::radii(50.0,50.0,50.0,50.0)
             }
