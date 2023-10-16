@@ -345,9 +345,6 @@ var Pax = (() => {
           this.growTo(zIndex);
         }
         element.style.zIndex = String(1e3 - zIndex);
-        console.log("Layers", this.layers);
-        console.log("zIndex", zIndex);
-        console.log("Element", element);
         this.layers[zIndex].native.prepend(element);
       }
     }
@@ -753,6 +750,9 @@ var Pax = (() => {
             if (linkStyle.align_horizontal) {
               leaf.style.display = "flex";
               leaf.style.justifyContent = getJustifyContent(linkStyle.align_horizontal);
+            }
+            if (linkStyle.font_size) {
+              textChild.style.fontSize = linkStyle.font_size + "px";
             }
             if (linkStyle.align_vertical) {
               leaf.style.alignItems = getAlignItems(linkStyle.align_vertical);
