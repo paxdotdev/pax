@@ -728,22 +728,18 @@ fn recurse_generate_render_nodes_literal(
                                     Some(format!("PropertyLiteral::new({})", lv))
                                 }
                                 ValueDefinition::Expression(_, id)
-                                | ValueDefinition::Identifier(_, id) => {
-                                    Some(format!(
-                                        "PropertyExpression::new({})",
-                                        id.expect("Tried to use expression but it wasn't compiled")
-                                    ))
-                                }
-                                ValueDefinition::Block(block) => {
-                                    Some(format!(
-                                        "PropertyLiteral::new({})",
-                                        recurse_literal_block(
-                                            block.clone(),
-                                            pd.get_type_definition(&rngc.type_table),
-                                            host_crate_info
-                                        )
-                                    ))
-                                }
+                                | ValueDefinition::Identifier(_, id) => Some(format!(
+                                    "PropertyExpression::new({})",
+                                    id.expect("Tried to use expression but it wasn't compiled")
+                                )),
+                                ValueDefinition::Block(block) => Some(format!(
+                                    "PropertyLiteral::new({})",
+                                    recurse_literal_block(
+                                        block.clone(),
+                                        pd.get_type_definition(&rngc.type_table),
+                                        host_crate_info
+                                    )
+                                )),
                                 _ => {
                                     panic!("Incorrect value bound to inline setting")
                                 }
@@ -756,7 +752,6 @@ fn recurse_generate_render_nodes_literal(
                         None
                     }
                 };
-
 
                 if let Some(ril_literal_string) = ril_literal_string {
                     Some((pd.name.clone(), ril_literal_string))

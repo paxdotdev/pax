@@ -72,9 +72,7 @@ fn main() -> Result<(), ()> {
         .hidden(true); //hidden because this is of negative value to end-users; things are expected to break when invoked outside of the pax monorepo
 
     #[allow(non_snake_case)]
-    let ARG_LSP = App::new("lsp")
-        .about("Start the Pax LSP server");
-        
+    let ARG_LSP = App::new("lsp").about("Start the Pax LSP server");
 
     let matches = App::new("pax")
         .name("pax")
@@ -249,7 +247,9 @@ fn perform_nominal_action(
             }
         }
         ("lsp", Some(_)) => {
-            tokio::runtime::Runtime::new().unwrap().block_on(pax_language_server::start_server());
+            tokio::runtime::Runtime::new()
+                .unwrap()
+                .block_on(pax_language_server::start_server());
             Ok(())
         }
         _ => unreachable!(), // If all subcommands are defined above, anything else is unreachable

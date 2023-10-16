@@ -11,14 +11,13 @@ use std::rc::Rc;
 #[grammar = "pax.pest"]
 pub struct PaxMacroParser;
 
-
 #[derive(Debug)]
 pub struct ParsingError {
     pub error_name: String,
     pub error_message: String,
     pub matched_string: String,
     pub start: (usize, usize),
-    pub end: (usize, usize),  
+    pub end: (usize, usize),
 }
 
 /// Extract all errors from a Pax parse result
@@ -55,7 +54,7 @@ pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>) -> Vec<ParsingError> 
                 format!("{:?}", pair.as_rule()),
                 "Open tag is malformed".to_string(),
             )),
-            Rule::tag_error => Some((       
+            Rule::tag_error => Some((
                 format!("{:?}", pair.as_rule()),
                 "Tag structure is unexpected.".to_string(),
             )),
@@ -63,7 +62,8 @@ pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>) -> Vec<ParsingError> 
         };
         if let Some((error_name, error_message)) = error {
             let span = pair.as_span();
-            let ((line_start, start_col), (line_end, end_col)) = (pair.line_col(),span.end_pos().line_col());
+            let ((line_start, start_col), (line_end, end_col)) =
+                (pair.line_col(), span.end_pos().line_col());
             let error = ParsingError {
                 error_name,
                 error_message,
@@ -73,12 +73,11 @@ pub fn extract_errors(pairs: pest::iterators::Pairs<Rule>) -> Vec<ParsingError> 
             };
             errors.push(error);
         }
-        errors.extend(extract_errors(pair.into_inner())); 
+        errors.extend(extract_errors(pair.into_inner()));
     }
 
     errors
 }
-
 
 pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> Vec<String> {
     let pax_component_definition = PaxMacroParser::parse(Rule::pax_component_definition, pax)
@@ -86,27 +85,25 @@ pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> V
         .next()
         .unwrap();
 
-        let errors = extract_errors(pax_component_definition.clone().into_inner());
-        if !errors.is_empty() {
-            let mut error_messages = String::new();
-            
-            for error in &errors {
-                let msg = format!(
-                    "error: {}\n   --> {}:{}\n    |\n{}  | {}\n    |{}\n\n",
-                    error.error_message,
-                    error.start.0,
-                    error.start.1,
-                    error.start.0,
-                    error.matched_string,
-                    "^".repeat(error.matched_string.len())
-                );
-                error_messages.push_str(&msg);
-            }
-            
-            panic!("{}", error_messages);
+    let errors = extract_errors(pax_component_definition.clone().into_inner());
+    if !errors.is_empty() {
+        let mut error_messages = String::new();
+
+        for error in &errors {
+            let msg = format!(
+                "error: {}\n   --> {}:{}\n    |\n{}  | {}\n    |{}\n\n",
+                error.error_message,
+                error.start.0,
+                error.start.1,
+                error.start.0,
+                error.matched_string,
+                "^".repeat(error.matched_string.len())
+            );
+            error_messages.push_str(&msg);
         }
-        
-    
+
+        panic!("{}", error_messages);
+    }
 
     let pascal_identifiers = Rc::new(RefCell::new(HashSet::new()));
     pax_component_definition
@@ -120,7 +117,7 @@ pub fn parse_pascal_identifiers_from_component_definition_string(pax: &str) -> V
             }
             _ => {}
         });
- 
+
     let unwrapped_hashmap = Rc::try_unwrap(pascal_identifiers).unwrap().into_inner();
     unwrapped_hashmap.into_iter().collect()
 }
