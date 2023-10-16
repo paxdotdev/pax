@@ -11,13 +11,11 @@
                 (0%, 50%),
                 (100%, 50%),
                 [GradientStop::get(Color::rgba(0.0,0.0,0.0,1.0), 0%), GradientStop::get(Color::rgba(0.0,0.0,0.0,0.5), 100%)])}
-
             corner_radii={
                 RectangleCornerRadii::radii(50.0,50.0,50.0,50.0)
             }
          />
     </Frame>
-
     // Scrolling content pane
     <Scroller width=100% height=100% size_inner_pane_x=100% size_inner_pane_y=500% scroll_enabled_x=false scroll_enabled_y=true>
         <Stacker cells=5 direction=StackerDirection::Vertical >
@@ -100,8 +98,14 @@
         </Stacker>
         </Scroller>
 </Frame>
+@handlers {
+     click: self.new 
+}
 
-
+@handlers {
+     click:new
+     context_menu:new 
+}
 
 @settings {
     .link {

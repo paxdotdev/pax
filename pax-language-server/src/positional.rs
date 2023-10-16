@@ -1,3 +1,5 @@
+use std::collections::HashSet;
+
 use lsp_types::Position;
 use pax_compiler::parsing::Rule;
 use pest::iterators::Pair;
@@ -14,6 +16,7 @@ pub enum NodeType {
     Identifier(IdentifierData),
     Tag(TagData),
     Settings,
+    SelectorBlock,
     Handlers,
     LiteralFunction(FunctionData),
     LiteralEnumValue(EnumValueData),
@@ -68,7 +71,12 @@ fn pair_to_positions(pair: &Pair<Rule>) -> (Position, Position) {
     (start, end)
 }
 
-pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<PositionalNode>) {
+pub fn extract_positional_nodes(
+    pair: Pair<'_, Rule>,
+    nodes: &mut Vec<PositionalNode>,
+    ids: &mut HashSet<String>,
+    classes: &mut HashSet<String>,
+) {
     let (start, end) = pair_to_positions(&pair);
     let rule = pair.as_rule();
     let as_str = pair.as_str();
@@ -88,6 +96,19 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
                 start,
                 end,
                 node_type: NodeType::Settings,
+            });
+        }
+        Rule::selector_block => {
+            let selector = &inner.clone().next().unwrap().as_str().to_string();
+            if selector.starts_with(".") {
+                classes.insert(selector.replace(".", ""));
+            } else if selector.starts_with("#") {
+                ids.insert(selector.replace("#", ""));
+            }
+            nodes.push(PositionalNode {
+                start,
+                end,
+                node_type: NodeType::SelectorBlock,
             });
             return;
         }
@@ -208,12 +229,22 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
             });
         }
         Rule::attribute_key_value_pair => {
-            let identifier = as_str.to_string().split_once("=").unwrap().0.to_string();
-            nodes.push(PositionalNode {
-                start,
-                end,
-                node_type: NodeType::AttributeKeyValuePair(AttributeData { identifier }),
-            });
+            let pair_as_string = as_str.to_string();
+            let kv_pair = pair_as_string.split_once("=");
+            if let Some((key, value)) = kv_pair {
+                if key == "id" {
+                    ids.insert(value.to_string());
+                } else if key == "class" {
+                    classes.insert(value.to_string());
+                }
+                nodes.push(PositionalNode {
+                    start,
+                    end,
+                    node_type: NodeType::AttributeKeyValuePair(AttributeData {
+                        identifier: key.to_string(),
+                    }),
+                });
+            }
         }
         Rule::attribute_key_value_pair_error => {
             nodes.push(PositionalNode {
@@ -263,7 +294,7 @@ pub fn extract_positional_nodes(pair: Pair<'_, Rule>, nodes: &mut Vec<Positional
     }
 
     for inner_pair in inner {
-        extract_positional_nodes(inner_pair, nodes);
+        extract_positional_nodes(inner_pair, nodes, ids, classes);
     }
 }
 
@@ -343,4 +374,31 @@ pub fn find_relevant_ident(nodes: &Vec<PositionalNode>) -> Option<&PositionalNod
         }
     }
     None
+}
+
+pub fn is_inside_settings_block(nodes: &Vec<PositionalNode>) -> bool {
+    for node in nodes.iter() {
+        if let NodeType::Settings = &node.node_type {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn is_inside_handlers_block(nodes: &Vec<PositionalNode>) -> bool {
+    for node in nodes.iter() {
+        if let NodeType::Handlers = &node.node_type {
+            return true;
+        }
+    }
+    false
+}
+
+pub fn is_inside_selector_block(nodes: &Vec<PositionalNode>) -> bool {
+    for node in nodes.iter() {
+        if let NodeType::SelectorBlock = &node.node_type {
+            return true;
+        }
+    }
+    false
 }

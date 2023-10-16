@@ -9,7 +9,7 @@ use syn::{
     parse_file, spanned::Spanned, Attribute, ImplItem, Item, ItemImpl, ItemStruct, Meta,
     NestedMeta, Type,
 };
-use syn::{ItemEnum, ItemUse, UseTree};
+use syn::{Fields, ItemEnum, ItemUse, UseTree};
 
 fn contains_pax_file_macro(attrs: &[Attribute], target_file_path: &str) -> bool {
     let has_pax_derive = attrs
@@ -152,6 +152,7 @@ pub struct Method {
 pub struct VariantData {
     pub identifier: String,
     pub info: Info,
+    pub has_fields: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -346,8 +347,14 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
             .variants
             .iter()
             .map(|variant| {
+                let has_fields = match &variant.fields {
+                    Fields::Unit => false,
+                    Fields::Unnamed(_) | Fields::Named(_) => true,
+                };
+
                 let variant_info = VariantData {
                     identifier: variant.ident.to_string(),
+                    has_fields,
                     info: Info {
                         path: self.file_path.clone(),
                         position: span_to_position(variant.ident.span()),

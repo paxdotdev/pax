@@ -1,7 +1,7 @@
 // completions.rs
 
 use lazy_static::lazy_static;
-use lsp_types::{CompletionItem, CompletionItemKind};
+use lsp_types::{CompletionItem, CompletionItemKind, InsertTextFormat};
 use std::collections::HashMap;
 use std::sync::RwLock;
 
@@ -196,6 +196,80 @@ lazy_static! {
                 ..Default::default()
             }],
         );
+        type_map.insert(
+            "TextStyle".to_string(),
+            vec![CompletionItem {
+                label: "Text Styling".to_string(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                insert_text: Some(
+                    "{
+                        font: Font::system(\"Helvetica\", FontStyle::Normal, FontWeight::Bold),
+                        font_size: 24px,
+                        fill: Color::rgba(0.0, 0.0, 0.0, 0.0),
+                        align_vertical: TextAlignVertical::Center,
+                        align_horizontal: TextAlignHorizontal::Center,
+                        underline: true
+                    }$0"
+                    .to_string(),
+                ),
+                insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+                detail: Some("See Text Api".to_string()),
+                sort_text: Some("1".to_string()),
+                ..Default::default()
+            }],
+        );
+        type_map.insert(
+            "crate::types::Stroke".to_string(),
+            vec![CompletionItem {
+                label: "Black Stroke".to_string(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                insert_text: Some(
+                    "{color:{Color::rgba(0.0,0.0,0.0,1.0)}, width: 10px}$0".to_string(),
+                ),
+                insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+                detail: Some("See Stroke Api".to_string()),
+                sort_text: Some("1".to_string()),
+                ..Default::default()
+            }],
+        );
+        type_map.insert(
+            "Stroke".to_string(),
+            vec![CompletionItem {
+                label: "Black Stroke".to_string(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                insert_text: Some(
+                    "{color:{Color::rgba(0.0,0.0,0.0,1.0)}, width: 10px}$0".to_string(),
+                ),
+                insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+                detail: Some("See Stroke Api".to_string()),
+                sort_text: Some("1".to_string()),
+                ..Default::default()
+            }],
+        );
+        type_map.insert(
+            "crate::types::RectangleCornerRadii".to_string(),
+            vec![CompletionItem {
+                label: "5px Rounded Corners".to_string(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                insert_text: Some("{RectangleCornerRadii::radii(5.0,5.0,5.0,5.0)}$0".to_string()),
+                insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+                detail: Some("See pax-std Api".to_string()),
+                sort_text: Some("1".to_string()),
+                ..Default::default()
+            }],
+        );
+        type_map.insert(
+            "RectangleCornerRadii".to_string(),
+            vec![CompletionItem {
+                label: "5px Rounded Corners".to_string(),
+                kind: Some(CompletionItemKind::FUNCTION),
+                insert_text: Some("{RectangleCornerRadii::radii(5.0,5.0,5.0,5.0)}$0".to_string()),
+                insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
+                detail: Some("See pax-std Api".to_string()),
+                sort_text: Some("1".to_string()),
+                ..Default::default()
+            }],
+        );
         RwLock::new(type_map)
     };
     static ref EVENT_COMPLETIONS: RwLock<Vec<CompletionItem>> = {
@@ -228,7 +302,7 @@ lazy_static! {
                 label: event.to_string(),
                 detail: Some(description.to_string()),
                 kind: Some(CompletionItemKind::FIELD),
-                insert_text: Some(format!("{}=", event)),
+                insert_text: Some(format!("{}", event)),
                 ..Default::default()
             });
         }
@@ -246,6 +320,38 @@ pub fn get_type_completion(type_identifier: &str) -> Option<Vec<CompletionItem>>
     map.get(&type_identifier.to_string()).cloned()
 }
 
-pub fn get_event_completions() -> Vec<CompletionItem> {
-    EVENT_COMPLETIONS.read().unwrap().clone()
+pub fn get_event_completions(delim: &str) -> Vec<CompletionItem> {
+    let base_event_completions = EVENT_COMPLETIONS.read().unwrap().clone();
+    base_event_completions
+        .iter()
+        .map(|c| {
+            let mut c = c.clone();
+            c.insert_text = Some(format!("{}{}", c.insert_text.unwrap(), delim));
+            c
+        })
+        .collect()
+}
+
+fn get_block_declaration_completions() -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+
+    let mut completion = CompletionItem::new_simple(
+        String::from("settings"),
+        String::from("Define classes and id selectors"),
+    );
+    completion.kind = Some(CompletionItemKind::CLASS);
+    completion.insert_text = Some("settings {\n\t $0 \n}".to_string());
+    completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
+    completions.push(completion);
+
+    let mut completion = CompletionItem::new_simple(
+        String::from("handlers"),
+        String::from("Define root component event handlers"),
+    );
+    completion.kind = Some(CompletionItemKind::CLASS);
+    completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
+    completion.insert_text = Some("handlers {\n\t $0 \n}".to_string());
+    completions.push(completion);
+
+    completions
 }

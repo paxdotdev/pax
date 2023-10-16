@@ -14,4 +14,8 @@ pub struct WebsiteMobile {
 
 
 impl WebsiteMobile {
+    pub fn new() -> Self {
+        Self {}
+    }
+
 }

@@ -196,6 +196,9 @@ export class NativeElementPool {
                         leaf.style.display = "flex";
                         leaf.style.justifyContent = getJustifyContent(linkStyle.align_horizontal);
                     }
+                    if (linkStyle.font_size) {
+                        textChild.style.fontSize = linkStyle.font_size + "px";
+                    }
                     if (linkStyle.align_vertical) {
                         leaf.style.alignItems = getAlignItems(linkStyle.align_vertical);
                     }
