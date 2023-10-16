@@ -13,7 +13,9 @@ mod http;
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::iterator::Signals;
 
+/// `pax-cli` entrypoint
 fn main() -> Result<(), ()> {
+
     //Shared state to store child processes keyed by static unique string IDs, for cleanup tracking
     let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
     // Shared state to store the new version info if available.
@@ -23,20 +25,6 @@ fn main() -> Result<(), ()> {
     let cloned_new_version_info = Arc::clone(&new_version_info);
     thread::spawn(move || {
         http::check_for_update(cloned_new_version_info);
-    });
-
-    // Create a separate thread to handle signals e.g. via CTRL+C
-    let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
-    let cloned_version_info = Arc::clone(&new_version_info);
-    let cloned_process_child_ids = Arc::clone(&process_child_ids);
-    thread::spawn(move || {
-        for _sig in signals.forever() {
-            println!("\nInterrupt received. Cleaning up child processes...");
-            perform_cleanup(
-                Arc::clone(&cloned_version_info),
-                Arc::clone(&cloned_process_child_ids),
-            );
-        }
     });
 
     #[allow(non_snake_case)]
@@ -52,11 +40,7 @@ fn main() -> Result<(), ()> {
         .long("verbose")
         .takes_value(false);
 
-    //Default to web -- perhaps the ideal would be to discover host
-    //platform and run appropriate native harness.  Web is a suitable,
-    //sane default for now.
     const DEFAULT_TARGET : &str = "web";
-
     #[allow(non_snake_case)]
     let ARG_TARGET = Arg::with_name("target")
         .short("t")
@@ -79,7 +63,7 @@ fn main() -> Result<(), ()> {
 
     let matches = App::new("pax")
         .name("pax")
-        .bin_name("pax")
+        .bin_name("pax-cli")
         .about("Pax CLI including compiler and dev tooling")
         .version(crate_version!())
         .setting(AppSettings::SubcommandRequiredElseHelp)
@@ -127,8 +111,28 @@ fn main() -> Result<(), ()> {
         .subcommand(ARG_LSP.clone())
         .get_matches();
 
+    // Clap doesn't easily let us check a "global" arg without performing individual `match`es.
+    // Since we want to know at this top level whether `--libdev` is present, we will parse it manually.
+    let args: Vec<String> = std::env::args().collect();
+    let is_libdev_mode = args.contains(&"--libdev".to_string());
+
+    // Create a separate thread to handle signals e.g. via CTRL+C
+    let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
+    let cloned_version_info = Arc::clone(&new_version_info);
+    let cloned_process_child_ids = Arc::clone(&process_child_ids);
+    thread::spawn(move || {
+        for _sig in signals.forever() {
+            println!("\nInterrupt received. Cleaning up child processes...");
+            perform_cleanup(
+                Arc::clone(&cloned_version_info),
+                Arc::clone(&cloned_process_child_ids),
+                is_libdev_mode,
+            );
+        }
+    });
+
     let res = perform_nominal_action(matches, Arc::clone(&process_child_ids));
-    perform_cleanup(new_version_info, process_child_ids);
+    perform_cleanup(new_version_info, process_child_ids, is_libdev_mode);
     res
 }
 
@@ -221,6 +225,7 @@ fn perform_nominal_action(
 fn perform_cleanup(
     new_version_info: Arc<Mutex<Option<String>>>,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
+    is_libdev_mode: bool,
 ) {
     //1. kill any running child processes
     if let Ok(process_child_ids_lock) = process_child_ids.lock() {
@@ -232,64 +237,66 @@ fn perform_cleanup(
 
     //2. print update message if appropriate
     if let Ok(new_version_lock) = new_version_info.lock() {
-        if let Some(new_version) = new_version_lock.as_ref() {
-            if new_version != "" {
-                //Print our banner if we have a concrete value stored in the new version mutex
-                const TOTAL_LENGTH: usize = 60;
-                let stars_line: ColoredString =
-                    "*".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
-                let empty_line: ColoredString =
-                    " ".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
+        if !is_libdev_mode {
+            if let Some(new_version) = new_version_lock.as_ref() {
+                if new_version != "" {
+                    //Print our banner if we have a concrete value stored in the new version mutex
+                    const TOTAL_LENGTH: usize = 60;
+                    let stars_line: ColoredString =
+                        "*".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
+                    let empty_line: ColoredString =
+                        " ".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
 
-                let new_version_static = "  A new version of the Pax CLI is available: ";
-                let new_version_formatted = format!("{}{}", new_version_static, new_version);
-                let new_version_line: ColoredString =
-                    format!("{: <width$}", new_version_formatted, width = TOTAL_LENGTH)
+                    let new_version_static = "  A new version of the Pax CLI is available: ";
+                    let new_version_formatted = format!("{}{}", new_version_static, new_version);
+                    let new_version_line: ColoredString =
+                        format!("{: <width$}", new_version_formatted, width = TOTAL_LENGTH)
+                            .bright_white()
+                            .on_bright_black()
+                            .bold();
+
+                    let current_version = env!("CARGO_PKG_VERSION");
+                    let current_version_static = "  Currently installed version: ";
+                    let current_version_formatted =
+                        format!("{}{}", current_version_static, current_version);
+                    let current_version_line = format!(
+                        "{: <width$}",
+                        current_version_formatted,
+                        width = TOTAL_LENGTH
+                    )
                         .bright_white()
-                        .on_bright_black()
-                        .bold();
+                        .on_bright_black();
 
-                let current_version = env!("CARGO_PKG_VERSION");
-                let current_version_static = "  Currently installed version: ";
-                let current_version_formatted =
-                    format!("{}{}", current_version_static, current_version);
-                let current_version_line = format!(
-                    "{: <width$}",
-                    current_version_formatted,
-                    width = TOTAL_LENGTH
-                )
-                .bright_white()
-                .on_bright_black();
+                    let update_instructions_static = "To update, run: ";
+                    let lpad = (TOTAL_LENGTH - update_instructions_static.len()) / 2;
+                    let lpad_spaces = " ".repeat(lpad);
+                    let update_formatted = format!("{}{}", lpad_spaces, update_instructions_static);
+                    let update_instructions_line =
+                        format!("{: <width$}", update_formatted, width = TOTAL_LENGTH)
+                            .bright_white()
+                            .on_bright_black()
+                            .bold();
 
-                let update_instructions_static = "To update, run: ";
-                let lpad = (TOTAL_LENGTH - update_instructions_static.len()) / 2;
-                let lpad_spaces = " ".repeat(lpad);
-                let update_formatted = format!("{}{}", lpad_spaces, update_instructions_static);
-                let update_instructions_line =
-                    format!("{: <width$}", update_formatted, width = TOTAL_LENGTH)
-                        .bright_white()
-                        .on_bright_black()
-                        .bold();
+                    let install_command_static = "cargo install --force pax-cli";
+                    let lpad = (TOTAL_LENGTH - install_command_static.len()) / 2;
+                    let lpad_spaces = " ".repeat(lpad);
+                    let update_line_2_formatted = format!("{}{}", lpad_spaces, install_command_static);
+                    let update_line_2 =
+                        format!("{: <width$}", update_line_2_formatted, width = TOTAL_LENGTH)
+                            .bright_black()
+                            .on_bright_white()
+                            .bold();
 
-                let install_command_static = "cargo install --force pax-cli";
-                let lpad = (TOTAL_LENGTH - install_command_static.len()) / 2;
-                let lpad_spaces = " ".repeat(lpad);
-                let update_line_2_formatted = format!("{}{}", lpad_spaces, install_command_static);
-                let update_line_2 =
-                    format!("{: <width$}", update_line_2_formatted, width = TOTAL_LENGTH)
-                        .bright_black()
-                        .on_bright_white()
-                        .bold();
-
-                println!();
-                println!("{}", &stars_line);
-                println!("{}", new_version_line);
-                println!("{}", current_version_line);
-                println!("{}", &empty_line);
-                println!("{}", update_instructions_line);
-                println!("{}", update_line_2);
-                println!("{}", &stars_line);
-                println!();
+                    println!();
+                    println!("{}", &stars_line);
+                    println!("{}", new_version_line);
+                    println!("{}", current_version_line);
+                    println!("{}", &empty_line);
+                    println!("{}", update_instructions_line);
+                    println!("{}", update_line_2);
+                    println!("{}", &stars_line);
+                    println!();
+                }
             }
         }
     }

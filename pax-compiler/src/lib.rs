@@ -96,7 +96,13 @@ const ALL_PKGS: [&'static str; 14] = [
     "pax-std",
 ];
 
-fn clone_all_dependencies_to_tmp(
+/// Clone all dependencies to `.pax/pkg`.  Similar in spirit to the Cargo package cache,
+/// this temp directory enables Pax to codegen and building in the context of the larger monorepo,
+/// working around various constraints with Cargo (for example, limits surrounding the `patch` directive.)
+///
+/// The packages in `.pax/pkg` are both where we write our codegen (into pax-cartridge and pax-properties-coproduct)
+/// and where we build chassis and chassis-interfaces. (for example, running `wasm-pack` inside `.pax/pkg/pax-chassis-web`.
+fn clone_all_to_pkg_dir(
     pax_dir: &PathBuf,
     pax_version: &Option<String>,
     ctx: &RunContext,
@@ -1045,7 +1051,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     } else {
         Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
     };
-    clone_all_dependencies_to_tmp(&pax_dir, &pax_version, &ctx);
+    clone_all_to_pkg_dir(&pax_dir, &pax_version, &ctx);
 
     println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
     // Run parser bin from host project with `--features parser`
@@ -1128,6 +1134,8 @@ fn start_static_http_server(fs_path: PathBuf) -> std::io::Result<()> {
     runtime
 }
 
+/// Helper recursive fs copy method, like fs::copy, but suited for our purposes.
+/// Includes ability to ignore directories by name during recursion.
 fn copy_dir_recursively(
     src: &Path,
     dest: &Path,
@@ -1155,11 +1163,11 @@ fn copy_dir_recursively(
     Ok(())
 }
 
+/// Clean all `.pax` temp files
 pub fn perform_clean(path: &str) {
     let path = PathBuf::from(path);
     let pax_dir = path.join(".pax");
 
-    //Sledgehammer approach: nuke the .pax directory
     fs::remove_dir_all(&pax_dir).ok();
 }
 
@@ -1364,6 +1372,10 @@ pub fn build_chassis_with_cartridge(
                     .arg(PORTABLE_DYLIB_INSTALL_NAME)
                     .arg(dylib_path);
 
+                #[cfg(unix)]
+                unsafe {
+                    cmd.pre_exec(pre_exec_hook);
+                }
                 let child = cmd.spawn().unwrap();
                 let output = wait_with_output(&process_child_ids, child);
                 if !output.status.success() {
@@ -1422,6 +1434,10 @@ pub fn build_chassis_with_cartridge(
                 // Specify the output path
                 lipo_command.arg("-output").arg(multiarch_dylib_dest);
 
+                #[cfg(unix)]
+                unsafe {
+                    lipo_command.pre_exec(pre_exec_hook);
+                }
                 let child = lipo_command.spawn().expect(ERR_SPAWN);
                 let output = wait_with_output(&process_child_ids, child);
 
@@ -1471,6 +1487,10 @@ pub fn build_chassis_with_cartridge(
                 // Specify the output path
                 lipo_command.arg("-output").arg(multiarch_dylib_dest);
 
+                #[cfg(unix)]
+                unsafe {
+                    lipo_command.pre_exec(pre_exec_hook);
+                }
                 let child = lipo_command.spawn().expect(ERR_SPAWN);
                 let output = wait_with_output(&process_child_ids, child);
                 if !output.status.success() {
@@ -1546,6 +1566,10 @@ pub fn build_chassis_with_cartridge(
                 cmd.arg("GCC_WARN_INHIBIT_ALL_WARNINGS=YES");
             }
 
+            #[cfg(unix)]
+            unsafe {
+                cmd.pre_exec(pre_exec_hook);
+            }
             let child = cmd.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
 
@@ -1675,6 +1699,11 @@ pub fn build_chassis_with_cartridge(
                         .arg("devices")
                         .arg("available")
                         .stdout(std::process::Stdio::piped());
+
+                    #[cfg(unix)]
+                    unsafe {
+                        cmd.pre_exec(pre_exec_hook);
+                    }
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
 
@@ -1713,6 +1742,10 @@ pub fn build_chassis_with_cartridge(
                         .stdout(std::process::Stdio::piped())
                         .stderr(std::process::Stdio::piped());
 
+                    #[cfg(unix)]
+                    unsafe {
+                        cmd.pre_exec(pre_exec_hook);
+                    }
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
                     if !output.status.success() {
@@ -1731,6 +1764,10 @@ pub fn build_chassis_with_cartridge(
                         .stdout(std::process::Stdio::piped())
                         .stderr(std::process::Stdio::piped());
 
+                    #[cfg(unix)]
+                    unsafe {
+                        cmd.pre_exec(pre_exec_hook);
+                    }
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
                     if !output.status.success() {
@@ -1773,6 +1810,10 @@ pub fn build_chassis_with_cartridge(
                         .stdout(std::process::Stdio::piped())
                         .stderr(std::process::Stdio::piped());
 
+                    #[cfg(unix)]
+                    unsafe {
+                        cmd.pre_exec(pre_exec_hook);
+                    }
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
                     if !output.status.success() {
@@ -1788,6 +1829,10 @@ pub fn build_chassis_with_cartridge(
                         .stdout(std::process::Stdio::inherit())
                         .stderr(std::process::Stdio::inherit());
 
+                    #[cfg(unix)]
+                    unsafe {
+                        cmd.pre_exec(pre_exec_hook);
+                    }
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let output = wait_with_output(&process_child_ids, child);
                     if !output.status.success() {
@@ -1853,11 +1898,13 @@ pub fn build_chassis_with_cartridge(
             // Create target assets directory
             if let Err(e) = fs::create_dir_all(&asset_dest) {
                 eprintln!("Error creating directory {:?}: {}", asset_dest, e);
+                return Err(());
             }
 
             // Perform recursive copy from userland `assets/` to built `assets/`
             if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest, &vec![]) {
                 eprintln!("Error copying assets: {}", e);
+                return Err(());
             }
 
             //Copy fully built project into .pax/build/web, ready for e.g. publishing
@@ -1894,6 +1941,10 @@ fn is_simulator_booted(device_udid: &str, process_child_ids: &Arc<Mutex<Vec<u64>
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
 
+    #[cfg(unix)]
+    unsafe {
+        cmd.pre_exec(pre_exec_hook);
+    }
     let child = cmd.spawn().expect(ERR_SPAWN);
     let output = wait_with_output(&process_child_ids, child);
     if !output.status.success() {
@@ -2124,10 +2175,7 @@ pub fn wait_with_output(
         .expect("Failed to wait for child process");
 
     // Ensure the child ID is removed after completion
-    process_child_ids
-        .lock()
-        .expect(ERR_LOCK)
-        .retain(|&id| id != child_id);
+    process_child_ids.lock().expect(ERR_LOCK).retain(|&id| id != child_id);
 
     output
 }
