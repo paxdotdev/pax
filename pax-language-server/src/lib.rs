@@ -5,7 +5,7 @@ use completion::{
     get_struct_property_setting_completions, get_struct_property_type_completion,
     get_struct_static_member_completions,
 };
-use completion::{get_event_completions, get_struct_completion, get_type_completion};
+use completion::{get_event_completions, get_struct_completion};
 use core::panic;
 use dashmap::DashMap;
 use lsp_types::request::Request;
@@ -498,7 +498,7 @@ impl Backend {
                                         struct_id = component.component_name.clone();
                                     }
                                     if let Some(ident_info) =
-                                        component.identifier_map.get(data.struct_name.as_str())
+                                        component.identifier_map.get(struct_id.as_str())
                                     {
                                         if ident_name == data.struct_name {
                                             return Some(ident_info.info.clone());
@@ -644,12 +644,6 @@ impl Backend {
 impl LanguageServer for Backend {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
         self.set_root(params.root_uri).await;
-        self.client
-            .log_message(
-                MessageType::INFO,
-                format!("workspace root: {:?}", self.workspace_root),
-            )
-            .await;
 
         let pending_changes_clone = self.pending_changes.clone();
         let self_clone = self.clone();
@@ -775,9 +769,6 @@ impl LanguageServer for Backend {
                 {
                     if trigger_char == "<" {
                         for entry in component.identifier_map.iter() {
-                            self.client
-                                .log_message(MessageType::INFO, format!("entry: {:?}", entry.key()))
-                                .await;
                             if entry.ty == IdentifierType::Component
                                 && entry.identifier != component.component_name
                             {
@@ -902,12 +893,6 @@ impl LanguageServer for Backend {
                                     return Ok(Some(CompletionResponse::Array(completions)));
                                 } else if word.contains("=") {
                                     let requested_property = word.clone().replace("=", "");
-                                    self.client
-                                        .log_message(
-                                            MessageType::INFO,
-                                            format!("requested_property: {}", requested_property),
-                                        )
-                                        .await;
                                     completions.extend(get_struct_property_type_completion(
                                         &component,
                                         tag_data.pascal_identifier.clone(),
@@ -967,29 +952,7 @@ impl LanguageServer for Backend {
     }
 }
 
-// pub async fn start_server() {
-//     let stdin = tokio::io::stdin();
-//     let stdout = tokio::io::stdout();
-
-//     let (service, socket) = LspService::build(|client| Backend {
-//         client: Arc::new(client),
-//         pax_map: Arc::new(DashMap::new()),
-//         rs_to_pax_map: Arc::new(DashMap::new()),
-//         workspace_root: Arc::new(Mutex::new(None)),
-//         pax_ast_cache: Arc::new(DashMap::new()),
-//         pending_changes: Arc::new(DashMap::new()),
-//         debounce_last_save: Arc::new(Mutex::new(std::time::Instant::now())),
-//         document_content: Arc::new(DashMap::new()),
-//     })
-//     .custom_method("pax/getHoverId", Backend::hover_id)
-//     .custom_method("pax/getDefinitionId", Backend::definition_id)
-//     .finish();
-
-//     Server::new(stdin, stdout, socket).serve(service).await;
-// }
-
-#[tokio::main]
-pub async fn main() {
+pub async fn start_server() {
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();
 
