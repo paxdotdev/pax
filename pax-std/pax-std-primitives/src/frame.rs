@@ -96,8 +96,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
             None => true,
         };
         if is_new_value {
-            new_message.size_x = Some(val.clone());
-            last_patch.size_x = Some(val.clone());
+            new_message.size_x = Some(val);
+            last_patch.size_x = Some(val);
             has_any_updates = true;
         }
 
@@ -107,8 +107,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
             None => true,
         };
         if is_new_value {
-            new_message.size_y = Some(val.clone());
-            last_patch.size_y = Some(val.clone());
+            new_message.size_y = Some(val);
+            last_patch.size_y = Some(val);
             has_any_updates = true;
         }
 

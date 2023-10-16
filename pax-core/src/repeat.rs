@@ -84,7 +84,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                         self.cached_old_value_vec.as_ref().unwrap().len() != new_value.len()
                     }
             };
-            self.cached_old_bounds = rtc.bounds.clone();
+            self.cached_old_bounds = rtc.bounds;
             self.cached_old_value_vec = Some(new_value.clone());
             (is_dirty, new_value)
         } else if let Some(se) = &self.source_expression_range {

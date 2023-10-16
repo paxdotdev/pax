@@ -232,18 +232,16 @@ pub trait RenderNode<R: 'static + RenderContext> {
     /// doesn't have a size (e.g. `Group`)
     fn get_size(&self) -> Option<(Size, Size)> {
         Some((
-            self.get_common_properties()
+            *self.get_common_properties()
                 .width
                 .as_ref()
                 .borrow()
-                .get()
-                .clone(),
-            self.get_common_properties()
+                .get(),
+            *self.get_common_properties()
                 .height
                 .as_ref()
                 .borrow()
-                .get()
-                .clone(),
+                .get(),
         ))
     }
 
