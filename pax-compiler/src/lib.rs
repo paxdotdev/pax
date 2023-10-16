@@ -102,11 +102,7 @@ const ALL_PKGS: [&'static str; 14] = [
 ///
 /// The packages in `.pax/pkg` are both where we write our codegen (into pax-cartridge and pax-properties-coproduct)
 /// and where we build chassis and chassis-interfaces. (for example, running `wasm-pack` inside `.pax/pkg/pax-chassis-web`.
-fn clone_all_to_pkg_dir(
-    pax_dir: &PathBuf,
-    pax_version: &Option<String>,
-    ctx: &RunContext,
-) {
+fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &RunContext) {
     let dest_pkg_root = pax_dir.join(PKG_DIR_NAME);
     for pkg in ALL_PKGS {
         if ctx.is_libdev_mode {
@@ -2175,7 +2171,10 @@ pub fn wait_with_output(
         .expect("Failed to wait for child process");
 
     // Ensure the child ID is removed after completion
-    process_child_ids.lock().expect(ERR_LOCK).retain(|&id| id != child_id);
+    process_child_ids
+        .lock()
+        .expect(ERR_LOCK)
+        .retain(|&id| id != child_id);
 
     output
 }
