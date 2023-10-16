@@ -1,6 +1,6 @@
 [package]
 name = "pax-cli"
-version = "0.9.7"
+version = "0.9.8"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -12,12 +12,12 @@ description = "Command line interface tool for developing, packaging, and managi
 
 [dependencies]
 clap = "2.33.3"
-pax-compiler = {path = "../pax-compiler", version = "0.9.7"}
+pax-compiler = {path = "../pax-compiler", version = "0.9.8"}
 rustc_version = "0.4.0"
 tokio = { version = "1", features = ["full"] }
 colored = "2.0.0"
 reqwest = "0.11.18"
 signal-hook = "0.3"
 nix = "0.20.2"
-pax-language-server = {version = "0.9.7"}
+pax-language-server = {version = "0.9.8"}
 
