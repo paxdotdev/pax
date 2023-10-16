@@ -93,7 +93,7 @@ impl Stacker {
                         }
                         Size::Combined(pix, per) => {
                             *pix + (Numeric::from(active_bound)
-                                * (per.clone() / Numeric::from(100.0)))
+                                * (*per / Numeric::from(100.0)))
                         }
                     }
                     .get_as_float();

@@ -368,7 +368,7 @@ fn recurse_visit_tag_pairs_for_template(
 
     //add self to parent's children_id_list
     let mut parents_children_id_list = ctx.child_id_tracking_stack.pop().unwrap();
-    parents_children_id_list.push(new_id.clone());
+    parents_children_id_list.push(new_id);
     ctx.child_id_tracking_stack.push(parents_children_id_list);
 
     match any_tag_pair.as_rule() {
@@ -459,7 +459,7 @@ fn recurse_visit_tag_pairs_for_template(
 
                     //`if` TemplateNodeDefinition
                     TemplateNodeDefinition {
-                        id: new_id.clone(),
+                        id: new_id,
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: Some(expression_body),
                             condition_expression_vtable_id: None, //This will be written back to this data structure later, during expression compilation
@@ -529,7 +529,7 @@ fn recurse_visit_tag_pairs_for_template(
 
                     //`for` TemplateNodeDefinition
                     TemplateNodeDefinition {
-                        id: new_id.clone(),
+                        id: new_id,
                         type_id: TYPE_ID_REPEAT.to_string(),
                         control_flow_settings: Some(cfavd),
                         settings: None,
@@ -549,7 +549,7 @@ fn recurse_visit_tag_pairs_for_template(
                     }
 
                     TemplateNodeDefinition {
-                        id: *&new_id.clone(),
+                        id: *&new_id,
                         control_flow_settings: Some(ControlFlowSettingsDefinition {
                             condition_expression_paxel: None,
                             condition_expression_vtable_id: None,

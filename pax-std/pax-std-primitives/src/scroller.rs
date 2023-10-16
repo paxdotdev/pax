@@ -94,8 +94,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
     fn get_scroll_offset(&mut self) -> (f64, f64) {
         (
-            (*self.scroll_x_offset).borrow().get().clone(),
-            (*self.scroll_y_offset).borrow().get().clone(),
+            *(*self.scroll_x_offset).borrow().get(),
+            *(*self.scroll_y_offset).borrow().get(),
         )
     }
 
@@ -141,8 +141,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             None => true,
         };
         if is_new_value {
-            new_message.size_x = Some(val.clone());
-            last_patch.size_x = Some(val.clone());
+            new_message.size_x = Some(val);
+            last_patch.size_x = Some(val);
             has_any_updates = true;
         }
 
@@ -152,8 +152,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             None => true,
         };
         if is_new_value {
-            new_message.size_y = Some(val.clone());
-            last_patch.size_y = Some(val.clone());
+            new_message.size_y = Some(val);
+            last_patch.size_y = Some(val);
             has_any_updates = true;
         }
 
@@ -163,8 +163,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             None => true,
         };
         if is_new_value {
-            new_message.size_inner_pane_x = Some(val.clone());
-            last_patch.size_inner_pane_x = Some(val.clone());
+            new_message.size_inner_pane_x = Some(val);
+            last_patch.size_inner_pane_x = Some(val);
             has_any_updates = true;
         }
 
@@ -174,8 +174,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             None => true,
         };
         if is_new_value {
-            new_message.size_inner_pane_y = Some(val.clone());
-            last_patch.size_inner_pane_y = Some(val.clone());
+            new_message.size_inner_pane_y = Some(val);
+            last_patch.size_inner_pane_y = Some(val);
             has_any_updates = true;
         }
 
@@ -185,8 +185,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             None => true,
         };
         if is_new_value {
-            new_message.scroll_x = Some(val.clone());
-            last_patch.scroll_x = Some(val.clone());
+            new_message.scroll_x = Some(*val);
+            last_patch.scroll_x = Some(*val);
             has_any_updates = true;
         }
 
@@ -196,8 +196,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             None => true,
         };
         if is_new_value {
-            new_message.scroll_y = Some(val.clone());
-            last_patch.scroll_y = Some(val.clone());
+            new_message.scroll_y = Some(*val);
+            last_patch.scroll_y = Some(*val);
             has_any_updates = true;
         }
 
@@ -228,30 +228,27 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
     fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
         Some((
-            self.common_properties.width.as_ref().borrow().get().clone(),
-            self.common_properties
+            *self.common_properties.width.as_ref().borrow().get(),
+            *self.common_properties
                 .height
                 .as_ref()
                 .borrow()
-                .get()
-                .clone(),
+                .get(),
         ))
     }
 
     fn get_size(&self) -> Option<(Size, Size)> {
         Some((
-            self.properties
+            *self.properties
                 .as_ref()
                 .borrow()
                 .size_inner_pane_x
-                .get()
-                .clone(),
-            self.properties
+                .get(),
+            *self.properties
                 .as_ref()
                 .borrow()
                 .size_inner_pane_y
-                .get()
-                .clone(),
+                .get(),
         ))
     }
 

@@ -331,10 +331,10 @@ pub struct RectangleCornerRadii {
 impl Into<RoundedRectRadii> for &RectangleCornerRadii {
     fn into(self) -> RoundedRectRadii {
         RoundedRectRadii::new(
-            self.top_left.get().clone(),
-            self.top_right.get().clone(),
-            self.bottom_right.get().clone(),
-            self.bottom_left.get().clone(),
+            *self.top_left.get(),
+            *self.top_right.get(),
+            *self.bottom_right.get(),
+            *self.bottom_left.get(),
         )
     }
 }
