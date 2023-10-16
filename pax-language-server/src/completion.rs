@@ -129,7 +129,7 @@ lazy_static! {
                 CompletionItem {
                     label: "Solid Black".to_string(),
                     kind: Some(CompletionItemKind::FUNCTION),
-                    insert_text: Some("{Color::rgba(0.0,0.0,0.0,1.0)}$0".to_string()),
+                    insert_text: Some("{Fill::Solid(Color::rgba(0.0,0.0,0.0,1.0))}$0".to_string()),
                     insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                     detail: Some("See Color Api".to_string()),
                     sort_text: Some("1".to_string()),
@@ -155,7 +155,7 @@ lazy_static! {
                 CompletionItem {
                     label: "Solid Black".to_string(),
                     kind: Some(CompletionItemKind::FUNCTION),
-                    insert_text: Some("{Color::rgba(0.0,0.0,0.0,1.0)}$0".to_string()),
+                    insert_text: Some("{Fill::Solid(Color::rgba(0.0,0.0,0.0,1.0))}$0".to_string()),
                     insert_text_format: Some(lsp_types::InsertTextFormat::SNIPPET),
                     detail: Some("See Color Api".to_string()),
                     sort_text: Some("1".to_string()),
