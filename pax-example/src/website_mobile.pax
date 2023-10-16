@@ -99,12 +99,12 @@
         </Scroller>
 </Frame>
 @handlers {
-     click: self.new 
+     click: self.new
 }
 
 @handlers {
      click:new
-     context_menu:new 
+     context_menu:new
 }
 
 @settings {
