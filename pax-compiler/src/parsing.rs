@@ -145,8 +145,9 @@ fn recurse_pratt_parse_to_string<'a>(
                         op0.as_str().to_string()
                     },
                     Rule::xo_symbol => {
+                        symbolic_ids.borrow_mut().push(op0.as_str().to_string());
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        convert_symbolic_binding_from_paxel_to_ril(op0)
+                        format!("{}.get_as_int()",convert_symbolic_binding_from_paxel_to_ril(op0))
                     },
                     _ => unimplemented!("")
                 };
@@ -161,8 +162,9 @@ fn recurse_pratt_parse_to_string<'a>(
                         op2.as_str().to_string()
                     },
                     Rule::xo_symbol => {
+                        symbolic_ids.borrow_mut().push(op2.as_str().to_string());
                         //for symbolic identifiers, remove any "this" or "self", then return string
-                        convert_symbolic_binding_from_paxel_to_ril(op2)
+                        format!("{}.get_as_int()",convert_symbolic_binding_from_paxel_to_ril(op2))
                     },
                     _ => unimplemented!("")
                 };
@@ -194,7 +196,7 @@ fn recurse_pratt_parse_to_string<'a>(
                     Rule::literal_number => {
                         let mut inner = literal_kind.into_inner();
                         let value = inner.next().unwrap().as_str();
-                        format!("Numeric::from({})", value)
+                        format!("Numeric::from({}).into()", value)
                     },
                     Rule::string => {
                         //TODO: figure out string concatenation.  Might need to introduce another operator?  Or perhaps a higher-level string type, which supports addition-as-concatenation — like we do with Numeric
