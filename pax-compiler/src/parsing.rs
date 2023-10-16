@@ -196,7 +196,7 @@ fn recurse_pratt_parse_to_string<'a>(
                     Rule::literal_number => {
                         let mut inner = literal_kind.into_inner();
                         let value = inner.next().unwrap().as_str();
-                        format!("Numeric::from({}).into()", value)
+                        format!("Numeric::from({})", value)
                     },
                     Rule::string => {
                         //TODO: figure out string concatenation.  Might need to introduce another operator?  Or perhaps a higher-level string type, which supports addition-as-concatenation — like we do with Numeric
