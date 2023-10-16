@@ -165,8 +165,6 @@ pub struct IdentifierInfo {
     pub variants: Vec<VariantData>,
 }
 
-type Index = DashMap<String, IdentifierInfo>;
-
 #[derive(Debug, Clone)]
 pub struct InfoRequest {
     pub identifier_type: IdentifierType,

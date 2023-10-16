@@ -186,8 +186,7 @@ pub fn extract_positional_nodes(
         }
         Rule::literal_enum_value => {
             let inner_pairs = &inner;
-            let mut enum_name = "".to_string();
-            let mut property_name = "".to_string();
+            let (enum_name, property_name): (String, String);
             if inner_pairs.len() < 3 {
                 enum_name = inner_pairs
                     .clone()
@@ -256,7 +255,7 @@ pub fn extract_positional_nodes(
         Rule::xo_function_call => {
             let inner_pairs = &inner;
             let mut struct_name = "Self".to_string();
-            let mut secondary_name = "".to_string();
+            let secondary_name;
             if inner_pairs.len() < 3 {
                 secondary_name = inner_pairs
                     .clone()
