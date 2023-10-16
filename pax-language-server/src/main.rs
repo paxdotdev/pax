@@ -1,3 +1,10 @@
+use completion::{
+    get_all_root_component_member_completions, get_block_declaration_completions,
+    get_class_completions, get_common_properties_setting_completions,
+    get_common_property_type_completion, get_id_completions, get_root_component_methods,
+    get_struct_property_setting_completions, get_struct_property_type_completion,
+    get_struct_static_member_completions,
+};
 use completion::{get_event_completions, get_struct_completion, get_type_completion};
 use core::panic;
 use dashmap::DashMap;
@@ -96,13 +103,13 @@ impl Request for EnrichRequest {
 }
 
 #[derive(Debug)]
-struct PaxComponent {
+pub struct PaxComponent {
     component_name: String,
     identifier_map: DashMap<String, IdentifierInfo>,
 }
 
 #[derive(Debug)]
-struct SelectorData {
+pub struct SelectorData {
     ids: HashSet<String>,
     classes: HashSet<String>,
 }
@@ -251,10 +258,8 @@ impl Backend {
         rust_file_path: PathBuf,
         component_name: String,
     ) {
-        // Create an empty identifier_map for the new component
         let identifier_map: DashMap<String, IdentifierInfo> = DashMap::new();
 
-        // Index the found Rust file and populate the identifier_map
         let rust_file_path_str = rust_file_path.to_string_lossy().to_string();
         let info_requests = match index_rust_file(&rust_file_path_str, &identifier_map) {
             Ok(reqs) => reqs,
@@ -264,7 +269,6 @@ impl Backend {
             }
         };
 
-        // Handle info requests for the initial file
         for info_request in info_requests.clone() {
             let backend_clone = self.clone();
             let pax_file_clone = pax_file.to_string();
@@ -275,7 +279,6 @@ impl Backend {
             });
         }
 
-        // Update the pax_map with the new component
         self.pax_map.insert(
             pax_file.to_string(),
             PaxComponent {
@@ -287,7 +290,6 @@ impl Backend {
         self.rs_to_pax_map
             .insert(rust_file_path_str, pax_file.to_string());
 
-        // Extract import positions
         let positions = extract_import_positions(&rust_file_path);
         for position in positions {
             let symbol_data = SymbolData {
@@ -299,7 +301,6 @@ impl Backend {
                 symbol: symbol_data,
             };
 
-            // Get import locations and index files
             match self
                 .client
                 .send_request::<GetDefinitionRequest>(params)
@@ -335,15 +336,10 @@ impl Backend {
     fn parse_and_cache_pax_file(&self, pax: &str, uri: Url) -> Vec<Diagnostic> {
         let parse_result = PaxParser::parse(Rule::pax_component_definition, pax);
 
-        // Convert URI to a file path string
         let path_str = uri.path();
-
-        //let mut cache_guard = self.pax_ast_cache.lock().unwrap();
 
         match parse_result {
             Ok(pax_component_definition) => {
-                //cache_guard.insert(path_str.clone(), Some(parsed_ast.clone()));
-
                 let mut nodes = Vec::new();
                 let mut ids = HashSet::new();
                 let mut classes = HashSet::new();
@@ -400,11 +396,8 @@ impl Backend {
                 }
             }
             Err(e) => {
-                // Handle the case when the pax file fails to parse completely
                 eprintln!("Failed to parse {}: {:?}", path_str, e);
                 Vec::new()
-                // Clear the specific pax file cache
-                //cache_guard.insert(path_str, None);
             }
         }
     }
@@ -416,7 +409,6 @@ impl Backend {
         if uri_path.ends_with(".pax") && !self.pax_map.contains_key(uri_path) {
             self.process_pax_file(uri_obj).await;
 
-            // Convert the Url to a file path and read its contents
             let file_path = uri_obj
                 .to_file_path()
                 .map_err(|_| Error::invalid_params(format!("Invalid URI: {}", uri_obj)))?;
@@ -594,7 +586,6 @@ impl Backend {
         if let Some((rust_file_path, component_name)) =
             find_rust_file_with_macro(directory, &file_path)
         {
-            // Create a backend clone and use it within tokio::spawn to handle the indexing
             let backend_clone = self.clone();
             let path_str = file_path.to_string();
             tokio::spawn(async move {
@@ -607,63 +598,13 @@ impl Backend {
         }
     }
 
-    // async fn process_changes(&self, text: &str, uri: Url) {
-    //     // send client timestamp right now
-    //     //self.client.log_message(MessageType::INFO, format!("time:{}", )).await;
-    //     let diagnostics = self.parse_and_cache_pax_file(text, uri.clone());
-    //     // self.client
-    //     //     .publish_diagnostics(uri, diagnostics, None)
-    //     //     .await;
-    // }
-
     async fn process_changes(&self, text: &str, uri: Url) {
-        // Send client the current timestamp
-        // let start_time = SystemTime::now()
-        //     .duration_since(SystemTime::UNIX_EPOCH)
-        //     .expect("Time went backwards")
-        //     .as_millis();
-
         let diagnostics = self.parse_and_cache_pax_file(text, uri.clone());
 
         self.client
             .publish_diagnostics(uri, diagnostics, None)
             .await;
-        // Get and send client the current timestamp after processing
-        // let end_time = SystemTime::now()
-        //     .duration_since(SystemTime::UNIX_EPOCH)
-        //     .expect("Time went backwards")
-        //     .as_millis();
-        // self.client
-        //     .log_message(MessageType::INFO, format!("Delta: {}", end_time-start_time))
-        //     .await;
-
-        // // Uncomment if you still want to publish diagnostics later
     }
-
-    // fn get_word_before_position(&self, uri: &str, pos: &Position) -> Option<String> {
-    //     if let Some(rope) = self.document_content.get(uri) {
-    //         let char_pos = rope.line_to_char(pos.line as usize) + pos.character as usize;
-    //         let mut start = char_pos;
-    //         let whitelist = [':', '@', '=', '_'];
-
-    //         while start > 0 {
-    //             let prev_char = rope.slice(start - 1..start).to_string();
-    //             if prev_char.chars().all(|c| c.is_alphanumeric() || whitelist.contains(&c)) {
-    //                 start -= 1;
-    //             } else {
-    //                 break;
-    //             }
-    //         }
-    //         if start < char_pos {
-    //             let word = rope.slice(start..char_pos).to_string();
-    //             Some(word)
-    //         } else {
-    //             None
-    //         }
-    //     } else {
-    //         None
-    //     }
-    // }
 
     fn get_valid_setter(&self, uri: &str, pos: &Position) -> Option<String> {
         if let Some(rope) = self.document_content.get(uri) {
@@ -697,24 +638,6 @@ impl Backend {
 
         None
     }
-
-    fn get_char_before_position(&self, uri: &str, pos: &Position) -> Option<char> {
-        if let Some(rope) = self.document_content.get(uri) {
-            let char_pos = rope.line_to_char(pos.line as usize) + pos.character as usize;
-
-            // Ensure we are not at the very beginning of the document
-            if char_pos == 0 {
-                return None;
-            }
-
-            let last_char_pos = char_pos.saturating_sub(1);
-            let last_char = rope.char(last_char_pos);
-
-            Some(last_char)
-        } else {
-            None
-        }
-    }
 }
 
 #[tower_lsp::async_trait]
@@ -746,24 +669,14 @@ impl LanguageServer for Backend {
                     if uri_path.ends_with(".pax") {
                         self_clone.process_pax_file(&uri).await;
                         if !change_params.content_changes.is_empty() {
-                            // let start_time = std::time::SystemTime::now()
-                            // .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                            // .expect("Time went backwards")
-                            // .as_millis();
                             self_clone
                                 .process_changes(
                                     &change_params.content_changes[0].text,
                                     change_params.text_document.uri.clone(),
                                 )
                                 .await;
-                            // let end_time = std::time::SystemTime::now()
-                            // .duration_since(std::time::SystemTime::UNIX_EPOCH)
-                            // .expect("Time went backwards")
-                            // .as_millis();
-                            // eprintln!("delta: {}", end_time-start_time);
                         }
                     }
-
                     processed_keys.push(uri_path);
                 }
 
@@ -804,28 +717,15 @@ impl LanguageServer for Backend {
         }
     }
 
-    // async fn did_change(&self, did_change_params: DidChangeTextDocumentParams) {
-    //     let uri = did_change_params.text_document.uri.clone();
-    //     let uri_path = uri.path().to_string();
-
-    //     if uri_path.ends_with(".pax") {
-    //         self.process_pax_file(&uri).await;
-    //         if !did_change_params.content_changes.is_empty() {
-    //             let new_content = did_change_params.content_changes[0].text.clone();
-    //             self.document_content
-    //                 .insert(uri_path, Rope::from_str(&new_content));
-
-    //                 self.process_changes(&new_content, uri).await;
-    //     }
-    // }
-
-    // }
     async fn did_change(&self, did_change_params: DidChangeTextDocumentParams) {
-        let uri_path = did_change_params.text_document.uri.path().to_string();
-        // Store the latest change for this URI
+        let uri = did_change_params.text_document.uri.clone();
+        let uri_path = uri.path().to_string();
         let new_content = did_change_params.content_changes[0].text.clone();
-        self.document_content
-            .insert(uri_path.clone(), Rope::from_str(&new_content));
+        if uri_path.ends_with(".pax") {
+            self.process_pax_file(&uri).await;
+            self.document_content
+                .insert(uri_path.clone(), Rope::from_str(&new_content));
+        }
         self.pending_changes.insert(uri_path, did_change_params);
     }
 
@@ -844,6 +744,10 @@ impl LanguageServer for Backend {
                 let pax_uri = Url::from_file_path(pax_file_path.value()).unwrap();
                 self.process_pax_file(&pax_uri).await;
             }
+        } else if uri_path.ends_with(".pax") {
+            self.pax_map.remove(uri_path);
+            self.process_pax_file(&did_save_params.text_document.uri)
+                .await;
         }
     }
 
@@ -854,6 +758,7 @@ impl LanguageServer for Backend {
         let uri = &completion_params.text_document_position.text_document.uri;
         let pos = &completion_params.text_document_position.position;
         let prior_identifier = self.get_valid_setter(uri.clone().path(), pos);
+        let selector_info = self.pax_selector_map.get(&uri.path().to_string());
 
         let mut completions = Vec::new();
         if let Some(cached_nodes) = self.pax_ast_cache.get(&uri.path().to_string()) {
@@ -870,6 +775,9 @@ impl LanguageServer for Backend {
                 {
                     if trigger_char == "<" {
                         for entry in component.identifier_map.iter() {
+                            self.client
+                                .log_message(MessageType::INFO, format!("entry: {:?}", entry.key()))
+                                .await;
                             if entry.ty == IdentifierType::Component
                                 && entry.identifier != component.component_name
                             {
@@ -890,274 +798,99 @@ impl LanguageServer for Backend {
                                 completions.push(completion);
                             }
                         }
+                        return Ok(Some(CompletionResponse::Array(completions)));
                     } else if trigger_char == "@" {
                         if let Some(_tag) = tag_node {
                             completions.extend(get_event_completions("="));
+                            return Ok(Some(CompletionResponse::Array(completions)));
                         } else if !is_inside_settings_block && !is_inside_handlers_block {
-                            let mut completion = CompletionItem::new_simple(
-                                String::from("settings"),
-                                String::from("Define classes and id selectors"),
-                            );
-                            completion.kind = Some(CompletionItemKind::CLASS);
-                            completion.insert_text = Some("settings {\n\t $0 \n}".to_string());
-                            completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
-                            completions.push(completion);
-                            let mut completion = CompletionItem::new_simple(
-                                String::from("handlers"),
-                                String::from("Define root component event handlers"),
-                            );
-                            completion.kind = Some(CompletionItemKind::CLASS);
-                            completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
-                            completion.insert_text = Some("handlers {\n\t $0 \n}".to_string());
-                            completions.push(completion);
+                            completions.extend(get_block_declaration_completions());
+                            return Ok(Some(CompletionResponse::Array(completions)));
                         }
                     } else if trigger_char == "=" {
-                        if let Some(word) = prior_identifier {
-                            if word.contains("@") {
-                                if let Some(c) =
-                                    component.identifier_map.get(&component.component_name)
-                                {
-                                    for entry in &c.methods {
-                                        let mut completion = CompletionItem::new_simple(
-                                            entry.identifier.clone(),
-                                            entry.identifier.clone(),
-                                        );
-                                        completion.kind = Some(CompletionItemKind::METHOD);
-                                        completion.insert_text =
-                                            Some(format!("{}", entry.identifier.clone()));
-                                        completions.push(completion);
-                                    }
-                                }
+                        if let Some(setter) = prior_identifier {
+                            if setter.contains("@") {
+                                completions.extend(get_root_component_methods(&component));
+                                return Ok(Some(CompletionResponse::Array(completions)));
                             } else {
+                                let requested_property = setter.clone().replace("=", "");
                                 if let Some(tag) = tag_node {
                                     if let NodeType::Tag(tag_data) = &tag.node_type {
-                                        let requested_property = word.clone().replace("=", "");
-                                        if let Some(struct_ident) = component
-                                            .identifier_map
-                                            .get(&tag_data.pascal_identifier)
-                                        {
-                                            if let Some(property) = struct_ident
-                                                .properties
-                                                .iter()
-                                                .find(|p| p.identifier == requested_property)
-                                            {
-                                                if let Some(type_completions) =
-                                                    get_type_completion(&property.rust_type)
-                                                {
-                                                    completions.extend(type_completions.clone());
-                                                }
-                                            }
-                                        }
-                                        if let Some(struct_ident) =
-                                            component.identifier_map.get("CommonProperties")
-                                        {
-                                            if let Some(property) = struct_ident
-                                                .properties
-                                                .iter()
-                                                .find(|p| p.identifier == requested_property)
-                                            {
-                                                if let Some(type_completions) =
-                                                    get_type_completion(&property.rust_type)
-                                                {
-                                                    completions.extend(type_completions.clone());
-                                                }
-                                            }
-                                        }
                                         if requested_property == "class" {
-                                            if let Some(selector_info) =
-                                                self.pax_selector_map.get(&uri.path().to_string())
-                                            {
-                                                for entry in &selector_info.classes {
-                                                    let mut completion = CompletionItem::new_simple(
-                                                        entry.clone(),
-                                                        "Class".to_string(),
-                                                    );
-                                                    completion.kind =
-                                                        Some(CompletionItemKind::CLASS);
-                                                    completion.insert_text =
-                                                        Some(format!("{}", entry.clone()));
-                                                    completions.push(completion);
-                                                }
-                                            }
+                                            completions.extend(get_class_completions(
+                                                &selector_info,
+                                                false,
+                                                false,
+                                            ));
+                                            return Ok(Some(CompletionResponse::Array(
+                                                completions,
+                                            )));
                                         } else if requested_property == "id" {
-                                            if let Some(selector_info) =
-                                                self.pax_selector_map.get(&uri.path().to_string())
-                                            {
-                                                for entry in &selector_info.ids {
-                                                    let mut completion = CompletionItem::new_simple(
-                                                        entry.clone(),
-                                                        "Id".to_string(),
-                                                    );
-                                                    completion.kind =
-                                                        Some(CompletionItemKind::CLASS);
-                                                    completion.insert_text =
-                                                        Some(format!("{}", entry.clone()));
-                                                    completions.push(completion);
-                                                }
-                                            }
-                                        }
-                                    }
-                                } else if is_inside_settings_block {
-                                    let requested_property = word.clone().replace("=", "");
-                                    if let Some(struct_ident) =
-                                        component.identifier_map.get("CommonProperties")
-                                    {
-                                        if let Some(property) = struct_ident
-                                            .properties
-                                            .iter()
-                                            .find(|p| p.identifier == requested_property)
-                                        {
-                                            if let Some(type_completions) =
-                                                get_type_completion(&property.rust_type)
-                                            {
-                                                completions.extend(type_completions.clone());
-                                            }
+                                            completions.extend(get_id_completions(
+                                                &selector_info,
+                                                false,
+                                                false,
+                                            ));
+                                            return Ok(Some(CompletionResponse::Array(
+                                                completions,
+                                            )));
+                                        } else {
+                                            completions.extend(
+                                                get_struct_property_type_completion(
+                                                    &component,
+                                                    tag_data.pascal_identifier.clone(),
+                                                    requested_property.clone(),
+                                                ),
+                                            );
                                         }
                                     }
                                 }
+                                completions.extend(get_common_property_type_completion(
+                                    &component,
+                                    requested_property.clone(),
+                                ));
+                                return Ok(Some(CompletionResponse::Array(completions)));
                             }
                         }
                     } else if trigger_char == ":" {
                         if let Some(word) = prior_identifier {
                             if word.contains("::") {
                                 let requested_struct = word.clone().replace("::", "");
-                                if let Some(struct_ident) =
-                                    component.identifier_map.get(&requested_struct)
-                                {
-                                    for entry in &struct_ident.variants {
-                                        let mut completion = CompletionItem::new_simple(
-                                            entry.identifier.clone(),
-                                            "Variant".to_string(),
-                                        );
-                                        completion.sort_text = Some("0".to_string());
-                                        completion.kind = Some(CompletionItemKind::ENUM_MEMBER);
-                                        if entry.has_fields {
-                                            completion.insert_text =
-                                                Some(format!("{}($0)", entry.identifier.clone()));
-                                            completion.insert_text_format =
-                                                Some(InsertTextFormat::SNIPPET);
-                                        } else {
-                                            completion.insert_text =
-                                                Some(format!("{}", entry.identifier.clone()));
-                                        }
-                                        completions.push(completion);
-                                    }
-                                    for entry in &struct_ident.methods {
-                                        let mut completion = CompletionItem::new_simple(
-                                            entry.identifier.clone(),
-                                            "Function".to_string(),
-                                        );
-                                        completion.kind = Some(CompletionItemKind::METHOD);
-                                        completion.sort_text = Some("1".to_string());
-                                        completion.insert_text =
-                                            Some(format!("{}($0)", entry.identifier.clone()));
-                                        completion.insert_text_format =
-                                            Some(InsertTextFormat::SNIPPET);
-                                        completions.push(completion);
-                                    }
-                                }
+                                completions.extend(get_struct_static_member_completions(
+                                    &component,
+                                    requested_struct,
+                                ));
+                                return Ok(Some(CompletionResponse::Array(completions)));
                             } else {
                                 if is_inside_handlers_block {
-                                    if let Some(c) =
-                                        component.identifier_map.get(&component.component_name)
-                                    {
-                                        for entry in &c.methods {
-                                            let mut completion = CompletionItem::new_simple(
-                                                entry.identifier.clone(),
-                                                entry.identifier.clone(),
-                                            );
-                                            completion.kind = Some(CompletionItemKind::METHOD);
-                                            completion.insert_text =
-                                                Some(format!("{}", entry.identifier.clone()));
-                                            completions.push(completion);
-                                        }
-                                    }
+                                    completions.extend(get_root_component_methods(&component));
+                                    return Ok(Some(CompletionResponse::Array(completions)));
                                 } else {
                                     let requested_property = word.clone().replace(":", "");
-                                    if let Some(struct_ident) =
-                                        component.identifier_map.get("CommonProperties")
-                                    {
-                                        if let Some(property) = struct_ident
-                                            .properties
-                                            .iter()
-                                            .find(|p| p.identifier == requested_property)
-                                        {
-                                            if let Some(type_completions) =
-                                                get_type_completion(&property.rust_type)
-                                            {
-                                                completions.extend(type_completions.clone());
-                                            }
-                                        }
-                                    }
+                                    completions.extend(get_common_property_type_completion(
+                                        &component,
+                                        requested_property.clone(),
+                                    ));
+                                    return Ok(Some(CompletionResponse::Array(completions)));
                                 }
                             }
                         }
                     } else if trigger_char == "." {
-                        self.client
-                            .log_message(MessageType::INFO, format!("word: {:?}", prior_identifier))
-                            .await;
                         if let Some(word) = prior_identifier {
                             if word.contains("self") {
-                                if let Some(c) =
-                                    component.identifier_map.get(&component.component_name)
-                                {
-                                    for entry in &c.properties {
-                                        let mut completion = CompletionItem::new_simple(
-                                            entry.identifier.clone(),
-                                            entry.identifier.clone(),
-                                        );
-                                        completion.kind = Some(CompletionItemKind::FIELD);
-                                        completion.insert_text =
-                                            Some(format!("{}", entry.identifier.clone()));
-                                        completions.push(completion);
-                                    }
-                                    for entry in &c.methods {
-                                        let mut completion = CompletionItem::new_simple(
-                                            entry.identifier.clone(),
-                                            entry.identifier.clone(),
-                                        );
-                                        completion.kind = Some(CompletionItemKind::METHOD);
-                                        completion.insert_text =
-                                            Some(format!("{}", entry.identifier.clone()));
-                                        completions.push(completion);
-                                    }
-                                }
+                                completions
+                                    .extend(get_all_root_component_member_completions(&component));
+                                return Ok(Some(CompletionResponse::Array(completions)));
                             }
                         }
                         if is_inside_settings_block {
-                            if let Some(selector_info) =
-                                self.pax_selector_map.get(&uri.path().to_string())
-                            {
-                                for entry in &selector_info.classes {
-                                    let mut completion = CompletionItem::new_simple(
-                                        entry.clone(),
-                                        "Class".to_string(),
-                                    );
-                                    completion.kind = Some(CompletionItemKind::CLASS);
-                                    completion.sort_text = Some("0".to_string());
-                                    completion.insert_text =
-                                        Some(format!("{} {{\n\t$0\n}}", entry.clone()));
-                                    completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
-                                    completions.push(completion);
-                                }
-                            }
+                            completions.extend(get_class_completions(&selector_info, true, false));
+                            return Ok(Some(CompletionResponse::Array(completions)));
                         }
                     } else if trigger_char == "#" {
                         if is_inside_settings_block {
-                            if let Some(selector_info) =
-                                self.pax_selector_map.get(&uri.path().to_string())
-                            {
-                                for entry in &selector_info.ids {
-                                    let mut completion =
-                                        CompletionItem::new_simple(entry.clone(), "Id".to_string());
-                                    completion.kind = Some(CompletionItemKind::CONSTANT);
-                                    completion.sort_text = Some("1".to_string());
-                                    completion.insert_text =
-                                        Some(format!("{} {{\n\t$0\n}}", entry.clone()));
-                                    completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
-                                    completions.push(completion);
-                                }
-                            }
+                            completions.extend(get_id_completions(&selector_info, true, false));
+                            return Ok(Some(CompletionResponse::Array(completions)));
                         }
                     }
                 } else {
@@ -1165,165 +898,66 @@ impl LanguageServer for Backend {
                         if let NodeType::Tag(tag_data) = &tag.node_type {
                             if let Some(word) = prior_identifier.clone() {
                                 if word.contains("@") {
-                                    if let Some(c) =
-                                        component.identifier_map.get(&component.component_name)
-                                    {
-                                        for entry in &c.methods {
-                                            let mut completion = CompletionItem::new_simple(
-                                                entry.identifier.clone(),
-                                                entry.identifier.clone(),
-                                            );
-                                            completion.kind = Some(CompletionItemKind::METHOD);
-                                            completion.insert_text =
-                                                Some(format!("{}", entry.identifier.clone()));
-                                            completions.push(completion);
-                                        }
-                                    }
-                                } else {
+                                    completions.extend(get_root_component_methods(&component));
+                                    return Ok(Some(CompletionResponse::Array(completions)));
+                                } else if word.contains("=") {
                                     let requested_property = word.clone().replace("=", "");
-                                    if let Some(struct_ident) =
-                                        component.identifier_map.get(&tag_data.pascal_identifier)
-                                    {
-                                        if let Some(property) = struct_ident
-                                            .properties
-                                            .iter()
-                                            .find(|p| p.identifier == requested_property)
-                                        {
-                                            if let Some(type_completions) =
-                                                get_type_completion(&property.rust_type)
-                                            {
-                                                completions.extend(type_completions.clone());
-                                            }
-                                        }
-                                    }
-                                    if let Some(struct_ident) =
-                                        component.identifier_map.get("CommonProperties")
-                                    {
-                                        if let Some(property) = struct_ident
-                                            .properties
-                                            .iter()
-                                            .find(|p| p.identifier == requested_property)
-                                        {
-                                            if let Some(type_completions) =
-                                                get_type_completion(&property.rust_type)
-                                            {
-                                                completions.extend(type_completions.clone());
-                                            }
-                                        }
-                                    }
+                                    self.client
+                                        .log_message(
+                                            MessageType::INFO,
+                                            format!("requested_property: {}", requested_property),
+                                        )
+                                        .await;
+                                    completions.extend(get_struct_property_type_completion(
+                                        &component,
+                                        tag_data.pascal_identifier.clone(),
+                                        requested_property.clone(),
+                                    ));
+                                    completions.extend(get_common_property_type_completion(
+                                        &component,
+                                        requested_property.clone(),
+                                    ));
+                                    return Ok(Some(CompletionResponse::Array(completions)));
                                 }
                             }
-                            if !has_attribute_error && completions.is_empty() {
-                                if let Some(info) =
-                                    component.identifier_map.get(&tag_data.pascal_identifier)
-                                {
-                                    for entry in info.properties.iter() {
-                                        let mut completion = CompletionItem::new_simple(
-                                            entry.identifier.clone(),
-                                            entry.identifier.clone(),
-                                        );
-                                        completion.kind = Some(CompletionItemKind::FIELD);
-                                        completion.insert_text =
-                                            Some(format!("{}=", entry.identifier.clone()));
-                                        completions.push(completion);
-                                    }
-                                }
-                                if let Some(info) = component.identifier_map.get("CommonProperties")
-                                {
-                                    for entry in info.properties.iter() {
-                                        let mut completion = CompletionItem::new_simple(
-                                            entry.identifier.clone(),
-                                            entry.identifier.clone(),
-                                        );
-                                        completion.kind = Some(CompletionItemKind::FIELD);
-                                        completion.insert_text =
-                                            Some(format!("{}=", entry.identifier.clone()));
-                                        completions.push(completion);
-                                    }
-                                }
+                            if !has_attribute_error {
+                                completions.extend(get_struct_property_setting_completions(
+                                    &component,
+                                    tag_data.clone().pascal_identifier,
+                                ));
+                                completions.extend(get_common_properties_setting_completions(
+                                    &component, "=",
+                                ));
+                                return Ok(Some(CompletionResponse::Array(completions)));
                             }
                         }
                     }
                     if is_inside_settings_block {
                         if is_inside_selector_block {
-                            if let Some(info) = component.identifier_map.get("CommonProperties") {
-                                for entry in info.properties.iter() {
-                                    let mut completion = CompletionItem::new_simple(
-                                        entry.identifier.clone(),
-                                        entry.identifier.clone(),
-                                    );
-                                    completion.kind = Some(CompletionItemKind::FIELD);
-                                    completion.insert_text =
-                                        Some(format!("{}:", entry.identifier.clone()));
-                                    completions.push(completion);
-                                }
-                                return Ok(Some(CompletionResponse::Array(completions)));
-                            }
+                            completions
+                                .extend(get_common_properties_setting_completions(&component, ":"));
+                            return Ok(Some(CompletionResponse::Array(completions)));
                         }
                         if let Some(word) = prior_identifier.clone() {
                             let requested_property = word.clone().replace(":", "").replace("=", "");
-                            if let Some(struct_ident) =
-                                component.identifier_map.get("CommonProperties")
-                            {
-                                if let Some(property) = struct_ident
-                                    .properties
-                                    .iter()
-                                    .find(|p| p.identifier == requested_property)
-                                {
-                                    if let Some(type_completions) =
-                                        get_type_completion(&property.rust_type)
-                                    {
-                                        completions.extend(type_completions.clone());
-                                    }
-                                }
-                            }
+                            completions.extend(get_common_property_type_completion(
+                                &component,
+                                requested_property.clone(),
+                            ));
+                            return Ok(Some(CompletionResponse::Array(completions)));
                         } else {
-                            if let Some(selector_info) =
-                                self.pax_selector_map.get(&uri.path().to_string())
-                            {
-                                for entry in &selector_info.classes {
-                                    let mut completion = CompletionItem::new_simple(
-                                        entry.clone(),
-                                        "Class".to_string(),
-                                    );
-                                    completion.kind = Some(CompletionItemKind::CLASS);
-                                    completion.sort_text = Some("0".to_string());
-                                    completion.insert_text =
-                                        Some(format!(".{} {{\n\t$0\n}}", entry.clone()));
-                                    completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
-                                    completions.push(completion);
-                                }
-                                for entry in &selector_info.ids {
-                                    let mut completion =
-                                        CompletionItem::new_simple(entry.clone(), "Id".to_string());
-                                    completion.kind = Some(CompletionItemKind::CONSTANT);
-                                    completion.sort_text = Some("1".to_string());
-                                    completion.insert_text =
-                                        Some(format!("#{} {{\n\t$0\n}}", entry.clone()));
-                                    completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
-                                    completions.push(completion);
-                                }
-                                return Ok(Some(CompletionResponse::Array(completions)));
-                            }
+                            completions.extend(get_class_completions(&selector_info, true, true));
+                            completions.extend(get_id_completions(&selector_info, true, true));
+                            return Ok(Some(CompletionResponse::Array(completions)));
                         }
                     }
                     if is_inside_handlers_block {
                         if let Some(_) = prior_identifier.clone() {
-                            if let Some(c) = component.identifier_map.get(&component.component_name)
-                            {
-                                for entry in &c.methods {
-                                    let mut completion = CompletionItem::new_simple(
-                                        entry.identifier.clone(),
-                                        entry.identifier.clone(),
-                                    );
-                                    completion.kind = Some(CompletionItemKind::METHOD);
-                                    completion.insert_text =
-                                        Some(format!("{}", entry.identifier.clone()));
-                                    completions.push(completion);
-                                }
-                            }
+                            completions.extend(get_root_component_methods(&component));
+                            return Ok(Some(CompletionResponse::Array(completions)));
                         } else {
                             completions.extend(get_event_completions(":"));
+                            return Ok(Some(CompletionResponse::Array(completions)));
                         }
                     }
                 }

@@ -1,9 +1,12 @@
 // completions.rs
 
+use dashmap::mapref::one::Ref;
 use lazy_static::lazy_static;
 use lsp_types::{CompletionItem, CompletionItemKind, InsertTextFormat};
 use std::collections::HashMap;
 use std::sync::RwLock;
+
+use crate::{PaxComponent, SelectorData};
 
 lazy_static! {
     static ref STRUCT_COMPLETIONS: RwLock<HashMap<String, CompletionItem>> = {
@@ -332,7 +335,7 @@ pub fn get_event_completions(delim: &str) -> Vec<CompletionItem> {
         .collect()
 }
 
-fn get_block_declaration_completions() -> Vec<CompletionItem> {
+pub fn get_block_declaration_completions() -> Vec<CompletionItem> {
     let mut completions = Vec::new();
 
     let mut completion = CompletionItem::new_simple(
@@ -354,4 +357,195 @@ fn get_block_declaration_completions() -> Vec<CompletionItem> {
     completions.push(completion);
 
     completions
+}
+
+pub fn get_root_component_methods(component: &PaxComponent) -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+    if let Some(c) = component.identifier_map.get(&component.component_name) {
+        for entry in &c.methods {
+            let mut completion =
+                CompletionItem::new_simple(entry.identifier.clone(), entry.identifier.clone());
+            completion.kind = Some(CompletionItemKind::METHOD);
+            completion.insert_text = Some(format!("{}", entry.identifier.clone()));
+            completions.push(completion);
+        }
+    }
+    return completions;
+}
+
+pub fn get_common_property_type_completion(
+    component: &PaxComponent,
+    requested_property: String,
+) -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+    if let Some(struct_ident) = component.identifier_map.get("CommonProperties") {
+        if let Some(property) = struct_ident
+            .properties
+            .iter()
+            .find(|p| p.identifier == requested_property)
+        {
+            if let Some(type_completions) = get_type_completion(&property.rust_type) {
+                completions.extend(type_completions.clone());
+            }
+        }
+    }
+    return completions;
+}
+
+pub fn get_struct_property_type_completion(
+    component: &PaxComponent,
+    tag_struct: String,
+    requested_property: String,
+) -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+    if let Some(struct_ident) = component.identifier_map.get(&tag_struct) {
+        if let Some(property) = struct_ident
+            .properties
+            .iter()
+            .find(|p| p.identifier == requested_property)
+        {
+            if let Some(type_completions) = get_type_completion(&property.rust_type) {
+                completions.extend(type_completions.clone());
+            }
+        }
+    }
+    return completions;
+}
+
+pub fn get_class_completions(
+    selector_info: &Option<Ref<String, SelectorData>>,
+    full_formatting: bool,
+    prefix: bool,
+) -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+    let prefix_string = if prefix { "." } else { "" };
+
+    if let Some(info) = selector_info {
+        for entry in &info.classes {
+            let mut completion = CompletionItem::new_simple(entry.clone(), "Class".to_string());
+            completion.kind = Some(CompletionItemKind::CLASS);
+            completion.sort_text = Some("0".to_string());
+            if full_formatting {
+                completion.insert_text =
+                    Some(format!("{}{} {{\n\t$0\n}}", prefix_string, entry.clone()));
+                completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
+            } else {
+                completion.insert_text = Some(format!("{}", entry.clone()));
+            }
+            completions.push(completion);
+        }
+    }
+    return completions;
+}
+
+pub fn get_id_completions(
+    selector_info: &Option<Ref<String, SelectorData>>,
+    full_formatting: bool,
+    prefix: bool,
+) -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+    let prefix_string = if prefix { "#" } else { "" };
+    if let Some(info) = selector_info {
+        for entry in &info.ids {
+            let mut completion = CompletionItem::new_simple(entry.clone(), "Id".to_string());
+            completion.kind = Some(CompletionItemKind::CLASS);
+            completion.sort_text = Some("1".to_string());
+            if full_formatting {
+                completion.insert_text =
+                    Some(format!("{}{} {{\n\t$0\n}}", prefix_string, entry.clone()));
+                completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
+            } else {
+                completion.insert_text = Some(format!("{}", entry.clone()));
+            }
+            completions.push(completion);
+        }
+    }
+    return completions;
+}
+
+pub fn get_struct_static_member_completions(
+    component: &PaxComponent,
+    requested_struct: String,
+) -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+    if let Some(struct_ident) = component.identifier_map.get(&requested_struct) {
+        for entry in &struct_ident.variants {
+            let mut completion =
+                CompletionItem::new_simple(entry.identifier.clone(), "Variant".to_string());
+            completion.sort_text = Some("0".to_string());
+            completion.kind = Some(CompletionItemKind::ENUM_MEMBER);
+            if entry.has_fields {
+                completion.insert_text = Some(format!("{}($0)", entry.identifier.clone()));
+                completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
+            } else {
+                completion.insert_text = Some(format!("{}", entry.identifier.clone()));
+            }
+            completions.push(completion);
+        }
+        for entry in &struct_ident.methods {
+            let mut completion =
+                CompletionItem::new_simple(entry.identifier.clone(), "Function".to_string());
+            completion.kind = Some(CompletionItemKind::METHOD);
+            completion.sort_text = Some("1".to_string());
+            completion.insert_text = Some(format!("{}($0)", entry.identifier.clone()));
+            completion.insert_text_format = Some(InsertTextFormat::SNIPPET);
+            completions.push(completion);
+        }
+    }
+    return completions;
+}
+
+pub fn get_all_root_component_member_completions(component: &PaxComponent) -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+    if let Some(c) = component.identifier_map.get(&component.component_name) {
+        for entry in &c.properties {
+            let mut completion =
+                CompletionItem::new_simple(entry.identifier.clone(), entry.identifier.clone());
+            completion.kind = Some(CompletionItemKind::FIELD);
+            completion.insert_text = Some(format!("{}", entry.identifier.clone()));
+            completions.push(completion);
+        }
+        for entry in &c.methods {
+            let mut completion =
+                CompletionItem::new_simple(entry.identifier.clone(), entry.identifier.clone());
+            completion.kind = Some(CompletionItemKind::METHOD);
+            completion.insert_text = Some(format!("{}", entry.identifier.clone()));
+            completions.push(completion);
+        }
+    }
+    return completions;
+}
+
+pub fn get_struct_property_setting_completions(
+    component: &PaxComponent,
+    requested_struct: String,
+) -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+    if let Some(struct_ident) = component.identifier_map.get(&requested_struct) {
+        for entry in struct_ident.properties.iter() {
+            let mut completion =
+                CompletionItem::new_simple(entry.identifier.clone(), entry.identifier.clone());
+            completion.kind = Some(CompletionItemKind::FIELD);
+            completion.insert_text = Some(format!("{}=", entry.identifier.clone()));
+            completions.push(completion);
+        }
+    }
+    return completions;
+}
+
+pub fn get_common_properties_setting_completions(
+    component: &PaxComponent,
+    delim: &str,
+) -> Vec<CompletionItem> {
+    let mut completions = Vec::new();
+    if let Some(info) = component.identifier_map.get("CommonProperties") {
+        for entry in info.properties.iter() {
+            let mut completion =
+                CompletionItem::new_simple(entry.identifier.clone(), entry.identifier.clone());
+            completion.kind = Some(CompletionItemKind::FIELD);
+            completion.insert_text = Some(format!("{}{}", entry.identifier.clone(), delim));
+            completions.push(completion);
+        }
+    }
+    return completions;
 }
