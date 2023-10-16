@@ -1765,11 +1765,10 @@ pub fn build_chassis_with_cartridge(
                         cmd.pre_exec(pre_exec_hook);
                     }
                     let child = cmd.spawn().expect(ERR_SPAWN);
-                    let output = wait_with_output(&process_child_ids, child);
-                    if !output.status.success() {
-                        eprintln!("Error booting iOS simulator. Aborting.");
-                        return Err(());
-                    }
+                    let _output = wait_with_output(&process_child_ids, child);
+                    // ^ Note that we don't handle errors on this particular command; it will return an error by default
+                    // if the simulator isn't running, which isn't an "error" for us.  Instead, defer to the following
+                    // polling logic to decide whether the simulator failed to start, which would indeed be an error.
 
                     // After opening the simulator, wait for the simulator to be booted
                     let max_retries = 5;
