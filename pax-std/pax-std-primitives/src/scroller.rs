@@ -229,26 +229,14 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     fn get_clipping_bounds(&self) -> Option<(Size, Size)> {
         Some((
             *self.common_properties.width.as_ref().borrow().get(),
-            *self.common_properties
-                .height
-                .as_ref()
-                .borrow()
-                .get(),
+            *self.common_properties.height.as_ref().borrow().get(),
         ))
     }
 
     fn get_size(&self) -> Option<(Size, Size)> {
         Some((
-            *self.properties
-                .as_ref()
-                .borrow()
-                .size_inner_pane_x
-                .get(),
-            *self.properties
-                .as_ref()
-                .borrow()
-                .size_inner_pane_y
-                .get(),
+            *self.properties.as_ref().borrow().size_inner_pane_x.get(),
+            *self.properties.as_ref().borrow().size_inner_pane_y.get(),
         ))
     }
 

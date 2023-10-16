@@ -136,34 +136,29 @@ impl TransformAndBounds {
                 .map(|&p| p.project_onto(axis))
                 .collect();
 
-            if self_projections
-                .iter()
-                .cloned()
-                .max_by(|a, b| a.partial_cmp(b).unwrap())
-                .unwrap()
-                < other_projections
-                    .iter()
-                    .cloned()
-                    .min_by(|a, b| a.partial_cmp(b).unwrap())
-                    .unwrap()
-                || other_projections
-                    .iter()
-                    .cloned()
-                    .max_by(|a, b| a.partial_cmp(b).unwrap())
-                    .unwrap()
-                    < self_projections
-                        .iter()
-                        .cloned()
-                        .min_by(|a, b| a.partial_cmp(b).unwrap())
-                        .unwrap()
-            {
+            let (min_self, max_self) = min_max_projections(&self_projections);
+            let (min_other, max_other) = min_max_projections(&other_projections);
+
+            // Check for non-overlapping projections
+            if max_self < min_other || max_other < min_self {
                 // By the separating axis theorem, non-overlap of projections on _any one_ of the axis-normals proves that these polygons do not intersect.
                 return false;
             }
         }
-
         true
     }
+}
+
+fn min_max_projections(projections: &[f64]) -> (f64, f64) {
+    let min_projection = *projections
+        .iter()
+        .min_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+    let max_projection = *projections
+        .iter()
+        .max_by(|a, b| a.partial_cmp(b).unwrap())
+        .unwrap();
+    (min_projection, max_projection)
 }
 
 /// The base trait for a RenderNode, representing any node that can
@@ -232,16 +227,8 @@ pub trait RenderNode<R: 'static + RenderContext> {
     /// doesn't have a size (e.g. `Group`)
     fn get_size(&self) -> Option<(Size, Size)> {
         Some((
-            *self.get_common_properties()
-                .width
-                .as_ref()
-                .borrow()
-                .get(),
-            *self.get_common_properties()
-                .height
-                .as_ref()
-                .borrow()
-                .get(),
+            *self.get_common_properties().width.as_ref().borrow().get(),
+            *self.get_common_properties().height.as_ref().borrow().get(),
         ))
     }
 
