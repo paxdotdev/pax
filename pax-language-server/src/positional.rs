@@ -185,18 +185,16 @@ pub fn extract_positional_nodes(
             });
         }
         Rule::literal_enum_value => {
-            let inner_pairs = &inner;
+            let inner_pairs = &mut inner;
             let (enum_name, property_name): (String, String);
             if inner_pairs.len() < 3 {
                 enum_name = inner_pairs
-                    .clone()
                     .nth_back(1)
                     .unwrap()
                     .as_str()
                     .to_string()
                     .replace("::", "");
                 property_name = inner_pairs
-                    .clone()
                     .nth_back(0)
                     .unwrap()
                     .as_str()
@@ -204,14 +202,12 @@ pub fn extract_positional_nodes(
                     .replace("::", "");
             } else {
                 enum_name = inner_pairs
-                    .clone()
                     .nth_back(2)
                     .unwrap()
                     .as_str()
                     .to_string()
                     .replace("::", "");
                 property_name = inner_pairs
-                    .clone()
                     .nth_back(1)
                     .unwrap()
                     .as_str()

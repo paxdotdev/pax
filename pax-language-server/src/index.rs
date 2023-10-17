@@ -247,7 +247,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
             .map(|f| {
                 let rust_type_string = extract_rust_type(&(f.clone()).ty);
                 if let Some(_) = f.ident.clone() {
-                    let prop_info = create_info(&self.file_path.clone(), f.ident.span());
+                    let prop_info = create_info(&self.file_path, f.ident.span());
 
                     self.requests.push(InfoRequest {
                         identifier_type: IdentifierType::Property,
@@ -265,7 +265,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
                     StructProperty {
                         identifier: rust_type_string.clone(),
                         rust_type: rust_type_string.clone(),
-                        info: create_info(&self.file_path.clone(), f.ty.span()),
+                        info: create_info(&self.file_path, f.ty.span()),
                     }
                 }
             })
@@ -308,12 +308,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
                     let method_name = method.sig.ident.to_string();
                     let method_info = Method {
                         identifier: method_name.clone(),
-                        info: Info {
-                            path: self.file_path.clone(),
-                            position: span_to_position(method.sig.ident.span()),
-                            definition_id: None,
-                            hover_id: None,
-                        },
+                        info: create_info(&self.file_path, method.sig.ident.span()),
                     };
                     info.methods.push(method_info.clone());
 
@@ -343,12 +338,7 @@ impl<'ast, 'a> Visit<'ast> for IndexVisitor<'a> {
                 let variant_info = VariantData {
                     identifier: variant.ident.to_string(),
                     has_fields,
-                    info: Info {
-                        path: self.file_path.clone(),
-                        position: span_to_position(variant.ident.span()),
-                        definition_id: None,
-                        hover_id: None,
-                    },
+                    info: create_info(&self.file_path, variant.ident.span()),
                 };
 
                 self.requests.push(InfoRequest {
