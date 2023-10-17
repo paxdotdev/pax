@@ -68,7 +68,9 @@ const RUST_MACOS_DYLIB_FILE_NAME: &str = "libpaxchassismacos.dylib";
 const PORTABLE_DYLIB_INSTALL_NAME: &str = "@rpath/PaxCartridge.framework/PaxCartridge";
 
 const XCODE_MACOS_TARGET_DEBUG: &str = "Pax macOS (Development)";
+const XCODE_MACOS_TARGET_RELEASE: &str = "Pax macOS (Release)";
 const XCODE_IOS_TARGET_DEBUG: &str = "Pax iOS (Development)";
+const XCODE_IOS_TARGET_RELEASE: &str = "Pax iOS (Release)";
 
 // These package IDs represent the directory / package names inside the xcframework,
 const MACOS_MULTIARCH_PACKAGE_ID: &str = "macos-arm64_x86_64";
@@ -1183,12 +1185,10 @@ pub fn build_chassis_with_cartridge(
         .join(PKG_DIR_NAME)
         .join(format!("pax-chassis-{}", target_str_lower));
 
-    //approximate `should_also_run` as "dev build," `!should_also_run` as prod.
-    //we can improve this with an explicit `--release` flag in the Pax CLI
-    #[allow(non_snake_case)]
-    let IS_RELEASE: bool = !ctx.should_also_run;
-    #[allow(non_snake_case)]
-    let BUILD_MODE_NAME: &str = if IS_RELEASE { "release" } else { "debug" };
+    let is_release: bool = ctx.is_release;
+    let is_ios = if let RunTarget::iOS = target {true} else {false};
+
+    let build_mode_name: &str = if is_release { "release" } else { "debug" };
 
     let interface_path = pax_dir
         .join(PKG_DIR_NAME)
@@ -1226,11 +1226,23 @@ pub fn build_chassis_with_cartridge(
             //0: Rust arch string, for passing to cargo
             //1: Apple arch string, for addressing xcframework
             let target_mappings: &[(&str, &str)] = if let RunTarget::macOS = target {
-                &[
-                    ("aarch64-apple-darwin", "macos-arm64"),
-                    ("x86_64-apple-darwin", "macos-x86_64"),
-                ]
+
+                if is_release {
+                    &[
+                        ("aarch64-apple-darwin", "macos-arm64"),
+                        ("x86_64-apple-darwin", "macos-x86_64"),
+                    ]
+                } else {
+                    // Build only relevant archs for dev
+                    if std::env::consts::ARCH == "x86_64" {
+                        &[("x86_64-apple-darwin", "macos-x86_64")]
+                    } else {
+                        &[("aarch64-apple-darwin", "macos-arm64")]
+                    }
+                }
             } else {
+                // Build all archs for iOS builds.  We could limit these like we do for macOS
+                // dev builds, but at time of intial authoring, it was slowing zb down.
                 &[
                     ("aarch64-apple-ios", "ios-arm64"),
                     ("x86_64-apple-ios", "iossimulator-x86_64"),
@@ -1260,7 +1272,7 @@ pub fn build_chassis_with_cartridge(
                 "{} 🧶 Compiling targets {{{}}} in {} mode using {} threads...\n",
                 *PAX_BADGE,
                 &targets_single_string,
-                &BUILD_MODE_NAME.to_string().bold(),
+                &build_mode_name.to_string().bold(),
                 target_mappings.len()
             );
 
@@ -1284,7 +1296,7 @@ pub fn build_chassis_with_cartridge(
                         .stdout(std::process::Stdio::piped())
                         .stderr(std::process::Stdio::piped());
 
-                    if IS_RELEASE {
+                    if is_release {
                         cmd.arg("--release");
                     }
 
@@ -1301,7 +1313,7 @@ pub fn build_chassis_with_cartridge(
                     let dylib_src = chassis_path
                         .join("target")
                         .join(target_mapping.0)
-                        .join(BUILD_MODE_NAME)
+                        .join(build_mode_name)
                         .join(dylib_file_name);
 
                     let new_val = (
@@ -1389,122 +1401,151 @@ pub fn build_chassis_with_cartridge(
                 _ => {}
             };
 
-            // Merge architecture-specific binaries with `lipo` (this is an undocumented requirement
-            // of multi-arch builds + xcframeworks for the Apple toolchain; we cannot bundle two
-            // macos arch .frameworks in an xcframework; they must lipo'd into a single .framework + dylib.
-            // Similarly, iOS binaries require a particular bundling for simulator & device builds.)
-            println!(
-                "{} 🖇️  Combining architecture-specific binaries with `lipo`...",
-                *PAX_BADGE
-            );
 
-            if let RunTarget::macOS = target {
-                // For macOS, we want to lipo both our arm64 and x86_64 dylibs into a single binary,
-                // then bundle that single binary into a single framework within the xcframework.
-                let multiarch_dylib_dest = pax_dir
-                    .join(PKG_DIR_NAME)
-                    .join("pax-chassis-common")
-                    .join("pax-swift-cartridge")
-                    .join("PaxCartridge.xcframework")
-                    .join(MACOS_MULTIARCH_PACKAGE_ID)
-                    .join("PaxCartridge.framework")
-                    .join("PaxCartridge");
 
-                let lipo_input_paths = results
-                    .iter()
-                    .map(|res| res.1 .1.clone())
-                    .collect::<Vec<String>>();
 
-                // Construct the lipo command
-                let mut lipo_command = Command::new("lipo");
-                lipo_command
-                    .arg("-create")
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::piped());
+            let macos_dylib_dest = pax_dir
+                .join(PKG_DIR_NAME)
+                .join("pax-chassis-common")
+                .join("pax-swift-cartridge")
+                .join("PaxCartridge.xcframework")
+                .join(MACOS_MULTIARCH_PACKAGE_ID)
+                .join("PaxCartridge.framework")
+                .join("PaxCartridge");
 
-                // Add each input path to the command
-                for path in &lipo_input_paths {
-                    lipo_command.arg(path);
-                }
+            let simulator_dylib_dest = pax_dir
+                .join(PKG_DIR_NAME)
+                .join("pax-chassis-common")
+                .join("pax-swift-cartridge")
+                .join("PaxCartridge.xcframework")
+                .join(IOS_SIMULATOR_MULTIARCH_PACKAGE_ID)
+                .join("PaxCartridge.framework")
+                .join("PaxCartridge");
 
-                // Specify the output path
-                lipo_command.arg("-output").arg(multiarch_dylib_dest);
+            let iphone_native_dylib_dest = pax_dir
+                .join(PKG_DIR_NAME)
+                .join("pax-chassis-common")
+                .join("pax-swift-cartridge")
+                .join("PaxCartridge.xcframework")
+                .join(IOS_PACKAGE_ID)
+                .join("PaxCartridge.framework")
+                .join("PaxCartridge");
 
-                #[cfg(unix)]
-                unsafe {
-                    lipo_command.pre_exec(pre_exec_hook);
-                }
-                let child = lipo_command.spawn().expect(ERR_SPAWN);
-                let output = wait_with_output(&process_child_ids, child);
+            if is_release || is_ios {
+                // Merge architecture-specific binaries with `lipo` (this is an undocumented requirement
+                // of multi-arch builds + xcframeworks for the Apple toolchain; we cannot bundle two
+                // macos arch .frameworks in an xcframework; they must lipo'd into a single .framework + dylib.
+                // Similarly, iOS binaries require a particular bundling for simulator & device builds.)
+                println!(
+                    "{} 🖇️  Combining architecture-specific binaries with `lipo`...",
+                    *PAX_BADGE
+                );
 
-                if !output.status.success() {
-                    println!("Failed to combine packages with lipo. Aborting.");
-                    return Err(());
+                if let RunTarget::macOS = target {
+                    // For macOS, we want to lipo both our arm64 and x86_64 dylibs into a single binary,
+                    // then bundle that single binary into a single framework within the xcframework.
+
+
+                    let lipo_input_paths = results
+                        .iter()
+                        .map(|res| res.1.1.clone())
+                        .collect::<Vec<String>>();
+
+                    // Construct the lipo command
+                    let mut lipo_command = Command::new("lipo");
+                    lipo_command
+                        .arg("-create")
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped());
+
+                    // Add each input path to the command
+                    for path in &lipo_input_paths {
+                        lipo_command.arg(path);
+                    }
+
+                    // Specify the output path
+                    lipo_command.arg("-output").arg(macos_dylib_dest);
+
+                    #[cfg(unix)]
+                    unsafe {
+                        lipo_command.pre_exec(pre_exec_hook);
+                    }
+                    let child = lipo_command.spawn().expect(ERR_SPAWN);
+                    let output = wait_with_output(&process_child_ids, child);
+
+                    if !output.status.success() {
+                        println!("Failed to combine packages with lipo. Aborting.");
+                        return Err(());
+                    }
+                } else {
+                    // For iOS, we want to:
+                    // 1. lipo together both simulator build architectures
+                    // 2. copy (a) the lipo'd simulator binary, and (b) the vanilla arm64 iOS binary into the framework
+                    let simulator_builds = results
+                        .iter()
+                        .filter(|res| res.1.0.starts_with("iossimulator-"))
+                        .collect::<Vec<_>>();
+                    let device_build = results
+                        .iter()
+                        .filter(|res| res.1.0.starts_with("ios-"))
+                        .collect::<Vec<_>>();
+
+
+
+                    let lipo_input_paths = simulator_builds
+                        .iter()
+                        .map(|res| res.1.1.clone())
+                        .collect::<Vec<String>>();
+
+                    // Construct the lipo command
+                    let mut lipo_command = Command::new("lipo");
+                    lipo_command
+                        .arg("-create")
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::piped());
+
+                    // Add each input path to the command
+                    for path in &lipo_input_paths {
+                        lipo_command.arg(path);
+                    }
+
+                    // Specify the output path
+                    lipo_command.arg("-output").arg(simulator_dylib_dest);
+
+                    #[cfg(unix)]
+                    unsafe {
+                        lipo_command.pre_exec(pre_exec_hook);
+                    }
+                    let child = lipo_command.spawn().expect(ERR_SPAWN);
+                    let output = wait_with_output(&process_child_ids, child);
+                    if !output.status.success() {
+                        eprintln!("Failed to combine dylibs with lipo. Aborting.");
+                        return Err(());
+                    }
+
+                    //Copy singular device build (iOS, not simulator)
+                    let device_dylib_src = &device_build[0].1.1;
+
+                    let _ = fs::copy(device_dylib_src, iphone_native_dylib_dest);
                 }
             } else {
-                // For iOS, we want to:
-                // 1. lipo together both simulator build architectures
-                // 2. copy (a) the lipo'd simulator binary, and (b) the vanilla arm64 iOS binary into the framework
-                let simulator_builds = results
-                    .iter()
-                    .filter(|res| res.1 .0.starts_with("iossimulator-"))
-                    .collect::<Vec<_>>();
-                let device_build = results
-                    .iter()
-                    .filter(|res| res.1 .0.starts_with("ios-"))
-                    .collect::<Vec<_>>();
+                // For macos development builds, instead of lipoing, just drop the singular build into the appropriate output destination
+                // This measure speeds up development builds substantially.
+                // Note that we could do something similar for iOS, but it wasn't immediately in reach at time of authoring (build failed when
+                // providing non-lipo'd binaries in the framework for iOS)
+                let result = results.iter().next().unwrap();
+                let src = &result.1.1;
+                let dest = macos_dylib_dest;
+                let _ = fs::copy(src, dest);
+            }
 
-                let multiarch_dylib_dest = pax_dir
-                    .join(PKG_DIR_NAME)
-                    .join("pax-chassis-common")
-                    .join("pax-swift-cartridge")
-                    .join("PaxCartridge.xcframework")
-                    .join(IOS_SIMULATOR_MULTIARCH_PACKAGE_ID)
-                    .join("PaxCartridge.framework")
-                    .join("PaxCartridge");
-
-                let lipo_input_paths = simulator_builds
-                    .iter()
-                    .map(|res| res.1 .1.clone())
-                    .collect::<Vec<String>>();
-
-                // Construct the lipo command
-                let mut lipo_command = Command::new("lipo");
-                lipo_command
-                    .arg("-create")
-                    .stdout(std::process::Stdio::piped())
-                    .stderr(std::process::Stdio::piped());
-
-                // Add each input path to the command
-                for path in &lipo_input_paths {
-                    lipo_command.arg(path);
-                }
-
-                // Specify the output path
-                lipo_command.arg("-output").arg(multiarch_dylib_dest);
-
-                #[cfg(unix)]
-                unsafe {
-                    lipo_command.pre_exec(pre_exec_hook);
-                }
-                let child = lipo_command.spawn().expect(ERR_SPAWN);
-                let output = wait_with_output(&process_child_ids, child);
-                if !output.status.success() {
-                    eprintln!("Failed to combine dylibs with lipo. Aborting.");
-                    return Err(());
-                }
-
-                //Copy singular device build (iOS, not simulator)
-                let device_dylib_src = &device_build[0].1 .1;
-                let device_dylib_dest = pax_dir
-                    .join(PKG_DIR_NAME)
-                    .join("pax-chassis-common")
-                    .join("pax-swift-cartridge")
-                    .join("PaxCartridge.xcframework")
-                    .join(IOS_PACKAGE_ID)
-                    .join("PaxCartridge.framework")
-                    .join("PaxCartridge");
-                let _ = fs::copy(device_dylib_src, device_dylib_dest);
+            if is_release && is_ios {
+                unimplemented!("\n\n\
+Release builds for Pax iOS are not yet supported because configuration has not been exposed for development teams or code-signing.\n
+You can build a release build manually by configuring the generated xcodeproject in `.pax/pkg/pax-chassis-ios/interface` with your development team and codesigning configuration.\n
+The relevant Framework binaries have been built in release mode at `.pax/pkg/pax-chassis-common/pax-swift-cartridge/` and should be loaded via the above xcodeproject.\n
+You can also use the SPM package exposed at `.pax/pkg/pax-chassis-common/pax-swift-cartridge/` for manual inclusion in your own SwiftUI app.\n
+Note that the temporary directories mentioned above are subject to overwriting.\n\n")
             }
 
             let (xcodeproj_path, scheme) = if let RunTarget::macOS = target {
@@ -1515,7 +1556,11 @@ pub fn build_chassis_with_cartridge(
                         .join("interface")
                         .join("pax-app-macos")
                         .join("pax-app-macos.xcodeproj"),
-                    XCODE_MACOS_TARGET_DEBUG,
+                    if is_release {
+                        XCODE_MACOS_TARGET_RELEASE
+                    } else {
+                        XCODE_MACOS_TARGET_DEBUG
+                    },
                 )
             } else {
                 (
@@ -1525,13 +1570,17 @@ pub fn build_chassis_with_cartridge(
                         .join("interface")
                         .join("pax-app-ios")
                         .join("pax-app-ios.xcodeproj"),
-                    XCODE_IOS_TARGET_DEBUG,
+                    if is_release {
+                        XCODE_IOS_TARGET_RELEASE
+                    } else {
+                        XCODE_IOS_TARGET_DEBUG
+                    },
                 )
             };
 
-            let configuration = if IS_RELEASE { "Release" } else { "Debug" };
+            let configuration = if is_release { "Release" } else { "Debug" };
 
-            let build_dest_base = pax_dir.join(BUILD_DIR_NAME).join(BUILD_MODE_NAME);
+            let build_dest_base = pax_dir.join(BUILD_DIR_NAME).join(build_mode_name).join(target_str_lower);
             let executable_output_dir_path = build_dest_base.join("app");
             let executable_dot_app_path =
                 executable_output_dir_path.join(&format!("{}.app", &scheme));
@@ -1539,7 +1588,7 @@ pub fn build_chassis_with_cartridge(
 
 
             let sdk = if let RunTarget::iOS = target {
-                if IS_RELEASE {
+                if is_release {
                     "iphoneos"
                 } else {
                     "iphonesimulator"
@@ -1566,7 +1615,7 @@ pub fn build_chassis_with_cartridge(
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::piped());
 
-            if !IS_RELEASE {
+            if !is_release {
                 cmd.arg("CODE_SIGNING_REQUIRED=NO")
                     .arg("CODE_SIGN_IDENTITY=");
             }
@@ -1850,13 +1899,13 @@ pub fn build_chassis_with_cartridge(
                     }
                     let status = output.status.code().unwrap();
 
-                    println!("App exited with: {:?}", status);
+                    println!("{} 🚀 App launched on simulator. Launch command exited with code: {:?}", *PAX_BADGE, status);
                 }
             } else {
                 let build_path = executable_output_dir_path.to_str().unwrap().bold();
                 println!(
                     "{} 🗂️  Done: {} {} build available at {}",
-                    *PAX_BADGE, target_str, BUILD_MODE_NAME, build_path
+                    *PAX_BADGE, target_str, build_mode_name, build_path
                 );
             }
         }
@@ -1880,7 +1929,7 @@ pub fn build_chassis_with_cartridge(
                 .stdout(std::process::Stdio::inherit())
                 .stderr(std::process::Stdio::inherit());
 
-            if IS_RELEASE {
+            if is_release {
                 cmd.arg("--release");
             } else {
                 cmd.arg("--dev");
@@ -1917,12 +1966,16 @@ pub fn build_chassis_with_cartridge(
             }
 
             //Copy fully built project into .pax/build/web, ready for e.g. publishing
-            let build_src = interface_path.join(PUBLIC_DIR_NAME).join(BUILD_MODE_NAME);
+            let build_src = interface_path.join(PUBLIC_DIR_NAME);
             let build_dest = pax_dir
                 .join(BUILD_DIR_NAME)
-                .join(BUILD_MODE_NAME)
-                .join("web");
-            let _ = copy_dir_recursively(&build_src, &build_dest, &DIR_IGNORE_LIST_WEB);
+                .join(build_mode_name)
+                .join(target_str_lower);
+            let res = copy_dir_recursively(&build_src, &build_dest, &DIR_IGNORE_LIST_WEB);
+            if let Err(e) = res {
+                eprintln!("Failed to copy built files from {} to {}.  {:?}", &build_src.to_str().unwrap(), &build_dest.to_str().unwrap(), e);
+
+            }
 
             // Start local server if this is a `run` rather than a `build`
             if ctx.should_also_run {
@@ -1932,7 +1985,7 @@ pub fn build_chassis_with_cartridge(
                 println!(
                     "{} 🗂️ Done: {} build available at {}",
                     *PAX_BADGE,
-                    BUILD_MODE_NAME,
+                    build_mode_name,
                     build_dest.to_str().unwrap()
                 );
             }
@@ -2104,6 +2157,7 @@ pub struct RunContext {
     pub should_also_run: bool,
     pub is_libdev_mode: bool,
     pub process_child_ids: Arc<Mutex<Vec<u64>>>,
+    pub is_release: bool,
 }
 
 pub enum RunTarget {

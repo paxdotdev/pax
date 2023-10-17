@@ -50,6 +50,12 @@ fn main() -> Result<(), ()> {
         .takes_value(true);
 
     #[allow(non_snake_case)]
+        let ARG_RELEASE = Arg::with_name("release")
+        .long("release")
+        .takes_value(false)
+        .help("Build in Release mode, with appropriate platform-specific optimizations.");
+
+    #[allow(non_snake_case)]
     let ARG_LIBDEV = Arg::with_name("libdev")
         .long("libdev")
         .takes_value(false)
@@ -83,6 +89,7 @@ fn main() -> Result<(), ()> {
                 .arg( ARG_TARGET.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
+                .arg( ARG_RELEASE.clone() )
         )
         .subcommand(
             App::new("clean")
@@ -154,6 +161,7 @@ fn perform_nominal_action(
                 should_also_run: true,
                 is_libdev_mode,
                 process_child_ids,
+                is_release: false,
             })
         }
         ("build", Some(args)) => {
@@ -161,6 +169,7 @@ fn perform_nominal_action(
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
+            let is_release = args.is_present("release");
 
             pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
@@ -169,6 +178,7 @@ fn perform_nominal_action(
                 verbose,
                 is_libdev_mode,
                 process_child_ids,
+                is_release,
             })
         }
         ("clean", Some(args)) => {

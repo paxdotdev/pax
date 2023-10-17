@@ -9,6 +9,15 @@
 /* Begin PBXBuildFile section */
 		1486C80F2ACE4E48003AB8B8 /* PaxCartridge in Frameworks */ = {isa = PBXBuildFile; productRef = 1486C80E2ACE4E48003AB8B8 /* PaxCartridge */; };
 		1486C8112ACE4E48003AB8B8 /* PaxCartridgeAssets in Frameworks */ = {isa = PBXBuildFile; productRef = 1486C8102ACE4E48003AB8B8 /* PaxCartridgeAssets */; };
+		14A8ED632ADE1A7C00292406 /* PaxViewMacos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */; };
+		14A8ED642ADE1A7C00292406 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD482ACC9D690060F532 /* Main.swift */; };
+		14A8ED662ADE1A7C00292406 /* Messages in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED5D2ADE1A7C00292406 /* Messages */; };
+		14A8ED672ADE1A7C00292406 /* FlexBuffers in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED5C2ADE1A7C00292406 /* FlexBuffers */; };
+		14A8ED682ADE1A7C00292406 /* PaxCartridge in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED5F2ADE1A7C00292406 /* PaxCartridge */; };
+		14A8ED692ADE1A7C00292406 /* PaxCartridgeAssets in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED612ADE1A7C00292406 /* PaxCartridgeAssets */; };
+		14A8ED6A2ADE1A7C00292406 /* Rendering in Frameworks */ = {isa = PBXBuildFile; productRef = 14A8ED5E2ADE1A7C00292406 /* Rendering */; };
+		14A8ED6C2ADE1A7C00292406 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4F2ACC9D6A0060F532 /* Preview Assets.xcassets */; };
+		14A8ED6D2ADE1A7C00292406 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */; };
 		14FDCD492ACC9D690060F532 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD482ACC9D690060F532 /* Main.swift */; };
 		14FDCD4B2ACC9D690060F532 /* PaxViewMacos.swift in Sources */ = {isa = PBXBuildFile; fileRef = 14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */; };
 		14FDCD4D2ACC9D6A0060F532 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 14FDCD4C2ACC9D6A0060F532 /* Assets.xcassets */; };
@@ -19,6 +28,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		14A8ED712ADE1A7C00292406 /* Pax macOS (Release).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pax macOS (Release).app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		14FDCD452ACC9D690060F532 /* Pax macOS (Development).app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Pax macOS (Development).app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		14FDCD482ACC9D690060F532 /* Main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Main.swift; sourceTree = "<group>"; };
 		14FDCD4A2ACC9D690060F532 /* PaxViewMacos.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaxViewMacos.swift; sourceTree = "<group>"; };
@@ -28,6 +38,18 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		14A8ED652ADE1A7C00292406 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14A8ED662ADE1A7C00292406 /* Messages in Frameworks */,
+				14A8ED672ADE1A7C00292406 /* FlexBuffers in Frameworks */,
+				14A8ED682ADE1A7C00292406 /* PaxCartridge in Frameworks */,
+				14A8ED692ADE1A7C00292406 /* PaxCartridgeAssets in Frameworks */,
+				14A8ED6A2ADE1A7C00292406 /* Rendering in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		14FDCD422ACC9D690060F532 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -63,6 +85,7 @@
 			isa = PBXGroup;
 			children = (
 				14FDCD452ACC9D690060F532 /* Pax macOS (Development).app */,
+				14A8ED712ADE1A7C00292406 /* Pax macOS (Release).app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -90,6 +113,30 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		14A8ED5B2ADE1A7C00292406 /* Pax macOS (Release) */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 14A8ED6E2ADE1A7C00292406 /* Build configuration list for PBXNativeTarget "Pax macOS (Release)" */;
+			buildPhases = (
+				14A8ED622ADE1A7C00292406 /* Sources */,
+				14A8ED652ADE1A7C00292406 /* Frameworks */,
+				14A8ED6B2ADE1A7C00292406 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = "Pax macOS (Release)";
+			packageProductDependencies = (
+				14A8ED5C2ADE1A7C00292406 /* FlexBuffers */,
+				14A8ED5D2ADE1A7C00292406 /* Messages */,
+				14A8ED5E2ADE1A7C00292406 /* Rendering */,
+				14A8ED5F2ADE1A7C00292406 /* PaxCartridge */,
+				14A8ED612ADE1A7C00292406 /* PaxCartridgeAssets */,
+			);
+			productName = "pax-app-macos";
+			productReference = 14A8ED712ADE1A7C00292406 /* Pax macOS (Release).app */;
+			productType = "com.apple.product-type.application";
+		};
 		14FDCD442ACC9D690060F532 /* Pax macOS (Development) */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 14FDCD542ACC9D6A0060F532 /* Build configuration list for PBXNativeTarget "Pax macOS (Development)" */;
@@ -147,11 +194,21 @@
 			projectRoot = "";
 			targets = (
 				14FDCD442ACC9D690060F532 /* Pax macOS (Development) */,
+				14A8ED5B2ADE1A7C00292406 /* Pax macOS (Release) */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
+		14A8ED6B2ADE1A7C00292406 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14A8ED6C2ADE1A7C00292406 /* Preview Assets.xcassets in Resources */,
+				14A8ED6D2ADE1A7C00292406 /* Assets.xcassets in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		14FDCD432ACC9D690060F532 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -164,6 +221,15 @@
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
+		14A8ED622ADE1A7C00292406 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				14A8ED632ADE1A7C00292406 /* PaxViewMacos.swift in Sources */,
+				14A8ED642ADE1A7C00292406 /* Main.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		14FDCD412ACC9D690060F532 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -176,6 +242,58 @@
 /* End PBXSourcesBuildPhase section */
 
 /* Begin XCBuildConfiguration section */
+		14A8ED6F2ADE1A7C00292406 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "pax-app-macos/pax_app_macos.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"pax-app-macos/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.pax.pax-app-macos";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Debug;
+		};
+		14A8ED702ADE1A7C00292406 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "pax-app-macos/pax_app_macos.entitlements";
+				CODE_SIGN_STYLE = Automatic;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_ASSET_PATHS = "\"pax-app-macos/Preview Content\"";
+				ENABLE_PREVIEWS = YES;
+				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				MACOSX_DEPLOYMENT_TARGET = 12.0;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "dev.pax.pax-app-macos";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+			};
+			name = Release;
+		};
 		14FDCD522ACC9D6A0060F532 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -351,6 +469,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		14A8ED6E2ADE1A7C00292406 /* Build configuration list for PBXNativeTarget "Pax macOS (Release)" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				14A8ED6F2ADE1A7C00292406 /* Debug */,
+				14A8ED702ADE1A7C00292406 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
 		14FDCD402ACC9D690060F532 /* Build configuration list for PBXProject "pax-app-macos" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -372,6 +499,10 @@
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
+		14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = "../../../pax-chassis-common/pax-swift-cartridge";
+		};
 		14FDCD572ACC9E7B0060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-common" */ = {
 			isa = XCLocalSwiftPackageReference;
 			relativePath = "../../../pax-chassis-common/pax-swift-common";
@@ -391,6 +522,28 @@
 		1486C8102ACE4E48003AB8B8 /* PaxCartridgeAssets */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = 14FDCD5E2ACC9EB80060F532 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
+			productName = PaxCartridgeAssets;
+		};
+		14A8ED5C2ADE1A7C00292406 /* FlexBuffers */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = FlexBuffers;
+		};
+		14A8ED5D2ADE1A7C00292406 /* Messages */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Messages;
+		};
+		14A8ED5E2ADE1A7C00292406 /* Rendering */ = {
+			isa = XCSwiftPackageProductDependency;
+			productName = Rendering;
+		};
+		14A8ED5F2ADE1A7C00292406 /* PaxCartridge */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
+			productName = PaxCartridge;
+		};
+		14A8ED612ADE1A7C00292406 /* PaxCartridgeAssets */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 14A8ED602ADE1A7C00292406 /* XCLocalSwiftPackageReference "../../../pax-chassis-common/pax-swift-cartridge" */;
 			productName = PaxCartridgeAssets;
 		};
 		14FDCD582ACC9E7B0060F532 /* FlexBuffers */ = {
