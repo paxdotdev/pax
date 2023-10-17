@@ -12,6 +12,21 @@ use crate::parsing::escape_identifier;
 use itertools::Itertools;
 use lazy_static::lazy_static;
 
+const BUILTIN_TYPES: &'static [(&str, &str); 12] = &[
+    ("transform", "Transform2D"),
+    ("width", "Size"),
+    ("height", "Size"),
+    ("x", "Size"),
+    ("y", "Size"),
+    ("anchor_x", "Size"),
+    ("anchor_y", "Size"),
+    ("skew_x", "Numeric"),
+    ("skew_y", "Numeric"),
+    ("scale_x", "Size"),
+    ("scale_y", "Size"),
+    ("rotate", "Rotation"),
+];
+
 pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
     let mut swap_expression_specs: HashMap<usize, ExpressionSpec> = HashMap::new();
     let mut all_expression_specs: HashMap<usize, ExpressionSpec> = HashMap::new();
@@ -76,22 +91,14 @@ fn pull_settings_with_selector(
     settings: &Option<Vec<SettingsSelectorBlockDefinition>>,
     selector: String,
 ) -> Option<Vec<(String, ValueDefinition)>> {
-    if let Some(val) = settings {
+    settings.as_ref().and_then(|val| {
         let merged_settings: Vec<(String, ValueDefinition)> = val
             .iter()
             .filter(|block| block.selector == selector)
-            .map(|block| block.value_block.settings_key_value_pairs.clone())
-            .flatten()
-            .clone()
+            .flat_map(|block| block.value_block.settings_key_value_pairs.clone())
             .collect();
-        if merged_settings.len() > 0 {
-            Some(merged_settings)
-        } else {
-            None
-        }
-    } else {
-        None
-    }
+        (!merged_settings.is_empty()).then(|| merged_settings)
+    })
 }
 
 fn merge_inline_settings_with_settings_block(
@@ -155,12 +162,9 @@ fn recurse_compile_literal_block<'a>(
 ) {
     settings_pairs.for_each(|pair| {
         match &mut pair.1 {
-            ValueDefinition::LiteralValue(_) => {
-                //no need to compile literal values
-            }
-            ValueDefinition::EventBindingTarget(_) => {
-                //event bindings are handled on a separate compiler pass; no-op here
-            }
+            // LiteralValue:       no need to compile literal values
+            // EventBindingTarget: event bindings are handled on a separate compiler pass; no-op here
+            ValueDefinition::LiteralValue(_) | ValueDefinition::EventBindingTarget(_) => {}
             ValueDefinition::Block(block) => {
                 let type_def = (current_property_definitions
                     .iter()
@@ -183,22 +187,10 @@ fn recurse_compile_literal_block<'a>(
 
                 let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
 
-                let builtin_types = HashMap::from([
-                    ("transform", "Transform2D".to_string()),
-                    ("width", "Size".to_string()),
-                    ("height", "Size".to_string()),
-                    ("x", "Size".to_string()),
-                    ("y", "Size".to_string()),
-                    ("anchor_x", "Size".to_string()),
-                    ("anchor_y", "Size".to_string()),
-                    ("skew_x", "Numeric".to_string()),
-                    ("skew_y", "Numeric".to_string()),
-                    ("scale_x", "Size".to_string()),
-                    ("scale_y", "Size".to_string()),
-                    ("rotate", "Rotation".to_string()),
-                ]);
-
-                let pascalized_return_type = if let Some(type_string) = builtin_types.get(&*pair.0)
+                let pascalized_return_type = if let Some(type_string) = BUILTIN_TYPES
+                    .iter()
+                    .find(|type_str| type_str.0 == &*pair.0)
+                    .map(|type_str| type_str.1)
                 {
                     type_string.to_string()
                 } else {
@@ -776,26 +768,23 @@ impl<'a> ExpressionCompilationContext<'a> {
         };
 
         // handle nested symbols like `foo.bar`.
-        match root_symbol_pd {
-            Some(root_symbol_pd) => {
-                let mut ret = vec![root_symbol_pd];
+        root_symbol_pd.map(|root_symbol_pd| {
+            let mut ret = vec![root_symbol_pd];
+            for atomic_symbol in split_symbols {
+                let td = ret.last().unwrap().get_type_definition(self.type_table);
                 //return terminal nested symbol's PropertyDefinition, or root's if there are no nested symbols
-                while let Some(atomic_symbol) = split_symbols.next() {
-                    let td = ret.last().unwrap().get_type_definition(self.type_table);
-                    ret.push(
-                        td.property_definitions
-                            .iter()
-                            .find(|pd| pd.name == *atomic_symbol)
-                            .expect(&format!(
-                                "Unable to resolve nested symbol `{}` while evaluating `{}`.",
-                                atomic_symbol, symbol
-                            ))
-                            .clone(),
-                    );
-                }
-                Some(ret)
+                let next_pd = td
+                    .property_definitions
+                    .iter()
+                    .find(|pd| pd.name == *atomic_symbol)
+                    .expect(&format!(
+                        "Unable to resolve nested symbol `{}` while evaluating `{}`.",
+                        atomic_symbol, symbol
+                    ))
+                    .clone();
+                ret.push(next_pd);
             }
-            None => None,
-        }
+            ret
+        })
     }
 }
