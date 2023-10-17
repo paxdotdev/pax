@@ -127,16 +127,16 @@ Read more in [The Pax Docs](https://docs.pax.dev/)
 
 |                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              | Native Linux |
 |-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|--------------|
-| Development harness & chassis           | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| 2D rendering and UIs                    | ✅ <br/>Canvas | ⏲ <br/>CoreGraphics | ⏲ <br/>Cairo      | ✅ <br/>CoreGraphics | ⏲ <br/>Direct2D             | ⏲ <br/>Cairo |
+| Development harness & chassis           | ✅             | ✅                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| 2D rendering and UIs                    | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ⏲ <br/>Cairo      | ✅ <br/>CoreGraphics | ⏲ <br/>Direct2D             | ⏲ <br/>Cairo |
 | 3D rendering and UIs                    | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
-| Vector graphics APIs                    | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| 2D layouts                              | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| Animation APIs                          | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| Native text rendering                   | ✅ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ✅ <br/>SwiftUI      | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
-| Native form elements                    | ⏲ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>SwiftUI      | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
-| Native event handling (e.g. Click, Tap) | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| Rust host language                      | ✅ <br/>WASM   | ⏲ <br/>LLVM         | ⏲ <br/>LLVM       | ✅ <br/>LLVM         | ⏲ <br/>LLVM                 | ⏲ <br/>LLVM  |
+| Vector graphics APIs                    | ✅             | ✅                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| 2D layouts                              | ✅             | ✅                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| Animation APIs                          | ✅             | ✅                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| Native text rendering                   | ✅ <br/>DOM    | ✅ <br/>SwiftUI      | ⏲ <br/>android:\* | ✅ <br/>SwiftUI      | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
+| Native form elements                    | ⏲ <br/>DOM    | ⏲ <br/>SwiftUI      | ⏲ <br/>android:\* | ⏲ <br/>SwiftUI      | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
+| Native event handling (e.g. Click, Tap) | ✅             | ✅                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| Rust host language                      | ✅ <br/>WASM   | ✅ <br/>LLVM         | ⏲ <br/>LLVM       | ✅ <br/>LLVM         | ⏲ <br/>LLVM                 | ⏲ <br/>LLVM  |
 | JS/TypeScript host language             | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
 
 | Legend:             |
