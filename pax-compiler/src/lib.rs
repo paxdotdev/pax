@@ -1537,14 +1537,28 @@ pub fn build_chassis_with_cartridge(
                 executable_output_dir_path.join(&format!("{}.app", &scheme));
             let _ = fs::create_dir_all(&executable_output_dir_path);
 
+
+            let sdk = if let RunTarget::iOS = target {
+                if IS_RELEASE {
+                    "iphoneos"
+                } else {
+                    "iphonesimulator"
+                }
+            } else {
+                "macosx"
+            };
+
             println!("{} 💻 Building xcodeproject...", *PAX_BADGE);
             let mut cmd = Command::new("xcodebuild");
-            cmd.arg("-project")
-                .arg(xcodeproj_path)
+            cmd
                 .arg("-configuration")
                 .arg(configuration)
+                .arg("-project")
+                .arg(&xcodeproj_path)
                 .arg("-scheme")
                 .arg(scheme)
+                .arg("-sdk")
+                .arg(sdk)
                 .arg(&format!(
                     "CONFIGURATION_BUILD_DIR={}",
                     executable_output_dir_path.to_str().unwrap()
