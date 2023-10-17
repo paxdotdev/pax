@@ -7,6 +7,7 @@ use completion::{
 };
 use completion::{get_event_completions, get_struct_completion};
 use core::panic;
+use dashmap::mapref::one::Ref;
 use dashmap::DashMap;
 use lsp_types::request::Request;
 use pax_compiler::parsing::{self, PaxParser, Rule};
@@ -23,12 +24,10 @@ use regex::Regex;
 use serde::*;
 use std::collections::HashSet;
 use std::path::PathBuf;
-
 use tower_lsp::jsonrpc::Error;
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
 use tower_lsp::{Client, LanguageServer, LspService, Server};
-
 mod index;
 use index::{
     extract_import_positions, find_rust_file_with_macro, index_rust_file, IdentifierInfo,
@@ -157,7 +156,7 @@ impl Backend {
     }
 
     pub async fn handle_info_request(&self, pax_file: String, info_request: InfoRequest) {
-        if let Some(component) = self.pax_map.get(&pax_file) {
+        if let Some(component) = self.pax_map.get_mut(&pax_file) {
             let symbol_data = SymbolData {
                 uri: info_request.info.path.clone(),
                 position: info_request.info.position,
@@ -165,7 +164,7 @@ impl Backend {
 
             let params = EnrichParams {
                 symbol: symbol_data,
-                originatingPaxFile: pax_file.clone(),
+                originatingPaxFile: pax_file,
             };
 
             let mut new_info = info_request.info.clone();
@@ -188,64 +187,50 @@ impl Backend {
                         identifier_info.1.info = new_info;
                         component
                             .identifier_map
-                            .insert((&info_request).identifier.clone(), identifier_info.1);
+                            .insert(info_request.identifier, identifier_info.1);
                     }
                 }
-                IdentifierType::Property => {
+                IdentifierType::Property | IdentifierType::Method | IdentifierType::EnumVariant => {
                     if let Some(owner_identifier) = &info_request.owner_identifier {
-                        if let Some(mut struct_info) =
+                        if let Some(mut identifier_info) =
                             component.identifier_map.remove(owner_identifier)
                         {
-                            if let Some(property) = struct_info
-                                .1
-                                .properties
-                                .iter_mut()
-                                .find(|prop| prop.identifier == info_request.identifier)
-                            {
-                                property.info = new_info;
+                            match &info_request.identifier_type {
+                                IdentifierType::Property => {
+                                    if let Some(property) = identifier_info
+                                        .1
+                                        .properties
+                                        .iter_mut()
+                                        .find(|prop| prop.identifier == info_request.identifier)
+                                    {
+                                        property.info = new_info;
+                                    }
+                                }
+                                IdentifierType::Method => {
+                                    if let Some(method) = identifier_info
+                                        .1
+                                        .methods
+                                        .iter_mut()
+                                        .find(|m| m.identifier == info_request.identifier)
+                                    {
+                                        method.info = new_info;
+                                    }
+                                }
+                                IdentifierType::EnumVariant => {
+                                    if let Some(variant) = identifier_info
+                                        .1
+                                        .variants
+                                        .iter_mut()
+                                        .find(|prop| prop.identifier == info_request.identifier)
+                                    {
+                                        variant.info = new_info;
+                                    }
+                                }
+                                _ => {}
                             }
                             component
                                 .identifier_map
-                                .insert(owner_identifier.clone(), struct_info.1);
-                        }
-                    }
-                }
-                IdentifierType::Method => {
-                    if let Some(owner_identifier) = &info_request.owner_identifier {
-                        if let Some(mut struct_info) =
-                            component.identifier_map.remove(owner_identifier)
-                        {
-                            if let Some(method) = struct_info
-                                .1
-                                .methods
-                                .iter_mut()
-                                .find(|m| m.identifier == info_request.identifier)
-                            {
-                                method.info = new_info;
-                            }
-                            component
-                                .identifier_map
-                                .insert(owner_identifier.clone(), struct_info.1);
-                        }
-                    }
-                }
-
-                IdentifierType::EnumVariant => {
-                    if let Some(owner_identifier) = &info_request.owner_identifier {
-                        if let Some(mut enum_info) =
-                            component.identifier_map.remove(owner_identifier)
-                        {
-                            if let Some(variant) = enum_info
-                                .1
-                                .variants
-                                .iter_mut()
-                                .find(|prop| prop.identifier == info_request.identifier)
-                            {
-                                variant.info = new_info;
-                            }
-                            component
-                                .identifier_map
-                                .insert(owner_identifier.clone(), enum_info.1);
+                                .insert(owner_identifier.clone(), identifier_info.1);
                         }
                     }
                 }
@@ -353,10 +338,10 @@ impl Backend {
                 );
 
                 self.pax_ast_cache
-                    .insert(path_str.clone().to_string(), nodes.clone());
+                    .insert(path_str.to_string(), nodes.clone());
 
                 self.pax_selector_map
-                    .insert(path_str.clone().to_string(), SelectorData { ids, classes });
+                    .insert(path_str.to_string(), SelectorData { ids, classes });
 
                 let errors = parsing::extract_errors(
                     pax_component_definition
@@ -430,37 +415,51 @@ impl Backend {
     }
 
     fn get_info(&self, uri: &str, pos: &Position) -> Option<Info> {
-        if let Some(component) = self.pax_map.get(uri) {
-            if let Some(cached_nodes) = self.pax_ast_cache.get(uri) {
-                let relevant_nodes = find_nodes_at_position(pos.clone(), &cached_nodes);
-                let priority_node = find_priority_node(&relevant_nodes);
-                let tag_node = find_relevant_tag(&relevant_nodes);
-                let relevant_ident = find_relevant_ident(&relevant_nodes);
-                if let Some(node) = priority_node {
-                    let struct_name = if let Some(tag) = tag_node {
-                        if let NodeType::Tag(tag_data) = &tag.node_type {
-                            Some(tag_data.pascal_identifier.clone())
-                        } else {
-                            panic!("Expected NodeType::Tag, found {:?}", tag.node_type);
+        let component = self.pax_map.get(uri)?;
+        let cached_nodes = self.pax_ast_cache.get(uri)?;
+        let relevant_nodes = find_nodes_at_position(*pos, &cached_nodes);
+        let priority_node = find_priority_node(&relevant_nodes);
+        let tag_node = find_relevant_tag(&relevant_nodes);
+        let relevant_ident = find_relevant_ident(&relevant_nodes);
+        if let Some(node) = priority_node {
+            let struct_name = if let Some(tag) = tag_node {
+                if let NodeType::Tag(tag_data) = &tag.node_type {
+                    Some(tag_data.pascal_identifier.clone())
+                } else {
+                    panic!("Expected NodeType::Tag, found {:?}", tag.node_type);
+                }
+            } else {
+                None
+            };
+
+            if let Some(ident) = relevant_ident {
+                if let NodeType::Identifier(ident_data) = &ident.node_type {
+                    let ident_name = &ident_data.identifier;
+                    match &node.node_type {
+                        NodeType::Identifier(data) => {
+                            let ident = &data.identifier;
+                            if let Some(ident_info) = component.identifier_map.get(ident.as_str()) {
+                                return Some(ident_info.info.clone());
+                            }
                         }
                         NodeType::LiteralFunction(data) => {
                             if let Some(ident_info) = component
                                 .identifier_map
-                                .get(component.component_name.clone().as_str())
+                                .get(component.component_name.as_str())
                             {
-                                return ident_info.methods.iter().find_map(|m| {
-                                    if m.identifier == data.function_name {
-                                        Some(m.info.clone())
-                                    } else {
-                                        None
-                                    }
-                                });
+                                if let Some(method) = ident_info
+                                    .methods
+                                    .iter()
+                                    .find(|m| m.identifier == data.function_name)
+                                {
+                                    return Some(method.info.clone());
+                                }
                             }
                         }
                         NodeType::LiteralEnumValue(data) => {
-                            let mut struct_id = data.enum_name.clone();
-                            if &struct_id == "Self" {
-                                struct_id = component.component_name.clone();
+                            let mut struct_id = &data.enum_name;
+                            if struct_id == "Self" {
+                                struct_id = &component.component_name;
                             }
                             if let Some(ident_info) =
                                 component.identifier_map.get(struct_id.as_str())
@@ -468,29 +467,33 @@ impl Backend {
                                 if ident_name == &data.enum_name {
                                     return Some(ident_info.info.clone());
                                 }
-                                return ident_info.variants.iter().find_map(|p| {
-                                    if p.identifier == data.property_name {
-                                        Some(p.info.clone())
-                                    } else {
-                                        None
-                                    }
-                                });
+                                if let Some(variant) = ident_info
+                                    .variants
+                                    .iter()
+                                    .find(|p| p.identifier == data.property_name)
+                                {
+                                    return Some(variant.info.clone());
+                                }
                             }
                         }
                         NodeType::XoFunctionCall(data) => {
+                            let mut struct_id = &data.struct_name;
+                            if struct_id == "Self" {
+                                struct_id = &component.component_name;
+                            }
                             if let Some(ident_info) =
-                                component.identifier_map.get(data.struct_name.as_str())
+                                component.identifier_map.get(struct_id.as_str())
                             {
                                 if ident_name == &data.struct_name {
                                     return Some(ident_info.info.clone());
                                 }
-                                return ident_info.methods.iter().find_map(|m| {
-                                    if m.identifier == data.function_name {
-                                        Some(m.info.clone())
-                                    } else {
-                                        None
-                                    }
-                                });
+                                if let Some(method) = ident_info
+                                    .methods
+                                    .iter()
+                                    .find(|m| m.identifier == data.function_name)
+                                {
+                                    return Some(method.info.clone());
+                                }
                             }
                         }
                         NodeType::AttributeKeyValuePair(data) => {
@@ -510,12 +513,10 @@ impl Backend {
                             ];
 
                             if let Some(struct_ident) = struct_name {
-                                let struct_id =
-                                    if PROPERTY_NAMES.contains(&&data.identifier.as_str()) {
-                                        "CommonProperties".to_string()
-                                    } else {
-                                        struct_ident
-                                    };
+                                let mut struct_id = struct_ident;
+                                if PROPERTY_NAMES.contains(&data.identifier.as_str()) {
+                                    struct_id = "CommonProperties".to_string();
+                                }
                                 if let Some(ident_info) =
                                     component.identifier_map.get(struct_id.as_str())
                                 {
@@ -531,115 +532,9 @@ impl Backend {
                         }
                         _ => {}
                     };
-
-                    if let Some(ident) = relevant_ident {
-                        if let NodeType::Identifier(ident_data) = &ident.node_type {
-                            let ident_name = ident_data.identifier.clone();
-                            match &node.node_type {
-                                NodeType::Identifier(data) => {
-                                    let ident = data.identifier.clone();
-                                    if let Some(ident_info) =
-                                        component.identifier_map.get(ident.as_str())
-                                    {
-                                        return Some(ident_info.info.clone());
-                                    }
-                                }
-                                NodeType::LiteralFunction(data) => {
-                                    if let Some(ident_info) = component
-                                        .identifier_map
-                                        .get(component.component_name.clone().as_str())
-                                    {
-                                        if let Some(method) = ident_info
-                                            .methods
-                                            .iter()
-                                            .find(|m| m.identifier == data.function_name)
-                                        {
-                                            return Some(method.info.clone());
-                                        }
-                                    }
-                                }
-                                NodeType::LiteralEnumValue(data) => {
-                                    let mut struct_id = data.enum_name.clone();
-                                    if &struct_id == "Self" {
-                                        struct_id = component.component_name.clone();
-                                    }
-                                    if let Some(ident_info) =
-                                        component.identifier_map.get(struct_id.as_str())
-                                    {
-                                        if ident_name == data.enum_name {
-                                            return Some(ident_info.info.clone());
-                                        }
-                                        if let Some(variant) = ident_info
-                                            .variants
-                                            .iter()
-                                            .find(|p| p.identifier == data.property_name)
-                                        {
-                                            return Some(variant.info.clone());
-                                        }
-                                    }
-                                }
-                                NodeType::XoFunctionCall(data) => {
-                                    let mut struct_id = data.struct_name.clone();
-                                    if struct_id == "Self" {
-                                        struct_id = component.component_name.clone();
-                                    }
-                                    if let Some(ident_info) =
-                                        component.identifier_map.get(struct_id.as_str())
-                                    {
-                                        if ident_name == data.struct_name {
-                                            return Some(ident_info.info.clone());
-                                        }
-                                        if let Some(method) = ident_info
-                                            .methods
-                                            .iter()
-                                            .find(|m| m.identifier == data.function_name)
-                                        {
-                                            return Some(method.info.clone());
-                                        }
-                                    }
-                                }
-                                NodeType::AttributeKeyValuePair(data) => {
-                                    let property_names = vec![
-                                        "x",
-                                        "y",
-                                        "scale_x",
-                                        "scale_y",
-                                        "skew_x",
-                                        "skew_y",
-                                        "rotate",
-                                        "anchor_x",
-                                        "anchor_y",
-                                        "transform",
-                                        "width",
-                                        "height",
-                                    ];
-
-                                    if let Some(struct_ident) = struct_name {
-                                        let mut struct_id = struct_ident.clone();
-                                        if property_names.contains(&data.identifier.as_str()) {
-                                            struct_id = "CommonProperties".to_string();
-                                        }
-                                        if let Some(ident_info) =
-                                            component.identifier_map.get(struct_id.as_str())
-                                        {
-                                            if let Some(property) = ident_info
-                                                .properties
-                                                .iter()
-                                                .find(|p| p.identifier == data.identifier)
-                                            {
-                                                return Some(property.info.clone());
-                                            }
-                                        }
-                                    }
-                                }
-                                _ => {}
-                            };
-                        }
-                    }
                 }
             }
         }
-
         return None;
     }
 
@@ -743,7 +638,7 @@ impl LanguageServer for Backend {
 
                 for entry in pending_changes_clone.iter() {
                     let uri_path = entry.key().clone();
-                    let change_params = entry.value().clone();
+                    let change_params = entry.value();
 
                     let uri = change_params.text_document.uri.clone();
 
@@ -786,7 +681,7 @@ impl LanguageServer for Backend {
     }
 
     async fn did_open(&self, did_open_params: DidOpenTextDocumentParams) {
-        let uri = did_open_params.text_document.uri.clone();
+        let uri = did_open_params.text_document.uri;
         let language_id = &did_open_params.text_document.language_id;
         if language_id == "pax" {
             self.process_pax_file(&uri).await;
@@ -801,7 +696,7 @@ impl LanguageServer for Backend {
     async fn did_change(&self, did_change_params: DidChangeTextDocumentParams) {
         let uri = did_change_params.text_document.uri.clone();
         let uri_path = uri.path().to_string();
-        let new_content = did_change_params.content_changes[0].text.clone();
+        let new_content = &did_change_params.content_changes[0].text;
         if uri_path.ends_with(".pax") {
             self.process_pax_file(&uri).await;
             self.document_content
@@ -854,122 +749,35 @@ impl LanguageServer for Backend {
                     .context
                     .and_then(|ctx| ctx.trigger_character)
                 {
-                    if trigger_char == "<" {
-                        for entry in component.identifier_map.iter() {
-                            if entry.ty == IdentifierType::Component
-                                && entry.identifier != component.component_name
-                            {
-                                let mut completion = CompletionItem::new_simple(
-                                    entry.identifier.clone(),
-                                    String::from(""),
-                                );
-                                completion.kind = Some(CompletionItemKind::CLASS);
-                                completion.insert_text =
-                                    Some(format!("{} $0 />", entry.identifier.clone()));
-                                completion.insert_text_format =
-                                    Some(lsp_types::InsertTextFormat::SNIPPET);
-                                if let Some(prepared_completion) =
-                                    get_struct_completion(&entry.identifier)
-                                {
-                                    completion = prepared_completion;
-                                }
-                                completions.push(completion);
-                            }
-                        }
-                        return Ok(Some(CompletionResponse::Array(completions)));
-                    } else if trigger_char == "@" {
-                        if let Some(_tag) = tag_node {
-                            completions.extend(get_event_completions("="));
-                            return Ok(Some(CompletionResponse::Array(completions)));
-                        } else if !is_inside_settings_block && !is_inside_handlers_block {
-                            completions.extend(get_block_declaration_completions());
-                            return Ok(Some(CompletionResponse::Array(completions)));
-                        }
-                    } else if trigger_char == "=" {
-                        if let Some(setter) = prior_identifier {
-                            if setter.contains("@") {
-                                completions.extend(get_root_component_methods(&component));
-                                return Ok(Some(CompletionResponse::Array(completions)));
-                            } else {
-                                let requested_property = setter.clone().replace("=", "");
-                                if let Some(tag) = tag_node {
-                                    if let NodeType::Tag(tag_data) = &tag.node_type {
-                                        if requested_property == "class" {
-                                            completions.extend(get_class_completions(
-                                                &selector_info,
-                                                false,
-                                                false,
-                                            ));
-                                            return Ok(Some(CompletionResponse::Array(
-                                                completions,
-                                            )));
-                                        } else if requested_property == "id" {
-                                            completions.extend(get_id_completions(
-                                                &selector_info,
-                                                false,
-                                                false,
-                                            ));
-                                            return Ok(Some(CompletionResponse::Array(
-                                                completions,
-                                            )));
-                                        } else {
-                                            completions.extend(
-                                                get_struct_property_type_completion(
-                                                    &component,
-                                                    tag_data.pascal_identifier.clone(),
-                                                    requested_property.clone(),
-                                                ),
-                                            );
-                                        }
-                                    }
-                                }
-                                completions.extend(get_common_property_type_completion(
-                                    &component,
-                                    requested_property.clone(),
-                                ));
-                                return Ok(Some(CompletionResponse::Array(completions)));
-                            }
-                        }
-                    } else if trigger_char == ":" {
-                        if let Some(word) = prior_identifier {
-                            if word.contains("::") {
-                                let requested_struct = word.clone().replace("::", "");
-                                completions.extend(get_struct_static_member_completions(
-                                    &component,
-                                    requested_struct,
-                                ));
-                                return Ok(Some(CompletionResponse::Array(completions)));
-                            } else {
-                                if is_inside_handlers_block {
-                                    completions.extend(get_root_component_methods(&component));
-                                    return Ok(Some(CompletionResponse::Array(completions)));
-                                } else {
-                                    let requested_property = word.clone().replace(":", "");
-                                    completions.extend(get_common_property_type_completion(
-                                        &component,
-                                        requested_property.clone(),
-                                    ));
-                                    return Ok(Some(CompletionResponse::Array(completions)));
-                                }
-                            }
-                        }
-                    } else if trigger_char == "." {
-                        if let Some(word) = prior_identifier {
-                            if word.contains("self") {
-                                completions
-                                    .extend(get_all_root_component_member_completions(&component));
-                                return Ok(Some(CompletionResponse::Array(completions)));
-                            }
-                        }
-                        if is_inside_settings_block {
-                            completions.extend(get_class_completions(&selector_info, true, false));
-                            return Ok(Some(CompletionResponse::Array(completions)));
-                        }
-                    } else if trigger_char == "#" {
-                        if is_inside_settings_block {
-                            completions.extend(get_id_completions(&selector_info, true, false));
-                            return Ok(Some(CompletionResponse::Array(completions)));
-                        }
+                    let responses = match trigger_char.as_str() {
+                        "<" => get_component_completions(&component),
+                        "@" => get_at_copletions(
+                            tag_node,
+                            is_inside_settings_block,
+                            is_inside_handlers_block,
+                        ),
+                        "=" => get_equal_completions(
+                            tag_node,
+                            prior_identifier.as_ref(),
+                            &component,
+                            &selector_info,
+                        ),
+                        ":" => get_colon_completions(
+                            prior_identifier.as_ref(),
+                            is_inside_handlers_block,
+                            &component,
+                        ),
+                        "." => get_dot_completions(
+                            prior_identifier.as_ref(),
+                            is_inside_settings_block,
+                            &component,
+                            &selector_info,
+                        ),
+                        "#" => get_hash_completions(is_inside_settings_block, &selector_info),
+                        _ => Ok(None),
+                    };
+                    if responses.as_ref().is_ok_and(|responses| responses.is_some()) {
+                        return responses;
                     }
                 } else {
                     if let Some(tag) = tag_node {
@@ -1059,4 +867,143 @@ pub async fn start_server() {
     .finish();
 
     Server::new(stdin, stdout, socket).serve(service).await;
+}
+
+fn get_component_completions(
+    component: &Ref<'_, String, PaxComponent>,
+) -> Result<Option<CompletionResponse>> {
+    let mut completions = Vec::new();
+    for entry in component.identifier_map.iter() {
+        if entry.ty == IdentifierType::Component && entry.identifier != component.component_name {
+            let mut completion =
+                CompletionItem::new_simple(entry.identifier.clone(), String::from(""));
+            completion.kind = Some(CompletionItemKind::CLASS);
+            completion.insert_text = Some(format!("{} $0 />", &entry.identifier));
+            completion.insert_text_format = Some(lsp_types::InsertTextFormat::SNIPPET);
+            if let Some(prepared_completion) = get_struct_completion(&entry.identifier) {
+                completion = prepared_completion;
+            }
+            completions.push(completion);
+        }
+    }
+    Ok(Some(CompletionResponse::Array(completions)))
+}
+
+fn get_at_copletions(
+    tag_node: Option<&PositionalNode>,
+    is_inside_settings_block: bool,
+    is_inside_handlers_block: bool,
+) -> Result<Option<CompletionResponse>> {
+    let mut completions = Vec::new();
+    if let Some(_tag) = tag_node {
+        completions.extend(get_event_completions("="));
+        return Ok(Some(CompletionResponse::Array(completions)));
+    } else if !is_inside_settings_block && !is_inside_handlers_block {
+        completions.extend(get_block_declaration_completions());
+        return Ok(Some(CompletionResponse::Array(completions)));
+    }
+    Ok(Some(CompletionResponse::Array(completions)))
+}
+
+fn get_equal_completions(
+    tag_node: Option<&PositionalNode>,
+    prior_identifier: Option<&String>,
+    component: &Ref<'_, String, PaxComponent>,
+    selector_info: &Option<Ref<'_, String, SelectorData>>,
+) -> Result<Option<CompletionResponse>> {
+    let mut completions = Vec::new();
+    if let Some(setter) = prior_identifier {
+        if setter.contains("@") {
+            completions.extend(get_root_component_methods(&component));
+            return Ok(Some(CompletionResponse::Array(completions)));
+        } else {
+            let requested_property = setter.clone().replace("=", "");
+            if let Some(tag) = tag_node {
+                if let NodeType::Tag(tag_data) = &tag.node_type {
+                    if requested_property == "class" {
+                        completions.extend(get_class_completions(&selector_info, false, false));
+                        return Ok(Some(CompletionResponse::Array(completions)));
+                    } else if requested_property == "id" {
+                        completions.extend(get_id_completions(&selector_info, false, false));
+                        return Ok(Some(CompletionResponse::Array(completions)));
+                    } else {
+                        completions.extend(get_struct_property_type_completion(
+                            &component,
+                            tag_data.pascal_identifier.clone(),
+                            requested_property.clone(),
+                        ));
+                    }
+                }
+            }
+            completions.extend(get_common_property_type_completion(
+                &component,
+                requested_property.clone(),
+            ));
+            return Ok(Some(CompletionResponse::Array(completions)));
+        }
+    }
+    Ok(Some(CompletionResponse::Array(completions)))
+}
+
+fn get_colon_completions(
+    prior_identifier: Option<&String>,
+    is_inside_handlers_block: bool,
+    component: &Ref<'_, String, PaxComponent>,
+) -> Result<Option<CompletionResponse>> {
+    let mut completions = Vec::new();
+    if let Some(word) = prior_identifier {
+        if word.contains("::") {
+            let requested_struct = word.clone().replace("::", "");
+            completions.extend(get_struct_static_member_completions(
+                &component,
+                requested_struct,
+            ));
+            return Ok(Some(CompletionResponse::Array(completions)));
+        } else {
+            if is_inside_handlers_block {
+                completions.extend(get_root_component_methods(&component));
+                return Ok(Some(CompletionResponse::Array(completions)));
+            } else {
+                let requested_property = word.clone().replace(":", "");
+                completions.extend(get_common_property_type_completion(
+                    &component,
+                    requested_property.clone(),
+                ));
+                return Ok(Some(CompletionResponse::Array(completions)));
+            }
+        }
+    }
+    Ok(Some(CompletionResponse::Array(completions)))
+}
+
+fn get_dot_completions(
+    prior_identifier: Option<&String>,
+    is_inside_settings_block: bool,
+    component: &Ref<'_, String, PaxComponent>,
+    selector_info: &Option<Ref<'_, String, SelectorData>>,
+) -> Result<Option<CompletionResponse>> {
+    let mut completions = Vec::new();
+    if let Some(word) = prior_identifier {
+        if word.contains("self") {
+            completions.extend(get_all_root_component_member_completions(&component));
+            return Ok(Some(CompletionResponse::Array(completions)));
+        }
+    }
+    if is_inside_settings_block {
+        completions.extend(get_class_completions(&selector_info, true, false));
+        return Ok(Some(CompletionResponse::Array(completions)));
+    }
+    Ok(Some(CompletionResponse::Array(completions)))
+}
+
+fn get_hash_completions(
+    is_inside_settings_block: bool,
+    selector_info: &Option<Ref<'_, String, SelectorData>>,
+) -> Result<Option<CompletionResponse>> {
+    let mut completions = Vec::new();
+    if is_inside_settings_block {
+        completions.extend(get_id_completions(&selector_info, true, false));
+        return Ok(Some(CompletionResponse::Array(completions)));
+    }
+    Ok(Some(CompletionResponse::Array(completions)))
 }
