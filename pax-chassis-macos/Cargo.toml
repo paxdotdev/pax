@@ -15,6 +15,7 @@ crate-type = ["cdylib"]
 [dependencies]
 piet = "0.6.0"
 piet-coregraphics = "0.6.0"
+pax-chassis-common = { path = "../pax-chassis-common", version="0.9.9" }
 pax-core = { path = "../pax-core", version="0.9.9" }
 pax-cartridge = {path="../pax-cartridge", version="0.9.9"}
 pax-message = {path = "../pax-message", version="0.9.9"}
