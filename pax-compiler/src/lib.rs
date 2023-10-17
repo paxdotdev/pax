@@ -717,22 +717,18 @@ fn recurse_generate_render_nodes_literal(
                                     Some(format!("PropertyLiteral::new({})", lv))
                                 }
                                 ValueDefinition::Expression(_, id)
-                                | ValueDefinition::Identifier(_, id) => {
-                                    Some(format!(
-                                        "PropertyExpression::new({})",
-                                        id.expect("Tried to use expression but it wasn't compiled")
-                                    ))
-                                }
-                                ValueDefinition::Block(block) => {
-                                    Some(format!(
-                                        "PropertyLiteral::new({})",
-                                        recurse_literal_block(
-                                            block.clone(),
-                                            pd.get_type_definition(&rngc.type_table),
-                                            host_crate_info
-                                        )
-                                    ))
-                                }
+                                | ValueDefinition::Identifier(_, id) => Some(format!(
+                                    "PropertyExpression::new({})",
+                                    id.expect("Tried to use expression but it wasn't compiled")
+                                )),
+                                ValueDefinition::Block(block) => Some(format!(
+                                    "PropertyLiteral::new({})",
+                                    recurse_literal_block(
+                                        block.clone(),
+                                        pd.get_type_definition(&rngc.type_table),
+                                        host_crate_info
+                                    )
+                                )),
                                 _ => {
                                     panic!("Incorrect value bound to inline setting")
                                 }
@@ -745,7 +741,6 @@ fn recurse_generate_render_nodes_literal(
                         None
                     }
                 };
-
 
                 if let Some(ril_literal_string) = ril_literal_string {
                     Some((pd.name.clone(), ril_literal_string))
@@ -1186,7 +1181,11 @@ pub fn build_chassis_with_cartridge(
         .join(format!("pax-chassis-{}", target_str_lower));
 
     let is_release: bool = ctx.is_release;
-    let is_ios = if let RunTarget::iOS = target {true} else {false};
+    let is_ios = if let RunTarget::iOS = target {
+        true
+    } else {
+        false
+    };
 
     let build_mode_name: &str = if is_release { "release" } else { "debug" };
 
@@ -1226,7 +1225,6 @@ pub fn build_chassis_with_cartridge(
             //0: Rust arch string, for passing to cargo
             //1: Apple arch string, for addressing xcframework
             let target_mappings: &[(&str, &str)] = if let RunTarget::macOS = target {
-
                 if is_release {
                     &[
                         ("aarch64-apple-darwin", "macos-arm64"),
@@ -1401,9 +1399,6 @@ pub fn build_chassis_with_cartridge(
                 _ => {}
             };
 
-
-
-
             let macos_dylib_dest = pax_dir
                 .join(PKG_DIR_NAME)
                 .join("pax-chassis-common")
@@ -1445,10 +1440,9 @@ pub fn build_chassis_with_cartridge(
                     // For macOS, we want to lipo both our arm64 and x86_64 dylibs into a single binary,
                     // then bundle that single binary into a single framework within the xcframework.
 
-
                     let lipo_input_paths = results
                         .iter()
-                        .map(|res| res.1.1.clone())
+                        .map(|res| res.1 .1.clone())
                         .collect::<Vec<String>>();
 
                     // Construct the lipo command
@@ -1483,18 +1477,16 @@ pub fn build_chassis_with_cartridge(
                     // 2. copy (a) the lipo'd simulator binary, and (b) the vanilla arm64 iOS binary into the framework
                     let simulator_builds = results
                         .iter()
-                        .filter(|res| res.1.0.starts_with("iossimulator-"))
+                        .filter(|res| res.1 .0.starts_with("iossimulator-"))
                         .collect::<Vec<_>>();
                     let device_build = results
                         .iter()
-                        .filter(|res| res.1.0.starts_with("ios-"))
+                        .filter(|res| res.1 .0.starts_with("ios-"))
                         .collect::<Vec<_>>();
-
-
 
                     let lipo_input_paths = simulator_builds
                         .iter()
-                        .map(|res| res.1.1.clone())
+                        .map(|res| res.1 .1.clone())
                         .collect::<Vec<String>>();
 
                     // Construct the lipo command
@@ -1524,7 +1516,7 @@ pub fn build_chassis_with_cartridge(
                     }
 
                     //Copy singular device build (iOS, not simulator)
-                    let device_dylib_src = &device_build[0].1.1;
+                    let device_dylib_src = &device_build[0].1 .1;
 
                     let _ = fs::copy(device_dylib_src, iphone_native_dylib_dest);
                 }
@@ -1534,7 +1526,7 @@ pub fn build_chassis_with_cartridge(
                 // Note that we could do something similar for iOS, but it wasn't immediately in reach at time of authoring (build failed when
                 // providing non-lipo'd binaries in the framework for iOS)
                 let result = results.iter().next().unwrap();
-                let src = &result.1.1;
+                let src = &result.1 .1;
                 let dest = macos_dylib_dest;
                 let _ = fs::copy(src, dest);
             }
@@ -1580,12 +1572,14 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
             let configuration = if is_release { "Release" } else { "Debug" };
 
-            let build_dest_base = pax_dir.join(BUILD_DIR_NAME).join(build_mode_name).join(target_str_lower);
+            let build_dest_base = pax_dir
+                .join(BUILD_DIR_NAME)
+                .join(build_mode_name)
+                .join(target_str_lower);
             let executable_output_dir_path = build_dest_base.join("app");
             let executable_dot_app_path =
                 executable_output_dir_path.join(&format!("{}.app", &scheme));
             let _ = fs::create_dir_all(&executable_output_dir_path);
-
 
             let sdk = if let RunTarget::iOS = target {
                 if is_release {
@@ -1599,8 +1593,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
 
             println!("{} 💻 Building xcodeproject...", *PAX_BADGE);
             let mut cmd = Command::new("xcodebuild");
-            cmd
-                .arg("-configuration")
+            cmd.arg("-configuration")
                 .arg(configuration)
                 .arg("-project")
                 .arg(&xcodeproj_path)
@@ -1899,7 +1892,10 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     }
                     let status = output.status.code().unwrap();
 
-                    println!("{} 🚀 App launched on simulator. Launch command exited with code: {:?}", *PAX_BADGE, status);
+                    println!(
+                        "{} 🚀 App launched on simulator. Launch command exited with code: {:?}",
+                        *PAX_BADGE, status
+                    );
                 }
             } else {
                 let build_path = executable_output_dir_path.to_str().unwrap().bold();
@@ -1973,8 +1969,12 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 .join(target_str_lower);
             let res = copy_dir_recursively(&build_src, &build_dest, &DIR_IGNORE_LIST_WEB);
             if let Err(e) = res {
-                eprintln!("Failed to copy built files from {} to {}.  {:?}", &build_src.to_str().unwrap(), &build_dest.to_str().unwrap(), e);
-
+                eprintln!(
+                    "Failed to copy built files from {} to {}.  {:?}",
+                    &build_src.to_str().unwrap(),
+                    &build_dest.to_str().unwrap(),
+                    e
+                );
             }
 
             // Start local server if this is a `run` rather than a `build`

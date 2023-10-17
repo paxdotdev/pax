@@ -99,6 +99,7 @@ fn main() -> Result<(), ()> {
         )
         .subcommand(
             App::new("create")
+                .about("Creates a new Pax + Rust project at the specified path, including necessary boilerplate and default configuration.")
                 .alias("new")
                 .arg(Arg::with_name("path")
                     .help("File system path where the new project should be created. If not provided with --path, it should directly follow 'create'")
