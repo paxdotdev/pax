@@ -6,7 +6,9 @@ from collections import defaultdict
 
 PACKAGES = [
     "pax-cartridge",
+    "pax-chassis-common",
     "pax-chassis-macos",
+    "pax-chassis-web",
     "pax-cli",
     "pax-compiler",
     "pax-core",

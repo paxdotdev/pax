@@ -402,7 +402,7 @@ fn recurse_compile_expressions<'a>(
                         type_id: "isize".to_string(),
                     };
 
-                    let scope = HashMap::from([
+                    let scope: HashMap<String, PropertyDefinition> = HashMap::from([
                         //`elem` property (by specified name)
                         (elem_id.clone(), property_definition),
                     ]);

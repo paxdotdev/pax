@@ -16,33 +16,70 @@ Writing Pax is intended to feel familiar and the language borrows many ideas fro
 Following is a simple Pax component called `IncrementMe`:
 
 ```rust
-//File: increment-me.rs
-
+//File: lib.rs
 use pax_lang::*;
-use pax_std::{Text};
-use pax_std::forms::{Button, ArgsButtonSubmit};
-use pax_std::layout::{Stacker};
+use pax_lang::api::*;
+use pax_std::primitives::*;
+use pax_std::types::*;
+use pax_std::types::text::*;
+use pax_std::components::Stacker;
 
 /// Defines the Pax component `IncrementMe`, with template & settings specified in `increment-me.pax`.
 #[derive(Pax)]
-#[file("increment-me.pax")] 
+#[main]
+#[file("increment-me.pax")]
 pub struct IncrementMe {
-  pub num_clicks: Property<i64>
+    pub num_clicks: Property<u32>,
+    pub message: Property<String>,
 }
+
 impl IncrementMe {
-  pub async fn increment(&self, args: ArgsButtonSubmit) {
-    let old_num_clicks = self.num_clicks.get();
-    self.num_clicks.set(old_num_clicks + 1);
-  }
-}
+    pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
+        self.num_clicks.set(0);
+        self.message.set("0 clicks".to_string());
+    }
+    pub fn increment(&mut self, ctx: RuntimeContext, args: ArgsClick){
+        let old_num_clicks = self.num_clicks.get();
+        self.num_clicks.set(old_num_clicks + 1);
+        self.message.set(format!("{} clicks", self.num_clicks.get()));
+    }
+
+} 
 ```
 ```rust
-//File: increment-me.pax
+//increment-me.pax
+<Text text={self.message} class=centered id=text class=centered />
+<Rectangle class=centered class=small @click=self.increment
+    fill={Fill::Solid(Color::rgba(0.0,0.0,0.0,1.0))} 
+    corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
+/>
 
-<Stacker cells=2>
-  <Text text={"I have been clicked " + self.num_clicks + " times."}></Text>
-  <Button @submit=self.increment>"Increment me!"</Button>
-</Stacker>
+@handlers{
+     did_mount:handle_did_mount
+}
+
+@settings {
+     .centered {
+        x: 50%
+        y: 50%
+        anchor_x: 50%
+        anchor_y: 50%
+    } 
+    .small {
+        width: 120px
+        height: 120px
+    }
+    #text {
+        style: {
+                font: {Font::system("Times New Roman", FontStyle::Normal, FontWeight::Bold)},
+                font_size: 32px,
+                fill: {Color::rgba(1.0, 1.0, 1.0, 1.0)},
+                align_vertical: TextAlignVertical::Center,
+                align_horizontal: TextAlignHorizontal::Center,
+                align_multiline: TextAlignHorizontal::Center
+        }
+    }
+}
 ```
 
 Any Pax component like the example above may be included inside other Pax components, or may be mounted as the root of a stand-alone app.
@@ -107,24 +144,38 @@ Read more in [The Pax Docs](https://docs.pax.dev/)
 ### To build Pax projects as native macOS apps
 
 - Building macOS apps requires running a Mac with macOS.  This is a constraint enforced technically and legally by Apple.
-- Install xcode `>=14.3` and Xcode command line utils: `xcode-select --install`
-- SDK Version `macosx13.3`, Xcode version `>=14.3`
+- Install xcode `>=15.0` and Xcode command line utils: `xcode-select --install`
+- Make sure to accept Xcode's license agreement (prompted during Xcode startup for the first time)
+- SDK Version `macosx13.3`, Xcode version `>=15.0`
 - Current Minimum Deployment `13.0`
+- Install all necessary build architectures for Rust, so that binaries can be built for both Intel and Apple Silicon macs
+  ```
+  rustup target add aarch64-apple-darwin x86_64-apple-darwin
+  ```
+
+### To build Pax projects as native iOS apps
+
+- Follow instructions for building native macOS apps, above
+- Install all necessary build architectures for Rust, so that binaries can be built for iOS and simulator targets:
+  ```
+  rustup target add aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim
+  ```
+- Install [ios simulator through Xcode](https://developer.apple.com/documentation/safari-developer-tools/adding-additional-simulators)
 
 #### Support matrix:
 
 |                                         | Web browsers  | Native iOS          | Native Android    | Native macOS        | Native Windows              | Native Linux |
 |-----------------------------------------|---------------|---------------------|-------------------|---------------------|-----------------------------|--------------|
-| Development harness & chassis           | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| 2D rendering and UIs                    | ✅ <br/>Canvas | ⏲ <br/>CoreGraphics | ⏲ <br/>Cairo      | ✅ <br/>CoreGraphics | ⏲ <br/>Direct2D             | ⏲ <br/>Cairo |
+| Development harness & chassis           | ✅             | ✅                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| 2D rendering and UIs                    | ✅ <br/>Canvas | ✅ <br/>CoreGraphics | ⏲ <br/>Cairo      | ✅ <br/>CoreGraphics | ⏲ <br/>Direct2D             | ⏲ <br/>Cairo |
 | 3D rendering and UIs                    | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
-| Vector graphics APIs                    | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| 2D layouts                              | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| Animation APIs                          | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| Native text rendering                   | ✅ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ✅ <br/>SwiftUI      | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
-| Native form elements                    | ⏲ <br/>DOM    | ⏲ <br/>UIKit        | ⏲ <br/>android:\* | ⏲ <br/>SwiftUI      | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
-| Native event handling (e.g. Click, Tap) | ✅             | ⏲                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
-| Rust host language                      | ✅ <br/>WASM   | ⏲ <br/>LLVM         | ⏲ <br/>LLVM       | ✅ <br/>LLVM         | ⏲ <br/>LLVM                 | ⏲ <br/>LLVM  |
+| Vector graphics APIs                    | ✅             | ✅                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| 2D layouts                              | ✅             | ✅                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| Animation APIs                          | ✅             | ✅                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| Native text rendering                   | ✅ <br/>DOM    | ✅ <br/>SwiftUI      | ⏲ <br/>android:\* | ✅ <br/>SwiftUI      | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
+| Native form elements                    | ⏲ <br/>DOM    | ⏲ <br/>SwiftUI      | ⏲ <br/>android:\* | ⏲ <br/>SwiftUI      | ⏲ <br/>System.Windows.Forms | ⏲ <br/>GTK   |
+| Native event handling (e.g. Click, Tap) | ✅             | ✅                   | ⏲                 | ✅                   | ⏲                           | ⏲            |
+| Rust host language                      | ✅ <br/>WASM   | ✅ <br/>LLVM         | ⏲ <br/>LLVM       | ✅ <br/>LLVM         | ⏲ <br/>LLVM                 | ⏲ <br/>LLVM  |
 | JS/TypeScript host language             | ⏲             | ⏲                   | ⏲                 | ⏲                   | ⏲                           | ⏲            |
 
 | Legend:             |
