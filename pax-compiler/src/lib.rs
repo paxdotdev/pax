@@ -306,6 +306,7 @@ fn generate_and_overwrite_properties_coproduct(
         ("Rotation", "pax_runtime_api::Rotation"),
         ("SizePixels", "pax_runtime_api::SizePixels"),
         ("Numeric", "pax_runtime_api::Numeric"),
+        ("StringBox", "pax_runtime_api::StringBox"),
     ];
 
     TYPES_COPRODUCT_BUILT_INS.iter().for_each(|builtin| {

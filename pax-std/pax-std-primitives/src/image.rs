@@ -69,7 +69,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
             } else {
                 unreachable!()
             };
-            properties.path.set(new_value);
+            properties.path.set(pax_runtime_api::StringBox { string: new_value });
         }
 
         self.common_properties.compute_properties(rtc);
@@ -97,12 +97,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
         let properties = &mut *self.properties.as_ref().borrow_mut();
         let val = properties.path.get();
         let is_new_value = match &last_patch.path {
-            Some(cached_value) => !val.eq(cached_value),
+            Some(cached_value) => !val.string.eq(cached_value),
             None => true,
         };
         if is_new_value {
-            new_message.path = Some(val.clone());
-            last_patch.path = Some(val.clone());
+            new_message.path = Some(val.string.clone());
+            last_patch.path = Some(val.string.clone());
             has_any_updates = true;
         }
 

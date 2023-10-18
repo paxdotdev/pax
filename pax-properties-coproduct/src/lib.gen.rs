@@ -27,6 +27,7 @@ pub enum TypesCoproduct {
     stdCOCOvecCOCOVecLABRstdCOCOrcCOCORcLABRPropertiesCoproductRABRRABR(Vec<Rc<PropertiesCoproduct>>),
     String(String),
     //generated
+    StringBox(pax_example::pax_reexports::pax_std::types::StringBox),
     Transform2D(pax_example::pax_reexports::Transform2D),
     SizePixels(pax_example::pax_reexports::SizePixels),
     Stroke(pax_example::pax_reexports::pax_std::types::Stroke),
