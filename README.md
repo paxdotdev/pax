@@ -46,9 +46,9 @@ impl IncrementMe {
 
 } 
 ```
-```rust
+```javascript
 //increment-me.pax
-<Text text={self.message} class=centered id=text class=centered />
+<Text text={self.message} class=centered class=centered id=text />
 <Rectangle class=centered class=small @click=self.increment
     fill={Fill::Solid(Color::rgba(0.0,0.0,0.0,1.0))} 
     corner_radii={RectangleCornerRadii::radii(10.0,10.0,10.0,10.0)}
