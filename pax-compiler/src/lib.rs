@@ -978,6 +978,7 @@ use colored::{ColoredString, Colorize};
 use crate::parsing::escape_identifier;
 
 use serde::Deserialize;
+use serde_json::Value;
 
 #[derive(Debug, Deserialize)]
 struct Metadata {
@@ -1748,6 +1749,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     let mut cmd = Command::new("xcrun");
                     cmd.arg("simctl")
                         .arg("list")
+                        .arg("-j")
                         .arg("devices")
                         .arg("available")
                         .stdout(std::process::Stdio::piped());
@@ -1760,27 +1762,43 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     let output = wait_with_output(&process_child_ids, child);
 
                     let output_str = std::str::from_utf8(&output.stdout).map_err(|_| ())?;
-                    let mut devices: Vec<&str> = output_str
-                        .lines()
-                        .filter(|line| line.contains("iPhone"))
-                        .collect();
+                    let parsed: Value = serde_json::from_str(&output_str).map_err(|_| ())?;
 
-                    // Sort to get the newest version
-                    devices.sort_by(|a, b| b.cmp(a));
+                    // Extract devices
+                    let devices = parsed["devices"]
+                        .as_object()
+                        .ok_or_else(|| {
+                            eprintln!("Invalid JSON format for devices.");
+                            ()
+                        })?;
 
-                    // Extract UDID
-                    let device_udid_opt = devices
-                        .get(0)
-                        .and_then(|device| device.split('(').nth(1))
-                        .and_then(|udid_with_paren| udid_with_paren.split(')').next());
+                    let mut max_iphone_number = 0;
+                    let mut desired_udid = None;
 
-                    let device_udid = match device_udid_opt {
-                        Some(udid) => udid.trim(),
-                        None => {
-                            return {
-                                eprintln!("No installed iOS simulators found on this system.  Install at least one iPhone simulator through xcode and try again.");
-                                Err(())
+                    for (_, device_list) in devices {
+                        if let Some(device_array) = device_list.as_array() {
+                            for device in device_array {
+                                if let Some(device_type) = device["deviceTypeIdentifier"].as_str() {
+                                    if device_type.starts_with("com.apple.CoreSimulator.SimDeviceType.iPhone-") {
+                                        if let Some(number) = device_type.split('-').last() {
+                                            if let Ok(number) = number.parse::<i32>() {
+                                                if number > max_iphone_number {
+                                                    max_iphone_number = number;
+                                                    desired_udid = device["udid"].as_str();
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
+                        }
+                    }
+
+                    let device_udid = match desired_udid {
+                        Some(udid) => udid,
+                        None => {
+                            eprintln!("No installed iOS simulators found on this system. Install at least one iPhone simulator through xcode and try again.");
+                            return Err(());
                         }
                     };
 
@@ -1788,9 +1806,6 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     let mut cmd = Command::new("open");
                     cmd.arg("-a")
                         .arg("Simulator")
-                        .arg("--args")
-                        .arg("-CurrentDeviceUDID")
-                        .arg(device_udid)
                         .stdout(std::process::Stdio::piped())
                         .stderr(std::process::Stdio::piped());
 
@@ -1805,14 +1820,11 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                         return Err(());
                     }
 
-                    // Boot the relevant simulator
+                    // Boot current device
                     let mut cmd = Command::new("xcrun");
                     cmd.arg("simctl")
-                        .arg("spawn")
+                        .arg("boot")
                         .arg(device_udid)
-                        .arg("launchctl")
-                        .arg("print")
-                        .arg("system")
                         .stdout(std::process::Stdio::piped())
                         .stderr(std::process::Stdio::piped());
 
@@ -1822,6 +1834,28 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                     }
                     let child = cmd.spawn().expect(ERR_SPAWN);
                     let _output = wait_with_output(&process_child_ids, child);
+
+                    // Boot the relevant simulator
+                    let mut cmd = Command::new("xcrun");
+                    cmd.arg("simctl")
+                        .arg("spawn")
+                        .arg(device_udid)
+                        .arg("launchctl")
+                        .arg("print")
+                        .arg("system")
+                        .stdout(std::process::Stdio::piped())
+                        .stderr(std::process::Stdio::inherit());
+
+                    #[cfg(unix)]
+                    unsafe {
+                        cmd.pre_exec(pre_exec_hook);
+                    }
+                    let child = cmd.spawn().expect(ERR_SPAWN);
+                    let output = wait_with_output(&process_child_ids, child);
+                    if !output.status.success() {
+                        eprintln!("Error spawning iOS simulator. Aborting.");
+                        return Err(());
+                    }
                     // ^ Note that we don't handle errors on this particular command; it will return an error by default
                     // if the simulator isn't running, which isn't an "error" for us.  Instead, defer to the following
                     // polling logic to decide whether the simulator failed to start, which would indeed be an error.
