@@ -1,10 +1,12 @@
 #!/bin/bash
 
-### Helper binary for pax libdev, allowing pax-cli-like ergonomics inside the pax-example directory
+### Helper script for pax libdev, allowing pax-cli-like ergonomics inside the pax-example directory
+###
 ### For example, from @/pax root:
 ### `cd pax-example && ./pax run --target=macos`
 ### `cd pax-example && ./pax parse`
 ### `cd pax-example && ./pax libdev build-chassis`
+
 set -e
 pushd ../pax-cli
 cargo build

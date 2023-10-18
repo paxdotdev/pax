@@ -61,6 +61,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
         Rc::new(RefCell::new(vec![]))
     }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(text) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {

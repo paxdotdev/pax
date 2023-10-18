@@ -4,8 +4,7 @@ use serde_derive::{Deserialize, Serialize};
 #[allow(unused_imports)]
 use serde_json;
 use std::collections::HashMap;
-use tera::{Tera, Context};
-
+use tera::{Context, Tera};
 
 use crate::manifest::{ExpressionSpec, PropertyDefinition};
 
@@ -137,12 +136,12 @@ pub fn press_template_codegen_cartridge_render_node_literal(
         .unwrap();
 
     let mut tera = Tera::default();
-    tera.add_raw_template("cartridge-render-node-literal", template).unwrap();
+    tera.add_raw_template("cartridge-render-node-literal", template)
+        .unwrap();
 
     tera.render(
         "cartridge-render-node-literal",
         &Context::from_serialize(args).unwrap(),
     )
-        .unwrap()
+    .unwrap()
 }
-

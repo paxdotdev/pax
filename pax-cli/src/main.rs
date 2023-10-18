@@ -1,10 +1,9 @@
 use clap::{crate_version, App, AppSettings, Arg, ArgMatches};
 use colored::{ColoredString, Colorize};
 use std::io::Write;
-use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use std::{fs, process, thread};
+use std::{process, thread};
 
 use pax_compiler::{CreateContext, RunContext, RunTarget};
 extern crate pax_language_server;
@@ -14,7 +13,9 @@ mod http;
 use signal_hook::consts::{SIGINT, SIGTERM};
 use signal_hook::iterator::Signals;
 
+/// `pax-cli` entrypoint
 fn main() -> Result<(), ()> {
+
     //Shared state to store child processes keyed by static unique string IDs, for cleanup tracking
     let process_child_ids: Arc<Mutex<Vec<u64>>> = Arc::new(Mutex::new(vec![]));
     // Shared state to store the new version info if available.
@@ -24,20 +25,6 @@ fn main() -> Result<(), ()> {
     let cloned_new_version_info = Arc::clone(&new_version_info);
     thread::spawn(move || {
         http::check_for_update(cloned_new_version_info);
-    });
-
-    // Create a separate thread to handle signals e.g. via CTRL+C
-    let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
-    let cloned_version_info = Arc::clone(&new_version_info);
-    let cloned_process_child_ids = Arc::clone(&process_child_ids);
-    thread::spawn(move || {
-        for _sig in signals.forever() {
-            println!("\nInterrupt received. Cleaning up child processes...");
-            perform_cleanup(
-                Arc::clone(&cloned_version_info),
-                Arc::clone(&cloned_process_child_ids),
-            );
-        }
     });
 
     #[allow(non_snake_case)]
@@ -53,16 +40,20 @@ fn main() -> Result<(), ()> {
         .long("verbose")
         .takes_value(false);
 
+    const DEFAULT_TARGET : &str = "web";
     #[allow(non_snake_case)]
     let ARG_TARGET = Arg::with_name("target")
         .short("t")
         .long("target")
-        //Default to web -- perhaps the ideal would be to discover host
-        //platform and run appropriate native harness.  Web is a suitable,
-        //sane default for now.
-        .default_value("web")
+        .default_value(DEFAULT_TARGET)
         .help("Specify the target platform on which to run.  Will run in platform-specific demo harness.")
         .takes_value(true);
+
+    #[allow(non_snake_case)]
+        let ARG_RELEASE = Arg::with_name("release")
+        .long("release")
+        .takes_value(false)
+        .help("Build in Release mode, with appropriate platform-specific optimizations.");
 
     #[allow(non_snake_case)]
     let ARG_LIBDEV = Arg::with_name("libdev")
@@ -78,7 +69,7 @@ fn main() -> Result<(), ()> {
 
     let matches = App::new("pax")
         .name("pax")
-        .bin_name("pax")
+        .bin_name("pax-cli")
         .about("Pax CLI including compiler and dev tooling")
         .version(crate_version!())
         .setting(AppSettings::SubcommandRequiredElseHelp)
@@ -98,6 +89,7 @@ fn main() -> Result<(), ()> {
                 .arg( ARG_TARGET.clone() )
                 .arg( ARG_VERBOSE.clone() )
                 .arg( ARG_LIBDEV.clone() )
+                .arg( ARG_RELEASE.clone() )
         )
         .subcommand(
             App::new("clean")
@@ -107,6 +99,7 @@ fn main() -> Result<(), ()> {
         )
         .subcommand(
             App::new("create")
+                .about("Creates a new Pax + Rust project at the specified path, including necessary boilerplate and default configuration.")
                 .alias("new")
                 .arg(Arg::with_name("path")
                     .help("File system path where the new project should be created. If not provided with --path, it should directly follow 'create'")
@@ -117,12 +110,6 @@ fn main() -> Result<(), ()> {
         .subcommand(
             App::new("libdev")
                 .subcommand(
-                    App::new("build-chassis")
-                        .arg( ARG_PATH.clone() )
-                        .arg( ARG_TARGET.clone() )
-                        .about("Runs cargo build on the codegenned chassis, within the .pax folder contained within the specified `path`.  Useful for core development, e.g. building compiler features or compiler debugging.  Expected to fail if the whole compiler has not run at least once.")
-                )
-                .subcommand(
                     App::new("parse")
                         .arg( ARG_PATH.clone() )
                         .about("Parses the Pax program at the specified path and prints the manifest object, serialized to string. Also prints error messages if parsing fails.")
@@ -132,10 +119,29 @@ fn main() -> Result<(), ()> {
         .subcommand(ARG_LSP.clone())
         .get_matches();
 
-    let _ = perform_nominal_action(matches, Arc::clone(&process_child_ids));
-    perform_cleanup(new_version_info, process_child_ids);
+    // Clap doesn't easily let us check a "global" arg without performing individual `match`es.
+    // Since we want to know at this top level whether `--libdev` is present, we will parse it manually.
+    let args: Vec<String> = std::env::args().collect();
+    let is_libdev_mode = args.contains(&"--libdev".to_string());
 
-    Ok(())
+    // Create a separate thread to handle signals e.g. via CTRL+C
+    let mut signals = Signals::new(&[SIGINT, SIGTERM]).unwrap();
+    let cloned_version_info = Arc::clone(&new_version_info);
+    let cloned_process_child_ids = Arc::clone(&process_child_ids);
+    thread::spawn(move || {
+        for _sig in signals.forever() {
+            println!("\nInterrupt received. Cleaning up child processes...");
+            perform_cleanup(
+                Arc::clone(&cloned_version_info),
+                Arc::clone(&cloned_process_child_ids),
+                is_libdev_mode,
+            );
+        }
+    });
+
+    let res = perform_nominal_action(matches, Arc::clone(&process_child_ids));
+    perform_cleanup(new_version_info, process_child_ids, is_libdev_mode);
+    res
 }
 
 fn perform_nominal_action(
@@ -156,6 +162,7 @@ fn perform_nominal_action(
                 should_also_run: true,
                 is_libdev_mode,
                 process_child_ids,
+                is_release: false,
             })
         }
         ("build", Some(args)) => {
@@ -163,6 +170,7 @@ fn perform_nominal_action(
             let path = args.value_of("path").unwrap().to_string(); //default value "."
             let verbose = args.is_present("verbose");
             let is_libdev_mode = args.is_present("libdev");
+            let is_release = args.is_present("release");
 
             pax_compiler::perform_build(&RunContext {
                 target: RunTarget::from(target.as_str()),
@@ -171,6 +179,7 @@ fn perform_nominal_action(
                 verbose,
                 is_libdev_mode,
                 process_child_ids,
+                is_release,
             })
         }
         ("clean", Some(args)) => {
@@ -211,38 +220,6 @@ fn perform_nominal_action(
 
                     Ok(())
                 }
-                ("build-chassis", Some(args)) => {
-                    let target = args.value_of("target").unwrap().to_lowercase();
-                    let path = args.value_of("path").unwrap().to_string(); //default value "."
-
-                    let working_path = Path::new(&path).join(".pax");
-                    let pax_dir = fs::canonicalize(working_path).unwrap();
-
-                    let ctx = RunContext {
-                        target: RunTarget::from(target.as_str()),
-                        path,
-                        verbose: true,
-                        should_also_run: false,
-                        is_libdev_mode: true,
-                        process_child_ids: Arc::new(Mutex::new(vec![])),
-                    };
-
-                    let output = pax_compiler::build_chassis_with_cartridge(
-                        &pax_dir,
-                        &ctx,
-                        process_child_ids,
-                    );
-
-                    // Forward both stdout and stderr
-                    std::io::stderr()
-                        .write_all(output.stderr.as_slice())
-                        .unwrap();
-                    std::io::stdout()
-                        .write_all(output.stdout.as_slice())
-                        .unwrap();
-
-                    Ok(())
-                }
                 _ => {
                     unreachable!()
                 }
@@ -259,6 +236,7 @@ fn perform_nominal_action(
 fn perform_cleanup(
     new_version_info: Arc<Mutex<Option<String>>>,
     process_child_ids: Arc<Mutex<Vec<u64>>>,
+    is_libdev_mode: bool,
 ) {
     //1. kill any running child processes
     if let Ok(process_child_ids_lock) = process_child_ids.lock() {
@@ -270,64 +248,66 @@ fn perform_cleanup(
 
     //2. print update message if appropriate
     if let Ok(new_version_lock) = new_version_info.lock() {
-        if let Some(new_version) = new_version_lock.as_ref() {
-            if new_version != "" {
-                //Print our banner if we have a concrete value stored in the new version mutex
-                const TOTAL_LENGTH: usize = 60;
-                let stars_line: ColoredString =
-                    "*".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
-                let empty_line: ColoredString =
-                    " ".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
+        if !is_libdev_mode {
+            if let Some(new_version) = new_version_lock.as_ref() {
+                if new_version != "" {
+                    //Print our banner if we have a concrete value stored in the new version mutex
+                    const TOTAL_LENGTH: usize = 60;
+                    let stars_line: ColoredString =
+                        "*".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
+                    let empty_line: ColoredString =
+                        " ".repeat(TOTAL_LENGTH).bright_white().on_bright_black();
 
-                let new_version_static = "  A new version of the Pax CLI is available: ";
-                let new_version_formatted = format!("{}{}", new_version_static, new_version);
-                let new_version_line: ColoredString =
-                    format!("{: <width$}", new_version_formatted, width = TOTAL_LENGTH)
+                    let new_version_static = "  A new version of the Pax CLI is available: ";
+                    let new_version_formatted = format!("{}{}", new_version_static, new_version);
+                    let new_version_line: ColoredString =
+                        format!("{: <width$}", new_version_formatted, width = TOTAL_LENGTH)
+                            .bright_white()
+                            .on_bright_black()
+                            .bold();
+
+                    let current_version = env!("CARGO_PKG_VERSION");
+                    let current_version_static = "  Currently installed version: ";
+                    let current_version_formatted =
+                        format!("{}{}", current_version_static, current_version);
+                    let current_version_line = format!(
+                        "{: <width$}",
+                        current_version_formatted,
+                        width = TOTAL_LENGTH
+                    )
                         .bright_white()
-                        .on_bright_black()
-                        .bold();
+                        .on_bright_black();
 
-                let current_version = env!("CARGO_PKG_VERSION");
-                let current_version_static = "  Currently installed version: ";
-                let current_version_formatted =
-                    format!("{}{}", current_version_static, current_version);
-                let current_version_line = format!(
-                    "{: <width$}",
-                    current_version_formatted,
-                    width = TOTAL_LENGTH
-                )
-                .bright_white()
-                .on_bright_black();
+                    let update_instructions_static = "To update, run: ";
+                    let lpad = (TOTAL_LENGTH - update_instructions_static.len()) / 2;
+                    let lpad_spaces = " ".repeat(lpad);
+                    let update_formatted = format!("{}{}", lpad_spaces, update_instructions_static);
+                    let update_instructions_line =
+                        format!("{: <width$}", update_formatted, width = TOTAL_LENGTH)
+                            .bright_white()
+                            .on_bright_black()
+                            .bold();
 
-                let update_instructions_static = "To update, run: ";
-                let lpad = (TOTAL_LENGTH - update_instructions_static.len()) / 2;
-                let lpad_spaces = " ".repeat(lpad);
-                let update_formatted = format!("{}{}", lpad_spaces, update_instructions_static);
-                let update_instructions_line =
-                    format!("{: <width$}", update_formatted, width = TOTAL_LENGTH)
-                        .bright_white()
-                        .on_bright_black()
-                        .bold();
+                    let install_command_static = "cargo install --force pax-cli";
+                    let lpad = (TOTAL_LENGTH - install_command_static.len()) / 2;
+                    let lpad_spaces = " ".repeat(lpad);
+                    let update_line_2_formatted = format!("{}{}", lpad_spaces, install_command_static);
+                    let update_line_2 =
+                        format!("{: <width$}", update_line_2_formatted, width = TOTAL_LENGTH)
+                            .bright_black()
+                            .on_bright_white()
+                            .bold();
 
-                let install_command_static = "cargo install --force pax-cli";
-                let lpad = (TOTAL_LENGTH - install_command_static.len()) / 2;
-                let lpad_spaces = " ".repeat(lpad);
-                let update_line_2_formatted = format!("{}{}", lpad_spaces, install_command_static);
-                let update_line_2 =
-                    format!("{: <width$}", update_line_2_formatted, width = TOTAL_LENGTH)
-                        .bright_black()
-                        .on_bright_white()
-                        .bold();
-
-                println!();
-                println!("{}", &stars_line);
-                println!("{}", new_version_line);
-                println!("{}", current_version_line);
-                println!("{}", &empty_line);
-                println!("{}", update_instructions_line);
-                println!("{}", update_line_2);
-                println!("{}", &stars_line);
-                println!();
+                    println!();
+                    println!("{}", &stars_line);
+                    println!("{}", new_version_line);
+                    println!("{}", current_version_line);
+                    println!("{}", &empty_line);
+                    println!("{}", update_instructions_line);
+                    println!("{}", update_line_2);
+                    println!("{}", &stars_line);
+                    println!();
+                }
             }
         }
     }

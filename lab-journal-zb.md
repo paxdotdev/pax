@@ -2780,9 +2780,9 @@ focused on enabling multi-arch builds, partly to chase down the errors coming
 from xcodebuild:
 
 ```
-Ld /Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/InstallationBuildProductsLocation/Applications/Pax\ macOS.app/Contents/MacOS/Pax\ macOS normal (in target 'Pax macOS' from project 'pax-dev-harness-macos')
-    cd /Users/zack/code/pax/pax-example/.pax/chassis/MacOS/pax-dev-harness-macos
-    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -target x86_64-apple-macos12.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk -L/Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/EagerLinkingTBDs -L/Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/BuildProductsPath/Debug -L/Users/zack/code/pax/pax-example/.pax/chassis/MacOS/pax-dev-harness-macos/../target/debug -F/Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/EagerLinkingTBDs -F/Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/BuildProductsPath/Debug -filelist /Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/pax-dev-harness-macos.build/Debug/Pax\ macOS.build/Objects-normal/x86_64/Pax\ macOS.LinkFileList -Xlinker -rpath -Xlinker @executable_path/../Frameworks -Xlinker -object_path_lto -Xlinker /Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/pax-dev-harness-macos.build/Debug/Pax\ macOS.build/Objects-normal/x86_64/Pax\ macOS_lto.o -Xlinker -export_dynamic -Xlinker -no_deduplicate -Xlinker -final_output -Xlinker /Applications/Pax\ macOS.app/Contents/MacOS/Pax\ macOS -fobjc-link-runtime -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/pax-dev-harness-macos.build/Debug/Pax\ macOS.build/Objects-normal/x86_64/Pax_macOS.swiftmodule -lpaxchassismacos -lpaxchassismacos -Xlinker -dependency_info -Xlinker /Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/pax-dev-harness-macos.build/Debug/Pax\ macOS.build/Objects-normal/x86_64/Pax\ macOS_dependency_info.dat -o /Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/InstallationBuildProductsLocation/Applications/Pax\ macOS.app/Contents/MacOS/Pax\ macOS
+Ld /Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/InstallationBuildProductsLocation/Applications/Pax\ macOS.app/Contents/MacOS/Pax\ macOS normal (in target 'Pax macOS' from project 'interface')
+    cd /Users/zack/code/pax/pax-example/.pax/chassis/MacOS/interface
+    /Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin/clang -target x86_64-apple-macos12.0 -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX13.1.sdk -L/Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/EagerLinkingTBDs -L/Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/BuildProductsPath/Debug -L/Users/zack/code/pax/pax-example/.pax/chassis/MacOS/interface/../target/debug -F/Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/EagerLinkingTBDs -F/Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/BuildProductsPath/Debug -filelist /Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/interface.build/Debug/Pax\ macOS.build/Objects-normal/x86_64/Pax\ macOS.LinkFileList -Xlinker -rpath -Xlinker @executable_path/../Frameworks -Xlinker -object_path_lto -Xlinker /Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/interface.build/Debug/Pax\ macOS.build/Objects-normal/x86_64/Pax\ macOS_lto.o -Xlinker -export_dynamic -Xlinker -no_deduplicate -Xlinker -final_output -Xlinker /Applications/Pax\ macOS.app/Contents/MacOS/Pax\ macOS -fobjc-link-runtime -L/Applications/Xcode.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/lib/swift/macosx -L/usr/lib/swift -Xlinker -add_ast_path -Xlinker /Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/interface.build/Debug/Pax\ macOS.build/Objects-normal/x86_64/Pax_macOS.swiftmodule -lpaxchassismacos -lpaxchassismacos -Xlinker -dependency_info -Xlinker /Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/IntermediateBuildFilesPath/interface.build/Debug/Pax\ macOS.build/Objects-normal/x86_64/Pax\ macOS_dependency_info.dat -o /Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/InstallationBuildProductsLocation/Applications/Pax\ macOS.app/Contents/MacOS/Pax\ macOS
 ld: warning: ignoring file /Users/zack/code/pax/pax-example/.pax/chassis/MacOS/target/debug/libpaxchassismacos.dylib, building for macOS-x86_64 but attempting to link with file built for macOS-arm64
 Undefined symbols for architecture x86_64:
   "_pax_dealloc_message_queue", referenced from:
@@ -2800,7 +2800,7 @@ clang: error: linker command failed with exit code 1 (use -v to see invocation)
 
 
 The following build commands failed:
-	Ld /Users/zack/Library/Developer/Xcode/DerivedData/pax-dev-harness-macos-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/InstallationBuildProductsLocation/Applications/Pax\ macOS.app/Contents/MacOS/Pax\ macOS normal (in target 'Pax macOS' from project 'pax-dev-harness-macos')
+	Ld /Users/zack/Library/Developer/Xcode/DerivedData/interface-ceupzrmwryakhafqxlfbcvhpgytw/Build/Intermediates.noindex/ArchiveIntermediates/Pax\ macOS/InstallationBuildProductsLocation/Applications/Pax\ macOS.app/Contents/MacOS/Pax\ macOS normal (in target 'Pax macOS' from project 'interface')
 (1 failure)
 ```
 
@@ -3481,3 +3481,98 @@ Sketch addtl. functionality needed to support "edit this website in playground"
     [-] Publish (can start with manual)
         [-] Manifest for files
         [-] upload relevant files (lib.rs, website_desktop, website_mobile
+
+
+
+### On native iOS builds
+
+We are 90% of the way to supporting iOS, given the shared Swift + CoreGraphics layers with macOS.  Speccing out what's needed to achieve alpha iOS support:
+
+[x] Split out shared logic into SPM packages
+    [x] Configure macOS project to consume shared packages; get build working
+[x] For proactive cleanliness, break out the cartridge (dylib) into a SPM package, so that consuming it is streamlined and simple across macOS / iOS
+    [x] Wrap all the way from .dylib -> SwiftUI View; this includes creating a .Framework
+    [x] Consume that exposed View in both macOS & iOS
+[x] Refactor (or redo, as needed) macos project to consume new deps
+[ ] Compiler work
+    [x] Refactor compiler internals to adapt to new cartridge / framework / swift package structure: macOS
+        [x] Configure pax-chassis-macos/interface/pax-app-macos to load the swift packages as relative dirs
+        [x] Get e2e build working in-place with pax-chassis-macos (no codegen); embed a placeholder cartridge + resources (bouncing logo?)
+        [x] After copying everything into .pax, patch (1) resources and (2) the dylib into pax-chassis-common/pax-swift-cartridge, then
+        [x] Build the resulting, patched, codegenned macOS project
+            [x] Handle architectures: aarch64 and x86_64; 
+            [x] Bundle targets into xcframework
+                [x] Create default carts for xcframework along the way
+            [x] Multithread the dylib builds
+            [x] Handle release vs. debug 
+        [x] Handle updates to assets; bundle into pax-swift-cartridge Resources
+    [X] Extend pax CLI + compiler to support --target=ios, firing up simulator if present on machine
+        [x] Refactor macOS-specific deps, e.g. NS* and CVDisplayLink
+        [x] set up xcframework manually and achieve hello world build of xcodeproject
+        [x] add ios target
+        [x] Handle build architectures: aarch64-apple-ios x86_64-apple-ios aarch64-apple-ios-sim
+        [x] automate copying & lipo of dylibs
+        [x] manage xcodebuild shell command + firing up simulator
+    [ ] Handle relative paths + inter-dylib deps
+        [ ] Manually update xcframework structure
+            [ ] use `install_name_tool` to change Rust-generated absolute paths into relative paths
+            [ ] get iOS project building with manual changes
+        [ ] 
+[ ] Make better default cartridge for default bundling (e.g. bouncing Pax logo)
+    [ ] Clean xcframework binaries from git history for leaner clones; replace with lighter-weight release builds if straight-forward
+[ ] Fix undefined out-of-canvas pixels on iOS (either lock scrolling into bounds with a simple check, or handle canvas clearing ?)
+
+From Apple developer forums:
+```
+If you want to build a framework that supports iOS and the iOS Simulator, construct an XCFramework with:
+
+One element for iOS containing just the arm64 architecture
+
+Another element for the iOS Simulator containing both arm64 and x86_64 architectures
+```
+
+
+Issue with hard-coded vestigial paths in dylib — our built dylibs include absolute paths pointing to ....../libpaxchassismacos.dylib
+
+
+```
+otool -L PaxCartridge
+PaxCartridge (architecture x86_64):
+	/Users/zack/code/pax/pax-example/.pax/pkg/pax-chassis-macos/target/x86_64-apple-ios/release/deps/libpaxchassismacos.dylib (compatibility version 0.0.0, current version 0.0.0)
+	/System/Library/Frameworks/CoreText.framework/CoreText (compatibility version 1.0.0, current version 1.0.0)
+	/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics (compatibility version 64.0.0, current version 1774.0.1)
+	/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation (compatibility version 150.0.0, current version 2048.1.101)
+	/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1336.0.0)
+	/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)
+	/System/Library/Frameworks/Security.framework/Security (compatibility version 1.0.0, current version 61040.2.2)
+	/System/Library/Frameworks/Foundation.framework/Foundation (compatibility version 300.0.0, current version 2048.1.101)
+PaxCartridge (architecture arm64):
+	/Users/zack/code/pax/pax-example/.pax/pkg/pax-chassis-macos/target/aarch64-apple-ios-sim/release/deps/libpaxchassismacos.dylib (compatibility version 0.0.0, current version 0.0.0)
+	/System/Library/Frameworks/CoreText.framework/CoreText (compatibility version 1.0.0, current version 1.0.0)
+	/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics (compatibility version 64.0.0, current version 1774.0.1)
+	/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation (compatibility version 150.0.0, current version 2048.1.101)
+	/usr/lib/libiconv.2.dylib (compatibility version 7.0.0, current version 7.0.0)
+	/usr/lib/libSystem.B.dylib (compatibility version 1.0.0, current version 1336.0.0)
+	/usr/lib/libobjc.A.dylib (compatibility version 1.0.0, current version 228.0.0)
+	/System/Library/Frameworks/Security.framework/Security (compatibility version 1.0.0, current version 61040.2.2)
+	/System/Library/Frameworks/Foundation.framework/Foundation (compatibility version 300.0.0, current version 2048.1.101)
+```
+
+1. These pax-chassis-macos paths almost certainly come from the "pre-built" PaxCartridges that I made manually to get to iOS hello world.
+   These should be replaced with correctly prebuilt packages, from pax-chassis-ios. They should also use @rpath instead of hard-coded dep paths.
+
+2. current best-bet approach to handle the nested dylib deps: create a nested framework (for each arch target, also consider whether lipo is necessary; probably is)
+    this allows embedding the dep .dylib alongside the entrypoint .dylib.  Then in the entrypoint .dylib, use `install_name_tool` or similar to 
+    update the path to an @rpath/ relative path, using some trial and error to get to a place that xcode respects the provided path.  Something like:
+
+```
+MyLibrary.xcframework
+├── ios-arm64
+│   ├── MyLibrary.framework
+│   ├── Dependency1.framework
+│   └── Dependency2.framework
+└── ...
+```
+
+Get this working entirely manually first, then automate in pax-compiler. (validate by `pax clean` and ensuring that builds still run.)
