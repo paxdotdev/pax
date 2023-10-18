@@ -1,6 +1,6 @@
 [package]
 name = "pax-runtime-api"
-version = "0.9.9"
+version = "0.10.0"
 authors = ["Zack Brown <zack@pax.dev>"]
 edition = "2021"
 license = "MIT OR Apache-2.0"
@@ -15,4 +15,4 @@ kurbo = "0.9.0"
 lazy_static = "1.4.0"
 mut_static = "5.0.0"
 uuid = {version = "0.8", features = ["v4", "wasm-bindgen"]}
-pax-message = {version="0.9.9", path="../pax-message"}
+pax-message = {version="0.10.0", path="../pax-message"}

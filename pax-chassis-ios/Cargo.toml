@@ -1,7 +1,7 @@
 [package]
 name = "pax-chassis-ios"
 edition = "2021"
-version = "0.9.9"
+version = "0.10.0"
 authors = ["Zack Brown <zack@pax.dev>"]
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
@@ -13,7 +13,7 @@ name = "paxchassisios"
 crate-type = ["cdylib"]
 
 [dependencies]
-pax-chassis-common = {version = "0.9.9", path="../pax-chassis-common"}
+pax-chassis-common = {version = "0.10.0", path="../pax-chassis-common"}
 
 # The following empty [workspace] directive is a workaround to satisfy
 # a cargo workspace bug, as documented: https://github.com/rust-lang/cargo/issues/6745

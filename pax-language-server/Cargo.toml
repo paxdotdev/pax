@@ -1,6 +1,6 @@
 [package]
 name = "pax-language-server"
-version = "0.9.9"
+version = "0.10.0"
 authors = ["Warfa Jibril <warfa@pax.dev>"]
 license = "MIT OR Apache-2.0"
 homepage = "https://pax.dev/"
@@ -18,7 +18,7 @@ tokio = { version = "1.32.0", features = ["full"] }
 tower-lsp = "0.20.0"
 proc-macro2 = { version = "1.0", features = ["span-locations"] }
 quote = "1.0.33"
-pax-compiler = {version = "0.9.9", path="../pax-compiler"}
+pax-compiler = {version = "0.10.0", path="../pax-compiler"}
 pest = "2.7.4"
 pest_derive = "2.7.4"
 phf = { version = "0.11.2", features=["macros"] }
