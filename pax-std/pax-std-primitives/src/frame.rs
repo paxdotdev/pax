@@ -137,11 +137,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         Rc::clone(&self.primitive_children)
     }
 
-    fn get_scoped_children(&self) -> Option<RenderNodePtrList<R>> {
-        Some(Rc::clone(&self.primitive_children))
-    }
-
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         self.common_properties.compute_properties(rtc);
     }
 
