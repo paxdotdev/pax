@@ -182,6 +182,19 @@ pub trait RenderNode<R: 'static + RenderContext> {
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
+
+    /// Used for computing properties.  Properties and stack frames are scoped strictly within components, and this
+    /// method gives us a way to get the "children within the context of a component," which we can use to
+    /// recurse and compute properties, independently of rendering.  In particular, `get_rendering_children`
+    /// cuts through component boundaries, while `get_scoped_children` stays strictly inside. This is necessary
+    /// especially when dealing with `slot`, where the adoptees passed into a slot must have their properties computed
+    /// in the context of the component where those nodes were authored (not in the context of the component that adopts & renders them.)
+    fn get_scoped_children(&self) -> Option<RenderNodePtrList<R>> {
+        // Default implementation is `None`.  `Component` and primitives that accept children will override
+        // this to provide children.
+        None
+    }
+
     /// Consumes the children of this node at render-time that should be removed.
     /// This occurs when they were mounted in some previous frame but now need to be removed after a property change
     /// This function resets this list once returned

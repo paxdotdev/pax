@@ -42,6 +42,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.template)
     }
+    fn get_scoped_children(&self) -> Option<RenderNodePtrList<R>> {
+        Some(Rc::clone(&self.template))
+    }
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
@@ -105,14 +108,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
                 .collect(),
         ));
 
+        self.common_properties.compute_properties(rtc);
+        (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
+
         (*rtc.runtime).borrow_mut().push_stack_frame(
             Rc::clone(&flattened_adoptees),
             Rc::clone(&self.properties),
             self.timeline.clone(),
         );
 
-        self.common_properties.compute_properties(rtc);
-        (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
     }
 
     fn get_layer_type(&mut self) -> Layer {

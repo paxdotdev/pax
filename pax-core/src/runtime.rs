@@ -131,10 +131,6 @@ impl<R: 'static + RenderContext> Runtime<R> {
     ) -> Vec<RenderNodePtr<R>> {
         let mut adoptee_borrowed = (**adoptee).borrow_mut();
         if adoptee_borrowed.should_flatten() {
-            // //1. this is an `if` or `for` (etc.) — it needs its properties computed
-            // //   in order for its children to be correct
-            adoptee_borrowed.compute_properties(rtc);
-            //2. recurse into top-level should_flatten() nodes
             (*adoptee_borrowed.get_rendering_children())
                 .borrow()
                 .iter()
