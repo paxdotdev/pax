@@ -72,8 +72,8 @@ pub struct RuntimeContext {
     pub bounds_parent: (f64, f64),
     // /// Viewport bounds
     // pub bounds_viewport: (f64, f64)
-    // /// The number of adoptees passed to the current component (used by Stacker for auto cell-count calc; might be extended/adjusted for other use-cases)
-    // pub adoptee_count: usize,
+    // /// The number of slot_children passed to the current component (used by Stacker for auto cell-count calc; might be extended/adjusted for other use-cases)
+    // pub slot_child_count: usize,
     // /// Current playhead position(s) for current component
     //pub timeline_playhead_position: usize,
 }

@@ -901,7 +901,7 @@ Another option: add `instantiate` to RenderNode, thereby firming the contract of
 
 
 
-### children vs template vs adoptees
+### children vs template vs slot_children
 2022-02-28
 
 Refer to the following comment copied from the definition of `RenderNode`:
@@ -909,7 +909,7 @@ Refer to the following comment copied from the definition of `RenderNode`:
 ```
 /// Return the list of nodes that are children of this node at render-time.
 /// Note that "children" is somewhat overloaded, hence "rendering_children" here.
-/// "Children" may indicate a.) a template root, b.) adoptees, c.) primitive children
+/// "Children" may indicate a.) a template root, b.) slot_children, c.) primitive children
 /// Each RenderNode is responsible for determining at render-time which of these concepts
 /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
 ```
@@ -921,44 +921,44 @@ the conceptual surface area.
 - Repeat (repeating a template, a la a stamp)
 - Component (instantiates an instance based on a template, a la a stamp)
 
-*Adoptees:* conceptually sound with Stacker, via slots
+*slot_children:* conceptually sound with Stacker, via slots
 - fits in the same struct `RenderNodePtrList`
-- instead of an "average case tree," Adoptees are an "expected case list"
-- Sequence of siblings is relevant (beyond z-indexing); used to pluck adoptees away into whatever context
+- instead of an "average case tree," slot_children are an "expected case list"
+- Sequence of siblings is relevant (beyond z-indexing); used to pluck slot_children away into whatever context
 
 *Children:* a.k.a. "primitive children," the intuitive
 "XML children" of certain elements that deal with children,
 such as Group, Frame, and more.
-Note that adoptees are a special form of children — Stacker's
+Note that slot_children are a special form of children — Stacker's
 `children` (per the `Component` `template` definition that declares that Stacker)
-are dealt with by Stacker as adoptees.
+are dealt with by Stacker as slot_children.
 
 Tangential observation: the `Component` has no way of knowing whether
-the children it's passing will be dealt with as `adoptees` or `primitive children`.
+the children it's passing will be dealt with as `slot_children` or `primitive children`.
 
 **So: can these concepts be compacted?**
 
 Let's imagine establishing a rule: that a `RenderNode` may deal with its
 `children` however it sees fit.  For example: it may or may not deal with
-`children` as order-sensitive `adoptees`.  The management of `children` is thus
+`children` as order-sensitive `slot_children`.  The management of `children` is thus
 _encapsulated._
 
 A key distinction between `template` and `children` is the authoring.  `children`
 are passed as "intuitive XML children", e.g. to Repeat & friends.
 
 `template` is a definition, currently used only by Components.  A Component may
-have both a `template` (its definition) and `children` (adoptees) [but is there
-ever a case where a Component instance has non-adoptee children? perhaps not!]
+have both a `template` (its definition) and `children` (slot_children) [but is there
+ever a case where a Component instance has non-slot_child children? perhaps not!]
 
-Given the duality above, perhaps it's worth making `adoptees` explicit?
+Given the duality above, perhaps it's worth making `slot_children` explicit?
 It reinforces the notion that `children` are injected from the outside,
 rather than "birthed" internally (a la a template)
 
-Is there a case where `adoptees` doesn't make sense to describe children?
+Is there a case where `slot_children` doesn't make sense to describe children?
 For `Group`, for example, it's awkward.  Group also doesn't use slots.
 So:
 - `children` are for primitives, e.g. for a `Group` and its contents
-- `adoptees` are specific to `Component` instances (because `StackFrame` is req'd.) that use `Slot`s
+- `slot_children` are specific to `Component` instances (because `StackFrame` is req'd.) that use `Slot`s
 - `template` is specific to `Component` instances
 
 
@@ -1445,11 +1445,11 @@ The compiler can weave this together in the same fashion that it handles `with`
 
 
 
-### on adoptees
+### on slot_children
 2022-03-17
 
 Certain `should_flatten` elements, namely `if` (`Conditional`) and `for` (`Repeat`),
-need to hoist their children as a sequence of adoptees, in lieu of themselves as singular nodes, e.g.
+need to hoist their children as a sequence of slot_children, in lieu of themselves as singular nodes, e.g.
 
 ```
 <Stacker>
@@ -1461,21 +1461,21 @@ need to hoist their children as a sequence of adoptees, in lieu of themselves as
 </Stacker>
 ```
 
-Stacker should have 11 adoptees in this case
+Stacker should have 11 slot_children in this case
 
 Possibly a wrinkle: the computation of `Repeat`'s children
 (via `source_expression`) might come later in the lifecycle than assignment
-of adoptees. (Update: this was indeed a wrinkle, fixed by adding a manual computation
-of adoptees' properties when they are `should_flatten` (namely for `if`, `for`))
+of slot_children. (Update: this was indeed a wrinkle, fixed by adding a manual computation
+of slot_children' properties when they are `should_flatten` (namely for `if`, `for`))
 
 Also take note that `Repeat` wraps each element in its own
 `Component`, which will take a stack frame and which currently
 
 Stack frames are pushed/popped on each tick
 
-Expose `pop_adoptee() -> Option<RenderNodePtr>` on `StackFrame` (and maybe `nth_adoptee()`)
-StackFrame greedily traverses upward seeking the next `adoptee` to pop.
-`adoptees` become strictly an implementation detail, meaning the field can be eliminated
+Expose `pop_slot_child() -> Option<RenderNodePtr>` on `StackFrame` (and maybe `nth_slot_child()`)
+StackFrame greedily traverses upward seeking the next `slot_child` to pop.
+`slot_children` become strictly an implementation detail, meaning the field can be eliminated
 and `Component` can pass its `children` if specified to the StackFrame that it creates.  
 Unpacking `should_flatten` nodes can happen at this stage, and this probably requires a linear traversal of top-level child nodes.
 
@@ -1497,22 +1497,22 @@ Stacker's template in the example above might be something like:
 Stepping back briefly...
 
 Conceptually, when we expose slots, we're opening a "slot".  We're allowing two nodes
-to be connected in our graph, a `child` (to become `adoptee`) passed to a Component, and to a contained `Slot`, which mounts that `adoptee` as its own `child`.
+to be connected in our graph, a `child` (to become `slot_child`) passed to a Component, and to a contained `Slot`, which mounts that `slot_child` as its own `child`.
 
 Stacker introduces an additional `Component` into the mix, underneath `Repeat`.
 There seem to be some cases where we want to traverse parent nodes
-for adoptees, and other cases where we don't (e.g. a Stacker
-with insufficient adoptees should render empty cells, not the surplus adoptees that were
+for slot_children, and other cases where we don't (e.g. a Stacker
+with insufficient slot_children should render empty cells, not the surplus slot_children that were
 passed somewhere higher in the render tree.)
 
-We could pipe adoptees explicily, e.g. Repeat hand-picks an
-adoptee for each ComponentInstance, attaches it to that stack frame,
+We could pipe slot_children explicily, e.g. Repeat hand-picks an
+slot_child for each ComponentInstance, attaches it to that stack frame,
 and we go on our merry way.
 
 There's also still the problem of flattening.
 Repeat and Conditional could be trained to push their children directly to
-a mutable StackFrame's `adoptees` list... still there's a matter of
-lifecycle management, though. (will those adoptees be pushed at the
+a mutable StackFrame's `slot_children` list... still there's a matter of
+lifecycle management, though. (will those slot_children be pushed at the
 right time?)
 
 ```
@@ -1530,20 +1530,20 @@ So no, `will_render` probably won't be helpful as it sits.
 
 Probably our best bet is for the lookup to be dynamic on StackFrame itself.
 
-1. register children to StackFrame `adoptees` naively, no unpacking
-2. expose `nth_adoptee` on StackFrame, which
-    1. somehow knows when to stop traversing stack upwards to seek adoptee list (special flag on componentinstance => stackframe ? hard-coded in Repeat where it instantiates Compoennt, for example), and
+1. register children to StackFrame `slot_children` naively, no unpacking
+2. expose `nth_slot_child` on StackFrame, which
+    1. somehow knows when to stop traversing stack upwards to seek slot_child list (special flag on componentinstance => stackframe ? hard-coded in Repeat where it instantiates Compoennt, for example), and
     2. expands `should_flatten` nodes to compute its index lookup. naively, this can start O(n)
 3.
-Where `nth_adoptee` checks all nodes for `should_flatten`, grabbing
+Where `nth_slot_child` checks all nodes for `should_flatten`, grabbing
 a
 
-Maybe there should be an explicit "adoptee delegation" operation? where a component
-may delegate the responsibility of certain adoptees to a member of its template
+Maybe there should be an explicit "slot_child delegation" operation? where a component
+may delegate the responsibility of certain slot_children to a member of its template
 
 
 Twofold problem:
-1. adoptees need to have their properties computed, at least for top-level should_flatten
+1. slot_children need to have their properties computed, at least for top-level should_flatten
 
 ### on TypeScript support, syntax
 2022-03-22
@@ -1597,7 +1597,7 @@ timeline-bound functions can live in the same vtable as expressions, then
 
 
 
-### back to children/adoptees
+### back to children/slot_children
 2022-04-01
 
 
@@ -1644,15 +1644,15 @@ The second pass will be a rendering pass, which will recurse by `get_rendering_c
 
 
 [1] (namely, without running into issues of double-computation of properties by computing
-them during "adoptee" traversal, then again during "render_children" traversal, especially with the
+them during "slot_child" traversal, then again during "render_children" traversal, especially with the
 tangles that introduces to pulling values out of the runtime stack)
 
 
 
 //maybe:  introduce distinction between get_rendering_children and
-//        ... get_(what exactly?)  get_rendering_children_that_aren't_adoptees
+//        ... get_(what exactly?)  get_rendering_children_that_aren't_slot_children
 //        maybe this can be solved with lifecycle?  traverse node/property tree before
-//        adoptees are linked as rendering_children?
+//        slot_children are linked as rendering_children?
 //Another possibility: link a reference to stack frame to node — then it doesn't matter when it's
 //                     computed; instead of peeking from global stack (in expression eval) it can start evaluation
 //                     from the linked stackframe
@@ -1662,7 +1662,7 @@ tangles that introduces to pulling values out of the runtime stack)
 
         //Perhaps perform multiple traversals of the graph:
         // - compute properties
-        //    - special-cases adoptees (calcs first) recurses via get_natural_children
+        //    - special-cases slot_children (calcs first) recurses via get_natural_children
         // - render
         //    - recurse via get_rendering_children
 

@@ -74,18 +74,18 @@ impl<R: 'static + RenderContext> Runtime<R> {
         self.stack.pop(); //NOTE: handle value here if needed
     }
 
-    /// Add a new frame to the stack, passing a list of adoptees
+    /// Add a new frame to the stack, passing a list of slot_children
     /// that may be handled by `Slot` and a scope that includes the PropertiesCoproduct of the associated Component
     pub fn push_stack_frame(
         &mut self,
-        flattened_adoptees: RenderNodePtrList<R>,
+        flattened_slot_children: RenderNodePtrList<R>,
         properties: Rc<RefCell<PropertiesCoproduct>>,
         timeline: Option<Rc<RefCell<Timeline>>>,
     ) {
         let parent = self.peek_stack_frame().as_ref().map(Rc::downgrade);
 
         self.stack.push(Rc::new(RefCell::new(StackFrame::new(
-            flattened_adoptees,
+            flattened_slot_children,
             properties,
             parent,
             timeline,
@@ -120,33 +120,33 @@ impl<R: 'static + RenderContext> Runtime<R> {
     /// control flow primitive need to be computed out-of-lifecycle, and where nested child elements
     /// need to be treated as top-level elements.
     /// For example, given `<Stacker><Ellipse />for i in (0..3){ <Rectangle /> }</Stacker>`,
-    /// without this special handling `Stacker` will receive only two adoptees: the `Ellipse` and the `Repeat` node
+    /// without this special handling `Stacker` will receive only two slot_children: the `Ellipse` and the `Repeat` node
     /// created by `for`.  In other words `for`s children need to be treated as `<Stacker>`s children,
     /// and this processing allows that to happpen.
     /// Note that this must be recursive to handle nested cases of flattening, for example nested `for` loops
     #[allow(non_snake_case)]
-    pub fn process__should_flatten__adoptees_recursive(
-        adoptee: &RenderNodePtr<R>,
+    pub fn process__should_flatten__slot_children_recursive(
+        slot_child: &RenderNodePtr<R>,
         rtc: &mut RenderTreeContext<R>,
     ) -> Vec<RenderNodePtr<R>> {
-        let mut adoptee_borrowed = (**adoptee).borrow_mut();
-        if adoptee_borrowed.should_flatten() {
-            (*adoptee_borrowed.get_rendering_children())
+        let slot_child_borrowed = (**slot_child).borrow_mut();
+        if slot_child_borrowed.should_flatten() {
+            (*slot_child_borrowed.get_rendering_children())
                 .borrow()
                 .iter()
                 .map(|top_level_child_node| {
-                    Runtime::process__should_flatten__adoptees_recursive(top_level_child_node, rtc)
+                    Runtime::process__should_flatten__slot_children_recursive(top_level_child_node, rtc)
                 })
                 .flatten()
                 .collect()
         } else {
-            vec![Rc::clone(adoptee)]
+            vec![Rc::clone(slot_child)]
         }
     }
 }
 
 /// Data structure for a single frame of our runtime stack, including
-/// a reference to its parent frame, a list of `adoptees` for
+/// a reference to its parent frame, a list of `slot_children` for
 /// prospective [`Slot`] consumption, and `properties` for
 /// runtime evaluation, e.g. of Expressions.  StackFrames also track
 /// timeline playhead position.
@@ -155,7 +155,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
 /// hierarchical store of node-relevant data that can be bound to symbols, e.g. in expressions.
 /// Note that `RepeatItem`s also push `StackFrame`s, because `RepeatItem` uses a `Component` internally.
 pub struct StackFrame<R: 'static + RenderContext> {
-    adoptees: RenderNodePtrList<R>,
+    slot_children: RenderNodePtrList<R>,
     properties: Rc<RefCell<PropertiesCoproduct>>,
     parent: Option<Weak<RefCell<StackFrame<R>>>>,
     timeline: Option<Rc<RefCell<Timeline>>>,
@@ -163,13 +163,13 @@ pub struct StackFrame<R: 'static + RenderContext> {
 
 impl<R: 'static + RenderContext> StackFrame<R> {
     pub fn new(
-        adoptees: RenderNodePtrList<R>,
+        slot_children: RenderNodePtrList<R>,
         properties: Rc<RefCell<PropertiesCoproduct>>,
         parent: Option<Weak<RefCell<StackFrame<R>>>>,
         timeline: Option<Rc<RefCell<Timeline>>>,
     ) -> Self {
         StackFrame {
-            adoptees,
+            slot_children,
             properties,
             parent,
             timeline,
@@ -218,18 +218,18 @@ impl<R: 'static + RenderContext> StackFrame<R> {
         Rc::clone(&self.properties)
     }
 
-    pub fn get_unflattened_adoptees(&self) -> RenderNodePtrList<R> {
-        Rc::clone(&self.adoptees)
+    pub fn get_unflattened_slot_children(&self) -> RenderNodePtrList<R> {
+        Rc::clone(&self.slot_children)
     }
 
-    pub fn nth_adoptee(&self, n: usize) -> Option<RenderNodePtr<R>> {
-        match (*self.adoptees).borrow().get(n) {
+    pub fn nth_slot_child(&self, n: usize) -> Option<RenderNodePtr<R>> {
+        match (*self.slot_children).borrow().get(n) {
             Some(i) => Some(Rc::clone(i)),
             None => None,
         }
     }
 
-    pub fn has_adoptees(&self) -> bool {
-        (*self.adoptees).borrow().len() > 0
+    pub fn has_slot_children(&self) -> bool {
+        (*self.slot_children).borrow().len() > 0
     }
 }

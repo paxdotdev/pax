@@ -10,14 +10,14 @@ use crate::{InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, Ren
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 
 /// A special "control-flow" primitive (a la `yield`) — represents a slot into which
-/// an adoptee can be rendered.  Slot relies on `adoptees` being present
-/// on the [`Runtime`] stack and will not render any content if there are no `adoptees` found.
+/// an slot_child can be rendered.  Slot relies on `slot_children` being present
+/// on the [`Runtime`] stack and will not render any content if there are no `slot_children` found.
 ///
 /// Consider a Stacker:  the owner of a Stacker passes the Stacker some nodes to render
 /// inside the cells of the Stacker.  To the owner of the Stacker, those nodes might seem like
-/// "children," but to the Stacker they are "adoptees" — children provided from
+/// "children," but to the Stacker they are "slot_children" — children provided from
 /// the outside.  Inside Stacker's template, there are a number of Slots — this primitive —
-/// that become the final rendered home of those adoptees.  This same technique
+/// that become the final rendered home of those slot_children.  This same technique
 /// is portable and applicable elsewhere via Slot.
 pub struct SlotInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
@@ -61,7 +61,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
         bounds
     }
 
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         if let Some(index) = rtc.compute_vtable_value(self.index._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Numeric(v) = index {
                 v
@@ -75,11 +75,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
         // (Slot, Repeat, If) —
         self.cached_computed_children = match rtc.runtime.borrow_mut().peek_stack_frame() {
             Some(stack_frame) => {
-                // Grab the adoptee from the current stack_frame at Slot's specified `index`
+                // Grab the slot_child from the current stack_frame at Slot's specified `index`
                 // then make it Slot's own child.
                 match stack_frame
                     .borrow()
-                    .nth_adoptee(self.index.get().get_as_int() as usize)
+                    .nth_slot_child(self.index.get().get_as_int() as usize)
                 {
                     Some(rnp) => Rc::new(RefCell::new(vec![Rc::clone(&rnp)])),
                     None => Rc::new(RefCell::new(vec![])),

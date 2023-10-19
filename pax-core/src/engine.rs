@@ -42,7 +42,7 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub node: RenderNodePtr<R>,
     pub parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
     pub timeline_playhead_position: usize,
-    pub inherited_adoptees: Option<RenderNodePtrList<R>>,
+    pub inherited_slot_children: Option<RenderNodePtrList<R>>,
 }
 
 macro_rules! handle_vtable_update {
@@ -119,7 +119,7 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             node: Rc::clone(&self.node),
             parent_repeat_expanded_node: self.parent_repeat_expanded_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
-            inherited_adoptees: self.inherited_adoptees.clone(),
+            inherited_slot_children: self.inherited_slot_children.clone(),
         }
     }
 }
@@ -690,7 +690,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             node: Rc::clone(&cast_component_rc),
             parent_repeat_expanded_node: None,
             timeline_playhead_position: self.frames_elapsed,
-            inherited_adoptees: None,
+            inherited_slot_children: None,
         };
 
         let mut z_index = ZIndex::new(None);
@@ -708,6 +708,33 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         native_render_queue.into()
     }
 
+
+    fn compute_properties_recursive(
+        &self,
+        rtc: &mut RenderTreeContext<R>,
+        node: RenderNodePtr<R>,
+    ) {
+        //When recursively computing properties:
+            // Compute properties for current node
+            // If node is_component, compute properties for its slot_children
+            // Otherwise, compute properties for its rendering children
+        node.borrow_mut().handle_will_compute_properties(rtc);
+        node.borrow_mut().handle_compute_properties(rtc);
+
+        let children_to_recurse = if node.borrow().is_component_node() {
+            node.borrow().get_slot_children().unwrap()
+        } else {
+            node.borrow().get_rendering_children()
+        };
+
+        for child in (*children_to_recurse).borrow().iter() {
+            self.compute_properties_recursive(rtc, Rc::clone(child));
+        }
+
+        node.borrow_mut().handle_did_compute_properties(rtc);
+
+    }
+
     fn recurse_traverse_render_tree(
         &self,
         rtc: &mut RenderTreeContext<R>,
@@ -717,24 +744,33 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         marked_for_unmount: bool,
     ) {
         //Recurse:
-        //  - compute properties for this node
+        //  - compute properties recursively for the current component
         //  - fire lifecycle events for this node
         //  - iterate backwards over children (lowest first); recurse until there are no more descendants.  track transform matrix & bounding dimensions along the way.
         //  - we now have the back-most leaf node.  Render it.  Return.
         //  - we're now at the second back-most leaf node.  Render it.  Return ...
         //  - manage unmounting, if marked
-
-        //populate a pointer to this (current) `RenderNode` onto `rtc`
-        rtc.node = Rc::clone(&node);
-
-        //lifecycle: compute_properties happens before rendering
-        node.borrow_mut().compute_properties(rtc);
         let accumulated_transform = rtc.transform_global;
         let accumulated_scroller_normalized_transform = rtc.transform_scroller_reset;
         let accumulated_bounds = rtc.bounds;
 
-        //depth work
+        //Compute properties:
+        // If this node is a component:
+        //    Kick off a recursive evaluation of properties for all nodes in this component's template
+        //    Otherwise, presume we have already computed properties in the process of recursively evaluating the containing component's properties, and proceed with rendering
+        if node.borrow().is_component_node() {
+            node.borrow_mut().handle_will_compute_properties(rtc);
+            node.borrow_mut().handle_compute_properties(rtc);
+            let template_children = node.borrow().get_rendering_children();
+            for template_child in (*template_children).borrow().iter() {
+                self.compute_properties_recursive(rtc, Rc::clone(template_child));
+            }
+        }
 
+        //populate a pointer to this (current) `RenderNode` onto `rtc`
+        rtc.node = Rc::clone(&node);
+
+        //depth work
         let node_type = node.borrow_mut().get_layer_type();
         z_index_info.update_z_index(node_type.clone());
         let current_z_index = z_index_info.get_level();
@@ -930,7 +966,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
 
         //create the `repeat_expanded_node` for the current node
-        let children = node.borrow_mut().get_rendering_children();
+        let rendering_children = node.borrow_mut().get_rendering_children();
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
         let clipping = node
             .borrow_mut()
@@ -1003,7 +1039,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             rtc.transform_scroller_reset = reset_transform.clone();
         }
 
-        children.borrow_mut().iter().rev().for_each(|child| {
+        rendering_children.borrow_mut().iter().rev().for_each(|child| {
             //note that we're iterating starting from the last child, for z-index (.rev())
             let mut new_rtc = rtc.clone();
             new_rtc.parent_repeat_expanded_node = Some(Rc::downgrade(&repeat_expanded_node));
@@ -1063,6 +1099,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         //lifecycle: did_render
         node.borrow_mut().handle_did_render(rtc, rcs);
+
+        // Component nodes fire their stack frame cleanup after full lifecycle, e.g. to handle lifecycle events
+        // that depend on the component's stack frame
+        if node.borrow().is_component_node() {
+            node.borrow_mut().handle_did_compute_properties(rtc);
+        }
 
         //Handle node unmounting
         if marked_for_unmount {

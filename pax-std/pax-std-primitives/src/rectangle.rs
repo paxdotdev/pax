@@ -61,7 +61,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
         }
     }
 
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(stroke_width) =

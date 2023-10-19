@@ -60,7 +60,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ImageInstance<R> {
             _ => None,
         }
     }
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(path) = rtc.compute_vtable_value(properties.path._get_vtable_id()) {
