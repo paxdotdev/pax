@@ -54,7 +54,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
         ret
     }
 
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         if let Some(boolean_expression) =
             rtc.compute_vtable_value(self.boolean_expression._get_vtable_id())
         {

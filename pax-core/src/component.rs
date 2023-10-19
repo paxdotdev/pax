@@ -1,6 +1,5 @@
 use piet_common::RenderContext;
 use std::cell::RefCell;
-use std::collections::HashMap;
 use std::rc::Rc;
 
 use crate::{
@@ -14,7 +13,7 @@ use pax_runtime_api::{CommonProperties, Layer, Size, Timeline};
 use crate::PropertiesComputable;
 
 /// A render node with its own runtime context.  Will push a frame
-/// to the runtime stack including the specified `adoptees` and
+/// to the runtime stack including the specified `slot_children` and
 /// `PropertiesCoproduct` object.  `Component` is used at the root of
 /// applications, at the root of reusable components like `Stacker`, and
 /// in special applications like `Repeat` where it houses the `RepeatItem`
@@ -22,7 +21,7 @@ use crate::PropertiesComputable;
 pub struct ComponentInstance<R: 'static + RenderContext> {
     pub(crate) instance_id: u32,
     pub template: RenderNodePtrList<R>,
-    pub children: RenderNodePtrList<R>,
+    pub slot_children: RenderNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
@@ -42,8 +41,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.template)
     }
-    fn get_scoped_children(&self) -> Option<RenderNodePtrList<R>> {
-        Some(Rc::clone(&self.template))
+    fn is_component_node(&self) -> bool {
+        true
     }
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
@@ -53,8 +52,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         }
     }
 
-    fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
-        (*rtc.runtime).borrow_mut().pop_stack_frame();
+    fn get_slot_children(&self) -> Option<RenderNodePtrList<R>> {
+        Some(Rc::clone(&self.slot_children))
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
@@ -69,7 +68,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         let ret = Rc::new(RefCell::new(ComponentInstance {
             instance_id,
             template,
-            children: match args.children {
+            slot_children: match args.children {
                 Some(children) => children,
                 None => Rc::new(RefCell::new(vec![])),
             },
@@ -92,31 +91,37 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
     fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
         bounds
     }
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
 
-        //expand adoptees before adding to stack frame.
+
+    fn handle_will_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+        //expand slot_children before adding to stack frame.
         //NOTE: this requires *evaluating properties* for `should_flatten` nodes like Repeat and Conditional, whose
-        //      properties must be evaluated before we can know how to handle them as adoptees
-        let unflattened_adoptees = Rc::clone(&self.children);
+        //      properties must be evaluated before we can know how to handle them as slot_children
+        let non_flattened_slot_children = Rc::clone(&self.slot_children);
 
-        let flattened_adoptees = Rc::new(RefCell::new(
-            (*unflattened_adoptees)
+        let flattened_slot_children = Rc::new(RefCell::new(
+            (*non_flattened_slot_children)
                 .borrow()
                 .iter()
-                .map(|adoptee| Runtime::process__should_flatten__adoptees_recursive(adoptee, rtc))
+                .map(|slot_child| Runtime::process__should_flatten__slot_children_recursive(slot_child, rtc))
                 .flatten()
                 .collect(),
         ));
 
-        self.common_properties.compute_properties(rtc);
-        (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
-
         (*rtc.runtime).borrow_mut().push_stack_frame(
-            Rc::clone(&flattened_adoptees),
+            Rc::clone(&flattened_slot_children),
             Rc::clone(&self.properties),
             self.timeline.clone(),
         );
+    }
 
+    fn handle_did_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+        (*rtc.runtime).borrow_mut().pop_stack_frame();
+    }
+
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+        self.common_properties.compute_properties(rtc);
+        (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
     }
 
     fn get_layer_type(&mut self) -> Layer {

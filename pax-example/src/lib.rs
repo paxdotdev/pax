@@ -15,15 +15,13 @@ use crate::website_mobile::WebsiteMobile;
 #[derive(Pax)]
 #[main]
 #[inlined(
-    <Frame width=100% height=100% @did_mount=handle_did_mount @will_render=handle_will_render >
-     if container_width > 800.0  {
-        <WebsiteDesktop />
-    }
-    if container_width == 800.0 || container_width < 800.0 {
-        <WebsiteMobile />
-    }
-    </Frame>
- )]
+for i in 0..5 {
+<Stacker cells=10 direction=StackerDirection::Vertical x={(i*50)px} width=50px>
+<Rectangle fill={Fill::Solid(Color::rgb(i * 0.2, 0.2, 0.5))} />
+</Stacker>
+}
+
+)]
 pub struct Example {
     pub container_width: Property<f64>,
 }

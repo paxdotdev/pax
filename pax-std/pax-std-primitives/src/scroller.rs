@@ -255,7 +255,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         ))
     }
 
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         self.common_properties.compute_properties(rtc);
 
         let mut scroll_x_offset_borrowed = (*self.scroll_x_offset).borrow_mut();

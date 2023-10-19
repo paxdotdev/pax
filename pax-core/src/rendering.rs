@@ -177,22 +177,24 @@ pub trait RenderNode<R: 'static + RenderContext> {
 
     /// Return the list of nodes that are children of this node at render-time.
     /// Note that "children" is somewhat overloaded, hence "rendering_children" here.
-    /// "Children" may indicate a.) a template root, b.) adoptees, c.) primitive children
+    /// "Children" may indicate a.) a template root, b.) slot_children, c.) primitive children
     /// Each RenderNode is responsible for determining at render-time which of these concepts
     /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
     fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
-
-    /// Used for computing properties.  Properties and stack frames are scoped strictly within components, and this
-    /// method gives us a way to get the "children within the context of a component," which we can use to
-    /// recurse and compute properties, independently of rendering.  In particular, `get_rendering_children`
-    /// cuts through component boundaries, while `get_scoped_children` stays strictly inside. This is necessary
-    /// especially when dealing with `slot`, where the adoptees passed into a slot must have their properties computed
-    /// in the context of the component where those nodes were authored (not in the context of the component that adopts & renders them.)
-    fn get_scoped_children(&self) -> Option<RenderNodePtrList<R>> {
-        // Default implementation is `None`.  `Component` and primitives that accept children will override
-        // this to provide children.
+    /// For Components only, return the slot children passed into that Component.  For example, for `<Stacker><Group /></Stacker>`,
+    /// Stacker#get_slot_children would return the `<Group />` that was passed in by the component that authored both the `<Stacker>` and the `<Group>` in its template.
+    /// Note that `get_rendering_children`, in contrast, would return the root of Stacker's own template, not the `<Group />`.
+    /// This is used when computing properties, in order to compute, for example, both Stacker and Group in the context of the same parent
+    /// component and its runtime stack, instead of evaluating Group in the context of Stacker's internal template + runtime stack.
+    fn get_slot_children(&self) -> Option<RenderNodePtrList<R>> {
         None
+    }
+
+    /// Used during compute properties phase, to decide whether to traverse into rendering_children (most nodes)
+    /// or slot
+    fn is_component_node(&self) -> bool {
+        false
     }
 
     /// Consumes the children of this node at render-time that should be removed.
@@ -271,9 +273,9 @@ pub trait RenderNode<R: 'static + RenderContext> {
     /// `Repeat` overrides `should_flatten` to return true, which `Engine` interprets to mean "ignore this
     /// node and consume its children" during traversal.
     ///
-    /// This may also be useful as a check during slot -> adoptee
+    /// This may also be useful as a check during slot -> slot_child
     /// searching via stackframes — currently slots will recurse
-    /// up the stackframe looking for adoptees, but it may be the case that
+    /// up the stackframe looking for slot_children, but it may be the case that
     /// checking should_flatten and NOT recursing is better behavior.  TBD
     /// as more use-cases are vetted.
     fn should_flatten(&self) -> bool {
@@ -303,10 +305,22 @@ pub trait RenderNode<R: 'static + RenderContext> {
             ),
         }
     }
+
+
+
+    /// Lifecycle method firing before computing properties, namely for managing runtime stack
+    fn handle_will_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
+        //no-op default implementation
+    }
+
+    /// Lifecycle method firing after computing properties, namely for managing runtime stack
+    fn handle_did_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
+        //no-op default implementation
+    }
     /// First lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.
     /// Occurs in a pre-order traversal of the render tree.
-    fn compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
 
