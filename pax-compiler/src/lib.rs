@@ -141,7 +141,6 @@ fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &R
 
                 // Pass the GzDecoder to tar::Archive.
                 let mut archive = Archive::new(gz);
-
                 // Iterate over the entries in the archive and modify the paths before extracting.
                 for entry_result in archive.entries().expect("Failed to read entries") {
                     let mut entry = entry_result.expect("Failed to read entry");
@@ -1989,11 +1988,15 @@ Note that the temporary directories mentioned above are subject to overwriting.\
                 return Err(());
             }
 
-            // Perform recursive copy from userland `assets/` to built `assets/`
-            if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest, &vec![]) {
-                eprintln!("Error copying assets: {}", e);
-                return Err(());
+            // Check if the asset_src directory exists before attempting the copy
+            if asset_src.exists() {
+                // Perform recursive copy from userland `assets/` to built `assets/`
+                if let Err(e) = copy_dir_recursively(&asset_src, &asset_dest, &vec![]) {
+                    eprintln!("Error copying assets: {}", e);
+                    return Err(());
+                }
             }
+
 
             //Copy fully built project into .pax/build/web, ready for e.g. publishing
             let build_src = interface_path.join(PUBLIC_DIR_NAME);
