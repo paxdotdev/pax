@@ -97,6 +97,18 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         //expand slot_children before adding to stack frame.
         //NOTE: this requires *evaluating properties* for `should_flatten` nodes like Repeat and Conditional, whose
         //      properties must be evaluated before we can know how to handle them as slot_children
+
+
+
+       todo!("Problem: current impl of process__* requires properties for subtree\
+       to have been fully computed ahead of time (because it relies on get_rendering_children, which,\
+       in examples of `for`, requires that properties are computed first.)  This shakes out as no adoptees\
+       being pushed to the stack frame, which ultimately breaks computing properties inside of a for loop (via get_forwarded_children)\
+       A broad potential approach is to decouple adoptees from the properties stack.\
+        Along the way, think about the special treatment we're giving to handle_did_compute_properties for component\
+        nodes in recurse_traverse_render_tree.  Perhaps this exact shape of the properties x stack x adoptees isn't quite there yet.");
+
+
         let non_flattened_slot_children = Rc::clone(&self.slot_children);
 
         let flattened_slot_children = Rc::new(RefCell::new(
