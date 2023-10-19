@@ -23,7 +23,7 @@ use pax_runtime_api::{CommonProperties, Layer, Size};
 /// to [`Frame`], since `[Frame]` creates a clipping mask.
 pub struct FrameInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
-    pub children: RenderNodePtrList<R>,
+    pub primitive_children: RenderNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
 
     pub common_properties: CommonProperties,
@@ -53,7 +53,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         let instance_id = instance_registry.mint_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
-            children: args.children.unwrap(), //Frame expects primitive_children, even if empty Vec
+            primitive_children: args.children.unwrap(), //Frame expects primitive_children, even if empty Vec
             last_patches: HashMap::new(),
             handler_registry: args.handler_registry,
             common_properties: args.common_properties,
@@ -134,7 +134,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
     }
 
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
-        Rc::clone(&self.children)
+        Rc::clone(&self.primitive_children)
+    }
+
+    fn get_scoped_children(&self) -> Option<RenderNodePtrList<R>> {
+        Some(Rc::clone(&self.primitive_children))
     }
 
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {

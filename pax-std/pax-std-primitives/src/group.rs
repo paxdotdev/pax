@@ -30,6 +30,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
         Rc::clone(&self.primitive_children)
     }
 
+    fn get_scoped_children(&self) -> Option<RenderNodePtrList<R>> {
+        Some(Rc::clone(&self.primitive_children))
+    }
+
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,
