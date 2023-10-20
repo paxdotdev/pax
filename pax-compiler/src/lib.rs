@@ -953,6 +953,8 @@ pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) ->
     let mut cmd = Command::new("cargo");
     cmd.current_dir(path)
         .arg("run")
+        .arg("--bin")
+        .arg("parser")
         .arg("--features")
         .arg("parser")
         .arg("--color")
