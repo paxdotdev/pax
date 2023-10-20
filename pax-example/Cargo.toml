@@ -10,9 +10,9 @@ description = "Example and development app for the Pax monorepo and compiler"
 default-run = "run"
 
 [dependencies]
-pax-lang = { version="0.10.4", path=".pax/pkg/pax-lang" }
-pax-std = { version="0.10.4", path=".pax/pkg/pax-std" }
-pax-compiler = {version = "0.10.4", path=".pax/pkg/pax-compiler", optional = true}
+pax-lang = { version="0.10.6", path=".pax/pkg/pax-lang" }
+pax-std = { version="0.10.6", path=".pax/pkg/pax-std" }
+pax-compiler = {version = "0.10.6", path=".pax/pkg/pax-compiler", optional = true}
 serde_json = {version = "1.0.95", optional = true}
 
 [features]
