@@ -1044,7 +1044,6 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     let pax_version = if ctx.is_libdev_mode {
         None
     } else {
-        println!("path:{}", &ctx.path);
         Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
     };
     clone_all_to_pkg_dir(&pax_dir, &pax_version, &ctx);
