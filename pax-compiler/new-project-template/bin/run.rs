@@ -13,11 +13,10 @@ fn main() {
     };
 
     let current_dir = env::current_dir().expect("Failed to get current directory");
-    let parent_dir = current_dir.parent().expect("Failed to get parent directory");
 
     let status = Command::new("pax-cli")
         .args(&pax_args)
-        .current_dir(parent_dir)
+        .current_dir(current_dir)
         .status()
         .expect("Failed to execute pax-cli");
 
