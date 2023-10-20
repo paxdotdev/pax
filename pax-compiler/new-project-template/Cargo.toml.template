@@ -2,6 +2,7 @@
 name = "CRATE_NAME"
 version = "VERSION_PLACEHOLDER"
 edition = "2021"
+default-run = "run"
 
 [dependencies]
 pax-lang = { version="VERSION_PLACEHOLDER" }
@@ -13,6 +14,10 @@ serde_json = {version = "1.0.95", optional = true}
 name = "parser"
 path = "src/lib.rs"
 required-features = ["parser"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"
 
 [features]
 parser = ["pax-std/parser", "pax-lang/parser", "dep:serde_json", "dep:pax-compiler"]

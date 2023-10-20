@@ -954,6 +954,8 @@ pub fn run_parser_binary(path: &str, process_child_ids: Arc<Mutex<Vec<u64>>>) ->
     let mut cmd = Command::new("cargo");
     cmd.current_dir(path)
         .arg("run")
+        .arg("--bin")
+        .arg("parser")
         .arg("--features")
         .arg("parser")
         .arg("--color")
@@ -999,7 +1001,7 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
         .current_dir(path)
         .output()
         .expect("Failed to execute `cargo metadata`");
-
+    
     if !output.status.success() {
         eprintln!("{}", String::from_utf8_lossy(&output.stderr));
         panic!("Failed to get metadata from Cargo");
@@ -1043,6 +1045,7 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
     let pax_version = if ctx.is_libdev_mode {
         None
     } else {
+        println!("path:{}", &ctx.path);
         Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
     };
     clone_all_to_pkg_dir(&pax_dir, &pax_version, &ctx);
