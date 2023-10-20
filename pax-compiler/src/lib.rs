@@ -1000,7 +1000,7 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
         .current_dir(path)
         .output()
         .expect("Failed to execute `cargo metadata`");
-    
+
     if !output.status.success() {
         eprintln!("{}", String::from_utf8_lossy(&output.stderr));
         panic!("Failed to get metadata from Cargo");
