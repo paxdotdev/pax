@@ -74,7 +74,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 se.get().clone()
             };
 
-            //let is_dirty = true;
             //Major hack: will only consider a new vec dirty if its cardinality changes.
             let is_dirty = {
                 rtc.bounds != self.cached_old_bounds
@@ -84,7 +83,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                         self.cached_old_value_vec.as_ref().unwrap().len() != new_value.len()
                     }
             };
-            self.cached_old_bounds = rtc.bounds.clone();
+            self.cached_old_bounds = rtc.bounds;
             self.cached_old_value_vec = Some(new_value.clone());
             (is_dirty, new_value)
         } else if let Some(se) = &self.source_expression_range {
@@ -101,7 +100,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 unreachable!()
             };
 
-            //let is_dirty = true;
             //Major hack: will only consider a new vec dirty if its cardinality changes.
             let is_dirty = {
                 rtc.bounds != self.cached_old_bounds
@@ -111,12 +109,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                         self.cached_old_value_range.as_ref().unwrap().len() != new_value.len()
                     }
             };
-            self.cached_old_bounds = rtc.bounds.clone();
+            self.cached_old_bounds = rtc.bounds;
             self.cached_old_value_range = Some(new_value.clone());
             let normalized_vec_of_props = new_value
                 .into_iter()
-                .enumerate()
-                .map(|(_i, elem)| Rc::new(PropertiesCoproduct::isize(elem)))
+                .map(| elem| Rc::new(PropertiesCoproduct::isize(elem)))
                 .collect();
             (is_dirty, normalized_vec_of_props)
         } else {
@@ -212,7 +209,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         self.cached_old_value_vec = None;
     }
 }
-
 /*
 lab journal, zb
 ---------------

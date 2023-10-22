@@ -662,7 +662,6 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             include_imports,
             is_custom_interpolatable,
         )
-
     } else if is_primitive {
         pax_primitive(
             input.clone(),

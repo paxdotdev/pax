@@ -3,8 +3,7 @@ use crate::types::{StackerCell, StackerDirection};
 use pax_lang::api::numeric::Numeric;
 use pax_lang::api::{Property, Size, Transform2D};
 use pax_lang::*;
-use pax_runtime_api::{RuntimeContext, PropertyLiteral};
-
+use pax_runtime_api::{PropertyLiteral, RuntimeContext};
 
 /// Stacker lays out a series of nodes either
 /// vertically or horizontally (i.e. a single row or column) with a specified gutter in between
@@ -92,8 +91,7 @@ impl Stacker {
                             Numeric::from(active_bound) * (*per / Numeric::from(100.0))
                         }
                         Size::Combined(pix, per) => {
-                            *pix + (Numeric::from(active_bound)
-                                * (per.clone() / Numeric::from(100.0)))
+                            *pix + (Numeric::from(active_bound) * (*per / Numeric::from(100.0)))
                         }
                     }
                     .get_as_float();

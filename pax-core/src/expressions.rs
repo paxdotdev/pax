@@ -37,14 +37,6 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
         unreachable!()
     }
 
-    // fn is_fresh(&self) -> bool {
-    //     self.is_fresh
-    // }
-    //
-    // fn _mark_not_fresh(&mut self) {
-    //     self.is_fresh = false;
-    // }
-
     fn _get_vtable_id(&self) -> Option<usize> {
         Some(self.id)
     }
