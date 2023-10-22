@@ -140,13 +140,21 @@ export class NativeElementPool {
             }
             if (style.fill) {
                 let newValue = "";
-                if(style.fill.Rgba != null) {
+                if (style.fill.Rgba != null) {
                     let p = style.fill.Rgba;
-                    newValue = `rgba(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
+                    newValue = `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+                } else if (style.fill.Hsla != null) {
+                    let p = style.fill.Hsla;
+                    newValue = `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+                } else if (style.fill.Rgb != null) {
+                    let p = style.fill.Rgb;
+                    newValue = `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+                } else if (style.fill.Hsl != null) {
+                    let p = style.fill.Hsl;
+                    newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
                 } else {
-                    let p = style.fill.Hsla!;
-                    newValue = `hsla(${p[0]! * 255.0},${p[1]! * 255.0},${p[2]! * 255.0},${p[3]! * 255.0})`;
-                }
+                    throw new TypeError("Unsupported Color Format");
+                }        
                 textChild.style.color = newValue;
             }
             if (style.font_size) {

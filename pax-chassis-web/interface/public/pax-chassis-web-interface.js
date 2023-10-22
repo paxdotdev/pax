@@ -704,9 +704,17 @@ var Pax = (() => {
           if (style.fill.Rgba != null) {
             let p = style.fill.Rgba;
             newValue = `rgba(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
-          } else {
+          } else if (style.fill.Hsla != null) {
             let p = style.fill.Hsla;
             newValue = `hsla(${p[0] * 255},${p[1] * 255},${p[2] * 255},${p[3] * 255})`;
+          } else if (style.fill.Rgb != null) {
+            let p = style.fill.Rgb;
+            newValue = `rgb(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+          } else if (style.fill.Hsl != null) {
+            let p = style.fill.Hsl;
+            newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
+          } else {
+            throw new TypeError("Unsupported Color Format");
           }
           textChild.style.color = newValue;
         }
