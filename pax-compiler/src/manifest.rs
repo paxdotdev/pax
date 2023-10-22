@@ -89,7 +89,8 @@ pub struct ExpressionSpecInvocation {
 
     /// Flags used for particular corner cases of `Repeat` codegen
     pub is_numeric: bool,
-    pub is_primitive_nonnumeric: bool,
+    pub is_bool: bool,
+    pub is_string: bool,
 
     /// Flags describing attributes of properties
     pub property_flags: PropertyDefinitionFlags,
@@ -110,8 +111,12 @@ pub const SUPPORTED_NUMERIC_PRIMITIVES: [&str; 13] = [
 pub const SUPPORTED_NONNUMERIC_PRIMITIVES: [&str; 2] = ["String", "bool"];
 
 impl ExpressionSpecInvocation {
-    pub fn is_primitive_nonnumeric(property_properties_coproduct_type: &str) -> bool {
-        SUPPORTED_NONNUMERIC_PRIMITIVES.contains(&property_properties_coproduct_type)
+    pub fn is_primitive_string(property_properties_coproduct_type: &str) -> bool {
+        &SUPPORTED_NONNUMERIC_PRIMITIVES[0] == &property_properties_coproduct_type
+    }
+
+    pub fn is_primitive_bool(property_properties_coproduct_type: &str) -> bool {
+        &SUPPORTED_NONNUMERIC_PRIMITIVES[1] == &property_properties_coproduct_type
     }
 
     pub fn is_numeric(property_properties_coproduct_type: &str) -> bool {

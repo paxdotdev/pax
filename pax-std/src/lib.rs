@@ -10,6 +10,7 @@ pub mod components {
 pub mod primitives {
     use pax_lang::Pax;
     use pax_runtime_api::Size;
+    use pax_runtime_api::StringBox;
 
     use crate::types::text::TextStyle;
     use crate::types::PathSegment;
@@ -63,7 +64,7 @@ pub mod primitives {
     #[custom(Imports)]
     #[primitive("pax_std_primitives::text::TextInstance")]
     pub struct Text {
-        pub text: pax_lang::Property<String>,
+        pub text: pax_lang::Property<StringBox>,
         pub style: pax_lang::Property<TextStyle>,
         pub style_link: pax_lang::Property<TextStyle>,
     }
@@ -72,6 +73,6 @@ pub mod primitives {
     #[custom(Imports)]
     #[primitive("pax_std_primitives::image::ImageInstance")]
     pub struct Image {
-        pub path: pax_lang::Property<String>,
+        pub path: pax_lang::Property<StringBox>,
     }
 }

@@ -6,7 +6,7 @@ use pax_core::{
     RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, TextPatch};
-use pax_runtime_api::{CommonProperties, Layer, SizePixels};
+use pax_runtime_api::{CommonProperties, Layer, SizePixels, StringBox};
 use pax_std::primitives::Text;
 use piet::RenderContext;
 use std::collections::HashMap;
@@ -61,11 +61,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
         Rc::new(RefCell::new(vec![]))
     }
     fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
         if let Some(text) = rtc.compute_vtable_value(properties.text._get_vtable_id()) {
-            let new_value = unsafe_unwrap!(text, TypesCoproduct, String);
+            let new_value = unsafe_unwrap!(text, TypesCoproduct, StringBox);
             properties.text.set(new_value);
         }
 
@@ -197,7 +196,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
 
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
-        let val = properties.text.get();
+        let val = properties.text.get().string.clone();
         let is_new_value = match &last_patch.content {
             Some(cached_value) => !val.eq(cached_value),
             None => true,

@@ -1066,3 +1066,47 @@ impl ZIndex {
         }
     }
 }
+
+#[derive(Clone,Debug)]
+pub struct StringBox{
+    pub string: String,
+}
+
+impl Add for StringBox{
+    type Output = Self;
+
+    fn add(mut self, rhs: Self) -> Self::Output {
+        self.string.push_str(&rhs.string.as_str());
+        self
+    }
+}
+
+impl Default for StringBox{
+    fn default() -> Self {
+        Self { string: String::new() }
+    }
+}
+
+impl From<&str> for StringBox{
+    fn from(value: &str) -> Self {
+        StringBox { string: value.to_string() }
+    }
+}
+
+impl From<String> for StringBox{
+    fn from(value: String) -> Self {
+        StringBox{string:value}
+    }
+}
+
+impl From<&String> for StringBox{
+    fn from(value: &String) -> Self {
+        StringBox{string:value.to_string()}
+    }
+}
+
+impl From<StringBox> for String{
+    fn from(value: StringBox) -> Self {
+        String::from(value.string)
+    }
+}
