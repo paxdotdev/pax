@@ -248,4 +248,6 @@ export function getAlignItems(verticalAlignment: string): string {
 class ColorGroup {
     Hsla?: number[];
     Rgba?: number[];
+    Rgb?: number[];
+    Hsl?: number[];
 }
