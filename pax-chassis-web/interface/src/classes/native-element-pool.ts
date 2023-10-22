@@ -153,8 +153,7 @@ export class NativeElementPool {
                     let p = style.fill.Hsl;
                     newValue = `hsl(${p[0] * 255},${p[1] * 255},${p[2] * 255})`;
                 } else {
-                    console.log("unsupported color type!");
-                    newValue = `rgb(255, 0, 255)`;
+                    throw new TypeError("Unsupported Color Format");
                 }        
                 textChild.style.color = newValue;
             }
