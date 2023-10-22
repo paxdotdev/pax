@@ -33,8 +33,10 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                             {# For known numeric primitives, we can safely deref-copy and wrap in Numeric #}
                             let unwrapped = if let PropertiesCoproduct::{{invocation.iterable_type_id_escaped}}(i) = **elem {i} else {unreachable!()};
                             Numeric::from(unwrapped)
-                        {% elif invocation.is_primitive_nonnumeric %}
-                            //iterable primitive non-numeric
+                        {% elif invocation.is_string %}
+                            let unwrapped = if let PropertiesCoproduct::{{invocation.iterable_type_id_escaped}}(i) = **elem {i} else {unreachable!()};
+                            StringBox::from(unwrapped)
+                        {% elif invocation.is_bool %}
                             elem.clone()
                         {% else %}
                             //iterable complex type
@@ -53,6 +55,9 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
                         {% if invocation.is_numeric %}
                             //binding simple numeric property
                             Numeric::from(p.{{invocation.root_identifier}}.get())
+                        {% elif invocation.is_string %}
+                            //binding simple stringbox property
+                            StringBox::from(p.{{invocation.root_identifier}}.get())
                         {% else %}
                             //binding cloneable property
                             p.{{invocation.root_identifier}}.get().clone()

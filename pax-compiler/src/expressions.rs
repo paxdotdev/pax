@@ -653,7 +653,10 @@ fn resolve_symbol_as_invocation(
         ExpressionSpecInvocation {
             root_identifier,
             is_numeric: ExpressionSpecInvocation::is_numeric(&property_properties_coproduct_type),
-            is_primitive_nonnumeric: ExpressionSpecInvocation::is_primitive_nonnumeric(
+            is_bool: ExpressionSpecInvocation::is_primitive_bool(
+                &property_properties_coproduct_type,
+            ),
+            is_string: ExpressionSpecInvocation::is_primitive_string(
                 &property_properties_coproduct_type,
             ),
             escaped_identifier,

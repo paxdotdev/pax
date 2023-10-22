@@ -38,6 +38,7 @@ pub enum TypesCoproduct {
     Size(pax_runtime_api::Size),
     Rotation(pax_runtime_api::Rotation),
     Numeric(pax_runtime_api::Numeric),
+    StringBox(pax_runtime_api::StringBox)
     //generated / userland
 }
 

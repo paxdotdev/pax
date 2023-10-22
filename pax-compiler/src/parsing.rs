@@ -199,8 +199,7 @@ fn recurse_pratt_parse_to_string<'a>(
                         format!("Numeric::from({})", value)
                     },
                     Rule::string => {
-                        //TODO: figure out string concatenation.  Might need to introduce another operator?  Or perhaps a higher-level string type, which supports addition-as-concatenation — like we do with Numeric
-                        literal_kind.as_str().to_string() + ".to_string()"
+                        format!("StringBox::from({})",literal_kind.as_str().to_string())
                     },
                     _ => {
                         /* {literal_enum_value | literal_tuple_access | literal_tuple | string } */
@@ -1306,6 +1305,15 @@ impl Reflectable for pax_runtime_api::Transform2D {
 
     fn get_self_pascal_identifier() -> String {
         "Transform2D".to_string()
+    }
+}
+
+impl Reflectable for pax_runtime_api::StringBox {
+    fn get_import_path() -> String {
+        "pax_lang::api::StringBox".to_string()
+    }
+    fn get_self_pascal_identifier() -> String {
+        "StringBox".to_string()
     }
 }
 
