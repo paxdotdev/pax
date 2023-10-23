@@ -4,9 +4,7 @@ use std::env;
 fn main() {
     let args: Vec<String> = env::args().skip(1).collect();
 
-    let pax_args = if args.is_empty() {
-        vec!["run", "--target=web"]
-    } else {
+    let pax_args = {
         let mut extended_args = vec!["run"];
         extended_args.extend(args.iter().map(|arg| arg.as_str()));
         extended_args

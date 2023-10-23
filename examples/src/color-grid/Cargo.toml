@@ -1,0 +1,23 @@
+[package]
+name = "color-grid"
+version = "0.10.7"
+edition = "2021"
+default-run = "run"
+
+[dependencies]
+pax-lang = { version = "0.10.7" }
+pax-std = { version = "0.10.7" }
+pax-compiler = { version = "0.10.7", optional = true}
+serde_json = {version = "1.0.95", optional = true}
+
+[[bin]]
+name = "parser"
+path = "src/lib.rs"
+required-features = ["parser"]
+
+[[bin]]
+name = "run"
+path = "bin/run.rs"
+
+[features]
+parser = ["pax-std/parser", "pax-lang/parser", "dep:serde_json", "dep:pax-compiler"]
