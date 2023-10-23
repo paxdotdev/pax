@@ -1931,6 +1931,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "pax-monorepo"
+version = "0.10.7"
+
+[[package]]
 name = "pax-properties-coproduct"
 version = "0.10.7"
 dependencies = [

@@ -3,7 +3,7 @@
 fill={Fill::linearGradient(
     (0%, 50%),
     (100%, 50%),
-    (Color::rgba(0.0,0.0,0.0,1.0), Color::rgba(1.0,0.0,0.0,1.0)))}
+    [GradientStop::get(Color::rgba(0.0,0.0,0.0,1.0), 0%), GradientStop::get(Color::rgba(1.0,0.0,0.0,0.5), 100%)])}
   />
 @settings {
     #text {

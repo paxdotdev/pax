@@ -12,6 +12,7 @@ pax-chassis-macos/interface/build
 pax-example/build
 pax-example/.pax/
 pax-create-sandbox/
+examples/src/*/.pax/
 
 
 **/*.rs.bk
