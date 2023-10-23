@@ -1,8 +1,10 @@
-use pax_lang::api::{ArgsClick, EasingCurve, RuntimeContext, Property, PropertyLiteral};
+#![allow(unused_imports)]
+use pax_lang::api::{ArgsClick, EasingCurve, RuntimeContext, Property};
 use pax_lang::Pax;
 use pax_std::primitives::{Rectangle, Group, Frame, Text, Ellipse};
 
 #[derive(Pax)]
+#[main]
 #[file("camera.pax")]
 pub struct Camera {
     pub ticks: Property<usize>,
@@ -18,16 +20,14 @@ pub struct TypeExample {
     pub foo: Property<usize>,
 }
 
-const LOOP_DURATION_FRAMES : usize = 600;
-
 impl Camera {
-    pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
+    pub fn handle_did_mount(&mut self, _: RuntimeContext) {
         self.zoom.set(2.0);
         self.pan_x.set(0.0);
         self.pan_y.set(0.0);
     }
 
-    pub fn handle_click(&mut self, ctx: RuntimeContext, args: ArgsClick) {
+    pub fn handle_click(&mut self, _: RuntimeContext, args: ArgsClick) {
         let delta_pan = (args.mouse.x - self.pan_x.get(), args.mouse.y - self.pan_y.get());
         self.pan_x.ease_to(self.pan_x.get() + delta_pan.0, 200, EasingCurve::Linear);
         self.pan_y.ease_to(self.pan_y.get() + delta_pan.1, 200, EasingCurve::Linear);
