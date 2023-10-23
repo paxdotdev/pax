@@ -9,8 +9,6 @@ use std::str::FromStr;
 
 use std::fs::File;
 
-use std::path::Path;
-
 use proc_macro2::{Ident, Span, TokenStream};
 use quote::{quote, ToTokens};
 
@@ -87,39 +85,29 @@ fn pax_struct_only_component(
 /// type is wrapped in Property<T>
 fn get_field_type(f: &Field) -> Option<(Type, bool)> {
     let mut ret = None;
-    match &f.ty {
-        Type::Path(tp) => {
-            match tp.qself {
-                None => {
-                    tp.path.segments.iter().for_each(|ps| {
-                        //Only generate parsing logic for types wrapped in `Property<>`
-                        if ps.ident.to_string().ends_with("Property") {
-                            match &ps.arguments {
-                                PathArguments::AngleBracketed(abga) => {
-                                    abga.args.iter().for_each(|abgaa| {
-                                        match abgaa {
-                                            GenericArgument::Type(gat) => {
-                                                ret = Some((gat.to_owned(), true));
-                                            }
-                                            _ => { /* lifetimes and more */ }
-                                        };
-                                    })
+    if let Type::Path(tp) = &f.ty {
+        match tp.qself {
+            None => {
+                tp.path.segments.iter().for_each(|ps| {
+                    //Only generate parsing logic for types wrapped in `Property<>`
+                    if ps.ident.to_string().ends_with("Property") {
+                        if let PathArguments::AngleBracketed(abga) = &ps.arguments {
+                            abga.args.iter().for_each(|abgaa| {
+                                if let GenericArgument::Type(gat) = abgaa {
+                                    ret = Some((gat.to_owned(), true));
                                 }
-                                _ => {}
-                            }
+                            })
                         }
-                    });
-
-                    if ret.is_none() {
-                        //ret is still None, so we will assume this is a simple type and pass it forward
-                        ret = Some((f.ty.to_owned(), false));
                     }
+                });
+                if ret.is_none() {
+                    //ret is still None, so we will assume this is a simple type and pass it forward
+                    ret = Some((f.ty.to_owned(), false));
                 }
-                _ => {}
-            };
-        }
-        _ => {}
-    };
+            }
+            _ => {}
+        };
+    }
     ret
 }
 
@@ -295,8 +283,6 @@ fn pax_full_component(
     let template_dependencies =
         parsing::parse_pascal_identifiers_from_component_definition_string(&raw_pax);
 
-    // std::time::SystemTime::now().elapsed().unwrap().subsec_nanos()
-
     // Load reexports.partial.rs if PAX_DIR is set
     let pax_dir: Option<&'static str> = option_env!("PAX_DIR");
     let reexports_snippet = if let Some(pax_dir) = pax_dir {
@@ -335,66 +321,69 @@ fn pax_full_component(
     .into()
 }
 
-#[proc_macro_derive(Pax, attributes(main, file, inlined, primitive, custom, default))]
-pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
-    let input = parse_macro_input!(input as DeriveInput);
-    let name = &input.ident;
-    let generics = &input.generics;
-    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
-    let attrs = &input.attrs;
+struct Config {
+    is_main_component: bool,
+    file_path: Option<String>,
+    inlined_contents: Option<String>,
+    custom_values: Option<Vec<String>>,
+    primitive_instance_import_path: Option<String>,
+    is_primitive: bool,
+}
 
-    let mut is_main_component = false;
-    let mut file_path: Option<String> = None;
-    let mut inlined_contents: Option<String> = None;
-    let mut custom_values: Option<Vec<String>> = None;
-    let mut primitive_instance_import_path: Option<String> = None;
-    let mut is_primitive = false;
+fn parse_config(attrs: &[syn::Attribute]) -> Config {
+    let mut config = Config {
+        is_main_component: false,
+        file_path: None,
+        inlined_contents: None,
+        custom_values: None,
+        primitive_instance_import_path: None,
+        is_primitive: false,
+    };
 
     // iterate through `derive macro helper attributes` to gather config & args
     for attr in attrs {
-        if attr.path.is_ident("file") {
-            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
-                if let Some(nested_meta) = meta_list.nested.first() {
-                    if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
-                        file_path = Some(file_str.value());
+        match attr.path.get_ident() {
+            Some(s) if s == "file" => {
+                if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                    if let Some(nested_meta) = meta_list.nested.first() {
+                        if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
+                            config.file_path = Some(file_str.value());
+                        }
                     }
                 }
             }
-        } else if attr.path.is_ident("primitive") {
-            if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
-                if let Some(nested_meta) = meta_list.nested.first() {
-                    if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
-                        primitive_instance_import_path = Some(file_str.value());
-                        is_primitive = true;
+            Some(s) if s == "primitive" => {
+                if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
+                    if let Some(nested_meta) = meta_list.nested.first() {
+                        if let syn::NestedMeta::Lit(Lit::Str(file_str)) = nested_meta {
+                            config.primitive_instance_import_path = Some(file_str.value());
+                            config.is_primitive = true;
+                        }
                     }
                 }
             }
-        } else if attr.path.is_ident("inlined") {
-            let tokens = attr.tokens.clone();
-            let mut content = proc_macro2::TokenStream::new();
+            Some(s) if s == "inlined" => {
+                let tokens = attr.tokens.clone();
+                let mut content = proc_macro2::TokenStream::new();
 
-            for token in tokens {
-                match token {
-                    proc_macro2::TokenTree::Group(group) => {
+                for token in tokens {
+                    if let proc_macro2::TokenTree::Group(group) = token {
                         if group.delimiter() == proc_macro2::Delimiter::Parenthesis {
                             content.extend(group.stream());
                         }
                     }
-                    _ => {}
                 }
-            }
 
-            if !content.is_empty() {
-                inlined_contents = Some(content.to_string());
-            }
-        } else {
-            match attr.parse_meta() {
-                Ok(Meta::Path(path)) => {
-                    if path.is_ident("main") {
-                        is_main_component = true;
-                    }
+                if !content.is_empty() {
+                    config.inlined_contents = Some(content.to_string());
                 }
-                Ok(Meta::List(meta_list)) => {
+            }
+            _ => {
+                if let Ok(Meta::Path(path)) = attr.parse_meta() {
+                    if path.is_ident("main") {
+                        config.is_main_component = true;
+                    }
+                } else if let Ok(Meta::List(meta_list)) = attr.parse_meta() {
                     if meta_list.path.is_ident("custom") {
                         let values: Vec<String> = meta_list
                             .nested
@@ -407,48 +396,50 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                                 }
                             })
                             .collect();
-                        custom_values = Some(values);
+                        config.custom_values = Some(values);
                     }
                 }
-                _ => {}
             }
         }
     }
 
-    //Validation
-    if let (Some(_), Some(_)) = (file_path.as_ref(), inlined_contents.as_ref()) {
-        return syn::Error::new_spanned(
-            input.ident,
+    config
+}
+
+fn validate_config(
+    input: &syn::DeriveInput,
+    config: &Config,
+) -> Result<(), proc_macro::TokenStream> {
+    if config.file_path.is_some() && config.inlined_contents.is_some() {
+        return Err(syn::Error::new_spanned(
+            input.ident.clone(),
             "`#[file(...)]` and `#[inlined(...)]` attributes cannot be used together",
         )
         .to_compile_error()
-        .into();
+        .into());
     }
-    if let (None, None) = (file_path.as_ref(), inlined_contents.as_ref()) {
-        // &&
-        if is_main_component {
-            return syn::Error::new_spanned(input.ident, "Main (application-root) components must specify either a Pax file or inlined Pax content, e.g. #[file(\"some-file.pax\")] or #[inlined(<SomePax />)]")
-                .to_compile_error()
-                .into();
-        }
+    if config.file_path.is_none() && config.inlined_contents.is_none() && config.is_main_component {
+        return Err(syn::Error::new_spanned(
+            input.ident.clone(),
+            "Main (application-root) components must specify either a Pax file or inlined Pax content, e.g. #[file(\"some-file.pax\")] or #[inlined(<SomePax />)]",
+        )
+        .to_compile_error()
+        .into());
     }
-    if is_primitive {
-        const ERR : &str = "Primitives cannot have attached templates.  Instead, specify a fully qualified Rust import path pointing to the `impl RenderNode` struct for this primitive.";
+    if config.is_primitive && (config.file_path.is_some() || config.inlined_contents.is_some()) {
+        const ERR: &str = "Primitives cannot have attached templates. Instead, specify a fully qualified Rust import path pointing to the `impl RenderNode` struct for this primitive.";
+        return Err(syn::Error::new_spanned(input.ident.clone(), ERR)
+            .to_compile_error()
+            .into());
+    }
+    Ok(())
+}
 
-        if let Some(_) = file_path.as_ref() {
-            return syn::Error::new_spanned(input.ident, ERR)
-                .to_compile_error()
-                .into();
-        }
-        if let Some(_) = inlined_contents.as_ref() {
-            return syn::Error::new_spanned(input.ident, ERR)
-                .to_compile_error()
-                .into();
-        }
-    }
+fn generate_clone_impl(input: &DeriveInput) -> TokenStream {
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
 
-    // Implement Clone
-    let mut clone_impl = match &input.data {
+    match &input.data {
         Data::Struct(data_struct) => match &data_struct.fields {
             Fields::Named(fields) => {
                 let field_names = fields.named.iter().map(|f| &f.ident);
@@ -532,12 +523,18 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
             }
         }
         Data::Union(_) => {
-            panic!("`Pax` derive macro does not support unions.");
+            quote! {
+                compile_error!("`Pax` derive macro does not support unions.");
+            }
         }
-    };
+    }
+}
 
-    // Implement Default
-    let mut default_impl = match &input.data {
+fn generate_default_impl(input: &DeriveInput) -> TokenStream {
+    let name = &input.ident;
+    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+
+    match &input.data {
         Data::Struct(data_struct) => match &data_struct.fields {
             Fields::Named(fields_named) => {
                 let field_defaults = fields_named.named.iter().map(|f| {
@@ -596,13 +593,28 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
                 compile_error!("Pax derive does not currently support Unions");
             }
         }
-    };
+    }
+}
+
+#[proc_macro_derive(Pax, attributes(main, file, inlined, primitive, custom, default))]
+pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let attrs = &input.attrs;
+
+    let config = parse_config(attrs);
+    validate_config(&input, &config).unwrap();
+
+    // Implement Clone
+    let mut clone_impl = generate_clone_impl(&input);
+
+    // Implement Default
+    let mut default_impl = generate_default_impl(&input);
 
     let mut include_imports = true;
     let mut is_custom_interpolatable = false;
 
     //wipe out the above derives if `#[custom(...)]` attrs are set
-    if let Some(custom) = custom_values {
+    if let Some(custom) = config.custom_values {
         if custom.contains(&"Default".to_string()) {
             //wipe out the above derive
             default_impl = quote! {};
@@ -619,19 +631,14 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         }
     }
 
-    let is_pax_file = matches!(&file_path, Some(_f));
-    let is_pax_inlined = matches!(&inlined_contents, Some(_i));
+    let is_pax_file = config.file_path.is_some();
+    let is_pax_inlined = config.inlined_contents.is_some();
     // let debug = format!("//is_pax_file:  {}, is_pax_inlined: {}\n//inlined_contents: /*{:?}*/", &is_pax_file, &is_pax_inlined, &inlined_contents);
 
     let appended_tokens = if is_pax_file {
-        let filename = if let Some(p) = file_path.as_ref() {
-            p
-        } else {
-            unreachable!()
-        };
+        let filename = config.file_path.unwrap();
         let current_dir = std::env::current_dir().expect("Unable to get current directory");
-        let path = current_dir.join(Path::new("src").join(Path::new(&filename)));
-
+        let path = current_dir.join("src").join(&filename);
         // generate_include to watch for changes in specified file, ensuring macro is re-evaluated when file changes
         let name = Ident::new("PaxFile", Span::call_site());
         let include_fix = generate_include(&name, path.clone().to_str().unwrap());
@@ -641,36 +648,32 @@ pub fn pax_derive(input: proc_macro::TokenStream) -> proc_macro::TokenStream {
         let _ = file.unwrap().read_to_string(&mut content);
         pax_full_component(
             content,
-            input.clone(),
-            is_main_component,
+            input,
+            config.is_main_component,
             Some(include_fix),
             include_imports,
             is_custom_interpolatable,
         )
     } else if is_pax_inlined {
-        let contents = if let Some(p) = inlined_contents {
-            p
-        } else {
-            unreachable!()
-        };
+        let contents = config.inlined_contents.unwrap();
 
         pax_full_component(
-            contents.clone(),
-            input.clone(),
-            is_main_component,
+            contents.to_owned(),
+            input,
+            config.is_main_component,
             None,
             include_imports,
             is_custom_interpolatable,
         )
-    } else if is_primitive {
+    } else if config.is_primitive {
         pax_primitive(
-            input.clone(),
-            primitive_instance_import_path.unwrap(),
+            input,
+            config.primitive_instance_import_path.unwrap(),
             include_imports,
             is_custom_interpolatable,
         )
     } else {
-        pax_struct_only_component(input.clone(), include_imports, is_custom_interpolatable)
+        pax_struct_only_component(input, include_imports, is_custom_interpolatable)
     };
 
     let output = quote! {
