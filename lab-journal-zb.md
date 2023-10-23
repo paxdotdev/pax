@@ -3576,3 +3576,21 @@ MyLibrary.xcframework
 ```
 
 Get this working entirely manually first, then automate in pax-compiler. (validate by `pax clean` and ensuring that builds still run.)
+
+
+
+
+### On robust multi-level slots & scopes
+
+[ ] separate runtime scope stack from adoptees stack
+[ ] introduce lifecycle methods surrounding property computation, for managing runtime property stack
+[ ] rename adoptees to slot-children
+[ ] rename runtime stack to RuntimePropertyScopeStack
+    [ ] document relationship between runtime stack & compile-time (offset) stack
+
+[ ] introduce `get_top_level_rendering_nodes`; rename `should_flatten` to `is_invisible_to_slot`
+    [ ] manage lifecycle between calling the above method, which requires recursive properties to have been computed,
+        vs computing properties
+    [ ] note that this means adoptees aren't tracked in a stack at all.
+        [ ] instead, ensure that the "node containing the node for which the current render_node is a template member"
+[ ] consider renaming `will_` to `pre_` and `did_` to `post_` (while a departure from React-like conventions, )
