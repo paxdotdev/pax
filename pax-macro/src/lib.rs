@@ -85,39 +85,29 @@ fn pax_struct_only_component(
 /// type is wrapped in Property<T>
 fn get_field_type(f: &Field) -> Option<(Type, bool)> {
     let mut ret = None;
-    match &f.ty {
-        Type::Path(tp) => {
-            match tp.qself {
-                None => {
-                    tp.path.segments.iter().for_each(|ps| {
-                        //Only generate parsing logic for types wrapped in `Property<>`
-                        if ps.ident.to_string().ends_with("Property") {
-                            match &ps.arguments {
-                                PathArguments::AngleBracketed(abga) => {
-                                    abga.args.iter().for_each(|abgaa| {
-                                        match abgaa {
-                                            GenericArgument::Type(gat) => {
-                                                ret = Some((gat.to_owned(), true));
-                                            }
-                                            _ => { /* lifetimes and more */ }
-                                        };
-                                    })
+    if let Type::Path(tp) = &f.ty {
+        match tp.qself {
+            None => {
+                tp.path.segments.iter().for_each(|ps| {
+                    //Only generate parsing logic for types wrapped in `Property<>`
+                    if ps.ident.to_string().ends_with("Property") {
+                        if let PathArguments::AngleBracketed(abga) = &ps.arguments {
+                            abga.args.iter().for_each(|abgaa| {
+                                if let GenericArgument::Type(gat) = abgaa {
+                                    ret = Some((gat.to_owned(), true));
                                 }
-                                _ => {}
-                            }
+                            })
                         }
-                    });
-
-                    if ret.is_none() {
-                        //ret is still None, so we will assume this is a simple type and pass it forward
-                        ret = Some((f.ty.to_owned(), false));
                     }
+                });
+                if ret.is_none() {
+                    //ret is still None, so we will assume this is a simple type and pass it forward
+                    ret = Some((f.ty.to_owned(), false));
                 }
-                _ => {}
-            };
-        }
-        _ => {}
-    };
+            }
+            _ => {}
+        };
+    }
     ret
 }
 
@@ -331,7 +321,6 @@ fn pax_full_component(
     .into()
 }
 
-
 struct Config {
     is_main_component: bool,
     file_path: Option<String>,
@@ -417,7 +406,10 @@ fn parse_config(attrs: &[syn::Attribute]) -> Config {
     config
 }
 
-fn validate_config(input: &syn::DeriveInput, config: &Config) -> Result<(), proc_macro::TokenStream> {
+fn validate_config(
+    input: &syn::DeriveInput,
+    config: &Config,
+) -> Result<(), proc_macro::TokenStream> {
     if config.file_path.is_some() && config.inlined_contents.is_some() {
         return Err(syn::Error::new_spanned(
             input.ident.clone(),
