@@ -9,6 +9,7 @@ use pax_std::primitives::{Ellipse, Frame, Group, Path, Rectangle, Text, Image};
 use pax_std::types::text::*;
 
 #[derive(Pax)]
+#[main]
 #[file("words.pax")]
 pub struct Words {
     pub content: Property<String>,

@@ -1,3 +1,9 @@
+[package]
+name = "pax-monorepo"
+version = "0.10.7"
+authors = ["Zack Brown <zack@pax.dev>", "Warfa Jibril <warfa@pax.dev>"]
+edition = "2021"
+
 [workspace]
 
 members = [
@@ -20,6 +26,7 @@ exclude = [
     "pax-chassis-macos/interface",
     "pax-create-sandbox",
     "pax-language-server",
+    "examples",
 ]
 
 [profile.release]
