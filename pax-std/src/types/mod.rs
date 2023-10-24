@@ -9,6 +9,8 @@ use pax_lang::*;
 use pax_message::ColorVariantMessage;
 use piet::UnitPoint;
 
+const RGB: f64 = 255.0;
+
 #[derive(Pax)]
 #[custom(Default)]
 pub struct Stroke {
@@ -202,9 +204,9 @@ impl Color {
     pub fn shade(color: Color, shade: Numeric) -> Self {
         let shade = shade.get_as_float().clamp(0.0, 1000.0) / 1000.0;
         let (r, g, b, a) = color.to_piet_color().as_rgba();
-        let r = ((r * 255.0) * shade) / 255.0;
-        let g = ((g * 255.0) * shade) / 255.0;
-        let b = ((b * 255.0) * shade) / 255.0;
+        let r = ((r * RGB) * shade) / RGB;
+        let g = ((g * RGB) * shade) / RGB;
+        let b = ((b * RGB) * shade) / RGB;
         pax_runtime_api::log(format!("{r} {g} {b} {a}").as_str());
         Self {
             color_variant: ColorVariant::Rgba([r, g, b, a]),
@@ -213,112 +215,112 @@ impl Color {
 
     pub fn slate() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([100.0 / 255.0, 116.0 / 255.0, 139.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([100.0 / RGB, 116.0 / RGB, 139.0 / RGB]),
         }
     }
     pub fn gray() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([107.0 / 255.0, 114.0 / 255.0, 128.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([107.0 / RGB, 114.0 / RGB, 128.0 / RGB]),
         }
     }
     pub fn zinc() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([113.0 / 255.0, 113.0 / 255.0, 122.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([113.0 / RGB, 113.0 / RGB, 122.0 / RGB]),
         }
     }
     pub fn neutral() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([115.0 / 255.0, 115.0 / 255.0, 115.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([115.0 / RGB, 115.0 / RGB, 115.0 / RGB]),
         }
     }
     pub fn stone() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([120.0 / 255.0, 113.0 / 255.0, 108.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([120.0 / RGB, 113.0 / RGB, 108.0 / RGB]),
         }
     }
     pub fn red() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([234.0 / 255.0, 68.0 / 255.0, 68.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([234.0 / RGB, 68.0 / RGB, 68.0 / RGB]),
         }
     }
     pub fn orange() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([249.0 / 255.0, 115.0 / 255.0, 22.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([249.0 / RGB, 115.0 / RGB, 22.0 / RGB]),
         }
     }
     pub fn amber() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([245.0 / 255.0, 158.0 / 255.0, 11.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([245.0 / RGB, 158.0 / RGB, 11.0 / RGB]),
         }
     }
     pub fn yellow() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([234.0 / 255.0, 179.0 / 255.0, 8.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([234.0 / RGB, 179.0 / RGB, 8.0 / RGB]),
         }
     }
     pub fn lime() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([132.0 / 255.0, 204.0 / 255.0, 22.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([132.0 / RGB, 204.0 / RGB, 22.0 / RGB]),
         }
     }
     pub fn green() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([34.0 / 255.0, 197.0 / 255.0, 94.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([34.0 / RGB, 197.0 / RGB, 94.0 / RGB]),
         }
     }
     pub fn emerald() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([16.0 / 255.0, 185.0 / 255.0, 129.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([16.0 / RGB, 185.0 / RGB, 129.0 / RGB]),
         }
     }
     pub fn teal() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([20.0 / 255.0, 184.0 / 255.0, 166.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([20.0 / RGB, 184.0 / RGB, 166.0 / RGB]),
         }
     }
     pub fn cyan() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([6.0 / 255.0, 182.0 / 255.0, 212.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([6.0 / RGB, 182.0 / RGB, 212.0 / RGB]),
         }
     }
     pub fn sky() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([14.0 / 255.0, 165.0 / 255.0, 233.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([14.0 / RGB, 165.0 / RGB, 233.0 / RGB]),
         }
     }
     pub fn blue() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([59.0 / 255.0, 130.0 / 255.0, 246.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([59.0 / RGB, 130.0 / RGB, 246.0 / RGB]),
         }
     }
     pub fn indigo() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([99.0 / 255.0, 102.0 / 255.0, 241.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([99.0 / RGB, 102.0 / RGB, 241.0 / RGB]),
         }
     }
     pub fn violet() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([132.0 / 255.0, 96.0 / 255.0, 246.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([132.0 / RGB, 96.0 / RGB, 246.0 / RGB]),
         }
     }
     pub fn purple() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([168.0 / 255.0, 85.0 / 255.0, 247.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([168.0 / RGB, 85.0 / RGB, 247.0 / RGB]),
         }
     }
     pub fn fuchsia() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([217.0 / 255.0, 70.0 / 255.0, 239.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([217.0 / RGB, 70.0 / RGB, 239.0 / RGB]),
         }
     }
     pub fn pink() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([236.0 / 255.0, 72.0 / 255.0, 153.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([236.0 / RGB, 72.0 / RGB, 153.0 / RGB]),
         }
     }
     pub fn rose() -> Self {
         Self {
-            color_variant: ColorVariant::Rgb([244.0 / 255.0, 63.0 / 255.0, 94.0 / 255.0]),
+            color_variant: ColorVariant::Rgb([244.0 / RGB, 63.0 / RGB, 94.0 / RGB]),
         }
     }
     pub fn to_piet_color(&self) -> piet::Color {
