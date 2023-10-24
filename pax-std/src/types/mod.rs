@@ -201,13 +201,19 @@ impl Color {
         }
     }
 
+
+    /// Shades a given color by a specified value.
+    ///
+    /// * `color` - A `Color` struct representing the color to be shaded.
+    /// * `shade` - A `Numeric` struct representing the value by which to shade the color of.
+    ///             Accepted values are between 0 and 400, higher values result in a darker color.
+    ///             Most neutral color will be achieved at 275.
     pub fn shade(color: Color, shade: Numeric) -> Self {
-        let shade = shade.get_as_float().clamp(0.0, 1000.0) / 1000.0;
+        let shade = 4.0 - (shade.get_as_float().clamp(0.0, 400.0) / 100.0);
         let (r, g, b, a) = color.to_piet_color().as_rgba();
         let r = ((r * RGB) * shade) / RGB;
         let g = ((g * RGB) * shade) / RGB;
         let b = ((b * RGB) * shade) / RGB;
-        pax_runtime_api::log(format!("{r} {g} {b} {a}").as_str());
         Self {
             color_variant: ColorVariant::Rgba([r, g, b, a]),
         }
