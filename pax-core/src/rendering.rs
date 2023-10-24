@@ -184,6 +184,13 @@ impl TransformAndBounds {
     }
 }
 
+
+pub enum NodeType {
+    Component,
+    RepeatManagedComponent,
+    Primitive,
+}
+
 /// The base trait for a RenderNode, representing any node that can
 /// be rendered by the engine.
 /// T: a member of PropertiesCoproduct, representing the type of the set of properites
@@ -193,11 +200,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
     where
         Self: Sized;
 
-    /// Return the list of nodes that are children of this node at render-time.
-    /// Note that "children" is somewhat overloaded, hence "rendering_children" here.
-    /// "Children" may indicate a.) a template root, b.) slot_children, c.) primitive children
-    /// Each RenderNode is responsible for determining at render-time which of these concepts
-    /// to pass to the engine for rendering, and that distinction occurs inside `get_rendering_children`
+    /// Return the list of nodes that are children of this node at render-time.  Calling
     fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
     /// For Components only, return the slot children passed into that Component.  For example, for `<Stacker><Group /></Stacker>`,
@@ -209,10 +212,9 @@ pub trait RenderNode<R: 'static + RenderContext> {
         None
     }
 
-    /// Used during compute properties phase, to decide whether to traverse into rendering_children (most nodes)
-    /// or slot
-    fn is_component_node(&self) -> bool {
-        false
+    /// Describes the type of this node; Primitive by default, overridden by Component
+    fn get_node_type(&self) -> NodeType {
+        NodeType::Primitive
     }
 
     /// Consumes the children of this node at render-time that should be removed.
@@ -221,8 +223,6 @@ pub trait RenderNode<R: 'static + RenderContext> {
     fn pop_cleanup_children(&mut self) -> RenderNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
-
-
 
     fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>>;
 
@@ -321,15 +321,13 @@ pub trait RenderNode<R: 'static + RenderContext> {
         }
     }
 
-
-
-    /// Lifecycle method firing before computing properties, namely for managing runtime stack
-    fn handle_will_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    /// Lifecycle method used by at least Component to introduce a properties stack frame
+    fn handle_push_runtime_properties_stack_frame(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
 
-    /// Lifecycle method firing after computing properties, namely for managing runtime stack
-    fn handle_did_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    /// Lifecycle method used by at least Component to pop a properties stack frame
+    fn handle_pop_runtime_properties_stack_frame(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
     /// First lifecycle method during each render loop, used to compute
