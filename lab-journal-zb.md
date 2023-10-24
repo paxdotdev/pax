@@ -3599,4 +3599,44 @@ Get this working entirely manually first, then automate in pax-compiler. (valida
     [-] Alternatively!  fire handlers at end of properties compute phase?
         Turns out the above is insufficient.  We also rely on property<>render-tangled stack frames
         when gathering `properties` (the on-demand `self`) for invoking event handlers, via `cartridge-render-node-literal.tera` 
-    
+
+Problem:
+
+In the following template:
+
+```
+for i in 0..5 {
+    <Stacker cells=10 direction=StackerDirection::Vertical x={(i*50)px} width=50px>
+        <Rectangle fill={Fill::Solid(Color::rgb(i * 0.2, 0.2, 0.5))} />
+    </Stacker>
+}
+```
+
+when we are evaluating `i*50px`, we want our stack to have `for`'s `i` on the top frame.
+Instead, because the stack frame is getting pushed by compute_properties for Stacker, 
+there's already a stack frame for Stacker present when we're trying to compute our `i*50px`.
+
+Possible solution: instead of coupling stack frame management to the compute_properties methods, 
+we could explicitly manage stack pushing & popping at the same place we check for `is_component` in
+the recursive workhorse.  Along the way, this probably means retiring our new `will_compute_properties` and `did_compute_properties` lifecycle methods,
+as we're not yet aware of an explicit application for them.
+
+There's a special case here for `for`.  Within the context of a single component's template, 
+we want `for` to be able to push a stack frame, but we don't want to push a stack frame for something like a <Stacker>
+inside that template.
+
+So:
+
+[`A` Component root] -> push a stack frame for `self.` for all components in this template
+[for loop] -> push a stack frame for `i` or `j`, etc.
+[Stacker or other userland component] -> don't do anything in the context of `A`.  We will handle `Stacker`'s evaluation later, with its own template + stack evaluation
+
+
+So: yes push for a given component root (like we currently do in latest rev. of recursion-workhorse)
+Yes push for a `for` loop
+No, don't push for other component instances found during 
+
+Possible tool: a parameter passed to ComponentInstance to signal whether it is managed by `for`,
+alongside a `dyn RenderNode` method that the engine can call to push / pop (at properties-compute-recursion time.)
+This gives us the ability to special-case `for`-managed ComponentInstances, to explicitly push
+to the properties stack, while ignoring components like Stacker

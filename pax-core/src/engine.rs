@@ -10,10 +10,7 @@ use pax_message::NativeMessage;
 use piet_common::RenderContext;
 
 use crate::runtime::Runtime;
-use crate::{
-    Affine, ComponentInstance, ComputableTransform, ExpressionContext, RenderNodePtr,
-    RenderNodePtrList, RuntimePropertiesStackFrame, TransformAndBounds,
-};
+use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, RenderNodePtr, RenderNodePtrList, TransformAndBounds};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{
@@ -42,6 +39,9 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     /// A pointer to the node representing the current Component, for which we may be
     /// rendering some member of its template.
     pub current_containing_component: RenderNodePtr<R>,
+    /// A clone of current_containing_component#get_slot_children, stored alongside current_containing_component
+    /// to manage borrowing & data access
+    pub current_containing_component_slot_children: RenderNodePtrList<R>,
     /// A pointer to the node currently being rendered
     pub current_instance_node: RenderNodePtr<R>,
     pub parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
@@ -122,6 +122,7 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             bounds: self.bounds.clone(),
             runtime: Rc::clone(&self.runtime),
             current_containing_component: Rc::clone(&self.current_containing_component),
+            current_containing_component_slot_children: Rc::clone(&self.current_containing_component_slot_children),
             current_instance_node: Rc::clone(&self.current_instance_node),
             parent_repeat_expanded_node: self.parent_repeat_expanded_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
@@ -694,6 +695,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             bounds: self.viewport_tab.bounds,
             runtime: self.runtime.clone(),
             current_containing_component: Rc::clone(&cast_component_rc),
+            current_containing_component_slot_children: Rc::clone(&cast_component_rc.borrow().get_slot_children().unwrap()),
             current_instance_node: Rc::clone(&cast_component_rc),
             parent_repeat_expanded_node: None,
             timeline_playhead_position: self.frames_elapsed,
@@ -726,20 +728,32 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             // Compute properties for current node
             // If node is_component, compute properties for its slot_children
             // Otherwise, compute properties for its rendering children
-        node.borrow_mut().handle_will_compute_properties(rtc);
+
+        
         node.borrow_mut().handle_compute_properties(rtc);
 
-        let children_to_recurse = if node.borrow().is_component_node() {
-            node.borrow().get_slot_children().unwrap()
-        } else {
-            node.borrow().get_rendering_children()
+        if let NodeType::RepeatManagedComponent = node.borrow().get_node_type() {
+            node.borrow_mut().handle_push_runtime_properties_stack_frame(rtc);
+        }
+
+        let children_to_recurse = match node.borrow().get_node_type() {
+            NodeType::Component => {
+                node.borrow().get_slot_children().unwrap()
+            },
+            _ => {
+                node.borrow().get_rendering_children()
+            }
         };
 
         for child in (*children_to_recurse).borrow().iter() {
             self.compute_properties_recursive(rtc, Rc::clone(child));
         }
 
-        node.borrow_mut().handle_did_compute_properties(rtc);
+        if let NodeType::RepeatManagedComponent = node.borrow().get_node_type() {
+            node.borrow_mut().handle_pop_runtime_properties_stack_frame(rtc);
+        }
+
+
     }
 
     /// Helper method to fire `will_render` handlers for the node attached to the `rtc`
@@ -788,16 +802,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 if let Some(registry) = registry {
                     //grab Rc of properties from stack frame; pass to type-specific handler
                     //on instance in order to dispatch cartridge method
-                    match rtc.runtime.borrow_mut().peek_stack_frame() {
-                        Some(stack_frame) => {
-                            for handler in (*registry).borrow().did_mount_handlers.iter() {
-                                handler(
-                                    node.borrow_mut().get_properties(),
-                                    rtc.distill_userland_node_context(),
-                                );
-                            }
-                        }
-                        None => {}
+                    for handler in (*registry).borrow().did_mount_handlers.iter() {
+                        handler(
+                            node.borrow_mut().get_properties(),
+                            rtc.distill_userland_node_context(),
+                        );
                     }
                 }
                 instance_registry.mark_mounted(id_chain);
@@ -836,16 +845,21 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // If this node is a component:
         //    Kick off a recursive evaluation of properties for all nodes in this component's template
         //    Otherwise, presume we have already computed properties in the process of recursively evaluating the containing component's properties, and proceed with rendering
-        if node.borrow().is_component_node() {
-            rtc.current_containing_component = Rc::clone(&node);
-            node.borrow_mut().handle_will_compute_properties(rtc);
-            node.borrow_mut().handle_compute_properties(rtc);
-            let template_children = node.borrow().get_rendering_children();
-            for template_child in (*template_children).borrow().iter() {
-                self.compute_properties_recursive(rtc, Rc::clone(template_child));
-            }
 
-            node.borrow_mut().handle_did_compute_properties(rtc);
+        {
+            let mut node_borrowed = node.borrow_mut();
+            if let NodeType::Component = node_borrowed.get_node_type() {
+                rtc.current_containing_component = Rc::clone(&node);
+                rtc.current_containing_component_slot_children = node_borrowed.get_slot_children().unwrap();
+                node_borrowed.handle_push_runtime_properties_stack_frame(rtc);
+                node_borrowed.handle_compute_properties(rtc);
+                let template_children = node_borrowed.get_rendering_children();
+                for template_child in (*template_children).borrow().iter() {
+                    self.compute_properties_recursive(rtc, Rc::clone(template_child));
+                }
+
+                node_borrowed.handle_pop_runtime_properties_stack_frame(rtc);
+            }
         }
 
         Self::manage_handlers_did_mount(rtc);
