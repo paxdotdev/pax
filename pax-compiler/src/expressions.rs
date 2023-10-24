@@ -356,7 +356,6 @@ fn recurse_compile_expressions<'a>(
 
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
             let repeat_source_definition = cfa.repeat_source_definition.as_ref().unwrap();
-            // todo!("map 'this is a source' into a flag for codegen, so we can rewrap Rc<>s");
 
             let is_repeat_source_range = repeat_source_definition.range_expression_paxel.is_some();
             let is_repeat_source_iterable = repeat_source_definition.symbolic_binding.is_some();
