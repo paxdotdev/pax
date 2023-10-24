@@ -126,9 +126,11 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         if is_dirty {
             //Any stated children (repeat template members) of Repeat should be forwarded to the `RepeatItem`-wrapped `ComponentInstance`s
             //so that `Slot` works as expected
-            let forwarded_children = match (*rtc.runtime).borrow_mut().peek_stack_frame() {
-                Some(frame) => Rc::clone(&(*frame.borrow()).get_unflattened_slot_children()),
-                None => Rc::new(RefCell::new(vec![])),
+
+            let forwarded_slot_children = if let Some(sc) = rtc.current_containing_component.borrow().get_slot_children() {
+                sc
+            } else {
+                Rc::new(RefCell::new(vec![]))
             };
 
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
@@ -158,7 +160,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                         let render_node: RenderNodePtr<R> =
                             Rc::new(RefCell::new(ComponentInstance {
                                 instance_id,
-                                slot_children: Rc::clone(&forwarded_children),
+                                slot_children: Rc::clone(&forwarded_slot_children),
                                 template: Rc::clone(&self.repeated_template),
                                 common_properties,
                                 properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(
@@ -186,7 +188,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         // pax_runtime_api::log(&format!("finished computing repeat properties, virt len: {}", (*self.virtual_children).borrow().len()));
     }
 
-    fn should_flatten(&self) -> bool {
+    fn is_invisible_to_slot(&self) -> bool {
         true
     }
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {

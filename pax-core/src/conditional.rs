@@ -81,7 +81,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
         }
     }
 
-    fn should_flatten(&self) -> bool {
+    fn is_invisible_to_slot(&self) -> bool {
         true
     }
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {

@@ -380,7 +380,7 @@ fn generate_and_overwrite_cartridge(
         "pax_core::InstantiationArgs",
         "pax_core::ConditionalInstance",
         "pax_core::SlotInstance",
-        "pax_core::StackFrame",
+        "pax_core::RuntimePropertiesStackFrame",
         "pax_core::pax_properties_coproduct::PropertiesCoproduct",
         "pax_core::pax_properties_coproduct::TypesCoproduct",
         "pax_core::repeat::RepeatInstance",

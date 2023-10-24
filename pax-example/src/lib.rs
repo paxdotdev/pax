@@ -16,9 +16,9 @@ use crate::website_mobile::WebsiteMobile;
 #[main]
 #[inlined(
 for i in 0..5 {
-<Stacker cells=10 direction=StackerDirection::Vertical x={(i*50)px} width=50px>
-<Rectangle fill={Fill::Solid(Color::rgb(i * 0.2, 0.2, 0.5))} />
-</Stacker>
+    <Stacker cells=10 direction=StackerDirection::Vertical x={(i*50)px} width=50px>
+        <Rectangle fill={Fill::Solid(Color::rgb(i * 0.2, 0.2, 0.5))} />
+    </Stacker>
 }
 
 )]

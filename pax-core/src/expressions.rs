@@ -3,7 +3,7 @@ use std::cell::RefCell;
 use piet::RenderContext;
 use std::rc::Rc;
 
-use crate::runtime::StackFrame;
+use crate::runtime::RuntimePropertiesStackFrame;
 use crate::PaxEngine;
 
 use pax_runtime_api::{EasingCurve, PropertyInstance, TransitionManager, TransitionQueueEntry};
@@ -98,7 +98,5 @@ impl<T: Default + Clone> PropertyInstance<T> for PropertyExpression<T> {
 /// stack frame to enable evaluation of properties & dependencies
 pub struct ExpressionContext<'a, R: 'static + RenderContext> {
     pub engine: &'a PaxEngine<R>,
-    pub stack_frame: Rc<RefCell<StackFrame<R>>>,
-    //TODO: is the following the right approach to enabling evaluation of built-ins?
-    // pub render_node: RenderNodePtr<R>,
+    pub stack_frame: Rc<RefCell<RuntimePropertiesStackFrame<R>>>,
 }
