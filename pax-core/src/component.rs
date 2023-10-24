@@ -92,8 +92,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         bounds
     }
 
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>>
-
     fn handle_will_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         (*rtc.runtime).borrow_mut().push_stack_frame(
             Rc::clone(&self.properties),
