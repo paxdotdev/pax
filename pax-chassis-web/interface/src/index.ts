@@ -4,6 +4,7 @@ import type {PaxChassisWeb, InitOutput, initSync} from "./types/pax-chassis-web"
 import {ObjectManager} from "./pools/object-manager";
 import {
     ANY_CREATE_PATCH,
+    CHECKBOX_UPDATE_PATCH,
     FRAME_UPDATE_PATCH,
     IMAGE_LOAD_PATCH, SCROLLER_UPDATE_PATCH,
     SUPPORTED_OBJECTS,
@@ -12,6 +13,7 @@ import {
 import {NativeElementPool} from "./classes/native-element-pool";
 import {AnyCreatePatch} from "./classes/messages/any-create-patch";
 import {TextUpdatePatch} from "./classes/messages/text-update-patch";
+import {CheckboxUpdatePatch} from "./classes/messages/checkbox-update-patch";
 import {FrameUpdatePatch} from "./classes/messages/frame-update-patch";
 import {ImageLoadPatch} from "./classes/messages/image-load-patch";
 import {ScrollerUpdatePatch} from "./classes/messages/scroller-update-patch";
@@ -111,12 +113,25 @@ function renderLoop (chassis: PaxChassisWeb, mount: Element, get_latest_memory: 
 
 export function processMessages(messages: any[], chassis: PaxChassisWeb, objectManager: ObjectManager) {
     messages?.forEach((unwrapped_msg) => {
-        if(unwrapped_msg["TextCreate"]) {
+        if(unwrapped_msg["CheckboxCreate"]) {
+            let msg = unwrapped_msg["CheckboxCreate"]
+            let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
+            patch.fromPatch(msg);
+            nativePool.checkboxCreate(patch);
+        } else if (unwrapped_msg["CheckboxUpdate"]){
+            let msg = unwrapped_msg["CheckboxUpdate"]
+            let patch: CheckboxUpdatePatch = objectManager.getFromPool(CHECKBOX_UPDATE_PATCH, objectManager);
+            patch.fromPatch(msg);
+            nativePool.checkboxUpdate(patch);
+        }else if (unwrapped_msg["CheckboxDelete"]) {
+            let msg = unwrapped_msg["CheckboxDelete"];
+            nativePool.checkboxDelete(msg)
+        } else if(unwrapped_msg["TextCreate"]) {
             let msg = unwrapped_msg["TextCreate"]
             let patch: AnyCreatePatch = objectManager.getFromPool(ANY_CREATE_PATCH);
             patch.fromPatch(msg);
             nativePool.textCreate(patch);
-        }else if (unwrapped_msg["TextUpdate"]){
+        } else if (unwrapped_msg["TextUpdate"]){
             let msg = unwrapped_msg["TextUpdate"]
             let patch: TextUpdatePatch = objectManager.getFromPool(TEXT_UPDATE_PATCH, objectManager);
             patch.fromPatch(msg, nativePool.registeredFontFaces);
