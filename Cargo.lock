@@ -433,6 +433,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a3e2c3daef883ecc1b5d58c15adae93470a91d425f3532ba1695849656af3fc1"
 
 [[package]]
+name = "byteorder"
+version = "1.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd0f2584146f6f2ef48085050886acf353beff7305ebd1ae69500e27c67f64b"
+
+[[package]]
 name = "bytes"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -821,6 +827,19 @@ checksum = "c6c98ee8095e9d1dcbf2fcc6d95acccb90d1c81db1e44725c6a984b1dbdfb010"
 dependencies = [
  "crc32fast",
  "miniz_oxide",
+]
+
+[[package]]
+name = "flexbuffers"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "15d14128f06405808ce75bfebe11e9b0f9da18719ede6d7bdb1702d6bfe0f7e8"
+dependencies = [
+ "bitflags 1.2.1",
+ "byteorder",
+ "num_enum",
+ "serde",
+ "serde_derive",
 ]
 
 [[package]]
@@ -1601,6 +1620,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "num_enum"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f646caf906c20226733ed5b1374287eb97e3c2a5c227ce668c1f2ce20ae57c9"
+dependencies = [
+ "num_enum_derive",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.5.11"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "dcbff9bc912032c62bf65ef1d5aea88983b420f4f839db1e9b0c281a25c9c799"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn 1.0.109",
+]
+
+[[package]]
 name = "object"
 version = "0.32.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1749,6 +1789,73 @@ name = "paste"
 version = "1.0.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "de3145af08024dea9fa9914f381a17b8fc6034dfb00f3a84013f7ff43f29ed4c"
+
+[[package]]
+name = "pax-cartridge"
+version = "0.10.7"
+dependencies = [
+ "pax-core",
+ "pax-properties-coproduct",
+ "pax-runtime-api 0.10.7",
+ "pax-std-primitives",
+ "piet-common",
+]
+
+[[package]]
+name = "pax-chassis-common"
+version = "0.10.7"
+dependencies = [
+ "core-graphics",
+ "flexbuffers",
+ "lazy_static",
+ "mut_static",
+ "pax-cartridge",
+ "pax-core",
+ "pax-message 0.10.7",
+ "pax-properties-coproduct",
+ "pax-runtime-api 0.10.7",
+ "piet",
+ "piet-coregraphics",
+ "serde",
+]
+
+[[package]]
+name = "pax-chassis-macos"
+version = "0.10.7"
+dependencies = [
+ "core-graphics",
+ "flexbuffers",
+ "lazy_static",
+ "mut_static",
+ "pax-cartridge",
+ "pax-chassis-common",
+ "pax-core",
+ "pax-message 0.10.7",
+ "pax-properties-coproduct",
+ "pax-runtime-api 0.10.7",
+ "piet",
+ "piet-coregraphics",
+ "serde",
+]
+
+[[package]]
+name = "pax-chassis-web"
+version = "0.10.7"
+dependencies = [
+ "console_error_panic_hook",
+ "js-sys",
+ "pax-cartridge",
+ "pax-core",
+ "pax-message 0.10.7",
+ "pax-properties-coproduct",
+ "pax-runtime-api 0.10.7",
+ "piet",
+ "piet-web",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+]
 
 [[package]]
 name = "pax-cli"
