@@ -146,42 +146,55 @@ impl Fill {
 pub struct Color {
     pub color_variant: ColorVariant,
 }
+
+pub fn percent_to_float(percent: Size) -> f64 {
+    match percent {
+        Size::Pixels(_) => {
+            panic!("Color percentages must be specified in percentages");
+        }
+        Size::Percent(p) => p.get_as_float() / 100.0,
+        Size::Combined(_, _) => {
+            panic!("Color percentages must be specified in percentages");
+        }
+    }
+}
+
 impl Color {
-    pub fn hlca(h: Numeric, l: Numeric, c: Numeric, a: Numeric) -> Self {
+    pub fn hlca(h: Size, l: Size, c: Size, a: Size) -> Self {
         Self {
             color_variant: ColorVariant::Hlca([
-                h.get_as_float(),
-                l.get_as_float(),
-                c.get_as_float(),
-                a.get_as_float(),
+                percent_to_float(h),
+                percent_to_float(l),
+                percent_to_float(c),
+                percent_to_float(a),
             ]),
         }
     }
-    pub fn hlc(h: Numeric, l: Numeric, c: Numeric) -> Self {
+    pub fn hlc(h: Size, l: Size, c: Size) -> Self {
         Self {
             color_variant: ColorVariant::Hlc([
-                h.get_as_float(),
-                l.get_as_float(),
-                c.get_as_float(),
+                percent_to_float(h),
+                percent_to_float(l),
+                percent_to_float(c),
             ]),
         }
     }
-    pub fn rgba(r: Numeric, g: Numeric, b: Numeric, a: Numeric) -> Self {
+    pub fn rgba(r: Size, g: Size, b: Size, a: Size) -> Self {
         Self {
             color_variant: ColorVariant::Rgba([
-                r.get_as_float(),
-                g.get_as_float(),
-                b.get_as_float(),
-                a.get_as_float(),
+                percent_to_float(r),
+                percent_to_float(g),
+                percent_to_float(b),
+                percent_to_float(a),
             ]),
         }
     }
-    pub fn rgb(r: Numeric, g: Numeric, b: Numeric) -> Self {
+    pub fn rgb(r: Size, g: Size, b: Size) -> Self {
         Self {
             color_variant: ColorVariant::Rgb([
-                r.get_as_float(),
-                g.get_as_float(),
-                b.get_as_float(),
+                percent_to_float(r),
+                percent_to_float(g),
+                percent_to_float(b),
             ]),
         }
     }
