@@ -1,5 +1,5 @@
 use crate::types::Color;
-use api::StringBox;
+use api::{StringBox, Size};
 use pax_lang::api::{Numeric, Property, PropertyLiteral, SizePixels};
 use pax_lang::*;
 use pax_message::{
@@ -26,10 +26,10 @@ impl Default for TextStyle {
             font: Box::new(PropertyLiteral::new(Font::default())),
             font_size: Box::new(PropertyLiteral::new(SizePixels(Numeric::Float(20.0)))),
             fill: Box::new(PropertyLiteral::new(Color::rgba(
-                Numeric::Float(0.0),
-                Numeric::Float(0.0),
-                Numeric::Float(0.0),
-                Numeric::Float(1.0),
+                Size::Percent(Numeric::Float(0.0)),
+                Size::Percent(Numeric::Float(0.0)),
+                Size::Percent(Numeric::Float(0.0)),
+                Size::Percent(Numeric::Float(1.0)),
             ))),
             underline: Box::new(PropertyLiteral::new(false)),
             align_multiline: Box::new(PropertyLiteral::new(TextAlignHorizontal::Left)),
