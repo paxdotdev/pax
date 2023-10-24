@@ -32,7 +32,3 @@ js-sys = "0.3.63"
 [dependencies.web-sys]
 version = "0.3.10"
 features = ["console", "CanvasRenderingContext2d", "Window", "Document", "Element", "HtmlCanvasElement", "Event", "HtmlCollection"]
-
-# The following empty [workspace] directive is a workaround to satisfy
-# a cargo workspace bug, as documented: https://github.com/rust-lang/cargo/issues/6745
-[workspace]
