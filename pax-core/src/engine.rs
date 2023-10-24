@@ -617,6 +617,15 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.instance_map.insert(instance_id, node);
     }
 
+    pub fn get_node(&self, id_chain: &Vec<u32>) -> Option<RenderNodePtr<R>> {
+        //This is not efficient (probably hashmap by id_chain could work better?)
+        Some(Rc::clone(&self
+            .repeat_expanded_node_cache
+            .iter()
+            .find(|n| &n.id_chain == id_chain)?
+            .instance_node))
+    }
+
     pub fn deregister(&mut self, instance_id: u32) {
         self.instance_map.remove(&instance_id);
     }
