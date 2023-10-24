@@ -6,13 +6,13 @@ use pax_properties_coproduct::PropertiesCoproduct;
 use pax_runtime_api::Timeline;
 use piet::RenderContext;
 
-use crate::{RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use crate::{RenderNodePtr, RenderTreeContext};
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, this is a home
 /// for logic that manages scopes and stack frames.
 pub struct Runtime<R: 'static + RenderContext> {
-    stack: Vec<Rc<RefCell<StackFrame<R>>>>,
+    runtime_properties_stack: Vec<Rc<RefCell<RuntimePropertiesStackFrame<R>>>>,
 
     /// Tracks the native ids (id_chain)s of clipping instances
     /// When a node is mounted, it may consult the clipping stack to see which clipping instances are relevant to it
@@ -26,7 +26,7 @@ pub struct Runtime<R: 'static + RenderContext> {
 impl<R: 'static + RenderContext> Runtime<R> {
     pub fn new() -> Self {
         Runtime {
-            stack: vec![],
+            runtime_properties_stack: vec![],
             clipping_stack: vec![],
             scroller_stack: vec![],
             native_message_queue: VecDeque::new(),
@@ -39,7 +39,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
     pub fn get_list_of_repeat_indicies_from_stack(&self) -> Vec<u32> {
         let mut indices: Vec<u32> = vec![];
 
-        self.stack.iter().for_each(|frame_wrapped| {
+        self.runtime_properties_stack.iter().for_each(|frame_wrapped| {
             if let PropertiesCoproduct::RepeatItem(_datum, i) =
                 &*(*(*(*frame_wrapped).borrow_mut()).properties).borrow()
             {
@@ -60,9 +60,9 @@ impl<R: 'static + RenderContext> Runtime<R> {
 
     /// Return a pointer to the top StackFrame on the stack,
     /// without mutating the stack or consuming the value
-    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<StackFrame<R>>>> {
-        if self.stack.len() > 0 {
-            Some(Rc::clone(&self.stack[&self.stack.len() - 1]))
+    pub fn peek_stack_frame(&mut self) -> Option<Rc<RefCell<RuntimePropertiesStackFrame<R>>>> {
+        if self.runtime_properties_stack.len() > 0 {
+            Some(Rc::clone(&self.runtime_properties_stack[&self.runtime_properties_stack.len() - 1]))
         } else {
             None
         }
@@ -71,21 +71,19 @@ impl<R: 'static + RenderContext> Runtime<R> {
     /// Remove the top element from the stack.  Currently does
     /// nothing with the value of the popped StackFrame.
     pub fn pop_stack_frame(&mut self) {
-        self.stack.pop(); //NOTE: handle value here if needed
+        self.runtime_properties_stack.pop(); //NOTE: handle value here if needed
     }
 
     /// Add a new frame to the stack, passing a list of slot_children
     /// that may be handled by `Slot` and a scope that includes the PropertiesCoproduct of the associated Component
     pub fn push_stack_frame(
         &mut self,
-        flattened_slot_children: RenderNodePtrList<R>,
         properties: Rc<RefCell<PropertiesCoproduct>>,
         timeline: Option<Rc<RefCell<Timeline>>>,
     ) {
         let parent = self.peek_stack_frame().as_ref().map(Rc::downgrade);
 
-        self.stack.push(Rc::new(RefCell::new(StackFrame::new(
-            flattened_slot_children,
+        self.runtime_properties_stack.push(Rc::new(RefCell::new(RuntimePropertiesStackFrame::new(
             properties,
             parent,
             timeline,
@@ -130,7 +128,7 @@ impl<R: 'static + RenderContext> Runtime<R> {
         rtc: &mut RenderTreeContext<R>,
     ) -> Vec<RenderNodePtr<R>> {
         let slot_child_borrowed = (**slot_child).borrow_mut();
-        if slot_child_borrowed.should_flatten() {
+        if slot_child_borrowed.is_invisible_to_slot() {
             (*slot_child_borrowed.get_rendering_children())
                 .borrow()
                 .iter()
@@ -146,30 +144,25 @@ impl<R: 'static + RenderContext> Runtime<R> {
 }
 
 /// Data structure for a single frame of our runtime stack, including
-/// a reference to its parent frame, a list of `slot_children` for
-/// prospective [`Slot`] consumption, and `properties` for
-/// runtime evaluation, e.g. of Expressions.  StackFrames also track
+/// a reference to its parent frame and `properties` for
+/// runtime evaluation, e.g. of Expressions.  `RuntimePropertiesStackFrame`s also track
 /// timeline playhead position.
 ///
-/// `Component`s push StackFrames when mounting and pop them when unmounting, thus providing a
-/// hierarchical store of node-relevant data that can be bound to symbols, e.g. in expressions.
-/// Note that `RepeatItem`s also push `StackFrame`s, because `RepeatItem` uses a `Component` internally.
-pub struct StackFrame<R: 'static + RenderContext> {
-    slot_children: RenderNodePtrList<R>,
+/// `Component`s push `RuntimePropertiesStackFrame`s before computing properties and pop them after computing, thus providing a
+/// hierarchical store of node-relevant data that can be bound to symbols in expressions.
+pub struct RuntimePropertiesStackFrame<R: 'static + RenderContext> {
     properties: Rc<RefCell<PropertiesCoproduct>>,
-    parent: Option<Weak<RefCell<StackFrame<R>>>>,
+    parent: Option<Weak<RefCell<RuntimePropertiesStackFrame<R>>>>,
     timeline: Option<Rc<RefCell<Timeline>>>,
 }
 
-impl<R: 'static + RenderContext> StackFrame<R> {
+impl<R: 'static + RenderContext> RuntimePropertiesStackFrame<R> {
     pub fn new(
-        slot_children: RenderNodePtrList<R>,
         properties: Rc<RefCell<PropertiesCoproduct>>,
-        parent: Option<Weak<RefCell<StackFrame<R>>>>,
+        parent: Option<Weak<RefCell<RuntimePropertiesStackFrame<R>>>>,
         timeline: Option<Rc<RefCell<Timeline>>>,
     ) -> Self {
-        StackFrame {
-            slot_children,
+        RuntimePropertiesStackFrame {
             properties,
             parent,
             timeline,
@@ -192,9 +185,10 @@ impl<R: 'static + RenderContext> StackFrame<R> {
         }
     }
 
-    // Traverses stack recursively `n` times to retrieve ancestor;
-    // useful for runtime lookups for identifiers
-    pub fn peek_nth(&self, n: isize) -> Option<Rc<RefCell<StackFrame<R>>>> {
+    /// Traverses stack recursively `n` times to retrieve ancestor;
+    /// useful for runtime lookups for identifiers, where `n` is the statically known offset determined by the Pax compiler
+    /// when resolving a symbol
+    pub fn peek_nth(&self, n: isize) -> Option<Rc<RefCell<RuntimePropertiesStackFrame<R>>>> {
         if n == 0 {
             //0th ancestor is self; handle by caller since caller owns the Rc containing `self`
             None
@@ -203,7 +197,7 @@ impl<R: 'static + RenderContext> StackFrame<R> {
         }
     }
 
-    fn recurse_peek_nth(&self, n: isize, depth: isize) -> Option<Rc<RefCell<StackFrame<R>>>> {
+    fn recurse_peek_nth(&self, n: isize, depth: isize) -> Option<Rc<RefCell<RuntimePropertiesStackFrame<R>>>> {
         let new_depth = depth + 1;
         let parent = self.parent.as_ref().unwrap();
         if new_depth == n {
@@ -216,20 +210,5 @@ impl<R: 'static + RenderContext> StackFrame<R> {
 
     pub fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
         Rc::clone(&self.properties)
-    }
-
-    pub fn get_unflattened_slot_children(&self) -> RenderNodePtrList<R> {
-        Rc::clone(&self.slot_children)
-    }
-
-    pub fn nth_slot_child(&self, n: usize) -> Option<RenderNodePtr<R>> {
-        match (*self.slot_children).borrow().get(n) {
-            Some(i) => Some(Rc::clone(i)),
-            None => None,
-        }
-    }
-
-    pub fn has_slot_children(&self) -> bool {
-        (*self.slot_children).borrow().len() > 0
     }
 }

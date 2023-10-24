@@ -1,12 +1,13 @@
 use core::cell::RefCell;
 use core::option::Option;
 use core::option::Option::{None, Some};
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use pax_properties_coproduct::TypesCoproduct;
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use crate::{InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 
 /// A special "control-flow" primitive (a la `yield`) — represents a slot into which
@@ -50,6 +51,15 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
         ret
     }
 
+
+    fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
+        self.cached_computed_children = if let Some(sc) = rtc.current_containing_component.borrow().get_slot_children() {
+            flatten_slot_invisible_nodes_recursive(sc)
+        } else {
+            Rc::new(RefCell::new(vec![]))
+        }
+    }
+
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.cached_computed_children)
     }
@@ -71,22 +81,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
             self.index.set(new_value);
         }
 
-        // The following sort of children-caching is done by "control flow" primitives
-        // (Slot, Repeat, If) —
-        self.cached_computed_children = match rtc.runtime.borrow_mut().peek_stack_frame() {
-            Some(stack_frame) => {
-                // Grab the slot_child from the current stack_frame at Slot's specified `index`
-                // then make it Slot's own child.
-                match stack_frame
-                    .borrow()
-                    .nth_slot_child(self.index.get().get_as_int() as usize)
-                {
-                    Some(rnp) => Rc::new(RefCell::new(vec![Rc::clone(&rnp)])),
-                    None => Rc::new(RefCell::new(vec![])),
-                }
-            }
-            None => Rc::new(RefCell::new(vec![])),
-        }
     }
 
     fn get_layer_type(&mut self) -> Layer {

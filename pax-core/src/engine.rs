@@ -12,7 +12,7 @@ use piet_common::RenderContext;
 use crate::runtime::Runtime;
 use crate::{
     Affine, ComponentInstance, ComputableTransform, ExpressionContext, RenderNodePtr,
-    RenderNodePtrList, StackFrame, TransformAndBounds,
+    RenderNodePtrList, RuntimePropertiesStackFrame, TransformAndBounds,
 };
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
@@ -39,7 +39,11 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub transform_scroller_reset: Affine,
     pub bounds: (f64, f64),
     pub runtime: Rc<RefCell<Runtime<R>>>,
-    pub node: RenderNodePtr<R>,
+    /// A pointer to the node representing the current Component, for which we may be
+    /// rendering some member of its template.
+    pub current_containing_component: RenderNodePtr<R>,
+    /// A pointer to the node currently being rendered
+    pub current_instance_node: RenderNodePtr<R>,
     pub parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
     pub timeline_playhead_position: usize,
     pub inherited_slot_children: Option<RenderNodePtrList<R>>,
@@ -116,7 +120,8 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             transform_scroller_reset: self.transform_scroller_reset.clone(),
             bounds: self.bounds.clone(),
             runtime: Rc::clone(&self.runtime),
-            node: Rc::clone(&self.node),
+            current_containing_component: Rc::clone(&self.current_containing_component),
+            current_instance_node: Rc::clone(&self.current_instance_node),
             parent_repeat_expanded_node: self.parent_repeat_expanded_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
             inherited_slot_children: self.inherited_slot_children.clone(),
@@ -203,23 +208,23 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 }
 
 pub struct HandlerRegistry<R: 'static + RenderContext> {
-    pub scroll_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsScroll)>,
-    pub jab_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsJab)>,
-    pub touch_start_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsTouchStart)>,
-    pub touch_move_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsTouchMove)>,
-    pub touch_end_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsTouchEnd)>,
-    pub key_down_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsKeyDown)>,
-    pub key_up_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsKeyUp)>,
-    pub key_press_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsKeyPress)>,
-    pub click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsClick)>,
-    pub mouse_down_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseDown)>,
-    pub mouse_up_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseUp)>,
-    pub mouse_move_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseMove)>,
-    pub mouse_over_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseOver)>,
-    pub mouse_out_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsMouseOut)>,
-    pub double_click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsDoubleClick)>,
-    pub context_menu_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsContextMenu)>,
-    pub wheel_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsWheel)>,
+    pub scroll_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsScroll)>,
+    pub jab_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsJab)>,
+    pub touch_start_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsTouchStart)>,
+    pub touch_move_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsTouchMove)>,
+    pub touch_end_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsTouchEnd)>,
+    pub key_down_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsKeyDown)>,
+    pub key_up_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsKeyUp)>,
+    pub key_press_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsKeyPress)>,
+    pub click_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsClick)>,
+    pub mouse_down_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsMouseDown)>,
+    pub mouse_up_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsMouseUp)>,
+    pub mouse_move_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsMouseMove)>,
+    pub mouse_over_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsMouseOver)>,
+    pub mouse_out_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsMouseOut)>,
+    pub double_click_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsDoubleClick)>,
+    pub context_menu_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsContextMenu)>,
+    pub wheel_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsWheel)>,
     pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
     pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
 }
@@ -258,7 +263,7 @@ pub struct RepeatExpandedNode<R: 'static + RenderContext> {
     id_chain: Vec<u32>,
     parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
     instance_node: RenderNodePtr<R>,
-    stack_frame: Rc<RefCell<crate::StackFrame<R>>>,
+    stack_frame: Rc<RefCell<crate::RuntimePropertiesStackFrame<R>>>,
     tab: TransformAndBounds,
     node_context: RuntimeContext,
 }
@@ -687,7 +692,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             transform_scroller_reset: Affine::default(),
             bounds: self.viewport_tab.bounds,
             runtime: self.runtime.clone(),
-            node: Rc::clone(&cast_component_rc),
+            current_containing_component: Rc::clone(&cast_component_rc),
+            current_instance_node: Rc::clone(&cast_component_rc),
             parent_repeat_expanded_node: None,
             timeline_playhead_position: self.frames_elapsed,
             inherited_slot_children: None,
@@ -732,7 +738,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
 
         node.borrow_mut().handle_did_compute_properties(rtc);
-
     }
 
     fn recurse_traverse_render_tree(
@@ -759,16 +764,18 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //    Kick off a recursive evaluation of properties for all nodes in this component's template
         //    Otherwise, presume we have already computed properties in the process of recursively evaluating the containing component's properties, and proceed with rendering
         if node.borrow().is_component_node() {
+            rtc.current_containing_component = Rc::clone(&node);
             node.borrow_mut().handle_will_compute_properties(rtc);
             node.borrow_mut().handle_compute_properties(rtc);
             let template_children = node.borrow().get_rendering_children();
             for template_child in (*template_children).borrow().iter() {
                 self.compute_properties_recursive(rtc, Rc::clone(template_child));
             }
+            node.borrow_mut().handle_did_compute_properties(rtc);
         }
 
         //populate a pointer to this (current) `RenderNode` onto `rtc`
-        rtc.node = Rc::clone(&node);
+        rtc.current_instance_node = Rc::clone(&node);
 
         //depth work
         let node_type = node.borrow_mut().get_layer_type();
@@ -785,7 +792,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //Note that this must happen after initial `compute_properties`, which performs the
         //necessary side-effect of creating the `self` that must be passed to handlers
         {
-            let id = (*rtc.node).borrow().get_instance_id();
+            let id = (*rtc.current_instance_node).borrow().get_instance_id();
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
 
             //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
@@ -844,7 +851,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         // From the `transform` property
         let node_transform_property_computed = {
-            let node_borrowed = rtc.node.borrow_mut();
+            let node_borrowed = rtc.current_instance_node.borrow_mut();
             node_size = node_borrowed.compute_size_within_bounds(accumulated_bounds);
             let computed_transform2d_matrix = node_borrowed
                 .get_common_properties()
@@ -859,7 +866,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // From a combination of the sugared TemplateNodeDefinition properties like `width`, `height`, `x`, `y`, `scale_x`, etc.
         let desugared_transform = {
             //Extract common_properties, pack into Transform2D, decompose / compute, and combine with node_computed_transform
-            let node_borrowed = rtc.node.borrow();
+            let node_borrowed = rtc.current_instance_node.borrow();
             let cp = node_borrowed.get_common_properties();
             let mut desugared_transform2d = Transform2D::default();
 
@@ -950,6 +957,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         if let Some(registry) = registry {
             //grab Rc of properties from stack frame; pass to type-specific handler
             //on instance in order to dispatch cartridge method
+
             match rtc.runtime.borrow_mut().peek_stack_frame() {
                 Some(stack_frame) => {
                     for handler in (*registry).borrow().will_render_handlers.iter() {
@@ -1102,9 +1110,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         // Component nodes fire their stack frame cleanup after full lifecycle, e.g. to handle lifecycle events
         // that depend on the component's stack frame
-        if node.borrow().is_component_node() {
-            node.borrow_mut().handle_did_compute_properties(rtc);
-        }
+        // if node.borrow().is_component_node() {
+        //     node.borrow_mut().handle_did_compute_properties(rtc);
+        // }
 
         //Handle node unmounting
         if marked_for_unmount {

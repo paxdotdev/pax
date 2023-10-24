@@ -20,6 +20,24 @@ use pax_runtime_api::PropertyInstance;
 pub type RenderNodePtr<R> = Rc<RefCell<dyn RenderNode<R>>>;
 pub type RenderNodePtrList<R> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
 
+/// Given some RenderNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
+/// and return another RenderNodePtrList with a flattened top-level list of nodes.
+pub fn flatten_slot_invisible_nodes_recursive<R: 'static + RenderContext>(input_nodes: RenderNodePtrList<R>) -> RenderNodePtrList<R> {
+    let mut output_nodes = Vec::new();
+
+    for node in input_nodes.borrow().iter() {
+        if node.borrow().is_invisible_to_slot() {
+            let children = node.borrow().get_rendering_children();
+            let flattened_children = flatten_slot_invisible_nodes_recursive(children);
+            output_nodes.extend(flattened_children.borrow().iter().cloned());
+        } else {
+            output_nodes.push(node.clone());
+        }
+    }
+
+    Rc::new(RefCell::new(output_nodes))
+}
+
 pub struct ScrollerArgs {
     pub size_inner_pane: [Box<dyn PropertyInstance<f64>>; 2],
     pub axes_enabled: [Box<dyn PropertyInstance<bool>>; 2],
@@ -253,17 +271,10 @@ pub trait RenderNode<R: 'static + RenderContext> {
     /// unique node addressing in the context of an in-progress render tree traversal.
     fn get_instance_id(&self) -> u32;
 
-    /// Used for exotic tree traversals, e.g. for `Stacker` > `Repeat` > `Rectangle`
+    /// Used for exotic tree traversals for `Slot`, e.g. for `Stacker` > `Repeat` > `Rectangle`
     /// where the repeated `Rectangle`s need to be be considered direct children of `Stacker`.
-    /// `Repeat` overrides `should_flatten` to return true, which `Engine` interprets to mean "ignore this
-    /// node and consume its children" during traversal.
-    ///
-    /// This may also be useful as a check during slot -> slot_child
-    /// searching via stackframes — currently slots will recurse
-    /// up the stackframe looking for slot_children, but it may be the case that
-    /// checking should_flatten and NOT recursing is better behavior.  TBD
-    /// as more use-cases are vetted.
-    fn should_flatten(&self) -> bool {
+    /// `Repeat` and `Conditional` override `is_invisible_to_slot` to return true
+    fn is_invisible_to_slot(&self) -> bool {
         false
     }
 
