@@ -2,7 +2,7 @@ use std::cell::RefCell;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
     RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, TextPatch};
@@ -31,6 +31,12 @@ pub struct TextInstance<R: 'static + RenderContext> {
 impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
     fn get_common_properties(&self) -> &CommonProperties {
         &self.common_properties
+    }
+
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        let text_ref = self.properties.borrow();
+        let wrapped: PropertiesCoproduct = unsafe_wrap!(*text_ref, PropertiesCoproduct, Text);
+        Rc::new(RefCell::new(wrapped))
     }
 
     fn get_instance_id(&self) -> u32 {

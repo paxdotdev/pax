@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
-use pax_properties_coproduct::TypesCoproduct;
+use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
 
@@ -28,6 +28,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for ConditionalInstance<R> {
 
     fn get_common_properties(&self) -> &CommonProperties {
         &self.common_properties
+    }
+
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        Rc::new(RefCell::new(PropertiesCoproduct::None))
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>

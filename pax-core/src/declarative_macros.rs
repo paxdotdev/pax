@@ -35,3 +35,31 @@ macro_rules! unsafe_unwrap {
         unwrap_impl::<$enum_type, $target_type>($source_enum)
     }};
 }
+
+#[macro_export]
+macro_rules! unsafe_wrap {
+    ($value:expr, $enum_type:ty, $target_type:ty) => {{
+        fn wrap_impl<T: Default, U: Default>(value: &U) -> T {
+            let size_of_enum = std::mem::size_of::<T>();
+            let size_of_value = std::mem::size_of::<U>();
+            let align_of_enum = std::mem::align_of::<T>();
+
+            assert!(size_of_value < size_of_enum, "The size_of target_type must be less than the size_of enum_type.");
+
+            let mut boxed_enum = Box::new(T::default()); // Assuming your enum has a Default impl.
+
+            unsafe {
+                let enum_ptr = Box::into_raw(boxed_enum);
+                let value_ptr = value as *const U;  // Directly take the pointer from the reference
+                let target_ptr = (enum_ptr as *mut u8).add(align_of_enum) as *mut U;
+
+                std::ptr::copy_nonoverlapping(value_ptr, target_ptr, 1); // Use copy_nonoverlapping since source and destination won't overlap
+
+                // Transfer ownership of the enum back to Rust for proper handling
+                *Box::from_raw(enum_ptr)
+            }
+        }
+        wrap_impl::<$enum_type, $target_type>(&$value)
+    }};
+}
+

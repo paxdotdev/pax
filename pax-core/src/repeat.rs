@@ -37,6 +37,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         &self.common_properties
     }
 
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        Rc::new(RefCell::new(PropertiesCoproduct::None))
+    }
+
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized,

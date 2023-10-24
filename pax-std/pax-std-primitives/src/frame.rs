@@ -4,6 +4,8 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
 
+use pax_core::pax_properties_coproduct::{PropertiesCoproduct};
+
 use kurbo::BezPath;
 use piet::RenderContext;
 
@@ -36,6 +38,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
             Some(registry) => Some(Rc::clone(&registry)),
             _ => None,
         }
+    }
+
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        Rc::new(RefCell::new(PropertiesCoproduct::None))
     }
 
     fn get_common_properties(&self) -> &CommonProperties {
