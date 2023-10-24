@@ -44,7 +44,9 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
     fn is_component_node(&self) -> bool {
         true
     }
-
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        Rc::clone(&self.properties)
+    }
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
             Some(registry) => Some(Rc::clone(&registry)),

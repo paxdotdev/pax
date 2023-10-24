@@ -3,8 +3,10 @@ use std::rc::Rc;
 
 //Component types
 #[repr(C)]
+#[derive(Default)]
 pub enum PropertiesCoproduct {
     /* entries generated via properties-coproduct-lib.tera */
+    #[default]
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),

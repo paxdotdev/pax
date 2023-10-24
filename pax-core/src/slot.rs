@@ -4,7 +4,7 @@ use core::option::Option::{None, Some};
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use pax_properties_coproduct::TypesCoproduct;
+use pax_properties_coproduct::{TypesCoproduct, PropertiesCoproduct};
 use piet_common::RenderContext;
 
 use crate::{InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive};
@@ -30,6 +30,10 @@ pub struct SlotInstance<R: 'static + RenderContext> {
 impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
     fn get_common_properties(&self) -> &CommonProperties {
         &self.common_properties
+    }
+
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        Rc::new(RefCell::new(PropertiesCoproduct::None))
     }
 
     fn get_instance_id(&self) -> u32 {

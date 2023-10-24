@@ -210,23 +210,23 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 }
 
 pub struct HandlerRegistry<R: 'static + RenderContext> {
-    pub scroll_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsScroll)>,
-    pub jab_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsJab)>,
-    pub touch_start_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsTouchStart)>,
-    pub touch_move_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsTouchMove)>,
-    pub touch_end_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsTouchEnd)>,
-    pub key_down_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsKeyDown)>,
-    pub key_up_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsKeyUp)>,
-    pub key_press_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsKeyPress)>,
-    pub click_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsClick)>,
-    pub mouse_down_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsMouseDown)>,
-    pub mouse_up_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsMouseUp)>,
-    pub mouse_move_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsMouseMove)>,
-    pub mouse_over_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsMouseOver)>,
-    pub mouse_out_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsMouseOut)>,
-    pub double_click_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsDoubleClick)>,
-    pub context_menu_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsContextMenu)>,
-    pub wheel_handlers: Vec<fn(Rc<RefCell<RuntimePropertiesStackFrame<R>>>, RuntimeContext, ArgsWheel)>,
+    pub scroll_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsScroll)>,
+    pub jab_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsJab)>,
+    pub touch_start_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsTouchStart)>,
+    pub touch_move_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsTouchMove)>,
+    pub touch_end_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsTouchEnd)>,
+    pub key_down_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsKeyDown)>,
+    pub key_up_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsKeyUp)>,
+    pub key_press_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsKeyPress)>,
+    pub click_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsClick)>,
+    pub mouse_down_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseDown)>,
+    pub mouse_up_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseUp)>,
+    pub mouse_move_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseMove)>,
+    pub mouse_over_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseOver)>,
+    pub mouse_out_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseOut)>,
+    pub double_click_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsDoubleClick)>,
+    pub context_menu_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsContextMenu)>,
+    pub wheel_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsWheel)>,
     pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
     pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
 }
@@ -265,7 +265,6 @@ pub struct RepeatExpandedNode<R: 'static + RenderContext> {
     id_chain: Vec<u32>,
     parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
     instance_node: RenderNodePtr<R>,
-    stack_frame: Rc<RefCell<crate::RuntimePropertiesStackFrame<R>>>,
     tab: TransformAndBounds,
     node_context: RuntimeContext,
 }
@@ -276,7 +275,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().scroll_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_scroll.clone(),
                 );
@@ -295,7 +294,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().jab_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_jab.clone(),
                 );
@@ -312,7 +311,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().touch_start_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_touch_start.clone(),
                 );
@@ -332,7 +331,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().touch_move_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_touch_move.clone(),
                 );
@@ -352,7 +351,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().touch_end_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_touch_end.clone(),
                 );
@@ -369,7 +368,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().key_down_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_key_down.clone(),
                 );
@@ -386,7 +385,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().key_up_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_key_up.clone(),
                 );
@@ -403,7 +402,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().key_press_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_key_press.clone(),
                 );
@@ -420,7 +419,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().click_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_click.clone(),
                 );
@@ -437,7 +436,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().mouse_down_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_mouse_down.clone(),
                 );
@@ -457,7 +456,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().mouse_up_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_mouse_up.clone(),
                 );
@@ -474,7 +473,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().mouse_move_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_mouse_move.clone(),
                 );
@@ -494,7 +493,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().mouse_over_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_mouse_over.clone(),
                 );
@@ -514,7 +513,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().mouse_out_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_mouse_out.clone(),
                 );
@@ -531,7 +530,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().double_click_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_double_click.clone(),
                 );
@@ -551,7 +550,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().context_menu_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_context_menu.clone(),
                 );
@@ -571,7 +570,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             let handlers = &(*registry).borrow().wheel_handlers;
             handlers.iter().for_each(|handler| {
                 handler(
-                    Rc::clone(&self.stack_frame),
+                    Rc::clone(&self.instance_node),
                     self.node_context.clone(),
                     args_wheel.clone(),
                 );
@@ -740,31 +739,24 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             self.compute_properties_recursive(rtc, Rc::clone(child));
         }
 
-        PaxEngine::manage_handlers_will_render(rtc);
-        PaxEngine::manage_handlers_did_mount(rtc);
         node.borrow_mut().handle_did_compute_properties(rtc);
     }
 
     /// Helper method to fire `will_render` handlers for the node attached to the `rtc`
     fn manage_handlers_will_render(rtc: &mut RenderTreeContext<R>) {
         //fire `will_render` handlers
+        let node = Rc::clone(&rtc.current_instance_node);
         let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
         if let Some(registry) = registry {
 
 
-            match rtc.runtime.borrow_mut().peek_stack_frame() {
-                Some(stack_frame) => {
-                    for handler in (*registry).borrow().will_render_handlers.iter() {
-                        handler(
-                            stack_frame.borrow_mut().get_properties(),
-                            rtc.distill_userland_node_context(),
-                        );
-                    }
-                }
-                None => {
-                    panic!("can't bind events without a component")
-                }
+            for handler in (*registry).borrow().will_render_handlers.iter() {
+                handler(
+                    node.borrow_mut().get_properties(),
+                    rtc.distill_userland_node_context(),
+                );
             }
+
         }
     }
 
@@ -800,7 +792,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                         Some(stack_frame) => {
                             for handler in (*registry).borrow().did_mount_handlers.iter() {
                                 handler(
-                                    stack_frame.borrow_mut().get_properties(),
+                                    node.borrow_mut().get_properties(),
                                     rtc.distill_userland_node_context(),
                                 );
                             }
@@ -836,9 +828,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         rtc.current_instance_node = Rc::clone(&node);
         //populate current_z_index to `rtc`
         let node_type = node.borrow_mut().get_layer_type();
+
         z_index_info.update_z_index(node_type.clone());
         rtc.current_z_index = z_index_info.get_level();
-
 
         //Compute properties:
         // If this node is a component:
@@ -852,14 +844,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             for template_child in (*template_children).borrow().iter() {
                 self.compute_properties_recursive(rtc, Rc::clone(template_child));
             }
-            Self::manage_handlers_will_render(rtc);
-            Self::manage_handlers_did_mount(rtc);
+
             node.borrow_mut().handle_did_compute_properties(rtc);
-
-
         }
 
+        Self::manage_handlers_did_mount(rtc);
 
+        //scroller IDs are used by chassis, for identifying native scrolling containers
         let scroller_ids = (*rtc.engine.runtime).borrow().get_current_scroller_ids();
         let scroller_id = match scroller_ids.last() {
             None => None,
@@ -987,10 +978,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         rtc.transform_global = new_accumulated_transform.clone();
         rtc.transform_scroller_reset = new_scroller_normalized_accumulated_transform.clone();
 
-        //lifecycle: will_render for primitives
-        node.borrow_mut().handle_will_render(rtc, rcs);
-
-
+        Self::manage_handlers_will_render(rtc);
 
         //create the `repeat_expanded_node` for the current node
         let rendering_children = node.borrow_mut().get_rendering_children();
@@ -1011,7 +999,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let parent_repeat_expanded_node = rtc.parent_repeat_expanded_node.clone();
         let repeat_expanded_node = Rc::new(RepeatExpandedNode {
-            stack_frame: rtc.runtime.borrow_mut().peek_stack_frame().unwrap(),
             tab: repeat_expanded_node_tab.clone(),
             id_chain: id_chain.clone(),
             instance_node: Rc::clone(&node),

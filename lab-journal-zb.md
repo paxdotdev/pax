@@ -3595,6 +3595,8 @@ Get this working entirely manually first, then automate in pax-compiler. (valida
 [ ] consider renaming `will_` to `pre_` and `did_` to `post_` (while a departure from React-like conventions, )
 [x] handle forwarded childen in Repeat
 [ ] handle triggering events in handle_registry given changes in runtime stack
-    [ ] probably introduce `get_properties` on dyn RenderNode
-    [ ] Alternatively!  fire handlers at end of properties compute phase?
+    [ ] probably introduce `get_properties` on dyn RenderNode, returning something like an Rc<RefCell<PropertiesCoproduct>>
+    [-] Alternatively!  fire handlers at end of properties compute phase?
+        Turns out the above is insufficient.  We also rely on property<>render-tangled stack frames
+        when gathering `properties` (the on-demand `self`) for invoking event handlers, via `cartridge-render-node-literal.tera` 
     
