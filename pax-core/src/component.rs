@@ -2,10 +2,7 @@ use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{
-    HandlerRegistry, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
-    RenderTreeContext,
-};
+use crate::{HandlerRegistry, InstantiationArgs, NodeType, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
 use pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{CommonProperties, Layer, Size, Timeline};
@@ -27,7 +24,10 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn:
         Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>, &mut RenderTreeContext<R>)>,
-
+    /// A flag used for special-casing how we manage the runtime properties stack. When
+    /// evaluating a given component's template, we must push to the runtime stack for component's
+    /// managed by `for`, while ignoring the runtime properties stack for non-`for`-managed components (most userland components)
+    pub is_managed_by_repeat: bool,
     pub common_properties: CommonProperties,
 }
 
@@ -41,8 +41,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::clone(&self.template)
     }
-    fn is_component_node(&self) -> bool {
-        true
+    fn get_node_type(&self) -> NodeType {
+        if self.is_managed_by_repeat {
+            NodeType::RepeatManagedComponent
+        } else {
+            NodeType::Component
+        }
     }
     fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
         Rc::clone(&self.properties)
@@ -81,6 +85,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
                 .expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
             handler_registry: args.handler_registry,
+            is_managed_by_repeat: false,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
@@ -94,7 +99,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         bounds
     }
 
-    fn handle_will_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_push_runtime_properties_stack_frame(&mut self, rtc: &mut RenderTreeContext<R>) {
         (*rtc.runtime).borrow_mut().push_stack_frame(
             Rc::clone(&self.properties),
             self.timeline.clone(),
@@ -106,7 +111,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
     }
 
-    fn handle_did_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_pop_runtime_properties_stack_frame(&mut self, rtc: &mut RenderTreeContext<R>) {
         (*rtc.runtime).borrow_mut().pop_stack_frame();
     }
 
