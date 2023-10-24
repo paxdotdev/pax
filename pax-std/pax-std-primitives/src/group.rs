@@ -5,6 +5,7 @@ use pax_core::{
 use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
+use pax_core::pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{CommonProperties, Layer, Size};
 
@@ -24,6 +25,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for GroupInstance<R> {
 
     fn get_common_properties(&self) -> &CommonProperties {
         &self.common_properties
+    }
+
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        Rc::new(RefCell::new(PropertiesCoproduct::None))
     }
 
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {

@@ -3,7 +3,7 @@ use piet::{LinearGradient, RadialGradient, RenderContext};
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
     RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
 use pax_std::primitives::Rectangle;
@@ -26,6 +26,12 @@ pub struct RectangleInstance<R: 'static + RenderContext> {
 impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
     fn get_common_properties(&self) -> &CommonProperties {
         &self.common_properties
+    }
+
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        let rectangle_ref = self.properties.borrow();
+        let wrapped: PropertiesCoproduct = unsafe_wrap!(*rectangle_ref, PropertiesCoproduct, Rectangle);
+        Rc::new(RefCell::new(wrapped))
     }
 
     fn get_instance_id(&self) -> u32 {

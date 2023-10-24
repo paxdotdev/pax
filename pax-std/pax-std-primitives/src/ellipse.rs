@@ -3,9 +3,10 @@ use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    unsafe_unwrap, unsafe_wrap, Color, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
     RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
+
 use pax_std::primitives::Ellipse;
 use pax_std::types::ColorVariant;
 
@@ -34,6 +35,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for EllipseInstance<R> {
 
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
+    }
+
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        let ellipse_ref = self.properties.borrow();
+        let wrapped: PropertiesCoproduct = unsafe_wrap!(ellipse_ref, PropertiesCoproduct, Ellipse);
+        Rc::new(RefCell::new(wrapped))
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>

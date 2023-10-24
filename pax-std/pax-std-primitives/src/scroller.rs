@@ -9,7 +9,7 @@ use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
+    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
     RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, ScrollerPatch};
@@ -44,6 +44,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
 
     fn get_instance_id(&self) -> u32 {
         self.instance_id
+    }
+
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        let scroller_ref = self.properties.borrow();
+        let wrapped: PropertiesCoproduct = unsafe_wrap!(*scroller_ref, PropertiesCoproduct, Scroller);
+        Rc::new(RefCell::new(wrapped))
     }
 
     fn get_layer_type(&mut self) -> Layer {

@@ -222,6 +222,10 @@ pub trait RenderNode<R: 'static + RenderContext> {
         Rc::new(RefCell::new(vec![]))
     }
 
+
+
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>>;
+
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this rendernode. `tab` must also be passed because these are specific
     /// to a RepeatExpandedNode

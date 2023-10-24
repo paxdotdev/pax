@@ -2,8 +2,20 @@ use std::cell::RefCell;
 use std::ops::Range;
 use std::rc::Rc;
 
+// IMPORTANT NOTE:
+// This file is never used in builds or at runtime.  The purpose of this file is to appease static
+// builds and build tools like IDEs, so they can operate on a static Rust codebase without issues.
+// This file is a placeholder, replaced with generated code for any pax build.
+// Changes made to this file will not be reflected anywhere.
+//
+// ****
+// To make changes to this file, see pax-compiler/templates/properties-coproduct-lib.tera
+// ****
+
+#[derive(Default)]
 pub enum PropertiesCoproduct {
     //core
+    #[default]
     None,
     RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
@@ -12,10 +24,7 @@ pub enum PropertiesCoproduct {
     #[allow(non_camel_case_types)]
     isize(isize),//used by Repeat + numeric ranges, e.g. `for i in 0..5`
 
-    //generated
 }
-
-//used namely for return types of expressions — may have other purposes
 
 pub enum TypesCoproduct {
     //core: primitives
