@@ -198,6 +198,129 @@ impl Color {
             ]),
         }
     }
+
+    pub fn shade(color: Color, shade: Numeric) -> Self {
+        let shade = shade.get_as_float().clamp(0.0, 1000.0) / 1000.0;
+        let (r, g, b, a) = color.to_piet_color().as_rgba();
+        let r = ((r * 255.0) * shade) / 255.0;
+        let g = ((g * 255.0) * shade) / 255.0;
+        let b = ((b * 255.0) * shade) / 255.0;
+        pax_runtime_api::log(format!("{r} {g} {b} {a}").as_str());
+        Self {
+            color_variant: ColorVariant::Rgba([r, g, b, a]),
+        }
+    }
+
+    pub fn slate() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([100.0 / 255.0, 116.0 / 255.0, 139.0 / 255.0]),
+        }
+    }
+    pub fn gray() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([107.0 / 255.0, 114.0 / 255.0, 128.0 / 255.0]),
+        }
+    }
+    pub fn zinc() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([113.0 / 255.0, 113.0 / 255.0, 122.0 / 255.0]),
+        }
+    }
+    pub fn neutral() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([115.0 / 255.0, 115.0 / 255.0, 115.0 / 255.0]),
+        }
+    }
+    pub fn stone() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([120.0 / 255.0, 113.0 / 255.0, 108.0 / 255.0]),
+        }
+    }
+    pub fn red() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([234.0 / 255.0, 68.0 / 255.0, 68.0 / 255.0]),
+        }
+    }
+    pub fn orange() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([249.0 / 255.0, 115.0 / 255.0, 22.0 / 255.0]),
+        }
+    }
+    pub fn amber() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([245.0 / 255.0, 158.0 / 255.0, 11.0 / 255.0]),
+        }
+    }
+    pub fn yellow() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([234.0 / 255.0, 179.0 / 255.0, 8.0 / 255.0]),
+        }
+    }
+    pub fn lime() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([132.0 / 255.0, 204.0 / 255.0, 22.0 / 255.0]),
+        }
+    }
+    pub fn green() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([34.0 / 255.0, 197.0 / 255.0, 94.0 / 255.0]),
+        }
+    }
+    pub fn emerald() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([16.0 / 255.0, 185.0 / 255.0, 129.0 / 255.0]),
+        }
+    }
+    pub fn teal() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([20.0 / 255.0, 184.0 / 255.0, 166.0 / 255.0]),
+        }
+    }
+    pub fn cyan() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([6.0 / 255.0, 182.0 / 255.0, 212.0 / 255.0]),
+        }
+    }
+    pub fn sky() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([14.0 / 255.0, 165.0 / 255.0, 233.0 / 255.0]),
+        }
+    }
+    pub fn blue() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([59.0 / 255.0, 130.0 / 255.0, 246.0 / 255.0]),
+        }
+    }
+    pub fn indigo() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([99.0 / 255.0, 102.0 / 255.0, 241.0 / 255.0]),
+        }
+    }
+    pub fn violet() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([132.0 / 255.0, 96.0 / 255.0, 246.0 / 255.0]),
+        }
+    }
+    pub fn purple() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([168.0 / 255.0, 85.0 / 255.0, 247.0 / 255.0]),
+        }
+    }
+    pub fn fuchsia() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([217.0 / 255.0, 70.0 / 255.0, 239.0 / 255.0]),
+        }
+    }
+    pub fn pink() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([236.0 / 255.0, 72.0 / 255.0, 153.0 / 255.0]),
+        }
+    }
+    pub fn rose() -> Self {
+        Self {
+            color_variant: ColorVariant::Rgb([244.0 / 255.0, 63.0 / 255.0, 94.0 / 255.0]),
+        }
+    }
     pub fn to_piet_color(&self) -> piet::Color {
         match self.color_variant {
             ColorVariant::Hlca(slice) => piet::Color::hlca(slice[0], slice[1], slice[2], slice[3]),
