@@ -14,6 +14,7 @@ import {DIV, OBJECT, OCCLUSION_CONTEXT, SCROLLER} from "../pools/supported-objec
 import {arrayToKey, packAffineCoeffsIntoMatrix3DString, readImageToByteBuffer} from "../utils/helpers";
 import {getAlignItems, getJustifyContent, getTextAlign} from "./text";
 import type {PaxChassisWeb} from "../types/pax-chassis-web";
+import { CheckboxUpdatePatch } from "./messages/checkbox-update-patch";
 
 export class NativeElementPool {
     private canvases: Map<string, HTMLCanvasElement>;
@@ -33,7 +34,6 @@ export class NativeElementPool {
         this.baseOcclusionContext = objectManager.getFromPool(OCCLUSION_CONTEXT, objectManager);
         this.registeredFontFaces = new Set<string>();
     }
-
 
     build(chassis: PaxChassisWeb, isMobile: boolean, mount: Element){
         this.isMobile = isMobile;
@@ -92,6 +92,78 @@ export class NativeElementPool {
         });
     }
 
+    checkboxCreate(patch: AnyCreatePatch) {
+        console.assert(patch.idChain != null);
+        console.assert(patch.clippingIds != null);
+        console.assert(patch.scrollerIds != null);
+        console.assert(patch.zIndex != null);
+        
+        const checkbox = document.createElement("input");
+        checkbox.type = "checkbox";
+        checkbox.addEventListener("change", (event) => {
+            let checked = (event.target as HTMLInputElement).checked
+            let message = {
+                "FormCheckboxToggle": {
+                    "id_chain": patch.idChain!,
+                    "state": checked,
+                }
+            }
+            this.chassis!.interrupt(JSON.stringify(message), undefined);
+        });
+
+        let runningChain: HTMLDivElement = this.objectManager.getFromPool(DIV);
+        runningChain.appendChild(checkbox);
+        runningChain.setAttribute("class", NATIVE_LEAF_CLASS)
+        runningChain.setAttribute("id_chain", String(patch.idChain));
+        let scroller_id;
+        if(patch.scrollerIds != null){
+            let length = patch.scrollerIds.length;
+            if(length != 0) {
+                scroller_id = patch.scrollerIds[length-1];
+            }
+        }
+        if(patch.idChain != undefined && patch.zIndex != undefined){
+            NativeElementPool.addNativeElement(runningChain, this.baseOcclusionContext,
+                this.scrollers, patch.idChain, scroller_id, patch.zIndex);
+        }
+        // @ts-ignore
+        this.textNodes[patch.idChain] = runningChain;
+
+    }
+
+    
+    checkboxUpdate(patch: CheckboxUpdatePatch) {
+        //@ts-ignore
+        window.textNodes = this.textNodes;
+        // @ts-ignore
+        let leaf = this.textNodes[patch.id_chain];
+        console.assert(leaf !== undefined);
+        let checkbox = leaf.firstChild;
+        if (patch.checked !== null) {
+            checkbox.checked = patch.checked;
+        }
+        // Handle size_x and size_y
+        if (patch.size_x != null) {
+            leaf.style.width = patch.size_x + "px";
+        }
+        if (patch.size_y != null) {
+            leaf.style.height = patch.size_y + "px";
+        }
+        // Handle transform
+        if (patch.transform != null) {
+            leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+        }
+    }
+
+    checkboxDelete(id_chain: number[]) {
+        // @ts-ignore
+        let oldNode = this.textNodes[id_chain];
+        if (oldNode){
+            let parent = oldNode.parentElement;
+            parent.removeChild(oldNode);
+        }
+    }
+
     textCreate(patch: AnyCreatePatch) {
         console.assert(patch.idChain != null);
         console.assert(patch.clippingIds != null);
@@ -122,8 +194,6 @@ export class NativeElementPool {
     }
 
     textUpdate(patch: TextUpdatePatch) {
-
-        //console.log("Msg received", patch.id_chain, patch.content);
         //@ts-ignore
         window.textNodes = this.textNodes;
         // @ts-ignore

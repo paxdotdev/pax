@@ -12,6 +12,7 @@ use piet_common::RenderContext;
 use pax_runtime_api::{ArgsScroll, Layer, Size};
 
 use crate::{HandlerRegistry, InstanceRegistry, RenderTreeContext};
+use crate::form_event::FormEvent;
 
 use pax_runtime_api::PropertyInstance;
 
@@ -417,6 +418,10 @@ pub trait RenderNode<R: 'static + RenderContext> {
     /// Used by the engine to transform its children
     fn get_scroll_offset(&mut self) -> (f64, f64) {
         (0.0, 0.0)
+    }
+
+    fn handle_form_event(&mut self, event: FormEvent) {
+        panic!("form event sent to non-compatible component: {:?}", event)
     }
 }
 

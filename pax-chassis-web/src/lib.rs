@@ -1,6 +1,7 @@
 //! Basic example of rendering in the browser
 
 use js_sys::Uint8Array;
+use pax_core::form_event::FormEvent;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -142,6 +143,15 @@ impl PaxChassisWeb {
                     );
                 }
             },
+            NativeInterrupt::FormCheckboxToggle(args) => {
+                let node = (*self.engine)
+                    .borrow()
+                    .instance_registry
+                    .borrow()
+                    .get_node(&args.id_chain)
+                    .expect("couldn't find node");
+                node.borrow_mut().handle_form_event(FormEvent::Toggle { state: args.state} );
+            }
             NativeInterrupt::AddedLayer(_args) => {}
             NativeInterrupt::Click(args) => {
                 let prospective_hit = (*self.engine)
