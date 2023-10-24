@@ -222,9 +222,9 @@ pub trait RenderNode<R: 'static + RenderContext> {
         Rc::new(RefCell::new(vec![]))
     }
 
-    ///Determines whether the provided ray, orthogonal to the view plane,
-    ///intersects this rendernode. `tab` must also be passed because these are specific
-    ///to a RepeatExpandedNode
+    /// Determines whether the provided ray, orthogonal to the view plane,
+    /// intersects this rendernode. `tab` must also be passed because these are specific
+    /// to a RepeatExpandedNode
     fn ray_cast_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
         //short-circuit fail for Group and other size-None elements.
         //This doesn't preclude event handlers on Groups and size-None elements --
@@ -352,8 +352,8 @@ pub trait RenderNode<R: 'static + RenderContext> {
         //no-op default implementation
     }
 
-    /// Second lifecycle method during each render loop, occurs AFTER
-    /// properties have been computed, but BEFORE rendering
+    /// Second lifecycle method during each render loop, occurs after
+    /// properties have been computed, but before rendering
     /// Example use-case: perform side-effects to the drawing contexts.
     /// This is how [`Frame`] performs clipping, for example.
     /// Occurs in a pre-order traversal of the render tree.
@@ -366,7 +366,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
     }
 
     /// Third lifecycle method during each render loop, occurs
-    /// AFTER all descendents have been rendered.
+    /// after all descendents have been rendered.
     /// Occurs in a post-order traversal of the render tree. Most primitives
     /// are expected to draw their contents to the rendering context during this event.
     fn handle_render(&mut self, _rtc: &mut RenderTreeContext<R>, _rc: &mut R) {
@@ -374,7 +374,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
     }
 
     /// Fourth and final lifecycle method during each render loop, occurs
-    /// AFTER all descendents have been rendered AND the current node has been rendered.
+    /// after all descendents have been rendered AND the current node has been rendered.
     /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing contexts
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.

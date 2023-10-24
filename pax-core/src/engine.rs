@@ -47,6 +47,7 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
     pub timeline_playhead_position: usize,
     pub inherited_slot_children: Option<RenderNodePtrList<R>>,
+    pub current_z_index: u32,
 }
 
 macro_rules! handle_vtable_update {
@@ -125,6 +126,7 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             parent_repeat_expanded_node: self.parent_repeat_expanded_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
             inherited_slot_children: self.inherited_slot_children.clone(),
+            current_z_index: self.current_z_index,
         }
     }
 }
@@ -697,6 +699,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             parent_repeat_expanded_node: None,
             timeline_playhead_position: self.frames_elapsed,
             inherited_slot_children: None,
+            current_z_index: 0,
         };
 
         let mut z_index = ZIndex::new(None);
@@ -737,7 +740,77 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             self.compute_properties_recursive(rtc, Rc::clone(child));
         }
 
+        PaxEngine::manage_handlers_will_render(rtc);
+        PaxEngine::manage_handlers_did_mount(rtc);
         node.borrow_mut().handle_did_compute_properties(rtc);
+    }
+
+    /// Helper method to fire `will_render` handlers for the node attached to the `rtc`
+    fn manage_handlers_will_render(rtc: &mut RenderTreeContext<R>) {
+        //fire `will_render` handlers
+        let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
+        if let Some(registry) = registry {
+
+
+            match rtc.runtime.borrow_mut().peek_stack_frame() {
+                Some(stack_frame) => {
+                    for handler in (*registry).borrow().will_render_handlers.iter() {
+                        handler(
+                            stack_frame.borrow_mut().get_properties(),
+                            rtc.distill_userland_node_context(),
+                        );
+                    }
+                }
+                None => {
+                    panic!("can't bind events without a component")
+                }
+            }
+        }
+    }
+
+    /// Helper method to fire `did_mount` event if this is this node's first frame
+    /// Note that this must happen after initial `compute_properties`, which performs the
+    /// necessary side-effect of creating the `self` that must be passed to handlers
+    fn manage_handlers_did_mount(rtc: &mut RenderTreeContext<R>) {
+
+        {
+            let id = (*rtc.current_instance_node).borrow().get_instance_id();
+            let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
+
+            //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
+            let mut repeat_indices = (*rtc.engine.runtime)
+                .borrow()
+                .get_list_of_repeat_indicies_from_stack();
+            let id_chain = {
+                let mut i = vec![id];
+                i.append(&mut repeat_indices);
+                i
+            };
+            if !instance_registry.is_mounted(&id_chain) {
+                //Fire primitive-level did_mount lifecycle method
+                let node = Rc::clone(&rtc.current_instance_node);
+                node.borrow_mut().handle_did_mount(rtc, rtc.current_z_index);
+
+                //Fire registered did_mount events
+                let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
+                if let Some(registry) = registry {
+                    //grab Rc of properties from stack frame; pass to type-specific handler
+                    //on instance in order to dispatch cartridge method
+                    match rtc.runtime.borrow_mut().peek_stack_frame() {
+                        Some(stack_frame) => {
+                            for handler in (*registry).borrow().did_mount_handlers.iter() {
+                                handler(
+                                    stack_frame.borrow_mut().get_properties(),
+                                    rtc.distill_userland_node_context(),
+                                );
+                            }
+                        }
+                        None => {}
+                    }
+                }
+                instance_registry.mark_mounted(id_chain);
+            }
+        }
     }
 
     fn recurse_traverse_render_tree(
@@ -759,6 +832,14 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let accumulated_scroller_normalized_transform = rtc.transform_scroller_reset;
         let accumulated_bounds = rtc.bounds;
 
+        //populate a pointer to this (current) `RenderNode` onto `rtc`
+        rtc.current_instance_node = Rc::clone(&node);
+        //populate current_z_index to `rtc`
+        let node_type = node.borrow_mut().get_layer_type();
+        z_index_info.update_z_index(node_type.clone());
+        rtc.current_z_index = z_index_info.get_level();
+
+
         //Compute properties:
         // If this node is a component:
         //    Kick off a recursive evaluation of properties for all nodes in this component's template
@@ -771,63 +852,20 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             for template_child in (*template_children).borrow().iter() {
                 self.compute_properties_recursive(rtc, Rc::clone(template_child));
             }
+            Self::manage_handlers_will_render(rtc);
+            Self::manage_handlers_did_mount(rtc);
             node.borrow_mut().handle_did_compute_properties(rtc);
+
+
         }
 
-        //populate a pointer to this (current) `RenderNode` onto `rtc`
-        rtc.current_instance_node = Rc::clone(&node);
 
-        //depth work
-        let node_type = node.borrow_mut().get_layer_type();
-        z_index_info.update_z_index(node_type.clone());
-        let current_z_index = z_index_info.get_level();
         let scroller_ids = (*rtc.engine.runtime).borrow().get_current_scroller_ids();
         let scroller_id = match scroller_ids.last() {
             None => None,
             Some(v) => Some(v.clone()),
         };
-        let canvas_id = ZIndex::generate_location_id(scroller_id.clone(), current_z_index);
-
-        //fire `did_mount` event if this is this node's first frame
-        //Note that this must happen after initial `compute_properties`, which performs the
-        //necessary side-effect of creating the `self` that must be passed to handlers
-        {
-            let id = (*rtc.current_instance_node).borrow().get_instance_id();
-            let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
-
-            //Due to Repeat, an effective unique instance ID is the tuple: `(instance_id, [list_of_RepeatItem_indices])`
-            let mut repeat_indices = (*rtc.engine.runtime)
-                .borrow()
-                .get_list_of_repeat_indicies_from_stack();
-            let id_chain = {
-                let mut i = vec![id];
-                i.append(&mut repeat_indices);
-                i
-            };
-            if !instance_registry.is_mounted(&id_chain) {
-                //Fire primitive-level did_mount lifecycle method
-                node.borrow_mut().handle_did_mount(rtc, current_z_index);
-
-                //Fire registered did_mount events
-                let registry = (*node).borrow().get_handler_registry();
-                if let Some(registry) = registry {
-                    //grab Rc of properties from stack frame; pass to type-specific handler
-                    //on instance in order to dispatch cartridge method
-                    match rtc.runtime.borrow_mut().peek_stack_frame() {
-                        Some(stack_frame) => {
-                            for handler in (*registry).borrow().did_mount_handlers.iter() {
-                                handler(
-                                    stack_frame.borrow_mut().get_properties(),
-                                    rtc.distill_userland_node_context(),
-                                );
-                            }
-                        }
-                        None => {}
-                    }
-                }
-                instance_registry.mark_mounted(id_chain);
-            }
-        }
+        let canvas_id = ZIndex::generate_location_id(scroller_id.clone(), rtc.current_z_index);
 
         //peek at the current stack frame and set a scoped playhead position as needed
         match rtc.runtime.borrow_mut().peek_stack_frame() {
@@ -952,26 +990,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //lifecycle: will_render for primitives
         node.borrow_mut().handle_will_render(rtc, rcs);
 
-        //fire `will_render` handlers
-        let registry = (*node).borrow().get_handler_registry();
-        if let Some(registry) = registry {
-            //grab Rc of properties from stack frame; pass to type-specific handler
-            //on instance in order to dispatch cartridge method
 
-            match rtc.runtime.borrow_mut().peek_stack_frame() {
-                Some(stack_frame) => {
-                    for handler in (*registry).borrow().will_render_handlers.iter() {
-                        handler(
-                            stack_frame.borrow_mut().get_properties(),
-                            rtc.distill_userland_node_context(),
-                        );
-                    }
-                }
-                None => {
-                    panic!("can't bind events without a component")
-                }
-            }
-        }
 
         //create the `repeat_expanded_node` for the current node
         let rendering_children = node.borrow_mut().get_rendering_children();
@@ -1075,7 +1094,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 new_scroller_normalized_accumulated_transform
                     .as_coeffs()
                     .to_vec(),
-                current_z_index,
+                rtc.current_z_index,
                 subtree_depth,
             );
         } else {
@@ -1085,7 +1104,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 new_scroller_normalized_accumulated_transform
                     .as_coeffs()
                     .to_vec(),
-                current_z_index,
+                rtc.current_z_index,
                 subtree_depth,
             );
         }
