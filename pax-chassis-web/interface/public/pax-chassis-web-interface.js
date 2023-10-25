@@ -661,18 +661,20 @@ var Pax = (() => {
       });
     }
     checkboxCreate(patch) {
+      console.log("checkbox create");
       console.assert(patch.idChain != null);
       console.assert(patch.clippingIds != null);
       console.assert(patch.scrollerIds != null);
       console.assert(patch.zIndex != null);
-      const checkbox = document.createElement("input");
+      const checkbox = this.objectManager.getFromPool(INPUT);
       checkbox.type = "checkbox";
+      checkbox.style.margin = "0";
       checkbox.addEventListener("change", (event) => {
-        let checked = event.target.checked;
+        event.preventDefault();
         let message = {
           "FormCheckboxToggle": {
             "id_chain": patch.idChain,
-            "state": checked
+            "state": checkbox.checked
           }
         };
         this.chassis.interrupt(JSON.stringify(message), void 0);
@@ -706,13 +708,14 @@ var Pax = (() => {
       console.assert(leaf !== void 0);
       let checkbox = leaf.firstChild;
       if (patch.checked !== null) {
+        console.log("from engine:", patch.checked);
         checkbox.checked = patch.checked;
       }
       if (patch.size_x != null) {
-        leaf.style.width = patch.size_x + "px";
+        checkbox.style.width = patch.size_x - 1 + "px";
       }
       if (patch.size_y != null) {
-        leaf.style.height = patch.size_y + "px";
+        checkbox.style.height = patch.size_y + "px";
       }
       if (patch.transform != null) {
         leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
@@ -726,6 +729,7 @@ var Pax = (() => {
       }
     }
     textCreate(patch) {
+      console.log("text create");
       console.assert(patch.idChain != null);
       console.assert(patch.clippingIds != null);
       console.assert(patch.scrollerIds != null);
@@ -1147,6 +1151,7 @@ var Pax = (() => {
   var OBJECT = "Object";
   var ARRAY2 = "Array";
   var DIV = "DIV";
+  var INPUT = "Input";
   var CANVAS = "Canvas";
   var ANY_CREATE_PATCH = "Any Create Patch";
   var FRAME_UPDATE_PATCH = "Frame Update Patch";
@@ -1170,6 +1175,14 @@ var Pax = (() => {
             delete obj[prop];
           }
         }
+      }
+    },
+    {
+      name: INPUT,
+      factory: () => document.createElement("input"),
+      cleanUp: (input) => {
+        input.removeAttribute("style");
+        input.innerHTML = "";
       }
     },
     {
