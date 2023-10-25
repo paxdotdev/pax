@@ -81,7 +81,7 @@ pub fn instantiate_expression_table<R: 'static + RenderContext>() -> HashMap<usi
         {% endif %}
 
         TypesCoproduct::{{ expression_spec.pascalized_return_type }}(
-            {{ expression_spec.output_statement }}
+            {{ expression_spec.output_statement }}.into()
         )
     }));
     {% endfor %}

@@ -96,6 +96,12 @@ impl Default for Fill {
     }
 }
 
+impl From<Color> for Fill {
+    fn from(color: Color) -> Self {
+        Self::Solid(color)
+    }
+}
+
 impl Fill {
     pub fn to_unit_point((x, y): (Size, Size), (width, height): (f64, f64)) -> UnitPoint {
         let normalized_x = match x {
