@@ -21,6 +21,7 @@ use pax_runtime_api::PropertyInstance;
 pub type RenderNodePtr<R> = Rc<RefCell<dyn RenderNode<R>>>;
 pub type RenderNodePtrList<R> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
 
+
 /// Given some RenderNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
 /// and return another RenderNodePtrList with a flattened top-level list of nodes.
 pub fn flatten_slot_invisible_nodes_recursive<R: 'static + RenderContext>(input_nodes: RenderNodePtrList<R>) -> RenderNodePtrList<R> {

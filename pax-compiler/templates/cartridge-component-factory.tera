@@ -21,8 +21,8 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
                                 {{ component_properties_struct }}::{{handler.content}}(properties,ctx);
                             },
                         {% else %}
-                        |stack_frame, ctx, args|{
-                            let properties = ((*stack_frame).borrow().get_properties());
+                        |node, ctx, args|{
+                            let properties = ((*node).borrow().get_properties());
                             let properties = &mut *properties.as_ref().borrow_mut();
                             let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
                                 {{ component_properties_struct }}::{{handler.content}}(properties,ctx,args);
@@ -88,8 +88,8 @@ pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(instance
              {{ component_properties_struct }}::{{handler.content}}(properties,ctx);
              },
      {% else %}
-         |stack_frame, ctx, args|{
-         let properties = ((*stack_frame).borrow().get_properties());
+         |node, ctx, args|{
+         let properties = ((*node).borrow().get_properties());
          let properties = &mut *properties.as_ref().borrow_mut();
          let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
          {{ component_properties_struct }}::{{handler.content}}(properties,ctx,args);
