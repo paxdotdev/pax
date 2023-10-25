@@ -17,6 +17,9 @@ pub enum NativeMessage {
     FrameCreate(AnyCreatePatch),
     FrameUpdate(FramePatch),
     FrameDelete(Vec<u32>),
+    CheckboxCreate(AnyCreatePatch),
+    CheckboxUpdate(CheckboxPatch),
+    CheckboxDelete(Vec<u32>),
     ScrollerCreate(AnyCreatePatch),
     ScrollerUpdate(ScrollerPatch),
     ScrollerDelete(Vec<u32>),
@@ -46,6 +49,14 @@ pub enum NativeInterrupt {
     ContextMenu(ContextMenuInterruptArgs),
     Image(ImageLoadInterruptArgs),
     AddedLayer(AddedLayerArgs),
+    FormCheckboxToggle(FormCheckboxToggleArgs),
+}
+
+#[derive(Deserialize)]
+#[repr(C)]
+pub struct FormCheckboxToggleArgs {
+    pub state: bool,
+    pub id_chain: Vec<u32>
 }
 
 #[derive(Deserialize)]
@@ -268,6 +279,23 @@ pub struct FramePatch {
     pub size_x: Option<f64>,
     pub size_y: Option<f64>,
     pub transform: Option<Vec<f64>>,
+}
+
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct CheckboxPatch {
+    pub id_chain: Vec<u32>,
+    pub transform: Option<Vec<f64>>,
+    pub size_x: Option<f64>,
+    pub size_y: Option<f64>,
+    //pub style: Option<TextStyleMessage>,
+    pub checked: Option<bool>,
+}
+
+#[derive(Default, Serialize)]
+#[repr(C)]
+pub struct CheckboxStyleMessage {
+    //pub fill: Option<ColorVariantMessage>,
 }
 
 #[derive(Default, Serialize)]

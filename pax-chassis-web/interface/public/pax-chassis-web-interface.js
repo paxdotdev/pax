@@ -660,7 +660,77 @@ var Pax = (() => {
         }
       });
     }
+    checkboxCreate(patch) {
+      console.log("checkbox create");
+      console.assert(patch.idChain != null);
+      console.assert(patch.clippingIds != null);
+      console.assert(patch.scrollerIds != null);
+      console.assert(patch.zIndex != null);
+      const checkbox = this.objectManager.getFromPool(INPUT);
+      checkbox.type = "checkbox";
+      checkbox.style.margin = "0";
+      checkbox.addEventListener("change", (event) => {
+        const is_checked = event.target.checked;
+        checkbox.checked = !is_checked;
+        let message = {
+          "FormCheckboxToggle": {
+            "id_chain": patch.idChain,
+            "state": checkbox.checked
+          }
+        };
+        this.chassis.interrupt(JSON.stringify(message), void 0);
+      });
+      let runningChain = this.objectManager.getFromPool(DIV);
+      runningChain.appendChild(checkbox);
+      runningChain.setAttribute("class", NATIVE_LEAF_CLASS);
+      runningChain.setAttribute("id_chain", String(patch.idChain));
+      let scroller_id;
+      if (patch.scrollerIds != null) {
+        let length = patch.scrollerIds.length;
+        if (length != 0) {
+          scroller_id = patch.scrollerIds[length - 1];
+        }
+      }
+      if (patch.idChain != void 0 && patch.zIndex != void 0) {
+        _NativeElementPool.addNativeElement(
+          runningChain,
+          this.baseOcclusionContext,
+          this.scrollers,
+          patch.idChain,
+          scroller_id,
+          patch.zIndex
+        );
+      }
+      this.textNodes[patch.idChain] = runningChain;
+    }
+    checkboxUpdate(patch) {
+      window.textNodes = this.textNodes;
+      let leaf = this.textNodes[patch.id_chain];
+      console.assert(leaf !== void 0);
+      let checkbox = leaf.firstChild;
+      if (patch.checked !== null) {
+        console.log("from engine:", patch.checked);
+        checkbox.checked = patch.checked;
+      }
+      if (patch.size_x != null) {
+        checkbox.style.width = patch.size_x - 1 + "px";
+      }
+      if (patch.size_y != null) {
+        checkbox.style.height = patch.size_y + "px";
+      }
+      if (patch.transform != null) {
+        leaf.style.transform = packAffineCoeffsIntoMatrix3DString(patch.transform);
+      }
+    }
+    checkboxDelete(id_chain) {
+      let oldNode = this.textNodes[id_chain];
+      if (oldNode) {
+        let parent = oldNode.parentElement;
+        parent.removeChild(oldNode);
+      }
+    }
     textCreate(patch) {
+      console.log("text create");
       console.assert(patch.idChain != null);
       console.assert(patch.clippingIds != null);
       console.assert(patch.scrollerIds != null);
@@ -1057,16 +1127,39 @@ var Pax = (() => {
     }
   };
 
+  // src/classes/messages/checkbox-update-patch.ts
+  var CheckboxUpdatePatch = class {
+    constructor(objectManager2) {
+      this.objectManager = objectManager2;
+    }
+    fromPatch(jsonMessage) {
+      this.id_chain = jsonMessage["id_chain"];
+      this.size_x = jsonMessage["size_x"];
+      this.size_y = jsonMessage["size_y"];
+      this.transform = jsonMessage["transform"];
+      this.checked = jsonMessage["checked"];
+    }
+    cleanUp() {
+      this.id_chain = [];
+      this.size_x = 0;
+      this.size_y = 0;
+      this.transform = [];
+      this.checked = void 0;
+    }
+  };
+
   // src/pools/supported-objects.ts
   var OBJECT = "Object";
   var ARRAY2 = "Array";
   var DIV = "DIV";
+  var INPUT = "Input";
   var CANVAS = "Canvas";
   var ANY_CREATE_PATCH = "Any Create Patch";
   var FRAME_UPDATE_PATCH = "Frame Update Patch";
   var IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
   var SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
   var TEXT_UPDATE_PATCH = "Text Update Patch";
+  var CHECKBOX_UPDATE_PATCH = "Checkbox Update Patch";
   var LAYER = "LAYER";
   var OCCLUSION_CONTEXT = "Occlusion Context";
   var SCROLLER = "Scroller";
@@ -1083,6 +1176,14 @@ var Pax = (() => {
             delete obj[prop];
           }
         }
+      }
+    },
+    {
+      name: INPUT,
+      factory: () => document.createElement("input"),
+      cleanUp: (input) => {
+        input.removeAttribute("style");
+        input.innerHTML = "";
       }
     },
     {
@@ -1133,6 +1234,13 @@ var Pax = (() => {
     {
       name: TEXT_UPDATE_PATCH,
       factory: (objectManager2) => new TextUpdatePatch(objectManager2),
+      cleanUp: (patch) => {
+        patch.cleanUp();
+      }
+    },
+    {
+      name: CHECKBOX_UPDATE_PATCH,
+      factory: (objectManager2) => new CheckboxUpdatePatch(objectManager2),
       cleanUp: (patch) => {
         patch.cleanUp();
       }
@@ -1487,7 +1595,20 @@ var Pax = (() => {
   }
   function processMessages(messages2, chassis, objectManager2) {
     messages2?.forEach((unwrapped_msg) => {
-      if (unwrapped_msg["TextCreate"]) {
+      if (unwrapped_msg["CheckboxCreate"]) {
+        let msg = unwrapped_msg["CheckboxCreate"];
+        let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);
+        patch.fromPatch(msg);
+        nativePool.checkboxCreate(patch);
+      } else if (unwrapped_msg["CheckboxUpdate"]) {
+        let msg = unwrapped_msg["CheckboxUpdate"];
+        let patch = objectManager2.getFromPool(CHECKBOX_UPDATE_PATCH, objectManager2);
+        patch.fromPatch(msg);
+        nativePool.checkboxUpdate(patch);
+      } else if (unwrapped_msg["CheckboxDelete"]) {
+        let msg = unwrapped_msg["CheckboxDelete"];
+        nativePool.checkboxDelete(msg);
+      } else if (unwrapped_msg["TextCreate"]) {
         let msg = unwrapped_msg["TextCreate"];
         let patch = objectManager2.getFromPool(ANY_CREATE_PATCH);
         patch.fromPatch(msg);

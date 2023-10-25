@@ -70,6 +70,13 @@ pub mod primitives {
 
     #[derive(Pax)]
     #[custom(Imports)]
+    #[primitive("pax_std_primitives::checkbox::CheckboxInstance")]
+    pub struct Checkbox {
+        pub checked: pax_lang::Property<bool>,
+    }
+
+    #[derive(Pax)]
+    #[custom(Imports)]
     #[primitive("pax_std_primitives::image::ImageInstance")]
     pub struct Image {
         pub path: pax_lang::Property<String>,

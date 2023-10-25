@@ -9,16 +9,19 @@ import {Layer} from "../classes/layer";
 import {OcclusionContext} from "../classes/occlusion-context";
 import {Scroller} from "../classes/scroller";
 import {Font, TextStyle} from "../classes/text";
+import { CheckboxUpdatePatch } from "../classes/messages/checkbox-update-patch";
 
 export const OBJECT = "Object";
 export const ARRAY = "Array";
 export const DIV = "DIV";
+export const INPUT = "Input";
 export const CANVAS = "Canvas";
 export const ANY_CREATE_PATCH = "Any Create Patch";
 export const FRAME_UPDATE_PATCH = "Frame Update Patch";
 export const IMAGE_LOAD_PATCH = "IMAGE LOAD PATCH";
 export const SCROLLER_UPDATE_PATCH = "Scroller Update Patch";
 export const TEXT_UPDATE_PATCH = "Text Update Patch";
+export const CHECKBOX_UPDATE_PATCH = "Checkbox Update Patch";
 
 export const LAYER = "LAYER";
 export const OCCLUSION_CONTEXT = "Occlusion Context";
@@ -40,6 +43,14 @@ export let SUPPORTED_OBJECTS = [{
             }
         }
     }
+    },
+    {
+        name: INPUT,
+        factory: () => document.createElement("input"),
+        cleanUp: (input: HTMLInputElement) => {
+            input.removeAttribute("style");
+            input.innerHTML= "";
+        }
     },
     {
         name: ARRAY,
@@ -88,6 +99,11 @@ export let SUPPORTED_OBJECTS = [{
         name: TEXT_UPDATE_PATCH,
         factory: (objectManager: ObjectManager) => new TextUpdatePatch(objectManager),
         cleanUp: (patch: TextUpdatePatch) => {patch.cleanUp()},
+    },
+    {
+        name: CHECKBOX_UPDATE_PATCH,
+        factory: (objectManager: ObjectManager) => new CheckboxUpdatePatch(objectManager),
+        cleanUp: (patch: CheckboxUpdatePatch) => {patch.cleanUp()},
     },
     {
         name: IMAGE_LOAD_PATCH,

@@ -11,6 +11,7 @@ pub mod rendering;
 pub mod repeat;
 pub mod runtime;
 pub mod slot;
+pub mod form_event;
 
 pub use crate::component::*;
 pub use crate::conditional::*;

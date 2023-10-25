@@ -1,6 +1,8 @@
 //! Basic example of rendering in the browser
 
 use js_sys::Uint8Array;
+use pax_core::form_event::FormEvent;
+use pax_runtime_api::ArgsCheckboxChange;
 use std::cell::RefCell;
 use std::collections::HashMap;
 use std::rc::Rc;
@@ -142,6 +144,17 @@ impl PaxChassisWeb {
                     );
                 }
             },
+            NativeInterrupt::FormCheckboxToggle(args) => {
+                let node = (*self.engine)
+                    .borrow()
+                    .instance_registry
+                    .borrow()
+                    .get_node(&args.id_chain)
+                    .expect("couldn't find node");
+                node.dispatch_checkbox_change(ArgsCheckboxChange {
+                    checked: args.state,
+                });
+            }
             NativeInterrupt::AddedLayer(_args) => {}
             NativeInterrupt::Click(args) => {
                 let prospective_hit = (*self.engine)
