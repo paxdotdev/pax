@@ -1,3 +1,4 @@
+use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
@@ -729,19 +730,20 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             // If node is_component, compute properties for its slot_children
             // Otherwise, compute properties for its rendering children
 
-        
-        node.borrow_mut().handle_compute_properties(rtc);
+        let mut node_borrowed = node.borrow_mut();
 
-        if let NodeType::RepeatManagedComponent = node.borrow().get_node_type() {
-            node.borrow_mut().handle_push_runtime_properties_stack_frame(rtc);
+        node_borrowed.handle_compute_properties(rtc);
+
+        if let NodeType::RepeatManagedComponent = node_borrowed.get_node_type() {
+            node_borrowed.handle_push_runtime_properties_stack_frame(rtc);
         }
 
-        let children_to_recurse = match node.borrow().get_node_type() {
+        let children_to_recurse = match node_borrowed.get_node_type() {
             NodeType::Component => {
-                node.borrow().get_slot_children().unwrap()
+                node_borrowed.get_slot_children().unwrap()
             },
             _ => {
-                node.borrow().get_rendering_children()
+                node_borrowed.get_rendering_children()
             }
         };
 
@@ -749,11 +751,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             self.compute_properties_recursive(rtc, Rc::clone(child));
         }
 
-        if let NodeType::RepeatManagedComponent = node.borrow().get_node_type() {
-            node.borrow_mut().handle_pop_runtime_properties_stack_frame(rtc);
+        if let NodeType::RepeatManagedComponent = node_borrowed.get_node_type() {
+            node_borrowed.handle_pop_runtime_properties_stack_frame(rtc);
         }
-
-
     }
 
     /// Helper method to fire `will_render` handlers for the node attached to the `rtc`
@@ -845,14 +845,15 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // If this node is a component:
         //    Kick off a recursive evaluation of properties for all nodes in this component's template
         //    Otherwise, presume we have already computed properties in the process of recursively evaluating the containing component's properties, and proceed with rendering
-
         {
             let mut node_borrowed = node.borrow_mut();
             if let NodeType::Component = node_borrowed.get_node_type() {
                 rtc.current_containing_component = Rc::clone(&node);
                 rtc.current_containing_component_slot_children = node_borrowed.get_slot_children().unwrap();
+
                 node_borrowed.handle_push_runtime_properties_stack_frame(rtc);
-                node_borrowed.handle_compute_properties(rtc);
+                //Note that we do NOT compute properties on the component root itself.
+                //Its properties have already been computed in the context of its containing component.
                 let template_children = node_borrowed.get_rendering_children();
                 for template_child in (*template_children).borrow().iter() {
                     self.compute_properties_recursive(rtc, Rc::clone(template_child));
@@ -1185,7 +1186,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // let ray = Point {x: ray.0,y: ray.1};
         let mut ret: Option<Rc<RepeatExpandedNode<R>>> = None;
         for node in nodes_ordered {
-            // pax_runtime_api::log(&(**node).borrow().get_instance_id().to_string())
 
             if (*node.instance_node)
                 .borrow()
