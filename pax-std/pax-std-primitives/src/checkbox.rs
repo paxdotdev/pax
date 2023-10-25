@@ -3,8 +3,8 @@ use std::cell::RefCell;
 use pax_core::form_event::FormEvent;
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
-    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
+    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable,
+    RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, CheckboxPatch};
 use pax_runtime_api::{CommonProperties, Layer};
@@ -28,6 +28,11 @@ pub struct CheckboxInstance<R: 'static + RenderContext> {
 impl<R: 'static + RenderContext> RenderNode<R> for CheckboxInstance<R> {
     fn get_common_properties(&self) -> &CommonProperties {
         &self.common_properties
+    }
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        let text_ref = self.properties.borrow();
+        let wrapped: PropertiesCoproduct = unsafe_wrap!(*text_ref, PropertiesCoproduct, Checkbox);
+        Rc::new(RefCell::new(wrapped))
     }
 
     fn get_instance_id(&self) -> u32 {
@@ -57,12 +62,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for CheckboxInstance<R> {
     fn get_rendering_children(&self) -> RenderNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
-    fn compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         let properties = &mut *self.properties.as_ref().borrow_mut();
 
-        if let Some(checked) =
-            rtc.compute_vtable_value(properties.checked._get_vtable_id())
-        {
+        if let Some(checked) = rtc.compute_vtable_value(properties.checked._get_vtable_id()) {
             let new_value = unsafe_unwrap!(checked, TypesCoproduct, bool);
             properties.checked.set(new_value);
         }
@@ -78,18 +81,35 @@ impl<R: 'static + RenderContext> RenderNode<R> for CheckboxInstance<R> {
         _z_index: u32,
         _subtree_depth: u32,
     ) {
-        
         let id_chain = rtc.get_id_chain(self.instance_id);
-        let mut patch = CheckboxPatch {id_chain: id_chain.clone(), ..Default::default()};
-        let old_state = self.last_patches.entry(id_chain.clone()).or_insert(
-            CheckboxPatch {id_chain, ..Default::default()}
-        );
+        let mut patch = CheckboxPatch {
+            id_chain: id_chain.clone(),
+            ..Default::default()
+        };
+        let old_state = self
+            .last_patches
+            .entry(id_chain.clone())
+            .or_insert(CheckboxPatch {
+                id_chain,
+                ..Default::default()
+            });
         let properties = &mut *self.properties.as_ref().borrow_mut();
-        let update_needed = 
-            crate::patch_if_needed(&mut old_state.checked, &mut patch.checked, *properties.checked.get()) ||
-            crate::patch_if_needed(&mut old_state.size_x, &mut patch.size_x, computed_size.0) ||
-            crate::patch_if_needed(&mut old_state.size_y, &mut patch.size_y, computed_size.1) ||
-            crate::patch_if_needed(&mut old_state.transform, &mut patch.transform, transform_coeffs);
+        let update_needed =
+            crate::patch_if_needed(
+                &mut old_state.checked,
+                &mut patch.checked,
+                *properties.checked.get(),
+            ) || crate::patch_if_needed(&mut old_state.size_x, &mut patch.size_x, computed_size.0)
+                || crate::patch_if_needed(
+                    &mut old_state.size_y,
+                    &mut patch.size_y,
+                    computed_size.1,
+                )
+                || crate::patch_if_needed(
+                    &mut old_state.transform,
+                    &mut patch.transform,
+                    transform_coeffs,
+                );
         if update_needed {
             (*rtc.engine.runtime)
                 .borrow_mut()
@@ -134,7 +154,14 @@ impl<R: 'static + RenderContext> RenderNode<R> for CheckboxInstance<R> {
     fn handle_form_event(&mut self, event: FormEvent) {
         match event {
             FormEvent::Toggle { state } => self.properties.borrow_mut().checked.set(state),
-            _ => panic!("checkbox received non-compatible form event: {:?}", event)
+            _ => panic!("checkbox received non-compatible form event: {:?}", event),
+        }
+    }
+
+    fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
+        match &self.handler_registry {
+            Some(registry) => Some(Rc::clone(registry)),
+            _ => None,
         }
     }
 }

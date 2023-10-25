@@ -11,14 +11,18 @@ use pax_message::NativeMessage;
 use piet_common::RenderContext;
 
 use crate::runtime::Runtime;
-use crate::{Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, RenderNodePtr, RenderNodePtrList, TransformAndBounds};
+use crate::{
+    Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, RenderNodePtr,
+    RenderNodePtrList, TransformAndBounds,
+};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{
-    ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
-    ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
-    ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable,
-    Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex,
+    ArgsCheckboxChange, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown,
+    ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
+    ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel,
+    CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D,
+    TransitionManager, ZIndex,
 };
 
 pub struct PaxEngine<R: 'static + RenderContext> {
@@ -123,7 +127,9 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             bounds: self.bounds.clone(),
             runtime: Rc::clone(&self.runtime),
             current_containing_component: Rc::clone(&self.current_containing_component),
-            current_containing_component_slot_children: Rc::clone(&self.current_containing_component_slot_children),
+            current_containing_component_slot_children: Rc::clone(
+                &self.current_containing_component_slot_children,
+            ),
             current_instance_node: Rc::clone(&self.current_instance_node),
             parent_repeat_expanded_node: self.parent_repeat_expanded_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
@@ -220,6 +226,7 @@ pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub key_down_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsKeyDown)>,
     pub key_up_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsKeyUp)>,
     pub key_press_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsKeyPress)>,
+    pub checkbox_change_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsCheckboxChange)>,
     pub click_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsClick)>,
     pub mouse_down_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseDown)>,
     pub mouse_up_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseUp)>,
@@ -255,10 +262,10 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
             wheel_handlers: Vec::new(),
             will_render_handlers: Vec::new(),
             did_mount_handlers: Vec::new(),
+            checkbox_change_handlers: Vec::new(),
         }
     }
 }
-
 /// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
 /// a `for j in 0..4` would have 12 repeat-expanded nodes representing the 12 virtual Rectangles in the
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
@@ -430,6 +437,26 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
 
         if let Some(parent) = &self.parent_repeat_expanded_node {
             parent.upgrade().unwrap().dispatch_click(args_click);
+        }
+    }
+
+    pub fn dispatch_checkbox_change(&self, args_change: ArgsCheckboxChange) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().checkbox_change_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(
+                    Rc::clone(&self.instance_node),
+                    self.node_context.clone(),
+                    args_change.clone(),
+                );
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent
+                .upgrade()
+                .unwrap()
+                .dispatch_checkbox_change(args_change);
         }
     }
 
@@ -625,13 +652,13 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.instance_map.insert(instance_id, node);
     }
 
-    pub fn get_node(&self, id_chain: &Vec<u32>) -> Option<RenderNodePtr<R>> {
+    pub fn get_node(&self, id_chain: &Vec<u32>) -> Option<Rc<RepeatExpandedNode<R>>> {
         //This is not efficient (probably hashmap by id_chain could work better?)
-        Some(Rc::clone(&self
-            .repeat_expanded_node_cache
-            .iter()
-            .find(|n| &n.id_chain == id_chain)?
-            .instance_node))
+        Some(Rc::clone(
+            self.repeat_expanded_node_cache
+                .iter()
+                .find(|n| &n.id_chain == id_chain)?,
+        ))
     }
 
     pub fn deregister(&mut self, instance_id: u32) {
@@ -705,7 +732,9 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             bounds: self.viewport_tab.bounds,
             runtime: self.runtime.clone(),
             current_containing_component: Rc::clone(&cast_component_rc),
-            current_containing_component_slot_children: Rc::clone(&cast_component_rc.borrow().get_slot_children().unwrap()),
+            current_containing_component_slot_children: Rc::clone(
+                &cast_component_rc.borrow().get_slot_children().unwrap(),
+            ),
             current_instance_node: Rc::clone(&cast_component_rc),
             parent_repeat_expanded_node: None,
             timeline_playhead_position: self.frames_elapsed,
@@ -728,16 +757,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         native_render_queue.into()
     }
 
-
-    fn compute_properties_recursive(
-        &self,
-        rtc: &mut RenderTreeContext<R>,
-        node: RenderNodePtr<R>,
-    ) {
+    fn compute_properties_recursive(&self, rtc: &mut RenderTreeContext<R>, node: RenderNodePtr<R>) {
         //When recursively computing properties:
-            // Compute properties for current node
-            // If node is_component, compute properties for its slot_children
-            // Otherwise, compute properties for its rendering children
+        // Compute properties for current node
+        // If node is_component, compute properties for its slot_children
+        // Otherwise, compute properties for its rendering children
 
         let mut node_borrowed = node.borrow_mut();
 
@@ -748,12 +772,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
 
         let children_to_recurse = match node_borrowed.get_node_type() {
-            NodeType::Component => {
-                node_borrowed.get_slot_children().unwrap()
-            },
-            _ => {
-                node_borrowed.get_rendering_children()
-            }
+            NodeType::Component => node_borrowed.get_slot_children().unwrap(),
+            _ => node_borrowed.get_rendering_children(),
         };
 
         for child in (*children_to_recurse).borrow().iter() {
@@ -771,15 +791,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         let node = Rc::clone(&rtc.current_instance_node);
         let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
         if let Some(registry) = registry {
-
-
             for handler in (*registry).borrow().will_render_handlers.iter() {
                 handler(
                     node.borrow_mut().get_properties(),
                     rtc.distill_userland_node_context(),
                 );
             }
-
         }
     }
 
@@ -787,7 +804,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     /// Note that this must happen after initial `compute_properties`, which performs the
     /// necessary side-effect of creating the `self` that must be passed to handlers
     fn manage_handlers_did_mount(rtc: &mut RenderTreeContext<R>) {
-
         {
             let id = (*rtc.current_instance_node).borrow().get_instance_id();
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
@@ -858,7 +874,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             let mut node_borrowed = node.borrow_mut();
             if let NodeType::Component = node_borrowed.get_node_type() {
                 rtc.current_containing_component = Rc::clone(&node);
-                rtc.current_containing_component_slot_children = node_borrowed.get_slot_children().unwrap();
+                rtc.current_containing_component_slot_children =
+                    node_borrowed.get_slot_children().unwrap();
 
                 node_borrowed.handle_push_runtime_properties_stack_frame(rtc);
                 //Note that we do NOT compute properties on the component root itself.
@@ -1077,22 +1094,26 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             rtc.transform_scroller_reset = reset_transform.clone();
         }
 
-        rendering_children.borrow_mut().iter().rev().for_each(|child| {
-            //note that we're iterating starting from the last child, for z-index (.rev())
-            let mut new_rtc = rtc.clone();
-            new_rtc.parent_repeat_expanded_node = Some(Rc::downgrade(&repeat_expanded_node));
-            // if it's a scroller reset the z-index context for its children
-            self.recurse_traverse_render_tree(
-                &mut new_rtc,
-                rcs,
-                Rc::clone(child),
-                &mut child_z_index_info.clone(),
-                marked_for_unmount,
-            );
-            //FUTURE: for dependency management, return computed values from subtree above
+        rendering_children
+            .borrow_mut()
+            .iter()
+            .rev()
+            .for_each(|child| {
+                //note that we're iterating starting from the last child, for z-index (.rev())
+                let mut new_rtc = rtc.clone();
+                new_rtc.parent_repeat_expanded_node = Some(Rc::downgrade(&repeat_expanded_node));
+                // if it's a scroller reset the z-index context for its children
+                self.recurse_traverse_render_tree(
+                    &mut new_rtc,
+                    rcs,
+                    Rc::clone(child),
+                    &mut child_z_index_info.clone(),
+                    marked_for_unmount,
+                );
+                //FUTURE: for dependency management, return computed values from subtree above
 
-            subtree_depth = subtree_depth.max(child_z_index_info.get_level());
-        });
+                subtree_depth = subtree_depth.max(child_z_index_info.get_level());
+            });
 
         let is_viewport_culled = !repeat_expanded_node_tab.intersects(&self.viewport_tab);
 
@@ -1195,7 +1216,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // let ray = Point {x: ray.0,y: ray.1};
         let mut ret: Option<Rc<RepeatExpandedNode<R>>> = None;
         for node in nodes_ordered {
-
             if (*node.instance_node)
                 .borrow()
                 .ray_cast_test(&ray, &node.tab)
