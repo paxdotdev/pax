@@ -93,7 +93,6 @@ export class NativeElementPool {
     }
 
     checkboxCreate(patch: AnyCreatePatch) {
-        console.log("checkbox create");
         console.assert(patch.idChain != null);
         console.assert(patch.clippingIds != null);
         console.assert(patch.scrollerIds != null);
@@ -103,7 +102,7 @@ export class NativeElementPool {
         checkbox.type = "checkbox";
         checkbox.style.margin = "0";
         checkbox.addEventListener("change", (event) => {
-            //make this a no-op:
+            //Reset the checkbox state (state changes only allowed through engine)
             const is_checked = (event.target as HTMLInputElement).checked;
             checkbox.checked = !is_checked;
             
@@ -145,7 +144,6 @@ export class NativeElementPool {
         console.assert(leaf !== undefined);
         let checkbox = leaf.firstChild;
         if (patch.checked !== null) {
-            console.log("from engine:", patch.checked);
             checkbox.checked = patch.checked;
         }
         // Handle size_x and size_y
@@ -171,7 +169,6 @@ export class NativeElementPool {
     }
 
     textCreate(patch: AnyCreatePatch) {
-        console.log("text create");
         console.assert(patch.idChain != null);
         console.assert(patch.clippingIds != null);
         console.assert(patch.scrollerIds != null);
@@ -375,7 +372,6 @@ export class NativeElementPool {
     }
 
     scrollerCreate(patch: AnyCreatePatch, chassis: PaxChassisWeb){
-        //console.log(patch);
         let scroller_id;
         if(patch.scrollerIds != null){
             let length = patch.scrollerIds.length;
