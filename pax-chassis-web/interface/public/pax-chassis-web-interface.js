@@ -670,7 +670,8 @@ var Pax = (() => {
       checkbox.type = "checkbox";
       checkbox.style.margin = "0";
       checkbox.addEventListener("change", (event) => {
-        event.preventDefault();
+        const is_checked = event.target.checked;
+        checkbox.checked = !is_checked;
         let message = {
           "FormCheckboxToggle": {
             "id_chain": patch.idChain,

@@ -103,7 +103,10 @@ export class NativeElementPool {
         checkbox.type = "checkbox";
         checkbox.style.margin = "0";
         checkbox.addEventListener("change", (event) => {
-            event.preventDefault();
+            //make this a no-op:
+            const is_checked = (event.target as HTMLInputElement).checked;
+            checkbox.checked = !is_checked;
+            
             let message = {
                 "FormCheckboxToggle": {
                     "id_chain": patch.idChain!,
