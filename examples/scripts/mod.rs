@@ -1,4 +1,5 @@
 use std::env;
+use std::path::Path;
 use std::process::Command;
 
 /// Helper function to run the example in the `examples/src` directory.
@@ -13,6 +14,15 @@ pub fn run_example() -> Result<(), String> {
 
     let current_dir = env::current_dir().map_err(|_| "Failed to get current directory")?;
     let target_dir = current_dir.join(format!("examples/src/{}", file_name));
+
+    // In the case of a fresh clone with no .pax folder, clean in-case we have rel. paths
+    if !Path::new(&target_dir).join(".pax").exists() {
+        Command::new("../../../target/debug/pax-cli")
+            .arg("clean")
+            .current_dir(&target_dir)
+            .status()
+            .map_err(|_| "Failed to run pax-cli clean")?;
+    }
 
     Command::new("cargo")
         .arg("run")
