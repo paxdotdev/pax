@@ -8,7 +8,6 @@ export class CheckboxUpdatePatch {
     public size_y?: number;
     public transform?: number[];
     public checked?: boolean;
-    //public style?: TextStyle;
     objectManager: ObjectManager;
 
     constructor(objectManager: ObjectManager) {

@@ -73,8 +73,7 @@ pub mod primitives {
     #[custom(Imports)]
     #[primitive("pax_std_primitives::checkbox::CheckboxInstance")]
     pub struct Checkbox {
-        pub checked: pax_lang::Property<bool>
-        //pub style: pax_lang::Property<TextStyle>,
+        pub checked: pax_lang::Property<bool>,
     }
 
     #[derive(Pax)]

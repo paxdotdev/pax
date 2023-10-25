@@ -151,8 +151,9 @@ impl PaxChassisWeb {
                     .borrow()
                     .get_node(&args.id_chain)
                     .expect("couldn't find node");
-                node.dispatch_checkbox_change(ArgsCheckboxChange {checked: args.state });
-                //node.borrow_mut().handle_form_event(FormEvent::Toggle { state: args.state} );
+                node.dispatch_checkbox_change(ArgsCheckboxChange {
+                    checked: args.state,
+                });
             }
             NativeInterrupt::AddedLayer(_args) => {}
             NativeInterrupt::Click(args) => {
