@@ -8,7 +8,8 @@
 ### `cd pax-example && ./pax libdev build-chassis`
 
 set -e
-pushd ../pax-cli
+current_dir=$(pwd)
+pushd ../../../pax-cli
 cargo build
-../target/debug/pax-cli "$@" --path="../pax-example" --libdev
+../target/debug/pax-cli "$@" --path="$current_dir" --libdev
 popd

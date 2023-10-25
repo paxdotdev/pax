@@ -4,6 +4,7 @@ pub mod expressions;
 pub mod manifest;
 pub mod parsing;
 pub mod templating;
+mod helpers;
 
 use manifest::PaxManifest;
 use pax_runtime_api::CommonProperties;
@@ -57,7 +58,7 @@ lazy_static! {
 
 static PAX_CREATE_TEMPLATE: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/new-project-template");
 
-const PAX_CREATE_TEMPLATE_DIR_NAME: &str = "new-project-template";
+const PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME: &str = "new-libdev-project-template";
 const PKG_DIR_NAME: &str = "pkg";
 const BUILD_DIR_NAME: &str = "build";
 const PUBLIC_DIR_NAME: &str = "public";
@@ -104,13 +105,14 @@ const ALL_PKGS: [&'static str; 14] = [
 ///
 /// The packages in `.pax/pkg` are both where we write our codegen (into pax-cartridge and pax-properties-coproduct)
 /// and where we build chassis and chassis-interfaces. (for example, running `wasm-pack` inside `.pax/pkg/pax-chassis-web`.
+/// This assumes that you are in the examples/src directory in the monorepo
 fn clone_all_to_pkg_dir(pax_dir: &PathBuf, pax_version: &Option<String>, ctx: &RunContext) {
     let dest_pkg_root = pax_dir.join(PKG_DIR_NAME);
     for pkg in ALL_PKGS {
         if ctx.is_libdev_mode {
             //Copy all packages from monorepo root on every build.  this allows us to propagate changes
             //to a libdev build without "sticky caches."
-            let pax_workspace_root = pax_dir.parent().unwrap().parent().unwrap();
+            let pax_workspace_root = pax_dir.parent().unwrap().parent().unwrap().parent().unwrap().parent().unwrap();
             let src = pax_workspace_root.join(pkg);
             let dest = dest_pkg_root.join(pkg);
 
@@ -981,6 +983,7 @@ use crate::parsing::escape_identifier;
 
 use serde::Deserialize;
 use serde_json::Value;
+use crate::helpers::{remove_path_from_pax_dependencies, set_path_on_pax_dependencies, update_pax_dependency_versions};
 
 #[derive(Debug, Deserialize)]
 struct Metadata {
@@ -1034,6 +1037,7 @@ fn get_version_of_whitelisted_packages(path: &str) -> Result<String, &'static st
 /// then run it with a patched build of the `chassis` appropriate for the specified platform
 /// See: pax-compiler-sequence-diagram.png
 pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
+
     //First we clone dependencies into the .pax/pkg directory.  We must do this before running
     //the parser binary specifical for libdev in pax-example — see pax-example/Cargo.toml where
     //dependency paths are `.pax/pkg/*`.
@@ -1048,6 +1052,11 @@ pub fn perform_build(ctx: &RunContext) -> Result<(), ()> {
         Some(get_version_of_whitelisted_packages(&ctx.path).unwrap())
     };
     clone_all_to_pkg_dir(&pax_dir, &pax_version, &ctx);
+
+    if ctx.is_libdev_mode {
+        let full_path = Path::new(&ctx.path);
+        set_path_on_pax_dependencies(&full_path);
+    }
 
     println!("{} 🛠️  Building parser binary with `cargo`...", *PAX_BADGE);
     // Run parser bin from host project with `--features parser`
@@ -1163,6 +1172,8 @@ fn copy_dir_recursively(
 pub fn perform_clean(path: &str) {
     let path = PathBuf::from(path);
     let pax_dir = path.join(".pax");
+
+    remove_path_from_pax_dependencies(&path);
 
     fs::remove_dir_all(&pax_dir).ok();
 }
@@ -2074,7 +2085,7 @@ pub fn perform_create(ctx: &CreateContext) {
         //to the target directly.  This enables iterating on new-project-template during libdev
         //without the sticky caches associated with `include_dir`
         let pax_compiler_cargo_root = Path::new(env!("CARGO_MANIFEST_DIR"));
-        let template_src = pax_compiler_cargo_root.join(PAX_CREATE_TEMPLATE_DIR_NAME);
+        let template_src = pax_compiler_cargo_root.join(PAX_CREATE_LIBDEV_TEMPLATE_DIR_NAME);
 
         let mut options = CopyOptions::new();
         options.overwrite = true;
@@ -2110,53 +2121,7 @@ pub fn perform_create(ctx: &CreateContext) {
         .expect("Failed to parse Cargo.toml");
 
     // Update the `dependencies` section
-    if let Some(deps) = doc
-        .as_table_mut()
-        .entry("dependencies")
-        .or_insert_with(toml_edit::table)
-        .as_table_mut()
-    {
-        let keys: Vec<String> = deps
-            .iter()
-            .filter_map(|(key, _)| {
-                if key.starts_with("pax-") {
-                    Some(key.to_string())
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        for key in keys {
-            let dep_entry = deps.get_mut(&key).unwrap();
-
-            if let toml_edit::Item::Value(toml_edit::Value::InlineTable(ref mut dep_table)) =
-                dep_entry
-            {
-                // This entry is an inline table, update it
-
-                dep_table.insert(
-                    "version",
-                    toml_edit::Value::String(toml_edit::Formatted::new(ctx.version.clone())),
-                );
-            } else {
-                // If dependency entry is not a table, create a new table with version and path
-                let dependency_string = if ctx.is_libdev_mode {
-                    format!(
-                        "{{ version=\"{}\", path=\"../{}\", optional=true }}",
-                        ctx.version, &key
-                    )
-                } else {
-                    format!("{{ version=\"{}\" }}", ctx.version)
-                };
-
-                std::mem::swap(
-                    deps.get_mut(&key).unwrap(),
-                    &mut toml_edit::Item::from_str(&dependency_string).unwrap(),
-                );
-            }
-        }
-    }
+    update_pax_dependency_versions(&mut doc, &ctx.version);
 
     // Update the `package` section
     if let Some(package) = doc

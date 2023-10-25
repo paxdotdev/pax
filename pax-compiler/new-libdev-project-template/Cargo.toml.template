@@ -1,13 +1,13 @@
 [package]
-name = "fireworks"
-version = "0.10.7"
+name = "CRATE_NAME"
+version = "VERSION_PLACEHOLDER"
 edition = "2021"
 default-run = "run"
 
 [dependencies]
-pax-lang = { version = "0.10.7" , path = ".pax/pkg/pax-lang" }
-pax-std = { version = "0.10.7" , path = ".pax/pkg/pax-std" }
-pax-compiler = { version = "0.10.7", optional = true, path = ".pax/pkg/pax-compiler" }
+pax-lang = { version="VERSION_PLACEHOLDER"}
+pax-std = { version="VERSION_PLACEHOLDER"}
+pax-compiler = {version = "VERSION_PLACEHOLDER", optional = true}
 serde_json = {version = "1.0.95", optional = true}
 
 [[bin]]

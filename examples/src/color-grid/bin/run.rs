@@ -12,7 +12,7 @@ fn main() {
 
     let current_dir = env::current_dir().expect("Failed to get current directory");
 
-    let status = Command::new("pax-cli")
+    let status = Command::new("./pax")
         .args(&pax_args)
         .current_dir(current_dir)
         .status()
