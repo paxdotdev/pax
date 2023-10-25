@@ -201,6 +201,94 @@ impl Color {
         }
     }
 
+    /// Converts an RGB color to its HSL representation.
+    ///
+    /// This function takes in RGB values (each between 0 and 255) and returns the corresponding HSL values(between 0.0 and 1.0)
+    fn rgb_to_hsl(red: f64, green: f64, blue: f64) -> (f64, f64, f64) {
+        let normalized_red = red / 255.0;
+        let normalized_green = green / 255.0;
+        let normalized_blue = blue / 255.0;
+
+        let color_max = normalized_red.max(normalized_green.max(normalized_blue));
+        let color_min = normalized_red.min(normalized_green.min(normalized_blue));
+
+        let mut hue;
+        let saturation;
+        let lightness = (color_max + color_min) / 2.0;
+
+        if color_max == color_min {
+            hue = 0.0;
+            saturation = 0.0;
+        } else {
+            let delta = color_max - color_min;
+            saturation = if lightness > 0.5 {
+                delta / (2.0 - color_max - color_min)
+            } else {
+                delta / (color_max + color_min)
+            };
+
+            hue = match color_max {
+                _ if color_max == normalized_red => {
+                    (normalized_green - normalized_blue) / delta
+                        + (if normalized_green < normalized_blue {
+                            6.0
+                        } else {
+                            0.0
+                        })
+                }
+                _ if color_max == normalized_green => {
+                    (normalized_blue - normalized_red) / delta + 2.0
+                }
+                _ => (normalized_red - normalized_green) / delta + 4.0,
+            };
+
+            hue /= 6.0;
+        }
+
+        (hue, saturation, lightness)
+    }
+
+    /// Converts an HSL(values between 0.0 and 1.0) color to its RGB representation.
+    ///
+    /// Returns a tuple of `(red, green, blue)` where each value is between 0.0 and 255.0.
+    fn hsl_to_rgb(hue: f64, saturation: f64, lightness: f64) -> (f64, f64, f64) {
+        if saturation == 0.0 {
+            return (lightness * 255.0, lightness * 255.0, lightness * 255.0);
+        }
+
+        let temp_q = if lightness < 0.5 {
+            lightness * (1.0 + saturation)
+        } else {
+            lightness + saturation - lightness * saturation
+        };
+
+        let temp_p = 2.0 * lightness - temp_q;
+
+        let convert = |temp_hue: f64| -> f64 {
+            let mut temp_hue = temp_hue;
+            if temp_hue < 0.0 {
+                temp_hue += 1.0;
+            }
+            if temp_hue > 1.0 {
+                temp_hue -= 1.0;
+            }
+            if temp_hue < 1.0 / 6.0 {
+                return temp_p + (temp_q - temp_p) * 6.0 * temp_hue;
+            }
+            if temp_hue < 1.0 / 2.0 {
+                return temp_q;
+            }
+            if temp_hue < 2.0 / 3.0 {
+                return temp_p + (temp_q - temp_p) * (2.0 / 3.0 - temp_hue) * 6.0;
+            }
+            return temp_p;
+        };
+        let red = (convert(hue + 1.0 / 3.0) * 255.0).min(255.0).max(0.0);
+        let green = (convert(hue) * 255.0).min(255.0).max(0.0);
+        let blue = (convert(hue - 1.0 / 3.0) * 255.0).min(255.0).max(0.0);
+
+        (red, green, blue)
+    }
 
     /// Shades a given color by a specified value.
     ///
@@ -209,13 +297,13 @@ impl Color {
     ///             Accepted values are between 0 and 400, higher values result in a darker color.
     ///             Most neutral color will be achieved at 275.
     pub fn shade(color: Color, shade: Numeric) -> Self {
-        let shade = 4.0 - (shade.get_as_float().clamp(0.0, 400.0) / 100.0);
-        let (r, g, b, a) = color.to_piet_color().as_rgba();
-        let r = ((r * RGB) * shade) / RGB;
-        let g = ((g * RGB) * shade) / RGB;
-        let b = ((b * RGB) * shade) / RGB;
+        let shade_multp = (-0.002 * shade.get_as_float()) + 2.0;
+        let (r, g, b, _) = color.to_piet_color().as_rgba();
+        let (h, s, l) = Self::rgb_to_hsl(r * 255.0, g * 255.0, b * 255.0);
+        let (r, g, b) = Self::hsl_to_rgb(h, s, l * shade_multp);
+
         Self {
-            color_variant: ColorVariant::Rgba([r, g, b, a]),
+            color_variant: ColorVariant::Rgb([r / RGB, g / RGB, b / RGB]),
         }
     }
 
@@ -329,6 +417,7 @@ impl Color {
             color_variant: ColorVariant::Rgb([244.0 / RGB, 63.0 / RGB, 94.0 / RGB]),
         }
     }
+
     pub fn to_piet_color(&self) -> piet::Color {
         match self.color_variant {
             ColorVariant::Hlca(slice) => piet::Color::hlca(slice[0], slice[1], slice[2], slice[3]),
