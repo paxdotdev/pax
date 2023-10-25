@@ -9,8 +9,8 @@ use pax_std::components::Stacker;
 use pax_std::primitives::{Frame, Group, Image, Rectangle, Text};
 use pax_std::types::{Color, Fill, LinearGradient, StackerDirection};
 
-use crate::website_desktop::WebsiteDesktop;
-use crate::website_mobile::WebsiteMobile;
+// use crate::website_desktop::WebsiteDesktop;
+// use crate::website_mobile::WebsiteMobile;
 
 #[derive(Pax)]
 #[main]
@@ -22,6 +22,9 @@ for i in 0..5 {
     // </Stacker>
 }
 
+@handlers {
+    did_mount: handle_did_mount
+}
 
 )]
 pub struct Example {
