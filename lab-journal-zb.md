@@ -3582,23 +3582,9 @@ Get this working entirely manually first, then automate in pax-compiler. (valida
 
 ### On robust multi-level slots & scopes
 
-[x] separate runtime scope stack from adoptees stack
-[x] introduce lifecycle methods surrounding property computation, for managing runtime property stack
-[x] rename adoptees to slot-children
-[x] rename runtime stack to RuntimePropertyScopeStack
-    [x] document relationship between runtime stack & compile-time (offset) stack
-[x] rename `should_flatten` to `is_invisible_to_slot`
-    [x] manage lifecycle between calling the above method, which requires recursive properties to have been computed,
-        vs computing properties
-    [x] note that this means adoptees aren't tracked in a stack at all.
-        [x] instead, ensure that the "node containing the node for which the current render_node is a template member"
-[ ] consider renaming `will_` to `pre_` and `did_` to `post_` (while a departure from React-like conventions, )
-[x] handle forwarded childen in Repeat
-[ ] handle triggering events in handle_registry given changes in runtime stack
-    [ ] probably introduce `get_properties` on dyn RenderNode, returning something like an Rc<RefCell<PropertiesCoproduct>>
-    [-] Alternatively!  fire handlers at end of properties compute phase?
-        Turns out the above is insufficient.  We also rely on property<>render-tangled stack frames
-        when gathering `properties` (the on-demand `self`) for invoking event handlers, via `cartridge-render-node-literal.tera` 
+
+
+
 
 Problem:
 
@@ -3640,3 +3626,72 @@ Possible tool: a parameter passed to ComponentInstance to signal whether it is m
 alongside a `dyn RenderNode` method that the engine can call to push / pop (at properties-compute-recursion time.)
 This gives us the ability to special-case `for`-managed ComponentInstances, to explicitly push
 to the properties stack, while ignoring components like Stacker
+
+
+
+or storing `n` copies of properties per node?  we'd want to store a map of `id_chain => properties`)
+
+
+we can get_id_chain from rtc.get_id_chain, so this is close at hand
+would this mean changing the API for compute_properties and get_properties?
+One other option is to "reinstantiate" a node — store the instantiationargs passed to any node and
+re-retrieve them as a way of deep-cloning (this would need to be recursive, for child/slot nodes)
+-
+in service of deep-cloning, consider our APIs for getting nodes:
+get_rendering_children expects expanded children
+RepeatExpandedNode represents expanded nodes
+Perhaps we should attach computed properties to RepeatExpandedNodes?  That's already the right shape of container for these properties.
+
+
+Refactoring node management:
+
+1. compute properties; manage RepeatExpandedNodes and store computed properties
+2. render: recurse through repeatexpandednodes
+How do we recurse through repeatexpandednodes?
+When we call lifecycle methods e.g. `handle_render`, how do we specify which properties to pass?
+Will it be straightforward to move away from the current way of instantiating RepeatExpandedNodes?
+   Yes, should be straightforward.  We simply create them in the rendering recursive workhorse; we could straightforwardly
+   shunt this into properties computation.  Main challenge is figuring out the shape of pointers between instance nodes and ExpandedNodes 
+Think through the relationship between RepeatExpandedNodes, dyn RenderNode, and property-related lifecycle methods
+
+Perhaps we rotate the manifold currently between `instance node` and `repeat expanded node`
+ — `instance node` vs. `properties expanded node` or `properties-render-node` 
+
+We should also reconsider how we store and retrieve RepeatExpandedNodes. Instead of
+the current cache, are these nodes findable via `dyn RenderNode` ?
+Do we store them in a separate table and share Rcs?
+Make sure to address recursability (through RepeatExpandedNodes) along the way
+
+Consider also how the registry handler + component event handlers route through
+RepeatExpandedNodes.
+
+
+
+[x] separate runtime scope stack from adoptees stack
+    [x] introduce lifecycle methods surrounding property computation, for managing runtime property stack
+[x] rename adoptees to slot-children
+[x] rename runtime stack to RuntimePropertyScopeStack
+[x] document relationship between runtime stack & compile-time (offset) stack
+[x] rename `should_flatten` to `is_invisible_to_slot`
+    [x] manage lifecycle between calling the above method, which requires recursive properties to have been computed,
+    vs computing properties
+    [x] note that this means adoptees aren't tracked in a stack at all.
+    [x] instead, ensure that the "node containing the node for which the current render_node is a template member"
+[ ] consider renaming `will_` to `pre_` and `did_` to `post_` (while a departure from React-like conventions, )
+[x] handle forwarded childen in Repeat
+[x] handle triggering events in handle_registry given changes in runtime stack
+[x] probably introduce `get_properties` on dyn RenderNode, returning something like an Rc<RefCell<PropertiesCoproduct>>
+[-] Alternatively!  fire handlers at end of properties compute phase?
+    Turns out the above is insufficient.  We also rely on property<>render-tangled stack frames
+    when gathering `properties` (the on-demand `self`) for invoking event handlers, via `cartridge-render-node-literal.tera`
+[-] handle deep cloning or deep property storage
+    NOTE: deep cloning shouldn't be needed if we store computed properties on RepeatExpandedNodes
+
+
+
+
+
+
+
+
+

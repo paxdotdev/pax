@@ -49,7 +49,7 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub current_containing_component_slot_children: RenderNodePtrList<R>,
     /// A pointer to the node currently being rendered
     pub current_instance_node: RenderNodePtr<R>,
-    pub parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
+    pub parent_repeat_expanded_node: Option<Weak<ExpandedNode<R>>>,
     pub timeline_playhead_position: usize,
     pub inherited_slot_children: Option<RenderNodePtrList<R>>,
     pub current_z_index: u32,
@@ -269,16 +269,16 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
 /// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
 /// a `for j in 0..4` would have 12 repeat-expanded nodes representing the 12 virtual Rectangles in the
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
-pub struct RepeatExpandedNode<R: 'static + RenderContext> {
+pub struct ExpandedNode<R: 'static + RenderContext> {
     #[allow(dead_code)]
     id_chain: Vec<u32>,
-    parent_repeat_expanded_node: Option<Weak<RepeatExpandedNode<R>>>,
+    parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
     instance_node: RenderNodePtr<R>,
     tab: TransformAndBounds,
     node_context: RuntimeContext,
 }
 
-impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
+impl<R: 'static + RenderContext> ExpandedNode<R> {
     pub fn dispatch_scroll(&self, args_scroll: ArgsScroll) {
         if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
             let handlers = &(*registry).borrow().scroll_handlers;
@@ -293,7 +293,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
         (*self.instance_node)
             .borrow_mut()
             .handle_scroll(args_scroll.clone());
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent.upgrade().unwrap().dispatch_scroll(args_scroll);
         }
     }
@@ -310,7 +310,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent.upgrade().unwrap().dispatch_jab(args_jab);
         }
     }
@@ -327,7 +327,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent
                 .upgrade()
                 .unwrap()
@@ -347,7 +347,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent
                 .upgrade()
                 .unwrap()
@@ -367,7 +367,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent.upgrade().unwrap().dispatch_touch_end(args_touch_end);
         }
     }
@@ -384,7 +384,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent.upgrade().unwrap().dispatch_key_down(args_key_down);
         }
     }
@@ -401,7 +401,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent.upgrade().unwrap().dispatch_key_up(args_key_up);
         }
     }
@@ -418,7 +418,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent.upgrade().unwrap().dispatch_key_press(args_key_press);
         }
     }
@@ -435,7 +435,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent.upgrade().unwrap().dispatch_click(args_click);
         }
     }
@@ -472,7 +472,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent
                 .upgrade()
                 .unwrap()
@@ -492,7 +492,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent.upgrade().unwrap().dispatch_mouse_up(args_mouse_up);
         }
     }
@@ -509,7 +509,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent
                 .upgrade()
                 .unwrap()
@@ -529,7 +529,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent
                 .upgrade()
                 .unwrap()
@@ -549,7 +549,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent.upgrade().unwrap().dispatch_mouse_out(args_mouse_out);
         }
     }
@@ -566,7 +566,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent
                 .upgrade()
                 .unwrap()
@@ -586,7 +586,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent
                 .upgrade()
                 .unwrap()
@@ -606,7 +606,7 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent.upgrade().unwrap().dispatch_wheel(args_wheel);
         }
     }
@@ -620,7 +620,7 @@ pub struct InstanceRegistry<R: 'static + RenderContext> {
     ///intended to be cleared at the beginning of each frame and populated
     ///with each node visited.  This enables post-facto operations on nodes with
     ///otherwise ephemeral calculations, e.g. the descendants of `Repeat` instances.
-    repeat_expanded_node_cache: Vec<Rc<RepeatExpandedNode<R>>>,
+    repeat_expanded_node_cache: Vec<Rc<ExpandedNode<R>>>,
 
     ///track which repeat-expanded elements are currently mounted -- if id is present in set, is mounted
     mounted_set: HashSet<Vec<u32>>,
@@ -683,7 +683,7 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
 
     pub fn add_to_repeat_expanded_node_cache(
         &mut self,
-        repeat_expanded_node: Rc<RepeatExpandedNode<R>>,
+        repeat_expanded_node: Rc<ExpandedNode<R>>,
     ) {
         //Note: ray-casting requires that these nodes are sorted by z-index
         self.repeat_expanded_node_cache.push(repeat_expanded_node);
@@ -1039,11 +1039,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         };
 
         let parent_repeat_expanded_node = rtc.parent_repeat_expanded_node.clone();
-        let repeat_expanded_node = Rc::new(RepeatExpandedNode {
+        let repeat_expanded_node = Rc::new(ExpandedNode {
             tab: repeat_expanded_node_tab.clone(),
             id_chain: id_chain.clone(),
             instance_node: Rc::clone(&node),
-            parent_repeat_expanded_node,
+            parent_expanded_node: parent_repeat_expanded_node,
             node_context: rtc.distill_userland_node_context(),
         });
 
@@ -1185,7 +1185,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     pub fn get_topmost_element_beneath_ray(
         &self,
         ray: (f64, f64),
-    ) -> Option<Rc<RepeatExpandedNode<R>>> {
+    ) -> Option<Rc<ExpandedNode<R>>> {
         //Traverse all elements in render tree sorted by z-index (highest-to-lowest)
         //First: check whether events are suppressed
         //Next: check whether ancestral clipping bounds (hit_test) are satisfied
@@ -1202,7 +1202,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //
 
         // reverse nodes to get top-most first (rendered in reverse order)
-        let mut nodes_ordered: Vec<Rc<RepeatExpandedNode<R>>> = (*self.instance_registry)
+        let mut nodes_ordered: Vec<Rc<ExpandedNode<R>>> = (*self.instance_registry)
             .borrow()
             .repeat_expanded_node_cache
             .iter()
@@ -1214,7 +1214,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         nodes_ordered.remove(0);
 
         // let ray = Point {x: ray.0,y: ray.1};
-        let mut ret: Option<Rc<RepeatExpandedNode<R>>> = None;
+        let mut ret: Option<Rc<ExpandedNode<R>>> = None;
         for node in nodes_ordered {
             if (*node.instance_node)
                 .borrow()
@@ -1225,8 +1225,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 //calculation when we find the first matching node
 
                 let mut ancestral_clipping_bounds_are_satisfied = true;
-                let mut parent: Option<Rc<RepeatExpandedNode<R>>> = node
-                    .parent_repeat_expanded_node
+                let mut parent: Option<Rc<ExpandedNode<R>>> = node
+                    .parent_expanded_node
                     .as_ref()
                     .and_then(|weak| weak.upgrade());
 
@@ -1243,7 +1243,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                             break;
                         }
                         parent = unwrapped_parent
-                            .parent_repeat_expanded_node
+                            .parent_expanded_node
                             .as_ref()
                             .and_then(|weak| weak.upgrade());
                     } else {
@@ -1261,7 +1261,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         ret
     }
 
-    pub fn get_focused_element(&self) -> Option<Rc<RepeatExpandedNode<R>>> {
+    pub fn get_focused_element(&self) -> Option<Rc<ExpandedNode<R>>> {
         let (x, y) = self.viewport_tab.bounds;
         self.get_topmost_element_beneath_ray((x / 2.0, y / 2.0))
     }
