@@ -49,7 +49,7 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub current_containing_component_slot_children: RenderNodePtrList<R>,
     /// A pointer to the node currently being rendered
     pub current_instance_node: RenderNodePtr<R>,
-    pub parent_repeat_expanded_node: Option<Weak<ExpandedNode<R>>>,
+    pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
     pub timeline_playhead_position: usize,
     pub inherited_slot_children: Option<RenderNodePtrList<R>>,
     pub current_z_index: u32,
@@ -131,7 +131,7 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
                 &self.current_containing_component_slot_children,
             ),
             current_instance_node: Rc::clone(&self.current_instance_node),
-            parent_repeat_expanded_node: self.parent_repeat_expanded_node.clone(),
+            parent_expanded_node: self.parent_expanded_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
             inherited_slot_children: self.inherited_slot_children.clone(),
             current_z_index: self.current_z_index,
@@ -452,7 +452,7 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
             });
         }
 
-        if let Some(parent) = &self.parent_repeat_expanded_node {
+        if let Some(parent) = &self.parent_expanded_node {
             parent
                 .upgrade()
                 .unwrap()
@@ -652,7 +652,7 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.instance_map.insert(instance_id, node);
     }
 
-    pub fn get_node(&self, id_chain: &Vec<u32>) -> Option<Rc<RepeatExpandedNode<R>>> {
+    pub fn get_node(&self, id_chain: &Vec<u32>) -> Option<Rc<ExpandedNode<R>>> {
         //This is not efficient (probably hashmap by id_chain could work better?)
         Some(Rc::clone(
             self.repeat_expanded_node_cache
@@ -736,7 +736,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 &cast_component_rc.borrow().get_slot_children().unwrap(),
             ),
             current_instance_node: Rc::clone(&cast_component_rc),
-            parent_repeat_expanded_node: None,
+            parent_expanded_node: None,
             timeline_playhead_position: self.frames_elapsed,
             inherited_slot_children: None,
             current_z_index: 0,
@@ -1038,12 +1038,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             transform: new_scroller_normalized_accumulated_transform.clone(),
         };
 
-        let parent_repeat_expanded_node = rtc.parent_repeat_expanded_node.clone();
+        let parent_expanded_node = rtc.parent_expanded_node.clone();
         let repeat_expanded_node = Rc::new(ExpandedNode {
             tab: repeat_expanded_node_tab.clone(),
             id_chain: id_chain.clone(),
             instance_node: Rc::clone(&node),
-            parent_expanded_node: parent_repeat_expanded_node,
+            parent_expanded_node: parent_expanded_node,
             node_context: rtc.distill_userland_node_context(),
         });
 
@@ -1101,7 +1101,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             .for_each(|child| {
                 //note that we're iterating starting from the last child, for z-index (.rev())
                 let mut new_rtc = rtc.clone();
-                new_rtc.parent_repeat_expanded_node = Some(Rc::downgrade(&repeat_expanded_node));
+                new_rtc.parent_expanded_node = Some(Rc::downgrade(&repeat_expanded_node));
                 // if it's a scroller reset the z-index context for its children
                 self.recurse_traverse_render_tree(
                     &mut new_rtc,

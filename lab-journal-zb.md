@@ -2120,7 +2120,7 @@ vs. "base" or "instance" or "concrete" nodes
 
 ex.
 `VirtualNode {}`
-`parent_repeat_expanded_node`
+`parent_expanded_node`
 `repeat_expanded_node_cache: HashMap<Vec<u64>, Rc<VirtualNode<R>>>,`
 
 Problematically, `virtual` could arguably be applied to both the `raw instance` and any `virtual` nodes
@@ -3639,31 +3639,31 @@ re-retrieve them as a way of deep-cloning (this would need to be recursive, for 
 -
 in service of deep-cloning, consider our APIs for getting nodes:
 get_rendering_children expects expanded children
-RepeatExpandedNode represents expanded nodes
-Perhaps we should attach computed properties to RepeatExpandedNodes?  That's already the right shape of container for these properties.
+ExpandedNode represents expanded nodes
+Perhaps we should attach computed properties to ExpandedNodes?  That's already the right shape of container for these properties.
 
 
 Refactoring node management:
 
-1. compute properties; manage RepeatExpandedNodes and store computed properties
-2. render: recurse through repeatexpandednodes
-How do we recurse through repeatexpandednodes?
+1. compute properties; manage ExpandedNodes and store computed properties
+2. render: recurse through ExpandedNodes
+How do we recurse through ExpandedNodes?
 When we call lifecycle methods e.g. `handle_render`, how do we specify which properties to pass?
-Will it be straightforward to move away from the current way of instantiating RepeatExpandedNodes?
+Will it be straightforward to move away from the current way of instantiating ExpandedNodes?
    Yes, should be straightforward.  We simply create them in the rendering recursive workhorse; we could straightforwardly
    shunt this into properties computation.  Main challenge is figuring out the shape of pointers between instance nodes and ExpandedNodes 
-Think through the relationship between RepeatExpandedNodes, dyn RenderNode, and property-related lifecycle methods
+Think through the relationship between ExpandedNodes, dyn RenderNode, and property-related lifecycle methods
 
 Perhaps we rotate the manifold currently between `instance node` and `repeat expanded node`
  — `instance node` vs. `properties expanded node` or `properties-render-node` 
 
-We should also reconsider how we store and retrieve RepeatExpandedNodes. Instead of
+We should also reconsider how we store and retrieve ExpandedNodes. Instead of
 the current cache, are these nodes findable via `dyn RenderNode` ?
 Do we store them in a separate table and share Rcs?
-Make sure to address recursability (through RepeatExpandedNodes) along the way
+Make sure to address recursability (through ExpandedNodes) along the way
 
 Consider also how the registry handler + component event handlers route through
-RepeatExpandedNodes.
+ExpandedNodes.
 
 
 
@@ -3685,7 +3685,7 @@ RepeatExpandedNodes.
     Turns out the above is insufficient.  We also rely on property<>render-tangled stack frames
     when gathering `properties` (the on-demand `self`) for invoking event handlers, via `cartridge-render-node-literal.tera`
 [-] handle deep cloning or deep property storage
-    NOTE: deep cloning shouldn't be needed if we store computed properties on RepeatExpandedNodes
+    NOTE: deep cloning shouldn't be needed if we store computed properties on ExpandedNodes
 
 
 
