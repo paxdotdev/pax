@@ -225,7 +225,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
 
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this rendernode. `tab` must also be passed because these are specific
-    /// to a RepeatExpandedNode
+    /// to a ExpandedNode
     fn ray_cast_test(&self, ray: &(f64, f64), tab: &TransformAndBounds) -> bool {
         //short-circuit fail for Group and other size-None elements.
         //This doesn't preclude event handlers on Groups and size-None elements --
