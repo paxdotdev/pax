@@ -9,8 +9,6 @@ homepage = "https://pax.dev/"
 repository = "https://www.github.com/pax-lang/pax"
 include = ["src/**/*","pax-swift-common/**/*"]
 
-[workspace]
-
 [lib]
 
 [dependencies]

@@ -14,7 +14,3 @@ crate-type = ["cdylib"]
 
 [dependencies]
 pax-chassis-common = {version = "0.10.7", path="../pax-chassis-common"}
-
-# The following empty [workspace] directive is a workaround to satisfy
-# a cargo workspace bug, as documented: https://github.com/rust-lang/cargo/issues/6745
-[workspace]
