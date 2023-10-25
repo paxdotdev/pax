@@ -17,10 +17,11 @@ use crate::{
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
 use pax_runtime_api::{
-    ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
-    ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
-    ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, CommonProperties, Interpolatable,
-    Layer, Rotation, RuntimeContext, Size, Transform2D, TransitionManager, ZIndex,
+    ArgsCheckboxChange, ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown,
+    ArgsKeyPress, ArgsKeyUp, ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver,
+    ArgsMouseUp, ArgsScroll, ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel,
+    CommonProperties, Interpolatable, Layer, Rotation, RuntimeContext, Size, Transform2D,
+    TransitionManager, ZIndex,
 };
 
 pub struct PaxEngine<R: 'static + RenderContext> {
@@ -220,6 +221,8 @@ pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub double_click_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsDoubleClick)>,
     pub context_menu_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsContextMenu)>,
     pub wheel_handlers: Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsWheel)>,
+    pub checkbox_change_handlers:
+        Vec<fn(Rc<RefCell<StackFrame<R>>>, RuntimeContext, ArgsCheckboxChange)>,
     pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
     pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
 }
@@ -246,10 +249,10 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
             wheel_handlers: Vec::new(),
             will_render_handlers: Vec::new(),
             did_mount_handlers: Vec::new(),
+            checkbox_change_handlers: Vec::new(),
         }
     }
 }
-
 /// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
 /// a `for j in 0..4` would have 12 repeat-expanded nodes representing the 12 virtual Rectangles in the
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
@@ -422,6 +425,26 @@ impl<R: 'static + RenderContext> RepeatExpandedNode<R> {
 
         if let Some(parent) = &self.parent_repeat_expanded_node {
             parent.upgrade().unwrap().dispatch_click(args_click);
+        }
+    }
+
+    pub fn dispatch_checkbox_change(&self, args_change: ArgsCheckboxChange) {
+        if let Some(registry) = (*self.instance_node).borrow().get_handler_registry() {
+            let handlers = &(*registry).borrow().checkbox_change_handlers;
+            handlers.iter().for_each(|handler| {
+                handler(
+                    Rc::clone(&self.stack_frame),
+                    self.node_context.clone(),
+                    args_change.clone(),
+                );
+            });
+        }
+
+        if let Some(parent) = &self.parent_repeat_expanded_node {
+            parent
+                .upgrade()
+                .unwrap()
+                .dispatch_checkbox_change(args_change);
         }
     }
 
@@ -617,13 +640,13 @@ impl<R: 'static + RenderContext> InstanceRegistry<R> {
         self.instance_map.insert(instance_id, node);
     }
 
-    pub fn get_node(&self, id_chain: &Vec<u32>) -> Option<RenderNodePtr<R>> {
+    pub fn get_node(&self, id_chain: &Vec<u32>) -> Option<Rc<RepeatExpandedNode<R>>> {
         //This is not efficient (probably hashmap by id_chain could work better?)
-        Some(Rc::clone(&self
-            .repeat_expanded_node_cache
-            .iter()
-            .find(|n| &n.id_chain == id_chain)?
-            .instance_node))
+        Some(Rc::clone(
+            self.repeat_expanded_node_cache
+                .iter()
+                .find(|n| &n.id_chain == id_chain)?,
+        ))
     }
 
     pub fn deregister(&mut self, instance_id: u32) {

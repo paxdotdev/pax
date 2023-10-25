@@ -249,6 +249,12 @@ pub struct ArgsWheel {
     pub delta_y: f64,
     pub modifiers: Vec<ModifierKey>,
 }
+
+#[derive(Clone)]
+pub struct ArgsCheckboxChange {
+    pub checked: bool,
+}
+
 /// User presses a mouse button over an element.
 #[derive(Clone)]
 pub struct ArgsMouseDown {
@@ -1067,12 +1073,12 @@ impl ZIndex {
     }
 }
 
-#[derive(Clone,Debug)]
-pub struct StringBox{
+#[derive(Clone, Debug)]
+pub struct StringBox {
     pub string: String,
 }
 
-impl Add for StringBox{
+impl Add for StringBox {
     type Output = Self;
 
     fn add(mut self, rhs: Self) -> Self::Output {
@@ -1081,31 +1087,37 @@ impl Add for StringBox{
     }
 }
 
-impl Default for StringBox{
+impl Default for StringBox {
     fn default() -> Self {
-        Self { string: String::new() }
+        Self {
+            string: String::new(),
+        }
     }
 }
 
-impl From<&str> for StringBox{
+impl From<&str> for StringBox {
     fn from(value: &str) -> Self {
-        StringBox { string: value.to_string() }
+        StringBox {
+            string: value.to_string(),
+        }
     }
 }
 
-impl From<String> for StringBox{
+impl From<String> for StringBox {
     fn from(value: String) -> Self {
-        StringBox{string:value}
+        StringBox { string: value }
     }
 }
 
-impl From<&String> for StringBox{
+impl From<&String> for StringBox {
     fn from(value: &String) -> Self {
-        StringBox{string:value.to_string()}
+        StringBox {
+            string: value.to_string(),
+        }
     }
 }
 
-impl From<StringBox> for String{
+impl From<StringBox> for String {
     fn from(value: StringBox) -> Self {
         String::from(value.string)
     }
