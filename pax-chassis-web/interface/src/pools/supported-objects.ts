@@ -14,6 +14,7 @@ import { CheckboxUpdatePatch } from "../classes/messages/checkbox-update-patch";
 export const OBJECT = "Object";
 export const ARRAY = "Array";
 export const DIV = "DIV";
+export const INPUT = "Input";
 export const CANVAS = "Canvas";
 export const ANY_CREATE_PATCH = "Any Create Patch";
 export const FRAME_UPDATE_PATCH = "Frame Update Patch";
@@ -42,6 +43,14 @@ export let SUPPORTED_OBJECTS = [{
             }
         }
     }
+    },
+    {
+        name: INPUT,
+        factory: () => document.createElement("input"),
+        cleanUp: (input: HTMLInputElement) => {
+            input.removeAttribute("style");
+            input.innerHTML= "";
+        }
     },
     {
         name: ARRAY,

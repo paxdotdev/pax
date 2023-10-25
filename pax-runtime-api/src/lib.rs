@@ -249,6 +249,12 @@ pub struct ArgsWheel {
     pub delta_y: f64,
     pub modifiers: Vec<ModifierKey>,
 }
+
+#[derive(Clone)]
+pub struct ArgsCheckboxChange {
+    pub checked: bool,
+}
+
 /// User presses a mouse button over an element.
 #[derive(Clone)]
 pub struct ArgsMouseDown {
