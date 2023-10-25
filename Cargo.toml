@@ -21,12 +21,12 @@ members = [
 exclude = [
     "pax-cartridge",
     "pax-compiler/new-project-template",
-    "pax-example",
     "pax-properties-coproduct",
     "pax-chassis-macos/interface",
     "pax-create-sandbox",
     "pax-language-server",
     "examples",
+    "www.pax.dev/src/website",
 ]
 
 [profile.release]
