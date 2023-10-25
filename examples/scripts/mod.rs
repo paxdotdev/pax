@@ -17,6 +17,10 @@ pub fn run_example() -> Result<(), String> {
 
     // In the case of a fresh clone with no .pax folder, clean in-case we have rel. paths
     if !Path::new(&target_dir).join(".pax").exists() {
+        Command::new("../../../pax-cli")
+            .arg("build")
+            .status()
+            .map_err(|_| "Failed to run pax-cli clean")?;
         Command::new("../../../target/debug/pax-cli")
             .arg("clean")
             .current_dir(&target_dir)
