@@ -7,6 +7,9 @@ edition = "2021"
 [workspace]
 
 members = [
+    "pax-chassis-web",
+    "pax-chassis-macos",
+    "pax-chassis-common",
     "pax-lang",
     "pax-core",
     "pax-macro",
@@ -23,7 +26,6 @@ exclude = [
     "pax-compiler/new-project-template",
     "pax-example",
     "pax-properties-coproduct",
-    "pax-chassis-macos/interface",
     "pax-create-sandbox",
     "pax-language-server",
     "examples",
