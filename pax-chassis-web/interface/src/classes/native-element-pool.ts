@@ -349,7 +349,7 @@ export class NativeElementPool {
             return '/';
         }
 
-        const BASE_PATH = getScriptBasePath('index.js');
+        const BASE_PATH = getScriptBasePath('pax-chassis-web-interface.js');
 
         let path = (BASE_PATH + patch.path!).replace("//", "/");
         let image_data = await readImageToByteBuffer(path!)
