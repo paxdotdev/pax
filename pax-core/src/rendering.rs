@@ -194,7 +194,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
     where
         Self: Sized;
 
-    /// Return the list of nodes that are children of this node at render-time.  Calling
+    /// Return the list of nodes that are children of this node at render-time.
     fn get_rendering_children(&self) -> RenderNodePtrList<R>;
 
     /// For Components only, return the slot children passed into that Component.  For example, for `<Stacker><Group /></Stacker>`,
