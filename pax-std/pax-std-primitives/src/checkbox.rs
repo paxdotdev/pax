@@ -46,7 +46,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for CheckboxInstance<R> {
         let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Checkbox);
 
         let mut instance_registry = (*args.instance_registry).borrow_mut();
-        let instance_id = instance_registry.mint_id();
+        let instance_id = instance_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(CheckboxInstance {
             instance_id,
             properties: Rc::new(RefCell::new(properties)),
@@ -154,6 +154,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for CheckboxInstance<R> {
     fn handle_form_event(&mut self, event: FormEvent) {
         match event {
             FormEvent::Toggle { state } => self.properties.borrow_mut().checked.set(state),
+            #[allow(unreachable_patterns)]
             _ => panic!("checkbox received non-compatible form event: {:?}", event),
         }
     }

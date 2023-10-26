@@ -46,7 +46,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
         Self: Sized,
     {
         let mut instance_registry = (*args.instance_registry).borrow_mut();
-        let instance_id = instance_registry.mint_id();
+        let instance_id = instance_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(RepeatInstance {
             instance_id,
             repeated_template: match args.children {
@@ -126,8 +126,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
 
         if is_dirty {
             //Any stated children (repeat template members) of Repeat should be forwarded to the `RepeatItem`-wrapped `ComponentInstance`s
-            //so that `Slot` works as expected
-
             let forwarded_slot_children = Rc::clone(&rtc.current_containing_component_slot_children);
 
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
@@ -151,7 +149,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                     .iter()
                     .enumerate()
                     .map(|(i, datum)| {
-                        let instance_id = instance_registry.mint_id();
+                        let instance_id = instance_registry.mint_instance_id();
                         let common_properties = CommonProperties::default();
 
                         let new_component_instance = ComponentInstance {
