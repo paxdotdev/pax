@@ -9,18 +9,15 @@ use pax_runtime_api::{Axis, CommonProperties, Transform2D};
 use piet::{Color, StrokeStyle};
 use piet_common::RenderContext;
 
-use pax_runtime_api::{ArgsScroll, Layer, Size};
+use pax_runtime_api::{ArgsScroll, Layer, Size, PropertyInstance};
 
-use crate::{HandlerRegistry, InstanceRegistry, RenderTreeContext};
+use crate::{HandlerRegistry, NodeRegistry, RenderTreeContext};
 use crate::form_event::FormEvent;
-
-use pax_runtime_api::PropertyInstance;
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.
 pub type RenderNodePtr<R> = Rc<RefCell<dyn RenderNode<R>>>;
 pub type RenderNodePtrList<R> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
-
 
 /// Given some RenderNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
 /// and return another RenderNodePtrList with a flattened top-level list of nodes.
@@ -49,7 +46,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub common_properties: CommonProperties,
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
+    pub instance_registry: Rc<RefCell<NodeRegistry<R>>>,
     pub children: Option<RenderNodePtrList<R>>,
     pub component_template: Option<RenderNodePtrList<R>>,
     pub scroller_args: Option<ScrollerArgs>,
@@ -288,7 +285,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
 
     /// Returns unique integer ID of this RenderNode instance.  Note that
     /// individual rendered elements may share an instance_id, for example
-    /// inside of `Repeat`.  See also `RenderTreeContext::get_id_chain`, which enables globally
+    /// inside of `Repeat`.  See also `ExpandedNode` and `RenderTreeContext::get_id_chain`, which enables globally
     /// unique node addressing in the context of an in-progress render tree traversal.
     fn get_instance_id(&self) -> u32;
 

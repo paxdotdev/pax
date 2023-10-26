@@ -64,7 +64,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
         let mut instance_registry = (*args.instance_registry).borrow_mut();
-        let instance_id = instance_registry.mint_id();
+        let instance_id = instance_registry.mint_instance_id();
 
         let template = match args.component_template {
             Some(t) => t,

@@ -18,7 +18,7 @@ use flexbuffers::DeserializationError;
 use serde::Serialize;
 
 use pax_cartridge;
-use pax_core::{InstanceRegistry, PaxEngine};
+use pax_core::{NodeRegistry, PaxEngine};
 
 //Re-export all native message types; used by Swift via FFI.
 //Note that any types exposed by pax_message must ALSO be added to `PaxCartridge.h`
@@ -39,8 +39,8 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
     //engine can be passed back to Swift via the C (FFI) bridge
     //This could presumably be cleaned up -- see `pax_dealloc_engine`
-    let instance_registry: Rc<RefCell<InstanceRegistry<CoreGraphicsContext<'static>>>> =
-        Rc::new(RefCell::new(InstanceRegistry::new()));
+    let instance_registry: Rc<RefCell<NodeRegistry<CoreGraphicsContext<'static>>>> =
+        Rc::new(RefCell::new(NodeRegistry::new()));
     let main_component_instance =
         pax_cartridge::instantiate_main_component(Rc::clone(&instance_registry));
     let expression_table = pax_cartridge::instantiate_expression_table();

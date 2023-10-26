@@ -1,5 +1,5 @@
 {% if is_main_component %}
-pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
+pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry: Rc<RefCell<NodeRegistry<R>>>) -> Rc<RefCell<ComponentInstance<R>>> {
     ComponentInstance::instantiate( InstantiationArgs{
         properties: PropertiesCoproduct::{{ properties_coproduct_variant }}( {{ component_properties_struct }}::default() ),
         handler_registry:  Some(Rc::new(RefCell::new({
@@ -54,7 +54,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
 
 {% else %}
 #[allow(non_snake_case)]
-pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(instance_registry: Rc<RefCell<InstanceRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
+pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(instance_registry: Rc<RefCell<NodeRegistry<R>>>, mut args: InstantiationArgs<R>) -> Rc<RefCell<ComponentInstance<R>>>  {
     args.component_template = Some(Rc::new(RefCell::new(vec![{{render_nodes_literal}}])));
 
     args.handler_registry = Some(Rc::new(RefCell::new({

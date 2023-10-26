@@ -375,7 +375,7 @@ fn generate_and_overwrite_cartridge(
         "pax_core::ExpressionContext",
         "pax_core::PaxEngine",
         "pax_core::RenderNode",
-        "pax_core::InstanceRegistry",
+        "pax_core::NodeRegistry",
         "pax_core::HandlerRegistry",
         "pax_core::InstantiationArgs",
         "pax_core::ConditionalInstance",

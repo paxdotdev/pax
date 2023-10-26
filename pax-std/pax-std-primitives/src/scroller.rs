@@ -66,7 +66,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Scroller);
 
         let mut instance_registry = args.instance_registry.borrow_mut();
-        let instance_id = instance_registry.mint_id();
+        let instance_id = instance_registry.mint_instance_id();
 
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
