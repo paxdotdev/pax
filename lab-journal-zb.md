@@ -3666,6 +3666,28 @@ Consider also how the registry handler + component event handlers route through
 ExpandedNodes.
 
 
+
+1. We have a strong divide between `instance nodes` and `expanded nodes`.  An instance node is what is declared in a template.  An expanded node both accounts for repeat (e.g. it is id-ed by `id_chain`) _and_ includes a unique stamp of `properties`, computed in the context of repeat.
+2. How do we get `ExpandedNode`s from an instance node?  Currently we have `get_rendering_children` — should this be supplanted by `get_expanded_children`, and if so, how does a RenderNode
+    become knowledgeable about its ExpandedNode children?
+    Unpacking:  during properties computation, we can create ExpandedNodes, because we both have knowledge of ancestral repeats for `id_chain`, and have
+    locally calculated properties that we can store on an ExpandedNode.  Perhaps there needs to be a method on `dyn RenderNode` for setting ExpandedNode children? (`set_expanded_children` ?)
+    Another possibility is to mark relationships e.g. through cloned Rcs, allowing ID-based lookups without requiring any setting through `dyn RenderNode` (with the heavy lift of punching through all trait implementors)
+    Even so, there needs to be some way for a node to specify its children dynamically.  Basically, most nodes just return their templated children (wrapped as `ExpandedNode`s?)
+    but Repeat does so as a function of its data source, and Conditional does so as a function of its evaluated boolean state
+
+We could either:
+(a) keep a list of ExpandedNodes representing the children of a given node
+(b) keep a list of ExpandedNodes representing the _parallel versions_ of a given node (i.e. on the node itself instead of its parent)
+(c) traverse ExpandedNodes in their own right, instead of traversing template instance nodes.  This would require tracking child relatinoships
+    on ExpandedNodes, whereas we currently only track parent relationships
+
+
+Exploring (b), because it's a natural fit with the way we traverse nodes & compute properties, (pass id_chain into compute_properties)
+the next question becomes how do we perform tree recursion?  Who is responsible for enumerating the child variants to 
+recurse through?
+
+
 [x] separate runtime scope stack from adoptees stack
     [x] introduce lifecycle methods surrounding property computation, for managing runtime property stack
 [x] rename adoptees to slot-children

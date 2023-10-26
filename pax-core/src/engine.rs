@@ -766,6 +766,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let mut node_borrowed = node.borrow_mut();
 
+
+        // What if we pass the ID chain here?  Then each component is in charge of storing its own
+        // "parallel versions" of itself (ExpandedNodes.)  This is nicely aligned with the typed nature of
+        // properties; each implementor of `dyn RenderNode` would be responsible for storing a HashMap<Vec<u64>, T>,
+        // where T is the type of properties stored within that component
         node_borrowed.handle_compute_properties(rtc);
 
         if let NodeType::RepeatManagedComponent = node_borrowed.get_node_type() {
