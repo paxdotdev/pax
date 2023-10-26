@@ -48,7 +48,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
     {
         let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Rectangle);
         let mut instance_registry = (*args.instance_registry).borrow_mut();
-        let instance_id = instance_registry.mint_id();
+        let instance_id = instance_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(RectangleInstance {
             instance_id,
             properties: Rc::new(RefCell::new(properties)),

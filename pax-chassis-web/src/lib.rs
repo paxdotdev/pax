@@ -1,7 +1,6 @@
 //! Basic example of rendering in the browser
 
 use js_sys::Uint8Array;
-use pax_core::form_event::FormEvent;
 use pax_runtime_api::ArgsCheckboxChange;
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -12,7 +11,7 @@ use web_sys::{window, HtmlCanvasElement};
 
 use piet_web::WebRenderContext;
 
-use pax_core::{InstanceRegistry, PaxEngine};
+use pax_core::{NodeRegistry, PaxEngine};
 
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
 use pax_runtime_api::{
@@ -71,8 +70,8 @@ impl PaxChassisWeb {
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
-        let instance_registry: Rc<RefCell<InstanceRegistry<WebRenderContext>>> =
-            Rc::new(RefCell::new(InstanceRegistry::new()));
+        let instance_registry: Rc<RefCell<NodeRegistry<WebRenderContext>>> =
+            Rc::new(RefCell::new(NodeRegistry::new()));
         let main_component_instance =
             pax_cartridge::instantiate_main_component(Rc::clone(&instance_registry));
         let expression_table = pax_cartridge::instantiate_expression_table();
@@ -145,11 +144,11 @@ impl PaxChassisWeb {
                 }
             },
             NativeInterrupt::FormCheckboxToggle(args) => {
-                let node = (*self.engine)
-                    .borrow()
-                    .instance_registry
-                    .borrow()
-                    .get_node(&args.id_chain)
+                let engine_borrowed = (*self.engine).borrow();
+                let instance_registry_borrowed = engine_borrowed.instance_registry.borrow();
+                let node =
+                    instance_registry_borrowed
+                    .get_expanded_node(&args.id_chain)
                     .expect("couldn't find node");
                 node.dispatch_checkbox_change(ArgsCheckboxChange {
                     checked: args.state,

@@ -1,4 +1,3 @@
-use std::any::Any;
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
 
@@ -27,7 +26,7 @@ use pax_runtime_api::{
 
 pub struct PaxEngine<R: 'static + RenderContext> {
     pub frames_elapsed: usize,
-    pub instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
+    pub instance_registry: Rc<RefCell<NodeRegistry<R>>>,
     pub expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
     pub main_component: Rc<RefCell<ComponentInstance<R>>>,
     pub runtime: Rc<RefCell<Runtime<R>>>,
@@ -266,8 +265,8 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
         }
     }
 }
-/// Represents a repeat-expanded node.  For example, a Rectangle inside `for i in 0..3` and
-/// a `for j in 0..4` would have 12 repeat-expanded nodes representing the 12 virtual Rectangles in the
+/// Represents an expanded node, that is "expanded" in the context of computed properties and repeat expansion.
+/// For example, a Rectangle inside `for i in 0..3` and a `for j in 0..4` would have 12 expanded nodes representing the 12 virtual Rectangles in the
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
 pub struct ExpandedNode<R: 'static + RenderContext> {
     #[allow(dead_code)]
@@ -275,6 +274,7 @@ pub struct ExpandedNode<R: 'static + RenderContext> {
     parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
     instance_node: RenderNodePtr<R>,
     tab: TransformAndBounds,
+    z_index: u32,
     node_context: RuntimeContext,
 }
 
@@ -612,81 +612,82 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
     }
 }
 
-pub struct InstanceRegistry<R: 'static + RenderContext> {
-    ///look up RenderNodePtr by id
-    instance_map: HashMap<u32, RenderNodePtr<R>>,
+pub struct NodeRegistry<R: 'static + RenderContext> {
+    ///look up RenderNodePtr by instance id
+    instance_node_map: HashMap<u32, RenderNodePtr<R>>,
 
-    ///a cache of repeat-expanded elements visited by rendertree traversal,
-    ///intended to be cleared at the beginning of each frame and populated
-    ///with each node visited.  This enables post-facto operations on nodes with
-    ///otherwise ephemeral calculations, e.g. the descendants of `Repeat` instances.
-    repeat_expanded_node_cache: Vec<Rc<ExpandedNode<R>>>,
+    ///look up an ExpandedNode by id_chain
+    expanded_node_map: HashMap<Vec<u32>, Rc<ExpandedNode<R>>>,
 
-    ///track which repeat-expanded elements are currently mounted -- if id is present in set, is mounted
+    ///track which expanded elements are currently mounted -- if id is present in set, is mounted
     mounted_set: HashSet<Vec<u32>>,
+
     ///tracks whichs instance nodes are marked for unmounting, to be done at the correct point in the render tree lifecycle
     marked_for_unmount_set: HashSet<u32>,
 
     ///register holding the next value to mint as an id
-    next_id: u32,
+    uid_gen: std::ops::RangeFrom<u32>,
 }
 
-impl<R: 'static + RenderContext> InstanceRegistry<R> {
+impl<R: 'static + RenderContext> NodeRegistry<R> {
     pub fn new() -> Self {
         Self {
             mounted_set: HashSet::new(),
             marked_for_unmount_set: HashSet::new(),
-            instance_map: HashMap::new(),
-            repeat_expanded_node_cache: vec![],
-            next_id: 0,
+            instance_node_map: HashMap::new(),
+            expanded_node_map: HashMap::new(),
+            uid_gen: 0..,
         }
     }
 
-    pub fn mint_id(&mut self) -> u32 {
-        let new_id = self.next_id;
-        self.next_id = self.next_id + 1;
-        new_id
+    /// Mint a new, monotonically increasing id for use in creating new instance nodes
+    pub fn mint_instance_id(&mut self) -> u32 {
+        self.uid_gen.next().unwrap()
     }
 
+    /// Add an instance to the NodeRegistry, incrementing its Rc count and giving it a canonical home
     pub fn register(&mut self, instance_id: u32, node: RenderNodePtr<R>) {
-        self.instance_map.insert(instance_id, node);
+        self.instance_node_map.insert(instance_id, node);
     }
 
-    pub fn get_node(&self, id_chain: &Vec<u32>) -> Option<Rc<ExpandedNode<R>>> {
-        //This is not efficient (probably hashmap by id_chain could work better?)
-        Some(Rc::clone(
-            self.repeat_expanded_node_cache
-                .iter()
-                .find(|n| &n.id_chain == id_chain)?,
-        ))
+    /// Retrieve an ExpandedNode by its id_chain from the encapsulated `expanded_node_map`
+    pub fn get_expanded_node(&self, id_chain: &Vec<u32>) -> Option<&Rc<ExpandedNode<R>>> {
+        self.expanded_node_map.get(id_chain)
+    }
+
+    /// Returns ExpandedNodes ordered by z-index descending; used at least by ray casting
+    pub fn get_expanded_nodes_sorted_by_z_index_desc(&self) -> Vec<Rc<ExpandedNode<R>>> {
+        let mut values: Vec<_> = self.expanded_node_map.values().cloned().collect();
+        values.sort_by(|a, b| b.z_index.cmp(&a.z_index));
+        values
     }
 
     pub fn deregister(&mut self, instance_id: u32) {
-        self.instance_map.remove(&instance_id);
+        self.instance_node_map.remove(&instance_id);
     }
 
+    /// Mark an ExpandedNode as mounted, so that `did_mount` handlers will not fire on subsequent frames
     pub fn mark_mounted(&mut self, id_chain: Vec<u32>) {
         self.mounted_set.insert(id_chain);
     }
 
+    /// Evaluates whether an ExpandedNode has been marked mounted, for use in determining whether to fire a `did_mount` handler
     pub fn is_mounted(&self, id_chain: &Vec<u32>) -> bool {
         self.mounted_set.contains(id_chain)
     }
 
+    /// Mark an instance node for unmounting, which will happen during the upcoming tick
     pub fn mark_for_unmount(&mut self, instance_id: u32) {
         self.marked_for_unmount_set.insert(instance_id);
     }
 
-    pub fn reset_repeat_expanded_node_cache(&mut self) {
-        self.repeat_expanded_node_cache = vec![];
-    }
-
-    pub fn add_to_repeat_expanded_node_cache(
+    /// Insert an ExpandedNode into the encapsulated `expanded_node_cache`
+    pub fn add_to_expanded_node_cache(
         &mut self,
-        repeat_expanded_node: Rc<ExpandedNode<R>>,
+        expanded_node: Rc<ExpandedNode<R>>,
     ) {
         //Note: ray-casting requires that these nodes are sorted by z-index
-        self.repeat_expanded_node_cache.push(repeat_expanded_node);
+        self.expanded_node_map.insert(expanded_node.id_chain.clone(), expanded_node);
     }
 }
 
@@ -696,7 +697,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         expression_table: HashMap<usize, Box<dyn Fn(ExpressionContext<R>) -> TypesCoproduct>>,
         logger: pax_runtime_api::PlatformSpecificLogger,
         viewport_size: (f64, f64),
-        instance_registry: Rc<RefCell<InstanceRegistry<R>>>,
+        instance_registry: Rc<RefCell<NodeRegistry<R>>>,
     ) -> Self {
         pax_runtime_api::register_logger(logger);
         PaxEngine {
@@ -1021,7 +1022,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         Self::manage_handlers_will_render(rtc);
 
-        //create the `repeat_expanded_node` for the current node
+        //create the `expanded_node` for the current node
         let rendering_children = node.borrow_mut().get_rendering_children();
         let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
         let clipping = node
@@ -1032,31 +1033,30 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             Some(_) => Some(clipping),
         };
 
-        let repeat_expanded_node_tab = TransformAndBounds {
+        let expanded_node_tab = TransformAndBounds {
             bounds: node_size,
             clipping_bounds,
             transform: new_scroller_normalized_accumulated_transform.clone(),
         };
 
         let parent_expanded_node = rtc.parent_expanded_node.clone();
-        let repeat_expanded_node = Rc::new(ExpandedNode {
-            tab: repeat_expanded_node_tab.clone(),
+        let expanded_node = Rc::new(ExpandedNode {
+            tab: expanded_node_tab.clone(),
             id_chain: id_chain.clone(),
             instance_node: Rc::clone(&node),
             parent_expanded_node: parent_expanded_node,
             node_context: rtc.distill_userland_node_context(),
+            z_index: rtc.current_z_index,
         });
 
-        //Note: ray-casting requires that the repeat_expanded_node_cache is sorted by z-index,
-        //so the order in which `add_to_repeat_expanded_node_cache` is invoked vs. descendants is important
         (*rtc.engine.instance_registry)
             .borrow_mut()
-            .add_to_repeat_expanded_node_cache(Rc::clone(&repeat_expanded_node));
+            .add_to_expanded_node_cache(Rc::clone(&expanded_node));
 
         let instance_id = node.borrow().get_instance_id();
 
         //Determine if this node is marked for unmounting — either this has been passed as a flag from an ancestor that
-        //was marked for deletion, or this instance_node is present in the InstanceRegistry's "marked for unmount" set.
+        //was marked for deletion, or this instance_node is present in the NodeRegistry's "marked for unmount" set.
         let marked_for_unmount = marked_for_unmount
             || self
                 .instance_registry
@@ -1101,7 +1101,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             .for_each(|child| {
                 //note that we're iterating starting from the last child, for z-index (.rev())
                 let mut new_rtc = rtc.clone();
-                new_rtc.parent_expanded_node = Some(Rc::downgrade(&repeat_expanded_node));
+                new_rtc.parent_expanded_node = Some(Rc::downgrade(&expanded_node));
                 // if it's a scroller reset the z-index context for its children
                 self.recurse_traverse_render_tree(
                     &mut new_rtc,
@@ -1115,7 +1115,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 subtree_depth = subtree_depth.max(child_z_index_info.get_level());
             });
 
-        let is_viewport_culled = !repeat_expanded_node_tab.intersects(&self.viewport_tab);
+        let is_viewport_culled = !expanded_node_tab.intersects(&self.viewport_tab);
 
         //lifecycle: compute_native_patches — for elements with native components (for example Text, Frame, and form control elements),
         //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
@@ -1199,16 +1199,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // - Pointer to parent:
         //     for bubbling, i.e. propagating event
         //     for finding ancestral clipping containers
-        //
 
-        // reverse nodes to get top-most first (rendered in reverse order)
         let mut nodes_ordered: Vec<Rc<ExpandedNode<R>>> = (*self.instance_registry)
             .borrow()
-            .repeat_expanded_node_cache
-            .iter()
-            .rev()
-            .map(|rc| Rc::clone(rc))
-            .collect();
+            .get_expanded_nodes_sorted_by_z_index_desc();
 
         // remove root element that is moved to top during reversal
         nodes_ordered.remove(0);
@@ -1274,9 +1268,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
     /// Workhorse method to advance rendering and property calculation by one discrete tick
     /// Will be executed synchronously up to 240 times/second.
     pub fn tick(&mut self, rcs: &mut HashMap<String, R>) -> Vec<NativeMessage> {
-        (*self.instance_registry)
-            .borrow_mut()
-            .reset_repeat_expanded_node_cache();
         let native_render_queue = self.traverse_render_tree(rcs);
         self.frames_elapsed = self.frames_elapsed + 1;
         native_render_queue

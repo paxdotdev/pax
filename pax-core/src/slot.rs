@@ -44,7 +44,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
         Self: Sized,
     {
         let mut instance_registry = args.instance_registry.borrow_mut();
-        let instance_id = instance_registry.mint_id();
+        let instance_id = instance_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
             common_properties: args.common_properties,

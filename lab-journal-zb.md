@@ -2121,7 +2121,7 @@ vs. "base" or "instance" or "concrete" nodes
 ex.
 `VirtualNode {}`
 `parent_expanded_node`
-`repeat_expanded_node_cache: HashMap<Vec<u64>, Rc<VirtualNode<R>>>,`
+`expanded_node_cache: HashMap<Vec<u64>, Rc<VirtualNode<R>>>,`
 
 Problematically, `virtual` could arguably be applied to both the `raw instance` and any `virtual` nodes
 
@@ -2976,7 +2976,7 @@ Hypothesis: this is a different manifestation of the same bug already observed o
 Thus, will chase down "repeated native elements aren't destroyed" with a debugger and see if that fixes (or if I can otherwise thus gain insights into) the deletion bug observed on web
 
 Observations:
- - InstanceRegistry#register, #deregister, and #instance_map might all be dead code, as nothing ever reads them.
+ - NodeRegistry#register, #deregister, and #instance_map might all be dead code, as nothing ever reads them.
  - If the above is true, it seems the mechanism used by Repeat to unmount elements is a no-op.  
    This handily explains some (all?) of the broken behavior we are seeing: Repeat is incorrectly / partially destroying elements.
     Either we need to update the 'hydrated node expansion' logic in the engine core to be aware of the
@@ -2996,7 +2996,7 @@ Findings in progress:
         difference that conditional keeps track of a static subtree of rendernodes for each
         branch true/false, simply routing rendering into the correct subtree based on the conditional expression
         Repeat, on the other hand, destroys and createes new elements to map to underlying data.
-   - Specifically, the vestigial InstanceRegistry logic surrounding mounting was not updated to be 
+   - Specifically, the vestigial NodeRegistry logic surrounding mounting was not updated to be 
         aware of id_chains. 
  
 
@@ -3053,7 +3053,7 @@ Immediately at this time, it unmounts the previous instance & its subtree.  All 
 The bug!!  When we `unmount_recursive`, we do it all with the same `rtc`, which doesn't respect the 
 per-node context required to generate id_chain, which is why we're passing mal-formed id_chains.
 
-Solution:  mark_for_unmount as a method on InstanceRegistry, handle that unmounting during render tree traversal, just like `mounting`.
+Solution:  mark_for_unmount as a method on NodeRegistry, handle that unmounting during render tree traversal, just like `mounting`.
 
 Note that unmounting happens at the `Instance Node` level, passing a flag to all descendents that they should unmount
 
@@ -3664,7 +3664,6 @@ Make sure to address recursability (through ExpandedNodes) along the way
 
 Consider also how the registry handler + component event handlers route through
 ExpandedNodes.
-
 
 
 [x] separate runtime scope stack from adoptees stack
