@@ -46,11 +46,14 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     /// A clone of current_containing_component#get_slot_children, stored alongside current_containing_component
     /// to manage borrowing & data access
     pub current_containing_component_slot_children: RenderNodePtrList<R>,
-    /// A pointer to the node currently being rendered
+    /// A pointer to the current instance node
     pub current_instance_node: RenderNodePtr<R>,
+    /// A pointer to the current expanded node
+    pub current_expanded_node: ExpandedNode<R>,
+    /// A pointer to the current expanded node's parent expanded node
     pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
+
     pub timeline_playhead_position: usize,
-    pub inherited_slot_children: Option<RenderNodePtrList<R>>,
     pub current_z_index: u32,
 }
 
@@ -132,7 +135,6 @@ impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
             current_instance_node: Rc::clone(&self.current_instance_node),
             parent_expanded_node: self.parent_expanded_node.clone(),
             timeline_playhead_position: self.timeline_playhead_position.clone(),
-            inherited_slot_children: self.inherited_slot_children.clone(),
             current_z_index: self.current_z_index,
         }
     }
@@ -739,7 +741,6 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             current_instance_node: Rc::clone(&cast_component_rc),
             parent_expanded_node: None,
             timeline_playhead_position: self.frames_elapsed,
-            inherited_slot_children: None,
             current_z_index: 0,
         };
 

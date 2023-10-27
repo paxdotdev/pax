@@ -105,7 +105,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 unreachable!()
             };
 
-            //let is_dirty = true;
             //Major hack: will only consider a new vec dirty if its cardinality changes.
             let is_dirty = {
                 rtc.bounds != self.cached_old_bounds
