@@ -3582,8 +3582,25 @@ Get this working entirely manually first, then automate in pax-compiler. (valida
 
 ### On robust multi-level slots & scopes
 
-
-
+[x] separate runtime scope stack from adoptees stack
+    [x] introduce lifecycle methods surrounding property computation, for managing runtime property stack
+[x] rename adoptees to slot-children
+[x] rename runtime stack to RuntimePropertyScopeStack
+[x] document relationship between runtime stack & compile-time (offset) stack
+[x] rename `should_flatten` to `is_invisible_to_slot`
+    [x] manage lifecycle between calling the above method, which requires recursive properties to have been computed,
+    vs computing properties
+    [x] note that this means adoptees aren't tracked in a stack at all.
+    [x] instead, ensure that the "node containing the node for which the current render_node is a template member"
+[ ] consider renaming `will_` to `pre_` and `did_` to `post_` (while a departure from React-like conventions, there's precedent in other worlds like .NET, and it's just a better naming scheme)
+[x] handle forwarded children in Repeat
+[x] handle triggering events in handle_registry given changes in runtime stack
+[x] probably introduce `get_properties` on dyn RenderNode, returning something like an Rc<RefCell<PropertiesCoproduct>>
+[-] Alternatively!  fire handlers at end of properties compute phase?
+    Turns out the above is insufficient.  We also rely on property<>render-tangled stack frames
+    when gathering `properties` (the on-demand `self`) for invoking event handlers, via `cartridge-render-node-literal.tera`
+[-] handle deep cloning or deep property storage
+    NOTE: deep cloning shouldn't be needed if we store computed properties on ExpandedNodes
 
 
 Problem:
@@ -3667,46 +3684,200 @@ ExpandedNodes.
 
 
 
-1. We have a strong divide between `instance nodes` and `expanded nodes`.  An instance node is what is declared in a template.  An expanded node both accounts for repeat (e.g. it is id-ed by `id_chain`) _and_ includes a unique stamp of `properties`, computed in the context of repeat.
+1. We have a strong divide between `instance nodes` and `expanded nodes`.  An instance node is an instantiated version of what is declared in a template.  An expanded node both accounts for repeat (e.g. it is id-ed by `id_chain`) _and_ includes a unique stamp of `properties`, computed in the context of repeat.
 2. How do we get `ExpandedNode`s from an instance node?  Currently we have `get_rendering_children` — should this be supplanted by `get_expanded_children`, and if so, how does a RenderNode
     become knowledgeable about its ExpandedNode children?
-    Unpacking:  during properties computation, we can create ExpandedNodes, because we both have knowledge of ancestral repeats for `id_chain`, and have
-    locally calculated properties that we can store on an ExpandedNode.  Perhaps there needs to be a method on `dyn RenderNode` for setting ExpandedNode children? (`set_expanded_children` ?)
-    Another possibility is to mark relationships e.g. through cloned Rcs, allowing ID-based lookups without requiring any setting through `dyn RenderNode` (with the heavy lift of punching through all trait implementors)
-    Even so, there needs to be some way for a node to specify its children dynamically.  Basically, most nodes just return their templated children (wrapped as `ExpandedNode`s?)
-    but Repeat does so as a function of its data source, and Conditional does so as a function of its evaluated boolean state
+
+Unpacking:  during properties computation, we can create ExpandedNodes, because we both have knowledge of ancestral repeats for `id_chain`, and have
+locally calculated properties that we can store on an ExpandedNode.  Perhaps there needs to be a method on `dyn RenderNode` for setting ExpandedNode children? (`set_expanded_children` ?)
+Another possibility is to mark relationships e.g. through cloned Rcs, allowing ID-based lookups without requiring any setting through `dyn RenderNode` (with the heavy lift of punching through all trait implementors)
+Even so, there needs to be some way for a node to specify its children dynamically.  Basically, most nodes just return their templated children (wrapped as `ExpandedNode`s?)
+but Repeat does so as a function of its data source, and Conditional does so as a function of its evaluated boolean state
 
 We could either:
 (a) keep a list of ExpandedNodes representing the children of a given node
 (b) keep a list of ExpandedNodes representing the _parallel versions_ of a given node (i.e. on the node itself instead of its parent)
-(c) traverse ExpandedNodes in their own right, instead of traversing template instance nodes.  This would require tracking child relatinoships
+(c) traverse ExpandedNodes in their own right, instead of traversing template instance nodes.  This would require tracking child relationships
     on ExpandedNodes, whereas we currently only track parent relationships
 
-
 Exploring (b), because it's a natural fit with the way we traverse nodes & compute properties, (pass id_chain into compute_properties)
-the next question becomes how do we perform tree recursion?  Who is responsible for enumerating the child variants to 
+the next question becomes how do we perform tree recursion?  Who is responsible for enumerating the child/inner variants to 
 recurse through?
 
+it seems natural that a node should contain pointers to its children.
+do we do this on the instance node? do we see-saw down instance => expanded_children, 
 
-[x] separate runtime scope stack from adoptees stack
-    [x] introduce lifecycle methods surrounding property computation, for managing runtime property stack
-[x] rename adoptees to slot-children
-[x] rename runtime stack to RuntimePropertyScopeStack
-[x] document relationship between runtime stack & compile-time (offset) stack
-[x] rename `should_flatten` to `is_invisible_to_slot`
-    [x] manage lifecycle between calling the above method, which requires recursive properties to have been computed,
-    vs computing properties
-    [x] note that this means adoptees aren't tracked in a stack at all.
-    [x] instead, ensure that the "node containing the node for which the current render_node is a template member"
-[ ] consider renaming `will_` to `pre_` and `did_` to `post_` (while a departure from React-like conventions, )
-[x] handle forwarded childen in Repeat
-[x] handle triggering events in handle_registry given changes in runtime stack
-[x] probably introduce `get_properties` on dyn RenderNode, returning something like an Rc<RefCell<PropertiesCoproduct>>
-[-] Alternatively!  fire handlers at end of properties compute phase?
-    Turns out the above is insufficient.  We also rely on property<>render-tangled stack frames
-    when gathering `properties` (the on-demand `self`) for invoking event handlers, via `cartridge-render-node-literal.tera`
-[-] handle deep cloning or deep property storage
-    NOTE: deep cloning shouldn't be needed if we store computed properties on ExpandedNodes
+what if the expanded node tree exists independently of the instance node tree?
+
+then instance nodes could contain `n` pointers for their `n` rendering children
+where rendering recursion proceeds down the expanded node tree once it has started (no returning to `instance_node`)
+
+so our mission becomes:
+1. construct the expanded tree and
+2. plant pointers to expanded nodes in instance nodes, 
+or — what if we just traverse the expanded node tree entirely during rendering?
+
+so 
+(1) compute properties and build expanded node tree
+(2) for rendering: traverse expanded node tree, calling lifecycle methods with the ExpandedNode-specific stamp of properties
+(3) When ray-casting / etc., trigger events such that `self` is the ExpandedNode-specific stamp of properties  
+
+If we separate the instance tree entirely from the expanded tree, we must solve:
+    - How do we recurse into subsequent components during compute properties?
+        One approach is to keep track of the `NodeType::Component`s that we find along the way, then handle them in order
+        How do we stitch together the correct ordering of both nodes & z-index in this case?  z-index is effectively incremented during the post-order traversal of the expanded tree
+    - How do we decide the entrypoint for recursing / rendering the expanded tree? (just the global root?  perhaps each component keeps track of its root ExpandedNode and thus we call the root's root to get started?)
+
+
+Consider that instance nodes (template nodes? `TemplateNodeInstance`s?) represent a singular form
+of a possibly expanded thing.  An instance node thus roughly (or exactly) maps to the node that
+is authored in a template.
+
+On the other hand, ExpandedNodes represent the fully realized permutations of all such TemplateNodeInstances, with
+properties already computed, ready to render
+
+Currently, Repeat blurs these boundaries, creating `Instance`s for each of its children dynamically.
+(This might be coupled to the way that we use components to manage Repeat's locals, e.g. `i`.
+ Given that we are already working around this and special-casing it "we want your stack frame but not your component", perhaps
+ we should reconsider this design, e.g. maybe Repeat explicitly pushes & pops the properties stack in the process of managing its children, instead of creating Component wrappers)
+
+In an alternate world, instead of creating `n` instance trees underneath Repeat, there is only 1 instance tree
+Then, that 1 instance tree is computed `n` times, creating `n` expanded node subtrees, in the process of [computing properties for Repeat?]
+(or is this process external to Repeat, called by the properties computation workhorse, retrieving the dynamic expanded subtrees for Repeat
+and computing properties on them? e.g. via `get_expanded_children` or `get_expanded_subtrees`)
+
+We do know that Repeat is special.  It needs to somehow signal that it does `n` of things, where most nodes do 1, and Conditional does either 0 or 1.
+
+Also, get_rendering_children is already _quite close_ to `get_expanded_children` in practice.  E.g. Slot already handles this correctly, with the main difference that
+we should be iterating over ExpandedNodes instead of dyn RenderNodes (and again, in the current state of things where these are mashed into a single concept, that is essentially what we are doing.)
+
+So what can Repeat do `n` of?
+    - It can repeat `n` ExpandedNode subtrees, where the root of each is our ComponentInstance 
+    - OR:
+      What if `get_instance_children` returns a straight-up clone of the _SINGULAR_ `Component` instance at the root of For's template?
+      Abiding by the idea that an instance node is stateless, and that e.g. its rendering is done as a function of a paired, stateful ExpandedNode,
+      then all of the subtrees in Repeat's template can be expressed as a single instance tree, just like the structure of the template.
+
+We _could_ have Repeat's `get_instance_children` return that clone `n` times.  The `ExpandedNode` representing the ComponentInstance at 
+the root of Repeat's inner template becomes the stateful container of properties (e.g. the spectrum of `i` values in `for i in 0..5`)
+
+The above is promising but still blurs the lines too much between instances and expandednodes.  If we return a singular instance
+subtree from repeat, we can still "punch" that stateless instance `n` times with `n` different ExpandedNodes.  
+
+The key is that we need to get `n` from Repeat.  
+Maybe this is in the form of the integer value of `n`; maybe it's a Vec of `n` properties, or a vec of `n` ExpandedNodes.
+Recall that `compute_properties` must be done in the context of some ExpandedNodes (to provide the stateful properties)
+
+Repeat, for example, will render in the context of some ExpandedNode.  That ExpandedNode contains the stateful aspect of Repeat
+(its calculated properties, e.g. the data vec).  Thus that stateful ExpandedNode represents the _current node_.
+
+compute_properties, however, doesn't happen in the context of an ExpandedNode.
+Either an ExpandedNode is created in the process of running `compute_properties`
+Or some artifact of compute_properties is inspected in order to zip together the expanded tree
+
+If we create ExpandedNodes in the process of running `compute_properties`, then we should return a single ExpandedNode, for this current node.
+    The idea would be then to visit certain nodes multiple times, like the above idea of cloning Repeat's internal instance node and returning it multiple times
+    for `get_instance_nodes` — but sliced slightly differently.
+    Something like `get_dynamic_subtrees`, computed in the context
+    of some computed properties (ExpandedNode + properties)
+
+How do we visit an instance node `n` times for something repeated `n` times?
+Could `ExpandedNode` have some property describing number of effective children?
+Then when we get `ExpandedNode` back from Repeat#compute_properties, we check that value, like `ExpandedNode.NormalizedVecOfProps`
+    This vec could contain the iterable data over which Repeat operates — becoming a seed for the `compute_properties` of each encapsulated ComponentInstance
+
+Another possibility... Repeat attaches a "manifold" (in the sense of manifold in irrigation, a pre-assembled modular structure), a pre-assembled
+tree of ExpandedNodes
+
+What about something like:
+`get_repeat_accounted_instance_children`
+
+where most nodes just return their instance children
+but Repeat clones its inner instance node `n` times
+    It must also attach a properties stamp to each instance, in order to get values of `i` across
+    Thus, again, we're really not cloning the instance_node at all; instead we are applying
+    the spectrum of properties stamps `n` times to the one instance node.
+    So: perhaps `Repeat` can be coaxed into a returning a set of ExpandedNodes, through something like
+    `get_repeat_expanded_nodes(&self) -> Option<Vec<ExpandedNode>>`
+    Most nodes return `None`.  Repeat, however, returns a Vec of ExpandedNodes, and when we get this (in the properties
+    computation workhorse,) we go ahead and add it to the expanded node tree.
+    Problem: we now want to recurse into _instance nodes_ to continue computation.  Does that work, linking from 
+    expandednodes into their reference instance nodes, then continuing with compute_properties recursion for each subtree?  maybe it does.
+
+
+So we manually create ExpandedNodes inside Repeat for its virtual children, as we need to specify the custom properties stamps
+created from inside Repeat.
+
+(if node.get_repeat_expanded_nodes().is_some() ...)
+    Then we attach those ExpandedNodes to our tree, and continue recursing through `compute_properties_recursive` on the associated 
+    
+
+
+We must call `compute_properties_recursive` on the ComponentInstance(s) created inside Repeat
+This will manage runtime properties stack
+as well as create our ExpandedNodes
+
+Can we simply call `compute_properties_recursive` `n` times?
+What if we pick up `compute_properties_recursive` from _inside_ Repeat's `handle_compute_properties`
+    Then we can manually call `compute_properties_recursive` `n` times over the same instance node — we just
+    then need to be able to pass in some bit of state....
+    Maybe we don't use a Component inside Repeat after all!!  Instead, we manually push & pop from stack, in between 
+    iterations of calling `compute_properties_recursive` from inside Repeat.  This solves the problem of "passing in some
+    bit of state" in the lines above, and cleans up the "special-casedness" of Repeat's internal Component
+
+This might be circling back to the idea of managing our Repeat folding at the instancenode level, and we let go of
+the constraint connecting templatenodes::instancenodes 1:1.  
+
+How do we write back to properties when they're stored on [ephemeral?] ExpandedNodes
+We make them not ephemeral.
+
+
+Repeat has an inner Component
+which is stateless
+but adjoins to `n` ExpandedNode properties containing properties for `i` and `elem`
+
+
+Does Repeat store `n` internal ExpandedNodes???
+Perhaps calling `Repeat`'s `compute_properties` takes care of calling `compute_properties `
+
+
+1. compute properties (call `handle_compute_properties`
+2. Get an ExpandedNode in return; (and metadata for repeat arity/cardinality?)
+
+2. get 0, 1, or many ExpandedNodes, each with properties attached
+    3. Do these represent the parallel versions of this node, or its children / subtrees roots?
+4. zip those onto our expanded tree
+4.
+
+
+What if `compute_properties` performs the side-effect of appending ExpandedNodes to the expanded tree?
+Or returns a vec of Properties or
+
+
+
+
+
+#### Preliminary Conclusions:
+
+0. InstanceNodes are separated from ExpandedNodes.  ExpandedNodes are created/modified during `compute_properties_recursive`, and the ExpandedNode tree is traversed for rendering.
+1. Every ExpandedNode gets a "permanent home" (in the "beehive" — in a persistent ExpandedNode.)
+2. Every dyn RenderNode keeps a hashmap of the Rcs of its "parallel selves", where keys are id chains and values are Rc<ExpandedNode>
+   This allows us to call `get_id_chain` in the context of a given state of `rtc` and use that to retrieve the properties needed for e.g.
+   for computing properties (must find existing record if it exists,) as well as the self passed to event handlers and ultimately called via e.g. `self.some_prop.set()`
+3. We can still "stitch together" the ExpandedNode tree on the fly, via Rc::clone or Rc::downgrade (thus we have relationships between instance nodes and ExpandedNodes, and between ExpandedNodes and each other.)
+4. Repeat only needs to keep a single ComponentInstance internally
+5. When computing properties recursively: when we hit a component,
+   (1) compute properties for its slot_children template, then
+   (2) recurse and start dealing with _its_ component template frame (with a freshly scoped runtime stack)
+
+
+
+
+
+
+
+
+
 
 
 

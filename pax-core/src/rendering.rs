@@ -181,7 +181,6 @@ fn min_max_projections(projections: &[f64]) -> (f64, f64) {
 
 pub enum NodeType {
     Component,
-    RepeatManagedComponent,
     Primitive,
 }
 
@@ -314,12 +313,10 @@ pub trait RenderNode<R: 'static + RenderContext> {
     fn handle_pop_runtime_properties_stack_frame(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
+
     /// First lifecycle method during each render loop, used to compute
-    /// properties in advance of rendering.
-    /// Occurs in a pre-order traversal of the render tree.
-    fn handle_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
-        //no-op default implementation
-    }
+    /// properties in advance of rendering.  Returns an ExpandedNode for the
+    fn handle_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) -> crate::ExpandedNode<R>;
 
     /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
     /// Called by engine after `compute_properties`, passed calculated size and transform matrix coefficients for convenience
