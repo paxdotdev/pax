@@ -85,7 +85,6 @@ fn recurse_pratt_parse_to_string<'a>(
             Rule::expression_grouped => {
                 /* expression_grouped = { "(" ~ expression_body ~ ")" ~ literal_number_unit? } */
                 let mut inner = primary.into_inner();
-
                 let exp_bod = recurse_pratt_parse_to_string(inner.next().unwrap().into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
                 if let Some(literal_number_unit) = inner.next() {
                     let unit = literal_number_unit.as_str();
@@ -110,10 +109,18 @@ fn recurse_pratt_parse_to_string<'a>(
                    xo_function_args_list = {expression_body ~ ("," ~ expression_body)*} */
 
                 //prepend identifiers; recurse-pratt-parse `xo_function_args`' `expression_body`s
-                let mut pairs = primary.into_inner();
-
+                let mut pairs = primary.clone().into_inner();
                 let mut output = "".to_string();
                 let mut next_pair = pairs.next().unwrap();
+                match next_pair.as_rule() {
+                    Rule::literal_color => {
+                        return recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
+                    }
+                    Rule::literal_hex_color => {
+                        return recurse_pratt_parse_to_string(pairs, pratt_parser, Rc::clone(&symbolic_ids));
+                    }
+                    _=>()
+                }
                 while let Rule::identifier = next_pair.as_rule() {
                     output = output + next_pair.as_str();
                     next_pair = pairs.next().unwrap();
@@ -172,8 +179,7 @@ fn recurse_pratt_parse_to_string<'a>(
                 format!("{}", op0_out + &op1_out + &op2_out)
             },
             Rule::xo_literal => {
-                let literal_kind = primary.into_inner().next().unwrap();
-
+                let literal_kind = primary.clone().into_inner().next().unwrap();
                 match literal_kind.as_rule() {
                     Rule::literal_number_with_unit => {
                         let mut inner = literal_kind.into_inner();
@@ -201,12 +207,34 @@ fn recurse_pratt_parse_to_string<'a>(
                     Rule::string => {
                         format!("StringBox::from({})",literal_kind.as_str().to_string())
                     },
+                    Rule::literal_color => {
+                        return recurse_pratt_parse_to_string(literal_kind.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
+                    },
+                    Rule::literal_hex_color => {
+                        return recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
+                    }
                     _ => {
                         /* {literal_enum_value | literal_tuple_access | literal_tuple | string } */
                         literal_kind.as_str().to_string()
                     }
                 }
             },
+            Rule::literal_color => {
+                let color_format = primary.as_str();
+                return parse_rgb_color(primary,color_format);
+            },
+            Rule::literal_hex_color => {
+                let hex = primary.as_str();
+                let hex = hex.trim().trim_start_matches('#');
+                let r = u8::from_str_radix(&hex[0..2], 16).expect("Invalid hex value for red") as f64;
+                let g = u8::from_str_radix(&hex[2..4], 16).expect("Invalid hex value for green") as f64;
+                let b = u8::from_str_radix(&hex[4..6], 16).expect("Invalid hex value for blue") as f64;
+
+                let r = format!("Size::Percent({}.into())",(r/255.0)*100.0);
+                let g = format!("Size::Percent({}.into())",(g/255.0)*100.0);
+                let b = format!("Size::Percent({}.into())",(b/255.0)*100.0);
+                format!("Color::rgb({r},{g},{b}).into()")
+            }
             Rule::xo_object => {
                 let mut output : String = "".to_string();
 
@@ -269,7 +297,8 @@ fn recurse_pratt_parse_to_string<'a>(
             Rule::expression_body => {
                 recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser, Rc::clone(&symbolic_ids))
             },
-            _ => unreachable!("{}",primary.as_str()),
+
+            _ => unreachable!("{:#?}",primary.as_str()),
         })
         .map_prefix(|op, rhs| match op.as_rule() {
             Rule::xo_neg => format!("(-{})", rhs),
@@ -300,6 +329,37 @@ fn recurse_pratt_parse_to_string<'a>(
             _ => unreachable!(),
         })
         .parse(expression)
+}
+
+fn parse_rgb_color(color: Pair<'_, Rule>, color_format: &str) -> String {
+    let mut inner = color.into_inner();
+
+    let r = inner.next().unwrap().as_str().replace("%", "");
+    let g = inner.next().unwrap().as_str().replace("%", "");
+    let b = inner.next().unwrap().as_str().replace("%", "");
+    let a = inner
+        .next()
+        .map(|x| x.as_str().replace("%", ""))
+        .unwrap_or("1".to_string());
+
+    let r = format!("Size::Percent({}.into())", r);
+    let g = format!("Size::Percent({}.into())", g);
+    let b = format!("Size::Percent({}.into())", b);
+    let a = format!("Size::Percent({}.into())", a);
+
+    let comma_count = color_format.chars().filter(|&c| c == ',').count();
+
+    if color_format.starts_with("rgb(") && comma_count == 2 {
+        format!("Color::rgb({r},{g},{b}).into()")
+    } else if color_format.starts_with("rgba(") && comma_count == 3 {
+        format!("Color::rgba({r},{g},{b},{a}).into()")
+    } else if color_format.starts_with("hlc(") && comma_count == 2 {
+        format!("Color::hlc({r},{g},{b}).into()")
+    } else if color_format.starts_with("hlca(") && comma_count == 3 {
+        format!("Color::hlca({r},{g},{b},{a}).into()")
+    } else {
+        panic!("Invalid color format: {}", color_format)
+    }
 }
 
 fn parse_template_from_component_definition_string(ctx: &mut TemplateNodeParseContext, pax: &str) {

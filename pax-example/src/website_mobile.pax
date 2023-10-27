@@ -10,7 +10,7 @@
             fill={Fill::linearGradient(
                 (0%, 50%),
                 (100%, 50%),
-                [GradientStop::get(Color::rgba(0.0%,0.0%,0.0%,100.0%), 0%), GradientStop::get(Color::rgba(0.0%,0.0%,0.0%,50.0%), 100%)])}
+                [GradientStop::get(Color::rgba(0.0,0.0,0.0,1.0), 0%), GradientStop::get(Color::rgba(0.0,0.0,0.0,0.5), 100%)])}
 
             corner_radii={
                 RectangleCornerRadii::radii(50.0,50.0,50.0,50.0)
@@ -32,7 +32,7 @@
                 fill={Fill::linearGradient(
                     (0%, 0%),
                     (100%, 100%),
-                    [GradientStop::get(Color::rgb(100.0%,100.0%,0.0%), 0%), GradientStop::get(Color::rgb(100.0%,0.0%,100.0%), 100%)])}
+                    [GradientStop::get(Color::rgb(1.0,1.0,0.0), 0%), GradientStop::get(Color::rgb(1.0,0.0,1.0), 100%)])}
             />
         </Frame>
         <Frame id=f0>
@@ -47,7 +47,7 @@
                 fill={Fill::linearGradient(
                     (0%, 0%),
                     (100%, 100%),
-                    [GradientStop::get(Color::rgb(0.0%,100.0%,100.0%), 0%), GradientStop::get(Color::rgb(0.0%,100.0%,0.0%), 100%)])}
+                    [GradientStop::get(Color::rgb(0.0,1.0,1.0), 0%), GradientStop::get(Color::rgb(0.0,1.0,0.0), 100%)])}
         />
         </Frame>
         <Frame id=f0>
@@ -62,7 +62,7 @@
                 fill={Fill::linearGradient(
                     (0%, 0%),
                     (100%, 100%),
-                    [GradientStop::get(Color::rgb(100.0%,0.0%,0.0%), 0%), GradientStop::get(Color::rgb(0.0%,100.0%,100.0%), 100%)])}
+                    [GradientStop::get(Color::rgb(1.0,0.0,0.0), 0%), GradientStop::get(Color::rgb(0.0,1.0,1.0), 100%)])}
         />
         </Frame>
          <Frame id=f0>
@@ -77,7 +77,7 @@
                 fill={Fill::linearGradient(
                 (0%, 0%),
                 (100%, 100%),
-                [GradientStop::get(Color::rgb(100.0%,0.0%,100.0%), 0%), GradientStop::get(Color::rgb(0.0%,100.0%,0.0%), 100%)])}
+                [GradientStop::get(Color::rgb(1.0,0.0,1.0), 0%), GradientStop::get(Color::rgb(0.0,1.0,0.0), 100%)])}
             />
         </Frame>
         <Frame id=f0 >
@@ -94,7 +94,7 @@
                 fill={Fill::linearGradient(
                 (0%, 0%),
                 (100%, 100%),
-                [GradientStop::get(Color::rgb(0.0%,0.0%,100.0%), 0%), GradientStop::get(Color::rgb(100.0%,100.0%,0.0%), 100%)])}
+                [GradientStop::get(Color::rgb(0.0,0.0,1.0), 0%), GradientStop::get(Color::rgb(1.0,1.0,0.0), 100%)])}
             />
         </Frame>
         </Stacker>
@@ -108,7 +108,7 @@
         style_link: {
             font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
             font_size: 22px,
-            fill: {Color::rgba(100.0%,100.0%,100.0%,100.0%)}
+            fill: {Color::rgba(1.0,1.0,1.0,1.0)}
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Center,
             underline: true
@@ -151,7 +151,7 @@
         style: {
             font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
             font_size: 52px,
-            fill: {Color::rgba(100.0%,100.0%,100.0%,100.0%)}
+            fill: {Color::rgba(1.0,1.0,1.0,1.0)}
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Center,
             align_multiline: TextAlignHorizontal::Center,
@@ -162,7 +162,7 @@
         style: {
             font: {Font::system("Helvetica", FontStyle::Italic, FontWeight::Bold)},
             font_size: 34px,
-            fill: {Color::rgba(100.0%,100.0%,100.0%,100.0%)}
+            fill: {Color::rgba(1.0,1.0,1.0,1.0)}
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Center,
             align_multiline: TextAlignHorizontal::Center,
@@ -173,7 +173,7 @@
             style: {
                 font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
                 font_size: 54px,
-                fill: {Color::rgba(100.0%,100.0%,100.0%,100.0%)}
+                fill: {Color::rgba(1.0,1.0,1.0,1.0)}
                 align_vertical: TextAlignVertical::Center,
                 align_horizontal: TextAlignHorizontal::Center,
                 align_multiline: TextAlignHorizontal::Center,
@@ -184,7 +184,7 @@
         style_link: {
             font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
             font_size: 36px,
-            fill: {Color::rgba(0.0%,0.0%,0.0%,100.0%)}
+            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
             align_vertical: TextAlignVertical::Top,
             align_horizontal: TextAlignHorizontal::Center,
             align_multiline: TextAlignHorizontal::Center,
@@ -196,7 +196,7 @@
         style_link: {
             font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Bold)},
             font_size: 40px,
-            fill: {Color::rgba(0.0%,0.0%,0.0%,100.0%)}
+            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
             align_vertical: TextAlignVertical::Center,
             align_horizontal: TextAlignHorizontal::Center,
             align_multiline: TextAlignHorizontal::Center,
@@ -208,7 +208,7 @@
         style: {
             font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Normal)},
             font_size: 20px,
-            fill: {Color::rgba(0.0%,0.0%,0.0%,100.0%)}
+            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
             align_vertical: TextAlignVertical::Top,
             align_horizontal: TextAlignHorizontal::Left,
             align_multiline: TextAlignHorizontal::Left,
@@ -219,7 +219,7 @@
         style: {
             font: {Font::system("Helvetica", FontStyle::Normal, FontWeight::Normal)},
             font_size: 20px,
-            fill: {Color::rgba(0.0%,0.0%,0.0%,100.0%)}
+            fill: {Color::rgba(0.0,0.0,0.0,1.0)}
             align_vertical: TextAlignVertical::Top,
             align_horizontal: TextAlignHorizontal::Left,
             align_multiline: TextAlignHorizontal::Left,
