@@ -115,7 +115,6 @@ literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
 literal_number_unit = {("%" | "px" | "deg" | "rad")}
 literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
 literal_boolean = {("true" | "false")}
-//some_color = {("rgb(")) | ("rgba(")) | ("hlc(")) | ("hlca(")) }
 literal_color =  {(("rgb(") | ("rgba(")| ("hlc(")| ("hlca(")) ~ literal_number_with_unit ~ ("," ~ literal_number_with_unit)* ~ ("," ~ literal_number_with_unit)* ~ (")")}
 literal_mixed_hex = { '0'..'9' | (('a'..'f') | ('A'..'F'))}
 literal_hex_color = {"#" ~ literal_mixed_hex{6}}

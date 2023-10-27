@@ -300,8 +300,8 @@ impl Color {
     ///
     /// * `color` - A `Color` struct representing the color to be shaded.
     /// * `shade` - A `Numeric` struct representing the value by which to shade the color of.
-    ///             Accepted values are between 0 and 400, higher values result in a darker color.
-    ///             Most neutral color will be achieved at 275.
+    ///             Accepted values are between 0 and 1000, higher values result in a darker color.
+    ///             Most neutral color will be achieved at 500.
     pub fn shade(color: Color, shade: Numeric) -> Self {
         let shade_multp = (-0.002 * shade.get_as_float()) + 2.0;
         let (r, g, b, _) = color.to_piet_color().as_rgba();
