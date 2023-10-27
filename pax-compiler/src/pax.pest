@@ -107,7 +107,7 @@ handlers_value = { literal_function | function_list }
 literal_function = { "self."? ~ identifier ~ ","? }
 function_list = {"[" ~ literal_function* ~ "]"}
 
-literal_value = { literal_number_with_unit | literal_number | literal_tuple | literal_enum_value | literal_boolean | string }
+literal_value = { literal_number_with_unit | literal_number | literal_color | literal_hex_color | literal_enum_value | literal_boolean | string | literal_tuple}
 literal_number_with_unit = { literal_number ~ literal_number_unit }
 literal_number = {"-"? ~ (literal_number_float | literal_number_integer)}
 literal_number_integer = {(!(".") ~ ASCII_DIGIT)+ }
@@ -115,6 +115,10 @@ literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
 literal_number_unit = {("%" | "px" | "deg" | "rad")}
 literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
 literal_boolean = {("true" | "false")}
+//some_color = {("rgb(")) | ("rgba(")) | ("hlc(")) | ("hlca(")) }
+literal_color =  {(("rgb(") | ("rgba(")| ("hlc(")| ("hlca(")) ~ literal_number_with_unit ~ ("," ~ literal_number_with_unit)* ~ ("," ~ literal_number_with_unit)* ~ (")")}
+literal_mixed_hex = { '0'..'9' | (('a'..'f') | ('A'..'F'))}
+literal_hex_color = {"#" ~ literal_mixed_hex{6}}
 
 
 //Enums like Orientation::Vertical or Color::Rgba(100%, 100%, 0, 0)
@@ -215,7 +219,7 @@ xo_range = { (xo_literal | xo_symbol) ~ (xo_range_exclusive) ~ (xo_literal | xo_
     xo_range_exclusive = @{".."}
 //     xo_range_inclusive = @{"..="}
 
-xo_literal = {literal_enum_value | literal_tuple_access | literal_number_with_unit | literal_number  | string | literal_tuple }
+xo_literal = {literal_enum_value | literal_tuple_access | literal_number_with_unit | literal_number  | string | literal_tuple | literal_color | literal_hex_color }
 
 //objects may recurse into arbitrary expressions for any value -- consider the `key_2` in:
 // `some_prop={ TypedReturn {key_0: 0, key_1: "one", key_2: 1.0 + 1.0} }`
@@ -226,7 +230,7 @@ xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
 xo_list = { "[" ~ (expression_body ~ ("," ~ expression_body)*)? ~ "]" }
 
-xo_function_call = {identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
+xo_function_call = { literal_color | identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
 xo_function_args_list = {(expression_body ~ ("," ~ expression_body)*)?}
 
 ////// ////// //////
