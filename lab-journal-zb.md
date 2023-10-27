@@ -3857,7 +3857,7 @@ Or returns a vec of Properties or
 
 
 
-#### Preliminary Conclusions:
+#### Preliminary Conclusions (which might become TODOs)
 
 0. InstanceNodes are separated from ExpandedNodes.  ExpandedNodes are created/modified during `compute_properties_recursive`, and the ExpandedNode tree is traversed for rendering.
 1. Every ExpandedNode gets a "permanent home" (in the "beehive" — in a persistent ExpandedNode.)
@@ -3865,10 +3865,16 @@ Or returns a vec of Properties or
    This allows us to call `get_id_chain` in the context of a given state of `rtc` and use that to retrieve the properties needed for e.g.
    for computing properties (must find existing record if it exists,) as well as the self passed to event handlers and ultimately called via e.g. `self.some_prop.set()`
 3. We can still "stitch together" the ExpandedNode tree on the fly, via Rc::clone or Rc::downgrade (thus we have relationships between instance nodes and ExpandedNodes, and between ExpandedNodes and each other.)
-4. Repeat only needs to keep a single ComponentInstance internally
+4. Repeat only needs to keep a single instance subtree internally
+   Ditch ComponentInstance entirely
+   Instead, manage runtimepropertiesstack explicitly:
+   During handle_compute_properties, 1. push stack, 2. recurse through inner instance root with `compute_properties_recursive`,  
 5. When computing properties recursively: when we hit a component,
    (1) compute properties for its slot_children template, then
    (2) recurse and start dealing with _its_ component template frame (with a freshly scoped runtime stack)
+6. make sure z-indexing remains pre-order
+
+
 
 
 
