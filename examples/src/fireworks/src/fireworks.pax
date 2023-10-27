@@ -2,10 +2,10 @@
     for i in 0..60 {
         <Rectangle fill={Fill::Solid(Color::hlc(ticks + i * 360.0 / 30.0, 75.0, 150.0))} width=300px height=300px transform={
             Transform2D::anchor(50%, 50%)
-            * Transform2D::translate(50%, 50%)
-            * Transform2D::rotate(Rotation::Percent((i + 2) * rotation + ticks / 1000.0))
+            * Transform2D::rotate(Rotation::Radians((i + 2) * rotation + ticks / 1000.0))
             * Transform2D::scale((100*(0.75 + (i * rotation)))%, (100*(0.75 + (i * rotation)))%)
             * Transform2D::scale((100*(1 - ((rotation / 5) + i / 1000.0)))%,(100*(1 - ((rotation / 5) + i / 1000.0)))%)
+            * Transform2D::translate(50%, 50%)
         } />
     }
 </Group>
