@@ -112,6 +112,11 @@ fn recurse_pratt_parse_to_string<'a>(
                 let mut pairs = primary.clone().into_inner();
                 let mut output = "".to_string();
                 let mut next_pair = pairs.next().unwrap();
+                let mut add_into = false;
+                // This helps us transform `Color` into `Fill` in the cases of `{Color::rgb(...)}`
+                if next_pair.as_str() == "Color" {
+                    add_into = true;
+                }
                 match next_pair.as_rule() {
                     Rule::literal_color => {
                         return recurse_pratt_parse_to_string(primary.into_inner(), pratt_parser, Rc::clone(&symbolic_ids));
@@ -137,6 +142,9 @@ fn recurse_pratt_parse_to_string<'a>(
                     output = output + "(" + &recurse_pratt_parse_to_string(next_pair.into_inner(), pratt_parser, Rc::clone(&symbolic_ids)) + "),"
                 }
                 output = output + ")";
+                if add_into {
+                    output = output + ".into()"
+                }
 
                 output
             },
