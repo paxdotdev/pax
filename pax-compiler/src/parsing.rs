@@ -124,6 +124,11 @@ fn recurse_pratt_parse_to_string<'a>(
                     Rule::literal_hex_color => {
                         return recurse_pratt_parse_to_string(pairs, pratt_parser, Rc::clone(&symbolic_ids));
                     }
+                    Rule::xo_color_function => {
+                        let primary = primary.into_inner().next().unwrap();
+                        pairs = primary.into_inner();
+                        next_pair = pairs.next().unwrap();
+                    }
                     _=>()
                 }
                 while let Rule::identifier = next_pair.as_rule() {
@@ -131,6 +136,14 @@ fn recurse_pratt_parse_to_string<'a>(
                     next_pair = pairs.next().unwrap();
                     if let Rule::identifier = next_pair.as_rule() {
                         //look-ahead
+                        output = output + "::";
+                    }
+                };
+
+                while let Rule::literal_color_prefix = next_pair.as_rule() {
+                    output = "Color::".to_owned() + &output + next_pair.as_str();
+                    next_pair = pairs.next().unwrap();
+                    if let Rule::literal_color_prefix = next_pair.as_rule() {
                         output = output + "::";
                     }
                 };

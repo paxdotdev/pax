@@ -1,4 +1,3 @@
-
 WHITESPACE = _{ " " | "\t" | "\r" | NEWLINE }
 COMMENT = _{ ( "/*" ~ (!"*/" ~ ANY)* ~ "*/" ) | ("//" ~ (!(NEWLINE) ~ ANY)* ~ NEWLINE) }
 
@@ -115,6 +114,7 @@ literal_number_float = {ASCII_DIGIT* ~ "." ~ ASCII_DIGIT+}
 literal_number_unit = {("%" | "px" | "deg" | "rad")}
 literal_tuple = {("(") ~ literal_value ~ ("," ~ literal_value)* ~ (")")}
 literal_boolean = {("true" | "false")}
+literal_color_prefix = {("rgb" | "rgba" | "hlc" | "hlca")}
 literal_color =  {(("rgb(") | ("rgba(")| ("hlc(")| ("hlca(")) ~ literal_number_with_unit ~ ("," ~ literal_number_with_unit)* ~ ("," ~ literal_number_with_unit)* ~ (")")}
 literal_mixed_hex = { '0'..'9' | (('a'..'f') | ('A'..'F'))}
 literal_hex_color = {"#" ~ literal_mixed_hex{6}}
@@ -228,8 +228,9 @@ xo_object_settings_key_value_pair = { settings_key ~ expression_body ~ ","? }
 xo_symbol = { "$"? ~ identifier ~ (("." ~ identifier) | ("[" ~ expression_body ~ "]") )* }
 xo_tuple = { "(" ~ expression_body ~ ("," ~ expression_body)* ~ ")"}
 xo_list = { "[" ~ (expression_body ~ ("," ~ expression_body)*)? ~ "]" }
+xo_color_function = {literal_color_prefix  ~ ("("~xo_function_args_list~")")}
 
-xo_function_call = { literal_color | identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
+xo_function_call = { literal_color | xo_color_function | identifier ~ (("::") ~ identifier)* ~ ("("~xo_function_args_list~")")}
 xo_function_args_list = {(expression_body ~ ("," ~ expression_body)*)?}
 
 ////// ////// //////
