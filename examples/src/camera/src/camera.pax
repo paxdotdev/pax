@@ -13,5 +13,5 @@
 
 
 @handlers {
-    did_mount: handle_did_mount,
+    mount: handle_mount,
 }

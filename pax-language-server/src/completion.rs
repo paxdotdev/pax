@@ -297,8 +297,8 @@ lazy_static! {
             ("double_click", "Set Double Click event handler"),
             ("context_menu", "Set Context Menu event handler"),
             ("wheel", "Set Wheel event handler"),
-            ("will_render", "Set Will Render event handler"),
-            ("did_mount", "Set Did Mount event handler"),
+            ("pre_render", "Set Will Render event handler"),
+            ("mount", "Set Did Mount event handler"),
         ];
 
         for (event, description) in &events {

@@ -23,10 +23,6 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn:
         Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>, &mut RenderTreeContext<R>)>,
-    /// A flag used for special-casing how we manage the runtime properties stack. When
-    /// evaluating a given component's template, we must push to the runtime stack for component's
-    /// managed by `for`, while ignoring the runtime properties stack for non-`for`-managed components (most userland components)
-    pub is_managed_by_repeat: bool,
 
     instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
     instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
@@ -41,11 +37,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         Rc::clone(&self.template)
     }
     fn get_node_type(&self) -> NodeType {
-        if self.is_managed_by_repeat {
-            NodeType::RepeatManagedComponent
-        } else {
-            NodeType::Component
-        }
+        NodeType::Component
     }
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
@@ -81,7 +73,6 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
                 .expect("must pass a compute_properties_fn to a Component instance"),
             timeline: None,
             handler_registry: args.handler_registry,
-            is_managed_by_repeat: false,
         }));
 
         instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
@@ -95,19 +86,23 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         bounds
     }
 
-    fn handle_push_runtime_properties_stack_frame(&mut self, rtc: &mut RenderTreeContext<R>) {
-        (*rtc.runtime).borrow_mut().push_stack_frame(
-            Rc::clone(&self.properties),
-            self.timeline.clone(),
-        );
+    fn handle_pre_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+
+        todo!("get properties from the current component -expanded node-, push to stack frame");
+        // (*rtc.runtime).borrow_mut().push_stack_frame(
+        //     Rc::clone(&self.properties),
+        //     self.timeline.clone(),
+        // );
     }
 
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<ExpandedNode<R> {
-        self.common_properties.compute_properties(rtc);
-        (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+        todo!("");
+        //
+        // self.common_properties.compute_properties(rtc);
+        // (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
     }
 
-    fn handle_pop_runtime_properties_stack_frame(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_post_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
         (*rtc.runtime).borrow_mut().pop_stack_frame();
     }
 

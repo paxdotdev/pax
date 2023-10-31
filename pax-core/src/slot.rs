@@ -7,7 +7,7 @@ use std::rc::Rc;
 use pax_properties_coproduct::{TypesCoproduct, PropertiesCoproduct};
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive, ExpandedNode};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 
 /// A special "control-flow" primitive (a la `yield`) — represents a slot into which
@@ -52,7 +52,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
     }
 
 
-    fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
+    fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
         self.cached_computed_children = if let Some(sc) = rtc.current_containing_component.borrow().get_slot_children() {
             flatten_slot_invisible_nodes_recursive(sc)
         } else {
@@ -71,7 +71,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
         bounds
     }
 
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         if let Some(index) = rtc.compute_vtable_value(self.index._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Numeric(v) = index {
                 v
@@ -81,6 +81,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
             self.index.set(new_value);
         }
 
+        todo!()
     }
 
     fn get_layer_type(&mut self) -> Layer {

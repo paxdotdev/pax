@@ -277,7 +277,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         //no-op -- only native rendering for Text (unless/until we support rasterizing text, which Piet should be able to handle!)
     }
 
-    fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
+    fn handle_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
         let id_chain = rtc.get_id_chain(self.instance_id);
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
@@ -295,7 +295,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
         );
     }
 
-    fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    fn handle_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
         let id_chain = _rtc.get_id_chain(self.instance_id);
         self.last_patches.remove(&id_chain);
         (*_rtc.engine.runtime)
