@@ -50,17 +50,8 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub children: Option<InstanceNodePtrList<R>>,
     pub component_template: Option<InstanceNodePtrList<R>>,
     pub scroller_args: Option<ScrollerArgs>,
-    /// used by Slot
-    pub slot_index: Option<Box<dyn PropertyInstance<pax_runtime_api::Numeric>>>,
 
-    ///used by Repeat — the _vec and _range variants are modal, describing whether the source
-    ///is encoded as a Vec<T> or as a Range<...>
-    pub repeat_source_expression_vec:
-        Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
-    pub repeat_source_expression_range: Option<Box<dyn PropertyInstance<std::ops::Range<isize>>>>,
 
-    ///used by Conditional
-    pub conditional_boolean_expression: Option<Box<dyn PropertyInstance<bool>>>,
 
     ///used by Component instances, specifically to unwrap type-specific PropertiesCoproducts
     ///and recurse into descendant property computation

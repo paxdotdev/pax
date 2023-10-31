@@ -150,31 +150,38 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
                         let instance_id = instance_registry.mint_instance_id();
                         let common_properties = CommonProperties::default();
 
-                        let new_component_instance = ComponentInstance {
-                            instance_id,
-                            slot_children: Rc::clone(&forwarded_slot_children),
-                            template: Rc::clone(&self.repeated_template),
-                            common_properties,
-                            properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(
-                                Rc::clone(datum),
-                                i,
-                            ))),
-                            timeline: None,
-                            handler_registry: None,
-                            compute_properties_fn: Box::new(|_props, _rtc| {
-                                //no-op since the Repeat RenderNode handles the necessary calc (see `RepeatInstance::compute_properties`)
-                            }),
-                            is_managed_by_repeat: true,
-                        };
 
-                        let render_node: InstanceNodePtr<R> = Rc::new(RefCell::new(new_component_instance));
+                        let properties_for_stack_frame = Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(
+                            Rc::clone(datum),
+                            i,
+                        )));
 
-                        instance_registry.register(instance_id, Rc::clone(&render_node));
-                        instance_registry.mark_mounted(rtc.get_id_chain(instance_id));
+                        todo!("loop over data; push stack frame; recurse compute_properties_recursive into (singular, shared) template tree")
+
+                        // let new_component_instance = ComponentInstance {
+                        //     instance_id,
+                        //     slot_children: Rc::clone(&forwarded_slot_children),
+                        //     template: Rc::clone(&self.repeated_template),
+                        //     common_properties,
+                        //     properties: Rc::new(RefCell::new(PropertiesCoproduct::RepeatItem(
+                        //         Rc::clone(datum),
+                        //         i,
+                        //     ))),
+                        //     timeline: None,
+                        //     handler_registry: None,
+                        //     compute_properties_fn: Box::new(|_props, _rtc| {
+                        //         //no-op since the Repeat RenderNode handles the necessary calc (see `RepeatInstance::compute_properties`)
+                        //     }),
+                        // };
+
+                        // let render_node: InstanceNodePtr<R> = Rc::new(RefCell::new(new_component_instance));
+
+                        // instance_registry.register(instance_id, Rc::clone(&render_node));
+                        // instance_registry.mark_mounted(rtc.get_id_chain(instance_id));
 
                         // (&*render_node).borrow_mut().mount_recursive(rtc);
 
-                        render_node
+                        // render_node
                     })
                     .collect(),
             ));

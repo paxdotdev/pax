@@ -17,7 +17,9 @@ pub enum PropertiesCoproduct {
     //core
     #[default]
     None,
-    RepeatList(Vec<Rc<RefCell<PropertiesCoproduct>>>),
+    Repeat(pax_runtime_api::RepeatProperties),
+    Slot(pax_runtime_api::SlotProperties),
+    Conditional(pax_runtime_api::ConditionalProperties),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     #[allow(non_camel_case_types)]
     usize(usize),//used by Repeat + numeric ranges, e.g. `for i in 0..5`
@@ -50,11 +52,17 @@ pub enum TypesCoproduct {
     //generated / userland
 }
 
+///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
+///is encoded as a Vec<T> (where T is a PropertiesCoproduct type) or as a Range<isize>
+pub struct RepeatProperties {
+    pub repeat_source_expression_vec: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
+    pub repeat_source_expression_range: Option<Box<dyn PropertyInstance<std::ops::Range<isize>>>>,
+}
 
-//
-// pub enum PatchCoproduct {
-//
-//     // Rectangle(pax_example::exports::pax_std::primitives::rectangle::Rectangle),
-//     // Group(pax_example::exports::pax_std::primitives::group::Group),
-//     RootPatch(pax_example::RootPatch),
-// }
+pub struct SlotProperties {
+    pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
+}
+
+pub struct ConditionalProperties {
+    pub boolean_expression: Box<dyn PropertyInstance<bool>>,
+}
