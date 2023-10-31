@@ -47,7 +47,7 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
                 {% if entry.1.source_map_start_marker %}
                     {{entry.1.source_map_start_marker}}
                 {% endif %}
-                {%- if entry.0.content in ['will_render','did_mount'] -%}
+                {%- if entry.0.content in ['pre_render','mount'] -%}
                     |properties, ctx|{
                        let properties = &mut *properties.as_ref().borrow_mut();
                        let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};

@@ -21,7 +21,7 @@ pub struct TypeExample {
 }
 
 impl Camera {
-    pub fn handle_did_mount(&mut self, _: RuntimeContext) {
+    pub fn handle_mount(&mut self, _: RuntimeContext) {
         self.zoom.set(2.0);
         self.pan_x.set(0.0);
         self.pan_y.set(0.0);

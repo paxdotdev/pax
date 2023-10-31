@@ -5,8 +5,8 @@
 />
 
 @handlers{
-     did_mount:handle_did_mount
-     will_render:handle_will_render
+     mount: handle_mount
+     pre_render: handle_pre_render
 }
 
 @settings {

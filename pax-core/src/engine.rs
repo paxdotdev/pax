@@ -50,12 +50,17 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     /// A pointer to the current instance node
     pub current_instance_node: InstanceNodePtr<R>,
     /// A pointer to the current expanded node
-    pub current_expanded_node: ExpandedNode<R>,
+    pub current_expanded_node: Option<Rc<RefCell<ExpandedNode<R>>>>,
     /// A pointer to the current expanded node's parent expanded node
     pub parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
 
     pub timeline_playhead_position: usize,
     pub current_z_index: u32,
+}
+
+
+pub struct ComputePropertiesContext<'a, R: 'static + RenderContext> {
+
 }
 
 macro_rules! handle_vtable_update {
@@ -217,8 +222,8 @@ pub struct HandlerRegistry<R: 'static + RenderContext> {
     pub double_click_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsDoubleClick)>,
     pub context_menu_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsContextMenu)>,
     pub wheel_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsWheel)>,
-    pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
-    pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
+    pub pre_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
+    pub mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
 }
 
 impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
@@ -241,8 +246,8 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
             double_click_handlers: Vec::new(),
             context_menu_handlers: Vec::new(),
             wheel_handlers: Vec::new(),
-            will_render_handlers: Vec::new(),
-            did_mount_handlers: Vec::new(),
+            pre_render_handlers: Vec::new(),
+            mount_handlers: Vec::new(),
             checkbox_change_handlers: Vec::new(),
         }
     }
@@ -666,12 +671,12 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
         self.instance_node_map.remove(&instance_id);
     }
 
-    /// Mark an ExpandedNode as mounted, so that `did_mount` handlers will not fire on subsequent frames
+    /// Mark an ExpandedNode as mounted, so that `mount` handlers will not fire on subsequent frames
     pub fn mark_mounted(&mut self, id_chain: Vec<u32>) {
         self.mounted_set.insert(id_chain);
     }
 
-    /// Evaluates whether an ExpandedNode has been marked mounted, for use in determining whether to fire a `did_mount` handler
+    /// Evaluates whether an ExpandedNode has been marked mounted, for use in determining whether to fire a `mount` handler
     pub fn is_mounted(&self, id_chain: &Vec<u32>) -> bool {
         self.mounted_set.contains(id_chain)
     }
@@ -740,6 +745,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             parent_expanded_node: None,
             timeline_playhead_position: self.frames_elapsed,
             current_z_index: 0,
+            current_expanded_node: None,
         };
 
         let mut z_index = ZIndex::new(None);
@@ -770,10 +776,13 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // "parallel versions" of itself (ExpandedNodes.)  This is nicely aligned with the typed nature of
         // properties; each implementor of `dyn InstanceNode` would be responsible for storing a HashMap<Vec<u64>, T>,
         // where T is the type of properties stored within that component
+
+
+
         node_borrowed.handle_compute_properties(rtc);
 
         if let NodeType::RepeatManagedComponent = node_borrowed.get_node_type() {
-            node_borrowed.handle_push_runtime_properties_stack_frame(rtc);
+            node_borrowed.handle_pre_compute_properties(rtc);
         }
 
         let children_to_recurse = match node_borrowed.get_node_type() {
@@ -786,17 +795,17 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
 
         if let NodeType::RepeatManagedComponent = node_borrowed.get_node_type() {
-            node_borrowed.handle_pop_runtime_properties_stack_frame(rtc);
+            node_borrowed.handle_post_compute_properties(rtc);
         }
     }
 
-    /// Helper method to fire `will_render` handlers for the node attached to the `rtc`
-    fn manage_handlers_will_render(rtc: &mut RenderTreeContext<R>) {
-        //fire `will_render` handlers
+    /// Helper method to fire `pre_render` handlers for the node attached to the `rtc`
+    fn manage_handlers_pre_render(rtc: &mut RenderTreeContext<R>) {
+        //fire `pre_render` handlers
         let node = Rc::clone(&rtc.current_instance_node);
         let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
         if let Some(registry) = registry {
-            for handler in (*registry).borrow().will_render_handlers.iter() {
+            for handler in (*registry).borrow().pre_render_handlers.iter() {
                 handler(
                     node.borrow_mut().get_properties(),
                     rtc.distill_userland_node_context(),
@@ -805,10 +814,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         }
     }
 
-    /// Helper method to fire `did_mount` event if this is this node's first frame
+    /// Helper method to fire `mount` event if this is this node's first frame
     /// Note that this must happen after initial `compute_properties`, which performs the
     /// necessary side-effect of creating the `self` that must be passed to handlers
-    fn manage_handlers_did_mount(rtc: &mut RenderTreeContext<R>) {
+    fn manage_handlers_mount(rtc: &mut RenderTreeContext<R>) {
         {
             let id = (*rtc.current_instance_node).borrow().get_instance_id();
             let mut instance_registry = (*rtc.engine.instance_registry).borrow_mut();
@@ -823,16 +832,16 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 i
             };
             if !instance_registry.is_mounted(&id_chain) {
-                //Fire primitive-level did_mount lifecycle method
+                //Fire primitive-level mount lifecycle method
                 let node = Rc::clone(&rtc.current_instance_node);
-                node.borrow_mut().handle_did_mount(rtc, rtc.current_z_index);
+                node.borrow_mut().handle_mount(rtc, rtc.current_z_index);
 
-                //Fire registered did_mount events
+                //Fire registered mount events
                 let registry = (*rtc.current_instance_node).borrow().get_handler_registry();
                 if let Some(registry) = registry {
                     //grab Rc of properties from stack frame; pass to type-specific handler
                     //on instance in order to dispatch cartridge method
-                    for handler in (*registry).borrow().did_mount_handlers.iter() {
+                    for handler in (*registry).borrow().mount_handlers.iter() {
                         handler(
                             node.borrow_mut().get_properties(),
                             rtc.distill_userland_node_context(),
@@ -882,7 +891,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 rtc.current_containing_component_slot_children =
                     node_borrowed.get_slot_children().unwrap();
 
-                node_borrowed.handle_push_runtime_properties_stack_frame(rtc);
+                node_borrowed.handle_pre_compute_properties(rtc);
                 //Note that we do NOT compute properties on the component root itself.
                 //Its properties have already been computed in the context of its containing component.
                 let template_children = node_borrowed.get_rendering_children();
@@ -890,11 +899,11 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                     self.compute_properties_recursive(rtc, Rc::clone(template_child));
                 }
 
-                node_borrowed.handle_pop_runtime_properties_stack_frame(rtc);
+                node_borrowed.handle_post_compute_properties(rtc);
             }
         }
 
-        Self::manage_handlers_did_mount(rtc);
+        Self::manage_handlers_mount(rtc);
 
         //scroller IDs are used by chassis, for identifying native scrolling containers
         let scroller_ids = (*rtc.engine.runtime).borrow().get_current_scroller_ids();
@@ -1024,7 +1033,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         rtc.transform_global = new_accumulated_transform.clone();
         rtc.transform_scroller_reset = new_scroller_normalized_accumulated_transform.clone();
 
-        Self::manage_handlers_will_render(rtc);
+        Self::manage_handlers_pre_render(rtc);
 
         //create the `expanded_node` for the current node
         let rendering_children = node.borrow_mut().get_rendering_children();
@@ -1160,8 +1169,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             }
         }
 
-        //lifecycle: did_render
-        node.borrow_mut().handle_did_render(rtc, rcs);
+        //lifecycle: post_render
+        node.borrow_mut().handle_post_render(rtc, rcs);
 
         // Component nodes fire their stack frame cleanup after full lifecycle, e.g. to handle lifecycle events
         // that depend on the component's stack frame
@@ -1171,8 +1180,8 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         //Handle node unmounting
         if marked_for_unmount {
-            //lifecycle: will_unmount
-            node.borrow_mut().handle_will_unmount(rtc);
+            //lifecycle: unmount
+            node.borrow_mut().handle_unmount(rtc);
             let id_chain = rtc.get_id_chain(instance_id);
 
             self.instance_registry
