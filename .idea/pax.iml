@@ -24,6 +24,8 @@
       <sourceFolder url="file://$MODULE_DIR$/pax-std/src" isTestSource="false" />
       <sourceFolder url="file://$MODULE_DIR$/pax-core/tests" isTestSource="true" />
       <sourceFolder url="file://$MODULE_DIR$/pax-std/pax-std-primitives/src" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/examples" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/pax-chassis-common/src" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-create-sandbox/.pax" />
       <excludeFolder url="file://$MODULE_DIR$/pax-example/.pax" />
@@ -31,6 +33,8 @@
       <excludeFolder url="file://$MODULE_DIR$/pax-std/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-chassis-web/target" />
       <excludeFolder url="file://$MODULE_DIR$/pax-example/build" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-chassis-common/target" />
+      <excludeFolder url="file://$MODULE_DIR$/pax-chassis-macos/target" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />

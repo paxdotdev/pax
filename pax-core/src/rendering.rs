@@ -16,12 +16,12 @@ use crate::form_event::FormEvent;
 
 /// Type aliases to make it easier to work with nested Rcs and
 /// RefCells for rendernodes.
-pub type RenderNodePtr<R> = Rc<RefCell<dyn RenderNode<R>>>;
-pub type RenderNodePtrList<R> = Rc<RefCell<Vec<RenderNodePtr<R>>>>;
+pub type InstanceNodePtr<R> = Rc<RefCell<dyn InstanceNode<R>>>;
+pub type InstanceNodePtrList<R> = Rc<RefCell<Vec<InstanceNodePtr<R>>>>;
 
-/// Given some RenderNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
-/// and return another RenderNodePtrList with a flattened top-level list of nodes.
-pub fn flatten_slot_invisible_nodes_recursive<R: 'static + RenderContext>(input_nodes: RenderNodePtrList<R>) -> RenderNodePtrList<R> {
+/// Given some InstanceNodePtrList, distill away all "slot-invisible" nodes (namely, `if` and `for`)
+/// and return another InstanceNodePtrList with a flattened top-level list of nodes.
+pub fn flatten_slot_invisible_nodes_recursive<R: 'static + RenderContext>(input_nodes: InstanceNodePtrList<R>) -> InstanceNodePtrList<R> {
     let mut output_nodes = Vec::new();
 
     for node in input_nodes.borrow().iter() {
@@ -47,8 +47,8 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_registry: Rc<RefCell<NodeRegistry<R>>>,
-    pub children: Option<RenderNodePtrList<R>>,
-    pub component_template: Option<RenderNodePtrList<R>>,
+    pub children: Option<InstanceNodePtrList<R>>,
+    pub component_template: Option<InstanceNodePtrList<R>>,
     pub scroller_args: Option<ScrollerArgs>,
     /// used by Slot
     pub slot_index: Option<Box<dyn PropertyInstance<pax_runtime_api::Numeric>>>,
@@ -193,20 +193,20 @@ pub enum NodeType {
 /// be rendered by the engine.
 /// T: a member of PropertiesCoproduct, representing the type of the set of properites
 /// associated with this node.
-pub trait RenderNode<R: 'static + RenderContext> {
+pub trait InstanceNode<R: 'static + RenderContext> {
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
     where
         Self: Sized;
 
     /// Return the list of nodes that are children of this node at render-time.
-    fn get_rendering_children(&self) -> RenderNodePtrList<R>;
+    fn get_rendering_children(&self) -> InstanceNodePtrList<R>;
 
     /// For Components only, return the slot children passed into that Component.  For example, for `<Stacker><Group /></Stacker>`,
     /// Stacker#get_slot_children would return the `<Group />` that was passed in by the component that authored both the `<Stacker>` and the `<Group>` in its template.
     /// Note that `get_rendering_children`, in contrast, would return the root of Stacker's own template, not the `<Group />`.
     /// This is used when computing properties, in order to compute, for example, both Stacker and Group in the context of the same parent
     /// component and its runtime stack, instead of evaluating Group in the context of Stacker's internal template + runtime stack.
-    fn get_slot_children(&self) -> Option<RenderNodePtrList<R>> {
+    fn get_slot_children(&self) -> Option<InstanceNodePtrList<R>> {
         None
     }
 
@@ -218,11 +218,18 @@ pub trait RenderNode<R: 'static + RenderContext> {
     /// Consumes the children of this node at render-time that should be removed.
     /// This occurs when they were mounted in some previous frame but now need to be removed after a property change
     /// This function resets this list once returned
-    fn pop_cleanup_children(&mut self) -> RenderNodePtrList<R> {
+    fn pop_cleanup_children(&mut self) -> InstanceNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>>;
+    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
+        //need to refactor signature and pass in id_chain + either rtc + registry or just registry
+        todo!("Look up ExpandedNode via id_chain + registry; return clone of stored PropertiesCoproduct")
+    }
+
+    fn get_common_properties(&self) -> Rc<RefCell<CommonProperties>> {
+        todo!("Look up ExpandedNode via id_chain + registry; return clone of stored CommonProperties")
+    }
 
     /// Determines whether the provided ray, orthogonal to the view plane,
     /// intersects this rendernode. `tab` must also be passed because these are specific
@@ -251,7 +258,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
             && transformed_ray.y < relevant_bounds.1
     }
 
-    fn get_common_properties(&self) -> &CommonProperties;
+
 
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         None //default no-op
@@ -331,7 +338,7 @@ pub trait RenderNode<R: 'static + RenderContext> {
 
     /// First lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.  Returns an ExpandedNode for the
-    fn handle_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) -> crate::ExpandedNode<R>;
+    fn handle_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>>;
 
     /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
     /// Called by engine after `compute_properties`, passed calculated size and transform matrix coefficients for convenience

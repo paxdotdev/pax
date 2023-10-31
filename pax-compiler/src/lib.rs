@@ -98,7 +98,7 @@ const ALL_PKGS: [&'static str; 14] = [
     "pax-std",
 ];
 
-/// Clone all dependencies to `.pax/pkg`.  Similar in spirit to the Cargo package cache,
+/// Clone all dependencies to `.pax/pkg`.  Similar in spirit to Cargo's filesystem package cache,
 /// this temp directory enables Pax to codegen and building in the context of the larger monorepo,
 /// working around various constraints with Cargo (for example, limits surrounding the `patch` directive.)
 ///
@@ -368,9 +368,9 @@ fn generate_and_overwrite_cartridge(
         "pax_runtime_api::PropertyLiteral",
         "pax_runtime_api::CommonProperties",
         "pax_core::ComponentInstance",
-        "pax_core::RenderNodePtr",
+        "pax_core::InstanceNodePtr",
         "pax_core::PropertyExpression",
-        "pax_core::RenderNodePtrList",
+        "pax_core::InstanceNodePtrList",
         "pax_core::RenderTreeContext",
         "pax_core::ExpressionContext",
         "pax_core::PaxEngine",

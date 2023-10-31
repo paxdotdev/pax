@@ -9,8 +9,8 @@ use piet::RenderContext;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
-    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
+    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
+    InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, ScrollerPatch};
 use pax_runtime_api::{
@@ -26,30 +26,21 @@ use pax_std::primitives::Scroller;
 /// transformed `Group` surrounding its contents.
 pub struct ScrollerInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
-    pub children: RenderNodePtrList<R>,
-    pub common_properties: CommonProperties,
-    pub properties: Rc<RefCell<Scroller>>,
+    pub children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub scroll_x: f64,
     pub scroll_y: f64,
     pub scroll_x_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
     pub scroll_y_offset: Rc<RefCell<dyn PropertyInstance<f64>>>,
     last_patches: HashMap<Vec<u32>, ScrollerPatch>,
+
+    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
-impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
-    fn get_common_properties(&self) -> &CommonProperties {
-        &self.common_properties
-    }
-
+impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
-    }
-
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
-        let scroller_ref = self.properties.borrow();
-        let wrapped: PropertiesCoproduct = unsafe_wrap!(*scroller_ref, PropertiesCoproduct, Scroller);
-        Rc::new(RefCell::new(wrapped))
     }
 
     fn get_layer_type(&mut self) -> Layer {
@@ -60,10 +51,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
     where
         Self: Sized,
     {
-        //      instantiate a `Group`, store it as a private field on the instance struct; attach the provided
-        //      children (here, in Inst.Args) to that `Group`.  Finally, `set` the `transform` of that Group to
-        //      update the `translation` mandated by scroll events.
-        let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Scroller);
 
         let mut instance_registry = args.instance_registry.borrow_mut();
         let instance_id = instance_registry.mint_instance_id();
@@ -73,17 +60,17 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
             children: args
                 .children
                 .expect("Scroller expects primitive_children, even if empty Vec"),
-            common_properties: args.common_properties,
-            properties: Rc::new(RefCell::new(properties)),
             last_patches: HashMap::new(),
             handler_registry: args.handler_registry,
             scroll_x: 0.0,
             scroll_y: 0.0,
             scroll_x_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
             scroll_y_offset: Rc::new(RefCell::new(PropertyLiteral::new(0.0))),
+            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
         }));
 
-        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 
@@ -228,7 +215,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ScrollerInstance<R> {
         }
     }
 
-    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
+    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.children)
     }
 

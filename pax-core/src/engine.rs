@@ -11,8 +11,8 @@ use piet_common::RenderContext;
 
 use crate::runtime::Runtime;
 use crate::{
-    Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, RenderNodePtr,
-    RenderNodePtrList, TransformAndBounds,
+    Affine, ComponentInstance, ComputableTransform, ExpressionContext, NodeType, InstanceNodePtr,
+    InstanceNodePtrList, TransformAndBounds,
 };
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 
@@ -34,6 +34,7 @@ pub struct PaxEngine<R: 'static + RenderContext> {
     viewport_tab: TransformAndBounds,
 }
 
+#[derive(Clone)]
 pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub engine: &'a PaxEngine<R>,
     pub transform_global: Affine,
@@ -42,12 +43,12 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub runtime: Rc<RefCell<Runtime<R>>>,
     /// A pointer to the node representing the current Component, for which we may be
     /// rendering some member of its template.
-    pub current_containing_component: RenderNodePtr<R>,
+    pub current_containing_component: InstanceNodePtr<R>,
     /// A clone of current_containing_component#get_slot_children, stored alongside current_containing_component
     /// to manage borrowing & data access
-    pub current_containing_component_slot_children: RenderNodePtrList<R>,
+    pub current_containing_component_slot_children: InstanceNodePtrList<R>,
     /// A pointer to the current instance node
-    pub current_instance_node: RenderNodePtr<R>,
+    pub current_instance_node: InstanceNodePtr<R>,
     /// A pointer to the current expanded node
     pub current_expanded_node: ExpandedNode<R>,
     /// A pointer to the current expanded node's parent expanded node
@@ -120,25 +121,6 @@ impl<'a, R: 'static + RenderContext> RenderTreeContext<'a, R> {
     }
 }
 
-impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
-    fn clone(&self) -> Self {
-        RenderTreeContext {
-            engine: &self.engine,
-            transform_global: self.transform_global.clone(),
-            transform_scroller_reset: self.transform_scroller_reset.clone(),
-            bounds: self.bounds.clone(),
-            runtime: Rc::clone(&self.runtime),
-            current_containing_component: Rc::clone(&self.current_containing_component),
-            current_containing_component_slot_children: Rc::clone(
-                &self.current_containing_component_slot_children,
-            ),
-            current_instance_node: Rc::clone(&self.current_instance_node),
-            parent_expanded_node: self.parent_expanded_node.clone(),
-            timeline_playhead_position: self.timeline_playhead_position.clone(),
-            current_z_index: self.current_z_index,
-        }
-    }
-}
 
 impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
     pub fn compute_eased_value<T: Clone + Interpolatable>(
@@ -181,9 +163,7 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
         None
     }
 
-    /// Get an `id_chain` for this element, an array of `u64` used collectively as a single unique ID across native bridges.
-    /// Specifically, the ID chain represents not only the instance ID, but the indices of each RepeatItem found by a traversal
-    /// of the runtime stack.
+    /// Get an `id_chain` for this element, a `Vec<u64>` used collectively as a single unique ID across native bridges.
     ///
     /// The need for this emerges from the fact that `Repeat`ed elements share a single underlying
     /// `instance`, where that instantiation happens once at init-time — specifically, it does not happen
@@ -219,24 +199,24 @@ impl<'a, R: RenderContext> RenderTreeContext<'a, R> {
 }
 
 pub struct HandlerRegistry<R: 'static + RenderContext> {
-    pub scroll_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsScroll)>,
-    pub jab_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsJab)>,
-    pub touch_start_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsTouchStart)>,
-    pub touch_move_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsTouchMove)>,
-    pub touch_end_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsTouchEnd)>,
-    pub key_down_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsKeyDown)>,
-    pub key_up_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsKeyUp)>,
-    pub key_press_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsKeyPress)>,
-    pub checkbox_change_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsCheckboxChange)>,
-    pub click_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsClick)>,
-    pub mouse_down_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseDown)>,
-    pub mouse_up_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseUp)>,
-    pub mouse_move_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseMove)>,
-    pub mouse_over_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseOver)>,
-    pub mouse_out_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsMouseOut)>,
-    pub double_click_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsDoubleClick)>,
-    pub context_menu_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsContextMenu)>,
-    pub wheel_handlers: Vec<fn(RenderNodePtr<R>, RuntimeContext, ArgsWheel)>,
+    pub scroll_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsScroll)>,
+    pub jab_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsJab)>,
+    pub touch_start_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsTouchStart)>,
+    pub touch_move_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsTouchMove)>,
+    pub touch_end_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsTouchEnd)>,
+    pub key_down_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsKeyDown)>,
+    pub key_up_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsKeyUp)>,
+    pub key_press_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsKeyPress)>,
+    pub checkbox_change_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsCheckboxChange)>,
+    pub click_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsClick)>,
+    pub mouse_down_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsMouseDown)>,
+    pub mouse_up_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsMouseUp)>,
+    pub mouse_move_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsMouseMove)>,
+    pub mouse_over_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsMouseOver)>,
+    pub mouse_out_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsMouseOut)>,
+    pub double_click_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsDoubleClick)>,
+    pub context_menu_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsContextMenu)>,
+    pub wheel_handlers: Vec<fn(InstanceNodePtr<R>, RuntimeContext, ArgsWheel)>,
     pub will_render_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
     pub did_mount_handlers: Vec<fn(Rc<RefCell<PropertiesCoproduct>>, RuntimeContext)>,
 }
@@ -272,12 +252,30 @@ impl<R: 'static + RenderContext> Default for HandlerRegistry<R> {
 /// rendered scene graph. These nodes are addressed uniquely by id_chain (see documentation for `get_id_chain`.)
 pub struct ExpandedNode<R: 'static + RenderContext> {
     #[allow(dead_code)]
+    /// Unique ID of this expanded node, roughly encoding an address in the tree, where the first u32 is the instance ID
+    /// and the subsequent u32s represent addresses within an expanded tree via Repeat.
     id_chain: Vec<u32>,
+
+    /// Pointer (`Weak` to avoid Rc cycle memory leaks) to the ExpandedNode directly above
+    /// this one.  Used for e.g. event propagation.
     parent_expanded_node: Option<Weak<ExpandedNode<R>>>,
-    instance_node: RenderNodePtr<R>,
+
+    /// Pointer to the unexpanded `instance_node` underlying this ExpandedNode
+    instance_node: InstanceNodePtr<R>,
+
+    /// Computed transform and size of this ExpandedNode
     tab: TransformAndBounds,
+
+    /// A copy of the calculated z_index for this ExpandedNode
     z_index: u32,
+
+    /// A copy of the RuntimeContext appropriate for this ExpandedNode
     node_context: RuntimeContext,
+
+    /// Each ExpandedNode has a unique "stamp" of computed properties
+    computed_properties: PropertiesCoproduct,
+    /// Each ExpandedNode has unique `CommonProperties`
+    computed_common_properties: CommonProperties,
 }
 
 impl<R: 'static + RenderContext> ExpandedNode<R> {
@@ -615,13 +613,13 @@ impl<R: 'static + RenderContext> ExpandedNode<R> {
 }
 
 pub struct NodeRegistry<R: 'static + RenderContext> {
-    ///look up RenderNodePtr by instance id
-    instance_node_map: HashMap<u32, RenderNodePtr<R>>,
+    ///look up InstanceNodePtr by instance id
+    instance_node_map: HashMap<u32, InstanceNodePtr<R>>,
 
     ///look up an ExpandedNode by id_chain
     expanded_node_map: HashMap<Vec<u32>, Rc<ExpandedNode<R>>>,
 
-    ///track which expanded elements are currently mounted -- if id is present in set, is mounted
+    ///track which expanded nodes are currently mounted -- if id is present in set, is mounted
     mounted_set: HashSet<Vec<u32>>,
 
     ///tracks whichs instance nodes are marked for unmounting, to be done at the correct point in the render tree lifecycle
@@ -648,7 +646,7 @@ impl<R: 'static + RenderContext> NodeRegistry<R> {
     }
 
     /// Add an instance to the NodeRegistry, incrementing its Rc count and giving it a canonical home
-    pub fn register(&mut self, instance_id: u32, node: RenderNodePtr<R>) {
+    pub fn register(&mut self, instance_id: u32, node: InstanceNodePtr<R>) {
         self.instance_node_map.insert(instance_id, node);
     }
 
@@ -726,7 +724,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // 2. find lowest node (last child of last node), accumulating transform along the way
         // 3. start rendering, from lowest node on-up
 
-        let cast_component_rc: RenderNodePtr<R> = self.main_component.clone();
+        let cast_component_rc: InstanceNodePtr<R> = self.main_component.clone();
 
         let mut rtc = RenderTreeContext {
             engine: &self,
@@ -759,7 +757,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         native_render_queue.into()
     }
 
-    fn compute_properties_recursive(&self, rtc: &mut RenderTreeContext<R>, node: RenderNodePtr<R>) {
+    fn compute_properties_recursive(&self, rtc: &mut RenderTreeContext<R>, node: InstanceNodePtr<R>) {
         //When recursively computing properties:
         // Compute properties for current node
         // If node is_component, compute properties for its slot_children
@@ -770,7 +768,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         // What if we pass the ID chain here?  Then each component is in charge of storing its own
         // "parallel versions" of itself (ExpandedNodes.)  This is nicely aligned with the typed nature of
-        // properties; each implementor of `dyn RenderNode` would be responsible for storing a HashMap<Vec<u64>, T>,
+        // properties; each implementor of `dyn InstanceNode` would be responsible for storing a HashMap<Vec<u64>, T>,
         // where T is the type of properties stored within that component
         node_borrowed.handle_compute_properties(rtc);
 
@@ -850,7 +848,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         &self,
         rtc: &mut RenderTreeContext<R>,
         rcs: &mut HashMap<String, R>,
-        node: RenderNodePtr<R>,
+        node: InstanceNodePtr<R>,
         z_index_info: &mut ZIndex,
         marked_for_unmount: bool,
     ) {
