@@ -36,8 +36,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ImageInstance<R> {
     where
         Self: Sized,
     {
-        let mut instance_registry = (*args.instance_registry).borrow_mut();
-        let instance_id = instance_registry.mint_instance_id();
+        let mut node_registry = (*args.node_registry).borrow_mut();
+        let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(ImageInstance {
             instance_id,
             instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
@@ -47,7 +47,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ImageInstance<R> {
             image: None,
         }));
 
-        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
+        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 

@@ -11,7 +11,7 @@ use piet_common::RenderContext;
 
 use pax_runtime_api::{ArgsScroll, Layer, Size, PropertyInstance};
 
-use crate::{HandlerRegistry, NodeRegistry, RenderTreeContext};
+use crate::{HandlerRegistry, NodeRegistry, PropertiesTreeContext, RenderTreeContext};
 use crate::form_event::FormEvent;
 
 /// Type aliases to make it easier to work with nested Rcs and
@@ -46,7 +46,7 @@ pub struct InstantiationArgs<R: 'static + RenderContext> {
     pub common_properties: CommonProperties,
     pub properties: PropertiesCoproduct,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub instance_registry: Rc<RefCell<NodeRegistry<R>>>,
+    pub node_registry: Rc<RefCell<NodeRegistry<R>>>,
     pub children: Option<InstanceNodePtrList<R>>,
     pub component_template: Option<InstanceNodePtrList<R>>,
     pub scroller_args: Option<ScrollerArgs>,
@@ -205,13 +205,6 @@ pub trait InstanceNode<R: 'static + RenderContext> {
         NodeType::Primitive
     }
 
-    /// Consumes the children of this node at render-time that should be removed.
-    /// This occurs when they were mounted in some previous frame but now need to be removed after a property change
-    /// This function resets this list once returned
-    fn pop_cleanup_children(&mut self) -> InstanceNodePtrList<R> {
-        Rc::new(RefCell::new(vec![]))
-    }
-
     fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
         //need to refactor signature and pass in id_chain + either rtc + registry or just registry
         todo!("Look up ExpandedNode via id_chain + registry; return clone of stored PropertiesCoproduct")
@@ -317,18 +310,21 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     }
 
     /// Lifecycle method used by at least Component to introduce a properties stack frame
-    fn handle_pre_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    #[allow(unused_variables)]
+    fn handle_pre_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) {
         //no-op default implementation
     }
 
     /// Lifecycle method used by at least Component to pop a properties stack frame
-    fn handle_post_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    #[allow(unused_variables)]
+    fn handle_post_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) {
         //no-op default implementation
     }
 
     /// First lifecycle method during each render loop, used to compute
     /// properties in advance of rendering.  Returns an ExpandedNode for the
-    fn handle_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<crate::ExpandedNode<R>>>;
+    #[allow(unused_variables)]
+    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<crate::ExpandedNode<R>>>;
 
     /// Used by elements that need to communicate across native rendering bridge (for example: Text, Clipping masks, scroll containers)
     /// Called by engine after `compute_properties`, passed calculated size and transform matrix coefficients for convenience
@@ -336,13 +332,14 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     ///
     /// An implementor of `compute_native_patches` is responsible for determining which properties if any have changed
     /// (e.g. by keeping a local patch object as a cache of last known values.)
+    #[allow(unused_variables)]
     fn compute_native_patches(
         &mut self,
-        _rtc: &mut RenderTreeContext<R>,
-        _computed_size: (f64, f64),
-        _transform_coeffs: Vec<f64>,
-        _z_index: u32,
-        _subtree_depth: u32,
+        rtc: &mut RenderTreeContext<R>,
+        computed_size: (f64, f64),
+        transform_coeffs: Vec<f64>,
+        z_index: u32,
+        subtree_depth: u32,
     ) {
         //no-op default implementation
     }

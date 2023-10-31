@@ -2,7 +2,7 @@
 {% if is_primitive %}
 {{ primitive_instance_import_path }}::instantiate(
 {% else %}
-instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
+instantiate_{{ snake_case_type_id }}( Rc::clone(&node_registry),
 {% endif %}
  InstantiationArgs {
     common_properties: CommonProperties {
@@ -47,7 +47,7 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
         {% endfor %}
         handler_registry
     }))),
-    instance_registry: Rc::clone(&instance_registry),
+    node_registry: Rc::clone(&node_registry),
     children: Some(Rc::new(RefCell::new(vec![
         {% for child_literal in children_literal %}
             {{ child_literal }},
