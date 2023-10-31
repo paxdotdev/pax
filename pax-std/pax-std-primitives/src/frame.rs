@@ -10,8 +10,8 @@ use kurbo::BezPath;
 use piet::RenderContext;
 
 use pax_core::{
-    HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode, RenderNodePtr,
-    RenderNodePtrList, RenderTreeContext,
+    HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode, InstanceNodePtr,
+    InstanceNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, FramePatch};
 use pax_runtime_api::{CommonProperties, Layer, Size};
@@ -25,14 +25,16 @@ use pax_runtime_api::{CommonProperties, Layer, Size};
 /// to [`Frame`], since `[Frame]` creates a clipping mask.
 pub struct FrameInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
-    pub primitive_children: RenderNodePtrList<R>,
+    pub primitive_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
 
-    pub common_properties: CommonProperties,
+    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+
     last_patches: HashMap<Vec<u32>, FramePatch>,
 }
 
-impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
+impl<R: 'static + RenderContext> InstanceNode<R> for FrameInstance<R> {
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
             Some(registry) => Some(Rc::clone(&registry)),
@@ -40,13 +42,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         }
     }
 
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
-        Rc::new(RefCell::new(PropertiesCoproduct::None))
-    }
-
-    fn get_common_properties(&self) -> &CommonProperties {
-        &self.common_properties
-    }
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
@@ -62,10 +57,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
             primitive_children: args.children.unwrap(), //Frame expects primitive_children, even if empty Vec
             last_patches: HashMap::new(),
             handler_registry: args.handler_registry,
-            common_properties: args.common_properties,
+
+            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
         }));
 
-        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 
@@ -139,7 +136,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for FrameInstance<R> {
         }
     }
 
-    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
+    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.primitive_children)
     }
 

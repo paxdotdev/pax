@@ -6,7 +6,7 @@ use pax_properties_coproduct::PropertiesCoproduct;
 use pax_runtime_api::Timeline;
 use piet::RenderContext;
 
-use crate::{RenderNodePtr, RenderTreeContext};
+use crate::{InstanceNodePtr, RenderTreeContext};
 
 /// `Runtime` is a container for data and logic needed by the `Engine`,
 /// explicitly aside from rendering.  For example, this is a home
@@ -124,9 +124,9 @@ impl<R: 'static + RenderContext> Runtime<R> {
     /// Note that this must be recursive to handle nested cases of flattening, for example nested `for` loops
     #[allow(non_snake_case)]
     pub fn process__should_flatten__slot_children_recursive(
-        slot_child: &RenderNodePtr<R>,
+        slot_child: &InstanceNodePtr<R>,
         rtc: &mut RenderTreeContext<R>,
-    ) -> Vec<RenderNodePtr<R>> {
+    ) -> Vec<InstanceNodePtr<R>> {
         let slot_child_borrowed = (**slot_child).borrow_mut();
         if slot_child_borrowed.is_invisible_to_slot() {
             (*slot_child_borrowed.get_rendering_children())

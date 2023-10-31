@@ -2,7 +2,7 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use crate::{
-    ComponentInstance, InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList,
+    ComponentInstance, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList,
     RenderTreeContext,
 };
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
@@ -16,29 +16,25 @@ use piet_common::RenderContext;
 /// with an index `i` and a pointer to that relevant datum `source_expression[i]`
 pub struct RepeatInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
-    pub repeated_template: RenderNodePtrList<R>,
+    pub repeated_template: InstanceNodePtrList<R>,
     pub source_expression_vec: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
     pub source_expression_range: Option<Box<dyn PropertyInstance<std::ops::Range<isize>>>>,
-    pub active_children: RenderNodePtrList<R>,
-    pub cleanup_children: RenderNodePtrList<R>,
-    pub common_properties: CommonProperties,
+    pub active_children: InstanceNodePtrList<R>,
+    pub cleanup_children: InstanceNodePtrList<R>,
+
+    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
+
+
     /// Used for hacked dirty-checking, in the absence of our centralized dirty-checker
     cached_old_value_vec: Option<Vec<Rc<PropertiesCoproduct>>>,
     cached_old_value_range: Option<std::ops::Range<isize>>,
     cached_old_bounds: (f64, f64),
 }
 
-impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
+impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
-    }
-
-    fn get_common_properties(&self) -> &CommonProperties {
-        &self.common_properties
-    }
-
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
-        Rc::new(RefCell::new(PropertiesCoproduct::None))
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>>
@@ -53,7 +49,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                 None => Rc::new(RefCell::new(vec![])),
                 Some(children) => children,
             },
-            common_properties: args.common_properties,
+
+            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
+
             source_expression_vec: args.repeat_source_expression_vec,
             source_expression_range: args.repeat_source_expression_range,
             active_children: Rc::new(RefCell::new(vec![])),
@@ -63,7 +62,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
             cached_old_bounds: (0.0, 0.0),
         }));
 
-        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 
@@ -169,7 +168,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
                             is_managed_by_repeat: true,
                         };
 
-                        let render_node: RenderNodePtr<R> = Rc::new(RefCell::new(new_component_instance));
+                        let render_node: InstanceNodePtr<R> = Rc::new(RefCell::new(new_component_instance));
 
                         instance_registry.register(instance_id, Rc::clone(&render_node));
                         instance_registry.mark_mounted(rtc.get_id_chain(instance_id));
@@ -188,10 +187,10 @@ impl<R: 'static + RenderContext> RenderNode<R> for RepeatInstance<R> {
     fn is_invisible_to_slot(&self) -> bool {
         true
     }
-    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
+    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.active_children)
     }
-    fn pop_cleanup_children(&mut self) -> RenderNodePtrList<R> {
+    fn pop_cleanup_children(&mut self) -> InstanceNodePtrList<R> {
         let ret = self.cleanup_children.clone();
         self.cleanup_children = Rc::new(RefCell::new(vec![]));
         ret

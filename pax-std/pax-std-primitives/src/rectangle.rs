@@ -3,8 +3,8 @@ use piet::{LinearGradient, RadialGradient, RenderContext};
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
-    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
+    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
+    InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
 };
 use pax_std::primitives::Rectangle;
 use pax_std::types::{Fill, RectangleCornerRadii};
@@ -19,26 +19,18 @@ use std::rc::Rc;
 pub struct RectangleInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
-    pub properties: Rc<RefCell<Rectangle>>,
-    pub common_properties: CommonProperties,
+
+    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
-impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
-    fn get_common_properties(&self) -> &CommonProperties {
-        &self.common_properties
-    }
-
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
-        let rectangle_ref = self.properties.borrow();
-        let wrapped: PropertiesCoproduct = unsafe_wrap!(*rectangle_ref, PropertiesCoproduct, Rectangle);
-        Rc::new(RefCell::new(wrapped))
-    }
+impl<R: 'static + RenderContext> InstanceNode<R> for RectangleInstance<R> {
 
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
 
-    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
+    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
 
@@ -46,17 +38,16 @@ impl<R: 'static + RenderContext> RenderNode<R> for RectangleInstance<R> {
     where
         Self: Sized,
     {
-        let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Rectangle);
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(RectangleInstance {
             instance_id,
-            properties: Rc::new(RefCell::new(properties)),
             handler_registry: args.handler_registry,
-            common_properties: args.common_properties,
+            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
         }));
 
-        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 

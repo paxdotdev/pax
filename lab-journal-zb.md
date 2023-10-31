@@ -115,7 +115,7 @@ How is the generated RIL consumed?
 Is this the right time to rethink instance management? Could fix the
 mess of Rc<RefCell<>> going on in core.
 
-Broadly, instances could be stored centrally in some Vec<dyn RenderNode> (or hash)
+Broadly, instances could be stored centrally in some Vec<dyn InstanceNode> (or hash)
 This instance pool allows for safe passing of &mut throughout core
 
 Finally, RIL can instantiate via this instance pool
@@ -655,7 +655,7 @@ implementable in the same way, allowing userland to deal with named
 Engine has coordinates & a RenderNode — must fire userland declared
 method with correctly injected args
 
-The method itself exists on the instance (`Rc<RefCell<dyn RenderNode>>`)
+The method itself exists on the instance (`Rc<RefCell<dyn InstanceNode>>`)
 
 The execution of the method can be done with a closure (which can be
 code-genned, and which can also be attached at runtime!)
@@ -731,13 +731,13 @@ because that type T will need to be injected as `&mut self` when calling
 a method/handler.
 
 Either: bundle all HandlerRegistry<T> Ts into PropertiesCoproduct,
-or store a distinct HandlerRegistry<RectangleProperties> (e.g.) per dyn RenderNode
+or store a distinct HandlerRegistry<RectangleProperties> (e.g.) per dyn InstanceNode
 
 Engine has an intent to dispatch an event,
 an element ID,
 and event-specific args (ArgsTick, for example.)
 
-Look up element by id, get `dyn RenderNode`
+Look up element by id, get `dyn InstanceNode`
 
 could expose `dispatch_event()` on `RenderNode` —
 challenge is passing the right `&mut self` into the registered method call.
@@ -922,7 +922,7 @@ the conceptual surface area.
 - Component (instantiates an instance based on a template, a la a stamp)
 
 *slot_children:* conceptually sound with Stacker, via slots
-- fits in the same struct `RenderNodePtrList`
+- fits in the same struct `InstanceNodePtrList`
 - instead of an "average case tree," slot_children are an "expected case list"
 - Sequence of siblings is relevant (beyond z-indexing); used to pluck slot_children away into whatever context
 
@@ -1146,7 +1146,7 @@ caching based on dirty-checking.
 2022-03-04
 
 *Render nodes == instances*
-Any instance will impl `dyn RenderNode`
+Any instance will impl `dyn InstanceNode`
 
 
 *API instances* are `Property`-free structs used e.g. for imperative instantiation
@@ -1473,7 +1473,7 @@ Also take note that `Repeat` wraps each element in its own
 
 Stack frames are pushed/popped on each tick
 
-Expose `pop_slot_child() -> Option<RenderNodePtr>` on `StackFrame` (and maybe `nth_slot_child()`)
+Expose `pop_slot_child() -> Option<InstanceNodePtr>` on `StackFrame` (and maybe `nth_slot_child()`)
 StackFrame greedily traverses upward seeking the next `slot_child` to pop.
 `slot_children` become strictly an implementation detail, meaning the field can be eliminated
 and `Component` can pass its `children` if specified to the StackFrame that it creates.  
@@ -2102,8 +2102,8 @@ Instead of `get_rendering_subtree_flattened`:
 
 - during engine traversal, for each "virtual element" rendered, add to a global cache of
     - id_chain
-    - RenderNodePtr
-    - parent RenderNodePtr
+    - InstanceNodePtr
+    - parent InstanceNodePtr
     - (computed properties? (PropertiesCoproduct))
 
 
@@ -3369,7 +3369,7 @@ we can:
     [x] Do the same as the above for `get_transform` — note that get_transform is currently called exactly once, so we have leeway to change the interface substantially, easily
     [x] Refactor every impl of RenderNode (primitives + component primitive) to keep some state representing common_properties, and to return an Rc::clone of it when called
         [x] Remove the locally stored `transform` and `size` along the way
-    [x] introduce a trait method on dyn RenderNode to get_common_properties.  likely refactor get_size and get_transform across the board, perhaps to fetch these values, or perhaps retiring them in favor of get_common_properties().size and ....transform [
+    [x] introduce a trait method on dyn InstanceNode to get_common_properties.  likely refactor get_size and get_transform across the board, perhaps to fetch these values, or perhaps retiring them in favor of get_common_properties().size and ....transform [
     [x] update cartridge codegen to accommodate InstantiationArgs#common_properties
 [x] in the workhorse rendering loop, combine declarative transforms into a matrix (we choose the sequence to match ergo expectations) and multiply that matrix with a transform property, if specified (a user should be able to specify both a transform matrix and individual properties; again we choose the best order in which to combine these) 
     [x] along the way, retire Transform::align and make Transform::translate accept Size values instead of floats (make it bounds-aware)
@@ -3595,7 +3595,7 @@ Get this working entirely manually first, then automate in pax-compiler. (valida
 [ ] consider renaming `will_` to `pre_` and `did_` to `post_` (while a departure from React-like conventions, there's precedent in other worlds like .NET, and it's just a better naming scheme)
 [x] handle forwarded children in Repeat
 [x] handle triggering events in handle_registry given changes in runtime stack
-[x] probably introduce `get_properties` on dyn RenderNode, returning something like an Rc<RefCell<PropertiesCoproduct>>
+[x] probably introduce `get_properties` on dyn InstanceNode, returning something like an Rc<RefCell<PropertiesCoproduct>>
 [-] Alternatively!  fire handlers at end of properties compute phase?
     Turns out the above is insufficient.  We also rely on property<>render-tangled stack frames
     when gathering `properties` (the on-demand `self`) for invoking event handlers, via `cartridge-render-node-literal.tera`
@@ -3640,7 +3640,7 @@ Yes push for a `for` loop
 No, don't push for other component instances found during 
 
 Possible tool: a parameter passed to ComponentInstance to signal whether it is managed by `for`,
-alongside a `dyn RenderNode` method that the engine can call to push / pop (at properties-compute-recursion time.)
+alongside a `dyn InstanceNode` method that the engine can call to push / pop (at properties-compute-recursion time.)
 This gives us the ability to special-case `for`-managed ComponentInstances, to explicitly push
 to the properties stack, while ignoring components like Stacker
 
@@ -3669,13 +3669,13 @@ When we call lifecycle methods e.g. `handle_render`, how do we specify which pro
 Will it be straightforward to move away from the current way of instantiating ExpandedNodes?
    Yes, should be straightforward.  We simply create them in the rendering recursive workhorse; we could straightforwardly
    shunt this into properties computation.  Main challenge is figuring out the shape of pointers between instance nodes and ExpandedNodes 
-Think through the relationship between ExpandedNodes, dyn RenderNode, and property-related lifecycle methods
+Think through the relationship between ExpandedNodes, dyn InstanceNode, and property-related lifecycle methods
 
 Perhaps we rotate the manifold currently between `instance node` and `repeat expanded node`
  — `instance node` vs. `properties expanded node` or `properties-render-node` 
 
 We should also reconsider how we store and retrieve ExpandedNodes. Instead of
-the current cache, are these nodes findable via `dyn RenderNode` ?
+the current cache, are these nodes findable via `dyn InstanceNode` ?
 Do we store them in a separate table and share Rcs?
 Make sure to address recursability (through ExpandedNodes) along the way
 
@@ -3689,8 +3689,8 @@ ExpandedNodes.
     become knowledgeable about its ExpandedNode children?
 
 Unpacking:  during properties computation, we can create ExpandedNodes, because we both have knowledge of ancestral repeats for `id_chain`, and have
-locally calculated properties that we can store on an ExpandedNode.  Perhaps there needs to be a method on `dyn RenderNode` for setting ExpandedNode children? (`set_expanded_children` ?)
-Another possibility is to mark relationships e.g. through cloned Rcs, allowing ID-based lookups without requiring any setting through `dyn RenderNode` (with the heavy lift of punching through all trait implementors)
+locally calculated properties that we can store on an ExpandedNode.  Perhaps there needs to be a method on `dyn InstanceNode` for setting ExpandedNode children? (`set_expanded_children` ?)
+Another possibility is to mark relationships e.g. through cloned Rcs, allowing ID-based lookups without requiring any setting through `dyn InstanceNode` (with the heavy lift of punching through all trait implementors)
 Even so, there needs to be some way for a node to specify its children dynamically.  Basically, most nodes just return their templated children (wrapped as `ExpandedNode`s?)
 but Repeat does so as a function of its data source, and Conditional does so as a function of its evaluated boolean state
 
@@ -3729,11 +3729,11 @@ If we separate the instance tree entirely from the expanded tree, we must solve:
     - How do we decide the entrypoint for recursing / rendering the expanded tree? (just the global root?  perhaps each component keeps track of its root ExpandedNode and thus we call the root's root to get started?)
 
 
-Consider that instance nodes (template nodes? `TemplateNodeInstance`s?) represent a singular form
+Consider that instance nodes (template nodes? `TemplateInstanceNode`s?) represent a singular form
 of a possibly expanded thing.  An instance node thus roughly (or exactly) maps to the node that
 is authored in a template.
 
-On the other hand, ExpandedNodes represent the fully realized permutations of all such TemplateNodeInstances, with
+On the other hand, ExpandedNodes represent the fully realized permutations of all such TemplateInstanceNodes, with
 properties already computed, ready to render
 
 Currently, Repeat blurs these boundaries, creating `Instance`s for each of its children dynamically.
@@ -3749,7 +3749,7 @@ and computing properties on them? e.g. via `get_expanded_children` or `get_expan
 We do know that Repeat is special.  It needs to somehow signal that it does `n` of things, where most nodes do 1, and Conditional does either 0 or 1.
 
 Also, get_rendering_children is already _quite close_ to `get_expanded_children` in practice.  E.g. Slot already handles this correctly, with the main difference that
-we should be iterating over ExpandedNodes instead of dyn RenderNodes (and again, in the current state of things where these are mashed into a single concept, that is essentially what we are doing.)
+we should be iterating over ExpandedNodes instead of dyn InstanceNodes (and again, in the current state of things where these are mashed into a single concept, that is essentially what we are doing.)
 
 So what can Repeat do `n` of?
     - It can repeat `n` ExpandedNode subtrees, where the root of each is our ComponentInstance 
@@ -3851,8 +3851,24 @@ Perhaps calling `Repeat`'s `compute_properties` takes care of calling `compute_p
 
 
 What if `compute_properties` performs the side-effect of appending ExpandedNodes to the expanded tree?
-Or returns a vec of Properties or
 
+
+#### Properties attached to InstanceNodes
+
+Properties have the same definition <> instance dichotomy as nodes.  When a developer authors properties, they're doing so as "definitions".
+One set of property definitions may become multiple instances, in the same way that one TemplateNodeDefinition becomes multiple ExpandedNodes.
+
+This comes to bear in how we instantiate nodes.  `InstantiationArgs` has both a `PropertiesCoproduct` and a `CommonProperties` instance inlined.
+
+Underneath the distinction of "Instance Nodes" vs "Expanded Nodes", there are properties attached to instance nodes
+(those authored by the user, represented
+
+Maybe we can just straight-up clone these properties?  The only place this starts to gets hairy is with expressions, and even
+expressions are compiled exactly the same across multiple ExpandedNodes — only the input tuple changes.  So, a Properties clone
+should both point to the same vtable entries (correctly) and give us cloned init values (correctly), which can be overwritten imperatively at runtime (correctly)
+
+Let's store a prototypical clone of the original properties on each InstanceNode, then, and support getting it with something like
+`get_instance_properties` + `get_instance_common_properties`.  Each new `ExpandedNode` can clone the Rc<RefCell<>>-wrapped version of each when initializing.
 
 
 
@@ -3861,7 +3877,7 @@ Or returns a vec of Properties or
 
 0. InstanceNodes are separated from ExpandedNodes.  ExpandedNodes are created/modified during `compute_properties_recursive`, and the ExpandedNode tree is traversed for rendering.
 1. Every ExpandedNode gets a "permanent home" (in the "beehive" — in a persistent ExpandedNode.)
-2. Every dyn RenderNode keeps a hashmap of the Rcs of its "parallel selves", where keys are id chains and values are Rc<ExpandedNode>
+2. Every dyn InstanceNode keeps a hashmap of the Rcs of its "parallel selves", where keys are id chains and values are Rc<ExpandedNode>
    This allows us to call `get_id_chain` in the context of a given state of `rtc` and use that to retrieve the properties needed for e.g.
    for computing properties (must find existing record if it exists,) as well as the self passed to event handlers and ultimately called via e.g. `self.some_prop.set()`
 3. We can still "stitch together" the ExpandedNode tree on the fly, via Rc::clone or Rc::downgrade (thus we have relationships between instance nodes and ExpandedNodes, and between ExpandedNodes and each other.)
@@ -3872,8 +3888,49 @@ Or returns a vec of Properties or
 5. When computing properties recursively: when we hit a component,
    (1) compute properties for its slot_children template, then
    (2) recurse and start dealing with _its_ component template frame (with a freshly scoped runtime stack)
+    The above order is important because the slot children, which might require expansion via `for`, must be computed before
+    they are prospectively used inside the second component in (2)
 6. make sure z-indexing remains pre-order
 
+#### Second pass, TODOs:
+
+[ ] Refactor Instance vs ExpandedNodes
+    [x] Rename dyn RenderNode => dyn InstanceNode
+    [x] Move properties to ExpandedNodes
+        [x] Also move `CommonProperties` into `ExpandedNode`
+    [ ] Refactor properties lookup: requires ID chain
+        [ ] Same with `get_common_properties`
+        [ ] (?) Move `get_properties` and `get_common_properties` to be methods on `ExpandedNode`
+    [ ] Upsert `ExpandedNode` during `compute_properties_recursive`, along with computed properties "stamp".
+        [ ] Refactor `handle_compute_properties` to return a `Rc<RefCell<PropertiesCoproduct>>`.  This is elegantly compatible with upserting (return clone of existing or return new)
+        [ ] Continue to store `ExpandedNode`s in registry; rename to `NodeRegistry`; decide whether also to populate pointers to `InstanceNode`s
+    [ ] Refactor everywhere we call `get_properties` — pass an ID chain, possibly move to InstanceRegistry instead of component (otherwise, track ExpandedNode pointers inside instance nodes.)
+    [ ] Manage wrapping/unwrapping polymorphic properties (PropertiesCoproduct) via `get_properties` and individual `dyn InstanceNode`s
+[ ] Handled prototypical / instantiation properties
+    [ ] Store a clone of `InstantiationArgs#properties` (and `#common_properties`) on each `dyn InstanceNode`
+    [ ] expose appropriate trait methods — access only? or maybe strictly internal, no need for trait methods?
+    [ ] Hook into this when creating a new ExpandedNode — initialize ExpandedNodes with a clone of each
+[ ] Stitch together `ExpandedNode` tree — including relevant `Weak` parent <> child relationships — during recursive property computation
+[ ] Fully split properties-compute from render passes.  Probably start rendering from root of expanded tree.
+    [ ] Refactor / separate `rtc` as relevant for this too, to help clarify the distinction between `properties compute` vs `rendering` lifecycle methods & relevant data
+[ ] Refactor Repeat & Conditional properties computation
+    [ ] Remove ComponentInstance from Repeat
+    [ ] Instead, manage RuntimePropertiesStackFrame manually, as well as recursing into `compute_properties`
+    [ ] Recurse similarly within Conditional?
+    [ ] Refactor each of `Repeat`, `Slot`, and `Conditional` to be stateless (so that stateful expansions with ExpandedNodes actually work)
+        [ ] Figure out in particular how to store:
+            [ ] Repeat's cache (+ source expression?)
+            [ ] Slot's `cached_computed_children` (+ index expression?)
+            [ ] Conditional's computed state (+ conditional expression?)
+        [ ] As part of the above, decide whether to refactor Conditional/Repeat/Slot's "special" PropertyInstances into
+            PropertiesCoproduct variants.  Major deciding factor should be whether we need `dyn InstanceNode`-level access to prototypical properties (suggesting refactor)
+            vs. encapsulating management of prototypical properties => ExpandedNodes so that it's an implementation detail of the respective node.  Given that we need to 
+            "accordion" the properties of any node, including control-flow nodes, and that those expanded properties must
+            sit on ExpandedNodes as PropertiesCoproduct, we either need to refactor control-flow properties to fit into PropertiesCoproduct (cleaner),
+            or special-case control flow properties as Optional fields on ExpandedNodes (similar in shape to InstantiationArgs)
+[ ] Refactor "component template frame" computation order; support recursing mid-frame
+    [ ] Handle slot children: compute properties first, before recursing into next component template subtree
+[ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
 
 
 
