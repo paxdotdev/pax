@@ -7,7 +7,7 @@ use std::rc::Rc;
 use pax_properties_coproduct::{TypesCoproduct, PropertiesCoproduct};
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 
 /// A special "control-flow" primitive (a la `yield`) — represents a slot into which
@@ -23,18 +23,13 @@ use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 pub struct SlotInstance<R: 'static + RenderContext> {
     pub instance_id: u32,
     pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
-    pub common_properties: CommonProperties,
-    cached_computed_children: RenderNodePtrList<R>,
+    cached_computed_children: InstanceNodePtrList<R>,
+
+    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
-impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
-    fn get_common_properties(&self) -> &CommonProperties {
-        &self.common_properties
-    }
-
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
-        Rc::new(RefCell::new(PropertiesCoproduct::None))
-    }
+impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
 
     fn get_instance_id(&self) -> u32 {
         self.instance_id
@@ -47,11 +42,12 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
         let instance_id = instance_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
-            common_properties: args.common_properties,
+            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
             index: args.slot_index.expect("index required for Slot"),
             cached_computed_children: Rc::new(RefCell::new(vec![])),
         }));
-        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 
@@ -64,7 +60,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for SlotInstance<R> {
         }
     }
 
-    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
+    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.cached_computed_children)
     }
 

@@ -371,7 +371,7 @@ impl Size {
 
 // Struct containing fields shared by all RenderNodes.
 // Each property here is special-cased by the compiler when parsing element properties (e.g. `<SomeElement width={...} />`)
-// Retrieved via <dyn RenderNode>#get_common_properties
+// Retrieved via <dyn InstanceNode>#get_common_properties
 
 pub struct CommonProperties {
     pub x: Option<Rc<RefCell<dyn PropertyInstance<Size>>>>,

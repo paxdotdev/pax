@@ -317,7 +317,7 @@ _RIL means Rust Intermediate Language, which is the
                 passed `env!("CARGO_MANIFEST_DIR")`
     [x] parser bin logic finish-line
         [x] macro
-    [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, RenderNodePtrList), and cartridge
+    [X] untangle dependencies between core, runtime entities (e.g. Transform, RenderTreeContext, InstanceNodePtrList), and cartridge
     [X] work as needed in Engine to accept external cartridge (previously where Component was patched into Engine)
     [x] update .pest and manifest-populating logic to latest language spec
     [x] support incremental compilation — not all #[pax] expansions (namely, side-effects) are expected to happen each compilation
@@ -704,13 +704,13 @@ MED
 [ ] Reinvestigate Any as an alternative to Coproduct generation
     [ ] would dramatically simplify compiler, code-gen process
     [ ] would make build process less brittle
-    [ ] roughly: `dyn RenderNode` -> `Box<Any>`, downcast blocks instead of `match ... unreachable!()` blocks
-        [ ] ensure compatibility with `Rc`!  Circa Q4'21, Any could not be downcast to Rc (e.g. `RenderNodePtr`)
+    [ ] roughly: `dyn InstanceNode` -> `Box<Any>`, downcast blocks instead of `match ... unreachable!()` blocks
+        [ ] ensure compatibility with `Rc`!  Circa Q4'21, Any could not be downcast to Rc (e.g. `InstanceNodePtr`)
         [ ] de-globalize InstantiationArgs, e.g. `slot_index` and `source_expression`
         [ ] remove PropertiesCoproduct entirely (and probably repeat the process for TypesCoproduct)
         [ ] possibly remove two-stage compiler process
-        [ ] sanity check that we can downcast from a given `Any` both to: 1. `dyn RenderNode` (to call methods), and 2. `WhateverProperties` (to access properties)
-        [ ] sanity check that `Any + 'static` will work with needs of `dyn RenderNode` and individual properties
+        [ ] sanity check that we can downcast from a given `Any` both to: 1. `dyn InstanceNode` (to call methods), and 2. `WhateverProperties` (to access properties)
+        [ ] sanity check that `Any + 'static` will work with needs of `dyn InstanceNode` and individual properties
         [ ] check out downcast_rs crate as way to ease?
         [ ] ensure that `'static` constraints can be met!! e.g. with dynamically instantiated nodes in `Repeat`
 [ ] Designtime

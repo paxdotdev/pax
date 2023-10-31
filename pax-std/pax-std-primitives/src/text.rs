@@ -2,8 +2,8 @@ use std::cell::RefCell;
 
 use pax_core::pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_core::{
-    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, RenderNode,
-    RenderNodePtr, RenderNodePtrList, RenderTreeContext,
+    unsafe_unwrap, unsafe_wrap, HandlerRegistry, InstantiationArgs, PropertiesComputable, InstanceNode,
+    InstanceNodePtr, InstanceNodePtrList, RenderTreeContext,
 };
 use pax_message::{AnyCreatePatch, TextPatch};
 use pax_runtime_api::{CommonProperties, Layer, SizePixels, StringBox};
@@ -19,25 +19,17 @@ use pax_std::types::Color;
 pub struct TextInstance<R: 'static + RenderContext> {
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
     pub instance_id: u32,
-    pub properties: Rc<RefCell<Text>>,
-    pub common_properties: CommonProperties,
     //Used as a cache of last-sent values, for crude dirty-checking.
     //Hopefully, this will by obviated by the built-in expression dirty-checking mechanism.
     //Note: must build in awareness of id_chain, since each virtual instance if this single `Text` instance
     //      shares this last_patches cache
     last_patches: HashMap<Vec<u32>, pax_message::TextPatch>,
+
+    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
-impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
-    fn get_common_properties(&self) -> &CommonProperties {
-        &self.common_properties
-    }
-
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
-        let text_ref = self.properties.borrow();
-        let wrapped: PropertiesCoproduct = unsafe_wrap!(*text_ref, PropertiesCoproduct, Text);
-        Rc::new(RefCell::new(wrapped))
-    }
+impl<R: 'static + RenderContext> InstanceNode<R> for TextInstance<R> {
 
     fn get_instance_id(&self) -> u32 {
         self.instance_id
@@ -47,23 +39,22 @@ impl<R: 'static + RenderContext> RenderNode<R> for TextInstance<R> {
     where
         Self: Sized,
     {
-        let properties = unsafe_unwrap!(args.properties, PropertiesCoproduct, Text);
 
         let mut instance_registry = (*args.instance_registry).borrow_mut();
         let instance_id = instance_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(TextInstance {
             instance_id,
-            properties: Rc::new(RefCell::new(properties)),
-            common_properties: args.common_properties,
+            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
             handler_registry: args.handler_registry,
             last_patches: Default::default(),
         }));
 
-        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 
-    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
+    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
         Rc::new(RefCell::new(vec![]))
     }
     fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {

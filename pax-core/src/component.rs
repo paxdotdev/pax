@@ -2,7 +2,7 @@ use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{HandlerRegistry, InstantiationArgs, NodeType, RenderNode, RenderNodePtr, RenderNodePtrList, RenderTreeContext};
+use crate::{HandlerRegistry, InstantiationArgs, NodeType, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode};
 use pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{CommonProperties, Layer, Size, Timeline};
@@ -17,10 +17,9 @@ use crate::PropertiesComputable;
 /// properties attached to each of Repeat's virtual nodes.
 pub struct ComponentInstance<R: 'static + RenderContext> {
     pub(crate) instance_id: u32,
-    pub template: RenderNodePtrList<R>,
-    pub slot_children: RenderNodePtrList<R>,
+    pub template: InstanceNodePtrList<R>,
+    pub slot_children: InstanceNodePtrList<R>,
     pub handler_registry: Option<Rc<RefCell<HandlerRegistry<R>>>>,
-    pub properties: Rc<RefCell<PropertiesCoproduct>>,
     pub timeline: Option<Rc<RefCell<Timeline>>>,
     pub compute_properties_fn:
         Box<dyn FnMut(Rc<RefCell<PropertiesCoproduct>>, &mut RenderTreeContext<R>)>,
@@ -28,17 +27,17 @@ pub struct ComponentInstance<R: 'static + RenderContext> {
     /// evaluating a given component's template, we must push to the runtime stack for component's
     /// managed by `for`, while ignoring the runtime properties stack for non-`for`-managed components (most userland components)
     pub is_managed_by_repeat: bool,
-    pub common_properties: CommonProperties,
+
+    instance_prototypical_properties: Rc<RefCell<PropertiesCoproduct>>,
+    instance_prototypical_common_properties: Rc<RefCell<CommonProperties>>,
 }
 
-impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
-    fn get_common_properties(&self) -> &CommonProperties {
-        &self.common_properties
-    }
+impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
+
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
-    fn get_rendering_children(&self) -> RenderNodePtrList<R> {
+    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.template)
     }
     fn get_node_type(&self) -> NodeType {
@@ -48,9 +47,6 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
             NodeType::Component
         }
     }
-    fn get_properties(&self) -> Rc<RefCell<PropertiesCoproduct>> {
-        Rc::clone(&self.properties)
-    }
     fn get_handler_registry(&self) -> Option<Rc<RefCell<HandlerRegistry<R>>>> {
         match &self.handler_registry {
             Some(registry) => Some(Rc::clone(&registry)),
@@ -58,7 +54,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         }
     }
 
-    fn get_slot_children(&self) -> Option<RenderNodePtrList<R>> {
+    fn get_slot_children(&self) -> Option<InstanceNodePtrList<R>> {
         Some(Rc::clone(&self.slot_children))
     }
 
@@ -78,8 +74,8 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
                 Some(children) => children,
                 None => Rc::new(RefCell::new(vec![])),
             },
-            common_properties: args.common_properties,
-            properties: Rc::new(RefCell::new(args.properties)),
+            instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
+            instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
             compute_properties_fn: args
                 .compute_properties_fn
                 .expect("must pass a compute_properties_fn to a Component instance"),
@@ -88,7 +84,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
             is_managed_by_repeat: false,
         }));
 
-        instance_registry.register(instance_id, Rc::clone(&ret) as RenderNodePtr<R>);
+        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 
@@ -106,7 +102,7 @@ impl<R: 'static + RenderContext> RenderNode<R> for ComponentInstance<R> {
         );
     }
 
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<ExpandedNode<R> {
         self.common_properties.compute_properties(rtc);
         (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
     }
