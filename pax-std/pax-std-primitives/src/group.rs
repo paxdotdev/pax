@@ -33,8 +33,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
     where
         Self: Sized,
     {
-        let mut instance_registry = args.instance_registry.borrow_mut();
-        let instance_id = instance_registry.mint_instance_id();
+        let mut node_registry = args.node_registry.borrow_mut();
+        let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
             primitive_children: match args.children {
@@ -47,7 +47,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
             instance_prototypical_properties: Rc::new(RefCell::new(args.properties)),
         }));
 
-        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
+        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 

@@ -38,7 +38,7 @@ pub fn compile_all_expressions<'a>(
     let mut all_expression_specs: HashMap<usize, ExpressionSpec> = HashMap::new();
 
     let mut new_components = manifest.components.clone();
-    let mut uid_track = 0;
+    let mut vtable_uid_track = 0;
 
     for component_def in new_components.values_mut() {
         let mut new_component_def = component_def.clone();
@@ -48,26 +48,26 @@ pub fn compile_all_expressions<'a>(
             let mut active_node_def = TemplateNodeDefinition::default();
             std::mem::swap(&mut active_node_def, template.index_mut(0));
 
-            let mut ctx = ExpressionCompilationContext {
-                template,
-                active_node_def,
-                scope_stack: vec![component_def
-                    .get_property_definitions(&manifest.type_table)
-                    .iter()
-                    .map(|pd| (pd.name.clone(), pd.clone()))
-                    .collect()],
-                uid_gen: uid_track..,
-                all_components: manifest.components.clone(),
-                expression_specs: &mut swap_expression_specs,
-                component_def: &read_only_component_def,
-                type_table: &manifest.type_table,
-            };
+                let mut ctx = ExpressionCompilationContext {
+                    template,
+                    active_node_def,
+                    scope_stack: vec![component_def
+                        .get_property_definitions(&manifest.type_table)
+                        .iter()
+                        .map(|pd| (pd.name.clone(), pd.clone()))
+                        .collect()],
+                    vtable_uid_gen: vtable_uid_track..,
+                    all_components: manifest.components.clone(),
+                    expression_specs: &mut swap_expression_specs,
+                    component_def: &read_only_component_def,
+                    type_table: &manifest.type_table,
+                };
 
-            ctx = recurse_compile_expressions(ctx, source_map)?;
-            uid_track = ctx.uid_gen.next().unwrap();
-            all_expression_specs.extend(ctx.expression_specs.to_owned());
-            std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
-        }
+                ctx = recurse_compile_expressions(ctx, source_map);
+                vtable_uid_track = ctx.vtable_uid_gen.next().unwrap();
+                all_expression_specs.extend(ctx.expression_specs.to_owned());
+                std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
+            }
 
         std::mem::swap(component_def, &mut new_component_def);
     }
@@ -196,7 +196,7 @@ fn recurse_compile_literal_block<'a>(
             }
             ValueDefinition::Expression(input, manifest_id) => {
                 // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
-                let id = ctx.uid_gen.next().unwrap();
+                let id = ctx.vtable_uid_gen.next().unwrap();
 
                 let (output_statement, invocations) = compile_paxel_to_ril(input.clone(), &ctx)?;
 
@@ -253,7 +253,7 @@ fn recurse_compile_literal_block<'a>(
                     //No-op -- special-case `id=some_identifier` and `class=some_identifier` — we DON'T want to compile an expression {some_identifier},
                     //so we skip the case where `id` is the key
                 } else {
-                    let id = ctx.uid_gen.next().unwrap();
+                    let id = ctx.vtable_uid_gen.next().unwrap();
 
                     //Write this id back to the manifest, for downstream use by RIL component tree generator
                     let mut manifest_id_insert: Option<usize> = Some(id);
@@ -351,7 +351,7 @@ fn recurse_compile_expressions<'a>(
             //  - may use an integer literal or symbolic identifier in either position
             //  - must use an exclusive (..) range operator (inclusive could be supported; effort required)
 
-            let id = ctx.uid_gen.next().unwrap();
+            let id = ctx.vtable_uid_gen.next().unwrap();
             repeat_source_definition.vtable_id = Some(id);
 
             // Handle the `self.some_data_source` in `for (elem, i) in self.some_data_source`
@@ -525,7 +525,7 @@ fn recurse_compile_expressions<'a>(
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
             let (output_statement, invocations) =
                 compile_paxel_to_ril(condition_expression_paxel.clone(), &ctx)?;
-            let id = ctx.uid_gen.next().unwrap();
+            let id = ctx.vtable_uid_gen.next().unwrap();
 
             cfa.condition_expression_vtable_id = Some(id);
 
@@ -552,7 +552,7 @@ fn recurse_compile_expressions<'a>(
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
             let (output_statement, invocations) =
                 compile_paxel_to_ril(slot_index_expression_paxel.clone(), &ctx)?;
-            let id = ctx.uid_gen.next().unwrap();
+            let id = ctx.vtable_uid_gen.next().unwrap();
 
             cfa.slot_index_expression_vtable_id = Some(id);
 
@@ -762,7 +762,7 @@ pub struct ExpressionCompilationContext<'a> {
 
     /// Generator used to create monotonically increasing, compilation-unique integer IDs
     /// Used at least for expression vtable id generation
-    pub uid_gen: RangeFrom<usize>,
+    pub vtable_uid_gen: RangeFrom<usize>,
 
     /// Mutable reference to a traversal-global map of ExpressionSpecs,
     /// to be appended to as expressions are compiled during traversal

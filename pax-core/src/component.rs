@@ -2,7 +2,7 @@ use piet_common::RenderContext;
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{HandlerRegistry, InstantiationArgs, NodeType, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode};
+use crate::{HandlerRegistry, InstantiationArgs, NodeType, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, PropertiesTreeContext, ExpandedNode};
 use pax_properties_coproduct::PropertiesCoproduct;
 
 use pax_runtime_api::{CommonProperties, Layer, Size, Timeline};
@@ -51,8 +51,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     }
 
     fn instantiate(args: InstantiationArgs<R>) -> Rc<RefCell<Self>> {
-        let mut instance_registry = (*args.instance_registry).borrow_mut();
-        let instance_id = instance_registry.mint_instance_id();
+        let mut node_registry = (*args.node_registry).borrow_mut();
+        let instance_id = node_registry.mint_instance_id();
 
         let template = match args.component_template {
             Some(t) => t,
@@ -75,7 +75,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
             handler_registry: args.handler_registry,
         }));
 
-        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
+        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 
@@ -86,7 +86,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         bounds
     }
 
-    fn handle_pre_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_pre_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) {
 
         todo!("get properties from the current component -expanded node-, push to stack frame");
         // (*rtc.runtime).borrow_mut().push_stack_frame(
@@ -95,15 +95,15 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         // );
     }
 
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode<R>>> {
         todo!("");
         //
         // self.common_properties.compute_properties(rtc);
         // (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
     }
 
-    fn handle_post_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
-        (*rtc.runtime).borrow_mut().pop_stack_frame();
+    fn handle_post_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) {
+        ptc.pop_stack_frame();
     }
 
     fn get_layer_type(&mut self) -> Layer {

@@ -956,10 +956,10 @@ Thus it follows that we want to associate handlers with INSTANCE IDs rather than
 ### on instance IDs, handlers, and control flow
 
 1. inline, compiler-generated literal ids will add to cartridge footprint
-2. handlers need to be able to look up element by ID (instance_registry)
+2. handlers need to be able to look up element by ID (node_registry)
 3. either: a.) IDs are inlined during compilation (e.g. by the mechanism used to join expressions + properties), or b.) generated at runtime
     1. Expression IDs have to be managed at compile-time, to solve vtable functionality within Rust constraints
-    2. instance_registry (instance) IDs should probably be managed at runtime, because:
+    2. node_registry (instance) IDs should probably be managed at runtime, because:
         1. literal inlining takes toll on footprint
         2. dynamic primitives like if/repeat, which may dynamically instantiate children with methods/handlers, _must_ do this at runtime
 
@@ -979,11 +979,11 @@ Look up element by id, get `dyn InstanceNode`
 could expose `dispatch_event()` on `RenderNode` —
 challenge is passing the right `&mut self` into the registered method call.
 
-Maybe we don't want to resolve RenderNodes with the instance_registry at all?
+Maybe we don't want to resolve RenderNodes with the node_registry at all?
 Can we resolve to the instance of `RootProperties`?
-The answer is probably yes, because properties are stored in an Rc<RefCell<>>, which we can clone into the instance_registry
+The answer is probably yes, because properties are stored in an Rc<RefCell<>>, which we can clone into the node_registry
 
-So: Engine has an id and an event, looks up id in instance_registry,
+So: Engine has an id and an event, looks up id in node_registry,
 gets an Rc<RefCell<PropertiesCoproduct>>
 
 That PropertiesCoproduct needs to be unwrapped so the right
@@ -1124,7 +1124,7 @@ Could technically enumerate also, `@foreach (val, i) in (0..10)` but only useful
 1. currently using `::instantiate` associated functions, as a way to inject side effects (registering instance in instance map.)
 
 An alternative, robust solution is to instantiate more 'imperatively' -- instead of in one big recursive statement (RIL tree),
-instantiation can occur using vanilla object constructors and manual invocation of side effects (e.g. registration in instance_registry)
+instantiation can occur using vanilla object constructors and manual invocation of side effects (e.g. registration in node_registry)
 
 Roughly, this requires starting from the bottom of the render tree and moving upwards.  For a given leaf node, instantiate its bottom-most sibling, then each successive sibling until all children of the shared parent are instantiated.  
 Recurse upwards until root is instantiated.
@@ -1132,7 +1132,7 @@ Recurse upwards until root is instantiated.
 Disadvantage:  RIL becomes more cumbersome to read, write.  Advantage: cleaner instantiation logic.
 
 Another option: add `instantiate` to RenderNode, thereby firming the contract of what needs to go into instantiation
-(e.g. the instance_registry, the handler_registry, and properties)
+(e.g. the node_registry, the handler_registry, and properties)
 
 *Decision: add `instantiate` to RenderNode*
 
@@ -2347,7 +2347,7 @@ Instead of `get_rendering_subtree_flattened`:
 - during `interrupts`, consult this populated cache of "virtual elements", e.g. for hit-testing
 
 
-Maybe this belongs in the `instance_registry`?
+Maybe this belongs in the `node_registry`?
 
 
 (cont. May 21)
@@ -3206,7 +3206,7 @@ Two separate issues:
 First approach, ultimately shelved: set up a proper equality check in Repeat before churning elements, as the existing Rc::ptr_eq was not working.  This required deriving `Eq` and `PartialEq` for every pax type, which was a rabbit hole.  Discarded this approach fairly quickly, hard-coding a "dirty = true" on each tick in Repeat until we have the dirty-DAG 
 
 Observations: id_chains seem malformed, e.g. several `[0]`s and several cases where multiple levels of chaining are expected but not presented (e.g. just `[11]`, not `[1, 11]` or similar.)
-    Seems plausible that this is some sort of off-by-one error when constructing the ID chain, e.g. missing a level of recursion, or otherwise faulty logic somewhere in the very old `instance_registry` logic. 
+    Seems plausible that this is some sort of off-by-one error when constructing the ID chain, e.g. missing a level of recursion, or otherwise faulty logic somewhere in the very old `node_registry` logic. 
 Approach: get bug into a state reproducible on macos, so that a debugger can be attached
 Hypothesis: this is a different manifestation of the same bug already observed on macOS:
     "0.5.0 bug: repeated native elements aren't destroyed"
@@ -3219,8 +3219,8 @@ Observations:
     Either we need to update the 'hydrated node expansion' logic in the engine core to be aware of the
     adjustments made by Repeat, or we need to update Repeat's (and Conditional's?) deletion logic to be more mindful
    - Note: Conditional doesn't use this mechanism at all; it uses a "double buffer" approach, with one empty children buffer and one many-children buffer.
- - Further investigation: instance_registry#instance_map seems to be used as an Rc safety-net, 
-    ensuring the count of the Rc will always be at least 1.  Removing from instance_registry
+ - Further investigation: node_registry#instance_map seems to be used as an Rc safety-net, 
+    ensuring the count of the Rc will always be at least 1.  Removing from node_registry
     allows the Rc to be cleaned up, "garbage collected," so its use is valid in this context.
 
 Perhaps: we need to _mark for removal_ at the _end of the frame_ (or even the beginning of next frame), instead
@@ -3828,8 +3828,8 @@ Get this working entirely manually first, then automate in pax-compiler. (valida
     [x] manage lifecycle between calling the above method, which requires recursive properties to have been computed,
     vs computing properties
     [x] note that this means adoptees aren't tracked in a stack at all.
-    [x] instead, ensure that the "node containing the node for which the current render_node is a template member"
-[ ] consider renaming `will_` to `pre_` and `did_` to `post_` (while a departure from React-like conventions, there's precedent in other worlds like .NET, and it's just a better naming scheme)
+    [x] instead, ensure that the "node containing the node for which the current render_node is a template member" (current active component) can retrieve the slot_children that were passed to it
+[x] consider renaming `will_` to `pre_` and `did_` to `post_` (while a departure from React-like conventions, there's precedent in other worlds like .NET, and it's just a better naming scheme)
 [x] handle forwarded children in Repeat
 [x] handle triggering events in handle_registry given changes in runtime stack
 [x] probably introduce `get_properties` on dyn InstanceNode, returning something like an Rc<RefCell<PropertiesCoproduct>>
@@ -4153,22 +4153,34 @@ Let's store a prototypical clone of the original properties on each InstanceNode
 [ ] Fully split properties-compute from render passes.  Probably start rendering from root of expanded tree.
     [ ] Refactor / separate `rtc` as relevant for this too, to help clarify the distinction between `properties compute` vs `rendering` lifecycle methods & relevant data
 [ ] Refactor Repeat & Conditional properties computation
-    [x] Remove ComponentInstance from Repeat
-    [ ] Instead, manage RuntimePropertiesStackFrame manually, as well as recursing into `compute_properties`
-    [ ] Recurse similarly within Conditional?
     [ ] Refactor each of `Repeat`, `Slot`, and `Conditional` to be stateless (so that stateful expansions with ExpandedNodes actually work)
-        [ ] Figure out in particular how to store:
-            [ ] Repeat's cache (+ source expression?)
-            [ ] Slot's `cached_computed_children` (+ index expression?)
-            [ ] Conditional's computed state (+ conditional expression?)
-        [ ] As part of the above, decide whether to refactor Conditional/Repeat/Slot's "special" PropertyInstances into
+        [x] Figure out in particular how to store:
+            [x] Repeat's cache (+ source expression?)
+            [x] Slot's `cached_computed_children` (+ index expression?)
+            [x] Conditional's computed state (+ conditional expression?)
+        [x] As part of the above, decide whether to refactor Conditional/Repeat/Slot's "special" PropertyInstances into
             PropertiesCoproduct variants.  Major deciding factor should be whether we need `dyn InstanceNode`-level access to prototypical properties (suggesting refactor)
             vs. encapsulating management of prototypical properties => ExpandedNodes so that it's an implementation detail of the respective node.  Given that we need to 
             "accordion" the properties of any node, including control-flow nodes, and that those expanded properties must
             sit on ExpandedNodes as PropertiesCoproduct, we either need to refactor control-flow properties to fit into PropertiesCoproduct (cleaner),
             or special-case control flow properties as Optional fields on ExpandedNodes (similar in shape to InstantiationArgs)
+        [ ] Punch through the above refactor into codegen, templates, and specs
+        [ ] Refactor internals of control-flow to be stateless + expansion-friendly, patching into the new PropertiesCoproduct variants:
+            [ ] Repeat
+                [x] Remove ComponentInstance from Repeat
+                [ ] Instead, manage RuntimePropertiesStackFrame manually, as well as recursing into `compute_properties_recursive`
+            [ ] Conditional
+                [ ] Piecewise-recurse into `compute_properties_recursive`, a la Repeat
+            [ ] Slot
+                [ ] Probably doesn't need to do anything special properties-compute-wise; slot-children are handled ahead-of-time, and 
+                [ ] Make sure we handle "is_invisible" (née flattening) correctly
 [ ] Refactor "component template frame" computation order; support recursing mid-frame
     [ ] Handle slot children: compute properties first, before recursing into next component template subtree
 [ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
 [x] Refactor `did_` and `will_` naming conventions, drop where unnecessary (e.g. mount/unmount)
-
+[ ] Revisit cleanup children — may not be necessary in light of changes to properties compute, instances, and control-flow-internal-recursion of properties computation + node expansion
+    [x] Start by ripping it out
+    [ ] Come back and rebuild if/as needed
+[ ] Refactor unmounting to be id_chain-specific rather than instance_id specific
+    [ ] Refactor NodeRegistry
+    [ ] Refactor lifecycle hooks/call site for unmounting

@@ -70,10 +70,10 @@ impl PaxChassisWeb {
         let width = window.inner_width().unwrap().as_f64().unwrap();
         let height = window.inner_height().unwrap().as_f64().unwrap();
 
-        let instance_registry: Rc<RefCell<NodeRegistry<WebRenderContext>>> =
+        let node_registry: Rc<RefCell<NodeRegistry<WebRenderContext>>> =
             Rc::new(RefCell::new(NodeRegistry::new()));
         let main_component_instance =
-            pax_cartridge::instantiate_main_component(Rc::clone(&instance_registry));
+            pax_cartridge::instantiate_main_component(Rc::clone(&node_registry));
         let expression_table = pax_cartridge::instantiate_expression_table();
 
         let engine = pax_core::PaxEngine::new(
@@ -81,7 +81,7 @@ impl PaxChassisWeb {
             expression_table,
             pax_runtime_api::PlatformSpecificLogger::Web(log_wrapper),
             (width, height),
-            instance_registry,
+            node_registry,
         );
 
         let engine_container: Rc<RefCell<PaxEngine<WebRenderContext>>> =
@@ -145,9 +145,9 @@ impl PaxChassisWeb {
             },
             NativeInterrupt::FormCheckboxToggle(args) => {
                 let engine_borrowed = (*self.engine).borrow();
-                let instance_registry_borrowed = engine_borrowed.instance_registry.borrow();
+                let node_registry_borrowed = engine_borrowed.node_registry.borrow();
                 let node =
-                    instance_registry_borrowed
+                    node_registry_borrowed
                     .get_expanded_node(&args.id_chain)
                     .expect("couldn't find node");
                 node.dispatch_checkbox_change(ArgsCheckboxChange {
