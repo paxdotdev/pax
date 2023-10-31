@@ -7,8 +7,9 @@ use std::collections::HashMap;
 use std::ops::{IndexMut, RangeFrom};
 use std::slice::IterMut;
 
-use crate::manifest::{PropertyDefinitionFlags, TypeDefinition, TypeTable};
+use crate::manifest::{PropertyDefinitionFlags, TypeDefinition, TypeTable, Token};
 use crate::parsing::escape_identifier;
+use crate::source_map::{self, SourceMap};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 
@@ -27,7 +28,7 @@ const BUILTIN_TYPES: &'static [(&str, &str); 12] = &[
     ("rotate", "Rotation"),
 ];
 
-pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
+pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest, source_map: &'a mut SourceMap) {
     let mut swap_expression_specs: HashMap<usize, ExpressionSpec> = HashMap::new();
     let mut all_expression_specs: HashMap<usize, ExpressionSpec> = HashMap::new();
 
@@ -59,7 +60,7 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
                     type_table: &manifest.type_table,
                 };
 
-                ctx = recurse_compile_expressions(ctx);
+                ctx = recurse_compile_expressions(ctx, source_map);
                 uid_track = ctx.uid_gen.next().unwrap();
                 all_expression_specs.extend(ctx.expression_specs.to_owned());
                 std::mem::swap(&mut ctx.active_node_def, template.index_mut(0));
@@ -72,12 +73,12 @@ pub fn compile_all_expressions<'a>(manifest: &'a mut PaxManifest) {
 }
 
 fn pull_matched_identifiers_from_inline(
-    inline_settings: &Option<Vec<(String, ValueDefinition)>>,
+    inline_settings: &Option<Vec<(Token, ValueDefinition)>>,
     s: String,
-) -> Vec<String> {
+) -> Vec<Token> {
     let mut ret = Vec::new();
     if let Some(val) = inline_settings {
-        for (_, matched) in val.iter().filter(|avd| avd.0 == s.as_str()) {
+        for (_, matched) in val.iter().filter(|avd| avd.0.token_value == s.as_str()) {
             match matched {
                 ValueDefinition::Identifier(s, _) => ret.push(s.clone()),
                 _ => {}
@@ -90,11 +91,11 @@ fn pull_matched_identifiers_from_inline(
 fn pull_settings_with_selector(
     settings: &Option<Vec<SettingsSelectorBlockDefinition>>,
     selector: String,
-) -> Option<Vec<(String, ValueDefinition)>> {
+) -> Option<Vec<(Token, ValueDefinition)>> {
     settings.as_ref().and_then(|val| {
-        let merged_settings: Vec<(String, ValueDefinition)> = val
+        let merged_settings: Vec<(Token, ValueDefinition)> = val
             .iter()
-            .filter(|block| block.selector == selector)
+            .filter(|block| block.selector.token_value == selector)
             .flat_map(|block| block.value_block.settings_key_value_pairs.clone())
             .collect();
         (!merged_settings.is_empty()).then(|| merged_settings)
@@ -102,15 +103,15 @@ fn pull_settings_with_selector(
 }
 
 fn merge_inline_settings_with_settings_block(
-    inline_settings: &Option<Vec<(String, ValueDefinition)>>,
+    inline_settings: &Option<Vec<(Token, ValueDefinition)>>,
     settings_block: &Option<Vec<SettingsSelectorBlockDefinition>>,
-) -> Option<Vec<(String, ValueDefinition)>> {
+) -> Option<Vec<(Token, ValueDefinition)>> {
     // collect id settings
     let ids = pull_matched_identifiers_from_inline(&inline_settings, "id".to_string());
 
     let mut id_settings = Vec::new();
     if ids.len() == 1 {
-        if let Some(settings) = pull_settings_with_selector(&settings_block, format!("#{}", ids[0]))
+        if let Some(settings) = pull_settings_with_selector(&settings_block, format!("#{}", ids[0].token_value))
         {
             id_settings.extend(settings.clone());
         }
@@ -123,7 +124,7 @@ fn merge_inline_settings_with_settings_block(
 
     let mut class_settings = Vec::new();
     for class in classes {
-        if let Some(settings) = pull_settings_with_selector(&settings_block, format!(".{}", class))
+        if let Some(settings) = pull_settings_with_selector(&settings_block, format!(".{}", class.token_value))
         {
             class_settings.extend(settings.clone());
         }
@@ -146,7 +147,7 @@ fn merge_inline_settings_with_settings_block(
         }
     }
 
-    let merged: Vec<(String, ValueDefinition)> = map.into_iter().collect();
+    let merged: Vec<(Token, ValueDefinition)> = map.into_iter().collect();
     if merged.len() > 0 {
         Some(merged)
     } else {
@@ -155,10 +156,11 @@ fn merge_inline_settings_with_settings_block(
 }
 
 fn recurse_compile_literal_block<'a>(
-    settings_pairs: IterMut<(String, ValueDefinition)>,
+    settings_pairs: IterMut<(Token, ValueDefinition)>,
     ctx: &mut ExpressionCompilationContext,
     current_property_definitions: Vec<PropertyDefinition>,
     type_id: String,
+    source_map: &mut SourceMap,
 ) {
     settings_pairs.for_each(|pair| {
         match &mut pair.1 {
@@ -168,10 +170,10 @@ fn recurse_compile_literal_block<'a>(
             ValueDefinition::Block(block) => {
                 let type_def = (current_property_definitions
                     .iter()
-                    .find(|property_def| property_def.name == pair.0))
+                    .find(|property_def| property_def.name == pair.0.token_value))
                 .expect(&format!(
                     "Property `{}` not found on `{}`",
-                    &pair.0, type_id
+                    &pair.0.token_value, type_id
                 ))
                 .get_type_definition(ctx.type_table);
                 recurse_compile_literal_block(
@@ -179,35 +181,39 @@ fn recurse_compile_literal_block<'a>(
                     ctx,
                     type_def.property_definitions.clone(),
                     type_def.type_id_escaped.clone(),
+                    source_map,
                 );
             }
             ValueDefinition::Expression(input, manifest_id) => {
                 // e.g. the `self.num_clicks + 5` in `<SomeNode some_property={self.num_clicks + 5} />`
                 let id = ctx.uid_gen.next().unwrap();
 
-                let (output_statement, invocations) = compile_paxel_to_ril(&input, &ctx);
+                let (output_statement, invocations) = compile_paxel_to_ril(&input.token_value, &ctx);
 
                 let pascalized_return_type = if let Some(type_string) = BUILTIN_TYPES
                     .iter()
-                    .find(|type_str| type_str.0 == &*pair.0)
+                    .find(|type_str| type_str.0 == &*pair.0.token_value)
                     .map(|type_str| type_str.1)
                 {
                     type_string.to_string()
                 } else {
                     (current_property_definitions
                         .iter()
-                        .find(|property_def| property_def.name == pair.0)
+                        .find(|property_def| property_def.name == pair.0.token_value)
                         .expect(&format!(
                             "Property `{}` not found on component `{}`",
-                            &pair.0, type_id
+                            &pair.0.token_value, type_id
                         ))
                         .get_type_definition(ctx.type_table)
                         .type_id_escaped)
                         .clone()
                 };
 
-                let mut whitespace_removed_input = input.clone();
+                let mut whitespace_removed_input = input.clone().token_value;
                 whitespace_removed_input.retain(|c| !c.is_whitespace());
+
+                let source_map_id = source_map.insert(input.clone());
+                let input_statement = source_map.generate_mapped_string(whitespace_removed_input, source_map_id);
 
                 ctx.expression_specs.insert(
                     id,
@@ -216,7 +222,7 @@ fn recurse_compile_literal_block<'a>(
                         pascalized_return_type,
                         invocations,
                         output_statement,
-                        input_statement: whitespace_removed_input,
+                        input_statement,
                         is_repeat_source_iterable_expression: false,
                         repeat_source_iterable_type_id_escaped: "".to_string(),
                     },
@@ -229,7 +235,7 @@ fn recurse_compile_literal_block<'a>(
             ValueDefinition::Identifier(identifier, manifest_id) => {
                 // e.g. the self.active_color in `bg_color=self.active_color`
 
-                if pair.0 == "id" || pair.0 == "class" {
+                if pair.0.token_value == "id" || pair.0.token_value == "class" {
                     //No-op -- special-case `id=some_identifier` and `class=some_identifier` — we DON'T want to compile an expression {some_identifier},
                     //so we skip the case where `id` is the key
                 } else {
@@ -241,13 +247,16 @@ fn recurse_compile_literal_block<'a>(
 
                     //a single identifier binding is the same as an expression returning that identifier, `{self.some_identifier}`
                     //thus, we can compile it as PAXEL and make use of any shared logic, e.g. `self`/`this` handling
-                    let (output_statement, invocations) = compile_paxel_to_ril(&identifier, &ctx);
+                    let (output_statement, invocations) = compile_paxel_to_ril(&identifier.token_value, &ctx);
+
+                    let source_map_id = source_map.insert(identifier.clone());
+                    let input_statement = source_map.generate_mapped_string( identifier.token_value.clone(), source_map_id);
 
                     let pascalized_return_type = (&ctx
                         .component_def
                         .get_property_definitions(ctx.type_table)
                         .iter()
-                        .find(|property_def| property_def.name == pair.0)
+                        .find(|property_def| property_def.name == pair.0.token_value)
                         .unwrap()
                         .get_type_definition(ctx.type_table)
                         .type_id_escaped)
@@ -260,7 +269,7 @@ fn recurse_compile_literal_block<'a>(
                             pascalized_return_type,
                             invocations,
                             output_statement,
-                            input_statement: identifier.clone(),
+                            input_statement,
                             is_repeat_source_iterable_expression: false,
                             repeat_source_iterable_type_id_escaped: "".to_string(),
                         },
@@ -276,6 +285,7 @@ fn recurse_compile_literal_block<'a>(
 
 fn recurse_compile_expressions<'a>(
     mut ctx: ExpressionCompilationContext<'a>,
+    mut source_map: &mut SourceMap,
 ) -> ExpressionCompilationContext<'a> {
     let incremented = false;
 
@@ -305,6 +315,7 @@ fn recurse_compile_expressions<'a>(
             &mut ctx,
             property_def.clone(),
             pascal_identifier,
+            &mut source_map,
         );
     } else if let Some(ref mut cfa) = cloned_control_flow_settings {
         //Handle attributes for control flow
@@ -336,12 +347,12 @@ fn recurse_compile_expressions<'a>(
                 &repeat_source_definition.range_expression_paxel
             {
                 (
-                    range_expression_paxel.to_string(),
+                    range_expression_paxel.clone(),
                     TypeDefinition::builtin_range_isize(),
                 )
             } else if let Some(symbolic_binding) = &repeat_source_definition.symbolic_binding {
                 let inner_iterable_type_id = ctx
-                    .resolve_symbol_as_prop_def(symbolic_binding)
+                    .resolve_symbol_as_prop_def(&symbolic_binding.token_value)
                     .unwrap()
                     .last()
                     .unwrap()
@@ -350,7 +361,7 @@ fn recurse_compile_expressions<'a>(
                     .type_id
                     .clone();
                 (
-                    symbolic_binding.to_string(),
+                    symbolic_binding.clone(),
                     TypeDefinition::builtin_vec_rc_properties_coproduct(inner_iterable_type_id),
                 )
             } else {
@@ -368,7 +379,7 @@ fn recurse_compile_expressions<'a>(
             //with the parser that we are only binding to a simple symbolic id, like `self.foo`.
             //This is because we are inferring the return type of this expression based on the declared-and-known
             //type of property `self.foo`
-            let (output_statement, invocations) = compile_paxel_to_ril(&paxel, &ctx);
+            let (output_statement, invocations) = compile_paxel_to_ril(&paxel.token_value, &ctx);
 
             // Attach shadowed property symbols to the scope_stack, so e.g. `elem` can be
             // referred to with the symbol `elem` in PAXEL
@@ -382,7 +393,7 @@ fn recurse_compile_expressions<'a>(
                     // property_type:isize (the iterable_type)
 
                     let property_definition = PropertyDefinition {
-                        name: format!("{}", elem_id),
+                        name: format!("{}", elem_id.token_value),
 
                         flags: PropertyDefinitionFlags {
                             is_binding_repeat_i: false,
@@ -396,7 +407,7 @@ fn recurse_compile_expressions<'a>(
 
                     let scope: HashMap<String, PropertyDefinition> = HashMap::from([
                         //`elem` property (by specified name)
-                        (elem_id.clone(), property_definition),
+                        (elem_id.token_value.clone(), property_definition),
                     ]);
 
                     ctx.scope_stack.push(scope);
@@ -411,8 +422,8 @@ fn recurse_compile_expressions<'a>(
                             &repeat_source_definition.symbolic_binding
                         {
                             let pd = ctx
-                                .resolve_symbol_as_prop_def(symbolic_binding)
-                                .expect(&format!("Property not found: {}", symbolic_binding))
+                                .resolve_symbol_as_prop_def(&symbolic_binding.token_value)
+                                .expect(&format!("Property not found: {}", symbolic_binding.token_value))
                                 .last()
                                 .unwrap()
                                 .clone();
@@ -424,7 +435,7 @@ fn recurse_compile_expressions<'a>(
                         };
 
                     let elem_property_definition = PropertyDefinition {
-                        name: format!("{}", elem_id),
+                        name: format!("{}", elem_id.token_value),
                         type_id: iterable_type.type_id,
                         flags: PropertyDefinitionFlags {
                             is_binding_repeat_elem: true,
@@ -436,7 +447,7 @@ fn recurse_compile_expressions<'a>(
                     };
 
                     let mut i_property_definition =
-                        PropertyDefinition::primitive_with_name("usize", index_id);
+                        PropertyDefinition::primitive_with_name("usize", &index_id.token_value);
                     i_property_definition.flags = PropertyDefinitionFlags {
                         is_binding_repeat_i: true,
                         is_binding_repeat_elem: false,
@@ -447,9 +458,9 @@ fn recurse_compile_expressions<'a>(
 
                     ctx.scope_stack.push(HashMap::from([
                         //`elem` property (by specified name)
-                        (elem_id.clone(), elem_property_definition),
+                        (elem_id.clone().token_value, elem_property_definition),
                         //`i` property (by specified name)
-                        (index_id.clone(), i_property_definition),
+                        (index_id.clone().token_value, i_property_definition),
                     ]));
                 }
             };
@@ -462,8 +473,11 @@ fn recurse_compile_expressions<'a>(
             // an explicit type declaration by the end-user, or perhaps we can hack something
             // with further compiletime "reflection" magic
 
-            let mut whitespace_removed_input = paxel.clone();
+            let mut whitespace_removed_input = paxel.clone().token_value;
             whitespace_removed_input.retain(|c| !c.is_whitespace());
+
+            let source_map_id = source_map.insert(paxel.clone());
+            let input_statement = source_map.generate_mapped_string(whitespace_removed_input, source_map_id);
 
             ctx.expression_specs.insert(
                 id,
@@ -472,7 +486,7 @@ fn recurse_compile_expressions<'a>(
                     pascalized_return_type: return_type.type_id_escaped,
                     invocations,
                     output_statement,
-                    input_statement: whitespace_removed_input,
+                    input_statement,
                     is_repeat_source_iterable_expression: is_repeat_source_iterable,
                     repeat_source_iterable_type_id_escaped,
                 },
@@ -480,13 +494,16 @@ fn recurse_compile_expressions<'a>(
         } else if let Some(condition_expression_paxel) = &cfa.condition_expression_paxel {
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
             let (output_statement, invocations) =
-                compile_paxel_to_ril(&condition_expression_paxel, &ctx);
+                compile_paxel_to_ril(&condition_expression_paxel.token_value, &ctx);
             let id = ctx.uid_gen.next().unwrap();
 
             cfa.condition_expression_vtable_id = Some(id);
 
-            let mut whitespace_removed_input = condition_expression_paxel.clone();
+            let mut whitespace_removed_input = condition_expression_paxel.clone().token_value;
             whitespace_removed_input.retain(|c| !c.is_whitespace());
+
+            let source_map_id = source_map.insert(condition_expression_paxel.clone());
+            let input_statement = source_map.generate_mapped_string(whitespace_removed_input, source_map_id);
 
             ctx.expression_specs.insert(
                 id,
@@ -495,7 +512,7 @@ fn recurse_compile_expressions<'a>(
                     pascalized_return_type: "bool".to_string(),
                     invocations,
                     output_statement,
-                    input_statement: whitespace_removed_input,
+                    input_statement,
                     is_repeat_source_iterable_expression: false,
                     repeat_source_iterable_type_id_escaped: "".to_string(),
                 },
@@ -503,13 +520,16 @@ fn recurse_compile_expressions<'a>(
         } else if let Some(slot_index_expression_paxel) = &cfa.slot_index_expression_paxel {
             //Handle `if` boolean expression, e.g. the `num_clicks > 5` in `if num_clicks > 5 { ... }`
             let (output_statement, invocations) =
-                compile_paxel_to_ril(&slot_index_expression_paxel, &ctx);
+                compile_paxel_to_ril(&slot_index_expression_paxel.token_value, &ctx);
             let id = ctx.uid_gen.next().unwrap();
 
             cfa.slot_index_expression_vtable_id = Some(id);
 
-            let mut whitespace_removed_input = slot_index_expression_paxel.clone();
+            let mut whitespace_removed_input = slot_index_expression_paxel.clone().token_value;
             whitespace_removed_input.retain(|c| !c.is_whitespace());
+
+            let source_map_id = source_map.insert(slot_index_expression_paxel.clone());
+            let input_statement = source_map.generate_mapped_string(whitespace_removed_input, source_map_id);
 
             ctx.expression_specs.insert(
                 id,
@@ -518,7 +538,7 @@ fn recurse_compile_expressions<'a>(
                     pascalized_return_type: "Numeric".to_string(),
                     invocations,
                     output_statement,
-                    input_statement: whitespace_removed_input,
+                    input_statement,
                     is_repeat_source_iterable_expression: false,
                     repeat_source_iterable_type_id_escaped: "".to_string(),
                 },
@@ -553,7 +573,7 @@ fn recurse_compile_expressions<'a>(
         ctx.active_node_def = active_node_def;
 
         //Recurse
-        ctx = recurse_compile_expressions(ctx);
+        ctx = recurse_compile_expressions(ctx, source_map);
 
         //Pull the (presumably mutated) active_node_def back out of ctx and attach it back into `template`
         std::mem::swap(&mut ctx.active_node_def, ctx.template.get_mut(*id).unwrap());

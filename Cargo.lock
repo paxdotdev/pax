@@ -1898,6 +1898,7 @@ dependencies = [
  "pest_derive",
  "portpicker",
  "rand",
+ "regex",
  "reqwest",
  "rust-format",
  "serde",
