@@ -15,7 +15,7 @@ pub struct Example {
 }
 
 impl Example {
-    pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
+    pub fn handle_mount(&mut self, ctx: RuntimeContext) {
         pax_lang::log("Mounted!");
     }
 

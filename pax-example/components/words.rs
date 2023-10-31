@@ -15,7 +15,7 @@ pub struct Words {
 }
 
 impl Words {
-    pub fn handle_did_mount(&mut self, _ctx: RuntimeContext) {
+    pub fn handle_mount(&mut self, _ctx: RuntimeContext) {
     }
 
     pub fn handle_jab(&mut self, _ctx: RuntimeContext, _args: ArgsJab) {

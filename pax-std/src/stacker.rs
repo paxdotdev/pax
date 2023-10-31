@@ -24,7 +24,7 @@ use pax_runtime_api::{RuntimeContext, PropertyLiteral};
     }
 
     @handlers {
-        will_render: handle_will_render
+        pre_render: handle_pre_render
     }
 
 )]
@@ -52,7 +52,7 @@ impl Default for Stacker {
 }
 
 impl Stacker {
-    pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
+    pub fn handle_pre_render(&mut self, ctx: RuntimeContext) {
         let cells = self.cells.get().get_as_float();
         let bounds = ctx.bounds_parent;
         let active_bound = match *self.direction.get() {

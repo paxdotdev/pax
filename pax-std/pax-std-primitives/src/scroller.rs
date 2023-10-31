@@ -314,7 +314,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         self.common_properties.compute_properties(rtc);
     }
 
-    fn handle_will_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String, R>) {
+    fn handle_pre_render(&mut self, rtc: &mut RenderTreeContext<R>, rcs: &mut HashMap<String, R>) {
         let transform = rtc.transform_global;
         let bounding_dimens = rtc.bounds;
 
@@ -331,7 +331,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
 
         let transformed_bez_path = transform * bez_path;
         for (_key, rc) in rcs.iter_mut() {
-            rc.save().unwrap(); //our "save point" before clipping — restored to in the did_render
+            rc.save().unwrap(); //our "save point" before clipping — restored to in the post_render
             rc.clip(transformed_bez_path.clone());
         }
         let id_chain = rtc.get_id_chain(self.instance_id);
@@ -342,7 +342,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
             .borrow_mut()
             .push_scroller_stack_id(id_chain.clone());
     }
-    fn handle_did_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
+    fn handle_post_render(&mut self, rtc: &mut RenderTreeContext<R>, _rcs: &mut HashMap<String, R>) {
         for (_key, rc) in _rcs.iter_mut() {
             //pop the clipping context from the stack
             rc.restore().unwrap();
@@ -352,7 +352,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         (*rtc.runtime).borrow_mut().pop_scroller_stack_id();
     }
 
-    fn handle_did_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
+    fn handle_mount(&mut self, rtc: &mut RenderTreeContext<R>, z_index: u32) {
         let id_chain = rtc.get_id_chain(self.instance_id);
 
         //though macOS and iOS don't need this ancestry chain for clipping, Web does
@@ -370,7 +370,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ScrollerInstance<R> {
         );
     }
 
-    fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    fn handle_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
         let id_chain = _rtc.get_id_chain(self.instance_id);
         self.last_patches.remove(&id_chain);
         (*_rtc.engine.runtime)

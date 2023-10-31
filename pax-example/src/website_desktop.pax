@@ -224,6 +224,6 @@
 }
 
 @handlers {
-    did_mount: self.handle_did_mount,
-    will_render: self.handle_will_render
+    mount: self.handle_mount,
+    pre_render: self.handle_pre_render
 }

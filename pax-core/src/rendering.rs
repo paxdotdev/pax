@@ -183,7 +183,6 @@ impl TransformAndBounds {
     }
 }
 
-
 pub enum NodeType {
     Component,
     Primitive,
@@ -327,12 +326,12 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     }
 
     /// Lifecycle method used by at least Component to introduce a properties stack frame
-    fn handle_push_runtime_properties_stack_frame(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    fn handle_pre_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
 
     /// Lifecycle method used by at least Component to pop a properties stack frame
-    fn handle_pop_runtime_properties_stack_frame(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    fn handle_post_compute_properties(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
 
@@ -362,7 +361,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// Example use-case: perform side-effects to the drawing contexts.
     /// This is how [`Frame`] performs clipping, for example.
     /// Occurs in a pre-order traversal of the render tree.
-    fn handle_will_render(
+    fn handle_pre_render(
         &mut self,
         _rtc: &mut RenderTreeContext<R>,
         _rcs: &mut HashMap<String, R>,
@@ -383,7 +382,7 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// Useful for clean-up, e.g. this is where `Frame` cleans up the drawing contexts
     /// to stop clipping.
     /// Occurs in a post-order traversal of the render tree.
-    fn handle_did_render(
+    fn handle_post_render(
         &mut self,
         _rtc: &mut RenderTreeContext<R>,
         _rcs: &mut HashMap<String, R>,
@@ -395,13 +394,13 @@ pub trait InstanceNode<R: 'static + RenderContext> {
     /// this event fires by all nodes on the global first tick, and by all nodes in a subtree
     /// when a `Conditional` subsequently turns on a subtree (i.e. when the `Conditional`s criterion becomes `true` after being `false` through the end of at least 1 frame.)
     /// A use-case: send a message to native renderers that a `Text` element should be rendered and tracked
-    fn handle_did_mount(&mut self, _rtc: &mut RenderTreeContext<R>, _z_index: u32) {
+    fn handle_mount(&mut self, _rtc: &mut RenderTreeContext<R>, _z_index: u32) {
         //no-op default implementation
     }
 
     /// Fires during element unmount, when an element is about to be removed from the render tree (e.g. by a `Conditional`)
     /// A use-case: send a message to native renderers that a `Text` element should be removed
-    fn handle_will_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
+    fn handle_unmount(&mut self, _rtc: &mut RenderTreeContext<R>) {
         //no-op default implementation
     }
 

@@ -23,7 +23,7 @@ for i in 0..5 {
 }
 
 @handlers {
-    did_mount: handle_did_mount
+    mount: handle_mount
 }
 
 )]
@@ -32,11 +32,11 @@ pub struct Example {
 }
 
 impl Example {
-    pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
+    pub fn handle_mount(&mut self, ctx: RuntimeContext) {
         self.container_width.set(ctx.bounds_parent.0);
     }
 
-    pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
+    pub fn handle_pre_render(&mut self, ctx: RuntimeContext) {
         self.container_width.set(ctx.bounds_parent.0);
     }
 }

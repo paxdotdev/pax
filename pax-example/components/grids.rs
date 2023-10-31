@@ -14,7 +14,7 @@ pub struct Grids {
 
 impl Grids {
 
-    pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
+    pub fn handle_mount(&mut self, ctx: RuntimeContext) {
 
         // self.rects.set(vec![
         //     pax_struct!(

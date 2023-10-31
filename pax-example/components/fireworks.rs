@@ -19,7 +19,7 @@ impl Fireworks {
         self.rotation.set(f64::max(0.0,new_t));
     }
 
-    pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
+    pub fn handle_pre_render(&mut self, ctx: RuntimeContext) {
         let old_ticks = self.ticks.get();
         self.ticks.set(old_ticks + 1);
     }

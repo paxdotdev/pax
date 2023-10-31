@@ -1,10 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{
-    ComponentInstance, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList,
-    RenderTreeContext,
-};
+use crate::{ComponentInstance, InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
@@ -66,7 +63,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         ret
     }
 
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         let (is_dirty, normalized_vec_of_props) = if let Some(se) = &self.source_expression_vec {
             //Handle case where the source expression is a Vec<Property<T>>,
             // like `for elem in self.data_list`
@@ -183,7 +180,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
             ));
         }
 
-        // pax_runtime_api::log(&format!("finished computing repeat properties, virt len: {}", (*self.virtual_children).borrow().len()));
+        todo!()
     }
 
     fn is_invisible_to_slot(&self) -> bool {
@@ -207,7 +204,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for RepeatInstance<R> {
         Layer::DontCare
     }
 
-    fn handle_did_mount(&mut self, _rtc: &mut RenderTreeContext<R>, _z_index: u32) {
+    fn handle_mount(&mut self, _rtc: &mut RenderTreeContext<R>, _z_index: u32) {
         self.cached_old_value_range = None;
         self.cached_old_value_vec = None;
     }

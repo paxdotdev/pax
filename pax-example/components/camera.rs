@@ -21,7 +21,7 @@ pub struct TypeExample {
 const LOOP_DURATION_FRAMES : usize = 600;
 
 impl Camera {
-    pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
+    pub fn handle_mount(&mut self, ctx: RuntimeContext) {
         self.zoom.set(2.0);
         self.pan_x.set(0.0);
         self.pan_y.set(0.0);

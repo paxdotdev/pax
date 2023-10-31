@@ -34,7 +34,7 @@ pub struct IncrementMe {
 }
 
 impl IncrementMe {
-    pub fn handle_did_mount(&mut self, ctx: RuntimeContext) {
+    pub fn handle_mount(&mut self, ctx: RuntimeContext) {
         self.num_clicks.set(0);
         self.message.set("0 clicks".to_string());
     }
@@ -55,7 +55,7 @@ impl IncrementMe {
 />
 
 @handlers{
-     did_mount:handle_did_mount
+     mount:handle_mount
 }
 
 @settings {

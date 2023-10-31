@@ -8,7 +8,7 @@ pub fn instantiate_main_component<R: 'static + RenderContext>(instance_registry:
                 {% for key, value in events %}
                 handler_registry.{{key}}_handlers =  vec![
                     {% for handler in value %}
-                        {%- if key in ['will_render','did_mount'] -%}
+                        {%- if key in ['pre_render','mount'] -%}
                             |properties, ctx|{
                                 let properties = &mut *properties.as_ref().borrow_mut();
                                 let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};
@@ -63,7 +63,7 @@ pub fn instantiate_{{ snake_case_type_id }}<R: 'static + RenderContext>(instance
      {% for key, value in events %}
      handler_registry.{{key}}_handlers =  vec![
      {% for handler in value %}
-         {%- if key in ['will_render','did_mount'] -%}
+         {%- if key in ['pre_render','mount'] -%}
              |properties, ctx|{
              let properties = &mut *properties.as_ref().borrow_mut();
              let properties = if let PropertiesCoproduct::{{ properties_coproduct_variant }}(p) = properties {p} else {unreachable!()};

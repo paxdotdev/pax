@@ -29,7 +29,7 @@ instantiate_{{ snake_case_type_id }}( Rc::clone(&instance_registry),
         let mut handler_registry = HandlerRegistry::default();
         {% for key, value in events %}
             handler_registry.{{key}}_handlers = vec![
-                {%- if key in ['will_render','did_mount'] -%}
+                {%- if key in ['pre_render','mount'] -%}
                     |properties, ctx|{
                        let properties = &mut *properties.as_ref().borrow_mut();
                        let properties = if let PropertiesCoproduct::{{ type_id_escaped }}(p) = properties {p} else {unreachable!()};

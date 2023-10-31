@@ -3,5 +3,5 @@
 </Group>
 
 @handlers {
-    did_mount: self.handle_did_mount
+    mount: self.handle_mount
 }

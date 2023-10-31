@@ -1523,9 +1523,9 @@ right time?)
 </Stacker>
 ```
 
-Could the `will_render` hook be useful here?  Properties have already been computed:
+Could the `pre_render` hook be useful here?  Properties have already been computed:
 for **this node, but not for its children** (e.g. Repeat)
-So no, `will_render` probably won't be helpful as it sits.
+So no, `pre_render` probably won't be helpful as it sits.
 
 
 Probably our best bet is for the lookup to be dynamic on StackFrame itself.
@@ -3906,8 +3906,10 @@ Let's store a prototypical clone of the original properties on each InstanceNode
         [ ] Continue to store `ExpandedNode`s in registry; rename to `NodeRegistry`; decide whether also to populate pointers to `InstanceNode`s
     [ ] Refactor everywhere we call `get_properties` — pass an ID chain, possibly move to InstanceRegistry instead of component (otherwise, track ExpandedNode pointers inside instance nodes.)
     [ ] Manage wrapping/unwrapping polymorphic properties (PropertiesCoproduct) via `get_properties` and individual `dyn InstanceNode`s
+[x] Unplug most of pax_std to reduce iterative surface area
+    [ ] Come back at the end, plug back in, and normalize the rest
 [ ] Handled prototypical / instantiation properties
-    [ ] Store a clone of `InstantiationArgs#properties` (and `#common_properties`) on each `dyn InstanceNode`
+    [x] Store a clone of `InstantiationArgs#properties` (and `#common_properties`) on each `dyn InstanceNode`
     [ ] expose appropriate trait methods — access only? or maybe strictly internal, no need for trait methods?
     [ ] Hook into this when creating a new ExpandedNode — initialize ExpandedNodes with a clone of each
 [ ] Stitch together `ExpandedNode` tree — including relevant `Weak` parent <> child relationships — during recursive property computation
@@ -3931,6 +3933,7 @@ Let's store a prototypical clone of the original properties on each InstanceNode
 [ ] Refactor "component template frame" computation order; support recursing mid-frame
     [ ] Handle slot children: compute properties first, before recursing into next component template subtree
 [ ] Make sure z-indexing is hooked back up correctly (incremented on pre-order)
+[x] Refactor `did_` and `will_` naming conventions, drop where unnecessary (e.g. mount/unmount)
 
 
 

@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, ExpandedNode};
 use pax_properties_coproduct::{PropertiesCoproduct, TypesCoproduct};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 use piet_common::RenderContext;
@@ -55,7 +55,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
         ret
     }
 
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) {
+    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         if let Some(boolean_expression) =
             rtc.compute_vtable_value(self.boolean_expression._get_vtable_id())
         {
@@ -80,6 +80,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ConditionalInstance<R> {
             }
             self.boolean_expression.set(new_value);
         }
+
+        todo!()
     }
 
     fn is_invisible_to_slot(&self) -> bool {

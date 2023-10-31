@@ -150,7 +150,7 @@ _RIL means Rust Intermediate Language, which is the
         [x] Frame (e.g. from std — though if easier could just move to Core)
     [x] port stacker logic; design expression/method approach
         [-] pure expressions + helpers?
-        [x] on_will_render + manual dirty checking?
+        [x] on_pre_render + manual dirty checking?
             [x] decision: no dirty checking at all for right now; expose imperative dirty-check API only when implementing dirty checking for Expressions
     [x] hook in existing layout calc logic
 [x] Import and use Stacker in Root example
@@ -215,7 +215,7 @@ _RIL means Rust Intermediate Language, which is the
             - expose method in engine to generate new id
             - initial use-case: instance IDs for associating engine <> native Text instances
     [x] text support
-        [x] handle_did_mount and handle_will_unmount
+        [x] handle_mount and handle_unmount
         [x] trigger mount/unmount lifecycle events in engine, `Conditional`, `Repeat`
         [x] hook up Text primitive + API
             [x] macOS

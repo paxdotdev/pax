@@ -14,8 +14,8 @@ pub struct WebsiteDesktop {
 }
 
 impl WebsiteDesktop {
-    pub fn handle_did_mount(&mut self, _ctx: RuntimeContext) {}
-    pub fn handle_will_render(&mut self, ctx: RuntimeContext) {
+    pub fn handle_mount(&mut self, _ctx: RuntimeContext) {}
+    pub fn handle_pre_render(&mut self, ctx: RuntimeContext) {
         self.ticks.set(ctx.frames_elapsed);
     }
 }
