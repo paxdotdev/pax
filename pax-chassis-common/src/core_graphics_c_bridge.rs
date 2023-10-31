@@ -39,10 +39,10 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
     //Initialize a ManuallyDrop-contained PaxEngine, so that a pointer to that
     //engine can be passed back to Swift via the C (FFI) bridge
     //This could presumably be cleaned up -- see `pax_dealloc_engine`
-    let instance_registry: Rc<RefCell<NodeRegistry<CoreGraphicsContext<'static>>>> =
+    let node_registry: Rc<RefCell<NodeRegistry<CoreGraphicsContext<'static>>>> =
         Rc::new(RefCell::new(NodeRegistry::new()));
     let main_component_instance =
-        pax_cartridge::instantiate_main_component(Rc::clone(&instance_registry));
+        pax_cartridge::instantiate_main_component(Rc::clone(&node_registry));
     let expression_table = pax_cartridge::instantiate_expression_table();
 
     let engine: ManuallyDrop<Box<PaxEngine<CoreGraphicsContext<'static>>>> =
@@ -51,7 +51,7 @@ pub extern "C" fn pax_init(logger: extern "C" fn(*const c_char)) -> *mut PaxEngi
             expression_table,
             pax_runtime_api::PlatformSpecificLogger::MacOS(logger),
             (1.0, 1.0),
-            instance_registry,
+            node_registry,
         )));
 
     let container = ManuallyDrop::new(Box::new(PaxEngineContainer {

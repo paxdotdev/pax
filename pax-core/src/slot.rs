@@ -7,7 +7,7 @@ use std::rc::Rc;
 use pax_properties_coproduct::{TypesCoproduct, PropertiesCoproduct};
 use piet_common::RenderContext;
 
-use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive, ExpandedNode};
+use crate::{InstantiationArgs, InstanceNode, InstanceNodePtr, InstanceNodePtrList, RenderTreeContext, flatten_slot_invisible_nodes_recursive, ExpandedNode, PropertiesTreeContext};
 use pax_runtime_api::{CommonProperties, Layer, PropertyInstance, Size};
 
 /// A special "control-flow" primitive (a la `yield`) — represents a slot into which
@@ -38,8 +38,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
     where
         Self: Sized,
     {
-        let mut instance_registry = args.instance_registry.borrow_mut();
-        let instance_id = instance_registry.mint_instance_id();
+        let mut node_registry = args.node_registry.borrow_mut();
+        let instance_id = node_registry.mint_instance_id();
         let ret = Rc::new(RefCell::new(Self {
             instance_id,
             instance_prototypical_common_properties: Rc::new(RefCell::new(args.common_properties)),
@@ -47,7 +47,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
             index: args.slot_index.expect("index required for Slot"),
             cached_computed_children: Rc::new(RefCell::new(vec![])),
         }));
-        instance_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
+        node_registry.register(instance_id, Rc::clone(&ret) as InstanceNodePtr<R>);
         ret
     }
 
@@ -71,8 +71,8 @@ impl<R: 'static + RenderContext> InstanceNode<R> for SlotInstance<R> {
         bounds
     }
 
-    fn handle_compute_properties(&mut self, rtc: &mut RenderTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
-        if let Some(index) = rtc.compute_vtable_value(self.index._get_vtable_id()) {
+    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode<R>>> {
+        if let Some(index) = ptc.compute_vtable_value(self.index._get_vtable_id()) {
             let new_value = if let TypesCoproduct::Numeric(v) = index {
                 v
             } else {

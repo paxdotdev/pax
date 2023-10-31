@@ -17,9 +17,9 @@ pub enum PropertiesCoproduct {
     //core
     #[default]
     None,
-    Repeat(pax_runtime_api::RepeatProperties),
-    Slot(pax_runtime_api::SlotProperties),
-    Conditional(pax_runtime_api::ConditionalProperties),
+    Repeat(RepeatProperties),
+    Slot(SlotProperties),
+    Conditional(ConditionalProperties),
     RepeatItem(Rc<PropertiesCoproduct>, usize),
     #[allow(non_camel_case_types)]
     usize(usize),//used by Repeat + numeric ranges, e.g. `for i in 0..5`
@@ -56,14 +56,16 @@ pub enum TypesCoproduct {
 ///Contains modal _vec_ and _range_ variants, describing whether the Repeat source
 ///is encoded as a Vec<T> (where T is a PropertiesCoproduct type) or as a Range<isize>
 pub struct RepeatProperties {
-    pub repeat_source_expression_vec: Option<Box<dyn PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
-    pub repeat_source_expression_range: Option<Box<dyn PropertyInstance<std::ops::Range<isize>>>>,
+    pub source_expression_vec: Option<Box<dyn pax_runtime_api::PropertyInstance<Vec<Rc<PropertiesCoproduct>>>>>,
+    pub source_expression_range: Option<Box<dyn pax_runtime_api::PropertyInstance<std::ops::Range<isize>>>>,
 }
 
+///Contains the index value for slot, either a literal or an expression.
 pub struct SlotProperties {
-    pub index: Box<dyn PropertyInstance<pax_runtime_api::Numeric>>,
+    pub index: Box<dyn pax_runtime_api::PropertyInstance<pax_runtime_api::Numeric>>,
 }
 
+///Contains the expression of a conditional, evaluated as an expression.
 pub struct ConditionalProperties {
-    pub boolean_expression: Box<dyn PropertyInstance<bool>>,
+    pub boolean_expression: Box<dyn pax_runtime_api::PropertyInstance<bool>>,
 }
