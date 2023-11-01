@@ -23,7 +23,6 @@ pub struct PaxEngine<R: 'static + RenderContext> {
 
 
 /// Shared context for render pass recursion
-#[derive(Clone)]
 pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub engine: &'a PaxEngine<R>,
     pub transform_global: Affine,
@@ -40,7 +39,23 @@ pub struct RenderTreeContext<'a, R: 'static + RenderContext> {
     pub current_expanded_node: Rc<RefCell<ExpandedNode<R>>>,
     /// A pointer to the current expanded node, the atomic unit of traversal when rendering.
     pub current_instance_node: InstanceNodePtr<R>,
+}
 
+//Note that `#[derive(Clone)]` doens't work because of trait bounds surrounding R, even though
+//the only places R is used are trivially cloned.
+impl<'a, R: 'static + RenderContext> Clone for RenderTreeContext<'a, R> {
+    fn clone(&self) -> Self {
+        RenderTreeContext {
+            engine: self.engine, // Borrowed references are Copy, so they can be "cloned" trivially.
+            transform_global: self.transform_global.clone(),
+            transform_scroller_reset: self.transform_scroller_reset.clone(),
+            bounds: self.bounds.clone(),
+            clipping_stack: self.clipping_stack.clone(),
+            scroller_stack: self.scroller_stack.clone(),
+            current_expanded_node: Rc::clone(&self.current_expanded_node),
+            current_instance_node: Rc::clone(&self.current_instance_node),
+        }
+    }
 }
 
 
@@ -823,6 +838,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         // COMPUTE PROPERTIES
         let mut ptc = PropertiesTreeContext {
+            engine: &self,
             native_message_queue: Default::default(),
             timeline_playhead_position: 0,
             current_z_index: 0,
@@ -831,6 +847,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             current_instance_node: Rc::clone(&root_component_instance),
             current_expanded_node: None,
             parent_expanded_node: None,
+            runtime_properties_stack: vec![],
         };
         let root_expanded_node = recurse_compute_properties(&mut ptc);
 
@@ -1101,37 +1118,37 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         Self::manage_handlers_pre_render(rtc);
 
         //create the `expanded_node` for the current node
-        let rendering_children = &node.borrow_mut().children_expanded_nodes;
-        let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
-        let clipping = node
-            .borrow_mut()
-            .compute_clipping_within_bounds(accumulated_bounds);
-        let clipping_bounds = match node.borrow_mut().get_clipping_bounds() {
-            None => None,
-            Some(_) => Some(clipping),
-        };
-
-        let expanded_node_tab = TransformAndBounds {
-            bounds: node_size,
-            clipping_bounds,
-            transform: new_scroller_normalized_accumulated_transform.clone(),
-        };
-
-        let parent_expanded_node = rtc.parent_expanded_node.clone();
-        let expanded_node = Rc::new(ExpandedNode {
-            tab: expanded_node_tab.clone(),
-            id_chain: id_chain.clone(),
-            instance_node: Rc::clone(&node),
-            parent_expanded_node: parent_expanded_node,
-            node_context: rtc.distill_userland_node_context(),
-            z_index: rtc.current_z_index,
-        });
-
-        (*rtc.engine.node_registry)
-            .borrow_mut()
-            .add_to_expanded_node_cache(Rc::clone(&expanded_node));
-
-        let instance_id = node.borrow().get_instance_id();
+        // let rendering_children = &node.borrow_mut().children_expanded_nodes;
+        // let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
+        // let clipping = node
+        //     .borrow_mut()
+        //     .compute_clipping_within_bounds(accumulated_bounds);
+        // let clipping_bounds = match node.borrow_mut().get_clipping_bounds() {
+        //     None => None,
+        //     Some(_) => Some(clipping),
+        // };
+        //
+        // let expanded_node_tab = TransformAndBounds {
+        //     bounds: node_size,
+        //     clipping_bounds,
+        //     transform: new_scroller_normalized_accumulated_transform.clone(),
+        // };
+        //
+        // let parent_expanded_node = rtc.parent_expanded_node.clone();
+        // let expanded_node = Rc::new(ExpandedNode {
+        //     tab: expanded_node_tab.clone(),
+        //     id_chain: id_chain.clone(),
+        //     instance_node: Rc::clone(&node),
+        //     parent_expanded_node: parent_expanded_node,
+        //     node_context: rtc.distill_userland_node_context(),
+        //     z_index: rtc.current_z_index,
+        // });
+        //
+        // (*rtc.engine.node_registry)
+        //     .borrow_mut()
+        //     .add_to_expanded_node_cache(Rc::clone(&expanded_node));
+        //
+        // let instance_id = node.borrow().get_instance_id();
 
         //Determine if this node is marked for unmounting — either this has been passed as a flag from an ancestor that
         //was marked for deletion, or this instance_node is present in the NodeRegistry's "marked for unmount" set.
@@ -1140,7 +1157,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 .node_registry
                 .borrow()
                 .marked_for_unmount_set
-                .contains(&instance_id);
+                .contains(&node.borrow().id_chain);
 
         let mut subtree_depth = 0;
         //keep recursing through children
@@ -1163,7 +1180,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
         let mut child_z_index_info = z_index_info.clone();
         if z_index_info.get_current_layer() == Layer::Scroller {
-            let id_chain = rtc.get_id_chain(node.borrow().get_instance_id());
+            let id_chain = node.borrow().id_chain.clone();
             child_z_index_info = ZIndex::new(Some(id_chain));
             let (scroll_offset_x, scroll_offset_y) = node.borrow_mut().get_scroll_offset();
             let mut reset_transform = Affine::default();
@@ -1172,19 +1189,16 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
             rtc.transform_scroller_reset = reset_transform.clone();
         }
 
-        rendering_children
-            .borrow_mut()
+        &node.borrow_mut().children_expanded_nodes
             .iter()
             .rev()
-            .for_each(|child| {
+            .for_each(|expanded_node| {
                 //note that we're iterating starting from the last child, for z-index (.rev())
                 let mut new_rtc = rtc.clone();
-                new_rtc.parent_expanded_node = Some(Rc::downgrade(&expanded_node));
                 // if it's a scroller reset the z-index context for its children
                 self.recurse_render(
                     &mut new_rtc,
                     rcs,
-                    Rc::clone(child),
                     &mut child_z_index_info.clone(),
                     marked_for_unmount,
                 );
@@ -1193,49 +1207,51 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
                 subtree_depth = subtree_depth.max(child_z_index_info.get_level());
             });
 
-        let is_viewport_culled = !expanded_node_tab.intersects(&self.viewport_tab);
+        let is_viewport_culled = !node.borrow().tab.intersects(&self.viewport_tab);
+
+        let clipping = node
+            .borrow_mut()
+            .compute_clipping_within_bounds(accumulated_bounds);
+        let clipping_bounds = match node.borrow_mut().get_clipping_bounds() {
+            None => None,
+            Some(_) => Some(clipping),
+        };
+
+        let clipping_aware_bounds = if let Some(cb) = clipping_bounds {
+            cb
+        } else {
+            new_accumulated_bounds
+        };
 
         //lifecycle: handle_native_patches — for elements with native components (for example Text, Frame, and form control elements),
         //certain native-bridge events must be triggered when changes occur, and some of those events require pre-computed `size` and `transform`.
-        if let Some(cb) = clipping_bounds {
-            node.borrow_mut().handle_native_patches(
-                rtc,
-                cb,
-                new_scroller_normalized_accumulated_transform
-                    .as_coeffs()
-                    .to_vec(),
-                rtc.current_z_index,
-                subtree_depth,
-            );
-        } else {
-            node.borrow_mut().handle_native_patches(
-                rtc,
-                new_accumulated_bounds,
-                new_scroller_normalized_accumulated_transform
-                    .as_coeffs()
-                    .to_vec(),
-                rtc.current_z_index,
-                subtree_depth,
-            );
-        }
+        node.borrow_mut().instance_node.borrow_mut().handle_native_patches(
+            rtc,
+            clipping_aware_bounds,
+            new_scroller_normalized_accumulated_transform
+                .as_coeffs()
+                .to_vec(),
+            node.borrow().z_index,
+            subtree_depth,
+        );
 
         if let Some(rc) = rcs.get_mut(&canvas_id) {
             //lifecycle: render
             //this is this node's time to do its own rendering, aside
             //from the rendering of its children. Its children have already been rendered.
             if !is_viewport_culled {
-                node.borrow_mut().handle_render(rtc, rc);
+                node.borrow_mut().instance_node.borrow_mut().handle_render(rtc, rc);
             }
         } else {
             if let Some(rc) = rcs.get_mut("0") {
                 if !is_viewport_culled {
-                    node.borrow_mut().handle_render(rtc, rc);
+                    node.borrow_mut().instance_node.borrow_mut().handle_render(rtc, rc);
                 }
             }
         }
 
         //lifecycle: post_render
-        node.borrow_mut().handle_post_render(rtc, rcs);
+        node.borrow_mut().instance_node.borrow_mut().handle_post_render(rtc, rcs);
 
         // Component nodes fire their stack frame cleanup after full lifecycle, e.g. to handle lifecycle events
         // that depend on the component's stack frame
@@ -1246,13 +1262,12 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         //Handle node unmounting
         if marked_for_unmount {
             //lifecycle: unmount
-            node.borrow_mut().handle_unmount(rtc);
-            let id_chain = rtc.get_id_chain(instance_id);
+            node.borrow_mut().instance_node.borrow_mut().handle_unmount(rtc);
 
             self.node_registry
                 .borrow_mut()
                 .mounted_set
-                .remove(&id_chain);
+                .remove(&node.borrow().id_chain);
         }
     }
 
@@ -1288,9 +1303,7 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
         // let ray = Point {x: ray.0,y: ray.1};
         let mut ret: Option<Rc<ExpandedNode<R>>> = None;
         for node in nodes_ordered {
-            if (*node.instance_node)
-                .borrow()
-                .ray_cast_test(&ray, &node.tab)
+            if (*node).ray_cast_test(&ray)
             {
                 //We only care about the topmost node getting hit, and the element
                 //pool is ordered by z-index so we can just resolve the whole
@@ -1304,14 +1317,10 @@ impl<R: 'static + RenderContext> PaxEngine<R> {
 
                 loop {
                     if let Some(unwrapped_parent) = parent {
-                        if let Some(_) = (*unwrapped_parent.instance_node)
-                            .borrow()
-                            .get_clipping_bounds()
+                        if let Some(_) = (*unwrapped_parent).get_clipping_bounds()
                         {
-                            ancestral_clipping_bounds_are_satisfied = (*unwrapped_parent
-                                .instance_node)
-                                .borrow()
-                                .ray_cast_test(&ray, &unwrapped_parent.tab);
+                            ancestral_clipping_bounds_are_satisfied = (*unwrapped_parent)
+                                .ray_cast_test(&ray);
                             break;
                         }
                         parent = unwrapped_parent
