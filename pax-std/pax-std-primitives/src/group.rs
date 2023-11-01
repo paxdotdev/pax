@@ -25,7 +25,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for GroupInstance<R> {
         self.instance_id
     }
 
-    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
+    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.primitive_children)
     }
 

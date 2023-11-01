@@ -33,7 +33,7 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
     fn get_instance_id(&self) -> u32 {
         self.instance_id
     }
-    fn get_rendering_children(&self) -> InstanceNodePtrList<R> {
+    fn get_instance_children(&self) -> InstanceNodePtrList<R> {
         Rc::clone(&self.template)
     }
     fn get_node_type(&self) -> NodeType {
@@ -79,14 +79,14 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         ret
     }
 
-    fn get_size(&self) -> Option<(Size, Size)> {
-        None
-    }
-    fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
-        bounds
-    }
+    // fn get_size(&self) -> Option<(Size, Size)> {
+    //     None
+    // }
+    // fn compute_size_within_bounds(&self, bounds: (f64, f64)) -> (f64, f64) {
+    //     bounds
+    // }
 
-    fn handle_pre_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) {
+    fn handle_pre_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
 
         todo!("get properties from the current component -expanded node-, push to stack frame");
         // (*rtc.runtime).borrow_mut().push_stack_frame(
@@ -95,14 +95,14 @@ impl<R: 'static + RenderContext> InstanceNode<R> for ComponentInstance<R> {
         // );
     }
 
-    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) -> Rc<RefCell<ExpandedNode<R>>> {
+    fn handle_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) -> Rc<RefCell<ExpandedNode<R>>> {
         todo!("");
         //
         // self.common_properties.compute_properties(rtc);
         // (*self.compute_properties_fn)(Rc::clone(&self.properties), rtc);
     }
 
-    fn handle_post_compute_properties(&mut self, ptc: &mut PropertiesTreeContext) {
+    fn handle_post_compute_properties(&mut self, ptc: &mut PropertiesTreeContext<R>) {
         ptc.pop_stack_frame();
     }
 

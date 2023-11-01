@@ -1,5 +1,5 @@
 use pax_lang::api::{
-    ArgsClick, ArgsJab, ArgsScroll, ArgsTouchStart, ArgsTouchMove, ArgsTouchEnd,
+    ArgsClick, ArgsClap, ArgsScroll, ArgsTouchStart, ArgsTouchMove, ArgsTouchEnd,
     ArgsKeyDown, ArgsKeyUp, ArgsKeyPress, ArgsDoubleClick, ArgsMouseMove, ArgsWheel,
     ArgsMouseDown, ArgsMouseUp, ArgsMouseOver, ArgsMouseOut, ArgsContextMenu,
     RuntimeContext,  Property, PropertyLiteral
@@ -19,8 +19,8 @@ impl Words {
     pub fn handle_mount(&mut self, _ctx: RuntimeContext) {
     }
 
-    pub fn handle_jab(&mut self, _ctx: RuntimeContext, _args: ArgsJab) {
-        self.content.set("Jab".to_string());
+    pub fn handle_clap(&mut self, _ctx: RuntimeContext, _args: ArgsClap) {
+        self.content.set("Clap".to_string());
     }
 
     pub fn handle_scroll(&mut self, _ctx: RuntimeContext, _args: ArgsScroll) {

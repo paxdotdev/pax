@@ -15,7 +15,7 @@ use pax_core::{NodeRegistry, PaxEngine};
 
 use pax_message::{ImageLoadInterruptArgs, NativeInterrupt};
 use pax_runtime_api::{
-    ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsJab, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
+    ArgsClick, ArgsContextMenu, ArgsDoubleClick, ArgsClap, ArgsKeyDown, ArgsKeyPress, ArgsKeyUp,
     ArgsMouseDown, ArgsMouseMove, ArgsMouseOut, ArgsMouseOver, ArgsMouseUp, ArgsScroll,
     ArgsTouchEnd, ArgsTouchMove, ArgsTouchStart, ArgsWheel, KeyboardEventArgs, ModifierKey,
     MouseButton, MouseEventArgs, Touch,
@@ -185,16 +185,16 @@ impl PaxChassisWeb {
                     topmost_node.dispatch_scroll(args_scroll);
                 }
             }
-            NativeInterrupt::Jab(args) => {
+            NativeInterrupt::Clap(args) => {
                 let prospective_hit = (*self.engine)
                     .borrow()
                     .get_topmost_element_beneath_ray((args.x, args.y));
                 if let Some(topmost_node) = prospective_hit {
-                    let args_jab = ArgsJab {
+                    let args_clap = ArgsClap {
                         x: args.x,
                         y: args.y,
                     };
-                    topmost_node.dispatch_jab(args_jab);
+                    topmost_node.dispatch_clap(args_clap);
                 }
             }
             NativeInterrupt::TouchStart(args) => {
