@@ -3,7 +3,7 @@ use cargo_metadata::{Message, diagnostic::DiagnosticLevel};
 use colored::*;
 use std::io::Cursor;
 use std::io::BufReader;
-use color_eyre::eyre::{self, WrapErr, Report};
+use color_eyre::eyre::{self, WrapErr, Report, eyre};
 use color_eyre::Result;
 use std::process::Output;
 use regex::Regex;
@@ -18,6 +18,13 @@ use self::source_map::SourceMap;
 pub struct PaxTemplateError {
     pub message: Option<String>,
     pub token: Token,
+}
+
+impl PaxTemplateError {
+    pub fn new(message: Option<String>, token: Token) -> eyre::Report {
+        let err = PaxTemplateError { message, token };
+        eyre!(format!("{}", err))
+    }
 }
 
 impl fmt::Display for PaxTemplateError {

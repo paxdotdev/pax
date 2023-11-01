@@ -1188,6 +1188,7 @@ pub fn perform_build(ctx: &RunContext) -> eyre::Result<(), Report> {
     generate_and_overwrite_properties_coproduct(&pax_dir, &manifest, &host_crate_info);
     let cartridge_path = generate_and_overwrite_cartridge(&pax_dir, &manifest, &host_crate_info, &mut source_map);
     source_map.extract_ranges_from_generated_code(cartridge_path.to_str().unwrap());
+
     //7. Build the appropriate `chassis` from source, with the patched `Cargo.toml`, Properties Coproduct, and Cartridge from above
     println!("{} 🧱 Building cartridge with `cargo`", *PAX_BADGE);
     build_chassis_with_cartridge(&pax_dir, &ctx, Arc::clone(&ctx.process_child_ids), &source_map)?;
@@ -1274,6 +1275,13 @@ pub fn perform_clean(path: &str) {
 
     fs::remove_dir_all(&pax_dir).ok();
 }
+
+fn run_cargo_build(){
+
+}
+
+
+
 
 /// Runs `cargo build` (or `wasm-pack build`) with appropriate env in the directory
 /// of the generated chassis project inside the specified .pax dir
@@ -2037,6 +2045,7 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             }
         }
         RunTarget::Web => {
+            // First pass cargo build to catch errors in template with source map
             let mut cmd = Command::new("cargo");
             cmd.current_dir(&chassis_path)
                 .arg("build")
@@ -2059,26 +2068,15 @@ Note that the temporary directories mentioned above are subject to overwriting.\
             let child = cmd.spawn().expect(ERR_SPAWN);
             let output = wait_with_output(&process_child_ids, child);
             if !output.status.success() {
-                errors::process_messages(output, source_map)?;
-                // let stderr_stream = Cursor::new(output.stdout);
-                // let reader = BufReader::new(stderr_stream);
-                
-                // for message in Message::parse_stream(reader) {
-                //     match message {
-                //         Ok(Message::CompilerMessage(msg)) => {
-                //             if msg.message.level == DiagnosticLevel::Error {
-                //                 if msg.message.spans.len() > 0 {
-                //                     let line = msg.message.spans[0].line_start;
-                //                     eprintln!("The issue message was {:?}", msg.message.message);
-                //                     if let Some(range_data) = source_map.get_range_for_line(line) {
-                //                         eprintln!("The original token that caused it: {:?}", range_data.token);
-                //                     }
-                //                 }
-                //             }
-                //         },
-                //         _ => {}
-                //     }
-                // }
+                let result = errors::process_messages(output, source_map);
+                if ctx.verbose { 
+                    // Print and continue to wasm-pack to get full error stack trace
+                    if let Err(e) = result {
+                        eprintln!("Error encountered: {:?}", e);
+                    }
+                } else {
+                    result?;
+                }
             }
 
             let mut cmd = Command::new("wasm-pack");
